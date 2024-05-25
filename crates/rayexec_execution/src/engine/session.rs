@@ -15,7 +15,6 @@ use crate::{
     functions::{
         aggregate::{self, GenericAggregateFunction, ALL_AGGREGATE_FUNCTIONS},
         scalar::{GenericScalarFunction, ALL_SCALAR_FUNCTIONS},
-        table::{self, TableFunctionOld},
     },
     optimizer::Optimizer,
     planner::{plan::PlanContext, Resolver},
@@ -91,23 +90,6 @@ impl<'a> Resolver for DebugResolver<'a> {
             .aggregates
             .get(reference.0[0].value.as_str())?;
         Some((*func).clone())
-    }
-
-    fn resolve_table_function(
-        &self,
-        reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunctionOld>> {
-        if reference.0.len() != 1 {
-            return Err(RayexecError::new("Expected a single ident"));
-        }
-
-        Ok(match reference.0[0].value.as_ref() {
-            "dummy" => Box::new(table::dummy::DummyTableFunction),
-            "generate_series" => Box::new(table::generate_series::GenerateSeries),
-            "read_csv" => Box::new(table::csv::read_csv::ReadCsv),
-            "sniff_csv" => Box::new(table::csv::sniff_csv::SniffCsv),
-            other => return Err(RayexecError::new(format!("unknown function: {other}"))),
-        })
     }
 
     fn get_session_variable(&self, name: &str) -> Result<SessionVar> {

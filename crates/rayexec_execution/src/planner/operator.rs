@@ -5,7 +5,6 @@ use crate::functions::scalar::{GenericScalarFunction, SpecializedScalarFunction}
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
-    functions::table::BoundTableFunctionOld,
 };
 use rayexec_bullet::field::{DataType, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -327,14 +326,15 @@ impl Explainable for Limit {
 
 #[derive(Debug)]
 pub enum ScanItem {
-    TableFunction(Box<dyn BoundTableFunctionOld>),
+    TableFunction(),
 }
 
 impl Explainable for ScanItem {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        match self {
-            Self::TableFunction(func) => func.explain_entry(conf),
-        }
+        unimplemented!()
+        // match self {
+        //     Self::TableFunction(func) => func.explain_entry(conf),
+        // }
     }
 }
 

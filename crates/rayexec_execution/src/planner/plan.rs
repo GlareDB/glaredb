@@ -7,12 +7,9 @@ use super::{
     scope::{ColumnRef, Scope},
     Resolver,
 };
-use crate::{
-    functions::table::TableFunctionArgs,
-    planner::{
-        operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
-        scope::TableReference,
-    },
+use crate::planner::{
+    operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
+    scope::TableReference,
 };
 use rayexec_bullet::field::{Schema, TypeSchema};
 use rayexec_error::{RayexecError, Result};
@@ -420,63 +417,64 @@ impl<'a> PlanContext<'a> {
                 nested.plan_query(query)?
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
-                let func = self.resolver.resolve_table_function(&reference)?;
+                unimplemented!()
+                // let func = self.resolver.resolve_table_function(&reference)?;
 
-                // Plan the arguments to the table function. Currently only
-                // constant expressions are allowed.
-                let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
-                let mut func_args = TableFunctionArgs::default();
-                for arg in args {
-                    match arg {
-                        ast::FunctionArg::Named { name, arg } => {
-                            match expr_ctx.plan_expression(arg)? {
-                                LogicalExpression::Literal(v) => {
-                                    func_args.named.insert(name.value, v);
-                                }
-                                other => {
-                                    return Err(RayexecError::new(format!(
-                                        "Argument to table funtion is not a constant: {other:?}"
-                                    )))
-                                }
-                            }
-                        }
-                        ast::FunctionArg::Unnamed { arg } => {
-                            match expr_ctx.plan_expression(arg)? {
-                                LogicalExpression::Literal(v) => func_args.unnamed.push(v),
-                                other => {
-                                    return Err(RayexecError::new(format!(
-                                        "Argument to table funtion is not a constant: {other:?}"
-                                    )))
-                                }
-                            }
-                        }
-                    }
-                }
+                // // Plan the arguments to the table function. Currently only
+                // // constant expressions are allowed.
+                // let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
+                // let mut func_args = TableFunctionArgs::default();
+                // for arg in args {
+                //     match arg {
+                //         ast::FunctionArg::Named { name, arg } => {
+                //             match expr_ctx.plan_expression(arg)? {
+                //                 LogicalExpression::Literal(v) => {
+                //                     func_args.named.insert(name.value, v);
+                //                 }
+                //                 other => {
+                //                     return Err(RayexecError::new(format!(
+                //                         "Argument to table funtion is not a constant: {other:?}"
+                //                     )))
+                //                 }
+                //             }
+                //         }
+                //         ast::FunctionArg::Unnamed { arg } => {
+                //             match expr_ctx.plan_expression(arg)? {
+                //                 LogicalExpression::Literal(v) => func_args.unnamed.push(v),
+                //                 other => {
+                //                     return Err(RayexecError::new(format!(
+                //                         "Argument to table funtion is not a constant: {other:?}"
+                //                     )))
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
 
-                let name = func.name();
-                let bound = func.bind(func_args)?; // The only thing that would benefit from async.
-                let schema = bound.schema().clone();
+                // let name = func.name();
+                // let bound = func.bind(func_args)?; // The only thing that would benefit from async.
+                // let schema = bound.schema().clone();
 
-                // Create a new scope with just this table function.
-                // TODO: Reference should probably be qualified.
-                let scope = Scope::with_columns(
-                    Some(TableReference {
-                        database: None,
-                        schema: None,
-                        table: name.to_string(),
-                    }),
-                    schema.iter().map(|field| field.name.clone()),
-                );
+                // // Create a new scope with just this table function.
+                // // TODO: Reference should probably be qualified.
+                // let scope = Scope::with_columns(
+                //     Some(TableReference {
+                //         database: None,
+                //         schema: None,
+                //         table: name.to_string(),
+                //     }),
+                //     schema.iter().map(|field| field.name.clone()),
+                // );
 
-                let operator = LogicalOperator::Scan(Scan {
-                    source: ScanItem::TableFunction(bound),
-                    schema: schema.into_type_schema(),
-                });
+                // let operator = LogicalOperator::Scan(Scan {
+                //     source: ScanItem::TableFunction(bound),
+                //     schema: schema.into_type_schema(),
+                // });
 
-                LogicalQuery {
-                    root: operator,
-                    scope,
-                }
+                // LogicalQuery {
+                //     root: operator,
+                //     scope,
+                // }
             }
             ast::FromNodeBody::Join(ast::FromJoin {
                 left,

@@ -6,19 +6,12 @@ pub mod scope;
 
 use crate::{
     engine::vars::SessionVar,
-    functions::{
-        aggregate::GenericAggregateFunction, scalar::GenericScalarFunction, table::TableFunctionOld,
-    },
+    functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction},
 };
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
 pub trait Resolver: std::fmt::Debug {
-    // fn resolve_aggregate_function(
-    //     &self,
-    //     reference: &ast::ObjectReference,
-    // ) -> Result<Option<Box<dyn AggregateFunction>>>;
-
     fn resolve_scalar_function(
         &self,
         reference: &ast::ObjectReference,
@@ -28,11 +21,6 @@ pub trait Resolver: std::fmt::Debug {
         &self,
         reference: &ast::ObjectReference,
     ) -> Option<Box<dyn GenericAggregateFunction>>;
-
-    fn resolve_table_function(
-        &self,
-        reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunctionOld>>;
 
     fn get_session_variable(&self, name: &str) -> Result<SessionVar>;
 }

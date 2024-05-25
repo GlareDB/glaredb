@@ -1,4 +1,3 @@
-pub mod materialize;
 pub mod modify;
 pub mod result_stream;
 pub mod session;
