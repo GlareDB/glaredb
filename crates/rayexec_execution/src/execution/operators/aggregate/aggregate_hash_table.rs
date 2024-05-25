@@ -194,7 +194,7 @@ impl PartitionAggregateHashTable {
             let row = std::mem::replace(&mut other.group_values[group_idx], ScalarRow::empty());
 
             let ent = self.hash_table.get_mut(hash, |(_hash, self_group_idx)| {
-                &row == &self.group_values[*self_group_idx]
+                row == self.group_values[*self_group_idx]
             });
 
             match ent {
@@ -299,7 +299,7 @@ impl AggregateHashTableDrain {
             .map(|agg_state| agg_state.states.drain_finalize_n(self.batch_size))
             .collect::<Result<Option<Vec<_>>>>()?;
         let result_cols: Vec<_> = match result_cols {
-            Some(cols) => cols.into_iter().map(|col| Arc::new(col)).collect(),
+            Some(cols) => cols.into_iter().map(Arc::new).collect(),
             None => return Ok(None),
         };
 
@@ -324,16 +324,12 @@ impl AggregateHashTableDrain {
                 .map(|row| row.columns.pop().expect("column to exist"));
 
             // If we're not actually in the projection, just skip this column.
-            let is_in_projection = self
-                .projection
-                .iter()
-                .position(|proj| match proj {
-                    HashAggregateColumnOutput::GroupingColumn(idx) => {
-                        *idx == (num_groups - from_right - 1)
-                    }
-                    _ => false,
-                })
-                .is_some();
+            let is_in_projection = self.projection.iter().any(|proj| match proj {
+                HashAggregateColumnOutput::GroupingColumn(idx) => {
+                    *idx == (num_groups - from_right - 1)
+                }
+                _ => false,
+            });
             if !is_in_projection {
                 continue;
             }

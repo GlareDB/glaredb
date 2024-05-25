@@ -28,6 +28,11 @@ impl Bitmap {
         self.len
     }
 
+    // Check if this bitmap is empty.
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     /// Get the total number of bytes of the underlying data.
     pub fn num_bytes(&self) -> usize {
         self.data.len()
@@ -63,10 +68,10 @@ impl Bitmap {
         assert!(idx < self.len);
         if val {
             // Set bit.
-            self.data[idx / 8] = self.data[idx / 8] | (1 << (idx % 8))
+            self.data[idx / 8] |= 1 << (idx % 8)
         } else {
             // Unset bit
-            self.data[idx / 8] = self.data[idx / 8] & !(1 << (idx % 8))
+            self.data[idx / 8] &= !(1 << (idx % 8))
         }
     }
 
@@ -128,7 +133,7 @@ impl FromIterator<bool> for Bitmap {
             for (idx, bit) in iter.borrow_mut().take(8).enumerate() {
                 bit_len += 1;
                 if bit {
-                    byte = byte | (1 << idx);
+                    byte |= 1 << idx;
                 }
             }
 
@@ -252,10 +257,10 @@ mod tests {
         let mut bm = Bitmap::from_iter(bits);
 
         bm.set(0, false);
-        assert_eq!(false, bm.value(0));
+        assert!(!bm.value(0));
 
         bm.set(1, true);
-        assert_eq!(true, bm.value(1));
+        assert!(bm.value(1));
     }
 
     #[test]

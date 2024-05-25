@@ -19,14 +19,14 @@ use crate::{
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             simple::{SimpleOperator, SimplePartitionState},
-            sort::{merge_sorted::PhysicalMergeSortedInputs, sort::PhysicalSort},
+            sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             values::{PhysicalValues, ValuesPartitionState},
             OperatorState, PartitionState,
         },
         pipeline::{Pipeline, PipelineId},
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
-    planner::operator::{self, LogicalNode, LogicalOperator},
+    planner::operator::{self, LogicalOperator},
 };
 use rayexec_bullet::{
     array::Array, batch::Batch, bitmap::Bitmap, compute::concat::concat, field::TypeSchema,
@@ -199,11 +199,11 @@ impl BuildState {
             .take()
             .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
 
-        let operator = Arc::new(PhysicalSort::new(exprs.clone()));
+        let operator = Arc::new(PhysicalLocalSort::new(exprs.clone()));
         let partition_states: Vec<_> = operator
             .create_states(current.num_partitions())
             .into_iter()
-            .map(PartitionState::Sort)
+            .map(PartitionState::LocalSort)
             .collect();
         let operator_state = Arc::new(OperatorState::None);
         current.push_operator(operator, operator_state, partition_states)?;
@@ -269,7 +269,7 @@ impl BuildState {
 
         let mut agg_exprs = Vec::new();
         let mut projection = Vec::new();
-        for (_idx, expr) in agg.exprs.into_iter().enumerate() {
+        for expr in agg.exprs.into_iter() {
             match expr {
                 operator::LogicalExpression::ColumnRef(col) => {
                     let col = col.try_as_uncorrelated()?;
@@ -387,11 +387,11 @@ impl BuildState {
         let operator_state = Arc::new(OperatorState::RoundRobin(operator_state));
         let push_states = push_states
             .into_iter()
-            .map(|state| PartitionState::RoundRobinPush(state))
+            .map(PartitionState::RoundRobinPush)
             .collect();
         let pull_states = pull_states
             .into_iter()
-            .map(|state| PartitionState::RoundRobinPull(state))
+            .map(PartitionState::RoundRobinPull)
             .collect();
 
         let physical = Arc::new(PhysicalRoundRobinRepartition);

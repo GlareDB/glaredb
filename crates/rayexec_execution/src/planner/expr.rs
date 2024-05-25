@@ -1,11 +1,8 @@
-use rayexec_bullet::{
-    field::{Schema, TypeSchema},
-    scalar::OwnedScalarValue,
-};
+use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::functions::scalar::{self, GenericScalarFunction};
+use crate::functions::scalar::GenericScalarFunction;
 
 use super::{
     operator::LogicalExpression,
@@ -326,7 +323,7 @@ impl<'a> ExpressionContext<'a> {
     ) -> Result<bool> {
         let inputs = inputs
             .iter()
-            .map(|expr| expr.datatype(&self.input, &[])) // TODO: Outer schemas
+            .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
         if function.return_type_for_inputs(&inputs).is_some() {

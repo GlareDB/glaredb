@@ -141,6 +141,10 @@ where
         self.offsets.as_ref().len() - 1
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn value(&self, idx: usize) -> Option<&T> {
         if idx >= self.len() {
             return None;
@@ -291,7 +295,13 @@ where
     varlen_type: PhantomData<A>,
 }
 
-impl<'a, A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
+impl<A: AsVarlenType, O: OffsetIndex> Default for VarlenArrayBuilder<A, O> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
     // TODO: With capacity
     pub fn new() -> Self {
         VarlenArrayBuilder {
@@ -312,7 +322,7 @@ impl<'a, A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
     }
 }
 
-impl<'a, A: AsVarlenType, O: OffsetIndex> ArrayBuilder<A> for VarlenArrayBuilder<A, O> {
+impl<A: AsVarlenType, O: OffsetIndex> ArrayBuilder<A> for VarlenArrayBuilder<A, O> {
     fn push_value(&mut self, value: A) {
         self.data.extend(value.as_varlen_type().as_binary());
         let offset = self.data.len();

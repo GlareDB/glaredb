@@ -45,6 +45,7 @@ pub fn rem(left: &mut Array, right: &Array) -> Result<()> {
 
 macro_rules! scalar_arith_dispatch {
     ($left:ident, $right:ident, $fn:expr) => {{
+        #[allow(clippy::redundant_closure_call)]
         match ($left, $right) {
             (ScalarValue::Float32(left), ScalarValue::Float32(right)) => $fn(left, right),
             (ScalarValue::Float64(left), ScalarValue::Float64(right)) => $fn(left, right),

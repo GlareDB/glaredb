@@ -22,6 +22,10 @@ impl BooleanArray {
         self.values.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
         if idx >= self.len() {
             return None;
@@ -122,6 +126,12 @@ impl<'a> ArrayAccessor<bool> for &'a BooleanArray {
 pub struct BooleanArrayBuilder {
     values: Bitmap,
     validity: Option<Bitmap>,
+}
+
+impl Default for BooleanArrayBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BooleanArrayBuilder {

@@ -3,7 +3,7 @@ use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 
-static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(|| SessionVars::global_default());
+static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(SessionVars::global_default);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {

@@ -137,7 +137,7 @@ impl SharedOperatorState {
     ///
     /// Must be called when number of partitions remaining on the build side is
     /// zero.
-    fn into_probing(&mut self) {
+    fn transition_into_probing(&mut self) {
         match self {
             Self::Building {
                 batches,
@@ -235,7 +235,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                     batches.append(&mut out);
                 }
 
-                state.buffered.extend(batches.into_iter());
+                state.buffered.extend(batches);
 
                 // We have stuff in the buffer, wake up the puller.
                 if let Some(waker) = state.pull_waker.take() {
@@ -276,7 +276,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                         // If we're the last build partition, go ahead and
                         // transition the global state to begin probing.
                         if *build_partitions_remaining == 0 {
-                            inner.into_probing();
+                            inner.transition_into_probing();
                         }
 
                         // And we're done.
@@ -352,7 +352,7 @@ fn cross_join(
             // TODO: It'd be nice to have a logical repeated array type instead
             // of having to physically copy the same element `n` times into a
             // new array.
-            let left_repeated = take(&col, &left_indices)?;
+            let left_repeated = take(col, &left_indices)?;
             cols.push(Arc::new(left_repeated));
         }
 

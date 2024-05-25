@@ -1,6 +1,6 @@
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::task::{Context, Waker};
+use std::task::Context;
 
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
@@ -18,7 +18,7 @@ pub struct PhysicalTopK {}
 impl PhysicalTopK {
     pub fn create_states(
         &self,
-        input_partitions: usize,
+        _input_partitions: usize,
     ) -> (TopKOperatorState, Vec<TopKPartitionState>) {
         unimplemented!()
     }
@@ -27,17 +27,17 @@ impl PhysicalTopK {
 impl PhysicalOperator for PhysicalTopK {
     fn poll_push(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        _batch: Batch,
     ) -> Result<PollPush> {
         unimplemented!()
     }
 
     fn finalize_push(
         &self,
-        partition_state: &mut PartitionState,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<()> {
         unimplemented!()
@@ -45,8 +45,8 @@ impl PhysicalOperator for PhysicalTopK {
 
     fn poll_pull(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         unimplemented!()

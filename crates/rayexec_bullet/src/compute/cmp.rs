@@ -140,6 +140,10 @@ pub fn gt_eq_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
 // TODO: Null comparisions (those should always return null)
 macro_rules! scalar_cmp_dispatch {
     ($left:ident, $right:ident, $fn:expr) => {{
+        // We're passing in a closure for `fn` for ease of use. We can probably
+        // refactor this to avoid hitting this lint, but it's for scalars, so I
+        // don't really care that much.
+        #[allow(clippy::redundant_closure_call)]
         match ($left, $right) {
             (ScalarValue::Boolean(left), ScalarValue::Boolean(right)) => $fn(left, right),
             (ScalarValue::Float32(left), ScalarValue::Float32(right)) => $fn(left, right),

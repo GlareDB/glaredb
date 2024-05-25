@@ -26,6 +26,12 @@ pub struct SimplePartitionState {
     exhausted: bool,
 }
 
+impl Default for SimplePartitionState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SimplePartitionState {
     pub fn new() -> Self {
         SimplePartitionState {

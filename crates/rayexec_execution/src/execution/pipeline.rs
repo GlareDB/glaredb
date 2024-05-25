@@ -6,7 +6,6 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tracing::trace;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct PipelineId(pub usize);
@@ -21,6 +20,7 @@ pub struct Pipeline {
     /// ID of this pipeline. Unique to the query graph.
     ///
     /// Informational only.
+    #[allow(dead_code)]
     pub(crate) pipeline_id: PipelineId,
 
     /// Parition pipelines that make up this pipeline.
@@ -103,6 +103,7 @@ pub struct PartitionPipeline {
     /// Information about the pipeline.
     ///
     /// Should only be used for debugging/logging.
+    #[allow(dead_code)]
     info: PartitionPipelineInfo,
 
     /// State of this pipeline.

@@ -4,8 +4,6 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{ast, parser};
 
-use tracing::trace;
-
 use crate::{
     engine::result_stream::unpartitioned_result_stream,
     execution::query_graph::{
@@ -13,7 +11,7 @@ use crate::{
         sink::QuerySink,
     },
     functions::{
-        aggregate::{self, GenericAggregateFunction, ALL_AGGREGATE_FUNCTIONS},
+        aggregate::{GenericAggregateFunction, ALL_AGGREGATE_FUNCTIONS},
         scalar::{GenericScalarFunction, ALL_SCALAR_FUNCTIONS},
     },
     optimizer::Optimizer,
@@ -28,6 +26,7 @@ use super::{
 };
 
 #[derive(Debug)]
+#[allow(clippy::borrowed_box)] // Boxing is useful for the clones. The 'static lifetime might go away at some point.
 struct SessionFunctions {
     scalars: HashMap<&'static str, &'static Box<dyn GenericScalarFunction>>,
     aggregates: HashMap<&'static str, &'static Box<dyn GenericAggregateFunction>>,
@@ -105,10 +104,10 @@ pub struct ExecutionResult {
 
 #[derive(Debug)]
 pub struct Session {
-    pub(crate) modifications: SessionModifier,
-    pub(crate) vars: SessionVars,
-    pub(crate) scheduler: Scheduler,
-    pub(crate) functions: SessionFunctions,
+    modifications: SessionModifier,
+    vars: SessionVars,
+    scheduler: Scheduler,
+    functions: SessionFunctions,
 }
 
 impl Session {

@@ -102,7 +102,7 @@ impl Batch {
 
         // Non-zero number of rows, but no actual columns. Just return an empty
         // row.
-        if self.cols.len() == 0 {
+        if self.cols.is_empty() {
             return Some(ScalarRow::empty());
         }
 

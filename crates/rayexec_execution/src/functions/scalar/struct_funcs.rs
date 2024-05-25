@@ -87,11 +87,11 @@ impl GenericScalarFunction for StructExtract {
         }]
     }
 
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
+    fn return_type_for_inputs(&self, _inputs: &[DataType]) -> Option<DataType> {
         unimplemented!()
     }
 
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+    fn specialize(&self, _inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         unimplemented!()
     }
 }

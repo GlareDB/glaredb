@@ -207,7 +207,7 @@ impl<'a> DecodedRecords<'a> {
         let offsets = &self.offsets[offset_idx..offset_idx + self.num_fields + 1];
 
         DecodedRecord {
-            data: &self.data,
+            data: self.data,
             offsets,
             num_fields: self.num_fields,
         }

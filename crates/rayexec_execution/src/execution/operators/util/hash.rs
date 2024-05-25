@@ -53,6 +53,7 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
 }
 
 /// Hash a row.
+#[allow(dead_code)]
 pub fn hash_row(row: &ScalarRow) -> Result<u64> {
     let mut result = 0;
     for (idx, scalar) in row.iter().enumerate() {

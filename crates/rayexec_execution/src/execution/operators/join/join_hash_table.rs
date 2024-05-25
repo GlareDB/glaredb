@@ -1,6 +1,6 @@
 use hashbrown::raw::RawTable;
 use rayexec_bullet::{
-    array::{Array, BooleanArray},
+    array::BooleanArray,
     batch::Batch,
     bitmap::Bitmap,
     compute::{concat::concat, filter::filter, take::take},
@@ -27,6 +27,12 @@ pub struct PartitionJoinHashTable {
 
     /// Hash table pointing to a row.
     hash_table: RawTable<(u64, RowKey)>,
+}
+
+impl Default for PartitionJoinHashTable {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PartitionJoinHashTable {

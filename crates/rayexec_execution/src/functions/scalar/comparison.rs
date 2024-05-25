@@ -10,7 +10,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-const COMPARISON_SIGNATURES: &'static [Signature] = &[
+const COMPARISON_SIGNATURES: &[Signature] = &[
     Signature {
         input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
         return_type: ReturnType::Static(DataType::Boolean),

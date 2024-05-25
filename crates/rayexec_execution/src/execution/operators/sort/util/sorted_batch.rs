@@ -148,7 +148,7 @@ impl Eq for RowReference {}
 
 impl PartialOrd for RowReference {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.row().partial_cmp(&other.row())
+        Some(self.cmp(other))
     }
 }
 

@@ -34,7 +34,7 @@ where
                 }
             }
             if idx < batch.num_rows() - 1 {
-                write!(buf, "\n")?;
+                writeln!(buf)?;
             }
         }
     }

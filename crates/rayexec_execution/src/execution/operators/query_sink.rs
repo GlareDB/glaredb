@@ -1,4 +1,4 @@
-use crate::execution::query_graph::sink::{PartitionSink, QuerySink};
+use crate::execution::query_graph::sink::PartitionSink;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;

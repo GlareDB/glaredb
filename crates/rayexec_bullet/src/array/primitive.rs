@@ -141,6 +141,10 @@ impl<T> PrimitiveArray<T> {
         self.values.as_ref().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get the value at the given index.
     ///
     /// This does not take validity into account.

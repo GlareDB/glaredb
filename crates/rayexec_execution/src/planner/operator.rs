@@ -1,7 +1,7 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
 use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::{GenericScalarFunction, SpecializedScalarFunction};
+use crate::functions::scalar::GenericScalarFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
@@ -68,10 +68,10 @@ impl LogicalOperator {
     pub fn as_explain_string(&self) -> Result<String> {
         use std::fmt::Write as _;
         fn write(p: &dyn Explainable, indent: usize, buf: &mut String) -> Result<()> {
-            write!(
+            writeln!(
                 buf,
-                "{}{}\n",
-                std::iter::repeat(" ").take(indent).collect::<String>(),
+                "{}{}",
+                " ".repeat(indent),
                 p.explain_entry(ExplainConfig { verbose: true })
             )
             .context("failed to write explain string to buffer")?;
@@ -330,7 +330,7 @@ pub enum ScanItem {
 }
 
 impl Explainable for ScanItem {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         unimplemented!()
         // match self {
         //     Self::TableFunction(func) => func.explain_entry(conf),
@@ -615,13 +615,13 @@ impl LogicalExpression {
                     .iter()
                     .map(|input| input.datatype(current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                let ret_type = function.return_type_for_inputs(&datatypes).ok_or_else(|| {
+
+                function.return_type_for_inputs(&datatypes).ok_or_else(|| {
                     RayexecError::new(format!(
                         "Failed to find correct signature for '{}'",
                         function.name()
                     ))
-                })?;
-                ret_type
+                })?
             }
             LogicalExpression::Aggregate {
                 agg,
@@ -632,25 +632,24 @@ impl LogicalExpression {
                     .iter()
                     .map(|input| input.datatype(current, outer))
                     .collect::<Result<Vec<_>>>()?;
-                let ret_type = agg.return_type_for_inputs(&datatypes).ok_or_else(|| {
+
+                agg.return_type_for_inputs(&datatypes).ok_or_else(|| {
                     RayexecError::new(format!(
                         "Failed to find correct signature for '{}'",
                         agg.name()
                     ))
-                })?;
-                ret_type
+                })?
             }
             LogicalExpression::Unary { op: _, expr: _ } => unimplemented!(),
             LogicalExpression::Binary { op, left, right } => {
                 let left = left.datatype(current, outer)?;
                 let right = right.datatype(current, outer)?;
-                let ret_type = op
-                    .scalar_function()
+
+                op.scalar_function()
                     .return_type_for_inputs(&[left, right])
                     .ok_or_else(|| {
                         RayexecError::new("Failed to get correct signature for scalar function")
-                    })?;
-                ret_type
+                    })?
             }
             _ => unimplemented!(),
         })

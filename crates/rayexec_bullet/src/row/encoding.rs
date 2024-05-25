@@ -77,7 +77,7 @@ impl<'a> Iterator for ComparableRowIter<'a> {
 
 impl<'a> ComparableRow<'a> {
     pub fn data(&self) -> &'a [u8] {
-        &self.data
+        self.data
     }
 }
 
@@ -305,13 +305,11 @@ impl ComparableRowEncoder {
             value.encode(write_buf);
             col.invert_if_desc(write_buf);
 
-            let offset = start + 1 + write_buf.len();
-            offset
+            start + 1 + write_buf.len()
         } else {
             buf[start] = null_bit;
 
-            let offset = start + 1;
-            offset
+            start + 1
         }
     }
 
@@ -336,13 +334,11 @@ impl ComparableRowEncoder {
             value.encode(write_buf);
             col.invert_if_desc(write_buf);
 
-            let offset = start + 1 + write_buf.len();
-            offset
+            start + 1 + write_buf.len()
         } else {
             buf[start] = null_bit;
 
-            let offset = start + 1;
-            offset
+            start + 1
         }
     }
 }

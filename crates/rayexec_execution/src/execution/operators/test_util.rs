@@ -47,11 +47,6 @@ impl TestContext {
         self.inner.wake_count.load(Ordering::SeqCst)
     }
 
-    /// Get the inner waker.
-    pub fn inner_waker(&self) -> &Waker {
-        &self.waker
-    }
-
     /// Create a context that's holding this waker.
     pub fn context(&self) -> Context {
         Context::from_waker(&self.waker)

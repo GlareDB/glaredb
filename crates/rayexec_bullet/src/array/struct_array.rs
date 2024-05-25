@@ -21,7 +21,7 @@ impl StructArray {
             )));
         }
 
-        let arrays = keys.into_iter().zip(values.into_iter()).collect();
+        let arrays = keys.into_iter().zip(values).collect();
 
         Ok(StructArray {
             validity: None,
@@ -31,6 +31,10 @@ impl StructArray {
 
     pub fn len(&self) -> usize {
         self.arrays[0].1.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {

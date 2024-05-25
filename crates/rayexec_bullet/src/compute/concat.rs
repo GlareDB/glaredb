@@ -101,7 +101,7 @@ where
     // TODO: Nulls
     // TODO: We should probably preallocate the values buffer.
     let values_iters = arrays.iter().map(|arr| arr.values_iter());
-    VarlenArray::from_iter(values_iters.flat_map(|iter| iter))
+    VarlenArray::from_iter(values_iters.flatten())
 }
 
 #[cfg(test)]

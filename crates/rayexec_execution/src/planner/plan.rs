@@ -8,10 +8,10 @@ use super::{
     Resolver,
 };
 use crate::planner::{
-    operator::{ExpressionList, Filter, JoinType, Scan, ScanItem, SetVar, ShowVar},
+    operator::{ExpressionList, Filter, JoinType, SetVar, ShowVar},
     scope::TableReference,
 };
-use rayexec_bullet::field::{Schema, TypeSchema};
+use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -138,7 +138,7 @@ impl<'a> PlanContext<'a> {
         };
 
         // Handle LIMIT/OFFSET
-        let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
+        let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
         if let Some(limit_expr) = query.limit.limit {
             let expr = expr_ctx.plan_expression(limit_expr)?;
             let limit = expr.try_into_scalar()?.try_as_i64()? as usize;
@@ -416,7 +416,10 @@ impl<'a> PlanContext<'a> {
                 let mut nested = self.nested(current_scope);
                 nested.plan_query(query)?
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                reference: _,
+                args: _,
+            }) => {
                 unimplemented!()
                 // let func = self.resolver.resolve_table_function(&reference)?;
 

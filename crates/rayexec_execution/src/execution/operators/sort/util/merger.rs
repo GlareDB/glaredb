@@ -229,7 +229,7 @@ impl Eq for InputRowReference {}
 
 impl PartialOrd for InputRowReference {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.row_reference.partial_cmp(&other.row_reference)
+        Some(self.cmp(other))
     }
 }
 

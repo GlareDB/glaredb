@@ -1,13 +1,13 @@
 use parking_lot::Mutex;
-use rayexec_bullet::array::{Array, BooleanArray};
+
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::compute::filter::filter;
+
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
-use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
+use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };

@@ -113,11 +113,7 @@ impl Schema {
 
     pub fn merge(self, other: Schema) -> Self {
         Schema {
-            fields: self
-                .fields
-                .into_iter()
-                .chain(other.fields.into_iter())
-                .collect(),
+            fields: self.fields.into_iter().chain(other.fields).collect(),
         }
     }
 
@@ -158,11 +154,7 @@ impl TypeSchema {
 
     pub fn merge(self, other: TypeSchema) -> Self {
         TypeSchema {
-            types: self
-                .types
-                .into_iter()
-                .chain(other.types.into_iter())
-                .collect(),
+            types: self.types.into_iter().chain(other.types).collect(),
         }
     }
 }

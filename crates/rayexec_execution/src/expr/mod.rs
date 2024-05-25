@@ -3,7 +3,7 @@ pub mod scalar;
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::planner::operator::LogicalExpression;
-use rayexec_bullet::field::{DataType, TypeSchema};
+use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
@@ -120,7 +120,7 @@ impl PhysicalScalarExpression {
                     .iter()
                     .map(|input| input.eval(batch))
                     .collect::<Result<Vec<_>>>()?;
-                let refs: Vec<_> = inputs.iter().map(|a| a).collect(); // Can I not?
+                let refs: Vec<_> = inputs.iter().collect(); // Can I not?
                 let out = (function.function_impl())(&refs)?;
 
                 // TODO: Do we want to Arc here? Should we allow batches to be mutable?
@@ -151,7 +151,7 @@ impl PhysicalAggregateExpression {
             LogicalExpression::Aggregate {
                 agg,
                 inputs,
-                filter,
+                filter: _,
             } => {
                 let column_indices = inputs.into_iter().map(|input| match input {
                     LogicalExpression::ColumnRef(col) => col.try_as_uncorrelated(),
@@ -210,11 +210,9 @@ impl PhysicalSortExpression {
                     nulls_first,
                 })
             }
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Cannot create a physical sort expression from logical expression: {other:?}"
-                )))
-            }
+            other => Err(RayexecError::new(format!(
+                "Cannot create a physical sort expression from logical expression: {other:?}"
+            ))),
         }
     }
 }

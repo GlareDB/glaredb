@@ -130,6 +130,10 @@ impl Array {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Try to convert an iterator of scalars of a given datatype into an array.
     ///
     /// Errors if any of the scalars are a different type than the provided
@@ -238,7 +242,7 @@ impl Array {
         }
     }
 
-    pub fn values_eq_at(&self, other: &Self, idx: usize, null_equals_null: bool) -> bool {
+    pub fn values_eq_at(&self, _other: &Self, _idx: usize, _null_equals_null: bool) -> bool {
         unimplemented!()
     }
 }
@@ -249,6 +253,11 @@ pub trait ArrayAccessor<T: ?Sized> {
 
     /// Return the length of the array.
     fn len(&self) -> usize;
+
+    /// If this array is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     /// Return an iterator over the values in the array.
     ///

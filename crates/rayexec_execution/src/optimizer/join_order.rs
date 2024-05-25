@@ -1,6 +1,6 @@
 use crate::{
     expr::scalar::BinaryOperator,
-    planner::operator::{AnyJoin, EqualityJoin, LogicalExpression, LogicalOperator},
+    planner::operator::{EqualityJoin, LogicalExpression, LogicalOperator},
 };
 use rayexec_error::Result;
 
@@ -36,47 +36,43 @@ impl JoinOrderRule {
                         // Currently this just does a basic 'col1 = col2' check.
                         // More sophisticated exprs can be represented to adding an
                         // additional projection to the input.
-                        match &expr {
-                            LogicalExpression::Binary {
-                                op: BinaryOperator::Eq,
-                                left,
-                                right,
-                            } => match (left.as_ref(), right.as_ref()) {
-                                (
-                                    LogicalExpression::ColumnRef(left),
-                                    LogicalExpression::ColumnRef(right),
-                                ) => {
-                                    match (left.try_as_uncorrelated(), right.try_as_uncorrelated())
-                                    {
-                                        (Ok(left), Ok(right)) => {
-                                            // If correlated, then this would be a
-                                            // lateral join. Unsure how we want to
-                                            // optimize that right now.
+                        if let LogicalExpression::Binary {
+                            op: BinaryOperator::Eq,
+                            left,
+                            right,
+                        } = &expr
+                        {
+                            if let (
+                                LogicalExpression::ColumnRef(left),
+                                LogicalExpression::ColumnRef(right),
+                            ) = (left.as_ref(), right.as_ref())
+                            {
+                                if let (Ok(left), Ok(right)) =
+                                    (left.try_as_uncorrelated(), right.try_as_uncorrelated())
+                                {
+                                    // If correlated, then this would be a
+                                    // lateral join. Unsure how we want to
+                                    // optimize that right now.
 
-                                            // Normal 'left_table_col = right_table_col'
-                                            if left < left_len && right >= left_len {
-                                                left_on.push(left);
-                                                right_on.push(right - left_len);
-                                                // This expression was handled, avoid
-                                                // putting it in remaining.
-                                                continue;
-                                            }
+                                    // Normal 'left_table_col = right_table_col'
+                                    if left < left_len && right >= left_len {
+                                        left_on.push(left);
+                                        right_on.push(right - left_len);
+                                        // This expression was handled, avoid
+                                        // putting it in remaining.
+                                        continue;
+                                    }
 
-                                            // May be flipped like 'right_table_col = left_table_col'
-                                            if right < left_len && left >= left_len {
-                                                left_on.push(right);
-                                                right_on.push(left - left_len);
-                                                // This expression was handled, avoid
-                                                // putting it in remaining.
-                                                continue;
-                                            }
-                                        }
-                                        _ => (),
+                                    // May be flipped like 'right_table_col = left_table_col'
+                                    if right < left_len && left >= left_len {
+                                        left_on.push(right);
+                                        right_on.push(left - left_len);
+                                        // This expression was handled, avoid
+                                        // putting it in remaining.
+                                        continue;
                                     }
                                 }
-                                _ => (),
-                            },
-                            _ => (),
+                            }
                         }
 
                         // Didn't handle this expression. Add it to remaining.
@@ -109,20 +105,6 @@ impl JoinOrderRule {
 
         Ok(plan)
     }
-}
-
-/// Joins expressions with an AND.
-fn join_conjunctive(exprs: impl IntoIterator<Item = LogicalExpression>) -> LogicalExpression {
-    let mut iter = exprs.into_iter();
-    let mut left = iter.next().expect("at least one expression");
-    for right in iter {
-        left = LogicalExpression::Binary {
-            op: BinaryOperator::And,
-            left: Box::new(left),
-            right: Box::new(right),
-        }
-    }
-    left
 }
 
 /// Split a logical expression on AND conditions, appending them to the provided

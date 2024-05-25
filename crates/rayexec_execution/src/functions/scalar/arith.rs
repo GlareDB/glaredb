@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 /// Signatures for primitive arith operations (+, -, /, *, %)
-const PRIMITIVE_ARITH_SIGNATURES: &'static [Signature] = &[
+const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     Signature {
         input: InputTypes::Exact(&[DataType::Float32, DataType::Float32]),
         return_type: ReturnType::Static(DataType::Float32),

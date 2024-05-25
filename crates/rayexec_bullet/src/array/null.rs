@@ -13,6 +13,10 @@ impl NullArray {
         self.len
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
         if idx >= self.len {
             return None;

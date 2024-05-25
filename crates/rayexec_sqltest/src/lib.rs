@@ -74,7 +74,6 @@ fn batch_to_rows(batch: Batch) -> Result<Vec<Vec<String>>> {
     const OPTS: FormatOptions = FormatOptions {
         null: "NULL",
         empty_string: "(empty)",
-        ..FormatOptions::new()
     };
     let formatter = Formatter::new(OPTS);
 

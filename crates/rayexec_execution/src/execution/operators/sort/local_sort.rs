@@ -13,7 +13,7 @@ use super::util::{
 };
 
 #[derive(Debug)]
-pub enum SortPartitionState {
+pub enum LocalSortPartitionState {
     /// Partition is accepting data for sorting.
     Consuming {
         /// Extract the sort keys from a batch.
@@ -38,19 +38,19 @@ pub enum SortPartitionState {
 
 /// Physical operator for sorting batches within a partition.
 #[derive(Debug)]
-pub struct PhysicalSort {
+pub struct PhysicalLocalSort {
     exprs: Vec<PhysicalSortExpression>,
 }
 
-impl PhysicalSort {
+impl PhysicalLocalSort {
     pub fn new(exprs: Vec<PhysicalSortExpression>) -> Self {
-        PhysicalSort { exprs }
+        PhysicalLocalSort { exprs }
     }
 
-    pub fn create_states(&self, partitions: usize) -> Vec<SortPartitionState> {
+    pub fn create_states(&self, partitions: usize) -> Vec<LocalSortPartitionState> {
         let extractor = SortKeysExtractor::new(&self.exprs);
         (0..partitions)
-            .map(|_| SortPartitionState::Consuming {
+            .map(|_| LocalSortPartitionState::Consuming {
                 extractor: extractor.clone(),
                 batches: Vec::new(),
                 pull_waker: None,
@@ -59,7 +59,7 @@ impl PhysicalSort {
     }
 }
 
-impl PhysicalOperator for PhysicalSort {
+impl PhysicalOperator for PhysicalLocalSort {
     fn poll_push(
         &self,
         _cx: &mut Context,
@@ -68,12 +68,12 @@ impl PhysicalOperator for PhysicalSort {
         batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
-            PartitionState::Sort(state) => state,
+            PartitionState::LocalSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         match state {
-            SortPartitionState::Consuming {
+            LocalSortPartitionState::Consuming {
                 extractor, batches, ..
             } => {
                 let keys = extractor.sort_keys(&batch)?;
@@ -93,7 +93,7 @@ impl PhysicalOperator for PhysicalSort {
 
                 Ok(PollPush::NeedsMore)
             }
-            SortPartitionState::Producing { .. } => {
+            LocalSortPartitionState::Producing { .. } => {
                 panic!("attempted to push to partition that's already produding data")
             }
         }
@@ -105,12 +105,12 @@ impl PhysicalOperator for PhysicalSort {
         _operator_state: &OperatorState,
     ) -> Result<()> {
         let state = match partition_state {
-            PartitionState::Sort(state) => state,
+            PartitionState::LocalSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         match state {
-            SortPartitionState::Consuming {
+            LocalSortPartitionState::Consuming {
                 batches,
                 pull_waker,
                 ..
@@ -139,11 +139,11 @@ impl PhysicalOperator for PhysicalSort {
                 }
 
                 // Update partition state to "producing" using the merger.
-                *state = SortPartitionState::Producing { merger };
+                *state = LocalSortPartitionState::Producing { merger };
 
                 Ok(())
             }
-            SortPartitionState::Producing { .. } => {
+            LocalSortPartitionState::Producing { .. } => {
                 panic!("attempted to finalize partition that's already producing data")
             }
         }
@@ -156,17 +156,17 @@ impl PhysicalOperator for PhysicalSort {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         let mut state = match partition_state {
-            PartitionState::Sort(state) => state,
+            PartitionState::LocalSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         match &mut state {
-            SortPartitionState::Consuming { pull_waker, .. } => {
+            LocalSortPartitionState::Consuming { pull_waker, .. } => {
                 // Partition still collecting data to sort.
                 *pull_waker = Some(cx.waker().clone());
                 Ok(PollPull::Pending)
             }
-            SortPartitionState::Producing { merger } => {
+            LocalSortPartitionState::Producing { merger } => {
                 loop {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
@@ -199,11 +199,11 @@ mod tests {
 
     use super::*;
 
-    fn create_states(operator: &PhysicalSort, partitions: usize) -> Vec<PartitionState> {
+    fn create_states(operator: &PhysicalLocalSort, partitions: usize) -> Vec<PartitionState> {
         operator
             .create_states(partitions)
             .into_iter()
-            .map(PartitionState::Sort)
+            .map(PartitionState::LocalSort)
             .collect()
     }
 
@@ -215,7 +215,7 @@ mod tests {
             make_i32_batch([9, 1, 7, -1]),
         ];
 
-        let operator = Arc::new(PhysicalSort::new(vec![PhysicalSortExpression {
+        let operator = Arc::new(PhysicalLocalSort::new(vec![PhysicalSortExpression {
             column: 0,
             desc: true,
             nulls_first: true,
@@ -253,7 +253,7 @@ mod tests {
             make_i32_batch([9, 1, 7, -1]),
         ];
 
-        let operator = Arc::new(PhysicalSort::new(vec![PhysicalSortExpression {
+        let operator = Arc::new(PhysicalLocalSort::new(vec![PhysicalSortExpression {
             column: 0,
             desc: false,
             nulls_first: true,
@@ -291,7 +291,7 @@ mod tests {
             make_i32_batch(2048..3072),
         ];
 
-        let operator = Arc::new(PhysicalSort::new(vec![PhysicalSortExpression {
+        let operator = Arc::new(PhysicalLocalSort::new(vec![PhysicalSortExpression {
             column: 0,
             desc: true,
             nulls_first: true,

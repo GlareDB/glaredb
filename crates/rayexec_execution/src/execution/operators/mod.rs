@@ -1,3 +1,5 @@
+//! Implementations of physical operators in an execution pipeline.
+
 pub mod aggregate;
 pub mod empty;
 pub mod filter;
@@ -36,14 +38,14 @@ use self::repartition::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
+use self::sort::local_sort::LocalSortPartitionState;
 use self::sort::merge_sorted::{
     MergeSortedOperatorState, MergeSortedPullPartitionState, MergeSortedPushPartitionState,
 };
-use self::sort::sort::SortPartitionState;
 use self::values::ValuesPartitionState;
 
 /// States local to a partition within a single operator.
-// Current size: 192 bytes
+// Current size: 200 bytes
 #[derive(Debug)]
 pub enum PartitionState {
     HashAggregate(HashAggregatePartitionState),
@@ -58,7 +60,7 @@ pub enum PartitionState {
     HashRepartition(HashRepartitionPartitionState),
     MergeSortedPush(MergeSortedPushPartitionState),
     MergeSortedPull(MergeSortedPullPartitionState),
-    Sort(SortPartitionState),
+    LocalSort(LocalSortPartitionState),
     Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Empty(EmptyPartitionState),

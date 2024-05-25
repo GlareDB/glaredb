@@ -16,3 +16,6 @@ jobs:
 
       - name: Tests
         run: cargo test
+
+      - name: Lint
+        run: cargo clippy --all --all-features -- --deny warnings

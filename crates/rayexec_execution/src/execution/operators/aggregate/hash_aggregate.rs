@@ -267,13 +267,14 @@ impl PhysicalOperator for PhysicalHashAggregate {
                     // For each partition, produce a selection bitmap, and
                     // insert the rows corresponding to that partition into the
                     // partition's hash table.
-                    for partition_idx in 0..num_partitions {
+                    for (partition_idx, partition_hashtable) in
+                        output_hashtables.iter_mut().enumerate()
+                    {
                         // TODO: Could probably reuse bitmap allocations.
                         let selection = Bitmap::from_iter(
                             partitions_idx_buf.iter().map(|idx| *idx == partition_idx),
                         );
 
-                        let partition_hashtable = &mut output_hashtables[partition_idx];
                         partition_hashtable.insert_groups(
                             &masked_grouping_columns,
                             hashes,

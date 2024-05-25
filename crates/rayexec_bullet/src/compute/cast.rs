@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn utf8_arr_to_float() {
         let arr = Array::Utf8(Utf8Array::from_iter(["1", "2.1", "3.5"]));
-        let out = cast(arr.into(), DataType::Float32).unwrap();
+        let out = cast(arr, DataType::Float32).unwrap();
 
         assert_eq!(
             Array::Float32(Float32Array::from_iter([1.0, 2.1, 3.5])),
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn utf8_arr_to_int() {
         let arr = Array::Utf8(Utf8Array::from_iter(["1", "2", "3"]));
-        let out = cast(arr.into(), DataType::Int32).unwrap();
+        let out = cast(arr, DataType::Int32).unwrap();
 
         assert_eq!(Array::Int32(Int32Array::from_iter([1, 2, 3])), out)
     }

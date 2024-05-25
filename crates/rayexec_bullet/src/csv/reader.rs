@@ -283,7 +283,7 @@ impl CsvSchema {
             records
                 .get_record(0)
                 .iter()
-                .zip(candidates.into_iter())
+                .zip(candidates)
                 .map(|(name, candidate)| Field {
                     name: name.to_string(),
                     datatype: candidate.as_datatype(),
