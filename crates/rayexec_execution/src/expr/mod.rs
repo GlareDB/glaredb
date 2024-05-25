@@ -166,9 +166,55 @@ impl PhysicalAggregateExpression {
                     column_indices,
                 }
             }
-            other => return Err(RayexecError::new(
+            other => {
+                return Err(RayexecError::new(format!(
                 "Cannot create a physical aggregate expression from logical expression: {other}",
-            )),
+            )))
+            }
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PhysicalSortExpression {
+    /// Column this expression is for.
+    pub column: usize,
+
+    /// If sort should be descending.
+    pub desc: bool,
+
+    /// If nulls should be ordered first.
+    pub nulls_first: bool,
+}
+
+impl PhysicalSortExpression {
+    pub fn try_from_uncorrelated_expr(
+        logical: LogicalExpression,
+        input: &TypeSchema,
+        desc: bool,
+        nulls_first: bool,
+    ) -> Result<Self> {
+        match logical {
+            LogicalExpression::ColumnRef(col) => {
+                let col = col.try_as_uncorrelated()?;
+                if col >= input.types.len() {
+                    return Err(RayexecError::new(format!(
+                        "Invalid column index '{}', max index: '{}'",
+                        col,
+                        input.types.len() - 1
+                    )));
+                }
+                Ok(PhysicalSortExpression {
+                    column: col,
+                    desc,
+                    nulls_first,
+                })
+            }
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Cannot create a physical sort expression from logical expression: {other:?}"
+                )))
+            }
+        }
     }
 }

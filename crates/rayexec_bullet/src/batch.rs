@@ -1,4 +1,4 @@
-use crate::{array::Array, row::Row};
+use crate::{array::Array, row::ScalarRow};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
@@ -95,7 +95,7 @@ impl Batch {
     }
 
     /// Get the row at some index.
-    pub fn row(&self, idx: usize) -> Option<Row> {
+    pub fn row(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {
             return None;
         }
@@ -103,12 +103,12 @@ impl Batch {
         // Non-zero number of rows, but no actual columns. Just return an empty
         // row.
         if self.cols.len() == 0 {
-            return Some(Row::empty());
+            return Some(ScalarRow::empty());
         }
 
         let row = self.cols.iter().map(|col| col.scalar(idx).unwrap());
 
-        Some(Row::from_iter(row))
+        Some(ScalarRow::from_iter(row))
     }
 
     pub fn column(&self, idx: usize) -> Option<&Arc<Array>> {
@@ -147,9 +147,9 @@ mod tests {
 
         // Expected rows at index 0, 1, and 2
         let expected = [
-            Row::from_iter([ScalarValue::Int32(1), ScalarValue::Utf8("a".into())]),
-            Row::from_iter([ScalarValue::Int32(2), ScalarValue::Utf8("b".into())]),
-            Row::from_iter([ScalarValue::Int32(3), ScalarValue::Utf8("c".into())]),
+            ScalarRow::from_iter([ScalarValue::Int32(1), ScalarValue::Utf8("a".into())]),
+            ScalarRow::from_iter([ScalarValue::Int32(2), ScalarValue::Utf8("b".into())]),
+            ScalarRow::from_iter([ScalarValue::Int32(3), ScalarValue::Utf8("c".into())]),
         ];
 
         for idx in 0..3 {
@@ -176,7 +176,7 @@ mod tests {
 
         for idx in 0..3 {
             let got = batch.row(idx).unwrap();
-            assert_eq!(Row::empty(), got);
+            assert_eq!(ScalarRow::empty(), got);
         }
     }
 }

@@ -187,8 +187,8 @@ impl Explainable for Filter {
 
 #[derive(Debug)]
 pub struct OrderByExpr {
-    // pub expr: Expression,
-    pub asc: bool,
+    pub expr: LogicalExpression,
+    pub desc: bool,
     pub nulls_first: bool,
 }
 

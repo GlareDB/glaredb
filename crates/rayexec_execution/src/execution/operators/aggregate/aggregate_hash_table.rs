@@ -5,7 +5,7 @@ use rayexec_bullet::{
     batch::Batch,
     bitmap::Bitmap,
     field::DataType,
-    row::{OwnedRow, Row},
+    row::{OwnedScalarRow, ScalarRow},
 };
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
@@ -48,7 +48,7 @@ pub struct PartitionAggregateHashTable {
 
     // TODO: This is likely a peformance bottleneck with storing group values in
     // rows.
-    group_values: Vec<OwnedRow>,
+    group_values: Vec<OwnedScalarRow>,
 
     /// Hash table pointing to the group index.
     hash_table: RawTable<(u64, usize)>,
@@ -131,7 +131,7 @@ impl PartitionAggregateHashTable {
             //
             // It's like that replacing this with something that compares
             // scalars directly to a arrays at an index would be faster.
-            let row = Row::try_new_from_arrays(groups, row_idx)?;
+            let row = ScalarRow::try_new_from_arrays(groups, row_idx)?;
 
             // Look up the entry into the hash table.
             let ent = self.hash_table.get_mut(hash, |(_hash, group_idx)| {
@@ -191,7 +191,7 @@ impl PartitionAggregateHashTable {
         for (hash, group_idx) in other.hash_table.drain() {
             // TODO: Deduplicate with othe find and create method.
 
-            let row = std::mem::replace(&mut other.group_values[group_idx], Row::empty());
+            let row = std::mem::replace(&mut other.group_values[group_idx], ScalarRow::empty());
 
             let ent = self.hash_table.get_mut(hash, |(_hash, self_group_idx)| {
                 &row == &self.group_values[*self_group_idx]
@@ -287,7 +287,7 @@ pub struct AggregateHashTableDrain {
 
     /// Reused buffer for draining rows representing the group values from the
     /// table.
-    group_values_drain_buf: Vec<OwnedRow>,
+    group_values_drain_buf: Vec<OwnedScalarRow>,
 }
 
 impl AggregateHashTableDrain {

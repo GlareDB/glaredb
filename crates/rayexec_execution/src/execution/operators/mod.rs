@@ -2,13 +2,18 @@ pub mod aggregate;
 pub mod empty;
 pub mod filter;
 pub mod join;
+pub mod limit;
 pub mod project;
 pub mod query_sink;
 pub mod repartition;
 pub mod simple;
+pub mod sort;
 pub mod values;
 
 mod util;
+
+#[cfg(test)]
+mod test_util;
 
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -24,12 +29,17 @@ use self::join::nl_join::{
     NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
     NestedLoopJoinProbePartitionState,
 };
+use self::limit::LimitPartitionState;
 use self::query_sink::QuerySinkPartitionState;
 use self::repartition::hash::{HashRepartitionOperatorState, HashRepartitionPartitionState};
 use self::repartition::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
+use self::sort::merge_sorted::{
+    MergeSortedOperatorState, MergeSortedPullPartitionState, MergeSortedPushPartitionState,
+};
+use self::sort::sort::SortPartitionState;
 use self::values::ValuesPartitionState;
 
 /// States local to a partition within a single operator.
@@ -46,13 +56,17 @@ pub enum PartitionState {
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
     HashRepartition(HashRepartitionPartitionState),
+    MergeSortedPush(MergeSortedPushPartitionState),
+    MergeSortedPull(MergeSortedPullPartitionState),
+    Sort(SortPartitionState),
+    Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Empty(EmptyPartitionState),
     None,
 }
 
 /// A global state across all partitions in an operator.
-// Current size: 72 bytes
+// Current size: 112 bytes
 #[derive(Debug)]
 pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
@@ -60,6 +74,7 @@ pub enum OperatorState {
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
+    MergeSorted(MergeSortedOperatorState),
     None,
 }
 
@@ -68,8 +83,7 @@ pub enum OperatorState {
 /// An operator may not be ready to accept input either because it's waiting on
 /// something else to complete (e.g. the right side of a join needs to the left
 /// side to complete first) or some internal buffer is full.
-// TODO: Needs more
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PollPush {
     /// Batch was successfully pushed.
     Pushed,
@@ -91,7 +105,7 @@ pub enum PollPush {
 }
 
 /// Result of a pull from a Source.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PollPull {
     /// Successfully received a data batch.
     Batch(Batch),

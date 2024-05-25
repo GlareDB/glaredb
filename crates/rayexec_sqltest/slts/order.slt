@@ -1,0 +1,15 @@
+# ORDER BY
+
+query T
+select * from (values ('a'), ('c'), ('b')) order by column1;
+----
+c
+b
+a
+
+query T
+select * from (values ('a'), ('c'), ('b')) order by column1 asc;
+----
+a
+b
+c

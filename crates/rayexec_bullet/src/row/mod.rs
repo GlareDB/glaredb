@@ -1,26 +1,28 @@
+pub mod encoding;
+
 use rayexec_error::{RayexecError, Result};
 
 use crate::{array::Array, scalar::ScalarValue};
 
-/// Representation of a single row.
+/// Scalar representation of a single row.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Row<'a> {
+pub struct ScalarRow<'a> {
     pub columns: Vec<ScalarValue<'a>>,
 }
 
 /// A row with full ownership of all its values.
-pub type OwnedRow = Row<'static>;
+pub type OwnedScalarRow = ScalarRow<'static>;
 
-impl<'a> Row<'a> {
+impl<'a> ScalarRow<'a> {
     /// Create an empty row.
     pub const fn empty() -> Self {
-        Row {
+        ScalarRow {
             columns: Vec::new(),
         }
     }
 
     /// Create a new row representation backed by data from arrays.
-    pub fn try_new_from_arrays(arrays: &[&'a Array], row: usize) -> Result<Row<'a>> {
+    pub fn try_new_from_arrays(arrays: &[&'a Array], row: usize) -> Result<ScalarRow<'a>> {
         let scalars = arrays
             .iter()
             .map(|arr| arr.scalar(row))
@@ -28,7 +30,7 @@ impl<'a> Row<'a> {
         let scalars =
             scalars.ok_or_else(|| RayexecError::new("Row {idx} does not exist in arrays"))?;
 
-        Ok(Row { columns: scalars })
+        Ok(ScalarRow { columns: scalars })
     }
 
     /// Return an iterator over all columns in the row.
@@ -36,8 +38,8 @@ impl<'a> Row<'a> {
         self.columns.iter()
     }
 
-    pub fn into_owned(self) -> OwnedRow {
-        Row {
+    pub fn into_owned(self) -> OwnedScalarRow {
+        ScalarRow {
             columns: self
                 .columns
                 .into_iter()
@@ -47,9 +49,9 @@ impl<'a> Row<'a> {
     }
 }
 
-impl<'a> FromIterator<ScalarValue<'a>> for Row<'a> {
+impl<'a> FromIterator<ScalarValue<'a>> for ScalarRow<'a> {
     fn from_iter<T: IntoIterator<Item = ScalarValue<'a>>>(iter: T) -> Self {
-        Row {
+        ScalarRow {
             columns: iter.into_iter().collect(),
         }
     }

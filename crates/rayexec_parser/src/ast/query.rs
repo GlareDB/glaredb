@@ -7,7 +7,7 @@ use super::{AstParseable, Expr, Ident, LimitModifier, OrderByNode, SelectNode};
 pub struct QueryNode {
     pub ctes: Option<Ctes>,
     pub body: QueryNodeBody,
-    pub order_by: Option<OrderByNode>,
+    pub order_by: Vec<OrderByNode>,
     pub limit: LimitModifier,
 }
 
@@ -22,9 +22,9 @@ impl AstParseable for QueryNode {
         let body = QueryNodeBody::parse(parser)?;
 
         let order_by = if parser.parse_keyword_sequence(&[Keyword::ORDER, Keyword::BY]) {
-            Some(OrderByNode::parse(parser)?)
+            parser.parse_comma_separated(OrderByNode::parse)?
         } else {
-            None
+            Vec::new()
         };
 
         let limit = LimitModifier::parse(parser)?;

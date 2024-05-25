@@ -2,7 +2,7 @@ use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
         Aggregate, AnyJoin, CrossJoin, GroupingExpr, Limit, LogicalExpression, LogicalOperator,
-        Projection,
+        Order, OrderByExpr, Projection,
     },
     scope::{ColumnRef, Scope},
     Resolver,
@@ -16,7 +16,10 @@ use crate::{
 };
 use rayexec_bullet::field::{Schema, TypeSchema};
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::{ast, statement::Statement};
+use rayexec_parser::{
+    ast::{self, OrderByNulls, OrderByType},
+    statement::Statement,
+};
 use tracing::trace;
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
@@ -90,7 +93,45 @@ impl<'a> PlanContext<'a> {
         // TODO: CTEs
 
         let mut planned = match query.body {
-            ast::QueryNodeBody::Select(select) => self.plan_select(*select)?,
+            ast::QueryNodeBody::Select(select) => {
+                let mut plan = self.plan_select(*select)?;
+                // TODO: I'd like to do this in plan select since it's allow for
+                // reducing the number of expressions we're adding to the plan.
+                //
+                // Set expressions need this too, so some care needs to be taken
+                // around that.
+                if !query.order_by.is_empty() {
+                    let input_schema = plan.root.output_schema(&[])?;
+                    let expr_ctx = ExpressionContext::new(self, &plan.scope, &input_schema);
+
+                    let mut exprs = Vec::with_capacity(query.order_by.len());
+                    for order_by in query.order_by {
+                        let expr = expr_ctx.plan_expression(order_by.expr)?;
+                        let order_expr = OrderByExpr {
+                            expr,
+                            desc: matches!(
+                                order_by.typ.unwrap_or(OrderByType::Desc),
+                                OrderByType::Desc
+                            ),
+                            nulls_first: matches!(
+                                order_by.nulls.unwrap_or(OrderByNulls::First),
+                                OrderByNulls::First
+                            ),
+                        };
+
+                        exprs.push(order_expr);
+                    }
+
+                    // Wrap plan in an order operator. Does not change scope.
+                    plan.root = LogicalOperator::Order(Order {
+                        exprs,
+                        input: Box::new(plan.root),
+                    })
+                }
+
+                plan
+            }
+
             ast::QueryNodeBody::Set {
                 left: _,
                 right: _,
@@ -98,9 +139,6 @@ impl<'a> PlanContext<'a> {
             } => unimplemented!(),
             ast::QueryNodeBody::Values(values) => self.plan_values(values)?,
         };
-
-        // ORDER BY
-        // DISTINCT
 
         // Handle LIMIT/OFFSET
         let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
@@ -161,9 +199,8 @@ impl<'a> PlanContext<'a> {
             projections.append(&mut expanded);
         }
 
-        // GROUP BY
-        // Aggregates
-        // HAVING
+        // TODO:
+        // - HAVING
 
         // Add projections to plan using previously expanded select items.
         let mut select_exprs = Vec::with_capacity(projections.len());

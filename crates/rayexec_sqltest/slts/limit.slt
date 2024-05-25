@@ -1,28 +1,99 @@
-halt
+# Basic LIMIT/OFFSET tests
+
+# NO ORDER BY (cannot assert order into limit operator, use the same values)
 
 query I
-select * from generate_series(1, 100) limit 5;
+select * from (values (1), (1), (1)) limit 4
 ----
 1
-2
-3
-4
-5
+1
+1
 
 query I
-select * from generate_series(1, 5) limit 10;
+select * from (values (1), (1), (1)) limit 2
 ----
 1
-2
-3
-4
-5
+1
 
 query I
-select * from generate_series(1, 100) limit 5 offset 2;
+select * from (values (1), (1), (1)) limit 0
 ----
-3
-4
-5
-6
-7
+
+query I
+select * from (values (1), (1), (1)) limit 0 offset 1;
+----
+
+query I
+select * from (values (1), (1), (1)) limit 0 offset 4;
+----
+
+query I
+select * from (values (1), (1), (1)) limit 2 offset 1
+----
+1
+1
+
+query I
+select * from (values (1), (1), (1)) limit 2 offset 2
+----
+1
+
+query I
+select * from (values (1), (1), (1)) limit 2 offset 4
+----
+
+# Sanity check for varlen arrays.
+query IT
+select * from (values (1, 'hello'), (1, 'hello'), (1, 'hello')) limit 2
+----
+1  hello
+1  hello
+
+# WITH ORDER BY
+
+query T
+select * from (values ('d'), ('b'), ('c'), ('a'))
+    order by column1
+    limit 2;
+----
+d
+c
+
+query T
+select * from (values ('d'), ('b'), ('c'), ('a'))
+    order by column1
+    limit 2
+    offset 1;
+----
+c
+b
+
+query IT
+select * from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
+    order by column1
+    limit 2
+    offset 1;
+----
+c  3
+b  2
+
+# TODO: Missing intrusive projection
+# query IT
+# select column2, column1 from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
+#     order by column1
+#     limit 2
+#     offset 1;
+# ----
+# 3  c
+# 2  b
+
+# TODO: Missing intrusive projection
+# query I
+# select column2 from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
+#     order by column1
+#     limit 2
+#     offset 1;
+# ----
+# 3
+# 2
+

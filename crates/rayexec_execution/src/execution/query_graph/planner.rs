@@ -14,16 +14,18 @@ use crate::{
                     NestedLoopJoinProbePartitionState, PhysicalNestedLoopJoin,
                 },
             },
+            limit::PhysicalLimit,
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             simple::{SimpleOperator, SimplePartitionState},
+            sort::{merge_sorted::PhysicalMergeSortedInputs, sort::PhysicalSort},
             values::{PhysicalValues, ValuesPartitionState},
             OperatorState, PartitionState,
         },
         pipeline::{Pipeline, PipelineId},
     },
-    expr::{PhysicalAggregateExpression, PhysicalScalarExpression},
+    expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     planner::operator::{self, LogicalNode, LogicalOperator},
 };
 use rayexec_bullet::{
@@ -117,8 +119,9 @@ impl BuildState {
             LogicalOperator::EqualityJoin(join) => self.push_equality_join(conf, join),
             LogicalOperator::Empty => self.push_empty(conf),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
+            LogicalOperator::Limit(limit) => self.push_limit(conf, limit),
+            LogicalOperator::Order(order) => self.push_global_sort(conf, order),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
-            // LogicalOperator::Limit(limit) => self.plan_limit(limit),
             // LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
             // LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
@@ -169,6 +172,91 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_global_sort(&mut self, conf: &BuildConfig, order: operator::Order) -> Result<()> {
+        let input_schema = order.input.output_schema(&[])?;
+        self.walk(conf, *order.input)?;
+
+        let exprs = order
+            .exprs
+            .into_iter()
+            .map(|order_expr| {
+                PhysicalSortExpression::try_from_uncorrelated_expr(
+                    order_expr.expr,
+                    &input_schema,
+                    order_expr.desc,
+                    order_expr.nulls_first,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Partition-local sorting.
+        let mut current = self
+            .in_progress
+            .take()
+            .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
+
+        let operator = Arc::new(PhysicalSort::new(exprs.clone()));
+        let partition_states: Vec<_> = operator
+            .create_states(current.num_partitions())
+            .into_iter()
+            .map(PartitionState::Sort)
+            .collect();
+        let operator_state = Arc::new(OperatorState::None);
+        current.push_operator(operator, operator_state, partition_states)?;
+
+        // Global sorting.
+        let operator = Arc::new(PhysicalMergeSortedInputs::new(exprs));
+        let (operator_state, push_states, pull_states) =
+            operator.create_states(current.num_partitions());
+        let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
+
+        // Push side finishes up the current pipeline.
+        current.push_operator(
+            operator.clone(),
+            operator_state.clone(),
+            push_states
+                .into_iter()
+                .map(PartitionState::MergeSortedPush)
+                .collect(),
+        )?;
+        self.completed.push(current);
+
+        // Pull side creates a new pipeline, number of pull states determines
+        // number of partitions in this pipeline.
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), pull_states.len());
+        pipeline.push_operator(
+            operator,
+            operator_state,
+            pull_states
+                .into_iter()
+                .map(PartitionState::MergeSortedPull)
+                .collect(),
+        )?;
+
+        self.in_progress = Some(pipeline);
+
+        Ok(())
+    }
+
+    fn push_limit(&mut self, conf: &BuildConfig, limit: operator::Limit) -> Result<()> {
+        self.walk(conf, *limit.input)?;
+
+        let pipeline = self.in_progress_pipeline_mut()?;
+
+        let operator = Arc::new(PhysicalLimit::new(limit.limit, limit.offset));
+        let partition_states: Vec<_> = operator
+            .create_states(pipeline.num_partitions())
+            .into_iter()
+            .map(PartitionState::Limit)
+            .collect();
+
+        // No global state in limit.
+        let operator_state = Arc::new(OperatorState::None);
+        pipeline.push_operator(operator, operator_state, partition_states)?;
 
         Ok(())
     }
@@ -314,7 +402,7 @@ impl BuildState {
 
         // We have a new pipeline with its inputs being the output of the
         // repartition.
-        let mut pipeline = Pipeline::new(self.next_pipeline_id, target_partitions);
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), target_partitions);
         pipeline.push_operator(physical, operator_state, pull_states)?;
 
         self.in_progress = Some(pipeline);
@@ -559,7 +647,7 @@ impl BuildState {
         let operator_state = Arc::new(OperatorState::None);
         let partition_states = vec![PartitionState::Empty(EmptyPartitionState::default())];
 
-        let mut pipeline = Pipeline::new(self.next_pipeline_id, 1);
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
         self.in_progress = Some(pipeline);

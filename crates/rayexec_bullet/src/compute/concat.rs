@@ -2,25 +2,7 @@ use crate::array::{Array, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, V
 use crate::field::DataType;
 use rayexec_error::{RayexecError, Result};
 
-/// Helper macro for collecting all arrays of a concrete type into a single
-/// vector.
-macro_rules! collect_arrays_of_type {
-    ($arrays:expr, $variant:ident, $datatype:expr) => {
-        $arrays
-            .iter()
-            .map(|arr| match arr {
-                Array::$variant(arr) => Ok(arr),
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Cannot concat arrays of different types. Expected {}, got {}",
-                        $datatype,
-                        other.datatype()
-                    )))
-                }
-            })
-            .collect::<Result<Vec<_>>>()?
-    };
-}
+use super::macros::collect_arrays_of_type;
 
 /// Concat multiple arrays into a single array.
 ///
@@ -34,70 +16,70 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
 
     match datatype {
         DataType::Null => {
-            let arrs = collect_arrays_of_type!(arrays, Null, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Null, datatype)?;
             Ok(Array::Null(NullArray::new(
                 arrs.iter().map(|arr| arr.len()).sum(),
             )))
         }
 
         DataType::Boolean => {
-            let _arrs = collect_arrays_of_type!(arrays, Boolean, datatype);
+            let _arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
             unimplemented!()
         }
         DataType::Float32 => {
-            let arrs = collect_arrays_of_type!(arrays, Float32, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Float32, datatype)?;
             Ok(Array::Float32(concat_primitive(arrs.as_slice())))
         }
         DataType::Float64 => {
-            let arrs = collect_arrays_of_type!(arrays, Float64, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Float64, datatype)?;
             Ok(Array::Float64(concat_primitive(arrs.as_slice())))
         }
         DataType::Int8 => {
-            let arrs = collect_arrays_of_type!(arrays, Int8, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Int8, datatype)?;
             Ok(Array::Int8(concat_primitive(arrs.as_slice())))
         }
         DataType::Int16 => {
-            let arrs = collect_arrays_of_type!(arrays, Int16, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Int16, datatype)?;
             Ok(Array::Int16(concat_primitive(arrs.as_slice())))
         }
         DataType::Int32 => {
-            let arrs = collect_arrays_of_type!(arrays, Int32, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Int32, datatype)?;
             Ok(Array::Int32(concat_primitive(arrs.as_slice())))
         }
         DataType::Int64 => {
-            let arrs = collect_arrays_of_type!(arrays, Int64, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Int64, datatype)?;
             Ok(Array::Int64(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt8 => {
-            let arrs = collect_arrays_of_type!(arrays, UInt8, datatype);
+            let arrs = collect_arrays_of_type!(arrays, UInt8, datatype)?;
             Ok(Array::UInt8(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt16 => {
-            let arrs = collect_arrays_of_type!(arrays, UInt16, datatype);
+            let arrs = collect_arrays_of_type!(arrays, UInt16, datatype)?;
             Ok(Array::UInt16(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt32 => {
-            let arrs = collect_arrays_of_type!(arrays, UInt32, datatype);
+            let arrs = collect_arrays_of_type!(arrays, UInt32, datatype)?;
             Ok(Array::UInt32(concat_primitive(arrs.as_slice())))
         }
         DataType::UInt64 => {
-            let arrs = collect_arrays_of_type!(arrays, UInt64, datatype);
+            let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
         }
         DataType::Utf8 => {
-            let arrs = collect_arrays_of_type!(arrays, Utf8, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
             Ok(Array::Utf8(concat_varlen(arrs.as_slice())))
         }
         DataType::LargeUtf8 => {
-            let arrs = collect_arrays_of_type!(arrays, LargeUtf8, datatype);
+            let arrs = collect_arrays_of_type!(arrays, LargeUtf8, datatype)?;
             Ok(Array::LargeUtf8(concat_varlen(arrs.as_slice())))
         }
         DataType::Binary => {
-            let arrs = collect_arrays_of_type!(arrays, Binary, datatype);
+            let arrs = collect_arrays_of_type!(arrays, Binary, datatype)?;
             Ok(Array::Binary(concat_varlen(arrs.as_slice())))
         }
         DataType::LargeBinary => {
-            let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype);
+            let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
             Ok(Array::LargeBinary(concat_varlen(arrs.as_slice())))
         }
         DataType::Struct { .. } => unimplemented!(),

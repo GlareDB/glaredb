@@ -84,13 +84,6 @@ impl<'a> AsVarlenType for Cow<'a, [u8]> {
     }
 }
 
-impl<T: VarlenType + ?Sized> AsVarlenType for T {
-    type AsType = Self;
-    fn as_varlen_type(&self) -> &Self::AsType {
-        self
-    }
-}
-
 pub trait OffsetIndex {
     fn as_usize(&self) -> usize;
     fn from_usize(u: usize) -> Self;
@@ -192,6 +185,16 @@ where
     pub fn values_iter(&self) -> VarlenArrayIter<'_, T, O> {
         VarlenArrayIter { idx: 0, arr: self }
     }
+
+    /// Get a reference to the raw data buffer.
+    pub(crate) fn data(&self) -> &PrimitiveStorage<u8> {
+        &self.data
+    }
+
+    pub(crate) fn put_validity(&mut self, validity: Bitmap) {
+        assert_eq!(validity.len(), self.len());
+        self.validity = Some(validity);
+    }
 }
 
 impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
@@ -279,7 +282,7 @@ where
 #[derive(Debug)]
 pub struct VarlenArrayBuilder<A, O>
 where
-    A: AsVarlenType + ?Sized,
+    A: AsVarlenType,
     O: OffsetIndex,
 {
     validity: Option<Bitmap>,
@@ -288,7 +291,7 @@ where
     varlen_type: PhantomData<A>,
 }
 
-impl<'a, A: AsVarlenType + ?Sized, O: OffsetIndex> VarlenArrayBuilder<A, O> {
+impl<'a, A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
     // TODO: With capacity
     pub fn new() -> Self {
         VarlenArrayBuilder {

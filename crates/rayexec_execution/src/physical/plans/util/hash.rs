@@ -1,7 +1,7 @@
 use ahash::RandomState;
 use rayexec_bullet::{
     array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
-    row::Row,
+    row::ScalarRow,
     scalar::ScalarValue,
 };
 use rayexec_error::Result;
@@ -50,7 +50,7 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
 }
 
 /// Hash a row.
-pub fn hash_row(row: &Row) -> u64 {
+pub fn hash_row(row: &ScalarRow) -> u64 {
     let mut result = 0;
     for (idx, scalar) in row.iter().enumerate() {
         let combine_hash = idx > 0;
@@ -268,7 +268,7 @@ mod tests {
         // Now hash the row representations.
         let mut row_hashes = vec![0; 3];
         for idx in 0..3 {
-            let row = Row::try_new_from_arrays(&arrays, idx).unwrap();
+            let row = ScalarRow::try_new_from_arrays(&arrays, idx).unwrap();
             row_hashes[idx] = hash_row(&row);
         }
 
