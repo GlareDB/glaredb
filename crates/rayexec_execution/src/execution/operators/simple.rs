@@ -1,7 +1,10 @@
 use rayexec_bullet::batch::Batch;
+use crate::planner::explainable::{ ExplainConfig,  ExplainEntry};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Waker};
+
+use crate::planner::explainable::Explainable;
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
@@ -44,10 +47,14 @@ impl SimplePartitionState {
 }
 
 /// A stateless operation on a batch.
-pub trait StatelessOperation: Sync + Send + Debug {
+pub trait StatelessOperation: Sync + Send + Debug + Explainable {
     fn execute(&self, batch: Batch) -> Result<Batch>;
 }
 
+/// A simple operator is an operator that wraps a function that requires no
+/// state. Batch goes in, batch comes out.
+///
+/// Filter and Project are both examples that use this.
 #[derive(Debug)]
 pub struct SimpleOperator<S> {
     operation: S,
@@ -141,5 +148,11 @@ impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
                 Ok(PollPull::Pending)
             }
         }
+    }
+}
+
+impl<S: StatelessOperation> Explainable for SimpleOperator<S> {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.operation.explain_entry(conf)
     }
 }

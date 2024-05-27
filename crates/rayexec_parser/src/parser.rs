@@ -1,5 +1,5 @@
 use crate::{
-    ast::{AstParseable, Expr, Ident, ObjectReference, QueryNode},
+    ast::{AstParseable, ExplainNode, Expr, Ident, ObjectReference, QueryNode},
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer},
@@ -83,6 +83,7 @@ impl Parser {
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
+                    Keyword::EXPLAIN => Ok(Statement::Explain(ExplainNode::parse(self)?)),
                     other => Err(RayexecError::new(format!("Unexpected keyword: {other:?}",))),
                 }
             }

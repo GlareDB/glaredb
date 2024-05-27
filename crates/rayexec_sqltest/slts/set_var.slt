@@ -1,9 +1,25 @@
-halt
+# SET/SHOW
 
 statement ok
-set debug_string_var to 'test';
+set application_name to 'test';
 
 query T
-show debug_string_var;
+show application_name;
 ----
 test
+
+statement ok
+set application_name = 'test1';
+
+query T
+show application_name;
+----
+test1
+
+statement ok
+set batch_size to 8096;
+
+query I
+show batch_size;
+----
+8096

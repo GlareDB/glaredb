@@ -33,6 +33,17 @@ pub fn cast_scalar(scalar: ScalarValue, to: DataType) -> Result<ScalarValue> {
 
     Ok(match (scalar, to) {
         (ScalarValue::Null, _) => ScalarValue::Null,
+        (ScalarValue::Int64(v), to) if to.is_integer() => match to {
+            DataType::Int8 => ScalarValue::Int8(v.try_into()?),
+            DataType::Int16 => ScalarValue::Int16(v.try_into()?),
+            DataType::Int32 => ScalarValue::Int32(v.try_into()?),
+            DataType::Int64 => ScalarValue::Int64(v),
+            DataType::UInt8 => ScalarValue::UInt8(v.try_into()?),
+            DataType::UInt16 => ScalarValue::UInt16(v.try_into()?),
+            DataType::UInt32 => ScalarValue::UInt32(v.try_into()?),
+            DataType::UInt64 => ScalarValue::UInt64(v.try_into()?),
+            _ => unreachable!(),
+        },
         (ScalarValue::Utf8(val), to) if to.is_numeric() => utf8_scalar_to_numeric(val, to)?,
         (ScalarValue::LargeUtf8(val), to) if to.is_numeric() => utf8_scalar_to_numeric(val, to)?,
         (arr, to) => {

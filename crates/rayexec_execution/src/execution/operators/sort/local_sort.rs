@@ -1,3 +1,4 @@
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
     expr::PhysicalSortExpression,
@@ -338,5 +339,11 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Exhausted, poll_pull);
+    }
+}
+
+impl Explainable for PhysicalLocalSort {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("LocalSort").with_values("sort_expressions", &self.exprs)
     }
 }

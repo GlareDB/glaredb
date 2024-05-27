@@ -59,6 +59,16 @@ impl From<std::io::Error> for RayexecError {
     }
 }
 
+// TODO: This loses a bit of context surrounding the source of the error. What
+// was the value? What were we converting to?
+//
+// Likely this should be removed once we're in the polishing phase.
+impl From<std::num::TryFromIntError> for RayexecError {
+    fn from(value: std::num::TryFromIntError) -> Self {
+        Self::with_source("Int convert error", Box::new(value))
+    }
+}
+
 impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg)?;
@@ -82,7 +92,11 @@ impl Error for RayexecError {
 
 /// An extension trait for adding context to the Error variant of a result.
 pub trait ResultExt<T, E> {
+    /// Wrap an error with a static context string.
     fn context(self, msg: &'static str) -> Result<T>;
+
+    /// Wrap an error with a context string generated from a function.
+    fn context_fn<F: Fn() -> String>(self, f: F) -> Result<T>;
 }
 
 impl<T, E: Error + Send + Sync + 'static> ResultExt<T, E> for std::result::Result<T, E> {
@@ -90,6 +104,13 @@ impl<T, E: Error + Send + Sync + 'static> ResultExt<T, E> for std::result::Resul
         match self {
             Ok(v) => Ok(v),
             Err(e) => Err(RayexecError::with_source(msg, Box::new(e))),
+        }
+    }
+
+    fn context_fn<F: Fn() -> String>(self, f: F) -> Result<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(e) => Err(RayexecError::with_source(f(), Box::new(e))),
         }
     }
 }

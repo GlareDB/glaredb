@@ -1,13 +1,46 @@
 use once_cell::sync::Lazy;
-use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
+use rayexec_bullet::{
+    compute,
+    scalar::{OwnedScalarValue, ScalarValue},
+};
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 
 static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(SessionVars::global_default);
 
+/// Wrapper around session variables providing nicer ergonimics around accessing
+/// select variables.
+#[derive(Debug)]
+pub struct VarAccessor<'a> {
+    pub vars: &'a SessionVars,
+}
+
+impl<'a> VarAccessor<'a> {
+    pub const fn new(vars: &'a SessionVars) -> Self {
+        VarAccessor { vars }
+    }
+
+    pub fn partitions(&self) -> usize {
+        self.vars
+            .get_var_expect("partitions")
+            .value
+            .try_as_usize()
+            .expect("convertable to usize")
+    }
+
+    pub fn batch_size(&self) -> usize {
+        self.vars
+            .get_var_expect("batch_size")
+            .value
+            .try_as_usize()
+            .expect("convertable to usize")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {
     pub name: &'static str,
+    pub desc: &'static str,
     pub value: OwnedScalarValue,
 }
 
@@ -39,18 +72,41 @@ pub struct SessionVars {
 impl SessionVars {
     /// Create a session variables map that contains the default values.
     fn global_default() -> Self {
-        let vars = [
+        let default_vars = [
             SessionVar {
                 name: "debug_string_var",
+                desc: "Debug variable for testing SET/SHOW.",
                 value: ScalarValue::Utf8("debug".into()),
             },
             SessionVar {
+                name: "application_name",
+                desc: "Postgres compatability variable.",
+                value: ScalarValue::Utf8("".into()),
+            },
+            SessionVar {
                 name: "debug_error_on_nested_loop_join",
+                desc:
+                    "Trigger an error during planning when attempting to plan a nested loop join.",
                 value: ScalarValue::Boolean(false),
+            },
+            SessionVar {
+                name: "partitions",
+                desc: "Number of partitions to use during execution.",
+                value: ScalarValue::UInt64(num_cpus::get() as u64),
+            },
+            SessionVar {
+                name: "batch_size",
+                desc: "Desired number of rows in a batch.",
+                value: ScalarValue::UInt64(2048),
             },
         ];
 
-        let vars = vars.into_iter().map(|var| (var.name, var)).collect();
+        let mut vars = HashMap::new();
+        for var in default_vars {
+            if let Some(existing) = vars.insert(var.name, var) {
+                panic!("duplicate vars: {}", existing.name);
+            }
+        }
 
         SessionVars { vars }
     }
@@ -62,6 +118,7 @@ impl SessionVars {
         }
     }
 
+    /// Get a session variable, erroring if the variable doens't exist.
     pub fn get_var(&self, name: &str) -> Result<&SessionVar> {
         if let Some(var) = self.vars.get(name) {
             return Ok(var);
@@ -76,8 +133,28 @@ impl SessionVars {
         )))
     }
 
+    /// Get a session variable, panicking if it doesn't exist.
+    pub fn get_var_expect(&self, name: &str) -> &SessionVar {
+        self.get_var(name).expect("variable to exist")
+    }
+
     pub fn exists(&self, name: &str) -> bool {
         self.get_var(name).is_ok()
+    }
+
+    /// Try to cast a scalar value to the correct type for a variable if needed.
+    pub fn try_cast_scalar_value(
+        &self,
+        name: &str,
+        value: OwnedScalarValue,
+    ) -> Result<OwnedScalarValue> {
+        let var = DEFAULT_GLOBAL_SESSION_VARS
+            .vars
+            .get(name)
+            .ok_or_else(|| RayexecError::new(format!("Session variable doesn't exist: {name}")))?;
+        let value = compute::cast::cast_scalar(value, var.value.datatype())?;
+
+        Ok(value)
     }
 
     pub fn set_var(&mut self, name: &str, value: OwnedScalarValue) -> Result<()> {
@@ -110,6 +187,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unique_var_names() {
+        // Panics on non-unique names.
+        let _ = SessionVars::global_default();
+    }
+
+    #[test]
     fn set_var_exists() {
         let mut vars = SessionVars::new_local();
         let var = vars.get_var("debug_string_var").unwrap();
@@ -133,5 +216,13 @@ mod tests {
         let mut vars = SessionVars::new_local();
         vars.set_var("does_not_exist", ScalarValue::Utf8("test".into()))
             .unwrap_err();
+    }
+
+    #[test]
+    fn cast_value() {
+        let vars = SessionVars::new_local();
+        let new_value = ScalarValue::Int64(8096);
+        let new_value = vars.try_cast_scalar_value("batch_size", new_value).unwrap();
+        assert_eq!(ScalarValue::UInt64(8096), new_value);
     }
 }

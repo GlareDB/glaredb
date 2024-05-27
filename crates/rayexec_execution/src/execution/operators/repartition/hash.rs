@@ -12,6 +12,7 @@ use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct HashRepartitionPartitionState {
@@ -219,5 +220,11 @@ impl PhysicalOperator for PhysicalHashRepartition {
                 Ok(PollPull::Pending)
             }
         }
+    }
+}
+
+impl Explainable for PhysicalHashRepartition {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("HashRepartition")
     }
 }

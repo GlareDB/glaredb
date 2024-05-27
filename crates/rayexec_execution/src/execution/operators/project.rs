@@ -1,5 +1,6 @@
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::expr::PhysicalScalarExpression;
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
@@ -27,5 +28,11 @@ impl StatelessOperation for ProjectOperation {
         let batch = Batch::try_new(arrs)?;
 
         Ok(batch)
+    }
+}
+
+impl Explainable for ProjectOperation {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Project").with_values("projections", &self.exprs)
     }
 }

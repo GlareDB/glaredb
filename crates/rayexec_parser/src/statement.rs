@@ -1,7 +1,9 @@
-use crate::ast::{Expr, ObjectReference, QueryNode};
+use crate::ast::{ExplainNode, Expr, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
+    Explain(ExplainNode),
+
     Query(QueryNode),
 
     /// CREATE SCHEMA ...

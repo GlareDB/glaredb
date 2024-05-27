@@ -115,6 +115,12 @@ where
             post(&mut p.input)?;
             LogicalOperator::CreateTableAs(p)
         }
+        LogicalOperator::Explain(mut p) => {
+            pre(&mut p.input)?;
+            *p.input = walk_plan(*p.input, pre, post)?;
+            post(&mut p.input)?;
+            LogicalOperator::Explain(p)
+        }
         plan @ LogicalOperator::ExpressionList(_)
         | plan @ LogicalOperator::Empty
         | plan @ LogicalOperator::SetVar(_)

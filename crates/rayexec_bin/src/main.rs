@@ -40,16 +40,19 @@ async fn inner() -> Result<()> {
 
     let query = args[1].clone();
 
-    let output = session.execute(&query)?;
-    let batches = output.stream.collect::<Vec<_>>().await;
+    let outputs = session.simple(&query)?;
 
-    println!("----");
-    println!("INPUT: {query}");
-    println!("OUTPUT SCHEMA: {:?}", output.output_schema);
+    for output in outputs {
+        let batches = output.stream.collect::<Vec<_>>().await;
 
-    for batch in batches.into_iter() {
-        let out = ugly_print(&output.output_schema, &[batch])?;
-        println!("{out}");
+        println!("----");
+        println!("INPUT: {query}");
+        println!("OUTPUT SCHEMA: {:?}", output.output_schema);
+
+        for batch in batches.into_iter() {
+            let out = ugly_print(&output.output_schema, &[batch])?;
+            println!("{out}");
+        }
     }
 
     Ok(())

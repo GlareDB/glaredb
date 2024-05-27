@@ -8,7 +8,7 @@ use super::{
     Resolver,
 };
 use crate::planner::{
-    operator::{ExpressionList, Filter, JoinType, SetVar, ShowVar},
+    operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
     scope::TableReference,
 };
 use rayexec_bullet::field::TypeSchema;
@@ -51,6 +51,25 @@ impl<'a> PlanContext<'a> {
     pub fn plan_statement(mut self, stmt: Statement) -> Result<LogicalQuery> {
         trace!("planning statement");
         match stmt {
+            Statement::Explain(explain) => {
+                let plan = match explain.body {
+                    ast::ExplainBody::Query(query) => self.plan_query(query)?,
+                };
+                let format = match explain.output {
+                    Some(ast::ExplainOutput::Text) => ExplainFormat::Text,
+                    Some(ast::ExplainOutput::Json) => ExplainFormat::Json,
+                    None => ExplainFormat::Text,
+                };
+                Ok(LogicalQuery {
+                    root: LogicalOperator::Explain(Explain {
+                        analyze: explain.analyze,
+                        verbose: explain.verbose,
+                        format,
+                        input: Box::new(plan.root),
+                    }),
+                    scope: Scope::empty(),
+                })
+            }
             Statement::Query(query) => self.plan_query(query),
             Statement::SetVariable { reference, value } => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);

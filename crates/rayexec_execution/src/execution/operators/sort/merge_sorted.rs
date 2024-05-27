@@ -1,3 +1,4 @@
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
         sort::util::merger::IterState, OperatorState, PartitionState, PhysicalOperator, PollPull,
@@ -519,6 +520,12 @@ impl PhysicalMergeSortedInputs {
                 }
             }
         }
+    }
+}
+
+impl Explainable for PhysicalMergeSortedInputs {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("MergeSorted").with_values("sort_expressions", &self.exprs)
     }
 }
 

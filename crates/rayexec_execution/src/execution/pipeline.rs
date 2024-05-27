@@ -1,3 +1,5 @@
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+
 use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
@@ -91,6 +93,24 @@ impl Pipeline {
         }
 
         Ok(())
+    }
+
+    /// Return an iterator over all operators in the pipeline.
+    ///
+    /// Operators are ordered from the the "source" operator (operator at index
+    /// 0) to the "sink" operator (operator at the last index).
+    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &dyn PhysicalOperator> {
+        let p0 = self
+            .partitions
+            .first()
+            .expect("pipeline to have at least one partition");
+        p0.operators.iter().map(|o| o.physical.as_ref())
+    }
+}
+
+impl Explainable for Pipeline {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new(format!("Pipeline {}", self.pipeline_id.0))
     }
 }
 

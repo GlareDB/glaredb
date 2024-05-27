@@ -1,5 +1,6 @@
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::expr::PhysicalScalarExpression;
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::{array::Array, batch::Batch, compute::filter::filter};
 use rayexec_error::{RayexecError, Result};
 
@@ -46,5 +47,11 @@ impl StatelessOperation for FilterOperation {
         };
 
         Ok(batch)
+    }
+}
+
+impl Explainable for FilterOperation {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Filter").with_value("predicate", &self.predicate)
     }
 }

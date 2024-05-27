@@ -39,6 +39,20 @@ impl DataType {
                 | Self::UInt64
         )
     }
+
+    pub const fn is_integer(&self) -> bool {
+        matches!(
+            self,
+            Self::Int8
+                | Self::Int16
+                | Self::Int32
+                | Self::Int64
+                | Self::UInt8
+                | Self::UInt16
+                | Self::UInt32
+                | Self::UInt64
+        )
+    }
 }
 
 impl fmt::Display for DataType {

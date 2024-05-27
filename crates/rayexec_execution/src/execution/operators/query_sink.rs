@@ -1,4 +1,5 @@
 use crate::execution::query_graph::sink::PartitionSink;
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
@@ -56,5 +57,11 @@ impl PhysicalOperator for PhysicalQuerySink {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         Err(RayexecError::new("Query sink cannot be pulled from"))
+    }
+}
+
+impl Explainable for PhysicalQuerySink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("QuerySink")
     }
 }

@@ -1,3 +1,4 @@
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
@@ -48,5 +49,11 @@ impl PhysicalOperator for PhysicalEmpty {
             }
             other => panic!("inner join state is not building: {other:?}"),
         }
+    }
+}
+
+impl Explainable for PhysicalEmpty {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Empty")
     }
 }

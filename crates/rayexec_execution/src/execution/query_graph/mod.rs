@@ -1,4 +1,5 @@
 pub mod planner;
+pub mod explain;
 pub mod sink;
 
 use super::pipeline::{PartitionPipeline, Pipeline};

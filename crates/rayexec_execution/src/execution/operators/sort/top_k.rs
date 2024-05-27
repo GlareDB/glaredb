@@ -5,6 +5,7 @@ use std::task::Context;
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct TopKPartitionState {}
@@ -50,5 +51,11 @@ impl PhysicalOperator for PhysicalTopK {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         unimplemented!()
+    }
+}
+
+impl Explainable for PhysicalTopK {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("TopK")
     }
 }

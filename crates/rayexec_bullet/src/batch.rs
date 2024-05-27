@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
 /// A batch of same-length arrays.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Columns that make up this batch.
     cols: Vec<Arc<Array>>,

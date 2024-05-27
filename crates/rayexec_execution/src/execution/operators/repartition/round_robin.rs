@@ -10,6 +10,7 @@ use std::task::{Context, Waker};
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Create the appropriate states for the round robin repartition operator.
 pub fn round_robin_states(
@@ -266,5 +267,11 @@ impl BatchBufferInner {
                 waker.wake();
             }
         }
+    }
+}
+
+impl Explainable for PhysicalRoundRobinRepartition {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("RoundRobinRepartition")
     }
 }

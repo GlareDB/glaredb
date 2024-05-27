@@ -22,6 +22,8 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
+use crate::planner::explainable::Explainable;
+
 use self::aggregate::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::empty::EmptyPartitionState;
 use self::join::hash_join::{
@@ -122,7 +124,7 @@ pub enum PollPull {
     Exhausted,
 }
 
-pub trait PhysicalOperator: Sync + Send + Debug {
+pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     /// Try to push a batch for this partition.
     fn poll_push(
         &self,

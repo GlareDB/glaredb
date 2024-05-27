@@ -6,7 +6,7 @@ use crate::planner::operator::LogicalExpression;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -132,6 +132,25 @@ impl PhysicalScalarExpression {
     }
 }
 
+impl fmt::Display for PhysicalScalarExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Column(idx) => write!(f, "#{idx}"),
+            Self::Literal(lit) => write!(f, "{lit}"),
+            Self::ScalarFunction { function, inputs } => write!(
+                f,
+                "{function:?}({})",
+                inputs
+                    .iter()
+                    .map(|input| input.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Case { .. } => unimplemented!(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
@@ -175,6 +194,21 @@ impl PhysicalAggregateExpression {
     }
 }
 
+impl fmt::Display for PhysicalAggregateExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?}({})",
+            self.function,
+            self.column_indices
+                .iter()
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PhysicalSortExpression {
     /// Column this expression is for.
@@ -214,5 +248,21 @@ impl PhysicalSortExpression {
                 "Cannot create a physical sort expression from logical expression: {other:?}"
             ))),
         }
+    }
+}
+
+impl fmt::Display for PhysicalSortExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.column,
+            if self.desc { "DESC" } else { "ASC" },
+            if self.nulls_first {
+                "NULLS FIRST"
+            } else {
+                "NULLS LAST"
+            }
+        )
     }
 }

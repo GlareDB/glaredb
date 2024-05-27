@@ -5,6 +5,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
+use std::fmt;
 use std::task::{Context, Waker};
 
 use crate::execution::operators::aggregate::aggregate_hash_table::AggregateStates;
@@ -13,6 +14,7 @@ use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 use crate::expr::PhysicalAggregateExpression;
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::aggregate_hash_table::{AggregateHashTableDrain, PartitionAggregateHashTable};
 use super::grouping_set::GroupingSets;
@@ -25,6 +27,15 @@ pub enum HashAggregateColumnOutput {
 
     /// Reference a computed aggregate result.
     AggregateResult(usize),
+}
+
+impl fmt::Display for HashAggregateColumnOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::GroupingColumn(idx) => write!(f, "grouping_column({idx})"),
+            Self::AggregateResult(idx) => write!(f, "result_column({idx})"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -414,5 +425,14 @@ impl PhysicalOperator for PhysicalHashAggregate {
                 Ok(PollPull::Pending)
             }
         }
+    }
+}
+
+impl Explainable for PhysicalHashAggregate {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        // TODO: grouping sets
+        ExplainEntry::new("HashAggregate")
+            .with_values("aggregate_columns", &self.aggregate_columns)
+            .with_values("projection", &self.projection)
     }
 }

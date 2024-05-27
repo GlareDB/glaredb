@@ -26,7 +26,7 @@ pub async fn main() {
         .with_file(true)
         .with_line_number(true)
         .finish();
-    let _g = tracing::subscriber::set_default(subscriber);
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     std::panic::set_hook(Box::new(|info| {
         let backtrace = std::backtrace::Backtrace::force_capture();

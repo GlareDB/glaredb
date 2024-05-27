@@ -39,6 +39,7 @@ pub enum LogicalOperator {
     SetVar(SetVar),
     ShowVar(ShowVar),
     CreateTableAs(CreateTableAs),
+    Explain(Explain),
 }
 
 impl LogicalOperator {
@@ -62,6 +63,7 @@ impl LogicalOperator {
             Self::SetVar(n) => n.output_schema(outer),
             Self::ShowVar(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
+            Self::Explain(n) => n.output_schema(outer),
         }
     }
 
@@ -103,6 +105,7 @@ impl LogicalOperator {
                 LogicalOperator::Limit(p) => inner(&p.input, indent + 2, buf),
                 LogicalOperator::CreateTableAs(p) => inner(&p.input, indent + 2, buf),
                 LogicalOperator::Scan(p) => write(&p.source, indent + 2, buf),
+                LogicalOperator::Explain(p) => write(p.input.as_ref(), indent + 2, buf),
                 LogicalOperator::Empty
                 | LogicalOperator::ExpressionList(_)
                 | LogicalOperator::SetVar(_)
@@ -134,6 +137,7 @@ impl Explainable for LogicalOperator {
             Self::SetVar(p) => p.explain_entry(conf),
             Self::ShowVar(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
+            Self::Explain(p) => p.explain_entry(conf),
         }
     }
 }
@@ -191,6 +195,22 @@ pub struct OrderByExpr {
     pub nulls_first: bool,
 }
 
+impl fmt::Display for OrderByExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.expr,
+            if self.desc { "DESC" } else { "ASC" },
+            if self.nulls_first {
+                "NULLS FIRST"
+            } else {
+                "NULLS LAST"
+            }
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct Order {
     pub exprs: Vec<OrderByExpr>,
@@ -208,7 +228,7 @@ impl Explainable for Order {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Order").with_values(
             "expressions",
-            self.exprs.iter().map(|expr| format!("{expr:?}")),
+            self.exprs.iter().map(|expr| format!("{expr}")),
         )
     }
 }
@@ -384,7 +404,11 @@ impl LogicalNode for ExpressionList {
 
 impl Explainable for ExpressionList {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ExpressionList")
+        let mut ent = ExplainEntry::new("ExpressionList");
+        for (idx, row) in self.rows.iter().enumerate() {
+            ent = ent.with_values(format!("row{idx}"), row);
+        }
+        ent
     }
 }
 
@@ -488,6 +512,32 @@ impl LogicalNode for ShowVar {
 impl Explainable for ShowVar {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ShowVar")
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ExplainFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug)]
+pub struct Explain {
+    pub analyze: bool,
+    pub verbose: bool,
+    pub format: ExplainFormat,
+    pub input: Box<LogicalOperator>,
+}
+
+impl LogicalNode for Explain {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::new(vec![DataType::Utf8, DataType::Utf8]))
+    }
+}
+
+impl Explainable for Explain {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Explain")
     }
 }
 

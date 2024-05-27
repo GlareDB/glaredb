@@ -1,3 +1,4 @@
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute;
 use rayexec_error::Result;
@@ -394,5 +395,15 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Exhausted, poll_pull);
+    }
+}
+
+impl Explainable for PhysicalLimit {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
+        if let Some(offset) = self.offset {
+            ent = ent.with_value("offset", offset);
+        }
+        ent
     }
 }

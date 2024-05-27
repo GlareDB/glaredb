@@ -1,8 +1,6 @@
 use parking_lot::Mutex;
-
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
@@ -11,6 +9,7 @@ use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
+use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::planner::operator::JoinType;
 
 use super::join_hash_table::PartitionJoinHashTable;
@@ -394,5 +393,11 @@ impl PhysicalOperator for PhysicalHashJoin {
                 Ok(PollPull::Pending)
             }
         }
+    }
+}
+
+impl Explainable for PhysicalHashJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("HashJoin")
     }
 }

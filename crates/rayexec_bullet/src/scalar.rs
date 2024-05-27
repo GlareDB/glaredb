@@ -158,6 +158,20 @@ impl<'a> ScalarValue<'a> {
         }
     }
 
+    pub fn try_as_usize(&self) -> Result<usize> {
+        match self {
+            Self::Int8(i) => Ok((*i).try_into()?),
+            Self::Int16(i) => Ok((*i).try_into()?),
+            Self::Int32(i) => Ok((*i).try_into()?),
+            Self::Int64(i) => Ok((*i).try_into()?),
+            Self::UInt8(i) => Ok(*i as usize),
+            Self::UInt16(i) => Ok(*i as usize),
+            Self::UInt32(i) => Ok(*i as usize),
+            Self::UInt64(i) => Ok(*i as usize),
+            other => Err(RayexecError::new(format!("Not an integer: {other:?}"))),
+        }
+    }
+
     pub fn try_as_i64(&self) -> Result<i64> {
         match self {
             Self::Int8(i) => Ok(*i as i64),

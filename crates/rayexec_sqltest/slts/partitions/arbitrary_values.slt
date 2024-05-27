@@ -1,0 +1,50 @@
+# Arbitrary partition values
+
+statement ok
+set partitions = 1;
+
+query I
+show partitions
+----
+1
+
+query T rowsort
+select * from (values ('a'), ('b'));
+----
+a
+b
+
+statement ok
+set partitions = 8;
+
+query I
+show partitions
+----
+8
+
+query T rowsort
+select * from (values ('a'), ('b'));
+----
+a
+b
+
+statement ok
+set partitions = 345234;
+
+query I
+show partitions
+----
+345234
+
+query T rowsort
+select * from (values ('a'), ('b'));
+----
+a
+b
+
+# TODO: This should error when setting 0
+# statement ok
+# set partitions = 0;
+
+# statement ok
+# select * from (values ('a'), ('b'));

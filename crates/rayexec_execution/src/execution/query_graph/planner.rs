@@ -1,4 +1,5 @@
 use crate::{
+    engine::vars::SessionVars,
     execution::{
         operators::{
             aggregate::{
@@ -20,7 +21,7 @@ use crate::{
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
-            values::{PhysicalValues, ValuesPartitionState},
+            values::PhysicalValues,
             OperatorState, PartitionState,
         },
         pipeline::{Pipeline, PipelineId},
@@ -29,18 +30,38 @@ use crate::{
     planner::operator::{self, LogicalOperator},
 };
 use rayexec_bullet::{
-    array::Array, batch::Batch, bitmap::Bitmap, compute::concat::concat, field::TypeSchema,
+    array::{Array, Utf8Array},
+    batch::Batch,
+    bitmap::Bitmap,
+    compute::concat::concat,
+    field::TypeSchema,
 };
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 
-use super::{sink::QuerySink, QueryGraph};
+use super::{
+    explain::{format_logical_plan_for_explain, format_pipelines_for_explain},
+    sink::QuerySink,
+    QueryGraph,
+};
 
 /// Configuration used for trigger debug condititions during planning.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct QueryGraphDebugConfig {
     /// Trigger an error if we attempt to plan a nested loop join.
     pub error_on_nested_loop_join: bool,
+}
+
+impl QueryGraphDebugConfig {
+    pub fn new(vars: &SessionVars) -> Self {
+        QueryGraphDebugConfig {
+            error_on_nested_loop_join: vars
+                .get_var_expect("debug_error_on_nested_loop_join")
+                .value
+                .try_as_bool()
+                .unwrap(),
+        }
+    }
 }
 
 /// Create a query graph from a logical plan.
@@ -121,9 +142,12 @@ impl BuildState {
             LogicalOperator::Aggregate(agg) => self.push_aggregate(conf, agg),
             LogicalOperator::Limit(limit) => self.push_limit(conf, limit),
             LogicalOperator::Order(order) => self.push_global_sort(conf, order),
+            LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, show_var),
+            LogicalOperator::SetVar(_) => {
+                Err(RayexecError::new("SET should be handled in the session"))
+            }
+            LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             // LogicalOperator::Scan(scan) => self.plan_scan(scan),
-            // LogicalOperator::SetVar(set_var) => self.plan_set_var(set_var),
-            // LogicalOperator::ShowVar(show_var) => self.plan_show_var(show_var),
             other => unimplemented!("other: {other:?}"),
         }
     }
@@ -172,6 +196,72 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_explain(&mut self, conf: &BuildConfig, explain: operator::Explain) -> Result<()> {
+        if explain.analyze {
+            unimplemented!()
+        }
+
+        let formatted_logical =
+            format_logical_plan_for_explain(&explain.input, explain.format, explain.verbose)?;
+
+        // Build up the pipeline.
+        self.walk(conf, *explain.input)?;
+
+        // And then take it, we'll be discarding this for non-analyze explains.
+        let current = self
+            .in_progress
+            .take()
+            .ok_or_else(|| RayexecError::new("Missing in-progress pipeline"))?;
+
+        let formatted_pipelines = format_pipelines_for_explain(
+            self.completed.iter().chain(std::iter::once(&current)),
+            explain.format,
+            explain.verbose,
+        )?;
+
+        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
+            Array::Utf8(Utf8Array::from_iter(["logical", "pipelines"])),
+            Array::Utf8(Utf8Array::from_iter([
+                formatted_logical.as_str(),
+                formatted_pipelines.as_str(),
+            ])),
+        ])?]));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = physical
+            .create_states(1)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+        self.in_progress = Some(pipeline);
+
+        Ok(())
+    }
+
+    fn push_show_var(&mut self, _conf: &BuildConfig, show: operator::ShowVar) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
+            Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
+        ])?]));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = physical
+            .create_states(1)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }
@@ -716,15 +806,13 @@ impl BuildState {
 
         let mut pipeline = Pipeline::new(pipeline_id, conf.target_partitions);
 
-        let physical = Arc::new(PhysicalValues);
+        let physical = Arc::new(PhysicalValues::new(vec![batch]));
         let operator_state = Arc::new(OperatorState::None);
-        let mut partition_states = vec![PartitionState::Values(
-            ValuesPartitionState::with_batches(vec![batch]),
-        )];
-        // Extend out partition states with empty states.
-        partition_states.resize_with(conf.target_partitions, || {
-            PartitionState::Values(ValuesPartitionState::empty())
-        });
+        let partition_states = physical
+            .create_states(conf.target_partitions)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
 
         pipeline.push_operator(physical, operator_state, partition_states)?;
 

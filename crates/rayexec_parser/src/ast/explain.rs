@@ -1,6 +1,9 @@
 use crate::statement::Statement;
+use crate::tokens::Token;
+use crate::{keywords::Keyword, parser::Parser};
+use rayexec_error::{RayexecError, Result};
 
-use super::QueryNode;
+use super::{AstParseable, QueryNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplainOutput {
@@ -10,11 +13,165 @@ pub enum ExplainOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplainNode {
-    pub body: Statement,
+    pub analyze: bool,
+    pub verbose: bool,
+    pub body: ExplainBody,
     pub output: Option<ExplainOutput>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExplainBody {
     Query(QueryNode),
+}
+
+impl AstParseable for ExplainNode {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        parser.expect_keyword(Keyword::EXPLAIN)?;
+
+        let analyze = parser.parse_keyword(Keyword::ANALYZE);
+        let verbose = parser.parse_keyword(Keyword::VERBOSE);
+
+        let output = if parser.consume_token(&Token::LeftParen) {
+            // Just FORMAT for now.
+            parser.expect_keyword(Keyword::FORMAT)?;
+            let format = if parser.parse_keyword(Keyword::JSON) {
+                ExplainOutput::Json
+            } else if parser.parse_keyword(Keyword::TEXT) {
+                ExplainOutput::Text
+            } else {
+                return Err(RayexecError::new("Expect JSON or TEXT for explain format"));
+            };
+            parser.expect_token(&Token::RightParen)?;
+            Some(format)
+        } else {
+            None
+        };
+
+        let body = match parser.parse_statement()? {
+            Statement::Query(query) => ExplainBody::Query(query),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unexpected body in EXPLAIN: {other:?}"
+                )))
+            }
+        };
+
+        Ok(ExplainNode {
+            analyze,
+            verbose,
+            body,
+            output,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ast::{
+        testutil::parse_ast, Expr, LimitModifier, Literal, QueryNodeBody, SelectExpr, SelectNode,
+    };
+
+    use super::*;
+
+    /// Query node for 'select 1'
+    fn query_node_select_1() -> QueryNode {
+        QueryNode {
+            ctes: None,
+            body: QueryNodeBody::Select(Box::new(SelectNode {
+                distinct: None,
+                projections: vec![SelectExpr::Expr(Expr::Literal(Literal::Number("1".into())))],
+                from: None,
+                where_expr: None,
+                group_by: None,
+                having: None,
+            })),
+            order_by: Vec::new(),
+            limit: LimitModifier {
+                limit: None,
+                offset: None,
+            },
+        }
+    }
+
+    #[test]
+    fn no_options() {
+        let explain: ExplainNode = parse_ast("explain select 1").unwrap();
+        let expected = ExplainNode {
+            analyze: false,
+            verbose: false,
+            body: ExplainBody::Query(query_node_select_1()),
+            output: None,
+        };
+        assert_eq!(expected, explain)
+    }
+
+    #[test]
+    fn format_json() {
+        let explain: ExplainNode = parse_ast("explain (format json) select 1").unwrap();
+        let expected = ExplainNode {
+            analyze: false,
+            verbose: false,
+            body: ExplainBody::Query(query_node_select_1()),
+            output: Some(ExplainOutput::Json),
+        };
+        assert_eq!(expected, explain)
+    }
+
+    #[test]
+    fn format_text() {
+        let explain: ExplainNode = parse_ast("explain (format text) select 1").unwrap();
+        let expected = ExplainNode {
+            analyze: false,
+            verbose: false,
+            body: ExplainBody::Query(query_node_select_1()),
+            output: Some(ExplainOutput::Text),
+        };
+        assert_eq!(expected, explain)
+    }
+
+    #[test]
+    fn format_unknown() {
+        let _ = parse_ast::<ExplainNode>("explain (format exemel) select 1").unwrap_err();
+    }
+
+    #[test]
+    fn analyze() {
+        let explain: ExplainNode = parse_ast("explain analyze select 1").unwrap();
+        let expected = ExplainNode {
+            analyze: true,
+            verbose: false,
+            body: ExplainBody::Query(query_node_select_1()),
+            output: None,
+        };
+        assert_eq!(expected, explain)
+    }
+
+    #[test]
+    fn verbose() {
+        let explain: ExplainNode = parse_ast("explain verbose select 1").unwrap();
+        let expected = ExplainNode {
+            analyze: false,
+            verbose: true,
+            body: ExplainBody::Query(query_node_select_1()),
+            output: None,
+        };
+        assert_eq!(expected, explain)
+    }
+
+    #[test]
+    fn analyze_verbose() {
+        let explain: ExplainNode = parse_ast("explain analyze verbose select 1").unwrap();
+        let expected = ExplainNode {
+            analyze: true,
+            verbose: true,
+            body: ExplainBody::Query(query_node_select_1()),
+            output: None,
+        };
+        assert_eq!(expected, explain)
+    }
+
+    #[test]
+    fn verbose_analyze() {
+        let _ = parse_ast::<ExplainNode>("explain verbose analyze select 1").unwrap_err();
+    }
 }

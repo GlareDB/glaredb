@@ -48,7 +48,7 @@ impl fmt::Display for ExplainEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
         if !self.items.is_empty() {
-            write!(f, "(")?;
+            write!(f, " (")?;
             for (idx, (k, v)) in self.items.iter().enumerate() {
                 if idx > 0 {
                     write!(f, ", ")?;
@@ -123,6 +123,6 @@ mod tests {
             .with_values("k2", ["vs1", "vs2", "vs3"]);
 
         let out = ent.to_string();
-        assert_eq!("DummyNode(k1 = v1, k2 = [vs1, vs2, vs3])", out);
+        assert_eq!("DummyNode (k1 = v1, k2 = [vs1, vs2, vs3])", out);
     }
 }
