@@ -17,14 +17,14 @@ use rayexec_error::{RayexecError, Result};
 pub struct UnaryExecutor;
 
 impl UnaryExecutor {
-    pub fn execute<A1, T1, I1, T2>(
-        array: A1,
-        mut operation: impl FnMut(T1) -> T2,
-        builder: &mut impl ArrayBuilder<T2>,
+    pub fn execute<Array, Type, Iter, Output>(
+        array: Array,
+        mut operation: impl FnMut(Type) -> Output,
+        builder: &mut impl ArrayBuilder<Output>,
     ) -> Result<()>
     where
-        A1: ArrayAccessor<T1, ValueIter = I1>,
-        I1: Iterator<Item = T1>,
+        Array: ArrayAccessor<Type, ValueIter = Iter>,
+        Iter: Iterator<Item = Type>,
     {
         // TODO: Union validity, skip over values as needed.
 
@@ -42,17 +42,17 @@ impl UnaryExecutor {
 pub struct BinaryExecutor;
 
 impl BinaryExecutor {
-    pub fn execute<A1, T1, I1, A2, T2, I2, T3>(
-        left: A1,
-        right: A2,
-        mut operation: impl FnMut(T1, T2) -> T3,
-        builder: &mut impl ArrayBuilder<T3>,
+    pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Output>(
+        left: Array1,
+        right: Array2,
+        mut operation: impl FnMut(Type1, Type2) -> Output,
+        builder: &mut impl ArrayBuilder<Output>,
     ) -> Result<()>
     where
-        A1: ArrayAccessor<T1, ValueIter = I1>,
-        A2: ArrayAccessor<T2, ValueIter = I2>,
-        I1: Iterator<Item = T1>,
-        I2: Iterator<Item = T2>,
+        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
+        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
+        Iter1: Iterator<Item = Type1>,
+        Iter2: Iterator<Item = Type2>,
     {
         if left.len() != right.len() {
             return Err(RayexecError::new(format!(
@@ -78,20 +78,20 @@ impl BinaryExecutor {
 pub struct TernaryExecutor;
 
 impl TernaryExecutor {
-    pub fn execute<A1, T1, I1, A2, T2, I2, A3, T3, I3, T4>(
-        first: A1,
-        second: A2,
-        third: A3,
-        mut operation: impl FnMut(T1, T2, T3) -> T4,
-        builder: &mut impl ArrayBuilder<T4>,
+    pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Array3, Type3, Iter3, Output>(
+        first: Array1,
+        second: Array2,
+        third: Array3,
+        mut operation: impl FnMut(Type1, Type2, Type3) -> Output,
+        builder: &mut impl ArrayBuilder<Output>,
     ) -> Result<()>
     where
-        A1: ArrayAccessor<T1, ValueIter = I1>,
-        A2: ArrayAccessor<T2, ValueIter = I2>,
-        A3: ArrayAccessor<T3, ValueIter = I3>,
-        I1: Iterator<Item = T1>,
-        I2: Iterator<Item = T2>,
-        I3: Iterator<Item = T3>,
+        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
+        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
+        Array3: ArrayAccessor<Type3, ValueIter = Iter3>,
+        Iter1: Iterator<Item = Type1>,
+        Iter2: Iterator<Item = Type2>,
+        Iter3: Iterator<Item = Type3>,
     {
         if first.len() != second.len() || second.len() != third.len() {
             return Err(RayexecError::new(format!(
@@ -121,14 +121,14 @@ impl TernaryExecutor {
 pub struct UniformExecutor;
 
 impl UniformExecutor {
-    pub fn execute<A, T1, I1, T2>(
-        arrays: &[A],
-        mut operation: impl FnMut(&[T1]) -> T2,
-        builder: &mut impl ArrayBuilder<T2>,
+    pub fn execute<Array, Type, Iter, Output>(
+        arrays: &[Array],
+        mut operation: impl FnMut(&[Type]) -> Output,
+        builder: &mut impl ArrayBuilder<Output>,
     ) -> Result<()>
     where
-        A: ArrayAccessor<T1, ValueIter = I1>,
-        I1: Iterator<Item = T1>,
+        Array: ArrayAccessor<Type, ValueIter = Iter>,
+        Iter: Iterator<Item = Type>,
     {
         let len = arrays[0].len();
 

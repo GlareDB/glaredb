@@ -30,16 +30,16 @@ impl UnaryUpdater {
     ///
     /// The row selection bitmap indicates which rows from the input to use for
     /// the update, and the mapping slice maps rows to target states.
-    pub fn update<A, T, I, S, O>(
+    pub fn update<Array, Type, Iter, State, Output>(
         row_selection: &Bitmap,
-        inputs: A,
+        inputs: Array,
         mapping: &[usize],
-        target_states: &mut [S],
+        target_states: &mut [State],
     ) -> Result<()>
     where
-        A: ArrayAccessor<T, ValueIter = I>,
-        I: Iterator<Item = T>,
-        S: AggregateState<T, O>,
+        Array: ArrayAccessor<Type, ValueIter = Iter>,
+        Iter: Iterator<Item = Type>,
+        State: AggregateState<Type, Output>,
     {
         debug_assert_eq!(
             row_selection.popcnt(),
@@ -67,19 +67,19 @@ impl UnaryUpdater {
 pub struct BinaryUpdater;
 
 impl BinaryUpdater {
-    pub fn update<A1, T1, I1, A2, T2, I2, S, O>(
+    pub fn update<Array1, Type1, Iter1, Array2, Type2, Iter2, State, Output>(
         row_selection: &Bitmap,
-        first: A1,
-        second: A2,
+        first: Array1,
+        second: Array2,
         mapping: &[usize],
-        target_states: &mut [S],
+        target_states: &mut [State],
     ) -> Result<()>
     where
-        A1: ArrayAccessor<T1, ValueIter = I1>,
-        I1: Iterator<Item = T1>,
-        A2: ArrayAccessor<T2, ValueIter = I2>,
-        I2: Iterator<Item = T2>,
-        S: AggregateState<(T1, T2), O>,
+        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
+        Iter1: Iterator<Item = Type1>,
+        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
+        Iter2: Iterator<Item = Type2>,
+        State: AggregateState<(Type1, Type2), Output>,
     {
         debug_assert_eq!(
             row_selection.popcnt(),
@@ -115,9 +115,13 @@ impl StateCombiner {
     /// `mapping` provides a mapping of consume states to the target index. The
     /// 'n'th state in `consume` corresponds to the 'n'th value `mapping`. With the value
     /// in mapping being the index of the target state.
-    pub fn combine<S, T, O>(consume: Vec<S>, mapping: &[usize], targets: &mut [S]) -> Result<()>
+    pub fn combine<State, Input, Output>(
+        consume: Vec<State>,
+        mapping: &[usize],
+        targets: &mut [State],
+    ) -> Result<()>
     where
-        S: AggregateState<T, O>,
+        State: AggregateState<Input, Output>,
     {
         for (target_idx, consume_state) in mapping.iter().zip(consume.into_iter()) {
             let target = &mut targets[*target_idx];

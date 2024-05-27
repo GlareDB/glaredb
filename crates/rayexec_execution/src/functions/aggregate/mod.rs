@@ -109,23 +109,23 @@ pub trait GroupedStates: Debug + Send {
 ///
 /// This essetially provides a wrapping around functions provided by the
 /// aggregate executors, and some number of aggregate states.
-pub struct DefaultGroupedStates<S, T, O, UF, CF, FF> {
+pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, CombineFn, FinalizeFn> {
     /// All states we're tracking.
     ///
     /// Each state corresponds to a single group.
-    states: Vec<S>,
+    states: Vec<State>,
 
     /// How we should update states given inputs and a mapping array.
-    update_fn: UF,
+    update_fn: UpdateFn,
 
     /// How we should combine states.
-    combine_fn: CF,
+    combine_fn: CombineFn,
 
     /// How we should finalize the states once we're done updating states.
-    finalize_fn: FF,
+    finalize_fn: FinalizeFn,
 
-    _t: PhantomData<T>,
-    _o: PhantomData<O>,
+    _t: PhantomData<InputType>,
+    _o: PhantomData<OutputType>,
 }
 
 impl<S, T, O, UF, CF, FF> DefaultGroupedStates<S, T, O, UF, CF, FF>
@@ -147,14 +147,15 @@ where
     }
 }
 
-impl<S, T, O, UF, CF, FF> GroupedStates for DefaultGroupedStates<S, T, O, UF, CF, FF>
+impl<State, InputType, OutputType, UpdateFn, CombineFn, FinalizeFn> GroupedStates
+    for DefaultGroupedStates<State, InputType, OutputType, UpdateFn, CombineFn, FinalizeFn>
 where
-    S: AggregateState<T, O> + Send + 'static,
-    T: Send + 'static,
-    O: Send + 'static,
-    UF: Fn(&Bitmap, &[&Array], &[usize], &mut [S]) -> Result<()> + Send + 'static,
-    CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()> + Send + 'static,
-    FF: Fn(vec::Drain<'_, S>) -> Result<Array> + Send + 'static,
+    State: AggregateState<InputType, OutputType> + Send + 'static,
+    InputType: Send + 'static,
+    OutputType: Send + 'static,
+    UpdateFn: Fn(&Bitmap, &[&Array], &[usize], &mut [State]) -> Result<()> + Send + 'static,
+    CombineFn: Fn(Vec<State>, &[usize], &mut [State]) -> Result<()> + Send + 'static,
+    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
@@ -162,7 +163,7 @@ where
 
     fn new_group(&mut self) -> usize {
         let idx = self.states.len();
-        self.states.push(S::default());
+        self.states.push(State::default());
         idx
     }
 
