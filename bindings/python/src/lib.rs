@@ -33,6 +33,7 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__runtime", TokioRuntime(runtime))?;
 
     m.add_function(wrap_pyfunction!(sql, m)?)?;
+    m.add_function(wrap_pyfunction!(prql, m)?)?;
     m.add_function(wrap_pyfunction!(execute, m)?)?;
 
     m.add_function(wrap_pyfunction!(connect::connect, m)?)?;
