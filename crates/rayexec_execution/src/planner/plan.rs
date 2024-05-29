@@ -1,17 +1,20 @@
 use super::{
     expr::{ExpandedSelectExpr, ExpressionContext},
     operator::{
-        Aggregate, AnyJoin, CrossJoin, GroupingExpr, Limit, LogicalExpression, LogicalOperator,
-        Order, OrderByExpr, Projection,
+        Aggregate, AnyJoin, CreateTable, CrossJoin, GroupingExpr, Insert, Limit, LogicalExpression,
+        LogicalOperator, Order, OrderByExpr, Projection, Scan,
     },
     scope::{ColumnRef, Scope},
-    Resolver,
 };
-use crate::planner::{
-    operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
-    scope::TableReference,
+use crate::{
+    database::{catalog::CatalogTx, create::OnConflict, entry::TableEntry, DatabaseContext},
+    engine::vars::SessionVars,
+    planner::{
+        operator::{Explain, ExplainFormat, ExpressionList, Filter, JoinType, SetVar, ShowVar},
+        scope::TableReference,
+    },
 };
-use rayexec_bullet::field::TypeSchema;
+use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -33,17 +36,24 @@ pub struct LogicalQuery {
 
 #[derive(Debug, Clone)]
 pub struct PlanContext<'a> {
+    pub tx: &'a CatalogTx,
+
     /// Resolver for resolving table and other table like items.
-    pub resolver: &'a dyn Resolver,
+    pub resolver: &'a DatabaseContext,
+
+    /// Session variables.
+    pub vars: &'a SessionVars,
 
     /// Scopes outside this context.
     pub outer_scopes: Vec<Scope>,
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(resolver: &'a dyn Resolver) -> Self {
+    pub fn new(tx: &'a CatalogTx, resolver: &'a DatabaseContext, vars: &'a SessionVars) -> Self {
         PlanContext {
+            tx,
             resolver,
+            vars,
             outer_scopes: Vec::new(),
         }
     }
@@ -71,6 +81,8 @@ impl<'a> PlanContext<'a> {
                 })
             }
             Statement::Query(query) => self.plan_query(query),
+            Statement::CreateTable(create) => self.plan_create_table(create),
+            Statement::Insert(insert) => self.plan_insert(insert),
             Statement::SetVariable { reference, value } => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
@@ -84,10 +96,10 @@ impl<'a> PlanContext<'a> {
             }
             Statement::ShowVariable { reference } => {
                 let name = reference.0[0].value.clone(); // TODO: Normalize, allow compound references?
-                let var = self.resolver.get_session_variable(&name)?;
+                let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
-                    root: LogicalOperator::ShowVar(ShowVar { var }),
+                    root: LogicalOperator::ShowVar(ShowVar { var: var.clone() }),
                     scope,
                 })
             }
@@ -98,11 +110,70 @@ impl<'a> PlanContext<'a> {
     /// Create a new nested plan context for planning subqueries.
     fn nested(&self, outer: Scope) -> Self {
         PlanContext {
+            tx: self.tx,
             resolver: self.resolver,
+            vars: self.vars,
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
                 .collect(),
         }
+    }
+
+    fn plan_insert(&mut self, insert: ast::Insert) -> Result<LogicalQuery> {
+        let (_reference, ent) = self.resolve_table(insert.table)?;
+
+        let source = self.plan_query(insert.source)?;
+
+        // TODO: Handle specified columns. If provided, insert a projection that
+        // maps the columns to the right position.
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::Insert(Insert {
+                table: ent,
+                input: Box::new(source.root),
+            }),
+            scope: Scope::empty(),
+        })
+    }
+
+    fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {
+        let on_conflict = match (create.or_replace, create.if_not_exists) {
+            (true, false) => OnConflict::Replace,
+            (false, true) => OnConflict::Ignore,
+            (false, false) => OnConflict::Error,
+            (true, true) => {
+                return Err(RayexecError::new(
+                    "Cannot specify both OR REPLACE and IF NOT EXISTS",
+                ))
+            }
+        };
+
+        // TODO: Better name handling.
+        // TODO: Get schema from name or search path.
+        let name = create.name.0[0].value.clone();
+
+        // TODO: Constraints.
+        let columns: Vec<_> = create
+            .columns
+            .into_iter()
+            .map(|col| {
+                Field::new(
+                    col.name.to_string(),
+                    Self::ast_datatype_to_exec_datatype(col.datatype),
+                    true,
+                )
+            })
+            .collect();
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::CreateTable(CreateTable {
+                name,
+                temp: create.temp,
+                columns,
+                on_conflict,
+            }),
+            scope: Scope::empty(),
+        })
     }
 
     fn plan_query(&mut self, query: ast::QueryNode) -> Result<LogicalQuery> {
@@ -430,7 +501,24 @@ impl<'a> PlanContext<'a> {
     fn plan_from_node(&self, from: ast::FromNode, current_scope: Scope) -> Result<LogicalQuery> {
         // Plan the "body" of the FROM.
         let body = match from.body {
-            ast::FromNodeBody::BaseTable(_) => unimplemented!(),
+            ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
+                let (reference, ent) = self.resolve_table(reference)?;
+                let scope = Scope::with_columns(
+                    Some(reference),
+                    ent.columns.iter().map(|f| f.name.clone()),
+                );
+
+                // TODO: We need a "resolved" entry type that wraps a table
+                // entry telling us which catalog/schema it's from.
+                LogicalQuery {
+                    root: LogicalOperator::Scan(Scan {
+                        catalog: "temp".to_string(),
+                        schema: "temp".to_string(),
+                        source: ent,
+                    }),
+                    scope,
+                }
+            }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
                 let mut nested = self.nested(current_scope);
                 nested.plan_query(query)?
@@ -646,5 +734,47 @@ impl<'a> PlanContext<'a> {
             root: operator,
             scope,
         })
+    }
+
+    fn resolve_table(
+        &self,
+        reference: ast::ObjectReference,
+    ) -> Result<(TableReference, TableEntry)> {
+        // TODO: Better handling, also search path.
+        let name = &reference.0[0].value;
+
+        // Search temp first
+        if let Some(ent) = self
+            .resolver
+            .get_catalog("temp")?
+            .get_table_entry(self.tx, "temp", name)?
+        {
+            let reference = TableReference {
+                database: None,
+                schema: None,
+                table: name.clone(),
+            };
+
+            Ok((reference, ent))
+        } else {
+            // Search other catalogs/schemas in the search path (once we
+            // have them).
+
+            Err(RayexecError::new(format!(
+                "Unable to find entry for '{name}'"
+            )))
+        }
+    }
+
+    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
+        match datatype {
+            ast::DataType::Varchar(_) => DataType::Utf8,
+            ast::DataType::SmallInt => DataType::Int16,
+            ast::DataType::Integer => DataType::Int32,
+            ast::DataType::BigInt => DataType::Int64,
+            ast::DataType::Real => DataType::Float32,
+            ast::DataType::Double => DataType::Float64,
+            ast::DataType::Bool => DataType::Boolean,
+        }
     }
 }

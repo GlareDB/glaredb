@@ -1,4 +1,5 @@
 pub mod engine;
+pub mod database;
 pub mod execution;
 pub mod expr;
 pub mod functions;

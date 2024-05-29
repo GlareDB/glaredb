@@ -1,5 +1,7 @@
 use crate::{
-    ast::{AstParseable, ExplainNode, Expr, Ident, ObjectReference, QueryNode},
+    ast::{
+        AstParseable, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference, QueryNode,
+    },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
     tokens::{Token, TokenWithLocation, Tokenizer},
@@ -83,6 +85,7 @@ impl Parser {
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
+                    Keyword::INSERT => Ok(Statement::Insert(Insert::parse(self)?)),
                     Keyword::EXPLAIN => Ok(Statement::Explain(ExplainNode::parse(self)?)),
                     other => Err(RayexecError::new(format!("Unexpected keyword: {other:?}",))),
                 }
@@ -95,16 +98,19 @@ impl Parser {
 
     /// Parse `CREATE ...`
     pub fn parse_create(&mut self) -> Result<Statement> {
-        self.expect_keyword(Keyword::CREATE)?;
+        // Store the start index, we'll reset this when we call the actual thing
+        // to parse.
+        let start = self.idx;
 
+        self.expect_keyword(Keyword::CREATE)?;
         let or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
         let temp = self
             .parse_one_of_keywords(&[Keyword::TEMP, Keyword::TEMPORARY])
             .is_some();
 
         if self.parse_keyword(Keyword::TABLE) {
-            // Table
-            unimplemented!()
+            self.idx = start;
+            Ok(Statement::CreateTable(CreateTable::parse(self)?))
         } else if self.parse_keyword(Keyword::SCHEMA) {
             // Schema
             if or_replace {

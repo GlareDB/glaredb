@@ -14,7 +14,7 @@ use std::{
 
 use super::{ReturnType, Signature};
 
-pub static ALL_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
+pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
     Lazy::new(|| vec![Box::new(numeric::Sum)]);
 
 /// A generic aggregate function that can be specialized into a more specific

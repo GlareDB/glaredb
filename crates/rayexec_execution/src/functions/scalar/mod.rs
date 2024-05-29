@@ -15,7 +15,7 @@ use std::sync::Arc;
 use super::{ReturnType, Signature};
 
 // List of all scalar functions.
-pub static ALL_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
+pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
     vec![
         // Arith
         Box::new(arith::Add),

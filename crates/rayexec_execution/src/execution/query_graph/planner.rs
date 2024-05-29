@@ -1,4 +1,5 @@
 use crate::{
+    database::{create::CreateTableInfo, DatabaseContext},
     engine::vars::SessionVars,
     execution::{
         operators::{
@@ -6,8 +7,10 @@ use crate::{
                 grouping_set::GroupingSets,
                 hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
             },
+            create_table::PhysicalCreateTable,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
+            insert::PhysicalInsert,
             join::{
                 hash_join::PhysicalHashJoin,
                 nl_join::{
@@ -19,6 +22,7 @@ use crate::{
             project::ProjectOperation,
             query_sink::{PhysicalQuerySink, QuerySinkPartitionState},
             repartition::round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
+            scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             values::PhysicalValues,
@@ -65,15 +69,35 @@ impl QueryGraphDebugConfig {
 }
 
 /// Create a query graph from a logical plan.
+// TODO: This planner should be split up into two planners.
+//
+// Planner 1: Build the intermediate pipeline. An intermediate pipeline is the
+// same as the current pipeline, just without the states. An intermediate
+// pipeline should be fully serializable to enable dist exec. We should also
+// plan to have diagnostic info as well (which pipeline feeds into another).
+//
+// Planner 2: Take the intermediate pipeline and generate the states. This
+// should happen on the node that's doing the execution. The final pipeline
+// won't be fully serializable due to the states not having a requirement on
+// being serializable (since they hold things like clients, hash tables, etc and
+// it's not worth making those serializable)
+//
+// The current `BuildConfig` contains parameters that are only applicable to
+// planner 2.
 #[derive(Debug)]
-pub struct QueryGraphPlanner {
-    conf: BuildConfig,
+pub struct QueryGraphPlanner<'a> {
+    conf: BuildConfig<'a>,
 }
 
-impl QueryGraphPlanner {
-    pub fn new(target_partitions: usize, debug: QueryGraphDebugConfig) -> Self {
+impl<'a> QueryGraphPlanner<'a> {
+    pub fn new(
+        db_context: &'a DatabaseContext,
+        target_partitions: usize,
+        debug: QueryGraphDebugConfig,
+    ) -> Self {
         QueryGraphPlanner {
             conf: BuildConfig {
+                db_context,
                 target_partitions,
                 debug,
             },
@@ -101,7 +125,8 @@ impl QueryGraphPlanner {
 }
 
 #[derive(Debug)]
-struct BuildConfig {
+struct BuildConfig<'a> {
+    db_context: &'a DatabaseContext,
     target_partitions: usize,
     debug: QueryGraphDebugConfig,
 }
@@ -147,7 +172,9 @@ impl BuildState {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
-            // LogicalOperator::Scan(scan) => self.plan_scan(scan),
+            LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
+            LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
+            LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             other => unimplemented!("other: {other:?}"),
         }
     }
@@ -196,6 +223,90 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_insert(&mut self, conf: &BuildConfig, insert: operator::Insert) -> Result<()> {
+        self.walk(conf, *insert.input)?;
+
+        // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
+        let physical = Arc::new(PhysicalInsert::new("temp", "temp", insert.table));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.db_context, conf.target_partitions)?
+            .into_iter()
+            .map(PartitionState::Insert)
+            .collect();
+
+        let pipeline = self.in_progress_pipeline_mut()?;
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        Ok(())
+    }
+
+    fn push_scan(&mut self, conf: &BuildConfig, scan: operator::Scan) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.db_context, conf.target_partitions)?
+            .into_iter()
+            .map(PartitionState::Scan)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
+
+        // TODO: If we don't get the desired number of partitions, we should
+        // push a repartition here.
+
+        Ok(())
+    }
+
+    fn push_create_table(
+        &mut self,
+        conf: &BuildConfig,
+        create: operator::CreateTable,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            // Well... for CREATE TABLE AS it could be some
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        // To explain my TODO above, this would be what happens in "planner 1".
+        // Just creating the operator, and the planning can happen anywhere.
+        let physical = if create.temp {
+            Arc::new(PhysicalCreateTable::new(
+                "temp",
+                "temp",
+                CreateTableInfo {
+                    name: create.name,
+                    columns: create.columns,
+                    on_conflict: create.on_conflict,
+                },
+            ))
+        } else {
+            return Err(RayexecError::new("Non-temp tables not yet supported"));
+        };
+
+        // And creating the states would happen in "planner 2". This relies on
+        // the database context, and so should happen on the node that will be
+        // executing the pipeline.
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = vec![PartitionState::CreateTable(
+            physical.try_create_state(conf.db_context)?,
+        )];
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }

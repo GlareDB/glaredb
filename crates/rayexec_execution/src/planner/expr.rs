@@ -121,11 +121,17 @@ impl<'a> ExpressionContext<'a> {
                 right: Box::new(self.plan_expression(*right)?),
             }),
             ast::Expr::Function(func) => {
+                // TODO: Search path (with system being the first to check)
+                if func.name.0.len() != 1 {
+                    return Err(RayexecError::new(
+                        "Qualified function names not yet supported",
+                    ));
+                }
+                let func_name = &func.name.0[0].value;
+
                 // Check scalars first.
-                if let Some(scalar_func) = self
-                    .plan_context
-                    .resolver
-                    .resolve_scalar_function(&func.name)
+                if let Some(scalar_func) =
+                    self.plan_context.resolver.get_builtin_scalar(func_name)?
                 {
                     let inputs = func
                         .args
@@ -149,7 +155,7 @@ impl<'a> ExpressionContext<'a> {
                     }
 
                     return Ok(LogicalExpression::ScalarFunction {
-                        function: scalar_func,
+                        function: scalar_func.clone(),
                         inputs,
                     });
                 }
@@ -157,7 +163,7 @@ impl<'a> ExpressionContext<'a> {
                 if let Some(agg_func) = self
                     .plan_context
                     .resolver
-                    .resolve_aggregate_function(&func.name)
+                    .get_builtin_aggregate(func_name)?
                 {
                     let inputs = func
                         .args
@@ -173,7 +179,7 @@ impl<'a> ExpressionContext<'a> {
                     // TODO: Sig check
 
                     return Ok(LogicalExpression::Aggregate {
-                        agg: agg_func,
+                        agg: agg_func.clone(),
                         inputs,
                         filter: None,
                     });

@@ -1,14 +1,16 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
+use crate::database::create::OnConflict;
+use crate::database::entry::TableEntry;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
 };
-use rayexec_bullet::field::{DataType, TypeSchema};
+use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
 pub trait LogicalNode {
@@ -38,7 +40,9 @@ pub enum LogicalOperator {
     Empty,
     SetVar(SetVar),
     ShowVar(ShowVar),
+    CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
+    Insert(Insert),
     Explain(Explain),
 }
 
@@ -62,61 +66,11 @@ impl LogicalOperator {
             Self::Empty => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.output_schema(outer),
             Self::ShowVar(n) => n.output_schema(outer),
+            Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
+            Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
         }
-    }
-
-    pub fn as_explain_string(&self) -> Result<String> {
-        use std::fmt::Write as _;
-        fn write(p: &dyn Explainable, indent: usize, buf: &mut String) -> Result<()> {
-            writeln!(
-                buf,
-                "{}{}",
-                " ".repeat(indent),
-                p.explain_entry(ExplainConfig { verbose: true })
-            )
-            .context("failed to write explain string to buffer")?;
-            Ok(())
-        }
-
-        fn inner(plan: &LogicalOperator, indent: usize, buf: &mut String) -> Result<()> {
-            write(plan, indent, buf)?;
-            match plan {
-                LogicalOperator::Projection(p) => inner(&p.input, indent + 2, buf),
-                LogicalOperator::Filter(p) => inner(&p.input, indent + 2, buf),
-                LogicalOperator::Aggregate(p) => inner(&p.input, indent + 2, buf),
-                LogicalOperator::Order(p) => inner(&p.input, indent + 2, buf),
-                LogicalOperator::AnyJoin(p) => {
-                    inner(&p.left, indent + 2, buf)?;
-                    inner(&p.right, indent + 2, buf)?;
-                    Ok(())
-                }
-                LogicalOperator::EqualityJoin(p) => {
-                    inner(&p.left, indent + 2, buf)?;
-                    inner(&p.right, indent + 2, buf)?;
-                    Ok(())
-                }
-                LogicalOperator::CrossJoin(p) => {
-                    inner(&p.left, indent + 2, buf)?;
-                    inner(&p.right, indent + 2, buf)?;
-                    Ok(())
-                }
-                LogicalOperator::Limit(p) => inner(&p.input, indent + 2, buf),
-                LogicalOperator::CreateTableAs(p) => inner(&p.input, indent + 2, buf),
-                LogicalOperator::Scan(p) => write(&p.source, indent + 2, buf),
-                LogicalOperator::Explain(p) => write(p.input.as_ref(), indent + 2, buf),
-                LogicalOperator::Empty
-                | LogicalOperator::ExpressionList(_)
-                | LogicalOperator::SetVar(_)
-                | LogicalOperator::ShowVar(_) => Ok(()),
-            }
-        }
-
-        let mut buf = String::new();
-        inner(self, 0, &mut buf)?;
-
-        Ok(buf)
     }
 }
 
@@ -136,7 +90,9 @@ impl Explainable for LogicalOperator {
             Self::Empty => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.explain_entry(conf),
             Self::ShowVar(p) => p.explain_entry(conf),
+            Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
+            Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
         }
     }
@@ -345,23 +301,10 @@ impl Explainable for Limit {
 }
 
 #[derive(Debug)]
-pub enum ScanItem {
-    TableFunction(),
-}
-
-impl Explainable for ScanItem {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        unimplemented!()
-        // match self {
-        //     Self::TableFunction(func) => func.explain_entry(conf),
-        // }
-    }
-}
-
-#[derive(Debug)]
 pub struct Scan {
-    pub source: ScanItem,
-    pub schema: TypeSchema,
+    pub catalog: String,
+    pub schema: String,
+    pub source: TableEntry,
     // pub projection: Option<Vec<usize>>,
     // pub input: BindIdx,
     // TODO: Pushdowns
@@ -369,13 +312,14 @@ pub struct Scan {
 
 impl LogicalNode for Scan {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
-        Ok(self.schema.clone())
+        let schema = TypeSchema::new(self.source.columns.iter().map(|f| f.datatype.clone()));
+        Ok(schema)
     }
 }
 
 impl Explainable for Scan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan")
+        ExplainEntry::new("Scan").with_value("source", &self.source.name)
     }
 }
 
@@ -464,6 +408,27 @@ impl GroupingExpr {
     }
 }
 
+#[derive(Debug)]
+pub struct CreateTable {
+    pub name: String,
+    pub temp: bool, // TODO: Probably replace this with a schema reference. We need the schema somewhere.
+    pub columns: Vec<Field>,
+    pub on_conflict: OnConflict,
+}
+
+impl LogicalNode for CreateTable {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for CreateTable {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateTable")
+            .with_values("columns", self.columns.iter().map(|c| &c.name))
+    }
+}
+
 /// Dummy create table for testing.
 #[derive(Debug)]
 pub struct CreateTableAs {
@@ -474,6 +439,25 @@ pub struct CreateTableAs {
 impl Explainable for CreateTableAs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTableAs")
+    }
+}
+
+#[derive(Debug)]
+pub struct Insert {
+    pub table: TableEntry,
+    pub input: Box<LogicalOperator>,
+}
+
+impl LogicalNode for Insert {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        // TODO: This would be someting in the case of RETURNING.
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for Insert {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Insert")
     }
 }
 

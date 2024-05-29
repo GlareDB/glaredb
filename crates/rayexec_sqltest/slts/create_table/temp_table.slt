@@ -1,0 +1,38 @@
+# CREATE TEMP TABLE
+
+statement ok
+create temp table t1 (a int, b text);
+
+query I
+select * from t1;
+----
+
+query TT
+explain select * from t1;
+----
+logical    Projection (expressions = [#0, #1])
+.            Scan (source = t1)
+pipelines  Pipeline 0
+.            Project (projections = [#0, #1])
+.            Scan (table = t1)
+
+
+statement ok
+insert into t1 values (1, 'mario'), (2, 'wario');
+
+query IT rowsort
+select * from t1;
+----
+1  mario
+2  wario
+
+statement ok
+insert into t1 values (3, 'peach'), (4, 'yoshi');
+
+query IT rowsort
+select * from t1;
+----
+1  mario
+2  wario
+3  peach
+4  yoshi

@@ -1,3 +1,7 @@
+pub mod create_table;
+pub use create_table::*;
+pub mod datatype;
+pub use datatype::*;
 pub mod expr;
 pub use expr::*;
 pub mod from;
@@ -10,6 +14,8 @@ pub mod select;
 pub use select::*;
 pub mod explain;
 pub use explain::*;
+pub mod insert;
+pub use insert::*;
 
 use crate::parser::Parser;
 use crate::tokens::Token;
