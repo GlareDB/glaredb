@@ -3,7 +3,6 @@ use std::sync::Arc;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
-use sqlexec::remote::client::RemoteClientType;
 
 use crate::environment::PyEnvironmentReader;
 use crate::error::PyGlareDbError;
@@ -31,9 +30,10 @@ impl Connection {
                 Ok(Connection {
                     inner: Arc::new(
                         glaredb::ConnectOptionsBuilder::new_in_memory()
-                            .client_type(RemoteClientType::Python)
+                            .client_type(glaredb::ClientType::Python)
                             .environment_reader(Arc::new(PyEnvironmentReader))
-                            .build()?
+                            .build()
+                            .map_err(glaredb::Error::from)?
                             .connect()
                             .await?,
                     ),

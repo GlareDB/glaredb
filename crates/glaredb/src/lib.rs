@@ -10,7 +10,7 @@
 //! applications or to produce other bindings.
 
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -18,10 +18,11 @@ use std::task::{Context, Poll};
 
 use datafusion::arrow::array::{StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::error::ArrowError;
 // public re-export so downstream users of this package don't have to
 // directly depend on DF (and our version no-less) to use our interfaces.
 pub use datafusion::arrow::record_batch::RecordBatch;
-pub use datafusion::error::DataFusionError;
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::LogicalPlan;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 pub use datafusion::physical_plan::SendableRecordBatchStream;
@@ -30,6 +31,7 @@ use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{Stream, StreamExt};
 use futures::TryStreamExt;
+use metastore::errors::MetastoreError;
 use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
 pub use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
@@ -91,9 +93,9 @@ pub struct ConnectOptions {
     pub cloud_addr: Option<String>,
     /// Client type distinguishes what kind of remote client this is,
     /// and is used for logging and introspection.
-    #[builder(default = "Some(RemoteClientType::Cli)")]
+    #[builder(default = "Some(ClientType::Rust)")]
     #[builder(setter(strip_option))]
-    pub client_type: Option<RemoteClientType>,
+    pub client_type: Option<ClientType>,
     /// Specify an optional environment reader, which GlareDB uses in
     /// embedded cases so that queries can bindings to extract tables
     /// from variables in the binding's scope that data frames, or the
@@ -160,7 +162,7 @@ impl ConnectOptionsBuilder {
 impl ConnectOptions {
     /// Creates a Connection object according to the options
     /// specified.
-    pub async fn connect(self) -> Result<Connection, ExecError> {
+    pub async fn connect(self) -> Result<Connection, Error> {
         let mut engine = Engine::from_storage(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
@@ -172,7 +174,7 @@ impl ConnectOptions {
                 self.cloud_url(),
                 self.cloud_addr.clone().unwrap_or_default(),
                 self.disable_tls.unwrap_or_default(),
-                self.client_type.unwrap_or_default(),
+                self.client_type.unwrap_or_default().into(),
                 None,
             )
             .await?;
@@ -322,10 +324,26 @@ type RowMap = indexmap::IndexMap<Arc<String>, ScalarValue>;
 #[derive(Default, Debug)]
 pub struct RowMapBatch(Vec<RowMap>);
 
-impl TryFrom<RecordBatch> for RowMapBatch {
-    type Error = DataFusionError;
+impl TryFrom<Result<RecordBatch, Error>> for RowMapBatch {
+    type Error = Error;
 
-    fn try_from(batch: RecordBatch) -> Result<Self, Self::Error> {
+    fn try_from(value: Result<RecordBatch, Error>) -> Result<Self, Error> {
+        RowMapBatch::try_from(value?)
+    }
+}
+
+impl TryFrom<Result<RecordBatch, DataFusionError>> for RowMapBatch {
+    type Error = Error;
+
+    fn try_from(value: Result<RecordBatch, DataFusionError>) -> Result<Self, Error> {
+        RowMapBatch::try_from(value.map_err(Error::from)?)
+    }
+}
+
+impl TryFrom<RecordBatch> for RowMapBatch {
+    type Error = Error;
+
+    fn try_from(batch: RecordBatch) -> Result<Self, Error> {
         let schema = batch.schema();
         let mut out = Vec::with_capacity(batch.num_rows());
 
@@ -343,14 +361,6 @@ impl TryFrom<RecordBatch> for RowMapBatch {
         }
 
         Ok(RowMapBatch(out))
-    }
-}
-
-impl TryFrom<Result<RecordBatch, DataFusionError>> for RowMapBatch {
-    type Error = DataFusionError;
-
-    fn try_from(value: Result<RecordBatch, DataFusionError>) -> Result<Self, Self::Error> {
-        RowMapBatch::try_from(value?)
     }
 }
 
@@ -386,21 +396,21 @@ impl RowMapBatch {
 impl RecordStream {
     // Collects all of the record batches in a stream, aborting if
     // there are any errors.
-    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DataFusionError> {
+    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, Error> {
         let stream = &mut self.0;
-        stream.try_collect().await
+        Ok(stream.try_collect().await?)
     }
 
     /// Collects all of the record batches and rotates the results for
     /// a map-based row-oriented format.
-    pub async fn to_rows(&mut self) -> Result<Vec<RowMapBatch>, DataFusionError> {
+    pub async fn to_rows(&mut self) -> Result<Vec<RowMapBatch>, Error> {
         let stream = &mut self.0;
         stream.map(RowMapBatch::try_from).try_collect().await
     }
 
     // Iterates through the stream, ensuring propagating any errors,
     // but discarding all of the data.
-    pub async fn check(&mut self) -> Result<(), DataFusionError> {
+    pub async fn check(&mut self) -> Result<(), Error> {
         let stream = &mut self.0;
 
         while let Some(b) = stream.next().await {
@@ -454,7 +464,7 @@ impl Operation {
     /// `OperationType::Sql` operations that write data, the operation
     /// run immediately. All other operations run when `.resolve()` is
     /// called.
-    pub async fn evaluate(&mut self) -> Result<Self, ExecError> {
+    pub async fn evaluate(&mut self) -> Result<Self, Error> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
@@ -536,7 +546,7 @@ impl Operation {
     /// method, write operations and DDL operations run before
     /// `resolve()` returns. All other operations are lazy and only
     /// execute as the results are processed.
-    pub async fn resolve(&mut self) -> Result<SendableRecordBatchStream, ExecError> {
+    pub async fn resolve(&mut self) -> Result<SendableRecordBatchStream, Error> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
@@ -638,7 +648,7 @@ impl Operation {
         RecordStream(Box::pin(
             futures::stream::once(async move {
                 match op.resolve().await {
-                    Err(err) => Self::handle_error(err),
+                    Err(err) => Self::handle_error(DataFusionError::from(err)),
                     Ok(stream) => stream,
                 }
             })
@@ -712,5 +722,78 @@ impl Operation {
                 .map_err(DataFusionError::from)
             }),
         ))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ClientType {
+    Cli,
+    Node,
+    Python,
+    Rust,
+}
+
+impl From<ClientType> for RemoteClientType {
+    fn from(ct: ClientType) -> Self {
+        match ct {
+            ClientType::Cli => RemoteClientType::Cli,
+            ClientType::Node => RemoteClientType::Node,
+            ClientType::Rust => RemoteClientType::Rust,
+            ClientType::Python => RemoteClientType::Python,
+        }
+    }
+}
+
+
+impl Default for ClientType {
+    fn default() -> Self {
+        Self::Rust
+    }
+}
+
+impl Display for ClientType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientType::Cli => write!(f, "cli"),
+            ClientType::Node => write!(f, "node"),
+            ClientType::Python => write!(f, "python"),
+            ClientType::Rust => write!(f, "rust"),
+        }
+    }
+}
+
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Arrow(#[from] ArrowError),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
+    #[error(transparent)]
+    DataFusion(#[from] DataFusionError),
+
+    #[error(transparent)]
+    Metastore(#[from] MetastoreError),
+    #[error(transparent)]
+    Exec(#[from] ExecError),
+    #[error(transparent)]
+    ConfigurationBuilder(#[from] ConnectOptionsBuilderError),
+
+    #[error("{0}")]
+    Other(String),
+}
+
+impl Error {
+    pub fn new(msg: impl Display) -> Self {
+        Self::Other(msg.to_string())
+    }
+}
+
+impl From<Error> for DataFusionError {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::DataFusion(err) => err,
+            _ => DataFusionError::External(Box::new(e)),
+        }
     }
 }

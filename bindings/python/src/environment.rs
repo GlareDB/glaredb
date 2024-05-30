@@ -5,7 +5,7 @@ use datafusion::arrow::pyarrow::PyArrowType;
 use datafusion::datasource::{MemTable, TableProvider};
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
-use sqlexec::environment::EnvironmentReader;
+use glaredb::EnvironmentReader;
 
 use crate::execution::PyExecutionOutput;
 

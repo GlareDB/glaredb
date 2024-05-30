@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use sqlexec::remote::client::RemoteClientType;
 
 use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
@@ -63,9 +62,10 @@ pub fn connect(
                     .spill_path(spill_path)
                     .cloud_addr(cloud_addr)
                     .disable_tls(disable_tls)
-                    .client_type(RemoteClientType::Python)
+                    .client_type(glaredb::ClientType::Python)
                     .environment_reader(Arc::new(PyEnvironmentReader))
                     .build()
+                    .map_err(glaredb::Error::from)
                     .map_err(PyGlareDbError::from)?
                     .connect()
                     .await

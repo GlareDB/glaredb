@@ -3931,11 +3931,14 @@ dependencies = [
 name = "glaredb"
 version = "0.9.3"
 dependencies = [
+ "anyhow",
  "datafusion",
  "derive_builder",
  "futures",
  "indexmap 2.2.6",
+ "metastore",
  "sqlexec",
+ "thiserror",
  "url",
 ]
 
@@ -6635,27 +6638,19 @@ dependencies = [
 name = "py-glaredb"
 version = "0.9.3"
 dependencies = [
- "anyhow",
  "arrow_util",
  "async-trait",
  "datafusion",
- "datafusion_ext",
  "futures",
  "glaredb",
- "ioutil",
  "lzma-sys",
- "metastore",
  "once_cell",
- "pgrepr",
- "pgsrv",
  "pyo3",
- "sqlexec",
  "telemetry",
  "terminal_util",
  "thiserror",
  "tokio",
  "url",
- "uuid",
 ]
 
 [[package]]
