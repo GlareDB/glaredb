@@ -28,13 +28,16 @@ impl JsExecutionOutput {
             let mut stream = op.resolve().await?;
             let mut data_batch = Vec::new();
             let cursor = std::io::Cursor::new(&mut data_batch);
-            let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())?;
+            let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())
+                .map_err(glaredb::Error::from)?;
 
             while let Some(batch) = stream.next().await {
-                writer.write(&batch?)?;
+                writer
+                    .write(&batch.map_err(glaredb::Error::from)?)
+                    .map_err(glaredb::Error::from)?;
             }
 
-            writer.finish()?;
+            writer.finish().map_err(glaredb::Error::from)?;
             drop(writer);
 
             Ok::<Vec<u8>, JsGlareDbError>(data_batch)
@@ -94,7 +97,8 @@ async fn print_record_batches(stream: SendableRecordBatchStream) -> Result<(), J
     let batches = stream.to_vec().await?;
 
     let disp =
-        pretty::pretty_format_batches(&schema, &batches, Some(terminal_util::term_width()), None)?;
+        pretty::pretty_format_batches(&schema, &batches, Some(terminal_util::term_width()), None)
+            .map_err(glaredb::Error::from)?;
 
     println!("{}", disp);
     Ok(())

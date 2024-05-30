@@ -6,8 +6,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use sqlexec::remote::client::RemoteClientType;
-
 use crate::connection::Connection;
 use crate::error::JsGlareDbError;
 
@@ -33,7 +31,7 @@ impl TryFrom<ConnectOptions> for glaredb::ConnectOptions {
             .cloud_addr_opt(val.cloud_addr)
             .location(val.location)
             .storage_options_opt(val.storage_options)
-            .client_type(RemoteClientType::Node)
+            .client_type(glaredb::ClientType::Node)
             .build()
     }
 }
@@ -48,6 +46,7 @@ pub async fn connect(
     let mut options: glaredb::ConnectOptions = options
         .unwrap_or_default()
         .try_into()
+        .map_err(glaredb::Error::from)
         .map_err(JsGlareDbError::from)?;
 
     options.connection_target = data_dir_or_cloud_url;

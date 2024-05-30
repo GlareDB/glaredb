@@ -28,7 +28,8 @@ impl Connection {
                 Ok::<_, JsGlareDbError>(Connection {
                     inner: Arc::new(
                         glaredb::ConnectOptionsBuilder::new_in_memory()
-                            .build()?
+                            .build()
+                            .map_err(glaredb::Error::from)?
                             .connect()
                             .await?,
                     ),
