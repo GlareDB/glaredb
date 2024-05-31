@@ -198,7 +198,6 @@ impl SltArgs {
                     })
                     .with_pg_listener_opt(pg_listener)
                     .with_rpc_listener_opt(rpc_listener)
-                    .with_metastore_addr_opt(self.metastore_addr.clone())
                     .with_data_dir(temp_dir.path().to_path_buf())
                     .with_location_opt(self.storage_config.location.clone())
                     .with_storage_options(HashMap::from_iter(
