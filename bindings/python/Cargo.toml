@@ -13,13 +13,7 @@ name = "glaredb"
 crate-type = ["cdylib"]
 
 [dependencies]
-ioutil = { path = "../../crates/ioutil" }
-sqlexec = { path = "../../crates/sqlexec" }
-metastore = { path = "../../crates/metastore" }
 telemetry = { path = "../../crates/telemetry" }
-pgsrv = { path = "../../crates/pgsrv" }
-pgrepr = { path = "../../crates/pgrepr" }
-datafusion_ext = { path = "../../crates/datafusion_ext" }
 arrow_util = { path = "../../crates/arrow_util" }
 terminal_util = { path = "../../crates/terminal_util" }
 glaredb = { path = "../../crates/glaredb" }
@@ -27,11 +21,9 @@ datafusion = { workspace = true, features = ["pyarrow"] }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
-anyhow = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
 pyo3 = { version = "0.20.3", features = ["abi3-py37", "extension-module"] }
-uuid = "1.8.0"
 once_cell = "1.19.0"
 
 # Prevent dynamic linking of lzma, which comes from datafusion

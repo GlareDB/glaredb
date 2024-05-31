@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use datafusion::arrow::datatypes::{Schema, SchemaRef};
 use datafusion::arrow::pyarrow::ToPyArrow;
 use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::execution::TaskContext;
 use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
@@ -15,12 +16,12 @@ use datafusion::physical_plan::streaming::{PartitionStream, StreamingTableExec};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use futures::StreamExt;
-use glaredb::{DataFusionError, Operation, RecordBatch, SendableRecordBatchStream};
+use glaredb::{DatabaseError, Operation, RecordBatch, SendableRecordBatchStream};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
-use crate::error::PyGlareDbError;
+use crate::error::PyDatabaseError;
 use crate::runtime::wait_for_future;
 use crate::util::pyprint;
 
@@ -129,7 +130,7 @@ impl PyExecutionOutput {
     fn resolve_operation(
         &self,
         py: Python,
-    ) -> Result<(Arc<Schema>, Vec<RecordBatch>), PyGlareDbError> {
+    ) -> Result<(Arc<Schema>, Vec<RecordBatch>), PyDatabaseError> {
         let batches = self.resolve_batches(py)?;
 
         let schema = if batches.is_empty() {
@@ -141,13 +142,13 @@ impl PyExecutionOutput {
         Ok((schema, batches))
     }
 
-    fn resolve_batches(&self, py: Python) -> Result<Vec<RecordBatch>, PyGlareDbError> {
+    fn resolve_batches(&self, py: Python) -> Result<Vec<RecordBatch>, PyDatabaseError> {
         let mut stream = self.op.lock().unwrap().call();
 
         wait_for_future(py, async move {
             let mut out = Vec::new();
             while let Some(batch) = stream.next().await {
-                out.push(batch?)
+                out.push(batch.map_err(DatabaseError::from)?)
             }
             Ok(out)
         })
