@@ -16,7 +16,7 @@ test = false
 datafusion = { workspace = true }
 logutil = { path = "../logutil" }
 object_store = { workspace = true }
-parking_lot = "0.12.2"
+parking_lot = "0.12.3"
 protogen = { path = "../protogen" }
 thiserror.workspace = true
 tokio = { workspace = true }

@@ -44,7 +44,7 @@ bytes = { workspace = true }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tokio-postgres = "0.7.8"
 once_cell = "1.19.0"
-parking_lot = "0.12.2"
+parking_lot = "0.12.3"
 num_cpus = "1.16.0"
 dashmap = "5.5.0"
 
