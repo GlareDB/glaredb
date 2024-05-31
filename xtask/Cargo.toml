@@ -16,4 +16,4 @@ test = false
 anyhow = { workspace = true }
 clap = { workspace = true }
 xshell = "0.2.6"
-zip = "2.0.0"
+zip = "2.1.1"
