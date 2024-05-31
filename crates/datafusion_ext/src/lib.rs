@@ -5,5 +5,6 @@ pub mod runtime;
 pub mod session_metrics;
 pub mod vars;
 pub use planner::*;
+pub mod conversion;
 pub mod functions;
 pub mod transform;

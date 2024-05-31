@@ -1,51 +1,43 @@
 use std::sync::Arc;
 
-use datafusion::logical_expr::LogicalPlan as DFLogicalPlan;
-use datafusion_ext::vars::SessionVars;
-use futures::lock::Mutex;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyType;
-use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
-use sqlexec::{LogicalPlan, OperationInfo};
 
-use crate::execution_result::PyExecutionResult;
-
-pub(super) type PyTrackedSession = Arc<Mutex<TrackedSession>>;
-
-use crate::error::PyGlareDbError;
-use crate::logical_plan::PyLogicalPlan;
+use crate::environment::PyEnvironmentReader;
+use crate::error::PyDatabaseError;
+use crate::execution::PyExecutionOutput;
 use crate::runtime::wait_for_future;
 
 /// A connected session to a GlareDB database.
 #[pyclass]
 #[derive(Clone)]
 pub struct Connection {
-    pub(super) sess: PyTrackedSession,
-    pub(super) _engine: Arc<Engine>,
+    pub(crate) inner: Arc<glaredb::Connection>,
 }
 
 impl Connection {
     /// Returns a default connection to an in-memory database.
     ///
-    /// The database is only initialized once, and all subsequent calls will
-    /// return the same connection.
+    /// This database is only initialized once, and all subsequent
+    /// calls will return the same connection object and therefore
+    /// access the same data and database.
     pub fn default_in_memory(py: Python<'_>) -> PyResult<Self> {
         static DEFAULT_CON: OnceCell<Connection> = OnceCell::new();
 
         let con = DEFAULT_CON.get_or_try_init(|| {
             wait_for_future(py, async move {
-                let engine = Engine::from_data_dir(None).await?;
-                let sess = engine
-                    .new_local_session_context(
-                        SessionVars::default(),
-                        SessionStorageConfig::default(),
-                    )
-                    .await?;
                 Ok(Connection {
-                    sess: Arc::new(Mutex::new(sess)),
-                    _engine: Arc::new(engine),
-                }) as Result<_, PyGlareDbError>
+                    inner: Arc::new(
+                        glaredb::ConnectOptionsBuilder::new_in_memory()
+                            .client_type(glaredb::ClientType::Python)
+                            .environment_reader(Arc::new(PyEnvironmentReader))
+                            .build()
+                            .map_err(glaredb::DatabaseError::from)?
+                            .connect()
+                            .await?,
+                    ),
+                }) as Result<_, PyDatabaseError>
             })
         })?;
 
@@ -55,12 +47,12 @@ impl Connection {
 
 #[pymethods]
 impl Connection {
-    fn __enter__(&mut self, _py: Python<'_>) -> PyResult<Self> {
+    fn __enter__(&self, _py: Python<'_>) -> PyResult<Self> {
         Ok(self.clone())
     }
 
     fn __exit__(
-        &mut self,
+        &self,
         py: Python<'_>,
         _exc_type: Option<&PyType>,
         _exc_value: Option<PyObject>,
@@ -109,39 +101,15 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.sql('create table my_table (a int)').execute()
     /// ```
-    pub fn sql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
-        let cloned_sess = self.sess.clone();
+    pub fn sql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecutionOutput> {
         wait_for_future(py, async move {
-            let mut sess = self.sess.lock().await;
-
-            let plan = sess
-                .create_logical_plan(query)
+            Ok(self
+                .inner
+                .sql(query)
+                .evaluate()
                 .await
-                .map_err(PyGlareDbError::from)?;
-
-            let op = OperationInfo::new().with_query_text(query);
-
-            match plan
-                .to_owned()
-                .try_into_datafusion_plan()
-                .expect("resolving logical plan")
-            {
-                DFLogicalPlan::Extension(_)
-                | DFLogicalPlan::Dml(_)
-                | DFLogicalPlan::Ddl(_)
-                | DFLogicalPlan::Copy(_) => {
-                    sess.execute_logical_plan(plan, &op)
-                        .await
-                        .map_err(PyGlareDbError::from)?;
-
-                    Ok(PyLogicalPlan::new(
-                        LogicalPlan::Noop,
-                        cloned_sess,
-                        Default::default(),
-                    ))
-                }
-                _ => Ok(PyLogicalPlan::new(plan, cloned_sess, op)),
-            }
+                .map_err(PyDatabaseError::from)?
+                .into())
         })
     }
 
@@ -158,14 +126,15 @@ impl Connection {
     ///
     /// All operations execute lazily when their results are
     /// processed.
-    pub fn prql(&mut self, py: Python<'_>, query: &str) -> PyResult<PyLogicalPlan> {
-        let cloned_sess = self.sess.clone();
+    pub fn prql(&self, py: Python<'_>, query: &str) -> PyResult<PyExecutionOutput> {
         wait_for_future(py, async move {
-            let mut sess = self.sess.lock().await;
-            let plan = sess.prql_to_lp(query).await.map_err(PyGlareDbError::from)?;
-            let op = OperationInfo::new().with_query_text(query);
-
-            Ok(PyLogicalPlan::new(plan, cloned_sess, op))
+            Ok(self
+                .inner
+                .prql(query)
+                .evaluate()
+                .await
+                .map_err(PyDatabaseError::from)?
+                .into())
         })
     }
 
@@ -181,28 +150,24 @@ impl Connection {
     /// con = glaredb.connect()
     /// con.execute('create table my_table (a int)')
     /// ```
-    pub fn execute(&mut self, py: Python<'_>, query: &str) -> PyResult<PyExecutionResult> {
-        let sess = self.sess.clone();
-        let (_, exec_result) = wait_for_future(py, async move {
-            let mut sess = sess.lock().await;
-            let plan = sess
-                .create_logical_plan(query)
+    pub fn execute(&self, py: Python<'_>, query: &str) -> PyResult<PyExecutionOutput> {
+        wait_for_future(py, async move {
+            Ok(self
+                .inner
+                .execute(query)
+                .evaluate()
                 .await
-                .map_err(PyGlareDbError::from)?;
-
-            let op = OperationInfo::new().with_query_text(query);
-
-            sess.execute_logical_plan(plan, &op)
-                .await
-                .map_err(PyGlareDbError::from)
-        })?;
-
-        Ok(PyExecutionResult(exec_result))
+                .map_err(PyDatabaseError::from)?
+                .into())
+        })
     }
 
     /// Close the current session.
-    pub fn close(&mut self, _py: Python<'_>) -> PyResult<()> {
+    pub fn close(&self, _py: Python<'_>) -> PyResult<()> {
         // TODO: Remove this method. No longer required.
+        //
+        // could we use this method to clear the environment/in memory
+        // database?
         Ok(())
     }
 }

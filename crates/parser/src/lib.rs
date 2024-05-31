@@ -1,30 +1,36 @@
 pub mod errors;
 pub mod options;
-
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 
-use datafusion::sql::sqlparser::ast::{self, ColumnDef, Ident, ObjectName};
-use datafusion::sql::sqlparser::dialect::GenericDialect;
-use datafusion::sql::sqlparser::keywords::Keyword;
-use datafusion::sql::sqlparser::parser::{Parser, ParserError, ParserOptions};
-use datafusion::sql::sqlparser::tokenizer::{Token, Tokenizer, Word};
-use datafusion_ext::vars::Dialect;
 use prql_compiler::sql::Dialect as PrqlDialect;
 use prql_compiler::{compile, Options, Target};
+pub use sqlparser;
+use sqlparser::ast::{self, ColumnDef, Ident, ObjectName};
+use sqlparser::dialect::GenericDialect;
+use sqlparser::keywords::Keyword;
+use sqlparser::parser::{Parser, ParserError, ParserOptions};
+use sqlparser::tokenizer::{Token, Tokenizer, Word};
 
 use self::options::{OptionValue, StatementOptions};
 use crate::errors::{ParseError, Result};
 
 /// Wrapper around our custom parse for parsing a sql statement.
 pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>> {
-    let stmts = CustomParser::parse_sql(sql)?;
+    let stmts = GlareDbParser::parse_sql(sql)?;
     Ok(stmts)
 }
 
 pub fn parse_prql(prql: &str) -> Result<VecDeque<StatementWithExtensions>> {
-    let stmts = CustomParser::parse_prql(prql)?;
+    let stmts = GlareDbParser::parse_prql(prql)?;
     Ok(stmts)
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub enum Dialect {
+    #[default]
+    Sql,
+    Prql,
 }
 
 /// DDL extension for GlareDB's external tables.
@@ -454,10 +460,11 @@ impl fmt::Display for StatementWithExtensions {
 }
 
 /// Parser with our extensions.
-pub struct CustomParser<'a> {
+pub struct GlareDbParser<'a> {
     parser: Parser<'a>,
 }
-impl CustomParser<'_> {
+
+impl GlareDbParser<'_> {
     const PRQL_OPTIONS: &'static Options = &Options {
         format: false,
         target: Target::Sql(Some(PrqlDialect::GlareDb)),
@@ -466,7 +473,7 @@ impl CustomParser<'_> {
     };
     const SQL_DIALECT: &'static GenericDialect = &GenericDialect {};
 
-    pub fn new(mut sql: &str, dialect: Dialect) -> Result<CustomParser<'_>, ParserError> {
+    pub fn new(mut sql: &str, dialect: Dialect) -> Result<GlareDbParser<'_>, ParserError> {
         let tokens = Tokenizer::new(Self::SQL_DIALECT, sql).tokenize()?;
         let mut parser = Parser::new(Self::SQL_DIALECT)
             .with_options(ParserOptions {
@@ -488,11 +495,11 @@ impl CustomParser<'_> {
                 parser = parser.with_tokens(tokens);
             }
         }
-        Ok(CustomParser { parser })
+        Ok(GlareDbParser { parser })
     }
 }
 
-impl<'a> CustomParser<'a> {
+impl<'a> GlareDbParser<'a> {
     pub fn parse_sql(sql: &str) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
         Self::parse(sql, Dialect::Sql)
     }
@@ -505,7 +512,7 @@ impl<'a> CustomParser<'a> {
         sql: &str,
         dialect: Dialect,
     ) -> Result<VecDeque<StatementWithExtensions>, ParserError> {
-        let mut parser = CustomParser::new(sql, dialect)?;
+        let mut parser = GlareDbParser::new(sql, dialect)?;
 
         let mut stmts = VecDeque::new();
         let mut expecting_statement_delimiter = false;
@@ -629,13 +636,13 @@ impl<'a> CustomParser<'a> {
             self.parser.expect_token(&Token::RParen)?;
             CopyToSource::Query(query)
         } else {
-            let table_name = self.parser.parse_object_name()?;
+            let table_name = self.parser.parse_object_name(false)?;
             CopyToSource::Table(table_name)
         };
 
         // TO 'source'
         self.parser.expect_keyword(Keyword::TO)?;
-        let dest = self.parser.parse_identifier()?;
+        let dest = self.parser.parse_identifier(false)?;
 
         // [FORMAT ..]
         let format = self.parse_data_format()?;
@@ -670,7 +677,7 @@ impl<'a> CustomParser<'a> {
         let if_not_exists =
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-        let name = self.parser.parse_object_name()?;
+        let name = self.parser.parse_object_name(false)?;
         validate_object_name(&name)?;
 
         // FROM datasource
@@ -733,7 +740,7 @@ impl<'a> CustomParser<'a> {
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
 
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         // FROM datasource
@@ -767,7 +774,7 @@ impl<'a> CustomParser<'a> {
             self.parser
                 .parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
 
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         // FROM tunnel
@@ -790,7 +797,7 @@ impl<'a> CustomParser<'a> {
         deprecated: bool,
         or_replace: bool,
     ) -> Result<StatementWithExtensions, ParserError> {
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         // PROVIDER credentials
@@ -830,7 +837,7 @@ impl<'a> CustomParser<'a> {
     /// Example: `TUNNEL xyz`...
     fn parse_optional_ref(&mut self, k: &str) -> Result<Option<Ident>, ParserError> {
         let opt = if self.consume_token(&Token::make_keyword(k)) {
-            let opt = self.parser.parse_identifier()?;
+            let opt = self.parser.parse_identifier(false)?;
             validate_ident(&opt)?;
             Some(opt)
         } else {
@@ -886,7 +893,7 @@ impl<'a> CustomParser<'a> {
 
             // TODO: Keep the options "key" as identifier so later we can
             // normalize it.
-            let key = self.parser.parse_identifier()?.value;
+            let key = self.parser.parse_identifier(false)?.value;
 
             // Optional `=`
             let _ = self.parser.consume_token(&Token::Eq);
@@ -912,7 +919,7 @@ impl<'a> CustomParser<'a> {
 
     fn parse_options_value(&mut self) -> Result<OptionValue, ParserError> {
         let opt_val = if self.consume_token(&Token::make_keyword("SECRET")) {
-            OptionValue::Secret(self.parser.parse_identifier()?.value)
+            OptionValue::Secret(self.parser.parse_identifier(false)?.value)
         } else {
             let tok = self.parser.next_token();
             match tok.token {
@@ -983,7 +990,7 @@ impl<'a> CustomParser<'a> {
 
         let names = self
             .parser
-            .parse_comma_separated(Parser::parse_identifier)?;
+            .parse_comma_separated(|parser| parser.parse_identifier(false))?;
 
         for name in names.iter() {
             validate_ident(name)?;
@@ -1000,7 +1007,7 @@ impl<'a> CustomParser<'a> {
 
         let names = self
             .parser
-            .parse_comma_separated(Parser::parse_identifier)?;
+            .parse_comma_separated(|parser| parser.parse_identifier(false))?;
 
         for name in names.iter() {
             validate_ident(name)?;
@@ -1017,7 +1024,7 @@ impl<'a> CustomParser<'a> {
 
         let names = self
             .parser
-            .parse_comma_separated(Parser::parse_identifier)?;
+            .parse_comma_separated(|parser| parser.parse_identifier(false))?;
 
         for name in names.iter() {
             validate_ident(name)?;
@@ -1029,18 +1036,18 @@ impl<'a> CustomParser<'a> {
     }
 
     fn parse_alter_database(&mut self) -> Result<StatementWithExtensions, ParserError> {
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         let operation = if self.parser.parse_keywords(&[Keyword::RENAME, Keyword::TO]) {
-            let new_name = self.parser.parse_identifier()?;
+            let new_name = self.parser.parse_identifier(false)?;
             validate_ident(&new_name)?;
             AlterDatabaseOperation::RenameDatabase { new_name }
         } else if self.parser.parse_keyword(Keyword::SET) {
             self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
             self.expect_token(&Token::make_keyword("TO"))?;
 
-            let access_mode = self.parser.parse_identifier()?;
+            let access_mode = self.parser.parse_identifier(false)?;
             AlterDatabaseOperation::SetAccessMode { access_mode }
         } else {
             return self.expected(
@@ -1058,13 +1065,13 @@ impl<'a> CustomParser<'a> {
     fn parse_alter_table(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
         let only = self.parser.parse_keyword(Keyword::ONLY);
-        let name = self.parser.parse_object_name()?;
+        let name = self.parser.parse_object_name(false)?;
 
         let operation = if self.parser.parse_keyword(Keyword::SET) {
             self.expect_token(&Token::make_keyword("ACCESS_MODE"))?;
             self.expect_token(&Token::make_keyword("TO"))?;
 
-            let access_mode = self.parser.parse_identifier()?;
+            let access_mode = self.parser.parse_identifier(false)?;
             AlterTableOperationExtension::SetAccessMode { access_mode }
         } else {
             let operations = self
@@ -1076,6 +1083,7 @@ impl<'a> CustomParser<'a> {
                     if_exists,
                     only,
                     operations,
+                    location: None,
                 },
             ));
         };
@@ -1088,7 +1096,7 @@ impl<'a> CustomParser<'a> {
     fn parse_alter_tunnel(&mut self) -> Result<StatementWithExtensions, ParserError> {
         let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
 
-        let name = self.parser.parse_identifier()?;
+        let name = self.parser.parse_identifier(false)?;
         validate_ident(&name)?;
 
         let mut action = None;
@@ -1180,7 +1188,7 @@ mod tests {
     #[test]
     fn external_table_parse() {
         let sql = "CREATE EXTERNAL TABLE test FROM postgres OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public', table=secret pg_table)";
-        let mut stmts = CustomParser::parse_sql(sql).unwrap();
+        let mut stmts = GlareDbParser::parse_sql(sql).unwrap();
 
         let stmt = stmts.pop_front().unwrap();
         let mut options = BTreeMap::new();
@@ -1214,7 +1222,7 @@ mod tests {
         );
 
         let sql = "CREATE EXTERNAL TABLE test FROM postgres TUNNEL ssh_tunnel OPTIONS (postgres_conn = 'host=localhost user=postgres', schema='public', table=secret pg_table)";
-        let mut stmts = CustomParser::parse_sql(sql).unwrap();
+        let mut stmts = GlareDbParser::parse_sql(sql).unwrap();
 
         let stmt = stmts.pop_front().unwrap();
         parsed_stmt.tunnel = Some(Ident::new("ssh_tunnel"));
@@ -1239,7 +1247,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1262,7 +1270,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1278,7 +1286,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1298,7 +1306,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1311,7 +1319,7 @@ mod tests {
         let test_cases = ["DROP DATABASE my_db", "DROP DATABASE IF EXISTS my_db"];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1324,7 +1332,7 @@ mod tests {
         let test_cases = ["DROP TUNNEL my_tunnel", "DROP TUNNEL IF EXISTS my_tunnel"];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1340,7 +1348,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1356,7 +1364,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1372,7 +1380,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1385,7 +1393,7 @@ mod tests {
         let test_cases = ["ALTER TABLE my_db SET ACCESS_MODE TO readonly"];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1408,7 +1416,7 @@ mod tests {
         ];
 
         for test_case in test_cases {
-            let stmt = CustomParser::parse_sql(test_case)
+            let stmt = GlareDbParser::parse_sql(test_case)
                 .unwrap()
                 .pop_front()
                 .unwrap();
@@ -1524,7 +1532,7 @@ mod tests {
         for (sql, map) in test_cases {
             let d = GenericDialect {};
             let t = Tokenizer::new(&d, sql).tokenize().unwrap();
-            let mut p = CustomParser {
+            let mut p = GlareDbParser {
                 parser: Parser::new(&d).with_tokens(t),
             };
             let opts = p.parse_options().unwrap();

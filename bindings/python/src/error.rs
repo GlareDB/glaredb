@@ -1,43 +1,46 @@
 use std::fmt::Display;
 
-use datafusion::arrow::error::ArrowError;
-use metastore::errors::MetastoreError;
 use pyo3::exceptions::{PyException, PyRuntimeError};
 use pyo3::{create_exception, PyErr};
-use sqlexec::errors::ExecError;
 
 #[derive(Debug, thiserror::Error)]
-pub enum PyGlareDbError {
-    #[error(transparent)]
-    Arrow(#[from] ArrowError),
-    #[error(transparent)]
-    Metastore(#[from] MetastoreError),
-    #[error(transparent)]
-    Exec(#[from] ExecError),
-    #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
+pub enum PyDatabaseError {
     #[error("{0}")]
-    Other(String),
+    Database(#[from] glaredb::DatabaseError),
 }
 
-impl PyGlareDbError {
+impl PyDatabaseError {
     pub fn new(msg: impl Display) -> Self {
-        Self::Other(msg.to_string())
+        Self::Database(glaredb::DatabaseError::new(msg.to_string()))
     }
 }
-impl From<PyGlareDbError> for PyErr {
-    fn from(err: PyGlareDbError) -> Self {
-        use PyGlareDbError::*;
+
+impl From<PyDatabaseError> for PyErr {
+    fn from(err: PyDatabaseError) -> Self {
         match err {
-            Arrow(err) => ArrowErrorException::new_err(format!("{err:?}")),
-            Metastore(err) => MetastoreException::new_err(err.to_string()),
-            Exec(err) => ExecutionException::new_err(err.to_string()),
-            Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
-            Other(msg) => PyRuntimeError::new_err(msg),
+            PyDatabaseError::Database(gerr) => match gerr {
+                glaredb::DatabaseError::Arrow(err) => {
+                    ArrowErrorException::new_err(format!("{err:?}"))
+                }
+                glaredb::DatabaseError::Metastore(err) => {
+                    MetastoreException::new_err(err.to_string())
+                }
+                glaredb::DatabaseError::Exec(err) => ExecutionException::new_err(err.to_string()),
+                glaredb::DatabaseError::Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
+                glaredb::DatabaseError::Other(msg) => PyRuntimeError::new_err(msg),
+                glaredb::DatabaseError::DataFusion(err) => {
+                    DataFusionErrorException::new_err(err.to_string())
+                }
+                glaredb::DatabaseError::ConfigurationBuilder(err) => {
+                    ConfigurationException::new_err(err.to_string())
+                }
+            },
         }
     }
 }
 
 create_exception!(exceptions, ArrowErrorException, PyException);
-create_exception!(exceptions, MetastoreException, PyException);
+create_exception!(exceptions, ConfigurationException, PyException);
+create_exception!(exceptions, DataFusionErrorException, PyException);
 create_exception!(exceptions, ExecutionException, PyException);
+create_exception!(exceptions, MetastoreException, PyException);

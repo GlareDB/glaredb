@@ -18,11 +18,7 @@ use protogen::metastore::types::catalog::{
     TableEntry,
     TunnelEntry,
 };
-use protogen::metastore::types::options::{
-    InternalColumnDefinition,
-    TableOptions,
-    TableOptionsInternal,
-};
+use protogen::metastore::types::options::{InternalColumnDefinition, TableOptionsInternal};
 use tracing::debug;
 
 use super::client::MetastoreClientHandle;
@@ -88,15 +84,11 @@ impl SessionCatalog {
     pub fn new_with_alias(
         state: Arc<CatalogState>,
         resolve_conf: ResolveConfig,
-        alias: String,
+        alias: impl Into<String>,
     ) -> SessionCatalog {
-        let catalog = Self::new(state, resolve_conf);
-        catalog.with_alias(alias)
-    }
-
-    pub fn with_alias(mut self, alias: String) -> SessionCatalog {
-        self.alias = Some(alias);
-        self
+        let mut catalog = Self::new(state, resolve_conf);
+        catalog.alias = Some(alias.into());
+        catalog
     }
 
     pub fn alias(&self) -> Option<&str> {
@@ -482,12 +474,13 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                 },
-                options: TableOptions::Internal(TableOptionsInternal {
-                    columns: columns.to_owned(),
-                }),
+                options: TableOptionsInternal {
+                    columns: columns.clone(),
+                }
+                .into(),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
-                columns: Some(columns.to_owned()),
+                columns: Some(columns),
             }
         })
     }
@@ -526,12 +519,13 @@ impl TempCatalog {
                     external: false,
                     is_temp: true,
                 },
-                options: TableOptions::Internal(TableOptionsInternal {
+                options: TableOptionsInternal {
                     columns: Vec::new(),
-                }),
+                }
+                .into(),
                 tunnel_id: None,
                 access_mode: SourceAccessMode::ReadWrite,
-                columns: Some(Vec::new()),
+                columns: None,
             });
         }
 

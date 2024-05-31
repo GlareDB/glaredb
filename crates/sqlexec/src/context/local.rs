@@ -73,7 +73,7 @@ pub struct LocalSessionContext {
     /// Datafusion session context used for planning and execution.
     df_ctx: DfSessionContext,
     /// Read tables from the environment.
-    env_reader: Option<Box<dyn EnvironmentReader>>,
+    env_reader: Option<Arc<dyn EnvironmentReader>>,
     /// Task scheduler.
     task_scheduler: Scheduler,
     /// Notices that should be sent to the user.
@@ -212,17 +212,19 @@ impl LocalSessionContext {
         })];
 
         // This will error if the catalog already has a function with the same
-        catalog_mutator.mutate(catalog_version, mutations).await?;
+        catalog_mutator
+            .mutate_and_commit(catalog_version, mutations)
+            .await?;
         self.functions.register_udf(udf);
         Ok(())
     }
 
-    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
-        self.env_reader = Some(env_reader);
+    pub fn register_env_reader(&mut self, reader: Option<Arc<dyn EnvironmentReader>>) {
+        self.env_reader = reader;
     }
 
-    pub fn get_env_reader(&self) -> Option<&dyn EnvironmentReader> {
-        self.env_reader.as_deref()
+    pub fn get_env_reader(&self) -> Option<Arc<dyn EnvironmentReader>> {
+        self.env_reader.clone()
     }
 
     pub fn get_metrics_handler(&self) -> SessionMetricsHandler {

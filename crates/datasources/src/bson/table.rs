@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use bson::RawDocumentBuf;
 use bytes::BytesMut;
-use datafusion::arrow::datatypes::{FieldRef, Schema};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::parquet::data_type::AsBytes;
 use datafusion::physical_plan::streaming::PartitionStream;
 use futures::StreamExt;
+use object_store::{ObjectMeta, ObjectStore};
 use tokio_util::codec::LengthDelimitedCodec;
 
 use crate::bson::errors::BsonError;
@@ -20,17 +21,9 @@ use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 pub async fn bson_streaming_table(
     store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
-    fields: Option<Vec<FieldRef>>,
+    schema: Option<Schema>,
     schema_inference_sample_size: Option<i64>,
 ) -> Result<Arc<dyn TableProvider>, BsonError> {
-    // TODO: set a maximum (1024?) or have an adaptive mode
-    // (at least n but stop after n the same) or skip documents
-    let sample_size = if fields.is_some() {
-        0
-    } else {
-        schema_inference_sample_size.unwrap_or(100)
-    };
-
     let accessor = ObjStoreAccessor::new(store_access)?;
 
     let mut list = accessor.list_globbed(source_url.path()).await?;
@@ -43,6 +36,30 @@ pub async fn bson_streaming_table(
     list.sort_by(|a, b| a.location.cmp(&b.location));
 
     let store = accessor.into_object_store();
+
+    bson_streaming_table_inner(store, list, schema, schema_inference_sample_size).await
+}
+
+pub async fn bson_streaming_table_from_object(
+    store: Arc<dyn ObjectStore>,
+    object: ObjectMeta,
+) -> Result<Arc<dyn TableProvider>, BsonError> {
+    bson_streaming_table_inner(store, vec![object], None, None).await
+}
+
+async fn bson_streaming_table_inner(
+    store: Arc<dyn ObjectStore>,
+    list: Vec<ObjectMeta>,
+    schema: Option<Schema>,
+    schema_inference_sample_size: Option<i64>,
+) -> Result<Arc<dyn TableProvider>, BsonError> {
+    // TODO: set a maximum (1024?) or have an adaptive mode
+    // (at least n but stop after n the same) or skip documents
+    let sample_size = if schema.is_some() {
+        0
+    } else {
+        schema_inference_sample_size.unwrap_or(100)
+    };
 
     // build a vector of streams, one for each file, that handle BSON's framing.
     let mut readers = VecDeque::with_capacity(list.len());
@@ -93,8 +110,8 @@ pub async fn bson_streaming_table(
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
     // get the schema; if provided as an argument, just use that, otherwise, sample.
-    let schema = if let Some(fields) = fields {
-        Arc::new(Schema::new(fields))
+    let schema = if let Some(schema) = schema {
+        Arc::new(schema)
     } else {
         // iterate through the readers and build up a sample of the first <n>
         // documents to be used to infer the schema.

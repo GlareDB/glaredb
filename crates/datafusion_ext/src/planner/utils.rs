@@ -17,15 +17,22 @@
 
 //! SQL Utility Functions
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use datafusion::arrow::datatypes::{DataType, DECIMAL128_MAX_PRECISION, DECIMAL_DEFAULT_SCALE};
 use datafusion::common::tree_node::{Transformed, TreeNode};
-use datafusion::common::{DataFusionError, Result, ScalarValue};
+use datafusion::common::utils::get_at_indices;
+use datafusion::common::{plan_err, Column, DFSchema, DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::expr::{Alias, GroupingSet, WindowFunction};
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_column_exprs};
 use datafusion::logical_expr::{Expr, LogicalPlan};
-use datafusion::sql::sqlparser::ast::Ident;
+use datafusion::sql::TableReference;
+use parser::sqlparser::ast::{
+    ExceptSelectItem,
+    ExcludeSelectItem,
+    Ident,
+    WildcardAdditionalOptions,
+};
 
 /// Make a best-effort attempt at resolving all columns in the expression tree
 pub(crate) fn resolve_columns(expr: &Expr, plan: &LogicalPlan) -> Result<Expr> {
@@ -229,4 +236,156 @@ pub(crate) fn normalize_ident(id: Ident) -> String {
         Some(_) => id.value,
         None => id.value.to_ascii_lowercase(),
     }
+}
+
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L354
+/// Returns all `Expr`s in the schema, except the `Column`s in the `columns_to_skip`
+fn get_exprs_except_skipped(schema: &DFSchema, columns_to_skip: HashSet<Column>) -> Vec<Expr> {
+    if columns_to_skip.is_empty() {
+        schema
+            .fields()
+            .iter()
+            .map(|f| Expr::Column(f.qualified_column()))
+            .collect::<Vec<Expr>>()
+    } else {
+        schema
+            .fields()
+            .iter()
+            .filter_map(|f| {
+                let col = f.qualified_column();
+                if !columns_to_skip.contains(&col) {
+                    Some(Expr::Column(col))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<Expr>>()
+    }
+}
+
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L381
+/// Resolves an `Expr::Wildcard` to a collection of `Expr::Column`'s.
+pub fn expand_wildcard(
+    schema: &DFSchema,
+    plan: &LogicalPlan,
+    wildcard_options: Option<&WildcardAdditionalOptions>,
+) -> Result<Vec<Expr>> {
+    let using_columns = plan.using_columns()?;
+    let mut columns_to_skip = using_columns
+        .into_iter()
+        // For each USING JOIN condition, only expand to one of each join column in projection
+        .flat_map(|cols| {
+            let mut cols = cols.into_iter().collect::<Vec<_>>();
+            // sort join columns to make sure we consistently keep the same
+            // qualified column
+            cols.sort();
+            let mut out_column_names: HashSet<String> = HashSet::new();
+            cols.into_iter()
+                .filter_map(|c| {
+                    if out_column_names.contains(&c.name) {
+                        Some(c)
+                    } else {
+                        out_column_names.insert(c.name);
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<HashSet<_>>();
+    let excluded_columns = if let Some(WildcardAdditionalOptions {
+        opt_exclude,
+        opt_except,
+        ..
+    }) = wildcard_options
+    {
+        get_excluded_columns(opt_exclude.as_ref(), opt_except.as_ref(), schema, &None)?
+    } else {
+        vec![]
+    };
+    // Add each excluded `Column` to columns_to_skip
+    columns_to_skip.extend(excluded_columns);
+    Ok(get_exprs_except_skipped(schema, columns_to_skip))
+}
+
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L424
+/// Resolves an `Expr::Wildcard` to a collection of qualified `Expr::Column`'s.
+pub fn expand_qualified_wildcard(
+    qualifier: &str,
+    schema: &DFSchema,
+    wildcard_options: Option<&WildcardAdditionalOptions>,
+) -> Result<Vec<Expr>> {
+    let qualifier = TableReference::from(qualifier);
+    let qualified_indices = schema.fields_indices_with_qualified(&qualifier);
+    let projected_func_dependencies = schema
+        .functional_dependencies()
+        .project_functional_dependencies(&qualified_indices, qualified_indices.len());
+    let qualified_fields = get_at_indices(schema.fields(), &qualified_indices)?;
+    if qualified_fields.is_empty() {
+        return plan_err!("Invalid qualifier {qualifier}");
+    }
+    let qualified_schema =
+        DFSchema::new_with_metadata(qualified_fields, schema.metadata().clone())?
+            // We can use the functional dependencies as is, since it only stores indices:
+            .with_functional_dependencies(projected_func_dependencies)?;
+    let excluded_columns = if let Some(WildcardAdditionalOptions {
+        opt_exclude,
+        opt_except,
+        ..
+    }) = wildcard_options
+    {
+        get_excluded_columns(
+            opt_exclude.as_ref(),
+            opt_except.as_ref(),
+            schema,
+            &Some(qualifier),
+        )?
+    } else {
+        vec![]
+    };
+    // Add each excluded `Column` to columns_to_skip
+    let mut columns_to_skip = HashSet::new();
+    columns_to_skip.extend(excluded_columns);
+    Ok(get_exprs_except_skipped(&qualified_schema, columns_to_skip))
+}
+
+/// Copied from https://github.com/GlareDB/arrow-datafusion/blob/bf6f83b3d228fb386f9b4b20c254fa58e2412660/datafusion/expr/src/utils.rs#L314
+/// Find excluded columns in the schema, if any
+/// SELECT * EXCLUDE(col1, col2), would return `vec![col1, col2]`
+fn get_excluded_columns(
+    opt_exclude: Option<&ExcludeSelectItem>,
+    opt_except: Option<&ExceptSelectItem>,
+    schema: &DFSchema,
+    qualifier: &Option<TableReference>,
+) -> datafusion::common::Result<Vec<Column>> {
+    let mut idents = vec![];
+    if let Some(excepts) = opt_except {
+        idents.push(&excepts.first_element);
+        idents.extend(&excepts.additional_elements);
+    }
+    if let Some(exclude) = opt_exclude {
+        match exclude {
+            ExcludeSelectItem::Single(ident) => idents.push(ident),
+            ExcludeSelectItem::Multiple(idents_inner) => idents.extend(idents_inner),
+        }
+    }
+    // Excluded columns should be unique
+    let n_elem = idents.len();
+    let unique_idents = idents.into_iter().collect::<HashSet<_>>();
+    // if HashSet size, and vector length are different, this means that some of the excluded columns
+    // are not unique. In this case return error.
+    if n_elem != unique_idents.len() {
+        return plan_err!("EXCLUDE or EXCEPT contains duplicate column names");
+    }
+
+    let mut result = vec![];
+    for ident in unique_idents.into_iter() {
+        let col_name = ident.value.as_str();
+        let field = if let Some(qualifier) = qualifier {
+            schema.field_with_qualified_name(qualifier, col_name)?
+        } else {
+            schema.field_with_unqualified_name(col_name)?
+        };
+        result.push(field.qualified_column())
+    }
+    Ok(result)
 }

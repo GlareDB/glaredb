@@ -106,7 +106,7 @@ async fn create_external_database(
     plan: CreateExternalDatabaseExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::CreateExternalDatabase(
                 service::CreateExternalDatabase {

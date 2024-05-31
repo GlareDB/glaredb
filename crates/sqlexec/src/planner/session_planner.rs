@@ -14,11 +14,11 @@ use datafusion::arrow::datatypes::{
 use datafusion::common::parsers::CompressionTypeVariant;
 use datafusion::common::{OwnedSchemaReference, OwnedTableReference, ToDFSchema};
 use datafusion::logical_expr::{cast, col, LogicalPlanBuilder};
-use datafusion::sql::planner::{object_name_to_table_reference, IdentNormalizer, PlannerContext};
-use datafusion::sql::sqlparser::ast::{self, Ident, ObjectName, ObjectType};
+use datafusion::sql::planner::{object_name_to_table_reference, PlannerContext};
 use datafusion::sql::TableReference;
+use datafusion_ext::conversion::convert;
 use datafusion_ext::planner::SqlQueryPlanner;
-use datafusion_ext::AsyncContextProvider;
+use datafusion_ext::{AsyncContextProvider, IdentNormalizer};
 use datasources::bigquery::{BigQueryAccessor, BigQueryTableAccess};
 use datasources::cassandra::{CassandraAccess, CassandraAccessState};
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableRef};
@@ -44,6 +44,15 @@ use object_store::aws::AmazonS3ConfigKey;
 use object_store::azure::AzureConfigKey;
 use object_store::gcp::GoogleConfigKey;
 use parser::options::StatementOptions;
+use parser::sqlparser::ast::{
+    self,
+    ColumnOption,
+    DescribeAlias,
+    FromTable,
+    Ident,
+    ObjectName,
+    ObjectType,
+};
 use parser::{
     self,
     validate_ident,
@@ -103,9 +112,7 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSqlite,
     DeltaLakeCatalog,
     DeltaLakeUnityCatalog,
-    InternalColumnDefinition,
     StorageOptions,
-    TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
@@ -120,6 +127,7 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
+    TableOptionsV0,
     TunnelOptions,
     TunnelOptionsDebug,
     TunnelOptionsInternal,
@@ -335,10 +343,7 @@ impl<'a> SessionPlanner<'a> {
                     .map_err(|e| PlanError::InvalidExternalDatabase {
                         source: Box::new(e),
                     })?;
-                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb {
-                    connection_string,
-                    columns: Vec::new(),
-                })
+                DatabaseOptions::MongoDb(DatabaseOptionsMongoDb { connection_string })
             }
             DatabaseOptions::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
@@ -458,54 +463,33 @@ impl<'a> SessionPlanner<'a> {
         Ok(plan.into_logical_plan())
     }
 
-    async fn plan_create_external_table(
+    /// TODO: This is a temporary implementation.
+    /// The datasource should resolve it's own table options
+    /// This is mostly for compatibility with the old table options implementation.
+    /// Once the datasources are updated to use the new table options, this should be removed.
+    async fn get_tbl_opts_from_v0(
         &self,
-        mut stmt: CreateExternalTableStmt,
-    ) -> Result<LogicalPlan> {
-        let datasource = normalize_ident(stmt.datasource);
+        datasource: &str,
+        m: &mut StatementOptions,
+        creds_options: Option<CredentialsOptions>,
+        tunnel_options: Option<TunnelOptions>,
+    ) -> Result<TableOptionsV0> {
+        Ok(match datasource {
+            TableOptionsV0::DEBUG => {
+                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
 
-        let tunnel = stmt.tunnel.map(normalize_ident);
-        let tunnel_options = self.get_tunnel_opts(&tunnel)?;
-        if let Some(tunnel_options) = &tunnel_options {
-            // Validate if the tunnel type is supported by the datasource
-            validate_table_tunnel_support(&datasource, tunnel_options.as_str()).map_err(|e| {
-                PlanError::InvalidExternalTable {
-                    source: Box::new(e),
+                let typ: Option<DebugTableType> = match creds_options {
+                    Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
+                    Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
+                    None => None,
+                };
+                let table_type: DebugTableType = m.remove_required_or("table_type", typ)?;
+                TableOptionsDebug {
+                    table_type: table_type.as_str().to_string(),
                 }
-            })?;
-        }
-
-        let creds = stmt.credentials.map(normalize_ident);
-        let creds_options = self.get_credentials_opts(&creds)?;
-        if let Some(creds_options) = &creds_options {
-            validate_table_creds_support(&datasource, creds_options.as_str()).map_err(|e| {
-                PlanError::InvalidExternalTable {
-                    source: Box::new(e),
-                }
-            })?;
-        }
-
-        let m = &mut stmt.options;
-
-        let columns = if let Some(columns) = stmt.columns.map(|coll_def| {
-            coll_def
-                .into_iter()
-                .map(|coll| -> Result<Arc<Field>, PlanError> {
-                    Ok(Arc::new(Field::new(
-                        coll.name.to_string(),
-                        convert_data_type(&coll.data_type)?,
-                        false,
-                    )))
-                })
-                .collect::<Result<Vec<_>, PlanError>>()
-        }) {
-            Some(columns?)
-        } else {
-            None
-        };
-
-        let external_table_options = match datasource.as_str() {
-            TableOptions::POSTGRES => {
+                .into()
+            }
+            TableOptionsV0::POSTGRES => {
                 let connection_string = get_pg_conn_str(m)?;
                 let schema: String = m.remove_required("schema")?;
                 let table: String = m.remove_required("table")?;
@@ -519,13 +503,14 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::Postgres(TableOptionsPostgres {
+                TableOptionsPostgres {
                     connection_string,
                     schema,
                     table,
-                })
+                }
+                .into()
             }
-            TableOptions::BIGQUERY => {
+            TableOptionsV0::BIGQUERY => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
                     CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for bigquery"),
@@ -549,14 +534,15 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::BigQuery(TableOptionsBigQuery {
+                TableOptionsBigQuery {
                     service_account_key,
                     project_id,
                     dataset_id: access.dataset_id,
                     table_id: access.table_id,
-                })
+                }
+                .into()
             }
-            TableOptions::MYSQL => {
+            TableOptionsV0::MYSQL => {
                 let connection_string = get_mysql_conn_str(m)?;
                 let schema = m.remove_required("schema")?;
                 let table = m.remove_required("table")?;
@@ -572,30 +558,26 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::Mysql(TableOptionsMysql {
+                TableOptionsMysql {
                     connection_string,
                     schema: access.schema,
                     table: access.name,
-                })
+                }
+                .into()
             }
-            TableOptions::MONGODB => {
+            TableOptionsV0::MONGODB => {
                 let connection_string = get_mongodb_conn_str(m)?;
                 let database = m.remove_required("database")?;
                 let collection = m.remove_required("collection")?;
 
-                // TODO: Validate
-                let cols = columns
-                    .clone()
-                    .map(InternalColumnDefinition::from_arrow_fields);
-
-                TableOptions::MongoDb(TableOptionsMongoDb {
+                TableOptionsMongoDb {
                     connection_string,
                     database,
                     collection,
-                    columns: cols,
-                })
+                }
+                .into()
             }
-            TableOptions::SNOWFLAKE => {
+            TableOptionsV0::SNOWFLAKE => {
                 let account_name: String = m.remove_required("account")?;
                 let login_name: String = m.remove_required("username")?;
                 let password: String = m.remove_required("password")?;
@@ -625,7 +607,7 @@ impl<'a> SessionPlanner<'a> {
                         source: Box::new(e),
                     })?;
 
-                TableOptions::Snowflake(TableOptionsSnowflake {
+                TableOptionsSnowflake {
                     account_name,
                     login_name,
                     password,
@@ -634,9 +616,10 @@ impl<'a> SessionPlanner<'a> {
                     role_name: role_name.unwrap_or_default(),
                     schema_name: access_info.schema_name,
                     table_name: access_info.table_name,
-                })
+                }
+                .into()
             }
-            TableOptions::SQL_SERVER => {
+            TableOptionsV0::SQL_SERVER => {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let schema_name: String = m.remove_required("schema")?;
                 let table_name: String = m.remove_required("table")?;
@@ -647,13 +630,14 @@ impl<'a> SessionPlanner<'a> {
                     .validate_table_access(&schema_name, &table_name)
                     .await?;
 
-                TableOptions::SqlServer(TableOptionsSqlServer {
+                TableOptionsSqlServer {
                     connection_string,
                     schema: schema_name,
                     table: table_name,
-                })
+                }
+                .into()
             }
-            TableOptions::CLICKHOUSE => {
+            TableOptionsV0::CLICKHOUSE => {
                 let connection_string: String = m.remove_required("connection_string")?;
                 let table_name: String = m.remove_required("table")?;
 
@@ -670,13 +654,14 @@ impl<'a> SessionPlanner<'a> {
 
                 access.validate_table_access(table_ref.as_ref()).await?;
 
-                TableOptions::Clickhouse(TableOptionsClickhouse {
+                TableOptionsClickhouse {
                     connection_string,
                     table: table_name,
                     database: database_name,
-                })
+                }
+                .into()
             }
-            TableOptions::CASSANDRA => {
+            TableOptionsV0::CASSANDRA => {
                 let host: String = m.remove_required("host")?;
                 let keyspace: String = m.remove_required("keyspace")?;
                 let table: String = m.remove_required("table")?;
@@ -687,15 +672,16 @@ impl<'a> SessionPlanner<'a> {
                         .await?;
                 access.validate_table_access(&keyspace, &table).await?;
 
-                TableOptions::Cassandra(TableOptionsCassandra {
+                TableOptionsCassandra {
                     host,
                     keyspace,
                     table,
                     username,
                     password,
-                })
+                }
+                .into()
             }
-            TableOptions::SQLITE => {
+            TableOptionsV0::SQLITE => {
                 let location: String = m.remove_required("location")?;
                 let table: String = m.remove_required("table")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
@@ -703,30 +689,30 @@ impl<'a> SessionPlanner<'a> {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
 
-                TableOptions::Sqlite(TableOptionsObjectStore {
+                TableOptionsV0::Sqlite(TableOptionsObjectStore {
                     location,
                     storage_options,
                     name: table.into(),
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
-                    columns: Vec::new(),
                 })
             }
-            TableOptions::LOCAL => {
+            TableOptionsV0::LOCAL => {
                 let location: String = m.remove_required("location")?;
 
                 let access = Arc::new(LocalStoreAccess);
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::Local(TableOptionsLocal {
+                TableOptionsLocal {
                     location,
                     file_type: file_type.to_string().to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
-                })
+                }
+                .into()
             }
-            TableOptions::GCS => {
+            TableOptionsV0::GCS => {
                 let service_account_key = creds_options.as_ref().map(|c| match c {
                     CredentialsOptions::Gcp(c) => c.service_account_key.clone(),
                     other => unreachable!("invalid credentials {other} for google cloud storage"),
@@ -746,15 +732,16 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::Gcs(TableOptionsGcs {
+                TableOptionsGcs {
                     bucket,
                     service_account_key,
                     location,
                     file_type,
                     compression: compression.map(|c| c.to_string()),
-                })
+                }
+                .into()
             }
-            TableOptions::S3_STORAGE => {
+            TableOptionsV0::S3_STORAGE => {
                 let creds = creds_options.as_ref().map(|c| match c {
                     CredentialsOptions::Aws(c) => c,
                     other => unreachable!("invalid credentials {other} for aws s3"),
@@ -787,7 +774,7 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
-                TableOptions::S3(TableOptionsS3 {
+                TableOptionsS3 {
                     region,
                     bucket,
                     access_key_id,
@@ -795,9 +782,10 @@ impl<'a> SessionPlanner<'a> {
                     location,
                     file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
-                })
+                }
+                .into()
             }
-            TableOptions::AZURE => {
+            TableOptionsV0::AZURE => {
                 let (account, access_key) = match creds_options {
                     Some(CredentialsOptions::Azure(c)) => {
                         (Some(c.account_name.clone()), Some(c.access_key.clone()))
@@ -841,17 +829,16 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
-                TableOptions::Azure(TableOptionsObjectStore {
+                TableOptionsV0::Azure(TableOptionsObjectStore {
                     name: None,
                     location: source_url,
                     storage_options: opts,
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                     schema_sample_size: None,
-                    columns: Vec::new(),
                 })
             }
-            TableOptions::DELTA | TableOptions::ICEBERG => {
+            TableOptionsV0::DELTA | TableOptionsV0::ICEBERG => {
                 let location: String = m.remove_required("location")?;
 
                 let mut storage_options = StorageOptions::try_from(m)?;
@@ -859,16 +846,15 @@ impl<'a> SessionPlanner<'a> {
                     storage_options_with_credentials(&mut storage_options, creds);
                 }
 
-                if datasource.as_str() == TableOptions::DELTA {
+                if datasource == TableOptionsV0::DELTA {
                     let _table = load_table_direct(&location, storage_options.clone()).await?;
 
-                    TableOptions::Delta(TableOptionsObjectStore {
+                    TableOptionsV0::Delta(TableOptionsObjectStore {
                         location,
                         storage_options,
                         name: None,
                         file_type: None,
                         compression: None,
-                        columns: Vec::new(),
                         schema_sample_size: None,
                     })
                 } else {
@@ -876,32 +862,17 @@ impl<'a> SessionPlanner<'a> {
                     let store = storage_options_into_object_store(&url, &storage_options)?;
                     let _table = IcebergTable::open(url, store).await?;
 
-                    TableOptions::Iceberg(TableOptionsObjectStore {
+                    TableOptionsV0::Iceberg(TableOptionsObjectStore {
                         location,
                         storage_options,
                         name: None,
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
-                        columns: Vec::new(),
                     })
                 }
             }
-            TableOptions::DEBUG => {
-                datasources::debug::validate_tunnel_connections(tunnel_options.as_ref())?;
-
-                let typ: Option<DebugTableType> = match creds_options {
-                    Some(CredentialsOptions::Debug(c)) => Some(c.table_type.parse()?),
-                    Some(other) => unreachable!("invalid credentials {other} for debug datasource"),
-                    None => None,
-                };
-                let typ: DebugTableType = m.remove_required_or("table_type", typ)?;
-
-                TableOptions::Debug(TableOptionsDebug {
-                    table_type: typ.to_string(),
-                })
-            }
-            TableOptions::LANCE => {
+            TableOptionsV0::LANCE => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -909,17 +880,16 @@ impl<'a> SessionPlanner<'a> {
                 }
                 // Validate that the table exists.
                 let _table = LanceTable::new(&location, storage_options.clone()).await?;
-                TableOptions::Lance(TableOptionsObjectStore {
+                TableOptionsV0::Lance(TableOptionsObjectStore {
                     location,
                     storage_options,
                     name: None,
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
-                    columns: Vec::new(),
                 })
             }
-            TableOptions::BSON => {
+            TableOptionsV0::BSON => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -932,21 +902,16 @@ impl<'a> SessionPlanner<'a> {
                         .map(|strint| strint.parse())
                         .unwrap_or(Ok(100))?,
                 );
-
-                TableOptions::Bson(TableOptionsObjectStore {
+                TableOptionsV0::Bson(TableOptionsObjectStore {
                     location,
                     storage_options,
                     name: None,
                     file_type: None,
                     compression: None,
                     schema_sample_size,
-                    columns: columns
-                        .clone()
-                        .map(InternalColumnDefinition::from_arrow_fields)
-                        .unwrap_or(Vec::new()),
                 })
             }
-            TableOptions::EXCEL => {
+            TableOptionsV0::EXCEL => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;
                 if let Some(creds) = creds_options {
@@ -971,17 +936,82 @@ impl<'a> SessionPlanner<'a> {
                     }
                 };
 
-                TableOptions::Excel(TableOptionsExcel {
+                TableOptionsExcel {
                     location,
                     storage_options,
                     file_type: None,
                     compression: None,
                     sheet_name,
                     has_header,
-                })
+                }
+                .into()
             }
             other => return Err(internal!("unsupported datasource: {}", other)),
-        };
+        })
+    }
+
+    async fn plan_create_external_table(
+        &self,
+        mut stmt: CreateExternalTableStmt,
+    ) -> Result<LogicalPlan> {
+        let datasource = normalize_ident(stmt.datasource);
+
+        let tunnel = stmt.tunnel.map(normalize_ident);
+        let tunnel_options = self.get_tunnel_opts(&tunnel)?;
+        if let Some(tunnel_options) = &tunnel_options {
+            // Validate if the tunnel type is supported by the datasource
+            validate_table_tunnel_support(&datasource, tunnel_options.as_str()).map_err(|e| {
+                PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                }
+            })?;
+        }
+
+        let creds = stmt.credentials.map(normalize_ident);
+        let creds_options = self.get_credentials_opts(&creds)?;
+        if let Some(creds_options) = &creds_options {
+            validate_table_creds_support(&datasource, creds_options.as_str()).map_err(|e| {
+                PlanError::InvalidExternalTable {
+                    source: Box::new(e),
+                }
+            })?;
+        }
+
+        let schema = stmt
+            .columns
+            .map(|columns| {
+                let fields = columns
+                    .into_iter()
+                    .map(|coll| -> Result<Field, PlanError> {
+                        // check if there is a NOT NULL constraint
+                        let has_not_null_constraint = coll
+                            .options
+                            .into_iter()
+                            .any(|k| matches!(k.option, ColumnOption::NotNull));
+
+                        if has_not_null_constraint {
+                            Err(PlanError::String(
+                                "'NOT NULL' constraint is not supported".to_string(),
+                            ))
+                        } else {
+                            Ok(Field::new(
+                                coll.name.to_string(),
+                                convert_data_type(&coll.data_type)?,
+                                true,
+                            ))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, PlanError>>()?;
+                Ok::<_, PlanError>(Schema::new(fields))
+            })
+            .transpose()?;
+        let m = &mut stmt.options;
+
+        // The mutator uses the new table options, but the catalog uses the old ones.
+        // so we need to convert the old options to the new ones.
+        let external_table_options = self
+            .get_tbl_opts_from_v0(datasource.as_str(), m, creds_options, tunnel_options)
+            .await?;
 
         let table_name = object_name_to_table_ref(stmt.name)?;
 
@@ -991,7 +1021,7 @@ impl<'a> SessionPlanner<'a> {
             if_not_exists: stmt.if_not_exists,
             table_options: external_table_options,
             tunnel,
-            columns: columns.clone(),
+            schema,
         };
 
         Ok(plan.into_logical_plan())
@@ -1102,7 +1132,7 @@ impl<'a> SessionPlanner<'a> {
             }
 
             ast::Statement::Explain {
-                describe_alias: false,
+                describe_alias: DescribeAlias::Explain,
                 verbose,
                 statement,
                 analyze,
@@ -1116,8 +1146,9 @@ impl<'a> SessionPlanner<'a> {
             }
             // DESCRIBE <table_name>
             ast::Statement::ExplainTable {
-                describe_alias: true,
+                describe_alias: DescribeAlias::Describe,
                 table_name,
+                ..
             } => {
                 validate_object_name(&table_name)?;
                 let table_name = object_name_to_table_ref(table_name)?;
@@ -1274,13 +1305,13 @@ impl<'a> SessionPlanner<'a> {
                 name,
                 columns,
                 query,
-                with_options,
+                options,
                 ..
             } => {
                 validate_object_name(&name)?;
                 let name = object_name_to_table_ref(name)?;
 
-                if !with_options.is_empty() {
+                if !matches!(options, ast::CreateTableOptions::None) {
                     return Err(PlanError::UnsupportedFeature("view options"));
                 }
 
@@ -1300,7 +1331,10 @@ impl<'a> SessionPlanner<'a> {
                 let mut planner = SqlQueryPlanner::new(&mut context_provider);
                 let input = planner.query_to_plan(*query).await?;
 
-                let columns: Vec<_> = columns.into_iter().map(normalize_ident).collect();
+                let columns: Vec<_> = columns
+                    .into_iter()
+                    .map(|col| normalize_ident(col.name))
+                    .collect();
                 // Only validate number of aliases equals number of fields in
                 // the ouput if aliases were actually provided.
                 if !columns.is_empty() && input.schema().fields().len() != columns.len() {
@@ -1332,6 +1366,7 @@ impl<'a> SessionPlanner<'a> {
                 on: None,
                 returning: None,
                 ignore: _,
+                ..
             } if after_columns.is_empty() => {
                 let source = source.ok_or(PlanError::InvalidInsertStatement {
                     msg: "Nothing to insert: source empty",
@@ -1541,7 +1576,7 @@ impl<'a> SessionPlanner<'a> {
             // or all the rows if no expression is provided.
             ast::Statement::Delete {
                 tables,
-                from,
+                from: FromTable::WithFromKeyword(from) | FromTable::WithoutKeyword(from),
                 using: None,
                 selection,
                 returning: None,
@@ -2139,17 +2174,18 @@ async fn validate_and_get_file_type_and_compression(
         });
     }
 
-    let compression = match m.remove_optional::<CompressionTypeVariant>("compression")? {
-        Some(compression) => Some(compression),
-        None => objects
-            .first()
-            .ok_or_else(|| PlanError::InvalidExternalTable {
-                source: Box::new(internal!("object '{path} not found'")),
-            })?
-            .location
-            .extension()
-            .and_then(|ext| ext.parse().ok()),
-    };
+    let compression =
+        match m.remove_optional::<parser::options::CompressionTypeVariant>("compression")? {
+            Some(compression) => Some(convert(compression)),
+            None => objects
+                .first()
+                .ok_or_else(|| PlanError::InvalidExternalTable {
+                    source: Box::new(internal!("object '{path} not found'")),
+                })?
+                .location
+                .extension()
+                .and_then(|ext| ext.parse().ok()),
+        };
 
     let file_type = match m.remove_optional("file_type")? {
         Some(file_type) => file_type,
@@ -2184,7 +2220,7 @@ fn normalize_ident(ident: Ident) -> String {
 }
 
 fn object_name_to_table_ref(name: ObjectName) -> Result<OwnedTableReference> {
-    let r = object_name_to_table_reference(name, /* enable_normalization = */ true)?;
+    let r = object_name_to_table_reference(convert(name), /* enable_normalization = */ true)?;
     Ok(r)
 }
 
@@ -2331,7 +2367,10 @@ fn convert_simple_data_type(sql_type: &ast::DataType) -> Result<DataType> {
             | ast::DataType::BigNumeric(_)
             | ast::DataType::BigDecimal(_)
             | ast::DataType::Struct(_)
-            | ast::DataType::Clob(_) => Err(internal!(
+            | ast::DataType::Clob(_)
+            | ast::DataType::JSONB
+            | ast::DataType::Unspecified
+            => Err(internal!(
                 "Unsupported SQL type {:?}",
                 sql_type
             )),

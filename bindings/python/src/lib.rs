@@ -4,16 +4,14 @@ mod connect;
 mod connection;
 mod environment;
 mod error;
-mod execution_result;
-mod logical_plan;
+mod execution;
 mod runtime;
 mod util;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use connection::Connection;
-use execution_result::PyExecutionResult;
-use logical_plan::PyLogicalPlan;
+use execution::PyExecutionOutput;
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
 use tokio::runtime::Builder;
@@ -35,6 +33,7 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__runtime", TokioRuntime(runtime))?;
 
     m.add_function(wrap_pyfunction!(sql, m)?)?;
+    m.add_function(wrap_pyfunction!(prql, m)?)?;
     m.add_function(wrap_pyfunction!(execute, m)?)?;
 
     m.add_function(wrap_pyfunction!(connect::connect, m)?)?;
@@ -42,16 +41,29 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-/// Run a SQL query against an in-memory GlareDB database.
+/// Run a SQL query against the default in-memory GlareDB
+/// database. Subsequent calls to this method will always interact
+/// with the same underlying connection object and therefore access
+/// the same data and database.
 #[pyfunction]
-pub fn sql(py: Python, query: &str) -> PyResult<PyLogicalPlan> {
-    let mut con = Connection::default_in_memory(py)?;
-    con.sql(py, query)
+pub fn sql(py: Python, query: &str) -> PyResult<PyExecutionOutput> {
+    Connection::default_in_memory(py)?.sql(py, query)
 }
 
-/// Execute a query against an in-memory GlareDB database.
+/// Run a PRQL query against the default in-memory GlareDB
+/// database. Subsequent calls to this method will always interact
+/// with the same underlying connection object and therefore access
+/// the same data and database.
 #[pyfunction]
-pub fn execute(py: Python, query: &str) -> PyResult<PyExecutionResult> {
-    let mut con = Connection::default_in_memory(py)?;
-    con.execute(py, query)
+pub fn prql(py: Python, query: &str) -> PyResult<PyExecutionOutput> {
+    Connection::default_in_memory(py)?.prql(py, query)
+}
+
+/// Execute a query against the default in-memory GlareDB
+/// database. Subsequent calls to this method will always interact
+/// with the same underlying connection object and therefore access
+/// the same data and database.
+#[pyfunction]
+pub fn execute(py: Python, query: &str) -> PyResult<PyExecutionOutput> {
+    Connection::default_in_memory(py)?.execute(py, query)
 }

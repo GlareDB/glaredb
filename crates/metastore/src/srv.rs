@@ -6,6 +6,8 @@ use object_store::ObjectStore;
 use protogen::gen::metastore::service::metastore_service_server::MetastoreService;
 use protogen::gen::metastore::service::{
     self,
+    CommitRequest,
+    CommitResponse,
     FetchCatalogRequest,
     FetchCatalogResponse,
     MutateRequest,
@@ -19,7 +21,6 @@ use uuid::Uuid;
 use crate::database::DatabaseCatalog;
 use crate::errors::MetastoreError;
 use crate::storage::persist::Storage;
-
 /// Metastore GRPC service.
 pub struct Service {
     /// Reference to underlying object storage.
@@ -91,16 +92,19 @@ impl MetastoreService for Service {
         }))
     }
 
+    /// Mutate the catalog.
+    /// Returns the new UNCOMMITTED catalog state.
     async fn mutate_catalog(
         &self,
         request: Request<MutateRequest>,
     ) -> Result<Response<MutateResponse>, Status> {
         let req = request.into_inner();
-        debug!(?req, "mutate catalog");
+
         let id = Uuid::from_slice(&req.db_id)
             .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
 
         let catalog = self.get_or_load_catalog(id).await?;
+
         let mutations = req
             .mutations
             .into_iter()
@@ -108,10 +112,28 @@ impl MetastoreService for Service {
             .collect::<Result<_, _>>()?;
 
         // TODO: Catch error and return status.
-
         let updated = catalog.try_mutate(req.catalog_version, mutations).await?;
 
         Ok(Response::new(MutateResponse {
+            status: service::mutate_response::Status::Applied as i32,
+            catalog: Some(updated.try_into().map_err(MetastoreError::from)?),
+        }))
+    }
+    async fn commit_catalog(
+        &self,
+        request: Request<CommitRequest>,
+    ) -> Result<Response<CommitResponse>, Status> {
+        let req = request.into_inner();
+        let id = Uuid::from_slice(&req.db_id)
+            .map_err(|_| MetastoreError::InvalidDatabaseId(req.db_id))?;
+        let state = req.catalog.ok_or(MetastoreError::MissingCatalog)?;
+        let catalog = self.get_or_load_catalog(id).await?;
+
+        let updated = catalog
+            .commit(req.catalog_version, state.try_into()?)
+            .await?;
+
+        Ok(Response::new(CommitResponse {
             status: service::mutate_response::Status::Applied as i32,
             catalog: Some(updated.try_into().map_err(MetastoreError::from)?),
         }))
@@ -155,17 +177,30 @@ mod tests {
             .await
             .unwrap();
         let resp = resp.into_inner();
+        let version = resp.catalog.unwrap().version;
 
         // Mutate (create schema)
-        svc.mutate_catalog(Request::new(MutateRequest {
+        let state = svc
+            .mutate_catalog(Request::new(MutateRequest {
+                db_id: id_bs.clone(),
+                catalog_version: version,
+                mutations: vec![Mutation::CreateSchema(CreateSchema {
+                    name: "test_schema".to_string(),
+                    if_not_exists: false,
+                })
+                .try_into()
+                .unwrap()],
+            }))
+            .await
+            .unwrap()
+            .into_inner()
+            .catalog;
+
+        // Commit the new catalog.
+        svc.commit_catalog(Request::new(CommitRequest {
             db_id: id_bs.clone(),
-            catalog_version: resp.catalog.unwrap().version,
-            mutations: vec![Mutation::CreateSchema(CreateSchema {
-                name: "test_schema".to_string(),
-                if_not_exists: false,
-            })
-            .try_into()
-            .unwrap()],
+            catalog_version: version,
+            catalog: state,
         }))
         .await
         .unwrap();

@@ -28,8 +28,8 @@ use datafusion::logical_expr::{
     ScalarFunctionDefinition,
 };
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{BinaryOperator, DateTimeField, Expr as SQLExpr, Value};
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
+use parser::sqlparser::ast::{BinaryOperator, DateTimeField, Expr as SQLExpr, Value};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 
@@ -220,13 +220,13 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                     }
                 };
                 match (leading_field, left.as_ref(), right.as_ref()) {
-                    (_, _, SQLExpr::Value(_)) => {
+                    (leading_field, _, SQLExpr::Value(_)) => {
                         let left_expr = self
                             .sql_interval_to_expr(
                                 *left,
                                 schema,
                                 planner_context,
-                                leading_field,
+                                leading_field.clone(),
                                 None,
                                 None,
                                 None,

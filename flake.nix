@@ -19,7 +19,7 @@
           src = ./.;
           doCheck = false;
           nativeBuildInputs = with pkgs; [ protobuf ];
-          buildAndTestSubdir = "crates/glaredb";
+          buildAndTestSubdir = "crates/cli";
           preBuild = ''
             export PROTOC=${pkgs.protobuf}/bin/protoc
           '';
@@ -34,7 +34,7 @@
           meta = with pkgs.lib; {
             description = "A fast SQL database for running analytics across distributed data";
             homepage = "https://github.com/glaredb/glaredb";
-            license = licenses.agpl3;
+            license = licenses.agpl3Only;
           };
         };
         devShells.default = with pkgs; mkShell {

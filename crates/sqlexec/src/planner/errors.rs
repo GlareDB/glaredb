@@ -90,7 +90,7 @@ pub enum PlanError {
     SshKey(#[from] datasources::common::ssh::key::SshKeyError),
 
     #[error(transparent)]
-    ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),
+    ParseError(#[from] parser::errors::ParserError),
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
@@ -103,6 +103,9 @@ pub enum PlanError {
 
     #[error("{0}")]
     String(String),
+
+    #[error(transparent)]
+    Builtin(#[from] sqlbuiltins::errors::BuiltinError),
 }
 
 impl From<PlanError> for datafusion::error::DataFusionError {

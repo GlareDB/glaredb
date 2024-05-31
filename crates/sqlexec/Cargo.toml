@@ -6,6 +6,10 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 ioutil = { path = "../ioutil" }
 arrow_util = { path = "../arrow_util" }
@@ -21,29 +25,30 @@ datafusion_ext = { path = "../datafusion_ext" }
 object_store_util = { path = "../object_store_util" }
 parser = { path = "../parser" }
 distexec = { path = "../distexec" }
-dashmap = "5.5.0"
 metastore = { path = "../metastore" }
-thiserror.workspace = true
+thiserror = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 datafusion = { workspace = true }
 prost = { workspace = true }
 datafusion-proto = { workspace = true }
-bytes = "1.4.0"
 futures = { workspace = true }
 tracing = { workspace = true }
 object_store = { workspace = true }
-uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 tonic = { workspace = true }
-tokio-postgres = "0.7.8"
-once_cell = "1.19.0"
-url.workspace = true
-parking_lot = "0.12.1"
 serde = { workspace = true }
 reqwest = { workspace = true }
+url = { workspace = true }
+bytes = { workspace = true }
+uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+tokio-postgres = "0.7.8"
+once_cell = "1.19.0"
+parking_lot = "0.12.3"
 num_cpus = "1.16.0"
+dashmap = "5.5.0"
 
 [dev-dependencies]
+metastore = { path = "../metastore" }
 tempfile = "3"
 tower = "0.4"
-metastore = { path = "../metastore" }

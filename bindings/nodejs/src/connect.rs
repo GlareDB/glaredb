@@ -4,8 +4,10 @@
 //! queries.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::connection::Connection;
+use crate::error::JsDatabaseError;
 
 #[napi(object)]
 #[derive(Default)]
@@ -17,29 +19,23 @@ pub struct ConnectOptions {
     pub storage_options: Option<HashMap<String, String>>,
 }
 
-impl ConnectOptions {
-    fn spill_path(&mut self) -> Option<String> {
-        self.spill_path.take()
-    }
+impl TryFrom<ConnectOptions> for glaredb::ConnectOptions {
+    type Error = glaredb::ConnectOptionsBuilderError;
 
-    fn disable_tls(&self) -> bool {
-        self.disable_tls.unwrap_or(false)
-    }
-
-    fn cloud_addr(&self) -> String {
-        self.cloud_addr
-            .clone()
-            .unwrap_or(String::from("https://console.glaredb.com"))
-    }
-
-    fn location(&mut self) -> Option<String> {
-        self.location.take()
-    }
-
-    fn storage_options(&mut self) -> Option<HashMap<String, String>> {
-        self.storage_options.take()
+    fn try_from(
+        val: ConnectOptions,
+    ) -> Result<glaredb::ConnectOptions, glaredb::ConnectOptionsBuilderError> {
+        glaredb::ConnectOptionsBuilder::default()
+            .spill_path(val.spill_path)
+            .disable_tls_opt(val.disable_tls)
+            .cloud_addr_opt(val.cloud_addr)
+            .location(val.location)
+            .storage_options_opt(val.storage_options)
+            .client_type(glaredb::ClientType::Node)
+            .build()
     }
 }
+
 
 /// Connect to a GlareDB database.
 #[napi(catch_unwind)]
@@ -47,14 +43,15 @@ pub async fn connect(
     data_dir_or_cloud_url: Option<String>,
     options: Option<ConnectOptions>,
 ) -> napi::Result<Connection> {
-    let mut options = options.unwrap_or_default();
-    Connection::connect(
-        data_dir_or_cloud_url,
-        options.spill_path(),
-        options.disable_tls(),
-        options.cloud_addr(),
-        options.location(),
-        options.storage_options(),
-    )
-    .await
+    let mut options: glaredb::ConnectOptions = options
+        .unwrap_or_default()
+        .try_into()
+        .map_err(glaredb::DatabaseError::from)
+        .map_err(JsDatabaseError::from)?;
+
+    options.connection_target = data_dir_or_cloud_url;
+
+    Ok(Connection {
+        inner: Arc::new(options.connect().await.map_err(JsDatabaseError::from)?),
+    })
 }

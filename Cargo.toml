@@ -1,10 +1,10 @@
 [workspace]
-members = ["crates/*", "xtask", "bindings/*"]
-default-members = ["crates/*", "xtask"]
+members = ["crates/*", "xtask", "bindings/*", "rstests"]
+default-members = ["crates/*", "xtask", "rstests"]
 resolver = "2"
 
 [workspace.package]
-version = "0.9.2"
+version = "0.9.3"
 edition = "2021"
 
 [profile.release]
@@ -17,32 +17,33 @@ strip = true
 wildcard_imports = "deny"
 
 [workspace.dependencies]
-clap = { version = "4.5.3", features = ["derive"] }
-datafusion = { version = "35.0.0", features = ["avro"] }
+clap = { version = "4.5.4", features = ["derive"] }
+datafusion = { version = "36.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
-datafusion-proto = { version = "35.0.0" }
-reqwest = { version = "0.11.26", default-features = false, features = [
+datafusion-proto = { version = "36.0.0" }
+reqwest = { version = "0.12.4", default-features = false, features = [
   "json",
   "rustls-tls",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
-anyhow = "1.0.81"
-async-trait = "0.1.77"
-chrono = "0.4.35"
+anyhow = "1.0.86"
+async-trait = "0.1.80"
+chrono = "0.4.38"
 futures = "0.3.30"
 object_store = "0.9"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
-serde_json = "1.0.114"
+serde_json = "1.0.117"
 tempfile = "3.10.1"
 thiserror = "1.0"
 tracing = "0.1"
 url = "2.5.0"
+bytes = "1.6.0"
 
 [workspace.dependencies.deltalake]
-git = "https://github.com/delta-io/delta-rs.git"
-rev = "993e2c202936719855f8831513bcbab1b9930b94"
+git = "https://github.com/GlareDB/delta-rs.git"
+rev = "94773cb304ebc5eaa48d7540eb01cdf08f8b401f"
 features = ["s3", "gcs", "azure", "datafusion"]

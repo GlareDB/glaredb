@@ -5,6 +5,7 @@ export PROTOC := justfile_directory() + "/deps/protoc/bin/protoc"
 alias py := python
 alias js := javascript
 alias slt := sql-logic-tests
+alias unit-tests := test
 
 os_arch := os() + '-' + arch()
 
@@ -55,10 +56,6 @@ dist triple=target_triple: protoc
 # Run tests with arbitrary arguments.
 test *args: protoc
   cargo test {{args}}
-
-# Run unit tests.
-unit-tests *args: protoc
-  just test --workspace {{args}}
 
 # Run doc tests.
 doc-tests: protoc
@@ -123,10 +120,12 @@ venv:
   {{VENV_BIN}}/python -m pip install --upgrade pip
   {{VENV_BIN}}/python -m pip install poetry
 
-# Runs pytest in the tests directory.
-pytest *args:
-  {{VENV_BIN}}/poetry -C tests install --no-root
+poetry:
   {{VENV_BIN}}/poetry -C tests lock --no-update
+  {{VENV_BIN}}/poetry -C tests install --no-root
+
+# Runs pytest in the tests directory.
+pytest *args: poetry
   {{VENV_BIN}}/poetry -C tests run pytest -v --rootdir={{invocation_directory()}}/tests {{ if args == "" {'tests'} else {args} }}
 
 # private helpers below

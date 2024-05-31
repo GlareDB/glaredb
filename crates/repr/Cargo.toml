@@ -6,9 +6,13 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 thiserror.workspace = true
-num-traits = "0.2.18"
+num-traits = "0.2.19"
 dtoa = "1.0.9"
 chrono = { workspace = true }
 decimal = { path = "../decimal" }

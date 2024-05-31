@@ -12,7 +12,7 @@ use datafusion::logical_expr::{LogicalPlan, LogicalPlanBuilder};
 use datafusion::prelude::{Column, Expr, SessionContext as DfSessionContext};
 use datafusion_ext::functions::{DefaultTableContextProvider, FuncParamValue};
 use datasources::native::access::NativeTableStorage;
-use parser::CustomParser;
+use parser::GlareDbParser;
 use protogen::metastore::types::catalog::{DatabaseEntry, FunctionEntry, TableEntry, ViewEntry};
 use sqlbuiltins::functions::FunctionRegistry;
 
@@ -100,7 +100,13 @@ pub enum DispatchError {
 
     #[error("{0}")]
     String(String),
+
+    #[error(transparent)]
+    Builtin(#[from] sqlbuiltins::errors::BuiltinError),
+    #[error(transparent)]
+    Datasource(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
+
 
 /// Trait for planning views.
 ///
@@ -121,7 +127,7 @@ impl ViewPlanner for LocalSessionContext {
     async fn plan_view(&self, sql: &str, col_aliases: &[String]) -> Result<LogicalPlan, PlanError> {
         // TODO: Instead of doing late planning, we should instead try to insert
         // the contents of the view into the parent query prior to any planning.
-        let mut statements = CustomParser::parse_sql(sql)?;
+        let mut statements = GlareDbParser::parse_sql(sql)?;
         if statements.len() != 1 {
             return Err(PlanError::ExpectedExactlyOneStatement(
                 statements.into_iter().collect(),

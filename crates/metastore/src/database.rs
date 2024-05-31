@@ -19,11 +19,12 @@ use protogen::metastore::types::catalog::{
     TableEntry,
     TunnelEntry,
     ViewEntry,
+    CURRENT_CATALOG_VERSION,
 };
 use protogen::metastore::types::options::{
     DatabaseOptions,
     DatabaseOptionsInternal,
-    TableOptions,
+    TableOptionsInternal,
     TunnelOptions,
 };
 use protogen::metastore::types::service::{AlterDatabaseOperation, AlterTableOperation, Mutation};
@@ -44,7 +45,7 @@ use sqlbuiltins::validation::{
     validate_object_name,
     validate_table_tunnel_support,
 };
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::Mutex;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -71,6 +72,7 @@ static BUILTIN_CATALOG: Lazy<BuiltinCatalog> = Lazy::new(|| BuiltinCatalog::new(
 /// 2. Persistence is managed via leases in object storage.
 ///
 /// The source of truth for a database catalog is always what's in object store.
+#[derive(Debug)]
 pub struct DatabaseCatalog {
     db_id: Uuid,
 
@@ -109,16 +111,28 @@ impl DatabaseCatalog {
         self.load_latest().await?;
 
         let state = self.cached.lock().await;
-        Ok(self.serializable_state(state))
+        Ok(self.serializable_state(&state))
     }
 
-    /// Try to mutate the catalog.
-    ///
-    /// Errors if the provided version doesn't match the version of the current
-    /// catalog.
-    ///
-    /// On success, a full copy of the updated catalog state will be returned.
-    // TODO: All or none.
+    pub async fn commit(
+        &self,
+        version: u64,
+        state_to_commit: CatalogState,
+    ) -> Result<CatalogState> {
+        let state = self.cached.lock().await;
+        let state = State::from_catalog_state_and_counter(state_to_commit, state.oid_counter)?;
+        let persist = state.to_persisted();
+
+        self.storage
+            .write_catalog(self.db_id, version, persist)
+            .await?;
+        self.require_full_load.store(true, Ordering::Relaxed);
+
+        Ok(self.serializable_state(&state))
+    }
+    /// Try to mutate the catalog without committing the changes.
+    /// This is useful when you need to potentially do some extra checks before commiting.
+    /// The returned `UncommitedCatalog` can be committed to persist the changes.
     pub async fn try_mutate(&self, version: u64, mutations: Vec<Mutation>) -> Result<CatalogState> {
         debug!(db_id = %self.db_id, %version, ?mutations, "mutating catalog");
 
@@ -134,11 +148,6 @@ impl DatabaseCatalog {
         }
 
         // TODO: Validate mutations.
-
-        // State's version number updated, but we still need to use the old
-        // version number when making a request to storage.
-        let old_version = version;
-
         // TODO: Rollback on failed mutate.
         //
         // Currently don't have guarantees about what the state looks like on
@@ -149,39 +158,17 @@ impl DatabaseCatalog {
             self.require_full_load.store(true, Ordering::Relaxed);
             return Err(e);
         }
-
-        let persist = state.to_persisted();
-        let updated = self.serializable_state(state);
-
-        // TODO: Rollback on failed flush.
-        //
-        // Currently this will keep a copy of a catalog in cache without having
-        // it persisted. We'll want `State` to be somewhat transactional,
-        // allowing for a single writer and multiple readers.
-        //
-        // As a stop gap, we can use a `require_full_load` flag which will force
-        // us to a do a full reload on the catalog. This does require that we
-        // hold the lock for the cached state across the write to storage, which
-        // has significant performance implications, but does guarantee we'll
-        // never serve an invalid catalog.
-        if let Err(e) = self
-            .storage
-            .write_catalog(self.db_id, old_version, persist)
-            .await
-        {
-            self.require_full_load.store(true, Ordering::Relaxed);
-            return Err(e.into());
-        }
-
-        Ok(updated)
+        let state = self.serializable_state(&state);
+        Ok(state)
     }
 
     /// Return the serializable state of the catalog at this version.
-    fn serializable_state(&self, guard: MutexGuard<State>) -> CatalogState {
+    fn serializable_state(&self, state: &State) -> CatalogState {
         CatalogState {
-            version: guard.version,
-            entries: guard.entries.as_ref().clone(),
-            deployment: guard.deployment.clone(),
+            version: state.version,
+            entries: state.entries.as_ref().clone(),
+            deployment: state.deployment.clone(),
+            catalog_version: CURRENT_CATALOG_VERSION,
         }
     }
 
@@ -355,6 +342,26 @@ struct State {
 }
 
 impl State {
+    fn from_catalog_state_and_counter(mut state: CatalogState, counter: u32) -> Result<State> {
+        // Ensure no temp objects are in this catalog. If there are, it means we
+        // have a (pretty significant) logic bug. Metastore should never be
+        // dealing with temp objects.
+        if state.entries.iter().any(|(_, ent)| ent.get_meta().is_temp) {
+            panic!("temp object found in catalog: {:?}", state.entries);
+        }
+        state
+            .entries
+            .retain(|_, ent| !ent.get_meta().is_temp && !ent.get_meta().builtin);
+
+        let persisted = PersistedCatalog {
+            state,
+            extra: ExtraState {
+                oid_counter: counter,
+            },
+        };
+
+        State::from_persisted(persisted)
+    }
     /// Create a new state from a persisted catalog.
     ///
     /// The state will be combined with a predefinend builtin catalog objects.
@@ -529,6 +536,7 @@ impl State {
                     .into_iter()
                     .filter(|(_, ent)| !ent.get_meta().builtin)
                     .collect(),
+                catalog_version: CURRENT_CATALOG_VERSION,
             },
             extra: ExtraState {
                 oid_counter: self.oid_counter,
@@ -853,7 +861,7 @@ impl State {
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::Internal(create_table.options),
+                    options: create_table.options.into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadWrite,
                     columns: None,
@@ -894,10 +902,10 @@ impl State {
                         external: true,
                         is_temp: false,
                     },
-                    options: create_ext.options,
+                    options: create_ext.options.clone(),
                     tunnel_id,
                     access_mode: SourceAccessMode::ReadOnly,
-                    columns: None,
+                    columns: create_ext.columns,
                 };
 
                 let policy = CreatePolicy::new(create_ext.if_not_exists, create_ext.or_replace)?;
@@ -1047,7 +1055,6 @@ impl State {
                     Some(_) => return Err(MetastoreError::DuplicateName(f.name.clone())),
                     None => self.next_oid(),
                 };
-
 
                 let ent = FunctionEntry {
                     meta: EntryMeta {
@@ -1266,7 +1273,10 @@ impl BuiltinCatalog {
                         external: false,
                         is_temp: false,
                     },
-                    options: TableOptions::new_internal(table.columns.clone()),
+                    options: TableOptionsInternal {
+                        columns: table.columns.clone(),
+                    }
+                    .into(),
                     tunnel_id: None,
                     access_mode: SourceAccessMode::ReadOnly,
                     columns: None,
@@ -1413,6 +1423,19 @@ impl BuiltinCatalog {
 }
 
 #[cfg(test)]
+impl DatabaseCatalog {
+    /// Try to mutate the catalog and immediately commit the changes.
+    pub async fn try_mutate_and_commit(
+        &self,
+        version: u64,
+        mutations: Vec<Mutation>,
+    ) -> Result<CatalogState> {
+        let state = self.try_mutate(version, mutations).await?;
+        self.commit(version, state.clone()).await
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
@@ -1491,7 +1514,7 @@ mod tests {
     async fn drop_missing_schema() {
         let db = new_catalog().await;
 
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::DropSchema(DropSchema {
                 name: "yoshi".to_string(),
@@ -1507,7 +1530,7 @@ mod tests {
     async fn drop_missing_schema_if_exists() {
         let db = new_catalog().await;
 
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::DropSchema(DropSchema {
                 name: "yoshi".to_string(),
@@ -1523,7 +1546,7 @@ mod tests {
     async fn multiple_entries() {
         let db = new_catalog().await;
 
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "numbers".to_string(),
@@ -1545,7 +1568,9 @@ mod tests {
             })
             .collect();
 
-        db.try_mutate(version(&db).await, mutations).await.unwrap();
+        db.try_mutate_and_commit(version(&db).await, mutations)
+            .await
+            .unwrap();
 
         let state = db.get_state().await.unwrap();
 
@@ -1566,7 +1591,7 @@ mod tests {
         let db = new_catalog().await;
 
         // First should pass.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
@@ -1577,7 +1602,7 @@ mod tests {
         .unwrap();
 
         // Duplicate should fail.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
@@ -1588,7 +1613,7 @@ mod tests {
         .unwrap_err();
 
         // Drop schema.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::DropSchema(DropSchema {
                 name: "mario".to_string(),
@@ -1600,7 +1625,7 @@ mod tests {
         .unwrap();
 
         // Re-adding schema should pass.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "mario".to_string(),
@@ -1616,7 +1641,7 @@ mod tests {
         let db = new_catalog().await;
 
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 version(&db).await,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
@@ -1627,7 +1652,7 @@ mod tests {
             .unwrap();
 
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateView(CreateView {
                     schema: "mushroom".to_string(),
@@ -1641,7 +1666,7 @@ mod tests {
             .unwrap();
 
         // Drop schema cascade. containing a view.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             state.version,
             vec![Mutation::DropSchema(DropSchema {
                 name: "mushroom".to_string(),
@@ -1658,7 +1683,7 @@ mod tests {
         let db = new_catalog().await;
 
         // Add schema.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "luigi".to_string(),
@@ -1669,7 +1694,7 @@ mod tests {
         .unwrap();
 
         // Add view.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateView(CreateView {
                 schema: "luigi".to_string(),
@@ -1683,7 +1708,7 @@ mod tests {
         .unwrap();
 
         // Duplicate view name.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateView(CreateView {
                 schema: "luigi".to_string(),
@@ -1702,7 +1727,7 @@ mod tests {
         let db = new_catalog().await;
 
         // Add view.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateView(CreateView {
                 schema: "public".to_string(),
@@ -1716,7 +1741,7 @@ mod tests {
         .unwrap();
 
         // Try to replace with specifying 'or replace'.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateView(CreateView {
                 schema: "public".to_string(),
@@ -1730,7 +1755,7 @@ mod tests {
         .unwrap_err();
 
         // Replace view.
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateView(CreateView {
                 schema: "public".to_string(),
@@ -1760,7 +1785,7 @@ mod tests {
 
         // Add schema.
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 initial,
                 vec![Mutation::CreateView(CreateView {
                     schema: "public".to_string(),
@@ -1775,7 +1800,7 @@ mod tests {
 
         // Duplicate connection, expect failure.
         let _ = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateView(CreateView {
                     schema: "public".to_string(),
@@ -1790,7 +1815,7 @@ mod tests {
 
         // Should also fail.
         let _ = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateView(CreateView {
                     schema: "public".to_string(),
@@ -1826,7 +1851,7 @@ mod tests {
 
         // Add schema.
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 initial,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "mushroom".to_string(),
@@ -1841,15 +1866,14 @@ mod tests {
         let mutation = Mutation::CreateExternalTable(CreateExternalTable {
             schema: "mushroom".to_string(),
             name: "bowser".to_string(),
-            options: TableOptions::Debug(TableOptionsDebug {
-                table_type: String::new(),
-            }),
+            options: TableOptionsDebug::default().into(),
             if_not_exists: true,
             or_replace: false,
             tunnel: None,
+            columns: None,
         });
         let _ = db
-            .try_mutate(state.version, vec![mutation.clone(), mutation])
+            .try_mutate_and_commit(state.version, vec![mutation.clone(), mutation])
             .await
             .unwrap();
 
@@ -1875,7 +1899,7 @@ mod tests {
         let initial = version(&db).await;
 
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 initial,
                 vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
                     name: "bq".to_string(),
@@ -1889,7 +1913,7 @@ mod tests {
 
         // Should fail if "if not exists" set to false.
         let _ = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
                     name: "bq".to_string(),
@@ -1903,7 +1927,7 @@ mod tests {
 
         // Should pass if "if not exists" set to true.
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
                     name: "bq".to_string(),
@@ -1917,7 +1941,7 @@ mod tests {
 
         // Drop database.
         let state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::DropDatabase(DropDatabase {
                     name: "bq".to_string(),
@@ -1929,7 +1953,7 @@ mod tests {
 
         // Now should be able to create new database with name.
         let _state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateExternalDatabase(CreateExternalDatabase {
                     name: "bq".to_string(),
@@ -1948,7 +1972,7 @@ mod tests {
         let initial = version(&db).await;
 
         let _state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 initial,
                 vec![Mutation::DropDatabase(DropDatabase {
                     name: "doesntexist".to_string(),
@@ -1965,7 +1989,7 @@ mod tests {
         let initial = version(&db).await;
 
         let e = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 initial,
                 vec![Mutation::AlterDatabase(AlterDatabase {
                     name: DEFAULT_CATALOG.to_string(),
@@ -1993,17 +2017,16 @@ mod tests {
         // Try to create a table with the same name as an existing builtin
         // function (read_postgres).
         let _state = db
-            .try_mutate(
+            .try_mutate_and_commit(
                 initial,
                 vec![Mutation::CreateExternalTable(CreateExternalTable {
                     schema: "public".to_string(),
                     name: "read_postgres".to_string(),
-                    options: TableOptions::Debug(TableOptionsDebug {
-                        table_type: String::new(),
-                    }),
+                    options: TableOptionsDebug::default().into(),
                     if_not_exists: true,
                     or_replace: false,
                     tunnel: None,
+                    columns: None,
                 })],
             )
             .await
@@ -2016,7 +2039,7 @@ mod tests {
         version(&db).await;
 
         // Add internal table on 'glare_catalog'
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateTable(CreateTable {
                 schema: INTERNAL_SCHEMA.to_string(),
@@ -2042,7 +2065,7 @@ mod tests {
         version(&db).await;
 
         // Add internal table on 'public' schema
-        db.try_mutate(
+        db.try_mutate_and_commit(
             version(&db).await,
             vec![Mutation::CreateTable(CreateTable {
                 schema: DEFAULT_SCHEMA.to_string(),

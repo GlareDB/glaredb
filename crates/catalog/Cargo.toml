@@ -6,15 +6,21 @@ edition.workspace = true
 [lints]
 workspace = true
 
+
+[lib]
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
+
 [dependencies]
 datafusion = { workspace = true }
 logutil = { path = "../logutil" }
 object_store = { workspace = true }
-parking_lot = "0.12.1"
+parking_lot = "0.12.3"
 protogen = { path = "../protogen" }
 thiserror.workspace = true
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 

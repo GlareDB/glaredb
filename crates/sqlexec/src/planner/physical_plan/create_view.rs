@@ -106,7 +106,7 @@ async fn create_view(
     plan: CreateViewExec,
 ) -> DataFusionResult<RecordBatch> {
     mutator
-        .mutate(
+        .mutate_and_commit(
             plan.catalog_version,
             [Mutation::CreateView(service::CreateView {
                 schema: plan.view_reference.schema.into_owned(),

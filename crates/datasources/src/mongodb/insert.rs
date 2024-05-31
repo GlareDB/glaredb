@@ -17,6 +17,7 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
     Statistics,
 };
+use datafusion_ext::metrics::DataSourceMetricsStreamAdapter;
 use futures::StreamExt;
 use mongodb::bson::RawDocumentBuf;
 use mongodb::Collection;
@@ -96,37 +97,42 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
             ));
         }
 
-        let mut stream = execute_stream(self.input.clone(), ctx)?;
+        let mut input = execute_stream(self.input.clone(), ctx)?;
         let coll = self.collection.clone();
 
-        Ok(Box::pin(RecordBatchStreamAdapter::new(
-            self.input.schema(),
-            futures::stream::once(async move {
-                let mut count: u64 = 0;
-                while let Some(batch) = stream.next().await {
-                    let rb = batch?;
+        Ok(Box::pin(DataSourceMetricsStreamAdapter::new(
+            RecordBatchStreamAdapter::new(
+                COUNT_SCHEMA.clone(),
+                futures::stream::once(async move {
+                    let mut count: u64 = 0;
+                    while let Some(batch) = input.next().await {
+                        let rb = batch?;
 
-                    let mut docs = Vec::with_capacity(rb.num_rows());
-                    let converted = crate::bson::BsonBatchConverter::from_record_batch(rb);
+                        let mut docs = Vec::with_capacity(rb.num_rows());
+                        let converted = crate::bson::BsonBatchConverter::from_record_batch(rb);
 
-                    for d in converted.into_iter() {
-                        let doc = d.map_err(|e| DataFusionError::Execution(e.to_string()))?;
+                        for d in converted.into_iter() {
+                            let doc = d.map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
-                        docs.push(
-                            RawDocumentBuf::from_document(&doc)
-                                .map_err(|e| DataFusionError::Execution(e.to_string()))?,
-                        );
+                            docs.push(
+                                RawDocumentBuf::from_document(&doc)
+                                    .map_err(|e| DataFusionError::Execution(e.to_string()))?,
+                            );
+                        }
+
+                        count += coll
+                            .insert_many(docs, None)
+                            .await
+                            .map(|res| res.inserted_ids.len())
+                            .map_err(|e| DataFusionError::External(Box::new(e)))?
+                            as u64;
                     }
-
-                    count += coll
-                        .insert_many(docs, None)
-                        .await
-                        .map(|res| res.inserted_ids.len())
-                        .map_err(|e| DataFusionError::External(Box::new(e)))?
-                        as u64;
-                }
-                Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
-            }),
+                    Ok::<RecordBatch, DataFusionError>(create_count_record_batch(count))
+                })
+                .boxed(),
+            ),
+            partition,
+            &self.metrics,
         )))
     }
 
