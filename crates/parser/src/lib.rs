@@ -895,8 +895,12 @@ impl<'a> GlareDbParser<'a> {
             // normalize it.
             let key = self.parser.parse_identifier(false)?.value;
 
-            // Optional `=`
-            let _ = self.parser.consume_token(&Token::Eq);
+            // Optional `=` or `=>`
+            for token in [Token::Eq, Token::RArrow] {
+                if self.parser.consume_token(&token) {
+                    break;
+                }
+            }
 
             let value = self.parse_options_value()?;
 
