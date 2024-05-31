@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 use crate::environment::PyEnvironmentReader;
-use crate::error::PyGlareDbError;
+use crate::error::PyDatabaseError;
 use crate::execution::PyExecutionOutput;
 use crate::runtime::wait_for_future;
 
@@ -33,11 +33,11 @@ impl Connection {
                             .client_type(glaredb::ClientType::Python)
                             .environment_reader(Arc::new(PyEnvironmentReader))
                             .build()
-                            .map_err(glaredb::Error::from)?
+                            .map_err(glaredb::DatabaseError::from)?
                             .connect()
                             .await?,
                     ),
-                }) as Result<_, PyGlareDbError>
+                }) as Result<_, PyDatabaseError>
             })
         })?;
 
@@ -108,7 +108,7 @@ impl Connection {
                 .sql(query)
                 .evaluate()
                 .await
-                .map_err(PyGlareDbError::from)?
+                .map_err(PyDatabaseError::from)?
                 .into())
         })
     }
@@ -133,7 +133,7 @@ impl Connection {
                 .prql(query)
                 .evaluate()
                 .await
-                .map_err(PyGlareDbError::from)?
+                .map_err(PyDatabaseError::from)?
                 .into())
         })
     }
@@ -157,7 +157,7 @@ impl Connection {
                 .execute(query)
                 .evaluate()
                 .await
-                .map_err(PyGlareDbError::from)?
+                .map_err(PyDatabaseError::from)?
                 .into())
         })
     }

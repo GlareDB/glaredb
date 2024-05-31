@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_once_cell::OnceCell;
 
-use crate::error::JsGlareDbError;
+use crate::error::JsDatabaseError;
 use crate::execution::JsExecutionOutput;
 
 /// A connected session to a GlareDB database.
@@ -25,11 +25,11 @@ impl Connection {
 
         Ok(DEFAULT_CON
             .get_or_try_init(async {
-                Ok::<_, JsGlareDbError>(Connection {
+                Ok::<_, JsDatabaseError>(Connection {
                     inner: Arc::new(
                         glaredb::ConnectOptionsBuilder::new_in_memory()
                             .build()
-                            .map_err(glaredb::Error::from)?
+                            .map_err(glaredb::DatabaseError::from)?
                             .connect()
                             .await?,
                     ),
@@ -83,7 +83,7 @@ impl Connection {
             .sql(query)
             .evaluate()
             .await
-            .map_err(JsGlareDbError::from)?
+            .map_err(JsDatabaseError::from)?
             .into())
     }
 
@@ -107,7 +107,7 @@ impl Connection {
             .prql(query)
             .evaluate()
             .await
-            .map_err(JsGlareDbError::from)?
+            .map_err(JsDatabaseError::from)?
             .into())
     }
 
@@ -130,7 +130,7 @@ impl Connection {
             .call()
             .check()
             .await
-            .map_err(JsGlareDbError::from)?;
+            .map_err(JsDatabaseError::from)?;
 
         Ok(())
     }

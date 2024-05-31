@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 
 use crate::connection::Connection;
 use crate::environment::PyEnvironmentReader;
-use crate::error::PyGlareDbError;
+use crate::error::PyDatabaseError;
 use crate::runtime::wait_for_future;
 
 /// Connect to a GlareDB database.
@@ -65,11 +65,11 @@ pub fn connect(
                     .client_type(glaredb::ClientType::Python)
                     .environment_reader(Arc::new(PyEnvironmentReader))
                     .build()
-                    .map_err(glaredb::Error::from)
-                    .map_err(PyGlareDbError::from)?
+                    .map_err(glaredb::DatabaseError::from)
+                    .map_err(PyDatabaseError::from)?
                     .connect()
                     .await
-                    .map_err(PyGlareDbError::from)?,
+                    .map_err(PyDatabaseError::from)?,
             ),
         })
     })

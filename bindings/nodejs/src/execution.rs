@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use arrow_util::pretty;
 use datafusion::arrow::ipc::writer::FileWriter;
 use futures::stream::StreamExt;
-use glaredb::{RecordStream, SendableRecordBatchStream};
+use glaredb::{DatabaseError, RecordStream, SendableRecordBatchStream};
 
-use crate::error::JsGlareDbError;
+use crate::error::JsDatabaseError;
 
 #[napi]
 #[derive(Clone, Debug)]
@@ -29,18 +29,18 @@ impl JsExecutionOutput {
             let mut data_batch = Vec::new();
             let cursor = std::io::Cursor::new(&mut data_batch);
             let mut writer = FileWriter::try_new(cursor, stream.schema().as_ref())
-                .map_err(glaredb::Error::from)?;
+                .map_err(glaredb::DatabaseError::from)?;
 
             while let Some(batch) = stream.next().await {
                 writer
-                    .write(&batch.map_err(glaredb::Error::from)?)
-                    .map_err(glaredb::Error::from)?;
+                    .write(&batch.map_err(DatabaseError::from)?)
+                    .map_err(DatabaseError::from)?;
             }
 
-            writer.finish().map_err(glaredb::Error::from)?;
+            writer.finish().map_err(DatabaseError::from)?;
             drop(writer);
 
-            Ok::<Vec<u8>, JsGlareDbError>(data_batch)
+            Ok::<Vec<u8>, JsDatabaseError>(data_batch)
         }
         .await?)
     }
@@ -62,7 +62,7 @@ impl JsExecutionOutput {
     #[napi(catch_unwind)]
     pub async fn execute(&self) -> napi::Result<()> {
         let mut op = self.op.lock().unwrap().clone();
-        Ok(async move { Ok::<_, JsGlareDbError>(op.call().check().await?) }.await?)
+        Ok(async move { Ok::<_, JsDatabaseError>(op.call().check().await?) }.await?)
     }
 
     #[napi(catch_unwind)]
@@ -91,14 +91,14 @@ impl JsExecutionOutput {
     }
 }
 
-async fn print_record_batches(stream: SendableRecordBatchStream) -> Result<(), JsGlareDbError> {
+async fn print_record_batches(stream: SendableRecordBatchStream) -> Result<(), JsDatabaseError> {
     let schema = stream.schema();
     let mut stream: RecordStream = stream.into();
     let batches = stream.to_vec().await?;
 
     let disp =
         pretty::pretty_format_batches(&schema, &batches, Some(terminal_util::term_width()), None)
-            .map_err(glaredb::Error::from)?;
+            .map_err(DatabaseError::from)?;
 
     println!("{}", disp);
     Ok(())

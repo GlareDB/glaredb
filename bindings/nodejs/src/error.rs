@@ -4,19 +4,19 @@ use napi::bindgen_prelude::*;
 pub use napi::Result as JsResult;
 
 #[derive(Debug, thiserror::Error)]
-pub enum JsGlareDbError {
+pub enum JsDatabaseError {
     #[error("{0}")]
-    GlareDb(#[from] glaredb::Error),
+    Database(#[from] glaredb::DatabaseError),
 }
 
-impl JsGlareDbError {
+impl JsDatabaseError {
     pub fn new(msg: impl Display) -> Self {
-        Self::GlareDb(glaredb::Error::Other(msg.to_string()))
+        Self::Database(glaredb::DatabaseError::new(msg.to_string()))
     }
 }
 
-impl From<JsGlareDbError> for napi::Error {
-    fn from(err: JsGlareDbError) -> Self {
+impl From<JsDatabaseError> for napi::Error {
+    fn from(err: JsDatabaseError) -> Self {
         let reason = format!("{}", err);
 
         napi::Error::from_reason(reason)

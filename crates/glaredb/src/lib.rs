@@ -162,7 +162,7 @@ impl ConnectOptionsBuilder {
 impl ConnectOptions {
     /// Creates a Connection object according to the options
     /// specified.
-    pub async fn connect(self) -> Result<Connection, Error> {
+    pub async fn connect(self) -> Result<Connection, DatabaseError> {
         let mut engine = Engine::from_storage(self.backend()).await?;
 
         engine = engine.with_spill_path(self.spill_path.clone().map(|p| p.into()))?;
@@ -324,26 +324,26 @@ type RowMap = indexmap::IndexMap<Arc<String>, ScalarValue>;
 #[derive(Default, Debug)]
 pub struct RowMapBatch(Vec<RowMap>);
 
-impl TryFrom<Result<RecordBatch, Error>> for RowMapBatch {
-    type Error = Error;
+impl TryFrom<Result<RecordBatch, DatabaseError>> for RowMapBatch {
+    type Error = DatabaseError;
 
-    fn try_from(value: Result<RecordBatch, Error>) -> Result<Self, Error> {
+    fn try_from(value: Result<RecordBatch, DatabaseError>) -> Result<Self, DatabaseError> {
         RowMapBatch::try_from(value?)
     }
 }
 
 impl TryFrom<Result<RecordBatch, DataFusionError>> for RowMapBatch {
-    type Error = Error;
+    type Error = DatabaseError;
 
-    fn try_from(value: Result<RecordBatch, DataFusionError>) -> Result<Self, Error> {
-        RowMapBatch::try_from(value.map_err(Error::from)?)
+    fn try_from(value: Result<RecordBatch, DataFusionError>) -> Result<Self, DatabaseError> {
+        RowMapBatch::try_from(value.map_err(DatabaseError::from)?)
     }
 }
 
 impl TryFrom<RecordBatch> for RowMapBatch {
-    type Error = Error;
+    type Error = DatabaseError;
 
-    fn try_from(batch: RecordBatch) -> Result<Self, Error> {
+    fn try_from(batch: RecordBatch) -> Result<Self, DatabaseError> {
         let schema = batch.schema();
         let mut out = Vec::with_capacity(batch.num_rows());
 
@@ -396,21 +396,21 @@ impl RowMapBatch {
 impl RecordStream {
     // Collects all of the record batches in a stream, aborting if
     // there are any errors.
-    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, Error> {
+    pub async fn to_vec(&mut self) -> Result<Vec<RecordBatch>, DatabaseError> {
         let stream = &mut self.0;
         Ok(stream.try_collect().await?)
     }
 
     /// Collects all of the record batches and rotates the results for
     /// a map-based row-oriented format.
-    pub async fn to_rows(&mut self) -> Result<Vec<RowMapBatch>, Error> {
+    pub async fn to_rows(&mut self) -> Result<Vec<RowMapBatch>, DatabaseError> {
         let stream = &mut self.0;
         stream.map(RowMapBatch::try_from).try_collect().await
     }
 
     // Iterates through the stream, ensuring propagating any errors,
     // but discarding all of the data.
-    pub async fn check(&mut self) -> Result<(), Error> {
+    pub async fn check(&mut self) -> Result<(), DatabaseError> {
         let stream = &mut self.0;
 
         while let Some(b) = stream.next().await {
@@ -464,7 +464,7 @@ impl Operation {
     /// `OperationType::Sql` operations that write data, the operation
     /// run immediately. All other operations run when `.resolve()` is
     /// called.
-    pub async fn evaluate(&mut self) -> Result<Self, Error> {
+    pub async fn evaluate(&mut self) -> Result<Self, DatabaseError> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
@@ -546,7 +546,7 @@ impl Operation {
     /// method, write operations and DDL operations run before
     /// `resolve()` returns. All other operations are lazy and only
     /// execute as the results are processed.
-    pub async fn resolve(&mut self) -> Result<SendableRecordBatchStream, Error> {
+    pub async fn resolve(&mut self) -> Result<SendableRecordBatchStream, DatabaseError> {
         match self.op {
             OperationType::Sql => {
                 let mut ses = self.conn.session.lock().await;
@@ -764,7 +764,7 @@ impl Display for ClientType {
 
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum DatabaseError {
     #[error(transparent)]
     Arrow(#[from] ArrowError),
     #[error(transparent)]
@@ -783,16 +783,16 @@ pub enum Error {
     Other(String),
 }
 
-impl Error {
+impl DatabaseError {
     pub fn new(msg: impl Display) -> Self {
         Self::Other(msg.to_string())
     }
 }
 
-impl From<Error> for DataFusionError {
-    fn from(e: Error) -> Self {
+impl From<DatabaseError> for DataFusionError {
+    fn from(e: DatabaseError) -> Self {
         match e {
-            Error::DataFusion(err) => err,
+            DatabaseError::DataFusion(err) => err,
             _ => DataFusionError::External(Box::new(e)),
         }
     }

@@ -4,30 +4,34 @@ use pyo3::exceptions::{PyException, PyRuntimeError};
 use pyo3::{create_exception, PyErr};
 
 #[derive(Debug, thiserror::Error)]
-pub enum PyGlareDbError {
+pub enum PyDatabaseError {
     #[error("{0}")]
-    GlareDb(#[from] glaredb::Error),
+    Database(#[from] glaredb::DatabaseError),
 }
 
-impl PyGlareDbError {
+impl PyDatabaseError {
     pub fn new(msg: impl Display) -> Self {
-        Self::GlareDb(glaredb::Error::new(msg.to_string()))
+        Self::Database(glaredb::DatabaseError::new(msg.to_string()))
     }
 }
 
-impl From<PyGlareDbError> for PyErr {
-    fn from(err: PyGlareDbError) -> Self {
+impl From<PyDatabaseError> for PyErr {
+    fn from(err: PyDatabaseError) -> Self {
         match err {
-            PyGlareDbError::GlareDb(gerr) => match gerr {
-                glaredb::Error::Arrow(err) => ArrowErrorException::new_err(format!("{err:?}")),
-                glaredb::Error::Metastore(err) => MetastoreException::new_err(err.to_string()),
-                glaredb::Error::Exec(err) => ExecutionException::new_err(err.to_string()),
-                glaredb::Error::Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
-                glaredb::Error::Other(msg) => PyRuntimeError::new_err(msg),
-                glaredb::Error::DataFusion(err) => {
+            PyDatabaseError::Database(gerr) => match gerr {
+                glaredb::DatabaseError::Arrow(err) => {
+                    ArrowErrorException::new_err(format!("{err:?}"))
+                }
+                glaredb::DatabaseError::Metastore(err) => {
+                    MetastoreException::new_err(err.to_string())
+                }
+                glaredb::DatabaseError::Exec(err) => ExecutionException::new_err(err.to_string()),
+                glaredb::DatabaseError::Anyhow(err) => PyRuntimeError::new_err(format!("{err:?}")),
+                glaredb::DatabaseError::Other(msg) => PyRuntimeError::new_err(msg),
+                glaredb::DatabaseError::DataFusion(err) => {
                     DataFusionErrorException::new_err(err.to_string())
                 }
-                glaredb::Error::ConfigurationBuilder(err) => {
+                glaredb::DatabaseError::ConfigurationBuilder(err) => {
                     ConfigurationException::new_err(err.to_string())
                 }
             },

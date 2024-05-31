@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::connection::Connection;
-use crate::error::JsGlareDbError;
+use crate::error::JsDatabaseError;
 
 #[napi(object)]
 #[derive(Default)]
@@ -46,12 +46,12 @@ pub async fn connect(
     let mut options: glaredb::ConnectOptions = options
         .unwrap_or_default()
         .try_into()
-        .map_err(glaredb::Error::from)
-        .map_err(JsGlareDbError::from)?;
+        .map_err(glaredb::DatabaseError::from)
+        .map_err(JsDatabaseError::from)?;
 
     options.connection_target = data_dir_or_cloud_url;
 
     Ok(Connection {
-        inner: Arc::new(options.connect().await.map_err(JsGlareDbError::from)?),
+        inner: Arc::new(options.connect().await.map_err(JsDatabaseError::from)?),
     })
 }
