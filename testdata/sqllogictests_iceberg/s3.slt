@@ -8,6 +8,14 @@ CREATE CREDENTIALS aws_creds
         secret_access_key = '${AWS_SECRET_ACCESS_KEY}',
 	);
 
+statement ok
+CREATE CREDENTIALS aws_creds_arrow_specification
+	PROVIDER aws
+	OPTIONS (
+        access_key_id => '${AWS_ACCESS_KEY_ID}',
+        secret_access_key => '${AWS_SECRET_ACCESS_KEY}',
+	);
+
 
 # iceberg_snapshots
 
