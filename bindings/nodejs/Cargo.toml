@@ -11,24 +11,13 @@ workspace = true
 
 [dependencies]
 arrow_util = { path = "../../crates/arrow_util" }
-datafusion_ext = { path = "../../crates/datafusion_ext" }
 glaredb = { path = "../../crates/glaredb" }
-ioutil = { path = "../../crates/ioutil" }
-metastore = { path = "../../crates/metastore" }
-pgrepr = { path = "../../crates/pgrepr" }
-pgsrv = { path = "../../crates/pgsrv" }
-sqlexec = { path = "../../crates/sqlexec" }
-telemetry = { path = "../../crates/telemetry" }
 terminal_util = { path = "../../crates/terminal_util" }
 futures = { workspace = true }
 datafusion = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
-anyhow = { workspace = true }
 async-trait = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-bytes = { workspace = true }
 lzma-sys = { version = "*", features = ["static"] } # Prevent dynamic linking of lzma, which comes from datafusion
 napi = { version = "2.16.6", default-features = false, features = ["full"] }
 napi-derive = "2.16.5"

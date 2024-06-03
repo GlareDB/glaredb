@@ -3,9 +3,9 @@ use std::sync::Arc;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::pyarrow::PyArrowType;
 use datafusion::datasource::{MemTable, TableProvider};
+use glaredb::EnvironmentReader;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
-use sqlexec::environment::EnvironmentReader;
 
 use crate::execution::PyExecutionOutput;
 
