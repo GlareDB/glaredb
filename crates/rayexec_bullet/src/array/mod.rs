@@ -134,6 +134,28 @@ impl Array {
         self.len() == 0
     }
 
+    pub fn validity(&self) -> Option<&Bitmap> {
+        match self {
+            Self::Null(arr) => Some(arr.validity()),
+            Self::Boolean(arr) => arr.validity(),
+            Self::Float32(arr) => arr.validity(),
+            Self::Float64(arr) => arr.validity(),
+            Self::Int8(arr) => arr.validity(),
+            Self::Int16(arr) => arr.validity(),
+            Self::Int32(arr) => arr.validity(),
+            Self::Int64(arr) => arr.validity(),
+            Self::UInt8(arr) => arr.validity(),
+            Self::UInt16(arr) => arr.validity(),
+            Self::UInt32(arr) => arr.validity(),
+            Self::UInt64(arr) => arr.validity(),
+            Self::Utf8(arr) => arr.validity(),
+            Self::LargeUtf8(arr) => arr.validity(),
+            Self::Binary(arr) => arr.validity(),
+            Self::LargeBinary(arr) => arr.validity(),
+            Self::Struct(_arr) => unimplemented!(),
+        }
+    }
+
     /// Try to convert an iterator of scalars of a given datatype into an array.
     ///
     /// Errors if any of the scalars are a different type than the provided
@@ -241,10 +263,6 @@ impl Array {
             )), // yet
         }
     }
-
-    pub fn values_eq_at(&self, _other: &Self, _idx: usize, _null_equals_null: bool) -> bool {
-        unimplemented!()
-    }
 }
 
 /// Utility trait for iterating over arrays.
@@ -276,6 +294,64 @@ pub trait ArrayBuilder<T: ?Sized> {
 
     /// Put a validity bitmap on the array.
     fn put_validity(&mut self, validity: Bitmap);
+}
+
+/// An implementation of an accessor that just returns unit values for
+/// everything.
+///
+/// This is useful for when we care about iterating over arrays, but don't care
+/// about the actual values. The primary use case for this is COUNT, as it
+/// doesn't care about its input, other than if it's null which the validity
+/// bitmap provides us.
+pub struct UnitArrayAccessor<'a> {
+    inner: &'a Array,
+}
+
+impl<'a> UnitArrayAccessor<'a> {
+    pub fn new(arr: &'a Array) -> Self {
+        UnitArrayAccessor { inner: arr }
+    }
+}
+
+impl<'a> ArrayAccessor<()> for UnitArrayAccessor<'a> {
+    type ValueIter = UnitIterator;
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn values_iter(&self) -> Self::ValueIter {
+        UnitIterator {
+            idx: 0,
+            len: self.inner.len(),
+        }
+    }
+
+    fn validity(&self) -> Option<&Bitmap> {
+        self.inner.validity()
+    }
+}
+
+#[derive(Debug)]
+pub struct UnitIterator {
+    idx: usize,
+    len: usize,
+}
+
+impl Iterator for UnitIterator {
+    type Item = ();
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.len {
+            None
+        } else {
+            Some(())
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let rem = self.len - self.idx;
+        (rem, Some(rem))
+    }
 }
 
 /// Helper for determining if a value at a given index should be considered

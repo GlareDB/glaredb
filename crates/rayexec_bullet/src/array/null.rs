@@ -1,16 +1,20 @@
+use crate::bitmap::Bitmap;
+
 /// A logical array for representing some number of Nulls.
 #[derive(Debug, PartialEq)]
 pub struct NullArray {
-    len: usize,
+    validity: Bitmap,
 }
 
 impl NullArray {
     pub fn new(len: usize) -> Self {
-        NullArray { len }
+        NullArray {
+            validity: Bitmap::new_with_val(false, len),
+        }
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        self.validity.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -18,9 +22,13 @@ impl NullArray {
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
-        if idx >= self.len {
+        if idx >= self.len() {
             return None;
         }
         Some(false)
+    }
+
+    pub fn validity(&self) -> &Bitmap {
+        &self.validity
     }
 }

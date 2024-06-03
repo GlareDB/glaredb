@@ -66,7 +66,7 @@ pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
     /// Get the return type for this function.
     ///
     /// This is expected to be overridden by functions that return a dynamic
-    /// type based on input. The defualt implementation can only determine the
+    /// type based on input. The default implementation can only determine the
     /// output if it can be statically determined.
     fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
         let sig = self
@@ -87,6 +87,18 @@ pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
 impl Clone for Box<dyn GenericScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
+    }
+}
+
+impl PartialEq<dyn GenericScalarFunction> for Box<dyn GenericScalarFunction + '_> {
+    fn eq(&self, other: &dyn GenericScalarFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn GenericScalarFunction + '_ {
+    fn eq(&self, other: &dyn GenericScalarFunction) -> bool {
+        self.name() == other.name() && self.signatures() == other.signatures()
     }
 }
 
@@ -136,4 +148,19 @@ pub(crate) fn specialize_invalid_input_type(
         got_types,
         scalar.name()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanity_eq_check() {
+        let fn1 = Box::new(arith::Add) as Box<dyn GenericScalarFunction>;
+        let fn2 = Box::new(arith::Sub) as Box<dyn GenericScalarFunction>;
+        let fn3 = Box::new(arith::Sub) as Box<dyn GenericScalarFunction>;
+
+        assert_ne!(fn1, fn2);
+        assert_eq!(fn2, fn3);
+    }
 }

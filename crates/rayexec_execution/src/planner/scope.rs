@@ -182,6 +182,10 @@ impl Scope {
         Ok(self)
     }
 
+    pub fn num_columns(&self) -> usize {
+        self.items.len()
+    }
+
     fn table_aliases_iter(&self) -> impl Iterator<Item = &TableReference> {
         self.items.iter().filter_map(|item| item.alias.as_ref())
     }

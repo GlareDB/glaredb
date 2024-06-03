@@ -1,0 +1,14 @@
+# DROP SCHEMA ... [CASCASE | RESTRICT]
+
+statement ok
+create schema temp.s1;
+
+statement ok
+drop schema temp.s1 restrict;
+
+statement ok
+create schema temp.s1;
+
+statement error DROP CASCADE not implemented
+drop schema temp.s1 cascade;
+

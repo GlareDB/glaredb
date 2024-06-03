@@ -1,5 +1,8 @@
 use crate::{
-    database::{catalog::CatalogTx, create::CreateTableInfo, ddl::CreateFut, DatabaseContext},
+    database::{
+        catalog::CatalogTx, create::CreateTableInfo, ddl::CreateFut, table::DataTable,
+        DatabaseContext,
+    },
     planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
@@ -10,7 +13,7 @@ use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush}
 
 #[derive(Debug)]
 pub struct CreateTablePartitionState {
-    create: Box<dyn CreateFut>,
+    create: Box<dyn CreateFut<Output = Box<dyn DataTable>>>,
 }
 
 #[derive(Debug)]

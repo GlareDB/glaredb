@@ -1,7 +1,9 @@
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 
-use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
+use crate::functions::{
+    aggregate::GenericAggregateFunction, scalar::GenericScalarFunction, table::GenericTableFunction,
+};
 
 #[derive(Debug, Clone)]
 pub enum CatalogEntry {
@@ -41,4 +43,5 @@ pub struct FunctionEntry {
 pub enum FunctionImpl {
     Scalar(Box<dyn GenericScalarFunction>),
     Aggregate(Box<dyn GenericAggregateFunction>),
+    Table(Box<dyn GenericTableFunction>),
 }

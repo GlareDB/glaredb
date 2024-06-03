@@ -23,13 +23,16 @@ pub trait AggregateState<T, O>: Default + Debug {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct UnaryUpdater;
+pub struct UnaryNonNullUpdater;
 
-impl UnaryUpdater {
+impl UnaryNonNullUpdater {
     /// Updates a list of target states from some inputs.
     ///
     /// The row selection bitmap indicates which rows from the input to use for
     /// the update, and the mapping slice maps rows to target states.
+    ///
+    /// Values that are considered null (not valid) will not be passed to the
+    /// state for udpates.
     pub fn update<Array, Type, Iter, State, Output>(
         row_selection: &Bitmap,
         inputs: Array,
@@ -49,14 +52,32 @@ impl UnaryUpdater {
 
         // TODO: Figure out null handling. Some aggs want it, some don't.
 
-        let mut mapping_idx = 0;
-        for (selected, input) in row_selection.iter().zip(inputs.values_iter()) {
-            if !selected {
-                continue;
+        match inputs.validity() {
+            Some(validity) => {
+                let mut mapping_idx = 0;
+                for (selected, (input, valid)) in row_selection
+                    .iter()
+                    .zip(inputs.values_iter().zip(validity.iter()))
+                {
+                    if !selected || !valid {
+                        continue;
+                    }
+                    let target = &mut target_states[mapping[mapping_idx]];
+                    target.update(input)?;
+                    mapping_idx += 1;
+                }
             }
-            let target = &mut target_states[mapping[mapping_idx]];
-            target.update(input)?;
-            mapping_idx += 1;
+            None => {
+                let mut mapping_idx = 0;
+                for (selected, input) in row_selection.iter().zip(inputs.values_iter()) {
+                    if !selected {
+                        continue;
+                    }
+                    let target = &mut target_states[mapping[mapping_idx]];
+                    target.update(input)?;
+                    mapping_idx += 1;
+                }
+            }
         }
 
         Ok(())
@@ -88,6 +109,7 @@ impl BinaryUpdater {
         );
 
         // TODO: Figure out null handling. Some aggs want it, some don't.
+        // TOOD: Validity checks, see unary
 
         let first = first.values_iter();
         let second = second.values_iter();

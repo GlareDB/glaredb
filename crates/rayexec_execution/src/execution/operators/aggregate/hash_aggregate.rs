@@ -101,6 +101,10 @@ struct SharedOutputPartitionState {
     pull_waker: Option<Waker>,
 }
 
+/// Compute aggregates over input batches.
+///
+/// Output batch columns will include the computed aggregate, followed by the
+/// group by columns.
 #[derive(Debug)]
 pub struct PhysicalHashAggregate {
     /// Grouping sets we're grouping by.
@@ -111,12 +115,6 @@ pub struct PhysicalHashAggregate {
 
     /// Union of all column indices that are inputs to the aggregate functions.
     aggregate_columns: Vec<usize>,
-
-    /// How we should be outputting columns when pulling the completed batches.
-    ///
-    /// This projection can contain either grouping columns (columns specified
-    /// in the GROUP BY), or the aggregate results themselves.
-    projection: Vec<HashAggregateColumnOutput>,
 }
 
 impl PhysicalHashAggregate {
@@ -125,7 +123,6 @@ impl PhysicalHashAggregate {
         group_types: Vec<DataType>,
         grouping_sets: GroupingSets,
         exprs: Vec<PhysicalAggregateExpression>,
-        projection: Vec<HashAggregateColumnOutput>,
     ) -> Result<(
         Self,
         HashAggregateOperatorState,
@@ -191,7 +188,6 @@ impl PhysicalHashAggregate {
             group_types,
             grouping_sets,
             aggregate_columns: agg_input_cols.into_iter().collect(),
-            projection,
         };
 
         Ok((operator, operator_state, partition_states))
@@ -407,8 +403,7 @@ impl PhysicalOperator for PhysicalHashAggregate {
                         first.merge(consume)?;
                     }
 
-                    let drain =
-                        first.into_drain(1024, self.group_types.clone(), self.projection.clone()); // TODO: Make batch size configurable.
+                    let drain = first.into_drain(1024, self.group_types.clone()); // TODO: Make batch size configurable.
                     *hashtable_drain = Some(drain);
                 }
 
@@ -433,6 +428,6 @@ impl Explainable for PhysicalHashAggregate {
         // TODO: grouping sets
         ExplainEntry::new("HashAggregate")
             .with_values("aggregate_columns", &self.aggregate_columns)
-            .with_values("projection", &self.projection)
+            .with_values("group_by_columns", self.grouping_sets.columns())
     }
 }

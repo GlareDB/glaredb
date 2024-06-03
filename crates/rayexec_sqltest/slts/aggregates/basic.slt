@@ -27,10 +27,10 @@ select sum(column2 + 2) from (values (1, 2), (3, 4));
 ----
 10
 
-# query I
-# select sum(column1) + 2 from (values (1, 2), (3, 4));
-# ----
-# 6
+query I
+select sum(column1) + 2 from (values (1, 2), (3, 4));
+----
+6
 
 # GROUP BY
 
@@ -133,17 +133,16 @@ select column1, sum(column2) from
 burger  5
 hotdog  10
 
-# Off by one in projection
-# query TI rowsort
-# select sum(column2), column1 from
-#     (values ('burger', 1),
-#             ('hotdog', 2),
-#             ('hotdog', 3),
-#             ('burger', 4),
-#             ('hotdog', 5)) group by column1;
-# ----
-# 5   burger
-# 10  hotdog
+query TI rowsort
+select sum(column2), column1 from
+    (values ('burger', 1),
+            ('hotdog', 2),
+            ('hotdog', 3),
+            ('burger', 4),
+            ('hotdog', 5)) group by column1;
+----
+10  hotdog
+5   burger
 
 # ROLLUP column references
 

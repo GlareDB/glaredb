@@ -1,0 +1,31 @@
+# RESET
+
+statement ok
+reset application_name;
+
+query T
+show application_name;
+----
+(empty)
+
+statement ok
+set application_name to 'test';
+
+statement ok
+reset application_name;
+
+query T
+show application_name;
+----
+(empty)
+
+statement ok
+set application_name to 'test';
+
+statement ok
+reset all;
+
+query T
+show application_name;
+----
+(empty)

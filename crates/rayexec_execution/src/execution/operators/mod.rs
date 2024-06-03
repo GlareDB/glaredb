@@ -1,7 +1,10 @@
 //! Implementations of physical operators in an execution pipeline.
 
 pub mod aggregate;
+pub mod create_schema;
 pub mod create_table;
+pub mod create_table_as;
+pub mod drop;
 pub mod empty;
 pub mod filter;
 pub mod insert;
@@ -13,6 +16,7 @@ pub mod repartition;
 pub mod scan;
 pub mod simple;
 pub mod sort;
+pub mod table_function;
 pub mod values;
 
 mod util;
@@ -20,13 +24,17 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use create_schema::CreateSchemaPartitionState;
 use create_table::CreateTablePartitionState;
+use create_table_as::{CreateTableAsOperatorState, CreateTableAsPartitionState};
+use drop::DropPartitionState;
 use insert::InsertPartitionState;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
 use std::fmt::Debug;
 use std::task::Context;
+use table_function::TableFunctionPartitionState;
 
 use crate::planner::explainable::Explainable;
 
@@ -72,8 +80,12 @@ pub enum PartitionState {
     Limit(LimitPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
+    TableFunction(TableFunctionPartitionState),
     Insert(InsertPartitionState),
     CreateTable(CreateTablePartitionState),
+    CreateSchema(CreateSchemaPartitionState),
+    CreateTableAs(CreateTableAsPartitionState),
+    Drop(DropPartitionState),
     Empty(EmptyPartitionState),
     None,
 }
@@ -88,6 +100,7 @@ pub enum OperatorState {
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
     MergeSorted(MergeSortedOperatorState),
+    CreateTableAs(CreateTableAsOperatorState),
     None,
 }
 

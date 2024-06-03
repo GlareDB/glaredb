@@ -1,6 +1,10 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    parser::Parser,
+    tokens::{Token, Word},
+};
 
 use super::{AstParseable, Ident, ObjectReference};
 
@@ -126,6 +130,10 @@ pub enum Expr {
     ///
     /// `table.col`
     CompoundIdent(Vec<Ident>),
+    /// Identifier followed by '*'.
+    ///
+    /// `table.*`
+    QualifiedWildcard(Vec<Ident>),
     /// An expression literal,
     Literal(Literal),
     /// A binary expression.
@@ -185,44 +193,9 @@ impl Expr {
                     Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
-                    _ => Expr::Ident(Ident {
-                        value: w.value.clone(),
-                    }),
+                    _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
-                None => {
-                    // TODO: Extend, compound idents.
-                    let ident = Ident {
-                        value: w.value.clone(),
-                    };
-
-                    // Function call if left paren.
-                    if parser.consume_token(&Token::LeftParen) {
-                        let args = parser.parse_comma_separated(FunctionArg::parse)?;
-                        parser.expect_token(&Token::RightParen)?;
-
-                        // FILTER (WHERE <expr>)
-                        let filter = if parser.parse_keyword(Keyword::FILTER) {
-                            parser.expect_token(&Token::LeftParen)?;
-                            parser.expect_keyword(Keyword::WHERE)?;
-                            let filter = Expr::parse(parser)?;
-                            parser.expect_token(&Token::RightParen)?;
-                            Some(Box::new(filter))
-                        } else {
-                            None
-                        };
-
-                        // TODO: Windows
-
-                        Expr::Function(Function {
-                            name: ObjectReference(vec![ident]),
-                            args,
-                            filter,
-                        })
-                    } else {
-                        // Just some reference
-                        Expr::Ident(ident)
-                    }
-                }
+                None => Self::parse_ident_expr(w.clone(), parser)?,
             },
             Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s.clone())),
             Token::Number(s) => Expr::Literal(Literal::Number(s.clone())),
@@ -396,6 +369,71 @@ impl Expr {
             _ => Ok(0),
         }
     }
+
+    /// Handle parsing expressions containing identifiers, starting with a word
+    /// that is known to already be part of an identifier.
+    fn parse_ident_expr(w: Word, parser: &mut Parser) -> Result<Expr> {
+        let mut wildcard = false;
+        let mut idents = vec![Ident::from(w)];
+
+        // Possibly compound identifier.
+        while parser.consume_token(&Token::Period) {
+            match parser.next() {
+                Some(tok) => match &tok.token {
+                    Token::Word(w) => idents.push(w.clone().into()),
+                    Token::Mul => wildcard = true,
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Unexpected token in compound identifier: {other:?}"
+                        )))
+                    }
+                },
+                None => return Err(RayexecError::new("Expected identifier after '.'")),
+            };
+        }
+
+        // Function call if left paren.
+        if parser.consume_token(&Token::LeftParen) {
+            if wildcard {
+                // Someone trying to do this:
+                // `namespace.*()`
+                return Err(RayexecError::new("Cannot have wildcard function call"));
+            }
+
+            let args = parser.parse_comma_separated(FunctionArg::parse)?;
+            parser.expect_token(&Token::RightParen)?;
+
+            // FILTER (WHERE <expr>)
+            let filter = if parser.parse_keyword(Keyword::FILTER) {
+                parser.expect_token(&Token::LeftParen)?;
+                parser.expect_keyword(Keyword::WHERE)?;
+                let filter = Expr::parse(parser)?;
+                parser.expect_token(&Token::RightParen)?;
+                Some(Box::new(filter))
+            } else {
+                None
+            };
+
+            // TODO: Windows
+
+            Ok(Expr::Function(Function {
+                name: ObjectReference(idents),
+                args,
+                filter,
+            }))
+        } else {
+            Ok(match idents.len() {
+                1 if !wildcard => Expr::Ident(idents.pop().unwrap()),
+                _ => {
+                    if wildcard {
+                        Expr::QualifiedWildcard(idents)
+                    } else {
+                        Expr::CompoundIdent(idents)
+                    }
+                }
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -408,6 +446,33 @@ mod tests {
     fn literal() {
         let expr: Expr = parse_ast("5").unwrap();
         let expected = Expr::Literal(Literal::Number("5".to_string()));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn compound() {
+        let expr: Expr = parse_ast("my_schema.t1").unwrap();
+        let expected = Expr::CompoundIdent(vec![
+            Ident::from_string("my_schema"),
+            Ident::from_string("t1"),
+        ]);
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn compound_with_keyword() {
+        let expr: Expr = parse_ast("schema.table").unwrap();
+        let expected = Expr::CompoundIdent(vec![
+            Ident::from_string("schema"),
+            Ident::from_string("table"),
+        ]);
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn qualified_wildcard() {
+        let expr: Expr = parse_ast("schema.*").unwrap();
+        let expected = Expr::QualifiedWildcard(vec![Ident::from_string("schema")]);
         assert_eq!(expected, expr);
     }
 

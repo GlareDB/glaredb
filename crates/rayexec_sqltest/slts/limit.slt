@@ -56,8 +56,8 @@ select * from (values ('d'), ('b'), ('c'), ('a'))
     order by column1
     limit 2;
 ----
-d
-c
+a
+b
 
 query T
 select * from (values ('d'), ('b'), ('c'), ('a'))
@@ -65,8 +65,8 @@ select * from (values ('d'), ('b'), ('c'), ('a'))
     limit 2
     offset 1;
 ----
-c
 b
+c
 
 query IT
 select * from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
@@ -74,8 +74,8 @@ select * from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
     limit 2
     offset 1;
 ----
-c  3
 b  2
+c  3
 
 # TODO: Missing intrusive projection
 # query IT

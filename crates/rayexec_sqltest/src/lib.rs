@@ -8,18 +8,10 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::engine::{session::Session, Engine};
 use sqllogictest::DefaultColumnType;
-use std::path::PathBuf;
-use tracing::{debug, info};
+use std::path::Path;
 
-pub async fn run_tests(paths: Vec<PathBuf>) -> Result<()> {
-    for path in paths {
-        run_test(path).await?;
-    }
-    Ok(())
-}
-
-async fn run_test(path: PathBuf) -> Result<()> {
-    debug!(?path, "running slt file");
+pub async fn run_test(path: impl AsRef<Path>) -> Result<()> {
+    let path = path.as_ref();
     let mut runner = sqllogictest::Runner::new(|| async { TestSession::try_new() });
     runner
         .run_file_async(path)
@@ -52,8 +44,6 @@ impl sqllogictest::AsyncDB for TestSession {
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
-        info!(%sql, "running query");
-
         let mut rows = Vec::new();
         let mut results = self.session.simple(sql)?;
         if results.len() != 1 {
@@ -64,7 +54,8 @@ impl sqllogictest::AsyncDB for TestSession {
         }
 
         let typs = schema_to_types(&results[0].output_schema);
-        while let Some(batch) = results[0].stream.next().await {
+        while let Some(result) = results[0].stream.next().await {
+            let batch = result?;
             rows.extend(batch_to_rows(batch)?);
         }
 

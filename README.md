@@ -74,3 +74,29 @@ from `sqlparser-rs` that doesn't benefit us.
   - `Sink` currently errors. Idk if there's something we'd want to do there
     (table in/out functions).
 
+## Testing
+
+Run all tests (including SLTs):
+
+```
+cargo test
+```
+
+Run just SLTs:
+
+```
+cargo test -p rayexec_sqltest
+```
+
+By default, the test harness for SLTs will only output error logs. To enable
+other logs, use the `RUST_LOG` environment variable, e.g.:
+
+```
+RUST_LOG=debug cargo test
+```
+
+Run specific SLT:
+
+```
+cargo test slts/create_table/ctas_temp.slt
+```

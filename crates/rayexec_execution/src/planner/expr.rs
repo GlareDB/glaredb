@@ -72,7 +72,7 @@ impl<'a> ExpressionContext<'a> {
             }],
             ast::SelectExpr::AliasedExpr(expr, alias) => vec![ExpandedSelectExpr::Expr {
                 expr,
-                name: alias.value,
+                name: alias.into_normalized_string(),
             }],
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
@@ -96,7 +96,10 @@ impl<'a> ExpressionContext<'a> {
                     .enumerate()
                     .filter_map(|(idx, col)| match &col.alias {
                         // TODO: I got lazy. Need to check the entire reference.
-                        Some(alias) if alias.table == reference.base().unwrap().value => {
+                        Some(alias)
+                            if alias.table
+                                == reference.base().unwrap().into_normalized_string() =>
+                        {
                             Some(ExpandedSelectExpr::Column {
                                 idx,
                                 name: col.column.clone(),
@@ -127,7 +130,7 @@ impl<'a> ExpressionContext<'a> {
                         "Qualified function names not yet supported",
                     ));
                 }
-                let func_name = &func.name.0[0].value;
+                let func_name = &func.name.0[0].as_normalized_string();
 
                 // Check scalars first.
                 if let Some(scalar_func) =
@@ -263,14 +266,15 @@ impl<'a> ExpressionContext<'a> {
     /// Assumed to be a column name either in the current scope or one of the
     /// outer scopes.
     fn plan_ident(&self, ident: ast::Ident) -> Result<LogicalExpression> {
+        let val = ident.into_normalized_string();
         match self
             .scope
-            .resolve_column(&self.plan_context.outer_scopes, None, &ident.value)?
+            .resolve_column(&self.plan_context.outer_scopes, None, &val)?
         {
             Some(col) => Ok(LogicalExpression::ColumnRef(col)),
             None => Err(RayexecError::new(format!(
                 "Missing column for reference: {}",
-                &ident.value
+                &val
             ))),
         }
     }
@@ -297,19 +301,22 @@ impl<'a> ExpressionContext<'a> {
                 // 3 => 'schema.table.column'
                 // 4 => 'database.schema.table.column'
                 // TODO: Struct fields.
-                let col = idents.pop().unwrap();
+                let col = idents.pop().unwrap().into_normalized_string();
                 let table_ref = TableReference {
-                    table: idents.pop().map(|ident| ident.value).unwrap(), // Must exist
-                    schema: idents.pop().map(|ident| ident.value),         // May exist
-                    database: idents.pop().map(|ident| ident.value),       // May exist
+                    table: idents
+                        .pop()
+                        .map(|ident| ident.into_normalized_string())
+                        .unwrap(), // Must exist
+                    schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+                    database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
                 };
                 match self.scope.resolve_column(
                     &self.plan_context.outer_scopes,
                     Some(&table_ref),
-                    &col.value,
+                    &col,
                 )? {
                     Some(col) => Ok(LogicalExpression::ColumnRef(col)),
-                    None => Err(RayexecError::new(format_err(&table_ref, &col.value))), // Struct fields here.
+                    None => Err(RayexecError::new(format_err(&table_ref, &col))), // Struct fields here.
                 }
             }
             _ => Err(RayexecError::new(format!(

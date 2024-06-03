@@ -1,13 +1,15 @@
 use crate::{
-    database::{create::CreateTableInfo, DatabaseContext},
+    database::{
+        create::{CreateSchemaInfo, CreateTableInfo},
+        DatabaseContext,
+    },
     engine::vars::SessionVars,
     execution::{
         operators::{
-            aggregate::{
-                grouping_set::GroupingSets,
-                hash_aggregate::{HashAggregateColumnOutput, PhysicalHashAggregate},
-            },
+            aggregate::{grouping_set::GroupingSets, hash_aggregate::PhysicalHashAggregate},
+            create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
+            drop::PhysicalDrop,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
             insert::PhysicalInsert,
@@ -171,8 +173,13 @@ impl BuildState {
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
+            LogicalOperator::ResetVar(_) => {
+                Err(RayexecError::new("RESET should be handled in the session"))
+            }
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
+            LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
+            LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
             LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
             other => unimplemented!("other: {other:?}"),
@@ -227,6 +234,25 @@ impl BuildState {
         Ok(())
     }
 
+    fn push_drop(&mut self, conf: &BuildConfig, drop: operator::DropEntry) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalDrop::new(drop.info));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = vec![PartitionState::Drop(
+            physical.try_create_state(conf.db_context)?,
+        )];
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
+
+        Ok(())
+    }
+
     fn push_insert(&mut self, conf: &BuildConfig, insert: operator::Insert) -> Result<()> {
         self.walk(conf, *insert.input)?;
 
@@ -269,11 +295,46 @@ impl BuildState {
         Ok(())
     }
 
+    fn push_create_schema(
+        &mut self,
+        conf: &BuildConfig,
+        create: operator::CreateSchema,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalCreateSchema::new(
+            create.catalog,
+            CreateSchemaInfo {
+                name: create.name,
+                on_conflict: create.on_conflict,
+            },
+        ));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = vec![PartitionState::CreateSchema(
+            physical.try_create_state(conf.db_context)?,
+        )];
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
+
+        Ok(())
+    }
+
     fn push_create_table(
         &mut self,
         conf: &BuildConfig,
         create: operator::CreateTable,
     ) -> Result<()> {
+        if create.input.is_some() {
+            return Err(RayexecError::new(
+                "Create table with source not yet supported",
+            ));
+        }
+
         if self.in_progress.is_some() {
             // Well... for CREATE TABLE AS it could be some
             return Err(RayexecError::new("Expected in progress to be None"));
@@ -468,32 +529,12 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
-        let mut agg_exprs = Vec::new();
-        let mut projection = Vec::new();
-        for expr in agg.exprs.into_iter() {
-            match expr {
-                operator::LogicalExpression::ColumnRef(col) => {
-                    let col = col.try_as_uncorrelated()?;
-                    projection.push(HashAggregateColumnOutput::GroupingColumn(col));
-                }
-                other => {
-                    let agg_expr = PhysicalAggregateExpression::try_from_logical_expression(
-                        other,
-                        &input_schema,
-                    )?;
-                    agg_exprs.push(agg_expr);
-                    projection.push(HashAggregateColumnOutput::AggregateResult(
-                        agg_exprs.len() - 1,
-                    ));
-                }
-            }
-        }
-
         // Compute the grouping sets based on the grouping expression. It's
         // expected that this plan only has uncorrelated column references as
         // expressions.
         let grouping_sets = match agg.grouping_expr {
-            operator::GroupingExpr::None => {
+            Some(expr) => GroupingSets::try_from_grouping_expr(expr)?,
+            None => {
                 // TODO: We'd actually use a different (ungrouped) operator if
                 // not provided any grouping sets.
                 //
@@ -502,49 +543,14 @@ impl BuildState {
                 // something we should rely on.
                 GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
             }
-            operator::GroupingExpr::GroupBy(cols_exprs) => {
-                let cols = cols_exprs
-                    .into_iter()
-                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
-                    .collect::<Result<Vec<_>>>()?;
-                let null_masks = vec![Bitmap::new_with_val(false, cols.len())];
-                GroupingSets::try_new(cols, null_masks)?
-            }
-            operator::GroupingExpr::Rollup(cols_exprs) => {
-                let cols = cols_exprs
-                    .into_iter()
-                    .map(|expr| expr.try_into_column_ref()?.try_as_uncorrelated())
-                    .collect::<Result<Vec<_>>>()?;
-
-                // Generate all null masks.
-                //
-                // E.g. for rollup on 4 columns:
-                // [
-                //   0000,
-                //   0001,
-                //   0011,
-                //   0111,
-                //   1111,
-                // ]
-                let mut null_masks = Vec::with_capacity(cols.len() + 1);
-                for num_null_cols in 0..cols.len() {
-                    let iter = std::iter::repeat(false)
-                        .take(cols.len() - num_null_cols)
-                        .chain(std::iter::repeat(true).take(num_null_cols));
-                    let null_mask = Bitmap::from_iter(iter);
-                    null_masks.push(null_mask);
-                }
-
-                // Append null mask with all columns marked as null (the final
-                // rollup).
-                null_masks.push(Bitmap::all_true(cols.len()));
-
-                GroupingSets::try_new(cols, null_masks)?
-            }
-            operator::GroupingExpr::Cube(_) => {
-                unimplemented!("https://github.com/GlareDB/rayexec/issues/38")
-            }
         };
+
+        let mut agg_exprs = Vec::with_capacity(agg.exprs.len());
+        for expr in agg.exprs.into_iter() {
+            let agg_expr =
+                PhysicalAggregateExpression::try_from_logical_expression(expr, &input_schema)?;
+            agg_exprs.push(agg_expr);
+        }
 
         let group_types: Vec<_> = grouping_sets
             .columns()
@@ -557,7 +563,6 @@ impl BuildState {
             group_types,
             grouping_sets,
             agg_exprs,
-            projection,
         )?;
 
         let operator = Arc::new(operator);

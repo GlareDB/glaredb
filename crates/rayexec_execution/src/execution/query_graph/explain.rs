@@ -104,7 +104,10 @@ impl ExplainNode {
             | LogicalOperator::ExpressionList(_)
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)
+            | LogicalOperator::ResetVar(_)
             | LogicalOperator::Scan(_)
+            | LogicalOperator::Drop(_)
+            | LogicalOperator::CreateSchema(_)
             | LogicalOperator::CreateTable(_) => Vec::new(),
         };
 

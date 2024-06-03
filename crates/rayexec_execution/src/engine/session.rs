@@ -11,7 +11,10 @@ use crate::{
         sink::QuerySink,
     },
     optimizer::Optimizer,
-    planner::{operator::LogicalOperator, plan::PlanContext},
+    planner::{
+        operator::{LogicalOperator, ResetVar, VariableOrAll},
+        plan::PlanContext,
+    },
     scheduler::Scheduler,
 };
 
@@ -134,10 +137,19 @@ impl Session {
                 self.vars.set_var(&set_var.name, val)?;
                 planner.create_graph(LogicalOperator::Empty, query_sink)?
             }
+            LogicalOperator::ResetVar(ResetVar { var }) => {
+                // Same TODO as above.
+                match var {
+                    VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
+                    VariableOrAll::All => self.vars.reset_all(),
+                }
+                planner.create_graph(LogicalOperator::Empty, query_sink)?
+            }
             root => planner.create_graph(root, query_sink)?,
         };
 
-        self.scheduler.spawn_query_graph(query_graph);
+        self.scheduler
+            .spawn_query_graph(query_graph, result_stream.errors_send_channel());
 
         Ok(ExecutionResult {
             output_schema: Schema::empty(), // TODO

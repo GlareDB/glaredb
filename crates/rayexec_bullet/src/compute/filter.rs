@@ -3,6 +3,7 @@ use rayexec_error::{RayexecError, Result};
 
 pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
     Ok(match arr {
+        Array::Boolean(arr) => Array::Boolean(filter_boolean(arr, selection)?),
         Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
         Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
         Array::Int8(arr) => Array::Int8(filter_primitive(arr, selection)?),
@@ -17,8 +18,27 @@ pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
         Array::LargeUtf8(arr) => Array::LargeUtf8(filter_varlen(arr, selection)?),
         Array::Binary(arr) => Array::Binary(filter_varlen(arr, selection)?),
         Array::LargeBinary(arr) => Array::LargeBinary(filter_varlen(arr, selection)?),
-        _ => unimplemented!(), // TODO
+        other => unimplemented!("{other:?}"), // TODO
     })
+}
+
+pub fn filter_boolean(arr: &BooleanArray, selection: &BooleanArray) -> Result<BooleanArray> {
+    if arr.len() != selection.len() {
+        return Err(RayexecError::new(
+            "Selection array length doesn't equal array length",
+        ));
+    }
+
+    // TODO: validity
+
+    let values_iter = arr.values().iter();
+    let select_iter = selection.values().iter();
+
+    let iter = values_iter
+        .zip(select_iter)
+        .filter_map(|(v, take)| if take { Some(v) } else { None });
+
+    Ok(BooleanArray::from_iter(iter))
 }
 
 pub fn filter_primitive<T: Copy>(

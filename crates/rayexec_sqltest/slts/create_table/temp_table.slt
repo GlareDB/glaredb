@@ -36,3 +36,13 @@ select * from t1;
 2  wario
 3  peach
 4  yoshi
+
+statement error Duplicate table name: t1
+create temp table t1 (a int, b text);
+
+# statement ok
+# create temp table if not exists t1 (a int, b text);
+
+# Test that 'temporary' keyword can be used too.
+statement ok
+create temporary table t2 (a int, b text);

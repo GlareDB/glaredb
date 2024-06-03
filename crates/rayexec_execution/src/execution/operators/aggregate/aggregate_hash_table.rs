@@ -11,8 +11,6 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::sync::Arc;
 
-use super::hash_aggregate::HashAggregateColumnOutput;
-
 /// States for a single aggregation.
 #[derive(Debug)]
 pub struct AggregateStates {
@@ -249,11 +247,9 @@ impl PartitionAggregateHashTable {
         self,
         batch_size: usize,
         group_types: Vec<DataType>,
-        projection: Vec<HashAggregateColumnOutput>,
     ) -> AggregateHashTableDrain {
         AggregateHashTableDrain {
             group_types,
-            projection,
             batch_size,
             table: self,
             group_values_drain_buf: Vec::new(),
@@ -274,10 +270,6 @@ pub struct AggregateHashTableDrain {
     /// Datatypes of the grouping columns. Used to construct the arrays
     /// representing the group by values.
     group_types: Vec<DataType>,
-
-    /// Final output projection. Can include the final aggregated results, or
-    /// reference the grouping values.
-    projection: Vec<HashAggregateColumnOutput>,
 
     /// Max size of batch to return.
     batch_size: usize,
@@ -304,55 +296,28 @@ impl AggregateHashTableDrain {
         };
 
         // Convert group values into arrays.
-        //
-        // We look at the projection as well to avoid unecessarily building an
-        // array from the group values if it's not actually part of the output.
         let num_rows = result_cols.first().map(|col| col.len()).unwrap_or(0);
-        let mut group_cols: Vec<_> = (0..self.group_types.len()).map(|_| None).collect();
-        let num_groups = group_cols.len();
+        let mut group_cols = Vec::with_capacity(self.group_types.len());
 
+        // Drain out collected group rows into our local buffer equal to the
+        // number of rows we're returning.
         self.group_values_drain_buf.clear();
         self.group_values_drain_buf
             .extend(self.table.group_values.drain(0..num_rows));
 
-        // Note this works in reverse to how the group columns are stored to
-        // allow us to pop off the vecs and avoid cloning.
-        for (from_right, datatype) in self.group_types.iter().rev().enumerate() {
+        for group_dt in self.group_types.iter() {
+            // Since group values are in row format, we just pop the value for
+            // each row in each iteration to get the column values.
             let iter = self
                 .group_values_drain_buf
                 .iter_mut()
-                .map(|row| row.columns.pop().expect("column to exist"));
+                .map(|row| row.columns.remove(0)); // TODO: Could probably use something other than `remove(0)` here.
 
-            // If we're not actually in the projection, just skip this column.
-            let is_in_projection = self.projection.iter().any(|proj| match proj {
-                HashAggregateColumnOutput::GroupingColumn(idx) => {
-                    *idx == (num_groups - from_right - 1)
-                }
-                _ => false,
-            });
-            if !is_in_projection {
-                continue;
-            }
-
-            // Otherwise build the array.
-            let arr = Array::try_from_scalars(datatype.clone(), iter)?;
-
-            group_cols[num_groups - from_right - 1] = Some(Arc::new(arr));
+            let arr = Array::try_from_scalars(group_dt.clone(), iter)?;
+            group_cols.push(Arc::new(arr));
         }
 
-        // Get the arrays to use in the output batch.
-        let output_arrays = self
-            .projection
-            .iter()
-            .map(|proj| match *proj {
-                HashAggregateColumnOutput::GroupingColumn(idx) => group_cols[idx]
-                    .clone()
-                    .expect("group col should have been computed"),
-                HashAggregateColumnOutput::AggregateResult(idx) => result_cols[idx].clone(),
-            })
-            .collect::<Vec<_>>();
-
-        let batch = Batch::try_new(output_arrays)?;
+        let batch = Batch::try_new(result_cols.into_iter().chain(group_cols.into_iter()))?;
 
         Ok(Some(batch))
     }

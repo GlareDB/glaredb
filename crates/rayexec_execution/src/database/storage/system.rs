@@ -8,6 +8,7 @@ use crate::database::entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEnt
 use crate::database::table::DataTable;
 use crate::functions::aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
 use crate::functions::scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
+use crate::functions::table::BUILTIN_TABLE_FUNCTIONS;
 
 pub static GLOBAL_SYSTEM_CATALOG: Lazy<SystemCatalog> = Lazy::new(SystemCatalog::new);
 
@@ -50,6 +51,23 @@ impl SystemCatalog {
                 let ent = CatalogEntry::Function(FunctionEntry {
                     name: alias.to_string(),
                     implementation: FunctionImpl::Aggregate(func.clone()),
+                });
+                glare_catalog.insert(alias, ent);
+            }
+        }
+
+        // Add builtin table functions.
+        for func in BUILTIN_TABLE_FUNCTIONS.iter() {
+            let ent = CatalogEntry::Function(FunctionEntry {
+                name: func.name().to_string(),
+                implementation: FunctionImpl::Table(func.clone()),
+            });
+            glare_catalog.insert(func.name(), ent);
+
+            for alias in func.aliases() {
+                let ent = CatalogEntry::Function(FunctionEntry {
+                    name: alias.to_string(),
+                    implementation: FunctionImpl::Table(func.clone()),
                 });
                 glare_catalog.insert(alias, ent);
             }

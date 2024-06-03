@@ -1,7 +1,7 @@
 use rayexec_bullet::{
     array::{Array, PrimitiveArrayBuilder},
     bitmap::Bitmap,
-    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryUpdater},
+    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
     field::DataType,
 };
 
@@ -48,7 +48,7 @@ impl SpecializedAggregateFunction for SumI64 {
                 Array::Int64(arr) => arr,
                 other => panic!("unexpected array type: {other:?}"),
             };
-            UnaryUpdater::update(row_selection, inputs, mapping, states)
+            UnaryNonNullUpdater::update(row_selection, inputs, mapping, states)
         };
 
         let finalize_fn = |states: vec::Drain<'_, _>| {

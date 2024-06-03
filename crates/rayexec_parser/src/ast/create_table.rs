@@ -1,7 +1,7 @@
-use crate::{keywords::Keyword, parser::Parser};
+use crate::{keywords::Keyword, parser::Parser, tokens::Token};
 use rayexec_error::Result;
 
-use super::{AstParseable, DataType, Ident, ObjectReference};
+use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTable {
@@ -11,6 +11,7 @@ pub struct CreateTable {
     pub external: bool,
     pub name: ObjectReference,
     pub columns: Vec<ColumnDef>,
+    pub source: Option<QueryNode>,
 }
 
 impl AstParseable for CreateTable {
@@ -29,7 +30,20 @@ impl AstParseable for CreateTable {
             parser.parse_keyword_sequence(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
 
         let name = ObjectReference::parse(parser)?;
-        let columns = parser.parse_parenthesized_comma_separated(ColumnDef::parse)?;
+
+        let columns = if parser.consume_token(&Token::LeftParen) {
+            let columns = parser.parse_comma_separated(ColumnDef::parse)?;
+            parser.expect_token(&Token::RightParen)?;
+            columns
+        } else {
+            Vec::new()
+        };
+
+        let source = if parser.parse_keyword(Keyword::AS) {
+            Some(QueryNode::parse(parser)?)
+        } else {
+            None
+        };
 
         Ok(CreateTable {
             or_replace,
@@ -38,6 +52,7 @@ impl AstParseable for CreateTable {
             external,
             name,
             columns,
+            source,
         })
     }
 }
@@ -79,9 +94,24 @@ impl AstParseable for ColumnDef {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::testutil::parse_ast;
+    use crate::ast::{testutil::parse_ast, Expr, LimitModifier, Literal, QueryNodeBody, Values};
 
     use super::*;
+
+    /// Query node for 'values (1)'
+    fn query_node_values_1() -> QueryNode {
+        QueryNode {
+            ctes: None,
+            order_by: Vec::new(),
+            body: QueryNodeBody::Values(Values {
+                rows: vec![vec![Expr::Literal(Literal::Number("1".to_string()))]],
+            }),
+            limit: LimitModifier {
+                limit: None,
+                offset: None,
+            },
+        }
+    }
 
     #[test]
     fn basic() {
@@ -97,6 +127,7 @@ mod tests {
                 datatype: DataType::Integer,
                 opts: Vec::new(),
             }],
+            source: None,
         };
         assert_eq!(expected, got);
     }
@@ -122,6 +153,7 @@ mod tests {
                     opts: Vec::new(),
                 },
             ],
+            source: None,
         };
         assert_eq!(expected, got);
     }
@@ -147,6 +179,7 @@ mod tests {
                     opts: Vec::new(),
                 },
             ],
+            source: None,
         };
         assert_eq!(expected, got);
     }
@@ -165,6 +198,7 @@ mod tests {
                 datatype: DataType::Integer,
                 opts: Vec::new(),
             }],
+            source: None,
         };
         assert_eq!(expected, got);
     }
@@ -184,6 +218,23 @@ mod tests {
                 datatype: DataType::Integer,
                 opts: Vec::new(),
             }],
+            source: None,
+        };
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn temp_ctas() {
+         let got =
+             parse_ast::<CreateTable>("create temp table hello as values (1)").unwrap();
+        let expected = CreateTable {
+            or_replace: false,
+            if_not_exists: false,
+            temp: true,
+            external: false,
+            name: ObjectReference::from_strings(["hello"]),
+            columns: Vec::new(),
+            source: Some(query_node_values_1()),
         };
         assert_eq!(expected, got);
     }

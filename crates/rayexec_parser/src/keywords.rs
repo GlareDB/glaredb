@@ -1,3 +1,4 @@
+use std::fmt;
 use std::hash::Hash;
 
 /// Try to get a keyword from a string, ignoring string casing.
@@ -8,6 +9,12 @@ pub fn keyword_from_str(s: &str) -> Option<Keyword> {
         Err(_) => return None,
     };
     Some(ALL_KEYWORDS[idx])
+}
+
+/// Get a string representation of the keyword.
+pub fn str_from_keyword(kw: &Keyword) -> &'static str {
+    let idx = ALL_KEYWORDS.binary_search(kw).expect("keyword to exist");
+    KEYWORD_STRINGS.get(idx).expect("keyword string to exist")
 }
 
 /// Generate an enum of keywords.
@@ -25,6 +32,12 @@ macro_rules! define_keywords {
         pub const KEYWORD_STRINGS: &'static [unicase::Ascii<&'static str>] = &[
             $(unicase::Ascii::new(stringify!($ident)),)*
         ];
+
+        impl fmt::Display for Keyword {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", str_from_keyword(self))
+            }
+        }
     };
 }
 
@@ -47,6 +60,7 @@ define_keywords!(
     BOOL,
     BOOLEAN,
     BY,
+    CASCADE,
     CASE,
     CLUSTER,
     CREATE,
@@ -57,6 +71,7 @@ define_keywords!(
     DISTINCT,
     DISTRIBUTE,
     DOUBLE,
+    DROP,
     END,
     EXCEPT,
     EXISTS,
@@ -72,12 +87,14 @@ define_keywords!(
     FORMAT,
     FROM,
     FULL,
+    FUNCTION,
     GROUP,
     GROUPING,
     HAVING,
     IF,
     ILIKE,
     IN,
+    INDEX,
     INNER,
     INSERT,
     INT,
@@ -95,6 +112,7 @@ define_keywords!(
     LEFT,
     LIKE,
     LIMIT,
+    MATERIALIZED,
     NATURAL,
     NOT,
     NULL,
@@ -112,6 +130,8 @@ define_keywords!(
     RECURSIVE,
     REGEXP,
     REPLACE,
+    RESET,
+    RESTRICT,
     RIGHT,
     RLIKE,
     ROLLBACK,
@@ -233,6 +253,13 @@ mod tests {
             assert_eq!(prev.cmp(curr), Ordering::Less, "prev: {prev}, curr: {curr}");
             prev = *curr;
         }
+    }
+
+    #[test]
+    fn get_keyword_str() {
+        let kw = Keyword::NATURAL;
+        let s = str_from_keyword(&kw);
+        assert_eq!("NATURAL", s);
     }
 
     #[test]

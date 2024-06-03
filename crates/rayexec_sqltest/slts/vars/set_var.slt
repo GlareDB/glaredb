@@ -23,3 +23,6 @@ query I
 show batch_size;
 ----
 8096
+
+statement ok
+reset batch_size

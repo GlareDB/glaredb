@@ -1,0 +1,16 @@
+# DROP SCHEMA inside temp catalog
+
+statement error Missing schema: my_schema
+drop schema temp.my_schema;
+
+statement ok
+drop schema if exists temp.my_schema;
+
+statement ok
+create schema temp.my_schema;
+
+statement ok
+drop schema temp.my_schema;
+
+statement ok
+create schema temp.my_schema;

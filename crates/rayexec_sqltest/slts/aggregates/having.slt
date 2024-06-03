@@ -1,0 +1,49 @@
+# HAVING
+#
+# (Taken from duckdb's test_having.test, incomlete)
+
+statement ok
+create temp table test (a bigint, b bigint)
+
+statement ok
+INSERT INTO test VALUES (11, 22), (13, 22), (12, 21)
+
+# HAVING with condition on group
+query II
+SELECT b, SUM(a) AS sum FROM test GROUP BY b HAVING b=21 ORDER BY b;
+----
+21	12
+
+# HAVING with condition on sum
+query II
+SELECT b, SUM(a) FROM test GROUP BY b HAVING SUM(a) < 20 ORDER BY b;
+----
+21	12
+
+# HAVING with condition on ALIAS
+# CONTROVERSIAL: this DOES work in SQLite, but not in PostgreSQL
+statement error Missing column for reference: sum
+SELECT b, SUM(a) AS sum FROM test GROUP BY b HAVING sum < 20 ORDER BY b;
+
+# HAVING without alias
+query II
+SELECT b, SUM(a) AS sum FROM test GROUP BY b HAVING SUM(a) < 20 ORDER BY b;
+----
+21	12
+
+# HAVING on column not in aggregate
+query II
+SELECT b, SUM(a) AS sum FROM test GROUP BY b HAVING COUNT(true) = 1 ORDER BY b;
+----
+21	12
+
+# query TT
+# EXPLAIN SELECT b, SUM(a) AS sum FROM test GROUP BY b HAVING COUNT(true) = 1 ORDER BY b;
+# ----
+
+# expression in having
+query II
+SELECT b, SUM(a) FROM test GROUP BY b HAVING SUM(a)+10>28;
+----
+22	24
+

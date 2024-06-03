@@ -180,6 +180,23 @@ impl SessionVars {
             "Session variable doesn't exist: {name}"
         )))
     }
+
+    pub fn reset_var(&mut self, name: &str) -> Result<()> {
+        if !self.exists(name) {
+            return Err(RayexecError::new(format!(
+                "Session variable doesn't exist: {name}"
+            )));
+        }
+
+        // Doesn't matter if the user has actully set the variable previously.
+        let _ = self.vars.remove(name);
+
+        Ok(())
+    }
+
+    pub fn reset_all(&mut self) {
+        self.vars.clear()
+    }
 }
 
 #[cfg(test)]

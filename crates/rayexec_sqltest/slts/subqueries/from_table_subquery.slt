@@ -1,0 +1,90 @@
+# Subqueries in FROM that return tables.
+
+statement ok
+create temp table t1 (a int, b int)
+
+statement ok
+insert into t1 values (1, 2), (3, 4), (5, 6);
+
+# Simple
+query II rowsort
+select * from (select * from t1);
+----
+1  2
+3  4
+5  6
+
+# Order by in subquery
+query II
+select * from (select b, a from t1 order by a desc);
+----
+6  5
+4  3
+2  1
+
+# Cross join subqueries
+query II rowsort
+select * from (select a as c1, b from t1), (select b as c2, a from t1);
+----
+1  2  2  1
+1  2  4  3
+1  2  6  5
+3  4  2  1
+3  4  4  3
+3  4  6  5
+5  6  2  1
+5  6  4  3
+5  6  6  5
+
+# TODO: Info: panicked at crates/rayexec_execution/src/functions/scalar/comparison.rs:242:1:
+#       unexpected array type: (Int64(PrimitiveArray { validity: None, values: Vec([2, 4, 6]) }), Int64(PrimitiveArray { validity: None, values: Vec([1, 1, 1]) }))
+# # Join subqueries
+# query II rowsort
+# select * from (select a as c1, b from t1) inner join (select b as c2, a from t1) on c2 < c1;
+# ----
+
+# TODO: Error source: query failed: Failed to get correct signature for scalar function
+# # Join subqueries
+# query II
+# select * from (select a as c1, b from t1) inner join (select b as c2, a from t1) on c2 - 1 = c1;
+# ----
+
+# TODO: Error source: query failed: Got invalid type(s) 'Int32,Int64' for '>'
+# query II rowsort
+# select * from (select a as c1, b from t1 where a < 3), (select b as c2, a from t1 where b > 4);
+# ----
+
+# TODO: Error source: query failed: Failed to find correct signature for 'sum'
+# query I
+# select sum(x) from (select a as x from t1 group by a);
+# ----
+# 9
+
+statement ok
+create temp table t2 (a bigint, b bigint);
+
+statement ok
+insert into t2 values (1, 2), (3, 4), (5, 6);
+
+# TODO: Hangs
+# query I
+# select sum(x) from (select a as x from t2 group by a);
+# ----
+# 9
+
+query I
+select * from (select sum(a) from t2);
+----
+9
+
+# TODO: Error source: query failed: Missing column for reference: b
+# query I
+# select * from (select sum(a), b from t2 group by b) order by b;
+# ----
+
+query II
+select * from (select sum(a), b from t2 group by b) as s(sum, b) order by b;
+----
+1  2
+3  4
+5  6

@@ -155,10 +155,11 @@ impl AstParseable for WildcardExpr {
         // `table.*` or `'table'.*`
         if matches!(tok, Token::Word(_) | Token::SingleQuotedString(_)) {
             let ident = match tok {
-                Token::Word(w) => Ident {
-                    value: w.value.clone(),
+                Token::Word(w) => w.clone().into(),
+                Token::SingleQuotedString(s) => Ident {
+                    value: s.clone(),
+                    quoted: false,
                 },
-                Token::SingleQuotedString(s) => Ident { value: s.clone() },
                 _ => unreachable!("token variants previously matched on"),
             };
 
@@ -175,10 +176,11 @@ impl AstParseable for WildcardExpr {
                         };
 
                     match next {
-                        Token::Word(w) => idents.push(Ident {
-                            value: w.value.clone(),
+                        Token::Word(w) => idents.push(w.clone().into()),
+                        Token::SingleQuotedString(s) => idents.push(Ident {
+                            value: s.clone(),
+                            quoted: false,
                         }),
-                        Token::SingleQuotedString(s) => idents.push(Ident { value: s.clone() }),
                         Token::Mul => {
                             return Ok(WildcardExpr::QualifiedWildcard(ObjectReference(idents)))
                         }

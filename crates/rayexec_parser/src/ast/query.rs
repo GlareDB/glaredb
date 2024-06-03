@@ -1,11 +1,11 @@
 use crate::{keywords::Keyword, parser::Parser, tokens::Token};
 use rayexec_error::{RayexecError, Result};
 
-use super::{AstParseable, Expr, Ident, LimitModifier, OrderByNode, SelectNode};
+use super::{AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByNode, SelectNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryNode {
-    pub ctes: Option<Ctes>,
+    pub ctes: Option<CommonTableExprDefs>,
     pub body: QueryNodeBody,
     pub order_by: Vec<OrderByNode>,
     pub limit: LimitModifier,
@@ -14,7 +14,7 @@ pub struct QueryNode {
 impl AstParseable for QueryNode {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let ctes = if parser.parse_keyword(Keyword::WITH) {
-            Some(Ctes::parse(parser)?)
+            Some(CommonTableExprDefs::parse(parser)?)
         } else {
             None
         };
@@ -85,62 +85,6 @@ impl AstParseable for Values {
         })?;
 
         Ok(Values { rows })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ctes {
-    pub recursive: bool,
-    pub ctes: Vec<Cte>,
-}
-
-impl AstParseable for Ctes {
-    fn parse(parser: &mut Parser) -> Result<Self> {
-        let recursive = parser.parse_keyword(Keyword::RECURSIVE);
-        Ok(Ctes {
-            recursive,
-            ctes: parser.parse_comma_separated(Cte::parse)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cte {
-    pub alias: Ident,
-    pub column_aliases: Option<Vec<Ident>>,
-    pub body: Box<QueryNode>,
-}
-
-impl AstParseable for Cte {
-    fn parse(parser: &mut Parser) -> Result<Self> {
-        let alias = Ident::parse(parser)?;
-
-        let column_aliases = if parser.parse_keyword(Keyword::AS) {
-            // No aliases specified.
-            //
-            // `alias AS (<subquery>)`
-            None
-        } else {
-            // Aliases specified.
-            //
-            // `alias(c1, c2) AS (<subquery>)`
-            parser.expect_token(&Token::LeftParen)?;
-            let column_aliases = parser.parse_parenthesized_comma_separated(Ident::parse)?;
-            parser.expect_token(&Token::RightParen)?;
-            parser.expect_keyword(Keyword::AS)?;
-            Some(column_aliases)
-        };
-
-        // Parse the subquery.
-        parser.expect_token(&Token::LeftParen)?;
-        let body = QueryNode::parse(parser)?;
-        parser.expect_token(&Token::RightParen)?;
-
-        Ok(Cte {
-            alias,
-            column_aliases,
-            body: Box::new(body),
-        })
     }
 }
 

@@ -6,8 +6,11 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::database::catalog::{Catalog, CatalogTx};
-use crate::database::create::{CreateScalarFunctionInfo, CreateTableInfo, OnConflict};
+use crate::database::create::{
+    CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo, OnConflict,
+};
 use crate::database::ddl::{CatalogModifier, CreateFut, DropFut};
+use crate::database::drop::{DropInfo, DropObject};
 use crate::database::entry::{CatalogEntry, TableEntry};
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
@@ -132,18 +135,19 @@ pub struct MemoryCatalogModifier {
 }
 
 impl CatalogModifier for MemoryCatalogModifier {
-    fn create_schema(&self, name: &str) -> Result<Box<dyn CreateFut>> {
+    fn create_schema(&self, create: CreateSchemaInfo) -> Result<Box<dyn CreateFut<Output = ()>>> {
         Ok(Box::new(MemoryCreateSchema {
-            schema: name.to_string(),
+            schema: create.name.to_string(),
+            on_conflict: create.on_conflict,
             inner: self.inner.clone(),
         }))
     }
 
-    fn drop_schema(&self, _name: &str) -> Result<Box<dyn DropFut>> {
-        unimplemented!()
-    }
-
-    fn create_table(&self, schema: &str, info: CreateTableInfo) -> Result<Box<dyn CreateFut>> {
+    fn create_table(
+        &self,
+        schema: &str,
+        info: CreateTableInfo,
+    ) -> Result<Box<dyn CreateFut<Output = Box<dyn DataTable>>>> {
         Ok(Box::new(MemoryCreateTable {
             schema: schema.to_string(),
             info,
@@ -151,39 +155,53 @@ impl CatalogModifier for MemoryCatalogModifier {
         }))
     }
 
-    fn drop_table(&self, _schema: &str, _name: &str) -> Result<Box<dyn DropFut>> {
-        unimplemented!()
-    }
-
     fn create_scalar_function(
         &self,
         _info: CreateScalarFunctionInfo,
-    ) -> Result<Box<dyn CreateFut>> {
+    ) -> Result<Box<dyn CreateFut<Output = ()>>> {
         unimplemented!()
     }
 
     fn create_aggregate_function(
         &self,
         _info: CreateScalarFunctionInfo,
-    ) -> Result<Box<dyn CreateFut>> {
+    ) -> Result<Box<dyn CreateFut<Output = ()>>> {
         unimplemented!()
+    }
+
+    fn drop_entry(&self, drop: DropInfo) -> Result<Box<dyn DropFut>> {
+        Ok(Box::new(MemoryDrop {
+            info: drop,
+            inner: self.inner.clone(),
+        }))
     }
 }
 
 #[derive(Debug)]
 struct MemoryCreateSchema {
     schema: String,
+    on_conflict: OnConflict,
     inner: Arc<RwLock<MemorySchemas>>,
 }
 
 impl CreateFut for MemoryCreateSchema {
+    type Output = ();
     fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         let mut inner = self.inner.write();
-        if inner.schemas.contains_key(&self.schema) {
-            return Poll::Ready(Err(RayexecError::new(format!(
-                "Schema already exists: {}",
-                self.schema
-            ))));
+
+        let schema_exists = inner.schemas.contains_key(&self.schema);
+        match self.on_conflict {
+            OnConflict::Ignore if schema_exists => return Poll::Ready(Ok(())),
+            OnConflict::Error if schema_exists => {
+                return Poll::Ready(Err(RayexecError::new(format!(
+                    "Schema already exists: {}",
+                    self.schema
+                ))))
+            }
+            OnConflict::Replace => {
+                return Poll::Ready(Err(RayexecError::new("Cannot replace schema")))
+            }
+            _ => (), // Otherwise continue with the create.
         }
 
         inner
@@ -195,6 +213,40 @@ impl CreateFut for MemoryCreateSchema {
 }
 
 #[derive(Debug)]
+struct MemoryDrop {
+    info: DropInfo,
+    inner: Arc<RwLock<MemorySchemas>>,
+}
+
+impl DropFut for MemoryDrop {
+    fn poll_drop(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+        let mut inner = self.inner.write();
+
+        if self.info.cascade {
+            return Poll::Ready(Err(RayexecError::new("DROP CASCADE not implemented")));
+        }
+
+        match &self.info.object {
+            DropObject::Schema => {
+                if !self.info.if_exists && !inner.schemas.contains_key(&self.info.schema) {
+                    return Poll::Ready(Err(RayexecError::new(format!(
+                        "Missing schema: {}",
+                        self.info.schema
+                    ))));
+                }
+
+                inner.schemas.remove(&self.info.schema);
+
+                Poll::Ready(Ok(()))
+            }
+            other => Poll::Ready(Err(RayexecError::new(format!(
+                "Drop unimplemted for object: {other:?}"
+            )))),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct MemoryCreateTable {
     schema: String,
     info: CreateTableInfo,
@@ -202,7 +254,8 @@ struct MemoryCreateTable {
 }
 
 impl CreateFut for MemoryCreateTable {
-    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
+    type Output = Box<dyn DataTable>;
+    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<Self::Output>> {
         let mut inner = self.inner.write();
         let schema = match inner.schemas.get_mut(&self.schema) {
             Some(schema) => schema,
@@ -215,7 +268,7 @@ impl CreateFut for MemoryCreateTable {
         };
         if schema.entries.contains_key(&self.info.name) {
             match self.info.on_conflict {
-                OnConflict::Ignore => return Poll::Ready(Ok(())),
+                OnConflict::Ignore => unimplemented!(), // TODO: What to do here?
                 OnConflict::Error => {
                     return Poll::Ready(Err(RayexecError::new(format!(
                         "Duplicate table name: {}",
@@ -234,11 +287,10 @@ impl CreateFut for MemoryCreateTable {
             }),
         );
 
-        schema
-            .tables
-            .insert(self.info.name.clone(), MemoryDataTable::default());
+        let table = MemoryDataTable::default();
+        schema.tables.insert(self.info.name.clone(), table.clone());
 
-        Poll::Ready(Ok(()))
+        Poll::Ready(Ok(Box::new(table)))
     }
 }
 

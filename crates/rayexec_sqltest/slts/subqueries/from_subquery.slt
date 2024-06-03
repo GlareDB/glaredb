@@ -1,0 +1,61 @@
+# Subquery in FROM
+
+query I
+select * from (select 23);
+----
+23
+
+# query TT
+# explain select * from (select 23);
+# ----
+
+query I
+select a from (select 23 as a);
+----
+23
+
+statement error Missing column for reference: b
+select b from (select 23 as a);
+
+query I
+select a from (select 23) as s(a);
+----
+23
+
+query I
+select s.a from (select 23) as s(a);
+----
+23
+
+query I
+select s.a from (select 23 as b) as s(a);
+----
+23
+
+statement error Missing column for reference: b
+select b from (select 23 as b) as s(a);
+
+query IIII
+select * from (select 1), (select 2), (select 3), (select 4)
+----
+1  2  3  4
+
+query IIII
+select d, a, b, c, c from (select 1 a), (select 2 b), (select 3 c), (select 4 d)
+----
+4  1  2  3  3
+
+query I
+select * from (select * from (select * from (select 23)));
+----
+23
+
+query I
+select b from (select a as b from (select * from (select 23 a)));
+----
+23
+
+query I
+select c from (select a as b from (select * from (select 23 a))) as s(c);
+----
+23

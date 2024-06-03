@@ -1,0 +1,34 @@
+# Subquery aliasing in FROM
+#
+# TODO: Use int for tables (Error source: query failed: Got invalid type(s) 'Int32,Int64' for '=')
+
+statement ok
+create temp table t1 (a bigint, b bigint)
+
+statement ok
+insert into t1 values (23, 45), (67, 89);
+
+query I
+select * from (select a as c, b as d from t1) where c = 67;
+----
+67  89
+
+query I
+select d from (select a as c, b as d from t1) where c = 67;
+----
+89
+
+query I
+select s.*, s.c from (select a as c, b as d from t1) as s where c = 67;
+----
+67 89  67
+
+query I
+select * from (select a as c, b as d from t1) as s where s.c = 67;
+----
+67 89
+
+query I
+select s.*, s.e from (select a as c, b as d from t1) as s(e, f) where e = 67;
+----
+67 89  67

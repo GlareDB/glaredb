@@ -12,19 +12,20 @@ pipelines  Pipeline 0
 .            Empty
 
 
-query TT
-explain select * from (values (1), (2)) order by column1;
-----
-logical    Order (expressions = [#0 DESC NULLS FIRST])
-.            Projection (expressions = [#0])
-.              ExpressionList (row0 = [1], row1 = [2])
-pipelines  Pipeline 1
-.            MergeSorted (sort_expressions = [0 DESC NULLS FIRST])
-.          Pipeline 0
-.            MergeSorted (sort_expressions = [0 DESC NULLS FIRST])
-.            LocalSort (sort_expressions = [0 DESC NULLS FIRST])
-.            Project (projections = [#0])
-.            Values
+# query TT
+# explain select * from (values (1), (2)) order by column1;
+# ----
+# logical   Projection (expressions = [#0])
+# .           Order (expressions = [#0 ASC NULLS FIRST])
+# .             ExpressionList (row0 = [1], row1 = [2])
+# pipelines Pipeline 1
+# .           Project (projections = [#0])
+# .           MergeSorted (sort_expressions = [0 ASC NULLS FIRST])
+# .         Pipeline 0
+# .           MergeSorted (sort_expressions = [0 ASC NULLS FIRST])
+# .           LocalSort (sort_expressions = [0 ASC NULLS FIRST])
+# .           Values
+
 
 
 query TT

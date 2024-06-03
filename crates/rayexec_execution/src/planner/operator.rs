@@ -1,7 +1,9 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::scope::ColumnRef;
 use crate::database::create::OnConflict;
+use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
+use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
 use crate::{
@@ -40,8 +42,11 @@ pub enum LogicalOperator {
     Empty,
     SetVar(SetVar),
     ShowVar(ShowVar),
+    ResetVar(ResetVar),
+    CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
+    Drop(DropEntry),
     Insert(Insert),
     Explain(Explain),
 }
@@ -66,11 +71,20 @@ impl LogicalOperator {
             Self::Empty => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.output_schema(outer),
             Self::ShowVar(n) => n.output_schema(outer),
+            Self::ResetVar(n) => n.output_schema(outer),
+            Self::CreateSchema(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
+            Self::Drop(n) => n.output_schema(outer),
             Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
         }
+    }
+
+    /// Return the explain string for a plan. Useful for println debugging.
+    #[allow(dead_code)]
+    pub(crate) fn debug_explain(&self) -> String {
+        format_logical_plan_for_explain(self, ExplainFormat::Text, true).unwrap()
     }
 }
 
@@ -90,8 +104,11 @@ impl Explainable for LogicalOperator {
             Self::Empty => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.explain_entry(conf),
             Self::ShowVar(p) => p.explain_entry(conf),
+            Self::ResetVar(p) => p.explain_entry(conf),
+            Self::CreateSchema(p) => p.explain_entry(conf),
             Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
+            Self::Drop(p) => p.explain_entry(conf),
             Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
         }
@@ -359,32 +376,54 @@ impl Explainable for ExpressionList {
 #[derive(Debug)]
 pub struct Aggregate {
     pub exprs: Vec<LogicalExpression>,
-    pub grouping_expr: GroupingExpr,
+    pub grouping_expr: Option<GroupingExpr>,
     pub input: Box<LogicalOperator>,
 }
 
 impl LogicalNode for Aggregate {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let current = self.input.output_schema(outer)?;
-        let types = self
+        let mut types = self
             .exprs
             .iter()
             .map(|expr| expr.datatype(&current, outer))
             .collect::<Result<Vec<_>>>()?;
+
+        let mut grouping_types = match &self.grouping_expr {
+            Some(grouping) => grouping
+                .expressions()
+                .iter()
+                .map(|expr| expr.datatype(&current, outer))
+                .collect::<Result<Vec<_>>>()?,
+            None => Vec::new(),
+        };
+
+        types.append(&mut grouping_types);
+
         Ok(TypeSchema::new(types))
     }
 }
 
 impl Explainable for Aggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Aggregate")
+        let mut outputs = self.exprs.clone();
+        if let Some(grouping) = &self.grouping_expr {
+            outputs.extend(grouping.expressions().iter().cloned());
+        }
+
+        let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &outputs);
+        match self.grouping_expr.as_ref() {
+            Some(GroupingExpr::GroupBy(exprs)) => ent = ent.with_values("GROUP BY", exprs),
+            Some(GroupingExpr::Rollup(exprs)) => ent = ent.with_values("ROLLUP", exprs),
+            Some(GroupingExpr::Cube(exprs)) => ent = ent.with_values("CUBE", exprs),
+            None => (),
+        }
+        ent
     }
 }
 
 #[derive(Debug)]
 pub enum GroupingExpr {
-    /// No grouping expression.
-    None,
     /// Group by a single set of columns.
     GroupBy(Vec<LogicalExpression>),
     /// Group by a column rollup.
@@ -400,11 +439,37 @@ impl GroupingExpr {
     /// pre-projection into the aggregate.
     pub fn expressions_mut(&mut self) -> &mut [LogicalExpression] {
         match self {
-            Self::None => &mut [],
             Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
             Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
             Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
         }
+    }
+
+    pub fn expressions(&self) -> &[LogicalExpression] {
+        match self {
+            Self::GroupBy(ref exprs) => exprs.as_slice(),
+            Self::Rollup(ref exprs) => exprs.as_slice(),
+            Self::Cube(ref exprs) => exprs.as_slice(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateSchema {
+    pub catalog: String,
+    pub name: String,
+    pub on_conflict: OnConflict,
+}
+
+impl LogicalNode for CreateSchema {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for CreateSchema {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateSchema").with_value("name", &self.name)
     }
 }
 
@@ -414,6 +479,8 @@ pub struct CreateTable {
     pub temp: bool, // TODO: Probably replace this with a schema reference. We need the schema somewhere.
     pub columns: Vec<Field>,
     pub on_conflict: OnConflict,
+    /// Optional input for CREATE TABLE AS
+    pub input: Option<Box<LogicalOperator>>,
 }
 
 impl LogicalNode for CreateTable {
@@ -439,6 +506,23 @@ pub struct CreateTableAs {
 impl Explainable for CreateTableAs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTableAs")
+    }
+}
+
+#[derive(Debug)]
+pub struct DropEntry {
+    pub info: DropInfo,
+}
+
+impl LogicalNode for DropEntry {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for DropEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("Drop")
     }
 }
 
@@ -499,6 +583,29 @@ impl Explainable for ShowVar {
     }
 }
 
+#[derive(Debug)]
+pub enum VariableOrAll {
+    Variable(SessionVar),
+    All,
+}
+
+#[derive(Debug)]
+pub struct ResetVar {
+    pub var: VariableOrAll,
+}
+
+impl LogicalNode for ResetVar {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for ResetVar {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("ResetVar")
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ExplainFormat {
     Text,
@@ -526,7 +633,7 @@ impl Explainable for Explain {
 }
 
 /// An expression that can exist in a logical plan.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LogicalExpression {
     /// Reference to a column.
     ///
@@ -606,13 +713,40 @@ impl fmt::Display for LogicalExpression {
             Self::Unary { op, expr } => write!(f, "{op}{expr}"),
             Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
             Self::Variadic { .. } => write!(f, "VARIADIC TODO"),
-            Self::Aggregate { .. } => write!(f, "AGG TODO"),
+            Self::Aggregate {
+                agg,
+                inputs,
+                filter,
+            } => {
+                write!(
+                    f,
+                    "{}({})",
+                    agg.name(),
+                    inputs
+                        .iter()
+                        .map(|input| input.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )?;
+                if let Some(filter) = filter {
+                    write!(f, " FILTER ({filter})")?;
+                }
+                Ok(())
+            }
             Self::Case { .. } => write!(f, "CASE TODO"),
         }
     }
 }
 
 impl LogicalExpression {
+    /// Create a new uncorrelated column reference.
+    pub fn new_column(col: usize) -> Self {
+        LogicalExpression::ColumnRef(ColumnRef {
+            scope_level: 0,
+            item_idx: col,
+        })
+    }
+
     /// Get the output data type of this expression.
     ///
     /// Since we're working with possibly correlated columns, both the schema of
@@ -687,6 +821,74 @@ impl LogicalExpression {
             }
             _ => unimplemented!(),
         })
+    }
+
+    pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        self.walk_mut(pre, &mut |_| Ok(()))
+    }
+
+    pub fn walk_mut_post<F>(&mut self, post: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        self.walk_mut(&mut |_| Ok(()), post)
+    }
+
+    /// Walk the plan depth first.
+    ///
+    /// `pre` provides access to children on the way down, and `post` on the way
+    /// up.
+    pub fn walk_mut<F1, F2>(&mut self, pre: &mut F1, post: &mut F2) -> Result<()>
+    where
+        F1: FnMut(&mut LogicalExpression) -> Result<()>,
+        F2: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        pre(self)?;
+        match self {
+            LogicalExpression::Unary { expr, .. } => {
+                pre(expr)?;
+                expr.walk_mut(pre, post)?;
+                post(expr)?;
+            }
+            Self::Binary { left, right, .. } => {
+                pre(left)?;
+                left.walk_mut(pre, post)?;
+                post(left)?;
+
+                pre(right)?;
+                right.walk_mut(pre, post)?;
+                post(right)?;
+            }
+            Self::Variadic { exprs, .. } => {
+                for expr in exprs.iter_mut() {
+                    pre(expr)?;
+                    expr.walk_mut(pre, post)?;
+                    post(expr)?;
+                }
+            }
+            Self::ScalarFunction { inputs, .. } => {
+                for input in inputs.iter_mut() {
+                    pre(input)?;
+                    input.walk_mut(pre, post)?;
+                    post(input)?;
+                }
+            }
+            Self::Aggregate { inputs, .. } => {
+                for input in inputs.iter_mut() {
+                    pre(input)?;
+                    input.walk_mut(pre, post)?;
+                    post(input)?;
+                }
+            }
+            Self::ColumnRef(_) | Self::Literal(_) => (),
+            Self::Case { .. } => unimplemented!(),
+        }
+        post(self)?;
+
+        Ok(())
     }
 
     /// Check if this expression is an aggregate.

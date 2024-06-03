@@ -1,0 +1,23 @@
+# ORDER BY
+
+query T
+select * from (values ('a'), ('c'), ('b')) order by column1;
+----
+a
+b
+c
+
+query T
+select * from (values ('a'), ('c'), ('b')) order by column1 desc;
+----
+c
+b
+a
+
+query T
+select c2 from (values (1, 'a'), (2, 'c'), (3, 'b')) as t(c1, c2) order by c1;
+----
+a
+c
+b
+

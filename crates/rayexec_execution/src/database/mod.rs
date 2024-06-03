@@ -1,6 +1,7 @@
 pub mod catalog;
 pub mod create;
 pub mod ddl;
+pub mod drop;
 pub mod entry;
 pub mod storage;
 pub mod table;
@@ -89,6 +90,10 @@ impl DatabaseContext {
             )));
         }
         Ok(())
+    }
+
+    pub fn catalog_exists(&self, name: &str) -> bool {
+        self.catalogs.contains_key(name)
     }
 
     pub fn get_catalog(&self, name: &str) -> Result<&dyn Catalog> {

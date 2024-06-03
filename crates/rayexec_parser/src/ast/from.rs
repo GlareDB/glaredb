@@ -274,6 +274,7 @@ mod tests {
             body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
+                    quoted: false,
                 }]),
             }),
         };
@@ -289,6 +290,7 @@ mod tests {
             body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
+                    quoted: false,
                 }]),
             }),
         };
@@ -307,6 +309,7 @@ mod tests {
             body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
+                    quoted: false,
                 }]),
             }),
         };
@@ -318,12 +321,16 @@ mod tests {
         let node: FromNode = parse_ast("my_table AS t1").unwrap();
         let expected = FromNode {
             alias: Some(FromAlias {
-                alias: Ident { value: "t1".into() },
+                alias: Ident {
+                    value: "t1".into(),
+                    quoted: false,
+                },
                 columns: None,
             }),
             body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
+                    quoted: false,
                 }]),
             }),
         };
@@ -335,16 +342,29 @@ mod tests {
         let node: FromNode = parse_ast("my_table AS t1(c1, c2,c3)").unwrap();
         let expected = FromNode {
             alias: Some(FromAlias {
-                alias: Ident { value: "t1".into() },
+                alias: Ident {
+                    value: "t1".into(),
+                    quoted: false,
+                },
                 columns: Some(vec![
-                    Ident { value: "c1".into() },
-                    Ident { value: "c2".into() },
-                    Ident { value: "c3".into() },
+                    Ident {
+                        value: "c1".into(),
+                        quoted: false,
+                    },
+                    Ident {
+                        value: "c2".into(),
+                        quoted: false,
+                    },
+                    Ident {
+                        value: "c3".into(),
+                        quoted: false,
+                    },
                 ]),
             }),
             body: FromNodeBody::BaseTable(FromBaseTable {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table".into(),
+                    quoted: false,
                 }]),
             }),
         };
@@ -359,13 +379,17 @@ mod tests {
             body: FromNodeBody::TableFunction(FromTableFunction {
                 reference: ObjectReference(vec![Ident {
                     value: "my_table_func".into(),
+                    quoted: false,
                 }]),
                 args: vec![
                     FunctionArg::Unnamed {
                         arg: Expr::Literal(Literal::SingleQuotedString("arg1".to_string())),
                     },
                     FunctionArg::Named {
-                        name: Ident { value: "kw".into() },
+                        name: Ident {
+                            value: "kw".into(),
+                            quoted: false,
+                        },
                         arg: Expr::Literal(Literal::SingleQuotedString("arg2".to_string())),
                     },
                 ],

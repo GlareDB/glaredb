@@ -1,0 +1,16 @@
+# CREATE SCHEMA inside temp catalog
+
+statement ok
+create schema temp.my_schema1;
+
+statement error Schema already exists
+create schema temp.my_schema1;
+
+statement ok
+create schema if not exists temp.my_schema1;
+
+statement ok
+create schema if not exists temp.my_schema2;
+
+statement error Schema already exists
+create schema temp.my_schema2;

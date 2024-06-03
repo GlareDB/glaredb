@@ -1,6 +1,7 @@
 use crate::{
     ast::{
-        AstParseable, CreateTable, ExplainNode, Expr, Ident, Insert, ObjectReference, QueryNode,
+        AstParseable, CreateSchema, CreateTable, DropStatement, ExplainNode, Ident, Insert,
+        QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     statement::Statement,
@@ -80,8 +81,10 @@ impl Parser {
 
                 match keyword {
                     Keyword::CREATE => self.parse_create(),
-                    Keyword::SET => self.parse_set(),
-                    Keyword::SHOW => self.parse_show(),
+                    Keyword::DROP => Ok(Statement::Drop(DropStatement::parse(self)?)),
+                    Keyword::SET => Ok(Statement::SetVariable(SetVariable::parse(self)?)),
+                    Keyword::RESET => Ok(Statement::ResetVariable(ResetVariable::parse(self)?)),
+                    Keyword::SHOW => Ok(Statement::ShowVariable(ShowVariable::parse(self)?)),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(Statement::Query(QueryNode::parse(self)?))
                     }
@@ -103,8 +106,12 @@ impl Parser {
         let start = self.idx;
 
         self.expect_keyword(Keyword::CREATE)?;
-        let or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
-        let temp = self
+
+        // Skip these keywords to get the actual object being created. We reset
+        // the parser index, so the actual object being parsed can get these
+        // again.
+        let _or_replace = self.parse_keyword_sequence(&[Keyword::OR, Keyword::REPLACE]);
+        let _temp = self
             .parse_one_of_keywords(&[Keyword::TEMP, Keyword::TEMPORARY])
             .is_some();
 
@@ -112,52 +119,11 @@ impl Parser {
             self.idx = start;
             Ok(Statement::CreateTable(CreateTable::parse(self)?))
         } else if self.parse_keyword(Keyword::SCHEMA) {
-            // Schema
-            if or_replace {
-                return Err(RayexecError::new(
-                    "OR REPLACE not supported when creating a schema",
-                ));
-            }
-            if temp {
-                return Err(RayexecError::new(
-                    "TEMPORARY not supported when creating a schema",
-                ));
-            }
-
-            let if_not_exists =
-                self.parse_keyword_sequence(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
-            let reference = ObjectReference::parse(self)?;
-
-            Ok(Statement::CreateSchema {
-                reference,
-                if_not_exists,
-            })
+            self.idx = start;
+            Ok(Statement::CreateSchema(CreateSchema::parse(self)?))
         } else {
             unimplemented!()
         }
-    }
-
-    pub fn parse_set(&mut self) -> Result<Statement> {
-        self.expect_keyword(Keyword::SET)?;
-
-        let name = ObjectReference::parse(self)?;
-        if self.parse_keyword(Keyword::TO) || self.consume_token(&Token::Eq) {
-            let expr = Expr::parse(self)?;
-            return Ok(Statement::SetVariable {
-                reference: name,
-                value: expr,
-            });
-        }
-
-        Err(RayexecError::new(format!(
-            "Expected 'SET {name} TO <value>' or SET {name} = <value>'"
-        )))
-    }
-
-    pub fn parse_show(&mut self) -> Result<Statement> {
-        self.expect_keyword(Keyword::SHOW)?;
-        let name = ObjectReference::parse(self)?;
-        Ok(Statement::ShowVariable { reference: name })
     }
 
     /// Parse an optional alias.
@@ -170,22 +136,21 @@ impl Parser {
 
         let ident: Option<Ident> = match tok {
             // Allow any alias if `AS` was explicitly provided.
-            Token::Word(w) if has_as => Some(Ident {
-                value: w.value.clone(),
-            }),
+            Token::Word(w) if has_as => Some(w.clone().into()),
 
             // If `AS` wasn't provided, allow the next word to be used as the
             // alias if it's not a reserved word. Otherwise assume it's not an
             // alias.
             Token::Word(w) => match &w.keyword {
                 Some(kw) if reserved.iter().any(|reserved| reserved == kw) => None,
-                _ => Some(Ident {
-                    value: w.value.clone(),
-                }),
+                _ => Some(w.clone().into()),
             },
 
             // Allow any singly quoted string.
-            Token::SingleQuotedString(s) => Some(Ident { value: s.clone() }),
+            Token::SingleQuotedString(s) => Some(Ident {
+                value: s.clone(),
+                quoted: false,
+            }),
 
             _ => {
                 if has_as {
@@ -357,6 +322,38 @@ impl Parser {
             return true;
         }
         false
+    }
+
+    /// Get the next keyword, erroring if the next token is not a keyword, or
+    /// we've reach the end of a statement.
+    ///
+    /// This will consume the keyword.
+    pub(crate) fn next_keyword(&mut self) -> Result<Keyword> {
+        let tok = match self.peek() {
+            Some(tok) => tok,
+            None => return Err(RayexecError::new("Expected keyword, got end of statement")),
+        };
+
+        match &tok.token {
+            Token::Word(word) => {
+                let keyword = match word.keyword {
+                    Some(k) => k,
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "Expected a keyword, got {}",
+                            word.value,
+                        )))
+                    }
+                };
+
+                let _ = self.next(); // Consume
+
+                Ok(keyword)
+            }
+            other => Err(RayexecError::new(format!(
+                "Expected a keyword: got {other:?}"
+            ))),
+        }
     }
 
     /// Get the next token.

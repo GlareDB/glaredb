@@ -388,6 +388,11 @@ impl<'a> Tokenizer<'a> {
                 let ident = self.take_identifier();
                 Token::Word(ident)
             }
+            c if Self::is_quoted_identifier_start(c) => {
+                let ident = self.take_quoted_identifier();
+                Token::Word(ident)
+            }
+
             c => return Err(RayexecError::new(format!("Unhandled character: {c}"))),
         }))
     }
@@ -400,6 +405,12 @@ impl<'a> Tokenizer<'a> {
         s
     }
 
+    fn take_quoted_identifier(&mut self) -> Word {
+        let _ = self.state.next(); // Take start quote
+        let quoted = self.take_quoted_string('"');
+        Word::new(quoted, Some('"'))
+    }
+
     fn take_identifier(&mut self) -> Word {
         let s = self.state.take_while(|c| c.is_alphanumeric() || c == '_');
         Word::new(s, None)
@@ -407,6 +418,10 @@ impl<'a> Tokenizer<'a> {
 
     fn is_identifier_start(c: char) -> bool {
         c.is_alphabetic()
+    }
+
+    fn is_quoted_identifier_start(c: char) -> bool {
+        c == '"'
     }
 }
 

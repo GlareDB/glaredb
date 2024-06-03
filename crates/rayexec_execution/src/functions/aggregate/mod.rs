@@ -1,3 +1,4 @@
+pub mod count;
 pub mod numeric;
 
 use dyn_clone::DynClone;
@@ -15,7 +16,7 @@ use std::{
 use super::{ReturnType, Signature};
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
-    Lazy::new(|| vec![Box::new(numeric::Sum)]);
+    Lazy::new(|| vec![Box::new(numeric::Sum), Box::new(count::Count)]);
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
@@ -48,6 +49,18 @@ pub trait GenericAggregateFunction: Debug + Sync + Send + DynClone {
 impl Clone for Box<dyn GenericAggregateFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
+    }
+}
+
+impl PartialEq<dyn GenericAggregateFunction> for Box<dyn GenericAggregateFunction + '_> {
+    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn GenericAggregateFunction + '_ {
+    fn eq(&self, other: &dyn GenericAggregateFunction) -> bool {
+        self.name() == other.name() && self.signatures() == other.signatures()
     }
 }
 

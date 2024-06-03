@@ -174,7 +174,7 @@ impl PhysicalAggregateExpression {
             } => {
                 let column_indices = inputs.into_iter().map(|input| match input {
                     LogicalExpression::ColumnRef(col) => col.try_as_uncorrelated(),
-                    other => Err(RayexecError::new(format!("Physical aggregate expressions must be construct with uncorrelated column inputs, got: {other}"))),
+                    other => Err(RayexecError::new(format!("Physical aggregate expressions must be constructed with uncorrelated column inputs, got: {other}"))),
                 }).collect::<Result<Vec<_>>>()?;
 
                 let input_types = column_indices.iter().map(|idx| input.types.get(*idx).cloned().ok_or_else(|| RayexecError::new(format!("Attempted to get a column outside the type schema, got: {idx}, max: {}", input.types.len() -1)))).collect::<Result<Vec<_>>>()?;

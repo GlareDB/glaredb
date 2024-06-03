@@ -43,7 +43,8 @@ async fn inner() -> Result<()> {
     let outputs = session.simple(&query)?;
 
     for output in outputs {
-        let batches = output.stream.collect::<Vec<_>>().await;
+        let results = output.stream.collect::<Vec<_>>().await;
+        let batches = results.into_iter().collect::<Result<Vec<_>>>()?;
 
         println!("----");
         println!("INPUT: {query}");

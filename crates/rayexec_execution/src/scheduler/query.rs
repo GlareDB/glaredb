@@ -1,21 +1,34 @@
 use crate::execution::pipeline::PartitionPipeline;
 use parking_lot::Mutex;
+use rayexec_error::RayexecError;
 use rayon::ThreadPool;
 use std::{
-    sync::Arc,
+    sync::{
+        mpsc::{self, SendError},
+        Arc,
+    },
     task::{Context, Poll, Wake, Waker},
 };
+use tracing::debug;
 
 /// Task for executing a partition pipeline.
 pub struct PartitionPipelineTask {
     /// The partition pipeline we're operating on.
     pipeline: Arc<Mutex<PartitionPipeline>>,
+
+    /// Channel for sending errors that happen during execution.
+    ///
+    /// This isn't a oneshot since the same channel is shared across many
+    /// partition pipelines that make up a query, and we want the option to
+    /// collect them all, even if only first is shown to the user.
+    errors: mpsc::Sender<RayexecError>,
 }
 
 impl PartitionPipelineTask {
-    pub(crate) fn new(pipeline: PartitionPipeline) -> Self {
+    pub(crate) fn new(pipeline: PartitionPipeline, errors: mpsc::Sender<RayexecError>) -> Self {
         PartitionPipelineTask {
             pipeline: Arc::new(Mutex::new(pipeline)),
+            errors,
         }
     }
 
@@ -40,6 +53,7 @@ impl PartitionPipelineTask {
 
         let waker: Waker = Arc::new(PartitionPipelineWaker {
             pipeline: self.pipeline.clone(),
+            errors: self.errors.clone(),
             pool,
         })
         .into();
@@ -52,7 +66,11 @@ impl PartitionPipelineTask {
                     // loop to try to get as much work done as possible.
                     continue;
                 }
-                Poll::Ready(Some(Err(e))) => panic!("Schedule error: {e}"), // TODO: This should write the error somewhere.
+                Poll::Ready(Some(Err(e))) => {
+                    if let Err(SendError(e)) = self.errors.send(e) {
+                        debug!(%e, "errors receiver disconnected");
+                    }
+                }
                 Poll::Pending => {
                     // Exit the loop. Waker was already stored in the pending
                     // sink/source, we'll be woken back up when there's more
@@ -74,6 +92,8 @@ struct PartitionPipelineWaker {
     /// The pipeline we should re-execute.
     pipeline: Arc<Mutex<PartitionPipeline>>,
 
+    errors: mpsc::Sender<RayexecError>,
+
     /// The thread pool to spawn on.
     pool: Arc<ThreadPool>,
 }
@@ -86,6 +106,7 @@ impl Wake for PartitionPipelineWaker {
     fn wake_by_ref(self: &Arc<Self>) {
         let task = PartitionPipelineTask {
             pipeline: self.pipeline.clone(),
+            errors: self.errors.clone(),
         };
         let pool = self.pool.clone();
         self.pool.spawn(|| task.execute(pool));

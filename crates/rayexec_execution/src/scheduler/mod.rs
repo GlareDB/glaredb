@@ -2,9 +2,9 @@ pub mod future;
 pub mod query;
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use std::fmt;
 use std::sync::Arc;
-use tracing::info;
+use std::{fmt, sync::mpsc};
+use tracing::debug;
 
 use crate::execution::pipeline::PartitionPipeline;
 use crate::execution::query_graph::QueryGraph;
@@ -39,8 +39,12 @@ impl Scheduler {
     }
 
     /// Spawn execution of a partition pipeline on the thread pool.
-    pub fn spawn_partition_pipeline(&self, pipeline: PartitionPipeline) {
-        let task = PartitionPipelineTask::new(pipeline);
+    pub fn spawn_partition_pipeline(
+        &self,
+        pipeline: PartitionPipeline,
+        errors: mpsc::Sender<RayexecError>,
+    ) {
+        let task = PartitionPipelineTask::new(pipeline, errors);
         let pool = self.pool.clone();
         self.pool.spawn(|| task.execute(pool));
     }
@@ -49,10 +53,10 @@ impl Scheduler {
     ///
     /// Each partition pipeline in the query graph will be independently
     /// executed.
-    pub fn spawn_query_graph(&self, query_graph: QueryGraph) {
-        info!("spawning execution of query graph");
+    pub fn spawn_query_graph(&self, query_graph: QueryGraph, errors: mpsc::Sender<RayexecError>) {
+        debug!("spawning execution of query graph");
         for partition_pipeline in query_graph.into_partition_pipeline_iter() {
-            self.spawn_partition_pipeline(partition_pipeline);
+            self.spawn_partition_pipeline(partition_pipeline, errors.clone());
         }
     }
 }

@@ -1,0 +1,49 @@
+# Normalize column names in from aliases
+
+query I rowsort
+select A from (values (1), (2)) as t(a);
+----
+1
+2
+
+query I rowsort
+select a from (values (1), (2)) as t(A);
+----
+1
+2
+
+query I rowsort
+select a from (values (1), (2)) as t("a");
+----
+1
+2
+
+query I rowsort
+select "a" from (values (1), (2)) as t(a);
+----
+1
+2
+
+query I rowsort
+select "a" from (values (1), (2)) as t("a");
+----
+1
+2
+
+query I rowsort
+select "A" from (values (1), (2)) as t("A");
+----
+1
+2
+
+statement error Missing column for reference: A
+select "A" from (values (1), (2)) as t(a);
+
+statement error Missing column for reference: A
+select "A" from (values (1), (2)) as t("a");
+
+statement error Missing column for reference: a
+select "a" from (values (1), (2)) as t("A");
+
+statement error Missing column for reference: a
+select a from (values (1), (2)) as t("A");
