@@ -288,24 +288,39 @@ impl ComputeServerBuilder {
                 }
             };
 
-            let metastore_storage_conf =
-                match (self.metastore_bucket.clone(), self.data_dir.clone()) {
-                    (Some(_), Some(_)) => {
-                        return Err(anyhow!(
-                            "cannot specify local datadir and remote metastore bucket"
-                        ))
-                    }
-                    (Some(bucket), None) => StorageConfig::Gcs {
-                        bucket: Some(bucket),
-                        service_account_key: self.service_account_path.clone().unwrap_or_default(),
-                    },
-                    (None, Some(p)) => {
-                        let p = p.join("__metastore");
-                        ensure_dir(&p)?;
-                        StorageConfig::Local { path: p }
-                    }
-                    (None, None) => StorageConfig::Memory,
-                };
+            let metastore_storage_conf = match (
+                self.metastore_bucket.clone(),
+                self.data_dir.clone(),
+                self.service_account_path.clone(),
+            ) {
+                (None, Some(_), Some(_))
+                | (Some(_), Some(_), None)
+                | (Some(_), Some(_), Some(_)) => {
+                    return Err(anyhow!(
+                    "cannot specify local metastore datadir  with service_account_path or bucket"
+                ))
+                }
+                (Some(_), None, None) => {
+                    return Err(anyhow!(
+                        "cannot specify bucket without specifying the service_account_path"
+                    ))
+                }
+                (None, None, Some(_)) => {
+                    return Err(anyhow!(
+                        "cannot specify service_account_path without specifying the bucket"
+                    ))
+                }
+                (Some(bucket), None, Some(service_account_path)) => StorageConfig::Gcs {
+                    bucket: Some(bucket),
+                    service_account_key: std::fs::read_to_string(service_account_path)?,
+                },
+                (None, Some(p), None) => {
+                    let p = p.join("__metastore");
+                    ensure_dir(&p)?;
+                    StorageConfig::Local { path: p }
+                }
+                (None, None, None) => StorageConfig::Memory,
+            };
 
 
             let metastore_client =
