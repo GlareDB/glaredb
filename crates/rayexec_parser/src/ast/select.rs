@@ -1,5 +1,6 @@
 use crate::{
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
+    meta::{AstMeta, Raw},
     parser::Parser,
     tokens::Token,
 };
@@ -7,23 +8,23 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{AstParseable, DistinctModifier, Expr, FromNode, Ident, ObjectReference};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectNode {
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectNode<T: AstMeta> {
     /// DISTINCT [ON]
-    pub distinct: Option<DistinctModifier>,
+    pub distinct: Option<DistinctModifier<T>>,
     /// Projection list. May included wildcards.
-    pub projections: Vec<SelectExpr>,
+    pub projections: Vec<SelectExpr<T>>,
     /// FROM
-    pub from: Option<FromNode>,
+    pub from: Option<FromNode<T>>,
     /// WHERE
-    pub where_expr: Option<Expr>,
+    pub where_expr: Option<Expr<T>>,
     /// GROUP BY
-    pub group_by: Option<GroupByNode>,
+    pub group_by: Option<GroupByNode<T>>,
     /// HAVING
-    pub having: Option<Expr>,
+    pub having: Option<Expr<T>>,
 }
 
-impl AstParseable for SelectNode {
+impl AstParseable for SelectNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         // TODO: distinct
 
@@ -69,23 +70,23 @@ impl AstParseable for SelectNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SelectExpr {
+#[derive(Debug, Clone, PartialEq)]
+pub enum SelectExpr<T: AstMeta> {
     /// An unaliases expression.
-    Expr(Expr),
+    Expr(Expr<T>),
     /// An aliased expression.
     ///
     /// `<expr> AS <ident>`
-    AliasedExpr(Expr, Ident),
+    AliasedExpr(Expr<T>, Ident),
     /// A qualified wild card.
     ///
     /// `<reference>.*`
-    QualifiedWildcard(ObjectReference, Wildcard),
+    QualifiedWildcard(ObjectReference, Wildcard<T>),
     /// An unqualifed wild card.
-    Wildcard(Wildcard),
+    Wildcard(Wildcard<T>),
 }
 
-impl AstParseable for SelectExpr {
+impl AstParseable for SelectExpr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let expr = WildcardExpr::parse(parser)?;
 
@@ -109,8 +110,8 @@ impl AstParseable for SelectExpr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Wildcard {
+#[derive(Debug, Clone, PartialEq)]
+pub struct Wildcard<T: AstMeta> {
     /// Columns to exclude in the star select.
     ///
     /// `SELECT * EXCLUDE col1, col2 ...`
@@ -118,21 +119,30 @@ pub struct Wildcard {
     /// Columns to replace in the star select.
     ///
     /// `SELECT * REPLACE (col1 / 100 AS col1) ...`
-    pub replace_cols: Vec<ReplaceColumn>,
+    pub replace_cols: Vec<ReplaceColumn<T>>,
     // TODO: `SELECT COLUMNS(...)`
+}
+
+impl<T: AstMeta> Default for Wildcard<T> {
+    fn default() -> Self {
+        Wildcard {
+            exclude_cols: Vec::new(),
+            replace_cols: Vec::new(),
+        }
+    }
 }
 
 /// A wildcard, qualified wildcard, or an expression.
 ///
 /// Parsed from the select list.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum WildcardExpr {
+#[derive(Debug, Clone, PartialEq)]
+pub enum WildcardExpr<T: AstMeta> {
     Wildcard,
     QualifiedWildcard(ObjectReference),
-    Expr(Expr),
+    Expr(Expr<T>),
 }
 
-impl AstParseable for WildcardExpr {
+impl AstParseable for WildcardExpr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let idx = parser.idx; // Needed for resetting the position if this is just an expression.
 
@@ -201,19 +211,19 @@ impl AstParseable for WildcardExpr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReplaceColumn {
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReplaceColumn<T: AstMeta> {
     pub col: Ident,
-    pub expr: Expr,
+    pub expr: Expr<T>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupByNode {
+#[derive(Debug, Clone, PartialEq)]
+pub enum GroupByNode<T: AstMeta> {
     All,
-    Exprs { exprs: Vec<GroupByExpr> },
+    Exprs { exprs: Vec<GroupByExpr<T>> },
 }
 
-impl AstParseable for GroupByNode {
+impl AstParseable for GroupByNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         if parser.parse_keyword(Keyword::ALL) {
             Ok(GroupByNode::All)
@@ -224,19 +234,19 @@ impl AstParseable for GroupByNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupByExpr {
+#[derive(Debug, Clone, PartialEq)]
+pub enum GroupByExpr<T: AstMeta> {
     /// `GROUP BY <expr>[, ...]`
-    Expr(Vec<Expr>),
+    Expr(Vec<Expr<T>>),
     /// `GROUP BY CUBE (<expr>)`
-    Cube(Vec<Expr>),
+    Cube(Vec<Expr<T>>),
     /// `GROUP BY ROLLUP (<expr>)`
-    Rollup(Vec<Expr>),
+    Rollup(Vec<Expr<T>>),
     /// `GROUP BY GROUPING SETS (<expr>)`
-    GroupingSets(Vec<Expr>),
+    GroupingSets(Vec<Expr<T>>),
 }
 
-impl AstParseable for GroupByExpr {
+impl AstParseable for GroupByExpr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let tok = match parser.peek() {
             Some(tok) => tok,

@@ -14,7 +14,7 @@ use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 use crate::expr::PhysicalAggregateExpression;
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::aggregate_hash_table::{AggregateHashTableDrain, PartitionAggregateHashTable};
 use super::grouping_set::GroupingSets;

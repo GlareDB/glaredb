@@ -1,6 +1,6 @@
 use crate::{
     expr::scalar::BinaryOperator,
-    planner::operator::{EqualityJoin, LogicalExpression, LogicalOperator},
+    logical::operator::{EqualityJoin, LogicalExpression, LogicalOperator},
 };
 use rayexec_error::Result;
 

@@ -1,5 +1,6 @@
 use crate::{
     keywords::{Keyword, RESERVED_FOR_TABLE_ALIAS},
+    meta::{AstMeta, Raw},
     parser::Parser,
     tokens::{Token, TokenWithLocation},
 };
@@ -7,13 +8,13 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromNode {
+#[derive(Debug, Clone, PartialEq)]
+pub struct FromNode<T: AstMeta> {
     pub alias: Option<FromAlias>,
-    pub body: FromNodeBody,
+    pub body: FromNodeBody<T>,
 }
 
-impl AstParseable for FromNode {
+impl AstParseable for FromNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         // Build the first part of the FROM clause.
         let node = if parser.consume_token(&Token::LeftParen) {
@@ -183,7 +184,7 @@ impl AstParseable for FromNode {
     }
 }
 
-impl FromNode {
+impl FromNode<Raw> {
     fn maybe_parse_alias(parser: &mut Parser) -> Result<Option<FromAlias>> {
         let alias = match parser.parse_alias(RESERVED_FOR_TABLE_ALIAS)? {
             Some(alias) => alias,
@@ -207,36 +208,36 @@ pub struct FromAlias {
     pub columns: Option<Vec<Ident>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FromNodeBody {
-    BaseTable(FromBaseTable),
-    Subquery(FromSubquery),
-    TableFunction(FromTableFunction),
-    Join(FromJoin),
+#[derive(Debug, Clone, PartialEq)]
+pub enum FromNodeBody<T: AstMeta> {
+    BaseTable(FromBaseTable<T>),
+    Subquery(FromSubquery<T>),
+    TableFunction(FromTableFunction<T>),
+    Join(FromJoin<T>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromBaseTable {
-    pub reference: ObjectReference,
+#[derive(Debug, Clone, PartialEq)]
+pub struct FromBaseTable<T: AstMeta> {
+    pub reference: T::TableReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromSubquery {
-    pub query: QueryNode,
+#[derive(Debug, Clone, PartialEq)]
+pub struct FromSubquery<T: AstMeta> {
+    pub query: QueryNode<T>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromTableFunction {
-    pub reference: ObjectReference,
-    pub args: Vec<FunctionArg>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct FromTableFunction<T: AstMeta> {
+    pub reference: T::ItemReference,
+    pub args: Vec<FunctionArg<T>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FromJoin {
-    pub left: Box<FromNode>,
-    pub right: Box<FromNode>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct FromJoin<T: AstMeta> {
+    pub left: Box<FromNode<T>>,
+    pub right: Box<FromNode<T>>,
     pub join_type: JoinType,
-    pub join_condition: JoinCondition,
+    pub join_condition: JoinCondition<T>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -252,9 +253,9 @@ pub enum JoinType {
     RightSemi,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JoinCondition {
-    On(Expr),
+#[derive(Debug, Clone, PartialEq)]
+pub enum JoinCondition<T: AstMeta> {
+    On(Expr<T>),
     Using(Vec<Ident>),
     Natural,
     None,
@@ -268,7 +269,7 @@ mod tests {
 
     #[test]
     fn base_table() {
-        let node: FromNode = parse_ast("my_table").unwrap();
+        let node: FromNode<_> = parse_ast("my_table").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::BaseTable(FromBaseTable {
@@ -284,7 +285,7 @@ mod tests {
     #[test]
     fn base_table_no_consume_order_by() {
         // Make sure we're not accidentally aliasing a table with a known keyword.
-        let node: FromNode = parse_ast("my_table ORDER BY c1").unwrap();
+        let node: FromNode<_> = parse_ast("my_table ORDER BY c1").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::BaseTable(FromBaseTable {
@@ -300,7 +301,7 @@ mod tests {
     #[test]
     fn base_table_alias_to_keyword() {
         // Allow aliasing to a keyword with explicit AS.
-        let node: FromNode = parse_ast("my_table AS ORDER").unwrap();
+        let node: FromNode<_> = parse_ast("my_table AS ORDER").unwrap();
         let expected = FromNode {
             alias: Some(FromAlias {
                 alias: Ident::from_string("ORDER"),
@@ -318,7 +319,7 @@ mod tests {
 
     #[test]
     fn base_table_alias() {
-        let node: FromNode = parse_ast("my_table AS t1").unwrap();
+        let node: FromNode<_> = parse_ast("my_table AS t1").unwrap();
         let expected = FromNode {
             alias: Some(FromAlias {
                 alias: Ident {
@@ -339,7 +340,7 @@ mod tests {
 
     #[test]
     fn base_table_alias_with_cols() {
-        let node: FromNode = parse_ast("my_table AS t1(c1, c2,c3)").unwrap();
+        let node: FromNode<_> = parse_ast("my_table AS t1(c1, c2,c3)").unwrap();
         let expected = FromNode {
             alias: Some(FromAlias {
                 alias: Ident {
@@ -373,7 +374,7 @@ mod tests {
 
     #[test]
     fn table_func() {
-        let node: FromNode = parse_ast("my_table_func('arg1', kw = 'arg2')").unwrap();
+        let node: FromNode<_> = parse_ast("my_table_func('arg1', kw = 'arg2')").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::TableFunction(FromTableFunction {
@@ -400,7 +401,7 @@ mod tests {
 
     #[test]
     fn inner_join_on() {
-        let node: FromNode = parse_ast("table1 INNER JOIN table2 ON (c1 = c2)").unwrap();
+        let node: FromNode<_> = parse_ast("table1 INNER JOIN table2 ON (c1 = c2)").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::Join(FromJoin {
@@ -429,7 +430,7 @@ mod tests {
 
     #[test]
     fn inner_join_on_no_parens() {
-        let node: FromNode = parse_ast("table1 INNER JOIN table2 ON c1 = c2").unwrap();
+        let node: FromNode<_> = parse_ast("table1 INNER JOIN table2 ON c1 = c2").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::Join(FromJoin {
@@ -458,7 +459,7 @@ mod tests {
 
     #[test]
     fn inner_join_using() {
-        let node: FromNode = parse_ast("table1 INNER JOIN table2 USING (c1, c2,c3)").unwrap();
+        let node: FromNode<_> = parse_ast("table1 INNER JOIN table2 USING (c1, c2,c3)").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::Join(FromJoin {
@@ -487,7 +488,7 @@ mod tests {
 
     #[test]
     fn nested_join() {
-        let node: FromNode = parse_ast("t1 LEFT JOIN t2 RIGHT JOIN t3").unwrap();
+        let node: FromNode<_> = parse_ast("t1 LEFT JOIN t2 RIGHT JOIN t3").unwrap();
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::Join(FromJoin {

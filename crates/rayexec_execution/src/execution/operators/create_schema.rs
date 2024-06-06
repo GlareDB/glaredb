@@ -1,16 +1,23 @@
 use crate::{
-    database::{catalog::CatalogTx, create::CreateSchemaInfo, ddl::CreateFut, DatabaseContext},
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
+use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 use std::task::{Context, Poll};
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
-#[derive(Debug)]
 pub struct CreateSchemaPartitionState {
-    create: Box<dyn CreateFut<Output = ()>>,
+    create: BoxFuture<'static, Result<()>>,
+}
+
+impl fmt::Debug for CreateSchemaPartitionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CreateSchemaPartitionState").finish()
+    }
 }
 
 #[derive(Debug)]
@@ -34,10 +41,8 @@ impl PhysicalCreateSchema {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let create = context
-            .get_catalog(&self.catalog)?
-            .catalog_modifier(&tx)?
-            .create_schema(self.info.clone())?;
+        let catalog = context.get_catalog(&self.catalog)?.catalog_modifier(&tx)?;
+        let create = catalog.create_schema(self.info.clone());
 
         Ok(CreateSchemaPartitionState { create })
     }
@@ -69,7 +74,7 @@ impl PhysicalOperator for PhysicalCreateSchema {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::CreateSchema(state) => match state.create.poll_create(cx) {
+            PartitionState::CreateSchema(state) => match state.create.poll_unpin(cx) {
                 Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
                 Poll::Pending => Ok(PollPull::Pending),

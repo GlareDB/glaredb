@@ -18,7 +18,10 @@ tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 
+# TODO: This test bin could be moved to `rayexec_execution` since it's testing
+# standard execution functionality, whereas `rayexec_sqltest` is now more of a
+# library.
 [[test]]
 harness = false
-name = "rayexec_sqltest"
-path = "bin/rayexec_sqltest.rs"
+name = "rayexec_sqltest_standard"
+path = "bin/rayexec_sqltest_standard.rs"

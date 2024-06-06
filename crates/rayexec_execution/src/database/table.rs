@@ -27,8 +27,18 @@ pub trait DataTable: Debug + Sync + Send {
     }
 }
 
-pub trait DataTableScan: Debug + Sync + Send {
+pub trait DataTableScan: Debug + Send {
     fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull>;
+}
+
+/// Implementation of `DataTableScan` that immediately returns exhausted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmptyTableScan;
+
+impl DataTableScan for EmptyTableScan {
+    fn poll_pull(&mut self, _cx: &mut Context) -> Result<PollPull> {
+        Ok(PollPull::Exhausted)
+    }
 }
 
 pub trait DataTableInsert: Debug + Sync + Send {

@@ -6,15 +6,12 @@ pub mod entry;
 pub mod storage;
 pub mod table;
 
-use catalog::{Catalog, CatalogTx};
+use catalog::Catalog;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use storage::memory::MemoryCatalog;
 use storage::system::GLOBAL_SYSTEM_CATALOG;
-
-use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
 
 /// Root of all accessible catalogs.
 #[derive(Debug)]
@@ -36,7 +33,7 @@ impl DatabaseContext {
             ),
             (
                 "temp".to_string(),
-                Box::new(MemoryCatalog::new_with_temp_schema("temp")) as _,
+                Box::new(MemoryCatalog::new_with_schema("temp")) as _,
             ),
         ]
         .into_iter()
@@ -50,21 +47,6 @@ impl DatabaseContext {
             .get("system")
             .map(|c| c.as_ref())
             .ok_or_else(|| RayexecError::new("Missing system catalog"))
-    }
-
-    pub fn get_builtin_scalar(&self, name: &str) -> Result<Option<Box<dyn GenericScalarFunction>>> {
-        let tx = &CatalogTx::new();
-        self.system_catalog()?
-            .get_scalar_fn(tx, "glare_catalog", name)
-    }
-
-    pub fn get_builtin_aggregate(
-        &self,
-        name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
-        let tx = &CatalogTx::new();
-        self.system_catalog()?
-            .get_aggregate_fn(tx, "glare_catalog", name)
     }
 
     pub fn attach_catalog(

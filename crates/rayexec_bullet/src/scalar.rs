@@ -230,6 +230,13 @@ impl<'a> ScalarValue<'a> {
             other => Err(RayexecError::new(format!("Not a string: {other:?}"))),
         }
     }
+
+    pub fn try_into_string(self) -> Result<String> {
+        match self {
+            Self::Utf8(v) | Self::LargeUtf8(v) => Ok(v.to_string()),
+            other => Err(RayexecError::new(format!("Not a string: {other:?}"))),
+        }
+    }
 }
 
 impl fmt::Display for ScalarValue<'_> {

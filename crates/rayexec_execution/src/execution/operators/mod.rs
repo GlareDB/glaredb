@@ -3,7 +3,6 @@
 pub mod aggregate;
 pub mod create_schema;
 pub mod create_table;
-pub mod create_table_as;
 pub mod drop;
 pub mod empty;
 pub mod filter;
@@ -26,7 +25,6 @@ mod test_util;
 
 use create_schema::CreateSchemaPartitionState;
 use create_table::CreateTablePartitionState;
-use create_table_as::{CreateTableAsOperatorState, CreateTableAsPartitionState};
 use drop::DropPartitionState;
 use insert::InsertPartitionState;
 use rayexec_bullet::batch::Batch;
@@ -36,7 +34,7 @@ use std::fmt::Debug;
 use std::task::Context;
 use table_function::TableFunctionPartitionState;
 
-use crate::planner::explainable::Explainable;
+use crate::logical::explainable::Explainable;
 
 use self::aggregate::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::empty::EmptyPartitionState;
@@ -61,7 +59,7 @@ use self::sort::merge_sorted::{
 use self::values::ValuesPartitionState;
 
 /// States local to a partition within a single operator.
-// Current size: 200 bytes
+// Current size: 192 bytes
 #[derive(Debug)]
 pub enum PartitionState {
     HashAggregate(HashAggregatePartitionState),
@@ -84,7 +82,6 @@ pub enum PartitionState {
     Insert(InsertPartitionState),
     CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
-    CreateTableAs(CreateTableAsPartitionState),
     Drop(DropPartitionState),
     Empty(EmptyPartitionState),
     None,
@@ -100,7 +97,6 @@ pub enum OperatorState {
     RoundRobin(RoundRobinOperatorState),
     HashRepartition(HashRepartitionOperatorState),
     MergeSorted(MergeSortedOperatorState),
-    CreateTableAs(CreateTableAsOperatorState),
     None,
 }
 

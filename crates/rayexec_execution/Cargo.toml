@@ -20,9 +20,10 @@ parking_lot = { workspace = true }
 parquet = { workspace = true }
 rayon = { workspace = true }
 smallvec = { workspace = true }
-tracing = { workspace = true, default-features = false }
+tracing = { workspace = true }
 crossbeam = "0.8.4"
 half = "2.4.1"
+tokio = { version = "1.38.0", features = ["rt"] }
 
 [dev-dependencies]
 insta = "1.39.0"

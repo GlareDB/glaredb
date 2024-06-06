@@ -1,4 +1,5 @@
-use rayexec_error::Result;
+use futures::future::BoxFuture;
+use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
 use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
@@ -26,21 +27,29 @@ pub trait Catalog: Debug + Sync + Send {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<TableEntry>>;
+    ) -> BoxFuture<Result<Option<TableEntry>>>;
 
     fn get_scalar_fn(
         &self,
-        tx: &CatalogTx,
-        schema: &str,
-        name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>>;
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
+    ) -> BoxFuture<Result<Option<Box<dyn GenericScalarFunction>>>> {
+        Box::pin(async { Err(RayexecError::new("Cannot get scalar function from catalog")) })
+    }
 
     fn get_aggregate_fn(
         &self,
-        tx: &CatalogTx,
-        schema: &str,
-        name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>>;
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
+    ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
+        Box::pin(async {
+            Err(RayexecError::new(
+                "Cannot get aggregate function from catalog",
+            ))
+        })
+    }
 
     fn data_table(
         &self,
@@ -49,7 +58,12 @@ pub trait Catalog: Debug + Sync + Send {
         ent: &TableEntry,
     ) -> Result<Box<dyn DataTable>>;
 
-    fn catalog_modifier(&self, tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>>;
+    /// Get a catalog modifier for the catalog.
+    ///
+    /// Defaults to erroring.
+    fn catalog_modifier(&self, _tx: &CatalogTx) -> Result<Box<dyn CatalogModifier>> {
+        Err(RayexecError::new("Cannot modify catalog"))
+    }
 }
 
 /// Implementation of Catalog over a shared catalog (e.g. the global system
@@ -60,7 +74,7 @@ impl Catalog for &dyn Catalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<TableEntry>> {
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
         (*self).get_table_entry(tx, schema, name)
     }
 
@@ -69,7 +83,7 @@ impl Catalog for &dyn Catalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
+    ) -> BoxFuture<Result<Option<Box<dyn GenericScalarFunction>>>> {
         (*self).get_scalar_fn(tx, schema, name)
     }
 
@@ -78,7 +92,7 @@ impl Catalog for &dyn Catalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
+    ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
         (*self).get_aggregate_fn(tx, schema, name)
     }
 

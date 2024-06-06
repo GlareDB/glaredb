@@ -1,0 +1,4 @@
+# Try to attach invalid data source
+
+statement error Missing data source: snowbricks
+attach snowbricks database as my_db;

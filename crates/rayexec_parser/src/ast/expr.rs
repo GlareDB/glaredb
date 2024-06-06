@@ -2,6 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::{
     keywords::Keyword,
+    meta::{AstMeta, Raw},
     parser::Parser,
     tokens::{Token, Word},
 };
@@ -62,8 +63,8 @@ pub enum BinaryOperator {
     BitwiseXor,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Literal {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Literal<T: AstMeta> {
     /// Unparsed number literal.
     Number(String),
     /// String literal.
@@ -77,29 +78,29 @@ pub enum Literal {
     /// Lengths of keys and values must be the same.
     Struct {
         keys: Vec<String>,
-        values: Vec<Expr>,
+        values: Vec<Expr<T>>,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Function {
-    pub name: ObjectReference,
-    pub args: Vec<FunctionArg>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Function<T: AstMeta> {
+    pub reference: T::FunctionReference,
+    pub args: Vec<FunctionArg<T>>,
     /// Filter part of `COUNT(col) FILTER (WHERE col > 5)`
-    pub filter: Option<Box<Expr>>,
+    pub filter: Option<Box<Expr<T>>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum FunctionArg {
+#[derive(Debug, Clone, PartialEq)]
+pub enum FunctionArg<T: AstMeta> {
     /// A named argument. Allows use of either `=>` or `=` for assignment.
     ///
     /// `ident => <expr>` or `ident = <expr>`
-    Named { name: Ident, arg: Expr },
+    Named { name: Ident, arg: Expr<T> },
     /// `<expr>`
-    Unnamed { arg: Expr },
+    Unnamed { arg: Expr<T> },
 }
 
-impl AstParseable for FunctionArg {
+impl AstParseable for FunctionArg<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let is_named = match parser.peek_nth(1) {
             Some(tok) => matches!(tok.token, Token::RightArrow | Token::Eq),
@@ -122,8 +123,8 @@ impl AstParseable for FunctionArg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Expr {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr<T: AstMeta> {
     /// Column or table identifier.
     Ident(Ident),
     /// Compound identifier.
@@ -135,31 +136,31 @@ pub enum Expr {
     /// `table.*`
     QualifiedWildcard(Vec<Ident>),
     /// An expression literal,
-    Literal(Literal),
+    Literal(Literal<T>),
     /// A binary expression.
     BinaryExpr {
-        left: Box<Expr>,
+        left: Box<Expr<T>>,
         op: BinaryOperator,
-        right: Box<Expr>,
+        right: Box<Expr<T>>,
     },
     /// A function call.
-    Function(Function),
+    Function(Function<T>),
     /// A colation.
     ///
     /// `<expr> COLLATE <collation>`
     Collate {
-        expr: Box<Expr>,
+        expr: Box<Expr<T>>,
         collation: ObjectReference,
     },
 }
 
-impl AstParseable for Expr {
+impl AstParseable for Expr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         Self::parse_subexpr(parser, 0)
     }
 }
 
-impl Expr {
+impl Expr<Raw> {
     fn parse_subexpr(parser: &mut Parser, precendence: u8) -> Result<Self> {
         let mut expr = Expr::parse_prefix(parser)?;
 
@@ -209,7 +210,7 @@ impl Expr {
         Ok(expr)
     }
 
-    fn parse_infix(parser: &mut Parser, prefix: Expr, precendence: u8) -> Result<Self> {
+    fn parse_infix(parser: &mut Parser, prefix: Expr<Raw>, precendence: u8) -> Result<Self> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => {
@@ -372,7 +373,7 @@ impl Expr {
 
     /// Handle parsing expressions containing identifiers, starting with a word
     /// that is known to already be part of an identifier.
-    fn parse_ident_expr(w: Word, parser: &mut Parser) -> Result<Expr> {
+    fn parse_ident_expr(w: Word, parser: &mut Parser) -> Result<Expr<Raw>> {
         let mut wildcard = false;
         let mut idents = vec![Ident::from(w)];
 
@@ -417,7 +418,7 @@ impl Expr {
             // TODO: Windows
 
             Ok(Expr::Function(Function {
-                name: ObjectReference(idents),
+                reference: ObjectReference(idents),
                 args,
                 filter,
             }))
@@ -444,14 +445,14 @@ mod tests {
 
     #[test]
     fn literal() {
-        let expr: Expr = parse_ast("5").unwrap();
+        let expr: Expr<_> = parse_ast("5").unwrap();
         let expected = Expr::Literal(Literal::Number("5".to_string()));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn compound() {
-        let expr: Expr = parse_ast("my_schema.t1").unwrap();
+        let expr: Expr<_> = parse_ast("my_schema.t1").unwrap();
         let expected = Expr::CompoundIdent(vec![
             Ident::from_string("my_schema"),
             Ident::from_string("t1"),
@@ -461,7 +462,7 @@ mod tests {
 
     #[test]
     fn compound_with_keyword() {
-        let expr: Expr = parse_ast("schema.table").unwrap();
+        let expr: Expr<_> = parse_ast("schema.table").unwrap();
         let expected = Expr::CompoundIdent(vec![
             Ident::from_string("schema"),
             Ident::from_string("table"),
@@ -471,14 +472,14 @@ mod tests {
 
     #[test]
     fn qualified_wildcard() {
-        let expr: Expr = parse_ast("schema.*").unwrap();
+        let expr: Expr<_> = parse_ast("schema.*").unwrap();
         let expected = Expr::QualifiedWildcard(vec![Ident::from_string("schema")]);
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn binary_op() {
-        let expr: Expr = parse_ast("5 + 8").unwrap();
+        let expr: Expr<_> = parse_ast("5 + 8").unwrap();
         let expected = Expr::BinaryExpr {
             left: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
             op: BinaryOperator::Plus,
@@ -489,9 +490,9 @@ mod tests {
 
     #[test]
     fn function_call_simple() {
-        let expr: Expr = parse_ast("sum(my_col)").unwrap();
+        let expr: Expr<_> = parse_ast("sum(my_col)").unwrap();
         let expected = Expr::Function(Function {
-            name: ObjectReference(vec![Ident::from_string("sum")]),
+            reference: ObjectReference(vec![Ident::from_string("sum")]),
             args: vec![FunctionArg::Unnamed {
                 arg: Expr::Ident(Ident::from_string("my_col")),
             }],
@@ -502,9 +503,9 @@ mod tests {
 
     #[test]
     fn function_call_with_over() {
-        let expr: Expr = parse_ast("count(x) filter (where x > 5)").unwrap();
+        let expr: Expr<_> = parse_ast("count(x) filter (where x > 5)").unwrap();
         let expected = Expr::Function(Function {
-            name: ObjectReference(vec![Ident::from_string("count")]),
+            reference: ObjectReference(vec![Ident::from_string("count")]),
             args: vec![FunctionArg::Unnamed {
                 arg: Expr::Ident(Ident::from_string("x")),
             }],

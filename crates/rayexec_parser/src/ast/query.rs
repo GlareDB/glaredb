@@ -1,17 +1,22 @@
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+    tokens::Token,
+};
 use rayexec_error::{RayexecError, Result};
 
 use super::{AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByNode, SelectNode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QueryNode {
-    pub ctes: Option<CommonTableExprDefs>,
-    pub body: QueryNodeBody,
-    pub order_by: Vec<OrderByNode>,
-    pub limit: LimitModifier,
+#[derive(Debug, Clone, PartialEq)]
+pub struct QueryNode<T: AstMeta> {
+    pub ctes: Option<CommonTableExprDefs<T>>,
+    pub body: QueryNodeBody<T>,
+    pub order_by: Vec<OrderByNode<T>>,
+    pub limit: LimitModifier<T>,
 }
 
-impl AstParseable for QueryNode {
+impl AstParseable for QueryNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let ctes = if parser.parse_keyword(Keyword::WITH) {
             Some(CommonTableExprDefs::parse(parser)?)
@@ -38,18 +43,18 @@ impl AstParseable for QueryNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QueryNodeBody {
-    Select(Box<SelectNode>),
+#[derive(Debug, Clone, PartialEq)]
+pub enum QueryNodeBody<T: AstMeta> {
+    Select(Box<SelectNode<T>>),
     Set {
-        left: Box<QueryNodeBody>,
-        right: Box<QueryNodeBody>,
+        left: Box<QueryNodeBody<T>>,
+        right: Box<QueryNodeBody<T>>,
         operation: SetOperation,
     },
-    Values(Values),
+    Values(Values<T>),
 }
 
-impl AstParseable for QueryNodeBody {
+impl AstParseable for QueryNodeBody<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         // TODO: Set operations.
 
@@ -70,12 +75,12 @@ pub enum SetOperation {
     Intersect,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Values {
-    pub rows: Vec<Vec<Expr>>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Values<T: AstMeta> {
+    pub rows: Vec<Vec<Expr<T>>>,
 }
 
-impl AstParseable for Values {
+impl AstParseable for Values<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let rows = parser.parse_comma_separated(|parser| {
             parser.expect_token(&Token::LeftParen)?;
@@ -96,7 +101,7 @@ mod tests {
 
     #[test]
     fn values_one_row() {
-        let values: Values = parse_ast("(1, 2)").unwrap();
+        let values: Values<_> = parse_ast("(1, 2)").unwrap();
         let expected = Values {
             rows: vec![vec![
                 Expr::Literal(Literal::Number("1".to_string())),
@@ -108,7 +113,7 @@ mod tests {
 
     #[test]
     fn values_many_rows() {
-        let values: Values = parse_ast("(1, 2), (3, 4), (5, 6)").unwrap();
+        let values: Values<_> = parse_ast("(1, 2), (3, 4), (5, 6)").unwrap();
         let expected = Values {
             rows: vec![
                 vec![

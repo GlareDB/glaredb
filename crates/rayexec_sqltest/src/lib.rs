@@ -1,18 +1,111 @@
 use async_trait::async_trait;
 use futures::StreamExt;
+use libtest_mimic::{Arguments, Trial};
 use rayexec_bullet::{
     batch::Batch,
     field::{DataType, Schema},
     format::{FormatOptions, Formatter},
 };
-use rayexec_error::{RayexecError, Result};
-use rayexec_execution::engine::{session::Session, Engine};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
 use sqllogictest::DefaultColumnType;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::{fs, sync::Arc};
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-pub async fn run_test(path: impl AsRef<Path>) -> Result<()> {
+/// Run all SLTs from the provided paths.
+///
+/// This sets up tracing to log only at the ERROR level. RUST_LOG can be used to
+/// print out logs at a lower level.
+///
+/// For each path, `engine_fn` will be called to create an engine (and
+/// associated session) for just the file. An engine runtime will be provided.
+///
+/// `kind` should be used to group these SLTs together.
+pub fn run<F>(paths: impl IntoIterator<Item = PathBuf>, engine_fn: F, kind: &str) -> Result<()>
+where
+    F: Fn(Arc<EngineRuntime>) -> Result<Engine> + Clone + Send + 'static,
+{
+    let args = Arguments::from_args();
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(tracing::Level::ERROR.into())
+        .from_env_lossy()
+        .add_directive("h2=info".parse().unwrap())
+        .add_directive("hyper=info".parse().unwrap())
+        .add_directive("sqllogictest=info".parse().unwrap());
+    let subscriber = FmtSubscriber::builder()
+        .with_test_writer() // TODO: Actually capture
+        .with_env_filter(env_filter)
+        .with_file(true)
+        .with_line_number(true)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
+    std::panic::set_hook(Box::new(|info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        println!("---- PANIC ----\nInfo: {}\n\nBacktrace:{}", info, backtrace);
+        std::process::abort();
+    }));
+
+    let rt = EngineRuntime::try_new_shared()?;
+
+    let tests = paths
+        .into_iter()
+        .map(|path| {
+            let test_name = path.to_string_lossy().to_string();
+            let rt = rt.clone();
+            let engine_fn = engine_fn.clone();
+            Trial::test(test_name, move || {
+                match rt.clone().tokio.block_on(run_test(path, rt, engine_fn)) {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e.into()),
+                }
+            })
+            .with_kind(kind)
+        })
+        .collect();
+
+    libtest_mimic::run(&args, tests).exit_if_failed();
+
+    Ok(())
+}
+
+/// Recursively find all files in the given directory.
+pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    fn inner(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
+        if dir.is_dir() {
+            for entry in fs::read_dir(dir).context("read dir")? {
+                let entry = entry.context("entry")?;
+                let path = entry.path();
+                if path.is_dir() {
+                    inner(&path, paths)?;
+                } else {
+                    paths.push(path.to_path_buf());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    let mut paths = Vec::new();
+    inner(dir, &mut paths)?;
+
+    Ok(paths)
+}
+
+/// Run an SLT at path, creating an engine from the provided function.
+async fn run_test(
+    path: impl AsRef<Path>,
+    rt: Arc<EngineRuntime>,
+    engine_fn: impl Fn(Arc<EngineRuntime>) -> Result<Engine>,
+) -> Result<()> {
     let path = path.as_ref();
-    let mut runner = sqllogictest::Runner::new(|| async { TestSession::try_new() });
+
+    let mut runner = sqllogictest::Runner::new(|| async {
+        let engine = engine_fn(rt.clone())?;
+        let session = engine.new_session()?;
+        Ok(TestSession { session, engine })
+    });
     runner
         .run_file_async(path)
         .await
@@ -27,14 +120,6 @@ struct TestSession {
     session: Session,
 }
 
-impl TestSession {
-    fn try_new() -> Result<Self> {
-        let engine = Engine::try_new()?;
-        let session = engine.new_session()?;
-        Ok(TestSession { engine, session })
-    }
-}
-
 #[async_trait]
 impl sqllogictest::AsyncDB for TestSession {
     type Error = RayexecError;
@@ -45,7 +130,7 @@ impl sqllogictest::AsyncDB for TestSession {
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
         let mut rows = Vec::new();
-        let mut results = self.session.simple(sql)?;
+        let mut results = self.session.simple(sql).await?;
         if results.len() != 1 {
             return Err(RayexecError::new(format!(
                 "Unexpected number of results for '{sql}': {}",

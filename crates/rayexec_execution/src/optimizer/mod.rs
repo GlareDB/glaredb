@@ -1,6 +1,6 @@
 pub mod join_order;
 
-use crate::{optimizer::join_order::JoinOrderRule, planner::operator::LogicalOperator};
+use crate::{logical::operator::LogicalOperator, optimizer::join_order::JoinOrderRule};
 use rayexec_error::Result;
 
 #[derive(Debug)]
@@ -134,6 +134,8 @@ where
         | plan @ LogicalOperator::ResetVar(_)
         | plan @ LogicalOperator::CreateTable(_)
         | plan @ LogicalOperator::CreateSchema(_)
+        | plan @ LogicalOperator::AttachDatabase(_)
+        | plan @ LogicalOperator::DetachDatabase(_)
         | plan @ LogicalOperator::Drop(_)
         | plan @ LogicalOperator::Scan(_) => plan,
     };

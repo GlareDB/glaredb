@@ -1,15 +1,20 @@
 use super::{AstParseable, Ident, ObjectReference, QueryNode};
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+    tokens::Token,
+};
 use rayexec_error::Result;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Insert {
-    pub table: ObjectReference,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Insert<T: AstMeta> {
+    pub table: T::TableReference,
     pub columns: Vec<Ident>,
-    pub source: QueryNode,
+    pub source: QueryNode<T>,
 }
 
-impl AstParseable for Insert {
+impl AstParseable for Insert<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::INSERT)?;
         parser.expect_keyword(Keyword::INTO)?;
@@ -41,7 +46,7 @@ mod tests {
     use super::*;
 
     /// Query node for 'values (1)'
-    fn query_node_values_1() -> QueryNode {
+    fn query_node_values_1() -> QueryNode<Raw> {
         QueryNode {
             ctes: None,
             order_by: Vec::new(),

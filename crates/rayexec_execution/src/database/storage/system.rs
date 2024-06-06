@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
@@ -83,22 +84,8 @@ impl SystemCatalog {
 
         SystemCatalog { schemas }
     }
-}
 
-impl Catalog for SystemCatalog {
-    fn get_table_entry(
-        &self,
-        _tx: &CatalogTx,
-        _schema: &str,
-        _name: &str,
-    ) -> Result<Option<TableEntry>> {
-        // TODO: It will at some point (and views).
-        Err(RayexecError::new(
-            "System catalog contains no table entries",
-        ))
-    }
-
-    fn get_scalar_fn(
+    fn get_scalar_fn_inner(
         &self,
         _tx: &CatalogTx,
         schema: &str,
@@ -117,7 +104,7 @@ impl Catalog for SystemCatalog {
         }
     }
 
-    fn get_aggregate_fn(
+    fn get_aggregate_fn_inner(
         &self,
         _tx: &CatalogTx,
         schema: &str,
@@ -134,6 +121,42 @@ impl Catalog for SystemCatalog {
             },
             _ => Ok(None),
         }
+    }
+}
+
+impl Catalog for SystemCatalog {
+    fn get_table_entry(
+        &self,
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
+        // TODO: It will at some point (and views).
+        Box::pin(async {
+            Err(RayexecError::new(
+                "System catalog contains no table entries",
+            ))
+        })
+    }
+
+    fn get_scalar_fn(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> BoxFuture<Result<Option<Box<dyn GenericScalarFunction>>>> {
+        let result = self.get_scalar_fn_inner(tx, schema, name);
+        Box::pin(async { result })
+    }
+
+    fn get_aggregate_fn(
+        &self,
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
+        let result = self.get_aggregate_fn_inner(tx, schema, name);
+        Box::pin(async { result })
     }
 
     fn data_table(

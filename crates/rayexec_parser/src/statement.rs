@@ -1,33 +1,41 @@
-use crate::ast::{
-    CreateSchema, CreateTable, DropStatement, ExplainNode, Insert, QueryNode, ResetVariable,
-    SetVariable, ShowVariable,
+use crate::{
+    ast::{
+        Attach, CreateSchema, CreateTable, Detach, DropStatement, ExplainNode, Insert, QueryNode,
+        ResetVariable, SetVariable, ShowVariable,
+    },
+    meta::{AstMeta, Raw},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Statement {
-    Explain(ExplainNode),
+pub type RawStatement = Statement<Raw>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Statement<T: AstMeta> {
+    Attach(Attach<T>),
+    Detach(Detach<T>),
+
+    Explain(ExplainNode<T>),
 
     /// SELECT/VALUES
-    Query(QueryNode),
+    Query(QueryNode<T>),
 
     /// CREATE TABLE ...
-    CreateTable(CreateTable),
+    CreateTable(CreateTable<T>),
 
     /// DROP ...
-    Drop(DropStatement),
+    Drop(DropStatement<T>),
 
     /// INSERT INTO ...
-    Insert(Insert),
+    Insert(Insert<T>),
 
     /// CREATE SCHEMA ...
-    CreateSchema(CreateSchema),
+    CreateSchema(CreateSchema<T>),
 
     /// SET <variable> TO <value>
-    SetVariable(SetVariable),
+    SetVariable(SetVariable<T>),
 
     /// SHOW <variable>
-    ShowVariable(ShowVariable),
+    ShowVariable(ShowVariable<T>),
 
     /// RESET <variable>
-    ResetVariable(ResetVariable),
+    ResetVariable(ResetVariable<T>),
 }

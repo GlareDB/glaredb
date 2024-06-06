@@ -1,10 +1,10 @@
 use rayexec_bullet::batch::Batch;
-use crate::planner::explainable::{ ExplainConfig,  ExplainEntry};
+use crate::logical::explainable::{ ExplainConfig,  ExplainEntry};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::{Context, Waker};
 
-use crate::planner::explainable::Explainable;
+use crate::logical::explainable::Explainable;
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 

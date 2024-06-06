@@ -2,7 +2,7 @@ pub mod scalar;
 
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
-use crate::planner::operator::LogicalExpression;
+use crate::logical::operator::LogicalExpression;
 use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};

@@ -9,8 +9,8 @@ use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::planner::operator::JoinType;
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::operator::JoinType;
 
 use super::join_hash_table::PartitionJoinHashTable;
 

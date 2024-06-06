@@ -1,0 +1,20 @@
+[package]
+name = "rayexec_postgres"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_error = { path = '../rayexec_error' }
+tokio-postgres = { version = "0.7.10" }
+futures = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+rayexec_sqltest = { path = '../rayexec_sqltest' }
+
+[[test]]
+harness = false
+name = "rayexec_postgres_slt"
+path = "bin/rayexec_postgres_slt.rs"

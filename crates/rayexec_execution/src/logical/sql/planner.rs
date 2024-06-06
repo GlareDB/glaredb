@@ -1,29 +1,24 @@
+use std::collections::HashMap;
+
 use super::{
+    binder::{Bound, BoundTableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
-    operator::{
-        Aggregate, AnyJoin, CreateTable, CrossJoin, DropEntry, GroupingExpr, Insert, Limit,
-        LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, Scan,
-    },
-    scope::{ColumnRef, Scope},
+    scope::{ColumnRef, Scope, TableReference},
 };
 use crate::{
     database::{
-        catalog::CatalogTx,
         create::OnConflict,
         drop::{DropInfo, DropObject},
-        entry::TableEntry,
-        DatabaseContext,
     },
     engine::vars::SessionVars,
-    planner::{
-        operator::{
-            CreateSchema, Explain, ExplainFormat, ExpressionList, Filter, JoinType, ResetVar,
-            SetVar, ShowVar, VariableOrAll,
-        },
-        scope::TableReference,
+    logical::operator::{
+        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
+        DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
+        Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
+        SetVar, ShowVar, VariableOrAll,
     },
 };
-use rayexec_bullet::field::{DataType, Field, TypeSchema};
+use rayexec_bullet::field::{Field, TypeSchema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -45,11 +40,6 @@ pub struct LogicalQuery {
 
 #[derive(Debug, Clone)]
 pub struct PlanContext<'a> {
-    pub tx: &'a CatalogTx,
-
-    /// Resolver for resolving table and other table like items.
-    pub resolver: &'a DatabaseContext,
-
     /// Session variables.
     pub vars: &'a SessionVars,
 
@@ -58,16 +48,14 @@ pub struct PlanContext<'a> {
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(tx: &'a CatalogTx, resolver: &'a DatabaseContext, vars: &'a SessionVars) -> Self {
+    pub fn new(vars: &'a SessionVars) -> Self {
         PlanContext {
-            tx,
-            resolver,
             vars,
             outer_scopes: Vec::new(),
         }
     }
 
-    pub fn plan_statement(mut self, stmt: Statement) -> Result<LogicalQuery> {
+    pub fn plan_statement(mut self, stmt: Statement<Bound>) -> Result<LogicalQuery> {
         trace!("planning statement");
         match stmt {
             Statement::Explain(explain) => {
@@ -94,19 +82,22 @@ impl<'a> PlanContext<'a> {
             Statement::CreateSchema(create) => self.plan_create_schema(create),
             Statement::Drop(drop) => self.plan_drop(drop),
             Statement::Insert(insert) => self.plan_insert(insert),
-            Statement::SetVariable(ast::SetVariable { reference, value }) => {
+            Statement::SetVariable(ast::SetVariable {
+                mut reference,
+                value,
+            }) => {
                 let expr_ctx = ExpressionContext::new(&self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
                 let expr = expr_ctx.plan_expression(value)?;
                 Ok(LogicalQuery {
                     root: LogicalOperator::SetVar(SetVar {
-                        name: reference.0[0].as_normalized_string(), // TODO: Allow compound references?
+                        name: reference.pop()?, // TODO: Allow compound references?
                         value: expr.try_into_scalar()?,
                     }),
                     scope: Scope::empty(),
                 })
             }
-            Statement::ShowVariable(ast::ShowVariable { reference }) => {
-                let name = reference.0[0].as_normalized_string(); // TODO: Allow compound references?
+            Statement::ShowVariable(ast::ShowVariable { mut reference }) => {
+                let name = reference.pop()?; // TODO: Allow compound references?
                 let var = self.vars.get_var(&name)?;
                 let scope = Scope::with_columns(None, [name.clone()]);
                 Ok(LogicalQuery {
@@ -116,8 +107,8 @@ impl<'a> PlanContext<'a> {
             }
             Statement::ResetVariable(ast::ResetVariable { var }) => {
                 let var = match var {
-                    ast::VariableOrAll::Variable(v) => {
-                        let name = v.0[0].as_normalized_string(); // TODO: Allow compound references?
+                    ast::VariableOrAll::Variable(mut v) => {
+                        let name = v.pop()?; // TODO: Allow compound references?
                         let var = self.vars.get_var(&name)?;
                         VariableOrAll::Variable(var.clone())
                     }
@@ -128,14 +119,14 @@ impl<'a> PlanContext<'a> {
                     scope: Scope::empty(),
                 })
             }
+            Statement::Attach(attach) => self.plan_attach(attach),
+            Statement::Detach(detach) => self.plan_detach(detach),
         }
     }
 
     /// Create a new nested plan context for planning subqueries.
     fn nested(&self, outer: Scope) -> Self {
         PlanContext {
-            tx: self.tx,
-            resolver: self.resolver,
             vars: self.vars,
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
@@ -143,35 +134,99 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_insert(&mut self, insert: ast::Insert) -> Result<LogicalQuery> {
-        let (_reference, ent) = self.resolve_table(insert.table)?;
+    fn plan_attach(&mut self, mut attach: ast::Attach<Bound>) -> Result<LogicalQuery> {
+        match attach.attach_type {
+            ast::AttachType::Database => {
+                let mut options = HashMap::new();
+                let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
 
+                for (k, v) in attach.options {
+                    let k = k.into_normalized_string();
+                    let v = match expr_ctx.plan_expression(v)? {
+                        LogicalExpression::Literal(v) => v,
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Non-literal expression provided as value: {other:?}"
+                            )))
+                        }
+                    };
+                    if options.contains_key(&k) {
+                        return Err(RayexecError::new(format!(
+                            "Option '{k}' provided more than once"
+                        )));
+                    }
+                    options.insert(k, v);
+                }
+
+                if attach.alias.0.len() != 1 {
+                    return Err(RayexecError::new(format!(
+                        "Expected a single identifier, got '{}'",
+                        attach.alias
+                    )));
+                }
+                let name = attach.alias.pop()?;
+                let datasource = attach.datasource_name;
+
+                Ok(LogicalQuery {
+                    root: LogicalOperator::AttachDatabase(AttachDatabase {
+                        datasource,
+                        name,
+                        options,
+                    }),
+                    scope: Scope::empty(),
+                })
+            }
+            ast::AttachType::Table => Err(RayexecError::new("Attach tables not yet supported")),
+        }
+    }
+
+    fn plan_detach(&mut self, mut detach: ast::Detach<Bound>) -> Result<LogicalQuery> {
+        match detach.attach_type {
+            ast::AttachType::Database => {
+                if detach.alias.0.len() != 1 {
+                    return Err(RayexecError::new(format!(
+                        "Expected a single identifier, got '{}'",
+                        detach.alias
+                    )));
+                }
+                let name = detach.alias.pop()?;
+
+                Ok(LogicalQuery {
+                    root: LogicalOperator::DetachDatabase(DetachDatabase { name }),
+                    scope: Scope::empty(),
+                })
+            }
+            ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),
+        }
+    }
+
+    fn plan_insert(&mut self, insert: ast::Insert<Bound>) -> Result<LogicalQuery> {
         let source = self.plan_query(insert.source)?;
+
+        let entry = match insert.table {
+            BoundTableOrCteReference::Table { entry, .. } => entry,
+            BoundTableOrCteReference::Cte(_) => {
+                return Err(RayexecError::new("Cannot insert into CTE"))
+            }
+        };
 
         // TODO: Handle specified columns. If provided, insert a projection that
         // maps the columns to the right position.
 
         Ok(LogicalQuery {
             root: LogicalOperator::Insert(Insert {
-                table: ent,
+                table: entry,
                 input: Box::new(source.root),
             }),
             scope: Scope::empty(),
         })
     }
 
-    fn plan_drop(&mut self, drop: ast::DropStatement) -> Result<LogicalQuery> {
+    fn plan_drop(&mut self, mut drop: ast::DropStatement<Bound>) -> Result<LogicalQuery> {
         match drop.drop_type {
             ast::DropType::Schema => {
-                // TODO: Get 'default' catalog.
-                if drop.name.0.len() != 2 {
-                    return Err(RayexecError::new(
-                        "Only qualified schemas can be dropped right now",
-                    ));
-                }
+                let [catalog, schema] = drop.name.pop_2()?;
 
-                let catalog = drop.name.0[0].as_normalized_string();
-                let schema = drop.name.0[1].as_normalized_string();
                 // Dropping defaults to restricting (erroring) on dependencies.
                 let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
@@ -194,38 +249,26 @@ impl<'a> PlanContext<'a> {
         }
     }
 
-    fn plan_create_schema(&mut self, create: ast::CreateSchema) -> Result<LogicalQuery> {
+    fn plan_create_schema(&mut self, mut create: ast::CreateSchema<Bound>) -> Result<LogicalQuery> {
         let on_conflict = if create.if_not_exists {
             OnConflict::Ignore
         } else {
             OnConflict::Error
         };
 
-        // TODO: Get 'default' catalog
-        if create.name.0.len() != 2 {
-            return Err(RayexecError::new(
-                "Only qualified schemas can be create right now",
-            ));
-        }
-
-        let catalog = create.name.0[0].as_normalized_string();
-        if !self.resolver.catalog_exists(&catalog) {
-            return Err(RayexecError::new(format!("Missing catalog: {catalog}")));
-        }
-
-        let name = create.name.0[1].as_normalized_string();
+        let [catalog, schema] = create.name.pop_2()?;
 
         Ok(LogicalQuery {
             root: LogicalOperator::CreateSchema(CreateSchema {
                 catalog,
-                name,
+                name: schema,
                 on_conflict,
             }),
             scope: Scope::empty(),
         })
     }
 
-    fn plan_create_table(&mut self, create: ast::CreateTable) -> Result<LogicalQuery> {
+    fn plan_create_table(&mut self, mut create: ast::CreateTable<Bound>) -> Result<LogicalQuery> {
         let on_conflict = match (create.or_replace, create.if_not_exists) {
             (true, false) => OnConflict::Replace,
             (false, true) => OnConflict::Ignore,
@@ -237,21 +280,11 @@ impl<'a> PlanContext<'a> {
             }
         };
 
-        // TODO: Better name handling.
-        // TODO: Get schema from name or search path.
-        let name = create.name.0[0].as_normalized_string();
-
-        // TODO: Constraints.
+        // TODO: Verify column constraints.
         let mut columns: Vec<_> = create
             .columns
             .into_iter()
-            .map(|col| {
-                Field::new(
-                    col.name.to_string(),
-                    Self::ast_datatype_to_exec_datatype(col.datatype),
-                    true,
-                )
-            })
+            .map(|col| Field::new(col.name, col.datatype, true))
             .collect();
 
         let input = match create.source {
@@ -293,10 +326,13 @@ impl<'a> PlanContext<'a> {
             None => None,
         };
 
+        let [catalog, schema, name] = create.name.pop_3()?;
+
         Ok(LogicalQuery {
             root: LogicalOperator::CreateTable(CreateTable {
+                catalog,
+                schema,
                 name,
-                temp: create.temp,
                 columns,
                 on_conflict,
                 input,
@@ -305,7 +341,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_query(&mut self, query: ast::QueryNode) -> Result<LogicalQuery> {
+    fn plan_query(&mut self, query: ast::QueryNode<Bound>) -> Result<LogicalQuery> {
         // TODO: CTEs
 
         let mut planned = match query.body {
@@ -347,8 +383,8 @@ impl<'a> PlanContext<'a> {
 
     fn plan_select(
         &mut self,
-        select: ast::SelectNode,
-        order_by: Vec<ast::OrderByNode>,
+        select: ast::SelectNode<Bound>,
+        order_by: Vec<ast::OrderByNode<Bound>>,
     ) -> Result<LogicalQuery> {
         // Handle FROM
         let mut plan = match select.from {
@@ -381,9 +417,6 @@ impl<'a> PlanContext<'a> {
             let mut expanded = expr_ctx.expand_select_expr(select_proj)?;
             projections.append(&mut expanded);
         }
-
-        // TODO:
-        // - HAVING
 
         // Add projections to plan using previously expanded select items.
         let mut select_exprs = Vec::with_capacity(projections.len());
@@ -462,7 +495,7 @@ impl<'a> PlanContext<'a> {
                     // Group by has access to everything we've planned so far.
                     let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
 
-                    let plan_exprs = |exprs: Vec<ast::Expr>| {
+                    let plan_exprs = |exprs: Vec<ast::Expr<Bound>>| {
                         exprs
                             .into_iter()
                             .map(|e| expr_ctx.plan_expression(e))
@@ -559,25 +592,43 @@ impl<'a> PlanContext<'a> {
         Ok(plan)
     }
 
-    fn plan_from_node(&self, from: ast::FromNode, current_scope: Scope) -> Result<LogicalQuery> {
+    fn plan_from_node(
+        &self,
+        from: ast::FromNode<Bound>,
+        current_scope: Scope,
+    ) -> Result<LogicalQuery> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                let (reference, ent) = self.resolve_table(reference)?;
-                let scope = Scope::with_columns(
-                    Some(reference),
-                    ent.columns.iter().map(|f| f.name.clone()),
-                );
-
-                // TODO: We need a "resolved" entry type that wraps a table
-                // entry telling us which catalog/schema it's from.
-                LogicalQuery {
-                    root: LogicalOperator::Scan(Scan {
-                        catalog: "temp".to_string(),
-                        schema: "temp".to_string(),
-                        source: ent,
-                    }),
-                    scope,
+                match reference {
+                    BoundTableOrCteReference::Table {
+                        catalog,
+                        schema,
+                        entry,
+                    } => {
+                        // Scope reference for base tables is always fully
+                        // qualified. This query is valid:
+                        //
+                        // SELECT my_catalog.my_schema.t1.a FROM t1
+                        let scope_reference = TableReference {
+                            database: Some(catalog.clone()),
+                            schema: Some(schema.clone()),
+                            table: entry.name.clone(),
+                        };
+                        let scope = Scope::with_columns(
+                            Some(scope_reference),
+                            entry.columns.iter().map(|f| f.name.clone()),
+                        );
+                        LogicalQuery {
+                            root: LogicalOperator::Scan(Scan {
+                                catalog,
+                                schema,
+                                source: entry,
+                            }),
+                            scope,
+                        }
+                    }
+                    BoundTableOrCteReference::Cte(_) => unimplemented!(),
                 }
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
@@ -713,7 +764,7 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_values(&self, values: ast::Values) -> Result<LogicalQuery> {
+    fn plan_values(&self, values: ast::Values<Bound>) -> Result<LogicalQuery> {
         if values.rows.is_empty() {
             return Err(RayexecError::new("Empty VALUES expression"));
         }
@@ -925,48 +976,6 @@ impl<'a> PlanContext<'a> {
         select_exprs.push(orig);
 
         Ok(1)
-    }
-
-    fn resolve_table(
-        &self,
-        reference: ast::ObjectReference,
-    ) -> Result<(TableReference, TableEntry)> {
-        // TODO: Better handling, also search path.
-        let name = &reference.0[0].as_normalized_string();
-
-        // Search temp first
-        if let Some(ent) = self
-            .resolver
-            .get_catalog("temp")?
-            .get_table_entry(self.tx, "temp", name)?
-        {
-            let reference = TableReference {
-                database: None,
-                schema: None,
-                table: name.clone(),
-            };
-
-            Ok((reference, ent))
-        } else {
-            // Search other catalogs/schemas in the search path (once we
-            // have them).
-
-            Err(RayexecError::new(format!(
-                "Unable to find entry for '{name}'"
-            )))
-        }
-    }
-
-    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
-        match datatype {
-            ast::DataType::Varchar(_) => DataType::Utf8,
-            ast::DataType::SmallInt => DataType::Int16,
-            ast::DataType::Integer => DataType::Int32,
-            ast::DataType::BigInt => DataType::Int64,
-            ast::DataType::Real => DataType::Float32,
-            ast::DataType::Double => DataType::Float64,
-            ast::DataType::Bool => DataType::Boolean,
-        }
     }
 }
 

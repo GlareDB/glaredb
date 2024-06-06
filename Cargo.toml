@@ -24,4 +24,4 @@ parquet = { version = "51.0.0", default-features = false } # Default features ha
 smallvec = "1.13.2"
 rayon = "1.10.0"
 num_cpus = "1.16.0"
-tracing = "0.1.40"
+tracing = { version = "0.1.40", default-features = false }

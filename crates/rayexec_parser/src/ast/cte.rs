@@ -1,15 +1,20 @@
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+    tokens::Token,
+};
 use rayexec_error::Result;
 
 use super::{AstParseable, Ident, QueryNode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommonTableExprDefs {
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonTableExprDefs<T: AstMeta> {
     pub recursive: bool,
-    pub ctes: Vec<CommonTableExpr>,
+    pub ctes: Vec<CommonTableExpr<T>>,
 }
 
-impl AstParseable for CommonTableExprDefs {
+impl AstParseable for CommonTableExprDefs<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let recursive = parser.parse_keyword(Keyword::RECURSIVE);
         Ok(CommonTableExprDefs {
@@ -19,15 +24,15 @@ impl AstParseable for CommonTableExprDefs {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommonTableExpr {
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonTableExpr<T: AstMeta> {
     pub alias: Ident,
     pub column_aliases: Option<Vec<Ident>>,
     pub materialized: bool,
-    pub body: Box<QueryNode>,
+    pub body: Box<QueryNode<T>>,
 }
 
-impl AstParseable for CommonTableExpr {
+impl AstParseable for CommonTableExpr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let alias = Ident::parse(parser)?;
 

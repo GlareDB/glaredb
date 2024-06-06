@@ -1,5 +1,5 @@
 use crate::execution::query_graph::sink::PartitionSink;
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;

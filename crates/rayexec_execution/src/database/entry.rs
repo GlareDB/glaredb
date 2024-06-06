@@ -27,7 +27,7 @@ impl From<FunctionEntry> for CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableEntry {
     pub name: String,
     pub columns: Vec<Field>,

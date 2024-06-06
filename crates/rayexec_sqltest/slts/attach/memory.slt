@@ -1,0 +1,25 @@
+# ATTACH MEMORY ...
+
+statement ok
+attach memory database as my_db;
+
+statement ok
+create schema my_db.my_schema;
+
+# Don't allow duplicates
+statement error Catalog with name 'my_db' already attached
+attach memory database as my_db;
+
+statement ok
+detach database my_db;
+
+statement ok
+attach memory database as my_db;
+
+# Memory takes no arguments
+statement error Memory data source takes no options
+attach memory database as my_db2 arg 'hello';
+
+# Can't detach a db that doesn't exist
+statement error Catalog with name 'does_not_exist' doesn't exist
+detach database does_not_exist;

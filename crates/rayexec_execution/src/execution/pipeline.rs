@@ -1,4 +1,4 @@
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 use rayexec_bullet::batch::Batch;

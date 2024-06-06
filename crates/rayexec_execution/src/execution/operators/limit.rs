@@ -1,4 +1,4 @@
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute;
 use rayexec_error::Result;

@@ -1,6 +1,6 @@
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, table::DataTableInsert, DatabaseContext},
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;

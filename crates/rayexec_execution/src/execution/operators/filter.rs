@@ -1,6 +1,6 @@
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::expr::PhysicalScalarExpression;
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::{array::Array, batch::Batch, compute::filter::filter};
 use rayexec_error::{RayexecError, Result};
 

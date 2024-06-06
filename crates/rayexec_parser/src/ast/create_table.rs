@@ -1,20 +1,25 @@
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+    tokens::Token,
+};
 use rayexec_error::Result;
 
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CreateTable {
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateTable<T: AstMeta> {
     pub or_replace: bool,
     pub if_not_exists: bool,
     pub temp: bool,
     pub external: bool,
-    pub name: ObjectReference,
-    pub columns: Vec<ColumnDef>,
-    pub source: Option<QueryNode>,
+    pub name: T::ItemReference,
+    pub columns: Vec<ColumnDef<T>>,
+    pub source: Option<QueryNode<T>>,
 }
 
-impl AstParseable for CreateTable {
+impl AstParseable for CreateTable<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::CREATE)?;
 
@@ -57,10 +62,10 @@ impl AstParseable for CreateTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ColumnDef {
-    pub name: Ident,
-    pub datatype: DataType,
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnDef<T: AstMeta> {
+    pub name: T::ColumnReference,
+    pub datatype: T::DataType,
     pub opts: Vec<ColumnOption>,
 }
 
@@ -70,7 +75,7 @@ pub enum ColumnOption {
     NotNull,
 }
 
-impl AstParseable for ColumnDef {
+impl AstParseable for ColumnDef<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let name = Ident::parse(parser)?;
         let datatype = DataType::parse(parser)?;
@@ -99,7 +104,7 @@ mod tests {
     use super::*;
 
     /// Query node for 'values (1)'
-    fn query_node_values_1() -> QueryNode {
+    fn query_node_values_1() -> QueryNode<Raw> {
         QueryNode {
             ctes: None,
             order_by: Vec::new(),
@@ -115,7 +120,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let got = parse_ast::<CreateTable>("create table hello (a int)").unwrap();
+        let got = parse_ast::<CreateTable<_>>("create table hello (a int)").unwrap();
         let expected = CreateTable {
             or_replace: false,
             if_not_exists: false,
@@ -134,7 +139,7 @@ mod tests {
 
     #[test]
     fn two_columns() {
-        let got = parse_ast::<CreateTable>("create table hello (a int, world text)").unwrap();
+        let got = parse_ast::<CreateTable<_>>("create table hello (a int, world text)").unwrap();
         let expected = CreateTable {
             or_replace: false,
             if_not_exists: false,
@@ -160,7 +165,7 @@ mod tests {
 
     #[test]
     fn two_columns_trailing_comma() {
-        let got = parse_ast::<CreateTable>("create table hello (a int, world text,)").unwrap();
+        let got = parse_ast::<CreateTable<_>>("create table hello (a int, world text,)").unwrap();
         let expected = CreateTable {
             or_replace: false,
             if_not_exists: false,
@@ -186,7 +191,7 @@ mod tests {
 
     #[test]
     fn temp() {
-        let got = parse_ast::<CreateTable>("create temp table hello (a int)").unwrap();
+        let got = parse_ast::<CreateTable<_>>("create temp table hello (a int)").unwrap();
         let expected = CreateTable {
             or_replace: false,
             if_not_exists: false,
@@ -206,7 +211,7 @@ mod tests {
     #[test]
     fn temp_if_not_exists() {
         let got =
-            parse_ast::<CreateTable>("create temp table if not exists hello (a int)").unwrap();
+            parse_ast::<CreateTable<_>>("create temp table if not exists hello (a int)").unwrap();
         let expected = CreateTable {
             or_replace: false,
             if_not_exists: true,
@@ -225,8 +230,7 @@ mod tests {
 
     #[test]
     fn temp_ctas() {
-         let got =
-             parse_ast::<CreateTable>("create temp table hello as values (1)").unwrap();
+        let got = parse_ast::<CreateTable<_>>("create temp table hello as values (1)").unwrap();
         let expected = CreateTable {
             or_replace: false,
             if_not_exists: false,

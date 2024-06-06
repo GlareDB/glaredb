@@ -1,17 +1,21 @@
-use crate::{keywords::Keyword, parser::Parser};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+};
 use rayexec_error::Result;
 
 use super::{AstParseable, Expr};
 
 /// A single node in an ORDER BY clause.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OrderByNode {
+#[derive(Debug, Clone, PartialEq)]
+pub struct OrderByNode<T: AstMeta> {
     pub typ: Option<OrderByType>,
     pub nulls: Option<OrderByNulls>,
-    pub expr: Expr,
+    pub expr: Expr<T>,
 }
 
-impl AstParseable for OrderByNode {
+impl AstParseable for OrderByNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let expr = Expr::parse(parser)?;
 
@@ -47,13 +51,13 @@ pub enum OrderByNulls {
     Last,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LimitModifier {
-    pub limit: Option<Expr>,
-    pub offset: Option<Expr>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct LimitModifier<T: AstMeta> {
+    pub limit: Option<Expr<T>>,
+    pub offset: Option<Expr<T>>,
 }
 
-impl AstParseable for LimitModifier {
+impl AstParseable for LimitModifier<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let mut limit = None;
         let mut offset = None;
@@ -75,8 +79,8 @@ impl AstParseable for LimitModifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DistinctModifier {
-    On(Vec<Expr>),
+#[derive(Debug, Clone, PartialEq)]
+pub enum DistinctModifier<T: AstMeta> {
+    On(Vec<Expr<T>>),
     All,
 }

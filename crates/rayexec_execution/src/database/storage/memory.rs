@@ -1,19 +1,18 @@
+use futures::future::BoxFuture;
 use parking_lot::{Mutex, RwLock};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
 
 use crate::database::catalog::{Catalog, CatalogTx};
 use crate::database::create::{
     CreateScalarFunctionInfo, CreateSchemaInfo, CreateTableInfo, OnConflict,
 };
-use crate::database::ddl::{CatalogModifier, CreateFut, DropFut};
+use crate::database::ddl::CatalogModifier;
 use crate::database::drop::{DropInfo, DropObject};
 use crate::database::entry::{CatalogEntry, TableEntry};
-use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
 use crate::{
     database::table::{DataTable, DataTableInsert, DataTableScan},
     execution::operators::{PollPull, PollPush},
@@ -54,7 +53,7 @@ struct MemorySchema {
 
 impl MemoryCatalog {
     /// Creates a new memory catalog with a single named schema.
-    pub fn new_with_temp_schema(schema: &str) -> Self {
+    pub fn new_with_schema(schema: &str) -> Self {
         let mut schemas = HashMap::new();
         schemas.insert(schema.to_string(), MemorySchema::default());
 
@@ -62,10 +61,8 @@ impl MemoryCatalog {
             inner: Arc::new(RwLock::new(MemorySchemas { schemas })),
         }
     }
-}
 
-impl Catalog for MemoryCatalog {
-    fn get_table_entry(
+    fn get_table_entry_inner(
         &self,
         _tx: &CatalogTx,
         schema: &str,
@@ -83,23 +80,17 @@ impl Catalog for MemoryCatalog {
             None => Ok(None),
         }
     }
+}
 
-    fn get_scalar_fn(
+impl Catalog for MemoryCatalog {
+    fn get_table_entry(
         &self,
-        _tx: &CatalogTx,
-        _schema: &str,
-        _name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
-        unimplemented!()
-    }
-
-    fn get_aggregate_fn(
-        &self,
-        _tx: &CatalogTx,
-        _schema: &str,
-        _name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
-        unimplemented!()
+        tx: &CatalogTx,
+        schema: &str,
+        name: &str,
+    ) -> BoxFuture<Result<Option<TableEntry>>> {
+        let result = self.get_table_entry_inner(tx, schema, name);
+        Box::pin(async { result })
     }
 
     fn data_table(
@@ -135,162 +126,112 @@ pub struct MemoryCatalogModifier {
 }
 
 impl CatalogModifier for MemoryCatalogModifier {
-    fn create_schema(&self, create: CreateSchemaInfo) -> Result<Box<dyn CreateFut<Output = ()>>> {
-        Ok(Box::new(MemoryCreateSchema {
-            schema: create.name.to_string(),
-            on_conflict: create.on_conflict,
-            inner: self.inner.clone(),
-        }))
+    fn create_schema(&self, create: CreateSchemaInfo) -> BoxFuture<'static, Result<()>> {
+        let inner = self.inner.clone();
+        Box::pin(async move {
+            let mut inner = inner.write();
+
+            let schema_exists = inner.schemas.contains_key(&create.name);
+            match create.on_conflict {
+                OnConflict::Ignore if schema_exists => return Ok(()),
+                OnConflict::Error if schema_exists => {
+                    return Err(RayexecError::new(format!(
+                        "Schema already exists: {}",
+                        create.name
+                    )))
+                }
+                OnConflict::Replace => return Err(RayexecError::new("Cannot replace schema")),
+                _ => (), // Otherwise continue with the create.
+            }
+
+            inner.schemas.insert(create.name, MemorySchema::default());
+
+            Ok(())
+        })
     }
 
     fn create_table(
         &self,
         schema: &str,
         info: CreateTableInfo,
-    ) -> Result<Box<dyn CreateFut<Output = Box<dyn DataTable>>>> {
-        Ok(Box::new(MemoryCreateTable {
-            schema: schema.to_string(),
-            info,
-            inner: self.inner.clone(),
-        }))
+    ) -> BoxFuture<'static, Result<Box<dyn DataTable>>> {
+        let inner = self.inner.clone();
+        let schema = schema.to_string();
+        Box::pin(async move {
+            let mut inner = inner.write();
+            let schema = match inner.schemas.get_mut(&schema) {
+                Some(schema) => schema,
+                None => return Err(RayexecError::new(format!("Missing schema: {}", &schema))),
+            };
+            if schema.entries.contains_key(&info.name) {
+                match info.on_conflict {
+                    OnConflict::Ignore => unimplemented!(), // TODO: What to do here?
+                    OnConflict::Error => {
+                        return Err(RayexecError::new(format!(
+                            "Duplicate table name: {}",
+                            info.name
+                        )))
+                    }
+                    OnConflict::Replace => (),
+                }
+            }
+
+            schema.entries.insert(
+                info.name.clone(),
+                CatalogEntry::Table(TableEntry {
+                    name: info.name.clone(),
+                    columns: info.columns,
+                }),
+            );
+
+            let table = MemoryDataTable::default();
+            schema.tables.insert(info.name, table.clone());
+
+            Ok(Box::new(table) as _)
+        })
     }
 
     fn create_scalar_function(
         &self,
         _info: CreateScalarFunctionInfo,
-    ) -> Result<Box<dyn CreateFut<Output = ()>>> {
+    ) -> BoxFuture<'static, Result<()>> {
         unimplemented!()
     }
 
     fn create_aggregate_function(
         &self,
         _info: CreateScalarFunctionInfo,
-    ) -> Result<Box<dyn CreateFut<Output = ()>>> {
+    ) -> BoxFuture<'static, Result<()>> {
         unimplemented!()
     }
 
-    fn drop_entry(&self, drop: DropInfo) -> Result<Box<dyn DropFut>> {
-        Ok(Box::new(MemoryDrop {
-            info: drop,
-            inner: self.inner.clone(),
-        }))
-    }
-}
+    fn drop_entry(&self, drop: DropInfo) -> BoxFuture<'static, Result<()>> {
+        let inner = self.inner.clone();
+        Box::pin(async move {
+            let mut inner = inner.write();
 
-#[derive(Debug)]
-struct MemoryCreateSchema {
-    schema: String,
-    on_conflict: OnConflict,
-    inner: Arc<RwLock<MemorySchemas>>,
-}
-
-impl CreateFut for MemoryCreateSchema {
-    type Output = ();
-    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
-        let mut inner = self.inner.write();
-
-        let schema_exists = inner.schemas.contains_key(&self.schema);
-        match self.on_conflict {
-            OnConflict::Ignore if schema_exists => return Poll::Ready(Ok(())),
-            OnConflict::Error if schema_exists => {
-                return Poll::Ready(Err(RayexecError::new(format!(
-                    "Schema already exists: {}",
-                    self.schema
-                ))))
+            if drop.cascade {
+                return Err(RayexecError::new("DROP CASCADE not implemented"));
             }
-            OnConflict::Replace => {
-                return Poll::Ready(Err(RayexecError::new("Cannot replace schema")))
-            }
-            _ => (), // Otherwise continue with the create.
-        }
 
-        inner
-            .schemas
-            .insert(self.schema.clone(), MemorySchema::default());
+            match drop.object {
+                DropObject::Schema => {
+                    if !drop.if_exists && !inner.schemas.contains_key(&drop.schema) {
+                        return Err(RayexecError::new(format!(
+                            "Missing schema: {}",
+                            drop.schema
+                        )));
+                    }
 
-        Poll::Ready(Ok(()))
-    }
-}
+                    inner.schemas.remove(&drop.schema);
 
-#[derive(Debug)]
-struct MemoryDrop {
-    info: DropInfo,
-    inner: Arc<RwLock<MemorySchemas>>,
-}
-
-impl DropFut for MemoryDrop {
-    fn poll_drop(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
-        let mut inner = self.inner.write();
-
-        if self.info.cascade {
-            return Poll::Ready(Err(RayexecError::new("DROP CASCADE not implemented")));
-        }
-
-        match &self.info.object {
-            DropObject::Schema => {
-                if !self.info.if_exists && !inner.schemas.contains_key(&self.info.schema) {
-                    return Poll::Ready(Err(RayexecError::new(format!(
-                        "Missing schema: {}",
-                        self.info.schema
-                    ))));
+                    Ok(())
                 }
-
-                inner.schemas.remove(&self.info.schema);
-
-                Poll::Ready(Ok(()))
+                other => Err(RayexecError::new(format!(
+                    "Drop unimplemted for object: {other:?}"
+                ))),
             }
-            other => Poll::Ready(Err(RayexecError::new(format!(
-                "Drop unimplemted for object: {other:?}"
-            )))),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct MemoryCreateTable {
-    schema: String,
-    info: CreateTableInfo,
-    inner: Arc<RwLock<MemorySchemas>>,
-}
-
-impl CreateFut for MemoryCreateTable {
-    type Output = Box<dyn DataTable>;
-    fn poll_create(&mut self, _cx: &mut Context) -> Poll<Result<Self::Output>> {
-        let mut inner = self.inner.write();
-        let schema = match inner.schemas.get_mut(&self.schema) {
-            Some(schema) => schema,
-            None => {
-                return Poll::Ready(Err(RayexecError::new(format!(
-                    "Missing schema: {}",
-                    &self.schema
-                ))))
-            }
-        };
-        if schema.entries.contains_key(&self.info.name) {
-            match self.info.on_conflict {
-                OnConflict::Ignore => unimplemented!(), // TODO: What to do here?
-                OnConflict::Error => {
-                    return Poll::Ready(Err(RayexecError::new(format!(
-                        "Duplicate table name: {}",
-                        self.info.name
-                    ))))
-                }
-                OnConflict::Replace => (),
-            }
-        }
-
-        schema.entries.insert(
-            self.info.name.clone(),
-            CatalogEntry::Table(TableEntry {
-                name: self.info.name.clone(),
-                columns: self.info.columns.clone(),
-            }),
-        );
-
-        let table = MemoryDataTable::default();
-        schema.tables.insert(self.info.name.clone(), table.clone());
-
-        Poll::Ready(Ok(Box::new(table)))
+        })
     }
 }
 

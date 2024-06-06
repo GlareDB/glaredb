@@ -1,3 +1,4 @@
+use crate::meta::{AstMeta, Raw};
 use crate::statement::Statement;
 use crate::tokens::Token;
 use crate::{keywords::Keyword, parser::Parser};
@@ -5,26 +6,26 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{AstParseable, QueryNode};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExplainOutput {
     Text,
     Json,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExplainNode {
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExplainNode<T: AstMeta> {
     pub analyze: bool,
     pub verbose: bool,
-    pub body: ExplainBody,
+    pub body: ExplainBody<T>,
     pub output: Option<ExplainOutput>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExplainBody {
-    Query(QueryNode),
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExplainBody<T: AstMeta> {
+    Query(QueryNode<T>),
 }
 
-impl AstParseable for ExplainNode {
+impl AstParseable for ExplainNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::EXPLAIN)?;
 
@@ -74,7 +75,7 @@ mod tests {
     use super::*;
 
     /// Query node for 'select 1'
-    fn query_node_select_1() -> QueryNode {
+    fn query_node_select_1() -> QueryNode<Raw> {
         QueryNode {
             ctes: None,
             body: QueryNodeBody::Select(Box::new(SelectNode {
@@ -95,7 +96,7 @@ mod tests {
 
     #[test]
     fn no_options() {
-        let explain: ExplainNode = parse_ast("explain select 1").unwrap();
+        let explain: ExplainNode<_> = parse_ast("explain select 1").unwrap();
         let expected = ExplainNode {
             analyze: false,
             verbose: false,
@@ -107,7 +108,7 @@ mod tests {
 
     #[test]
     fn format_json() {
-        let explain: ExplainNode = parse_ast("explain (format json) select 1").unwrap();
+        let explain: ExplainNode<_> = parse_ast("explain (format json) select 1").unwrap();
         let expected = ExplainNode {
             analyze: false,
             verbose: false,
@@ -119,7 +120,7 @@ mod tests {
 
     #[test]
     fn format_text() {
-        let explain: ExplainNode = parse_ast("explain (format text) select 1").unwrap();
+        let explain: ExplainNode<_> = parse_ast("explain (format text) select 1").unwrap();
         let expected = ExplainNode {
             analyze: false,
             verbose: false,
@@ -131,12 +132,12 @@ mod tests {
 
     #[test]
     fn format_unknown() {
-        let _ = parse_ast::<ExplainNode>("explain (format exemel) select 1").unwrap_err();
+        let _ = parse_ast::<ExplainNode<_>>("explain (format exemel) select 1").unwrap_err();
     }
 
     #[test]
     fn analyze() {
-        let explain: ExplainNode = parse_ast("explain analyze select 1").unwrap();
+        let explain: ExplainNode<_> = parse_ast("explain analyze select 1").unwrap();
         let expected = ExplainNode {
             analyze: true,
             verbose: false,
@@ -148,7 +149,7 @@ mod tests {
 
     #[test]
     fn verbose() {
-        let explain: ExplainNode = parse_ast("explain verbose select 1").unwrap();
+        let explain: ExplainNode<_> = parse_ast("explain verbose select 1").unwrap();
         let expected = ExplainNode {
             analyze: false,
             verbose: true,
@@ -160,7 +161,7 @@ mod tests {
 
     #[test]
     fn analyze_verbose() {
-        let explain: ExplainNode = parse_ast("explain analyze verbose select 1").unwrap();
+        let explain: ExplainNode<_> = parse_ast("explain analyze verbose select 1").unwrap();
         let expected = ExplainNode {
             analyze: true,
             verbose: true,
@@ -172,6 +173,6 @@ mod tests {
 
     #[test]
     fn verbose_analyze() {
-        let _ = parse_ast::<ExplainNode>("explain verbose analyze select 1").unwrap_err();
+        let _ = parse_ast::<ExplainNode<_>>("explain verbose analyze select 1").unwrap_err();
     }
 }

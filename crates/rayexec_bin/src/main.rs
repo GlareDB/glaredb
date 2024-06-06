@@ -1,13 +1,14 @@
+use std::sync::Arc;
+
 use futures::StreamExt;
 use rayexec_bullet::format::ugly::ugly_print;
 use rayexec_error::Result;
-use rayexec_execution::engine::Engine;
+use rayexec_execution::engine::{Engine, EngineRuntime};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
 /// Simple binary for quickly running arbitrary queries.
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::TRACE.into())
         .from_env_lossy()
@@ -24,23 +25,26 @@ async fn main() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
-    if let Err(e) = inner().await {
-        println!("----");
-        println!("ERROR");
-        println!("{e}");
-        std::process::exit(1);
-    }
+    let runtime = EngineRuntime::try_new_shared().unwrap();
+    runtime.clone().tokio.block_on(async move {
+        if let Err(e) = inner(runtime).await {
+            println!("----");
+            println!("ERROR");
+            println!("{e}");
+            std::process::exit(1);
+        }
+    })
 }
 
-async fn inner() -> Result<()> {
+async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
 
-    let engine = Engine::try_new()?;
+    let engine = Engine::new(runtime)?;
     let mut session = engine.new_session()?;
 
     let query = args[1].clone();
 
-    let outputs = session.simple(&query)?;
+    let outputs = session.simple(&query).await?;
 
     for output in outputs {
         let results = output.stream.collect::<Vec<_>>().await;

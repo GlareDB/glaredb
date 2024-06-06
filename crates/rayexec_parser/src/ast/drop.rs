@@ -1,4 +1,8 @@
-use crate::{keywords::Keyword, parser::Parser};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+};
 use rayexec_error::{RayexecError, Result};
 
 use super::{AstParseable, ObjectReference};
@@ -20,14 +24,14 @@ pub enum DropDependents {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DropStatement {
+pub struct DropStatement<T: AstMeta> {
     pub drop_type: DropType,
     pub if_exists: bool,
-    pub name: ObjectReference,
+    pub name: T::ItemReference,
     pub deps: Option<DropDependents>,
 }
 
-impl AstParseable for DropStatement {
+impl AstParseable for DropStatement<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::DROP)?;
 
@@ -72,7 +76,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let got = parse_ast::<DropStatement>("drop schema my_schema").unwrap();
+        let got = parse_ast::<DropStatement<_>>("drop schema my_schema").unwrap();
         let expected = DropStatement {
             drop_type: DropType::Schema,
             if_exists: false,
@@ -84,7 +88,7 @@ mod tests {
 
     #[test]
     fn drop_table_cascade() {
-        let got = parse_ast::<DropStatement>("drop table my_schema.t1 cascade").unwrap();
+        let got = parse_ast::<DropStatement<_>>("drop table my_schema.t1 cascade").unwrap();
         let expected = DropStatement {
             drop_type: DropType::Table,
             if_exists: false,

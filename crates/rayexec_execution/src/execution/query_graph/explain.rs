@@ -1,6 +1,6 @@
 use crate::{
     execution::pipeline::Pipeline,
-    planner::{
+    logical::{
         explainable::{ExplainConfig, ExplainEntry, Explainable},
         operator::{ExplainFormat, LogicalOperator},
     },
@@ -107,6 +107,8 @@ impl ExplainNode {
             | LogicalOperator::ResetVar(_)
             | LogicalOperator::Scan(_)
             | LogicalOperator::Drop(_)
+            | LogicalOperator::AttachDatabase(_)
+            | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::CreateSchema(_)
             | LogicalOperator::CreateTable(_) => Vec::new(),
         };

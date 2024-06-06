@@ -1,16 +1,23 @@
 use crate::{
-    database::{catalog::CatalogTx, ddl::DropFut, drop::DropInfo, DatabaseContext},
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    database::{catalog::CatalogTx, drop::DropInfo, DatabaseContext},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
+use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 use std::task::{Context, Poll};
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
-#[derive(Debug)]
 pub struct DropPartitionState {
-    drop: Box<dyn DropFut>,
+    drop: BoxFuture<'static, Result<()>>,
+}
+
+impl fmt::Debug for DropPartitionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DropPartitionState").finish()
+    }
 }
 
 #[derive(Debug)]
@@ -27,10 +34,10 @@ impl PhysicalDrop {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let drop = context
+        let catalog = context
             .get_catalog(&self.info.catalog)?
-            .catalog_modifier(&tx)?
-            .drop_entry(self.info.clone())?;
+            .catalog_modifier(&tx)?;
+        let drop = catalog.drop_entry(self.info.clone());
 
         Ok(DropPartitionState { drop })
     }
@@ -62,7 +69,7 @@ impl PhysicalOperator for PhysicalDrop {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::Drop(state) => match state.drop.poll_drop(cx) {
+            PartitionState::Drop(state) => match state.drop.poll_unpin(cx) {
                 Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
                 Poll::Pending => Ok(PollPull::Pending),

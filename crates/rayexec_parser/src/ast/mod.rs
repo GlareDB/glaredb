@@ -24,6 +24,8 @@ pub mod cte;
 pub use cte::*;
 pub mod drop;
 pub use drop::*;
+pub mod attach;
+pub use attach::*;
 
 use crate::parser::Parser;
 use crate::tokens::{Token, Word};

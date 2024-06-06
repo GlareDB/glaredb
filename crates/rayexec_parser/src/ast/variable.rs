@@ -1,15 +1,20 @@
-use crate::{keywords::Keyword, parser::Parser, tokens::Token};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+    tokens::Token,
+};
 use rayexec_error::{RayexecError, Result};
 
 use super::{AstParseable, Expr, ObjectReference};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetVariable {
-    pub reference: ObjectReference,
-    pub value: Expr,
+#[derive(Debug, Clone, PartialEq)]
+pub struct SetVariable<T: AstMeta> {
+    pub reference: T::ItemReference,
+    pub value: Expr<T>,
 }
 
-impl AstParseable for SetVariable {
+impl AstParseable for SetVariable<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::SET)?;
 
@@ -28,12 +33,12 @@ impl AstParseable for SetVariable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ShowVariable {
-    pub reference: ObjectReference,
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShowVariable<T: AstMeta> {
+    pub reference: T::ItemReference,
 }
 
-impl AstParseable for ShowVariable {
+impl AstParseable for ShowVariable<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::SHOW)?;
         let name = ObjectReference::parse(parser)?;
@@ -41,18 +46,18 @@ impl AstParseable for ShowVariable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VariableOrAll {
-    Variable(ObjectReference),
+#[derive(Debug, Clone, PartialEq)]
+pub enum VariableOrAll<T: AstMeta> {
+    Variable(T::ItemReference),
     All,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResetVariable {
-    pub var: VariableOrAll,
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResetVariable<T: AstMeta> {
+    pub var: VariableOrAll<T>,
 }
 
-impl AstParseable for ResetVariable {
+impl AstParseable for ResetVariable<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::RESET)?;
         let var = if parser.parse_keyword(Keyword::ALL) {

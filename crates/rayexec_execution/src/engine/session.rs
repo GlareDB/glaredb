@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::{parser, statement::Statement};
+use rayexec_parser::{parser, statement::RawStatement};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -10,17 +12,17 @@ use crate::{
         planner::{QueryGraphDebugConfig, QueryGraphPlanner},
         sink::QuerySink,
     },
-    optimizer::Optimizer,
-    planner::{
+    logical::{
         operator::{LogicalOperator, ResetVar, VariableOrAll},
-        plan::PlanContext,
+        sql::{binder::Binder, planner::PlanContext},
     },
-    scheduler::Scheduler,
+    optimizer::Optimizer,
 };
 
 use super::{
     result_stream::ResultStream,
     vars::{SessionVars, VarAccessor},
+    DataSourceRegistry, EngineRuntime,
 };
 
 #[derive(Debug)]
@@ -33,17 +35,19 @@ pub struct ExecutionResult {
 pub struct Session {
     context: DatabaseContext,
     vars: SessionVars,
-    scheduler: Scheduler,
+    registry: Arc<DataSourceRegistry>,
+    runtime: Arc<EngineRuntime>,
 
     prepared: HashMap<String, PreparedStatement>,
     portals: HashMap<String, Portal>,
 }
 
 impl Session {
-    pub fn new(scheduler: Scheduler) -> Self {
+    pub fn new(runtime: Arc<EngineRuntime>, registry: Arc<DataSourceRegistry>) -> Self {
         Session {
             context: DatabaseContext::new_with_temp(),
-            scheduler,
+            runtime,
+            registry,
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
@@ -58,7 +62,7 @@ impl Session {
     /// Execution result streams should be read in order.
     ///
     /// Uses the unnamed ("") keys for prepared statements and portals.
-    pub fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
+    pub async fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
         let stmts = self.parse(sql)?;
         let mut results = Vec::with_capacity(stmts.len());
 
@@ -67,18 +71,18 @@ impl Session {
         for stmt in stmts {
             self.prepare(UNNAMED, stmt)?;
             self.bind(UNNAMED, UNNAMED)?;
-            let result = self.execute(UNNAMED)?;
+            let result = self.execute(UNNAMED).await?;
             results.push(result);
         }
 
         Ok(results)
     }
 
-    pub fn parse(&self, sql: &str) -> Result<Vec<Statement>> {
+    pub fn parse(&self, sql: &str) -> Result<Vec<RawStatement>> {
         parser::parse(sql)
     }
 
-    pub fn prepare(&mut self, name: impl Into<String>, stmt: Statement) -> Result<()> {
+    pub fn prepare(&mut self, name: impl Into<String>, stmt: RawStatement) -> Result<()> {
         self.prepared
             .insert(name.into(), PreparedStatement { statement: stmt });
         Ok(())
@@ -97,7 +101,7 @@ impl Session {
         Ok(())
     }
 
-    pub fn execute(&mut self, portal: &str) -> Result<ExecutionResult> {
+    pub async fn execute(&mut self, portal: &str) -> Result<ExecutionResult> {
         let stmt = self
             .portals
             .get(portal)
@@ -105,8 +109,8 @@ impl Session {
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let tx = CatalogTx::new();
-        let plan_context = PlanContext::new(&tx, &self.context, &self.vars);
-        let mut logical = plan_context.plan_statement(stmt)?;
+        let (bound_stmt, _) = Binder::new(&tx, &self.context).bind_statement(stmt).await?;
+        let mut logical = PlanContext::new(&self.vars).plan_statement(bound_stmt)?;
 
         let optimizer = Optimizer::new();
         logical.root = optimizer.optimize(logical.root)?;
@@ -120,6 +124,23 @@ impl Session {
         let query_sink = QuerySink::new([result_sink]);
 
         let query_graph = match logical.root {
+            LogicalOperator::AttachDatabase(attach) => {
+                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
+
+                // TODO: No clue if we want to do this here. What happens during
+                // hybrid exec?
+                let datasource = self.registry.get_datasource(&attach.datasource)?;
+                let catalog = datasource
+                    .create_catalog(&self.runtime, attach.options)
+                    .await?;
+                self.context.attach_catalog(attach.name, catalog)?;
+                empty
+            }
+            LogicalOperator::DetachDatabase(detach) => {
+                let empty = planner.create_graph(LogicalOperator::Empty, query_sink)?; // Here to avoid lifetime issues.
+                self.context.detach_catalog(&detach.name)?;
+                empty
+            }
             LogicalOperator::SetVar(set_var) => {
                 // TODO: Do we want this logic to exist here?
                 //
@@ -148,7 +169,8 @@ impl Session {
             root => planner.create_graph(root, query_sink)?,
         };
 
-        self.scheduler
+        self.runtime
+            .scheduler
             .spawn_query_graph(query_graph, result_stream.errors_send_channel());
 
         Ok(ExecutionResult {
@@ -160,10 +182,10 @@ impl Session {
 
 #[derive(Debug)]
 struct PreparedStatement {
-    statement: Statement,
+    statement: RawStatement,
 }
 
 #[derive(Debug)]
 struct Portal {
-    statement: Statement,
+    statement: RawStatement,
 }

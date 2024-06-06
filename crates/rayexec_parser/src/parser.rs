@@ -1,17 +1,18 @@
 use crate::{
     ast::{
-        AstParseable, CreateSchema, CreateTable, DropStatement, ExplainNode, Ident, Insert,
-        QueryNode, ResetVariable, SetVariable, ShowVariable,
+        AstParseable, Attach, CreateSchema, CreateTable, Detach, DropStatement, ExplainNode, Ident,
+        Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
-    statement::Statement,
+    meta::Raw,
+    statement::{RawStatement, Statement},
     tokens::{Token, TokenWithLocation, Tokenizer},
 };
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
 /// Parse a sql query into statements.
-pub fn parse(sql: &str) -> Result<Vec<Statement>> {
+pub fn parse(sql: &str) -> Result<Vec<Statement<Raw>>> {
     trace!(%sql, "parsing sql statement");
     let toks = Tokenizer::new(sql).tokenize()?;
     Parser::with_tokens(toks).parse_statements()
@@ -33,7 +34,7 @@ impl Parser {
     /// Parse any number of statements, including zero statements.
     ///
     /// Statements are expected to be delineated with a semicolon.
-    pub fn parse_statements(&mut self) -> Result<Vec<Statement>> {
+    pub fn parse_statements(&mut self) -> Result<Vec<RawStatement>> {
         let mut stmts = Vec::new();
         let mut expect_delimiter = false;
 
@@ -61,7 +62,7 @@ impl Parser {
     }
 
     /// Parse a single statement.
-    pub fn parse_statement(&mut self) -> Result<Statement> {
+    pub fn parse_statement(&mut self) -> Result<RawStatement> {
         let tok = match self.peek() {
             Some(tok) => tok,
             None => return Err(RayexecError::new("Empty SQL statement")),
@@ -80,16 +81,18 @@ impl Parser {
                 };
 
                 match keyword {
+                    Keyword::ATTACH => Ok(RawStatement::Attach(Attach::parse(self)?)),
+                    Keyword::DETACH => Ok(RawStatement::Detach(Detach::parse(self)?)),
                     Keyword::CREATE => self.parse_create(),
-                    Keyword::DROP => Ok(Statement::Drop(DropStatement::parse(self)?)),
-                    Keyword::SET => Ok(Statement::SetVariable(SetVariable::parse(self)?)),
-                    Keyword::RESET => Ok(Statement::ResetVariable(ResetVariable::parse(self)?)),
-                    Keyword::SHOW => Ok(Statement::ShowVariable(ShowVariable::parse(self)?)),
+                    Keyword::DROP => Ok(RawStatement::Drop(DropStatement::parse(self)?)),
+                    Keyword::SET => Ok(RawStatement::SetVariable(SetVariable::parse(self)?)),
+                    Keyword::RESET => Ok(RawStatement::ResetVariable(ResetVariable::parse(self)?)),
+                    Keyword::SHOW => Ok(RawStatement::ShowVariable(ShowVariable::parse(self)?)),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
-                        Ok(Statement::Query(QueryNode::parse(self)?))
+                        Ok(RawStatement::Query(QueryNode::parse(self)?))
                     }
-                    Keyword::INSERT => Ok(Statement::Insert(Insert::parse(self)?)),
-                    Keyword::EXPLAIN => Ok(Statement::Explain(ExplainNode::parse(self)?)),
+                    Keyword::INSERT => Ok(RawStatement::Insert(Insert::parse(self)?)),
+                    Keyword::EXPLAIN => Ok(RawStatement::Explain(ExplainNode::parse(self)?)),
                     other => Err(RayexecError::new(format!("Unexpected keyword: {other:?}",))),
                 }
             }
@@ -100,7 +103,7 @@ impl Parser {
     }
 
     /// Parse `CREATE ...`
-    pub fn parse_create(&mut self) -> Result<Statement> {
+    pub fn parse_create(&mut self) -> Result<RawStatement> {
         // Store the start index, we'll reset this when we call the actual thing
         // to parse.
         let start = self.idx;
@@ -117,10 +120,10 @@ impl Parser {
 
         if self.parse_keyword(Keyword::TABLE) {
             self.idx = start;
-            Ok(Statement::CreateTable(CreateTable::parse(self)?))
+            Ok(RawStatement::CreateTable(CreateTable::parse(self)?))
         } else if self.parse_keyword(Keyword::SCHEMA) {
             self.idx = start;
-            Ok(Statement::CreateSchema(CreateSchema::parse(self)?))
+            Ok(RawStatement::CreateSchema(CreateSchema::parse(self)?))
         } else {
             unimplemented!()
         }

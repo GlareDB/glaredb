@@ -1,19 +1,23 @@
 use crate::{
-    database::{
-        catalog::CatalogTx, create::CreateTableInfo, ddl::CreateFut, table::DataTable,
-        DatabaseContext,
-    },
-    planner::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    database::{catalog::CatalogTx, create::CreateTableInfo, table::DataTable, DatabaseContext},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
+use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 use std::task::{Context, Poll};
 
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 
-#[derive(Debug)]
 pub struct CreateTablePartitionState {
-    create: Box<dyn CreateFut<Output = Box<dyn DataTable>>>,
+    create: BoxFuture<'static, Result<Box<dyn DataTable>>>,
+}
+
+impl fmt::Debug for CreateTablePartitionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CreateTablePartitionState").finish()
+    }
 }
 
 #[derive(Debug)]
@@ -40,10 +44,8 @@ impl PhysicalCreateTable {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let create = context
-            .get_catalog(&self.catalog)?
-            .catalog_modifier(&tx)?
-            .create_table(&self.schema, self.info.clone())?;
+        let catalog = context.get_catalog(&self.catalog)?.catalog_modifier(&tx)?;
+        let create = catalog.create_table(&self.schema, self.info.clone());
 
         Ok(CreateTablePartitionState { create })
     }
@@ -75,7 +77,7 @@ impl PhysicalOperator for PhysicalCreateTable {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::CreateTable(state) => match state.create.poll_create(cx) {
+            PartitionState::CreateTable(state) => match state.create.poll_unpin(cx) {
                 Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
                 Poll::Pending => Ok(PollPull::Pending),

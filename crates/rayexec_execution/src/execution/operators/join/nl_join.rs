@@ -12,7 +12,7 @@ use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
 use crate::expr::PhysicalScalarExpression;
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Partition-local state on the build side.
 #[derive(Debug, Default)]

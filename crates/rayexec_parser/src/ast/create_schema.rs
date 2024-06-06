@@ -1,15 +1,19 @@
-use crate::{keywords::Keyword, parser::Parser};
+use crate::{
+    keywords::Keyword,
+    meta::{AstMeta, Raw},
+    parser::Parser,
+};
 use rayexec_error::Result;
 
 use super::{AstParseable, ObjectReference};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CreateSchema {
+pub struct CreateSchema<T: AstMeta> {
     pub if_not_exists: bool,
-    pub name: ObjectReference,
+    pub name: T::ItemReference,
 }
 
-impl AstParseable for CreateSchema {
+impl AstParseable for CreateSchema<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::CREATE)?;
         parser.expect_keyword(Keyword::SCHEMA)?;
@@ -34,7 +38,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let got = parse_ast::<CreateSchema>("create schema s1").unwrap();
+        let got = parse_ast::<CreateSchema<_>>("create schema s1").unwrap();
         let expected = CreateSchema {
             if_not_exists: false,
             name: ObjectReference::from_strings(["s1"]),
@@ -44,7 +48,7 @@ mod tests {
 
     #[test]
     fn qualified() {
-        let got = parse_ast::<CreateSchema>("create schema db1.s1").unwrap();
+        let got = parse_ast::<CreateSchema<_>>("create schema db1.s1").unwrap();
         let expected = CreateSchema {
             if_not_exists: false,
             name: ObjectReference::from_strings(["db1", "s1"]),
@@ -54,7 +58,7 @@ mod tests {
 
     #[test]
     fn if_not_exists() {
-        let got = parse_ast::<CreateSchema>("create schema if not exists s1").unwrap();
+        let got = parse_ast::<CreateSchema<_>>("create schema if not exists s1").unwrap();
         let expected = CreateSchema {
             if_not_exists: true,
             name: ObjectReference::from_strings(["s1"]),

@@ -1,5 +1,5 @@
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
-use super::scope::ColumnRef;
+use super::sql::scope::ColumnRef;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
@@ -13,6 +13,7 @@ use crate::{
 use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
+use std::collections::HashMap;
 use std::fmt;
 
 pub trait LogicalNode {
@@ -46,6 +47,8 @@ pub enum LogicalOperator {
     CreateSchema(CreateSchema),
     CreateTable(CreateTable),
     CreateTableAs(CreateTableAs),
+    AttachDatabase(AttachDatabase),
+    DetachDatabase(DetachDatabase),
     Drop(DropEntry),
     Insert(Insert),
     Explain(Explain),
@@ -75,6 +78,8 @@ impl LogicalOperator {
             Self::CreateSchema(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
             Self::CreateTableAs(_) => unimplemented!(),
+            Self::AttachDatabase(n) => n.output_schema(outer),
+            Self::DetachDatabase(n) => n.output_schema(outer),
             Self::Drop(n) => n.output_schema(outer),
             Self::Insert(n) => n.output_schema(outer),
             Self::Explain(n) => n.output_schema(outer),
@@ -108,6 +113,8 @@ impl Explainable for LogicalOperator {
             Self::CreateSchema(p) => p.explain_entry(conf),
             Self::CreateTable(p) => p.explain_entry(conf),
             Self::CreateTableAs(p) => p.explain_entry(conf),
+            Self::AttachDatabase(n) => n.explain_entry(conf),
+            Self::DetachDatabase(n) => n.explain_entry(conf),
             Self::Drop(p) => p.explain_entry(conf),
             Self::Insert(p) => p.explain_entry(conf),
             Self::Explain(p) => p.explain_entry(conf),
@@ -475,8 +482,9 @@ impl Explainable for CreateSchema {
 
 #[derive(Debug)]
 pub struct CreateTable {
+    pub catalog: String,
+    pub schema: String,
     pub name: String,
-    pub temp: bool, // TODO: Probably replace this with a schema reference. We need the schema somewhere.
     pub columns: Vec<Field>,
     pub on_conflict: OnConflict,
     /// Optional input for CREATE TABLE AS
@@ -506,6 +514,44 @@ pub struct CreateTableAs {
 impl Explainable for CreateTableAs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTableAs")
+    }
+}
+
+#[derive(Debug)]
+pub struct AttachDatabase {
+    pub datasource: String,
+    pub name: String,
+    pub options: HashMap<String, OwnedScalarValue>,
+}
+
+impl LogicalNode for AttachDatabase {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for AttachDatabase {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("AttachDatabase")
+            .with_value("datasource", &self.datasource)
+            .with_value("name", &self.name)
+    }
+}
+
+#[derive(Debug)]
+pub struct DetachDatabase {
+    pub name: String,
+}
+
+impl LogicalNode for DetachDatabase {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(TypeSchema::empty())
+    }
+}
+
+impl Explainable for DetachDatabase {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("DetachDatabase").with_value("name", &self.name)
     }
 }
 

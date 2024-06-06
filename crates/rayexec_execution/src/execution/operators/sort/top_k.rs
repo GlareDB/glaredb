@@ -5,7 +5,7 @@ use std::task::Context;
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
 };
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct TopKPartitionState {}

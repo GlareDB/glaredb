@@ -1,4 +1,4 @@
-use crate::planner::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
         sort::util::merger::IterState, OperatorState, PartitionState, PhysicalOperator, PollPull,
