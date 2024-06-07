@@ -11,28 +11,28 @@ workspace = true
 doctest = false
 
 [dependencies]
-futures = { workspace = true }
 async-trait = { workspace = true }
-datafusion = { workspace = true }
-tokio = { workspace = true }
-reqwest = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-serde = { workspace = true }
 bytes = { workspace = true }
-sqlexec = { path = "../sqlexec" }
-proxyutil = { path = "../proxyutil" }
+datafusion = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 bytesutil = { path = "../bytesutil" }
+datafusion_ext = { path = "../datafusion_ext" }
 parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
-datafusion_ext = { path = "../datafusion_ext" }
-rustls = "0.23.8"
-webpki-roots = "0.26.2"
-tokio-rustls = "0.26.0"
+proxyutil = { path = "../proxyutil" }
+sqlexec = { path = "../sqlexec" }
+rustls = "0.23.9"
 rustls-pemfile = "2.1.2"
-tokio-util = { version = "0.7.11", features = ["codec"] }
 tokio-postgres = "0.7.8"
+tokio-rustls = "0.26.0"
+tokio-util = { version = "0.7.11", features = ["codec"] }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+webpki-roots = "0.26.2"
 
 [dev-dependencies]
 tempfile = "3"
