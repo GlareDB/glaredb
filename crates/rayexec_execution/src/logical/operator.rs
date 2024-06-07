@@ -28,7 +28,7 @@ pub trait LogicalNode {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LogicalOperator {
     Projection(Projection),
     Filter(Filter),
@@ -86,6 +86,115 @@ impl LogicalOperator {
         }
     }
 
+    pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalOperator) -> Result<()>,
+    {
+        self.walk_mut(pre, &mut |_| Ok(()))
+    }
+
+    pub fn walk_mut_post<F>(&mut self, post: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalOperator) -> Result<()>,
+    {
+        self.walk_mut(&mut |_| Ok(()), post)
+    }
+
+    /// Walk the plan depth first.
+    ///
+    /// `pre` provides access to children on the way down, and `post` on the way
+    /// up.
+    pub fn walk_mut<F1, F2>(&mut self, pre: &mut F1, post: &mut F2) -> Result<()>
+    where
+        F1: FnMut(&mut LogicalOperator) -> Result<()>,
+        F2: FnMut(&mut LogicalOperator) -> Result<()>,
+    {
+        pre(self)?;
+        match self {
+            LogicalOperator::Projection(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::Filter(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::Aggregate(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::Order(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::Limit(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::CrossJoin(p) => {
+                pre(&mut p.left)?;
+                p.left.walk_mut(pre, post)?;
+                post(&mut p.left)?;
+
+                pre(&mut p.right)?;
+                p.right.walk_mut(pre, post)?;
+                post(&mut p.right)?;
+            }
+            LogicalOperator::AnyJoin(p) => {
+                pre(&mut p.left)?;
+                p.left.walk_mut(pre, post)?;
+                post(&mut p.left)?;
+
+                pre(&mut p.right)?;
+                p.right.walk_mut(pre, post)?;
+                post(&mut p.right)?;
+            }
+            LogicalOperator::EqualityJoin(p) => {
+                pre(&mut p.left)?;
+                p.left.walk_mut(pre, post)?;
+                post(&mut p.left)?;
+
+                pre(&mut p.right)?;
+                p.right.walk_mut(pre, post)?;
+                post(&mut p.right)?;
+            }
+            LogicalOperator::CreateTableAs(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::Insert(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::Explain(p) => {
+                pre(&mut p.input)?;
+                p.input.walk_mut(pre, post)?;
+                post(&mut p.input)?;
+            }
+            LogicalOperator::ExpressionList(_)
+            | LogicalOperator::Empty
+            | LogicalOperator::SetVar(_)
+            | LogicalOperator::ShowVar(_)
+            | LogicalOperator::ResetVar(_)
+            | LogicalOperator::CreateTable(_)
+            | LogicalOperator::CreateSchema(_)
+            | LogicalOperator::AttachDatabase(_)
+            | LogicalOperator::DetachDatabase(_)
+            | LogicalOperator::Drop(_)
+            | LogicalOperator::Scan(_) => (),
+        }
+        post(self)?;
+
+        Ok(())
+    }
+
     /// Return the explain string for a plan. Useful for println debugging.
     #[allow(dead_code)]
     pub(crate) fn debug_explain(&self) -> String {
@@ -122,7 +231,7 @@ impl Explainable for LogicalOperator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Projection {
     pub exprs: Vec<LogicalExpression>,
     pub input: Box<LogicalOperator>,
@@ -149,7 +258,7 @@ impl Explainable for Projection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Filter {
     pub predicate: LogicalExpression,
     pub input: Box<LogicalOperator>,
@@ -168,7 +277,7 @@ impl Explainable for Filter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrderByExpr {
     pub expr: LogicalExpression,
     pub desc: bool,
@@ -191,7 +300,7 @@ impl fmt::Display for OrderByExpr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Order {
     pub exprs: Vec<OrderByExpr>,
     pub input: Box<LogicalOperator>,
@@ -233,7 +342,7 @@ impl fmt::Display for JoinType {
 }
 
 /// A join on an arbitrary expression.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AnyJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
@@ -258,7 +367,7 @@ impl Explainable for AnyJoin {
 }
 
 /// A join on left/right column equality.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EqualityJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
@@ -285,7 +394,7 @@ impl Explainable for EqualityJoin {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CrossJoin {
     pub left: Box<LogicalOperator>,
     pub right: Box<LogicalOperator>,
@@ -305,7 +414,7 @@ impl Explainable for CrossJoin {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Limit {
     pub offset: Option<usize>,
     pub limit: usize,
@@ -324,7 +433,7 @@ impl Explainable for Limit {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Scan {
     pub catalog: String,
     pub schema: String,
@@ -347,7 +456,7 @@ impl Explainable for Scan {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExpressionList {
     pub rows: Vec<Vec<LogicalExpression>>,
     // TODO: Table index.
@@ -380,7 +489,7 @@ impl Explainable for ExpressionList {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Aggregate {
     pub exprs: Vec<LogicalExpression>,
     pub grouping_expr: Option<GroupingExpr>,
@@ -429,7 +538,7 @@ impl Explainable for Aggregate {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GroupingExpr {
     /// Group by a single set of columns.
     GroupBy(Vec<LogicalExpression>),
@@ -461,7 +570,7 @@ impl GroupingExpr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CreateSchema {
     pub catalog: String,
     pub name: String,
@@ -480,7 +589,7 @@ impl Explainable for CreateSchema {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CreateTable {
     pub catalog: String,
     pub schema: String,
@@ -505,7 +614,7 @@ impl Explainable for CreateTable {
 }
 
 /// Dummy create table for testing.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CreateTableAs {
     pub name: String,
     pub input: Box<LogicalOperator>,
@@ -517,7 +626,7 @@ impl Explainable for CreateTableAs {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AttachDatabase {
     pub datasource: String,
     pub name: String,
@@ -538,7 +647,7 @@ impl Explainable for AttachDatabase {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DetachDatabase {
     pub name: String,
 }
@@ -555,7 +664,7 @@ impl Explainable for DetachDatabase {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DropEntry {
     pub info: DropInfo,
 }
@@ -572,7 +681,7 @@ impl Explainable for DropEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Insert {
     pub table: TableEntry,
     pub input: Box<LogicalOperator>,
@@ -591,7 +700,7 @@ impl Explainable for Insert {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SetVar {
     pub name: String,
     pub value: OwnedScalarValue,
@@ -609,7 +718,7 @@ impl Explainable for SetVar {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ShowVar {
     pub var: SessionVar,
 }
@@ -629,13 +738,13 @@ impl Explainable for ShowVar {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VariableOrAll {
     Variable(SessionVar),
     All,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ResetVar {
     pub var: VariableOrAll,
 }
@@ -652,13 +761,13 @@ impl Explainable for ResetVar {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplainFormat {
     Text,
     Json,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Explain {
     pub analyze: bool,
     pub verbose: bool,
@@ -690,6 +799,7 @@ pub enum LogicalExpression {
     /// Literal value.
     Literal(OwnedScalarValue),
 
+    /// A function that returns a single value.
     ScalarFunction {
         function: Box<dyn GenericScalarFunction>,
         inputs: Vec<LogicalExpression>,
@@ -700,6 +810,7 @@ pub enum LogicalExpression {
         op: UnaryOperator,
         expr: Box<LogicalExpression>,
     },
+
     /// Binary operator.
     Binary {
         op: BinaryOperator,
@@ -723,6 +834,15 @@ pub enum LogicalExpression {
 
         /// Optional filter to the aggregate.
         filter: Option<Box<LogicalExpression>>,
+    },
+
+    /// A scalar subquery.
+    Subquery(Box<LogicalOperator>),
+
+    /// An exists/not exists subquery.
+    Exists {
+        not_exists: bool,
+        subquery: Box<LogicalOperator>,
     },
 
     /// Case expressions.
@@ -779,6 +899,8 @@ impl fmt::Display for LogicalExpression {
                 }
                 Ok(())
             }
+            Self::Subquery(_) => write!(f, "SUBQUERY TODO"),
+            Self::Exists { .. } => write!(f, "EXISTS TODO"),
             Self::Case { .. } => write!(f, "CASE TODO"),
         }
     }
@@ -865,6 +987,18 @@ impl LogicalExpression {
                         RayexecError::new("Failed to get correct signature for scalar function")
                     })?
             }
+            LogicalExpression::Subquery(subquery) => {
+                // TODO: Do we just need outer, or do we want current + outer?
+                let mut schema = subquery.output_schema(outer)?;
+                match schema.types.len() {
+                    1 => schema.types.pop().unwrap(),
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Scalar subqueries should return 1 value, got {other}",
+                        )))
+                    }
+                }
+            }
             _ => unimplemented!(),
         })
     }
@@ -883,7 +1017,7 @@ impl LogicalExpression {
         self.walk_mut(&mut |_| Ok(()), post)
     }
 
-    /// Walk the plan depth first.
+    /// Walk the expression depth first.
     ///
     /// `pre` provides access to children on the way down, and `post` on the way
     /// up.
@@ -892,6 +1026,67 @@ impl LogicalExpression {
         F1: FnMut(&mut LogicalExpression) -> Result<()>,
         F2: FnMut(&mut LogicalExpression) -> Result<()>,
     {
+        /// Helper function for walking a subquery in an expression.
+        fn walk_subquery<F1, F2>(
+            plan: &mut LogicalOperator,
+            pre: &mut F1,
+            post: &mut F2,
+        ) -> Result<()>
+        where
+            F1: FnMut(&mut LogicalExpression) -> Result<()>,
+            F2: FnMut(&mut LogicalExpression) -> Result<()>,
+        {
+            match plan {
+                LogicalOperator::Projection(p) => {
+                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?
+                }
+                LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
+                LogicalOperator::Aggregate(p) => {
+                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?;
+                    match &mut p.grouping_expr {
+                        Some(GroupingExpr::GroupBy(v)) => {
+                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
+                        }
+                        Some(GroupingExpr::Rollup(v)) => {
+                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
+                        }
+                        Some(GroupingExpr::Cube(v)) => {
+                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
+                        }
+                        _ => (),
+                    }
+                }
+                LogicalOperator::Order(p) => {
+                    for expr in &mut p.exprs {
+                        expr.expr.walk_mut(pre, post)?;
+                    }
+                }
+                LogicalOperator::AnyJoin(p) => p.on.walk_mut(pre, post)?,
+                LogicalOperator::EqualityJoin(_) => (),
+                LogicalOperator::CrossJoin(_) => (),
+                LogicalOperator::Limit(_) => (),
+                LogicalOperator::Scan(_) => (),
+                LogicalOperator::ExpressionList(p) => {
+                    for row in &mut p.rows {
+                        LogicalExpression::walk_mut_many(row, pre, post)?;
+                    }
+                }
+                LogicalOperator::SetVar(_) => (),
+                LogicalOperator::ShowVar(_) => (),
+                LogicalOperator::ResetVar(_) => (),
+                LogicalOperator::Insert(_) => (),
+                LogicalOperator::CreateSchema(_) => (),
+                LogicalOperator::CreateTable(_) => (),
+                LogicalOperator::CreateTableAs(_) => (),
+                LogicalOperator::AttachDatabase(_) => (),
+                LogicalOperator::DetachDatabase(_) => (),
+                LogicalOperator::Explain(_) => (),
+                LogicalOperator::Drop(_) => (),
+                LogicalOperator::Empty => (),
+            }
+            Ok(())
+        }
+
         pre(self)?;
         match self {
             LogicalExpression::Unary { expr, .. } => {
@@ -930,10 +1125,26 @@ impl LogicalExpression {
                 }
             }
             Self::ColumnRef(_) | Self::Literal(_) => (),
+            Self::Subquery(subquery) | Self::Exists { subquery, .. } => {
+                // We only care about the expressions in the plan, so it's
+                // sufficient to walk the operators only once on the way down.
+                subquery.walk_mut_pre(&mut |plan| walk_subquery(plan, pre, post))?;
+            }
             Self::Case { .. } => unimplemented!(),
         }
         post(self)?;
 
+        Ok(())
+    }
+
+    fn walk_mut_many<F1, F2>(exprs: &mut [Self], pre: &mut F1, post: &mut F2) -> Result<()>
+    where
+        F1: FnMut(&mut LogicalExpression) -> Result<()>,
+        F2: FnMut(&mut LogicalExpression) -> Result<()>,
+    {
+        for expr in exprs.iter_mut() {
+            expr.walk_mut(pre, post)?;
+        }
         Ok(())
     }
 
@@ -957,6 +1168,74 @@ impl LogicalExpression {
             other => Err(RayexecError::new(format!(
                 "Not a column reference: {other:?}"
             ))),
+        }
+    }
+}
+
+impl AsMut<LogicalExpression> for LogicalExpression {
+    fn as_mut(&mut self) -> &mut LogicalExpression {
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::scalar::OwnedScalarValue;
+
+    use super::*;
+
+    #[test]
+    fn walk_plan_pre_post() {
+        let mut plan = LogicalOperator::Projection(Projection {
+            exprs: Vec::new(),
+            input: Box::new(LogicalOperator::Filter(Filter {
+                predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
+                input: Box::new(LogicalOperator::Empty),
+            })),
+        });
+
+        plan.walk_mut(
+            &mut |child| {
+                match child {
+                    LogicalOperator::Projection(proj) => proj
+                        .exprs
+                        .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
+                    LogicalOperator::Filter(_) => {}
+                    LogicalOperator::Empty => {}
+                    other => panic!("unexpected child {other:?}"),
+                }
+                Ok(())
+            },
+            &mut |child| {
+                match child {
+                    LogicalOperator::Projection(proj) => {
+                        assert_eq!(
+                            vec![LogicalExpression::Literal(OwnedScalarValue::Int8(1))],
+                            proj.exprs
+                        );
+                        proj.exprs
+                            .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
+                    }
+                    LogicalOperator::Filter(_) => {}
+                    LogicalOperator::Empty => {}
+                    other => panic!("unexpected child {other:?}"),
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+
+        match plan {
+            LogicalOperator::Projection(proj) => {
+                assert_eq!(
+                    vec![
+                        LogicalExpression::Literal(OwnedScalarValue::Int8(1)),
+                        LogicalExpression::Literal(OwnedScalarValue::Int8(2)),
+                    ],
+                    proj.exprs
+                );
+            }
+            other => panic!("unexpected root {other:?}"),
         }
     }
 }

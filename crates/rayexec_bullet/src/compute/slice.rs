@@ -1,7 +1,7 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, ArrayBuilder, OffsetIndex, PrimitiveArray, PrimitiveArrayBuilder,
-        VarlenArray, VarlenType,
+        Array, ArrayAccessor, ArrayBuilder, BooleanArray, BooleanArrayBuilder, OffsetIndex,
+        PrimitiveArray, PrimitiveArrayBuilder, VarlenArray, VarlenType,
     },
     bitmap::Bitmap,
 };
@@ -15,8 +15,8 @@ use rayexec_error::{RayexecError, Result};
 /// "view" type arrays.
 pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
     Ok(match arr {
-        Array::Null(_) => unimplemented!(),       // TODO
-        Array::Boolean(_arr) => unimplemented!(), // TODO
+        Array::Null(_) => unimplemented!(), // TODO
+        Array::Boolean(arr) => Array::Boolean(slice_boolean(arr, start, count)?),
         Array::Float32(arr) => Array::Float32(slice_primitive(arr, start, count)?),
         Array::Float64(arr) => Array::Float64(slice_primitive(arr, start, count)?),
         Array::Int8(arr) => Array::Int8(slice_primitive(arr, start, count)?),
@@ -33,6 +33,28 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
         Array::LargeBinary(arr) => Array::LargeBinary(slice_varlen(arr, start, count)?),
         _ => unimplemented!(),
     })
+}
+
+pub fn slice_boolean(arr: &BooleanArray, start: usize, count: usize) -> Result<BooleanArray> {
+    if start + count > arr.len() {
+        return Err(RayexecError::new(format!(
+            "Range end out of bounds, start: {start}, count: {count}, len: {}",
+            arr.len()
+        )));
+    }
+
+    let mut builder = BooleanArrayBuilder::new();
+    arr.values_iter()
+        .skip(start)
+        .take(count)
+        .for_each(|val| builder.push_value(val));
+
+    if let Some(validity) = arr.validity() {
+        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
+        builder.put_validity(new_validity);
+    }
+
+    Ok(builder.into_typed_array())
 }
 
 pub fn slice_primitive<T: Copy>(

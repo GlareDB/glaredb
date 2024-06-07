@@ -9,6 +9,13 @@ use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
 use crate::engine::EngineRuntime;
 
+/// An implementation of `DataSource` describes a data source type that we can
+/// read from.
+///
+/// Implementations themselves do not contain state, and instead contain the
+/// logic for creating data source specific catalogs from a set of options. It's
+/// these catalogs that contain state (list of tables, external connections,
+/// etc). Catalogs are always scoped to single session.
 pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(

@@ -138,6 +138,10 @@ impl Scope {
         Ok(None)
     }
 
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ScopeColumn> {
+        self.items.iter_mut()
+    }
+
     /// Find the index of a column with the given name.
     ///
     /// Errors if multiple columns with the same name are found.
@@ -184,6 +188,10 @@ impl Scope {
 
     pub fn num_columns(&self) -> usize {
         self.items.len()
+    }
+
+    pub fn column_name_iter(&self) -> impl Iterator<Item = &str> {
+        self.items.iter().map(|item| item.column.as_str())
     }
 
     fn table_aliases_iter(&self) -> impl Iterator<Item = &TableReference> {

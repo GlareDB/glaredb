@@ -1,0 +1,111 @@
+# Basic scalar subqueries
+
+# query TT
+# explain select (select 1);
+
+query I
+select (select 1);
+----
+1
+
+query I
+select 1 + (select 1);
+----
+2
+
+query II
+select (select 3), (select 4);
+----
+3  4
+
+# TODO: Need to verify subquery returns one column
+# statement error
+# select 1 + (select 1, 2);
+# ----
+
+# Accounts for existing input into the plan.
+query I
+select a, 1 + (select 1) from (values (4,5,6)) v(a,b,c);
+----
+4  2
+
+# Nested
+query I
+select (select (select (select (select 4))));
+----
+4
+
+statement ok
+create temp table t1 (a bigint, b bigint, c bigint);
+
+statement ok
+insert into t1
+    values (111, 222, 333),
+           (444, 555, 666),
+           (777, 888, 999)
+
+# Operate on table inputs
+query I rowsort
+select a * (select 12) from t1;
+----
+1332
+5328
+9324
+
+query II rowsort
+select a, a * (select 12) from t1;
+----
+111  1332
+444  5328
+777  9324
+
+query III rowsort
+select a, a * (select 12), t1.a from t1;
+----
+111  1332  111
+444  5328  444
+777  9324  777
+
+# TODO: Error source: query failed: Column reference points to non-existent schema (correlated)
+# query I
+# select (select sum(a)) from t1;
+# ----
+# 1332
+
+query I
+select sum((select sum(a) from t1));
+----
+1332
+
+query I
+select (select a from t1 where b = 222);
+----
+111
+
+query I
+select a from t1 where (select 1 = 0);
+----
+
+query I rowsort
+select a from t1 where (select 1 = 1);
+----
+111
+444
+777
+
+query I rowsort
+select a from t1 where (select a = 111 from t1 where a = 111);
+----
+111
+444
+777
+
+query I
+select b from t1 where (select sum(111)) = a;
+----
+222
+
+query I
+select b from t1 where (select sum(d) from (values (333), (444)) v(d)) = a;
+----
+888

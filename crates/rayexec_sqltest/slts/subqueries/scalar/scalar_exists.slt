@@ -1,0 +1,48 @@
+# EXISTS
+
+query B
+select exists (select 1);
+----
+true
+
+query B
+select exists (select 1, 2);
+----
+true
+
+query B
+select not exists (select 1);
+----
+false
+
+statement ok
+create temp table t1 (a bigint, b bigint, c bigint);
+
+statement ok
+insert into t1 values (1, 2, 3), (4, 5, 6);
+
+query B
+select exists (select a from t1);
+----
+true
+
+query B
+select exists (select a from t1 where c > 100);
+----
+false
+
+query III rowsort
+select * from t1 where exists (select 2);
+----
+1  2  3
+4  5  6
+
+query III rowsort
+select * from t1 where not exists (select 2);
+----
+
+query III rowsort
+select * from t1 where not exists (select 2 where false);
+----
+1  2  3
+4  5  6

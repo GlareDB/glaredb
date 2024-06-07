@@ -32,3 +32,26 @@ query I
 select s.*, s.e from (select a as c, b as d from t1) as s(e, f) where e = 67;
 ----
 67 89  67
+
+# Simple values aliasing
+query IIII
+select s.*, s.a from (values (1,2,3)) s(a,b,c)
+----
+1  2  3  1
+
+query IIII
+select s.*, s.a from (values (1,2,3)) s(a)
+----
+1  2  3  1
+
+query IIII
+select s.*, a from (values (1,2,3)) s(a)
+----
+1  2  3  1
+
+query IIII
+select s.*, column2 from (values (1,2,3)) s(a)
+----
+1  2  3  2
+
+

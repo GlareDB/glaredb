@@ -11,7 +11,7 @@ use super::{AstParseable, Ident, QueryNode};
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTableExprDefs<T: AstMeta> {
     pub recursive: bool,
-    pub ctes: Vec<CommonTableExpr<T>>,
+    pub ctes: Vec<T::CteReference>,
 }
 
 impl AstParseable for CommonTableExprDefs<Raw> {

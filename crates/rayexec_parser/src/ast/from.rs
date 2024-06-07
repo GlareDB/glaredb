@@ -264,7 +264,7 @@ pub enum JoinCondition<T: AstMeta> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{testutil::parse_ast, BinaryOperator, Literal};
+    use crate::ast::{testutil::parse_ast, BinaryOperator, FunctionArgExpr, Literal};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -384,14 +384,18 @@ mod tests {
                 }]),
                 args: vec![
                     FunctionArg::Unnamed {
-                        arg: Expr::Literal(Literal::SingleQuotedString("arg1".to_string())),
+                        arg: FunctionArgExpr::Expr(Expr::Literal(Literal::SingleQuotedString(
+                            "arg1".to_string(),
+                        ))),
                     },
                     FunctionArg::Named {
                         name: Ident {
                             value: "kw".into(),
                             quoted: false,
                         },
-                        arg: Expr::Literal(Literal::SingleQuotedString("arg2".to_string())),
+                        arg: FunctionArgExpr::Expr(Expr::Literal(Literal::SingleQuotedString(
+                            "arg2".to_string(),
+                        ))),
                     },
                 ],
             }),

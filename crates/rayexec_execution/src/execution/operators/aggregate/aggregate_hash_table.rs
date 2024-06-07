@@ -84,11 +84,6 @@ impl PartitionAggregateHashTable {
         selection: &Bitmap,
     ) -> Result<()> {
         let row_count = selection.popcnt();
-        // If none of the rows are actually selection for insertion into the hash map, then
-        // we don't need to do anything.
-        if row_count == 0 {
-            return Ok(());
-        }
 
         self.indexes_buffer.clear();
         self.indexes_buffer.reserve(row_count);
@@ -110,6 +105,33 @@ impl PartitionAggregateHashTable {
                 .states
                 .update_states(selection, &input_cols, &self.indexes_buffer)?;
         }
+
+        Ok(())
+    }
+
+    pub fn num_groups(&self) -> usize {
+        self.group_values.len()
+    }
+
+    pub fn create_group_for_hash(&mut self, hash: u64) -> Result<()> {
+        let mut states_iter = self.agg_states.iter_mut();
+        let group_idx = match states_iter.next() {
+            Some(agg_state) => agg_state.states.new_group(),
+            None => return Err(RayexecError::new("Aggregate hash table has no aggregates")),
+        };
+
+        for agg_state in states_iter {
+            let idx = agg_state.states.new_group();
+            // Very critical, if we're not generating the same
+            // index, all bets are off.
+            assert_eq!(group_idx, idx);
+        }
+
+        self.hash_table
+            .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
+
+        self.group_values.push(ScalarRow::empty().into_owned());
+        self.indexes_buffer.push(group_idx);
 
         Ok(())
     }

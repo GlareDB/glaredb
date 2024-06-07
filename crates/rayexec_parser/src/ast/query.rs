@@ -43,6 +43,24 @@ impl AstParseable for QueryNode<Raw> {
     }
 }
 
+impl QueryNode<Raw> {
+    /// Returns if the parser is at the start of a query node by checking
+    /// keywords.
+    ///
+    /// The parser's state is reset before this function returns.
+    pub fn is_query_node_start(parser: &mut Parser) -> bool {
+        let start = parser.idx;
+        let result = parser.next_keyword();
+        let is_start = matches!(
+            result,
+            Ok(Keyword::SELECT) | Ok(Keyword::WITH) | Ok(Keyword::VALUES)
+        );
+        parser.idx = start;
+
+        is_start
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum QueryNodeBody<T: AstMeta> {
     Select(Box<SelectNode<T>>),
@@ -63,7 +81,7 @@ impl AstParseable for QueryNodeBody<Raw> {
         } else if parser.parse_keyword(Keyword::VALUES) {
             Ok(QueryNodeBody::Values(Values::parse(parser)?))
         } else {
-            return Err(RayexecError::new("Exepected SELECT or VALUES"));
+            return Err(RayexecError::new("Expected SELECT, or VALUES"));
         }
     }
 }

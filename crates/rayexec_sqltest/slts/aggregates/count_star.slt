@@ -1,0 +1,33 @@
+# COUNT(*)
+
+statement ok
+create temp table t1 (c1 text, c2 int);
+
+statement ok
+insert into t1 values ('a', 1), ('b', 2), ('a', 3);
+
+query I
+select count(*) from t1;
+----
+3
+
+query II
+select c1, count(*) from t1 group by c1 order by c1;
+----
+a  2
+b  1
+
+# TODO: Error source: query failed: Got invalid type(s) 'Int32,Int64' for '>='
+# query II
+# select count(*) from t1 where c2 >= 2;
+# ----
+# 2
+
+query I
+select count(*) from t1 where false;
+----
+0
+
+query I
+select count(*) from t1 where false group by c2;
+----

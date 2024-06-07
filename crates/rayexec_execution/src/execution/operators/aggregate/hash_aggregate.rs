@@ -328,12 +328,27 @@ impl PhysicalOperator for PhysicalHashAggregate {
                     hashtable_drain: None,
                 };
                 let aggregating_state = std::mem::replace(state, producing_state);
-                let partition_hashtables = match aggregating_state {
+                let mut partition_hashtables = match aggregating_state {
                     HashAggregatePartitionState::Aggregating {
                         output_hashtables, ..
                     } => output_hashtables,
                     _ => unreachable!("state variant already checked in outer match"),
                 };
+
+                // If we're ungrouped, and we have not received any input, make
+                // sure we have at least one empty group so we can produce
+                // results.
+                //
+                // TODO: This logic should be removed when the ungrouped
+                // operator is created.
+                let ungrouped = self.grouping_sets.columns().is_empty();
+                if ungrouped {
+                    let partition = partition_for_hash(0, partition_hashtables.len());
+                    let ht = &mut partition_hashtables[partition];
+                    if ht.num_groups() == 0 {
+                        ht.create_group_for_hash(0)?;
+                    }
+                }
 
                 for (partition_idx, partition_hashtable) in
                     partition_hashtables.into_iter().enumerate()

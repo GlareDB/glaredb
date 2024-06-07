@@ -124,7 +124,16 @@ impl<'a> ExpressionContext<'a> {
                     .args
                     .into_iter()
                     .map(|arg| match arg {
-                        ast::FunctionArg::Unnamed { arg } => Ok(self.plan_expression(arg)?),
+                        ast::FunctionArg::Unnamed { arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => Ok(self.plan_expression(expr)?),
+                            ast::FunctionArgExpr::Wildcard => {
+                                // Binder should have handled removing '*' from
+                                // function calls.
+                                Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ))
+                            }
+                        },
                         ast::FunctionArg::Named { .. } => Err(RayexecError::new(
                             "Named arguments to scalar functions not supported",
                         )),
@@ -158,6 +167,25 @@ impl<'a> ExpressionContext<'a> {
                     }
                 }
             }
+            ast::Expr::Subquery(subquery) => {
+                let mut nested = self.plan_context.nested(self.scope.clone());
+                let subquery = nested.plan_query(*subquery)?;
+                // We can ignore scope, as it's only relevant to planning of the
+                // subquery, which is complete.
+                Ok(LogicalExpression::Subquery(Box::new(subquery.root)))
+            }
+            ast::Expr::Exists {
+                subquery,
+                not_exists,
+            } => {
+                let mut nested = self.plan_context.nested(self.scope.clone());
+                let subquery = nested.plan_query(*subquery)?;
+                Ok(LogicalExpression::Exists {
+                    not_exists,
+                    subquery: Box::new(subquery.root),
+                })
+            }
+
             _ => unimplemented!(),
         }
     }

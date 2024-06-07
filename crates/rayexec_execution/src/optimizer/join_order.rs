@@ -4,7 +4,7 @@ use crate::{
 };
 use rayexec_error::Result;
 
-use super::{walk_plan_post, OptimizeRule};
+use super::OptimizeRule;
 
 #[derive(Debug, Clone)]
 pub struct JoinOrderRule {}
@@ -18,8 +18,11 @@ impl OptimizeRule for JoinOrderRule {
 impl JoinOrderRule {
     /// Try to swap out any joins (joins with arbitrary expressions) with
     /// equality joins.
-    fn optimize_any_join_to_equality_join(&self, plan: LogicalOperator) -> Result<LogicalOperator> {
-        let plan = walk_plan_post(plan, &mut |plan| {
+    fn optimize_any_join_to_equality_join(
+        &self,
+        mut plan: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        plan.walk_mut_post(&mut |plan| {
             match plan {
                 LogicalOperator::AnyJoin(join) => {
                     let mut conjunctives = Vec::with_capacity(1);

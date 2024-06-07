@@ -14,7 +14,7 @@ pub enum DropObject {
     Schema,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DropInfo {
     pub catalog: String,
     pub schema: String,

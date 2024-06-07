@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    binder::{Bound, BoundTableOrCteReference},
+    binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
     scope::{ColumnRef, Scope, TableReference},
 };
@@ -11,6 +11,8 @@ use crate::{
         drop::{DropInfo, DropObject},
     },
     engine::vars::SessionVars,
+    expr::scalar::BinaryOperator,
+    functions::aggregate::count::Count,
     logical::operator::{
         Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
         DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
@@ -18,7 +20,10 @@ use crate::{
         SetVar, ShowVar, VariableOrAll,
     },
 };
-use rayexec_bullet::field::{Field, TypeSchema};
+use rayexec_bullet::{
+    field::{Field, TypeSchema},
+    scalar::OwnedScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, OrderByNulls, OrderByType},
@@ -45,13 +50,16 @@ pub struct PlanContext<'a> {
 
     /// Scopes outside this context.
     pub outer_scopes: Vec<Scope>,
+
+    pub bind_data: &'a BindData,
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(vars: &'a SessionVars) -> Self {
+    pub fn new(vars: &'a SessionVars, bind_data: &'a BindData) -> Self {
         PlanContext {
             vars,
             outer_scopes: Vec::new(),
+            bind_data,
         }
     }
 
@@ -125,12 +133,13 @@ impl<'a> PlanContext<'a> {
     }
 
     /// Create a new nested plan context for planning subqueries.
-    fn nested(&self, outer: Scope) -> Self {
+    pub(crate) fn nested(&self, outer: Scope) -> Self {
         PlanContext {
             vars: self.vars,
             outer_scopes: std::iter::once(outer)
                 .chain(self.outer_scopes.clone())
                 .collect(),
+            bind_data: self.bind_data,
         }
     }
 
@@ -341,12 +350,11 @@ impl<'a> PlanContext<'a> {
         })
     }
 
-    fn plan_query(&mut self, query: ast::QueryNode<Bound>) -> Result<LogicalQuery> {
+    pub(crate) fn plan_query(&mut self, query: ast::QueryNode<Bound>) -> Result<LogicalQuery> {
         // TODO: CTEs
 
         let mut planned = match query.body {
             ast::QueryNodeBody::Select(select) => self.plan_select(*select, query.order_by)?,
-
             ast::QueryNodeBody::Set {
                 left: _,
                 right: _,
@@ -586,6 +594,9 @@ impl<'a> PlanContext<'a> {
             };
         }
 
+        // Flatten subqueries;
+        plan.root = Self::flatten_uncorrelated_subqueries(plan.root)?;
+
         // Cleaned scope containing only output columns in the final output.
         plan.scope = Scope::with_columns(None, names);
 
@@ -628,7 +639,55 @@ impl<'a> PlanContext<'a> {
                             scope,
                         }
                     }
-                    BoundTableOrCteReference::Cte(_) => unimplemented!(),
+                    BoundTableOrCteReference::Cte(BoundCteReference { idx }) => {
+                        let cte = self.bind_data.ctes.get(idx).ok_or_else(|| {
+                            RayexecError::new(format!("Missing bound CTE at index {idx}"))
+                        })?;
+
+                        if cte.materialized {
+                            // Will probably just be a variant of our recursive
+                            // CTE support with a "materialized" operator.
+                            return Err(RayexecError::new(
+                                "Materialized CTEs not currently supported",
+                            ));
+                        }
+
+                        let scope_reference = TableReference {
+                            database: None,
+                            schema: None,
+                            table: cte.name.clone(),
+                        };
+
+                        // TODO: Unsure how we want to set the scope for recursive yet.
+
+                        // Plan CTE body...
+                        let mut nested = self.nested(current_scope);
+                        let mut query = nested.plan_query(cte.body.clone())?;
+
+                        // Update resulting scope items with new cte reference.
+                        query
+                            .scope
+                            .iter_mut()
+                            .for_each(|item| item.alias = Some(scope_reference.clone()));
+
+                        // Apply user provided aliases.
+                        if let Some(aliases) = cte.column_aliases.as_ref() {
+                            if aliases.len() > query.scope.items.len() {
+                                return Err(RayexecError::new(format!(
+                                    "Expected at most {} column aliases, received {}",
+                                    query.scope.items.len(),
+                                    aliases.len()
+                                )))?;
+                            }
+
+                            for (item, alias) in query.scope.iter_mut().zip(aliases.iter()) {
+                                item.column = alias.as_normalized_string();
+                            }
+                        }
+
+                        // And return it. It's now usable elsewhere in the plan.
+                        query
+                    }
                 }
             }
             ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
@@ -976,6 +1035,137 @@ impl<'a> PlanContext<'a> {
         select_exprs.push(orig);
 
         Ok(1)
+    }
+
+    /// Flattens uncorrelated subqueries into the plan.
+    fn flatten_uncorrelated_subqueries(mut plan: LogicalOperator) -> Result<LogicalOperator> {
+        fn flatten_at_node<L: AsMut<LogicalExpression>>(
+            exprs: &mut [L],
+            child: &mut LogicalOperator,
+        ) -> Result<()> {
+            let mut curr_input_cols = child.output_schema(&[])?.types.len(); // TODO: Do we need outer?
+            let mut extracted_subqueries = Vec::new();
+
+            // TODO: Check if correlated.
+            for expr in exprs {
+                let expr = expr.as_mut();
+                expr.walk_mut_post(&mut |expr| {
+                    match expr {
+                        expr @ LogicalExpression::Subquery(_) => {
+                            let column_ref = LogicalExpression::new_column(curr_input_cols);
+                            let orig = std::mem::replace(expr, column_ref);
+                            let subquery = match orig {
+                                LogicalExpression::Subquery(e) => e,
+                                _ => unreachable!(),
+                            };
+
+                            // LIMIT the original subquery to 1
+                            let subquery = LogicalOperator::Limit(Limit {
+                                offset: None,
+                                limit: 1,
+                                input: subquery,
+                            });
+
+                            curr_input_cols += subquery.output_schema(&[])?.types.len();
+                            extracted_subqueries.push(subquery);
+                        }
+                        expr @ LogicalExpression::Exists { .. } => {
+                            // EXISTS -> COUNT(*) == 1
+                            // NOT EXISTS -> COUNT(*) != 1
+
+                            let (subquery, not_exists) = match expr {
+                                LogicalExpression::Exists {
+                                    not_exists,
+                                    subquery,
+                                } => {
+                                    let subquery = std::mem::replace(
+                                        subquery,
+                                        Box::new(LogicalOperator::Empty),
+                                    );
+                                    (subquery, not_exists)
+                                }
+                                _ => unreachable!("variant checked in outer match"),
+                            };
+
+                            *expr = LogicalExpression::Binary {
+                                op: if *not_exists {
+                                    BinaryOperator::NotEq
+                                } else {
+                                    BinaryOperator::Eq
+                                },
+                                left: Box::new(LogicalExpression::new_column(curr_input_cols)),
+                                right: Box::new(LogicalExpression::Literal(
+                                    OwnedScalarValue::Int64(1),
+                                )),
+                            };
+
+                            // COUNT(*) and LIMIT the original query.
+                            let subquery = LogicalOperator::Aggregate(Aggregate {
+                                // TODO: Replace with CountStar once that's in.
+                                //
+                                // This currently just includes a 'true'
+                                // projection that makes the final aggregate
+                                // represent COUNT(true).
+                                exprs: vec![LogicalExpression::Aggregate {
+                                    agg: Box::new(Count),
+                                    inputs: vec![LogicalExpression::new_column(0)],
+                                    filter: None,
+                                }],
+                                grouping_expr: None,
+                                input: Box::new(LogicalOperator::Limit(Limit {
+                                    offset: None,
+                                    limit: 1,
+                                    input: Box::new(LogicalOperator::Projection(Projection {
+                                        exprs: vec![LogicalExpression::Literal(
+                                            OwnedScalarValue::Boolean(true),
+                                        )],
+                                        input: subquery,
+                                    })),
+                                })),
+                            });
+
+                            curr_input_cols += subquery.output_schema(&[])?.types.len();
+                            extracted_subqueries.push(subquery);
+                        }
+                        _ => (),
+                    }
+                    Ok(())
+                })?;
+            }
+
+            // Temporarily replace child while we add all the cross joins.
+            let mut new_child = Box::new(std::mem::replace(child, LogicalOperator::Empty));
+
+            for extracted in extracted_subqueries {
+                new_child = Box::new(LogicalOperator::CrossJoin(CrossJoin {
+                    left: new_child,
+                    right: Box::new(extracted),
+                }))
+            }
+
+            // Put new child back. Now with all the cross joins.
+            *child = *new_child;
+
+            Ok(())
+        }
+
+        plan.walk_mut_post(&mut |plan| {
+            match plan {
+                LogicalOperator::Projection(p) => {
+                    flatten_at_node(&mut p.exprs, &mut p.input)?;
+                }
+                LogicalOperator::Aggregate(p) => {
+                    flatten_at_node(&mut p.exprs, &mut p.input)?;
+                }
+                LogicalOperator::Filter(p) => {
+                    flatten_at_node(&mut [&mut p.predicate], &mut p.input)?;
+                }
+                _other => (),
+            };
+            Ok(())
+        })?;
+
+        Ok(plan)
     }
 }
 

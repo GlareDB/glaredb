@@ -1,0 +1,95 @@
+# Non-recursive, non-materialized CTE tests
+
+query I
+with cte1 as (select 4) select * from cte1;
+----
+4
+
+query II
+select * from (with cte1 as (select 3, 4) select * from cte1);
+----
+3  4
+
+query I
+with cte1 as (select 4 as a) select a from cte1;
+----
+4
+
+query I
+with cte1 as (select * from (select 2 as b)) select b from cte1;
+----
+2
+
+query I rowsort
+with cte1 as (select * from (values (1, 2), (3, 4)) v(a, b)) select b from cte1;
+----
+2
+4
+
+# TODO: Error source: query failed: Expected LeftParen, got Some(TokenWithLocation { token: Word(Word { value: "b", quote: None, keyword: None }), line: 0, col: 0 })
+# query I
+# with cte1(b) as (select 4 as a) select b from cte1;
+# ----
+# 4
+
+# Multiple uses
+query II
+with cte1 as (select 4 as a) select * from cte1 as t1, cte1 as t2;
+----
+4  4
+
+# TODO: Error source: query failed: Ambiguous column name a
+# query I
+# with cte1 as (select 4 as a) select t1.a + t2.a from cte1 as t1, cte1 as t2;
+# ----
+# 8
+
+query I
+with cte1 as (select 4 as a) select c + d from cte1 as t1(c), cte1 as t2(d);
+----
+8
+
+query I
+with cte1 as (select 4 as a) select a + d from cte1 as t1, cte1 as t2(d);
+----
+8
+
+query I
+with cte1 as (select 4 as a) select t1.a + d from cte1 as t1, cte1 as t2(d);
+----
+8
+
+query I
+with cte1 as (select 4 as a) select t1.a + d, a from cte1 as t1, cte1 as t2(d);
+----
+8  4
+
+query I
+with cte1 as (select 4 as a),
+     cte2 as (select 5 as b)
+select b, a from cte1, cte2;
+----
+5  4
+
+query I
+with cte1 as (select 4 as a),
+     cte2 as (select 5 as b)
+select b, a from cte1, cte2 where (select a = 4 from cte1 where a = 4);
+----
+5  4
+
+# TODO: See TODO on `find_cte`
+# query II
+# with cte1 as
+#     (select 1)
+# select *
+#   from (with cte1 as (select 2) select * from cte1)
+#        cross join
+#        (select * from cte1);
+# ----
+# 2  1
+
+query I
+with cte1 as (values (1), (2), (3))
+    select * from cte1 limit 0 offset 1
+----

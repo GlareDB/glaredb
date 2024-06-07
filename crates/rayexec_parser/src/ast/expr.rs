@@ -7,7 +7,7 @@ use crate::{
     tokens::{Token, Word},
 };
 
-use super::{AstParseable, Ident, ObjectReference};
+use super::{AstParseable, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -95,9 +95,12 @@ pub enum FunctionArg<T: AstMeta> {
     /// A named argument. Allows use of either `=>` or `=` for assignment.
     ///
     /// `ident => <expr>` or `ident = <expr>`
-    Named { name: Ident, arg: Expr<T> },
+    Named {
+        name: Ident,
+        arg: FunctionArgExpr<T>,
+    },
     /// `<expr>`
-    Unnamed { arg: Expr<T> },
+    Unnamed { arg: FunctionArgExpr<T> },
 }
 
 impl AstParseable for FunctionArg<Raw> {
@@ -110,15 +113,33 @@ impl AstParseable for FunctionArg<Raw> {
         if is_named {
             let ident = Ident::parse(parser)?;
             parser.expect_one_of_tokens(&[&Token::RightArrow, &Token::Eq])?;
-            let expr = Expr::parse(parser)?;
+            let expr = FunctionArgExpr::parse(parser)?;
 
             Ok(FunctionArg::Named {
                 name: ident,
                 arg: expr,
             })
         } else {
-            let expr = Expr::parse(parser)?;
+            let expr = FunctionArgExpr::parse(parser)?;
             Ok(FunctionArg::Unnamed { arg: expr })
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FunctionArgExpr<T: AstMeta> {
+    Wildcard,
+    Expr(Expr<T>),
+}
+
+impl AstParseable for FunctionArgExpr<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        match parser.peek() {
+            Some(tok) if tok.token == Token::Mul => {
+                let _ = parser.next(); // Consume.
+                Ok(Self::Wildcard)
+            }
+            _ => Ok(Self::Expr(Expr::parse(parser)?)),
         }
     }
 }
@@ -137,6 +158,11 @@ pub enum Expr<T: AstMeta> {
     QualifiedWildcard(Vec<Ident>),
     /// An expression literal,
     Literal(Literal<T>),
+    /// Unary expression.
+    UnaryExpr {
+        op: UnaryOperator,
+        expr: Box<Expr<T>>,
+    },
     /// A binary expression.
     BinaryExpr {
         left: Box<Expr<T>>,
@@ -145,12 +171,27 @@ pub enum Expr<T: AstMeta> {
     },
     /// A function call.
     Function(Function<T>),
+    /// Scalar subquery.
+    Subquery(Box<QueryNode<T>>),
+    /// Nested expression wrapped in parenthesis.
+    ///
+    /// (1 + 2)
+    Nested(Box<Expr<T>>),
+    /// Tuple of expressions.
+    ///
+    /// (1, 2)
+    Tuple(Vec<Expr<T>>),
     /// A colation.
     ///
     /// `<expr> COLLATE <collation>`
     Collate {
         expr: Box<Expr<T>>,
         collation: ObjectReference,
+    },
+    /// EXISTS/NOT EXISTS
+    Exists {
+        subquery: Box<QueryNode<T>>,
+        not_exists: bool,
     },
 }
 
@@ -161,6 +202,22 @@ impl AstParseable for Expr<Raw> {
 }
 
 impl Expr<Raw> {
+    // Precdences, ordered low to high.
+    const PREC_OR: u8 = 10;
+    const PREC_AND: u8 = 20;
+    const PREC_NOT: u8 = 30;
+    const PREC_IS: u8 = 40;
+    const PREC_COMPARISON: u8 = 50; // <=, =, etc
+    const PREC_CONTAINMENT: u8 = 60; // BETWEEN, IN, LIKE, etc
+    const PREC_EVERYTHING_ELSE: u8 = 70; // Anything without a specific precedence.
+    const PREC_ADD_SUB: u8 = 80;
+    const PREC_MUL_DIV_MOD: u8 = 90;
+    const _PREC_EXPONENTIATION: u8 = 100;
+    const _PREC_AT: u8 = 110; // AT TIME ZONE
+    const _PREC_COLLATE: u8 = 120;
+    const PREC_ARRAY_ELEM: u8 = 130; // []
+    const PREC_CAST: u8 = 140; // ::
+
     fn parse_subexpr(parser: &mut Parser, precendence: u8) -> Result<Self> {
         let mut expr = Expr::parse_prefix(parser)?;
 
@@ -194,12 +251,52 @@ impl Expr<Raw> {
                     Keyword::TRUE => Expr::Literal(Literal::Boolean(true)),
                     Keyword::FALSE => Expr::Literal(Literal::Boolean(false)),
                     Keyword::NULL => Expr::Literal(Literal::Null),
+                    Keyword::EXISTS => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let subquery = QueryNode::parse(parser)?;
+                        parser.expect_token(&Token::RightParen)?;
+                        Expr::Exists {
+                            subquery: Box::new(subquery),
+                            not_exists: false,
+                        }
+                    }
+                    Keyword::NOT => match parser.peek().map(|t| &t.token) {
+                        Some(Token::Word(w)) if w.keyword == Some(Keyword::EXISTS) => {
+                            parser.expect_keyword(Keyword::EXISTS)?;
+                            parser.expect_token(&Token::LeftParen)?;
+                            let subquery = QueryNode::parse(parser)?;
+                            parser.expect_token(&Token::RightParen)?;
+                            Expr::Exists {
+                                subquery: Box::new(subquery),
+                                not_exists: true,
+                            }
+                        }
+                        _ => Expr::UnaryExpr {
+                            op: UnaryOperator::Not,
+                            expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_NOT)?),
+                        },
+                    },
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
             },
             Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s.clone())),
             Token::Number(s) => Expr::Literal(Literal::Number(s.clone())),
+            Token::LeftParen => {
+                let expr = if QueryNode::is_query_node_start(parser) {
+                    let subquery = QueryNode::parse(parser)?;
+                    Expr::Subquery(Box::new(subquery))
+                } else {
+                    let mut exprs = parser.parse_comma_separated(Expr::parse)?;
+                    match exprs.len() {
+                        0 => return Err(RayexecError::new("No expressions")),
+                        1 => Expr::Nested(Box::new(exprs.pop().unwrap())),
+                        _ => Expr::Tuple(exprs),
+                    }
+                };
+                parser.expect_token(&Token::RightParen)?;
+                expr
+            }
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
@@ -274,30 +371,14 @@ impl Expr<Raw> {
     ///
     /// See <https://www.postgresql.org/docs/16/sql-syntax-lexical.html#SQL-PRECEDENCE>
     fn get_infix_precedence(parser: &mut Parser) -> Result<u8> {
-        // Precdences, ordered low to high.
-        const PREC_OR: u8 = 10;
-        const PREC_AND: u8 = 20;
-        const _PREC_NOT: u8 = 30;
-        const PREC_IS: u8 = 40;
-        const PREC_COMPARISON: u8 = 50; // <=, =, etc
-        const PREC_CONTAINMENT: u8 = 60; // BETWEEN, IN, LIKE, etc
-        const PREC_EVERYTHING_ELSE: u8 = 70; // Anything without a specific precedence.
-        const PREC_ADD_SUB: u8 = 80;
-        const PREC_MUL_DIV_MOD: u8 = 90;
-        const _PREC_EXPONENTIATION: u8 = 100;
-        const _PREC_AT: u8 = 110; // AT TIME ZONE
-        const _PREC_COLLATE: u8 = 120;
-        const PREC_ARRAY_ELEM: u8 = 130; // []
-        const PREC_CAST: u8 = 140; // ::
-
         let tok = match parser.peek() {
             Some(tok) => &tok.token,
             None => return Ok(0),
         };
 
         match tok {
-            Token::Word(w) if w.keyword == Some(Keyword::OR) => Ok(PREC_OR),
-            Token::Word(w) if w.keyword == Some(Keyword::AND) => Ok(PREC_AND),
+            Token::Word(w) if w.keyword == Some(Keyword::OR) => Ok(Self::PREC_OR),
+            Token::Word(w) if w.keyword == Some(Keyword::AND) => Ok(Self::PREC_AND),
 
             Token::Word(w) if w.keyword == Some(Keyword::NOT) => {
                 // Precedence depends on keyword following it.
@@ -310,13 +391,13 @@ impl Expr<Raw> {
                 };
 
                 match next_kw {
-                    Keyword::IN => Ok(PREC_CONTAINMENT),
-                    Keyword::BETWEEN => Ok(PREC_CONTAINMENT),
-                    Keyword::LIKE => Ok(PREC_CONTAINMENT),
-                    Keyword::ILIKE => Ok(PREC_CONTAINMENT),
-                    Keyword::RLIKE => Ok(PREC_CONTAINMENT),
-                    Keyword::REGEXP => Ok(PREC_CONTAINMENT),
-                    Keyword::SIMILAR => Ok(PREC_CONTAINMENT),
+                    Keyword::IN => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::BETWEEN => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::LIKE => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::ILIKE => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::RLIKE => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::REGEXP => Ok(Self::PREC_CONTAINMENT),
+                    Keyword::SIMILAR => Ok(Self::PREC_CONTAINMENT),
                     _ => Ok(0),
                 }
             }
@@ -331,19 +412,19 @@ impl Expr<Raw> {
                 };
 
                 match next_kw {
-                    Keyword::NULL => Ok(PREC_IS),
-                    _ => Ok(PREC_IS),
+                    Keyword::NULL => Ok(Self::PREC_IS),
+                    _ => Ok(Self::PREC_IS),
                 }
             }
-            Token::Word(w) if w.keyword == Some(Keyword::IN) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::BETWEEN) => Ok(PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::IN) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::BETWEEN) => Ok(Self::PREC_CONTAINMENT),
 
             // "LIKE"
-            Token::Word(w) if w.keyword == Some(Keyword::LIKE) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::ILIKE) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::RLIKE) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::REGEXP) => Ok(PREC_CONTAINMENT),
-            Token::Word(w) if w.keyword == Some(Keyword::SIMILAR) => Ok(PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::LIKE) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::ILIKE) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::RLIKE) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::REGEXP) => Ok(Self::PREC_CONTAINMENT),
+            Token::Word(w) if w.keyword == Some(Keyword::SIMILAR) => Ok(Self::PREC_CONTAINMENT),
 
             // Equalities
             Token::Eq
@@ -352,20 +433,20 @@ impl Expr<Raw> {
             | Token::Lt
             | Token::LtEq
             | Token::Gt
-            | Token::GtEq => Ok(PREC_COMPARISON),
+            | Token::GtEq => Ok(Self::PREC_COMPARISON),
 
             // Numeric operators
-            Token::Plus | Token::Minus => Ok(PREC_ADD_SUB),
-            Token::Mul | Token::Div | Token::IntDiv | Token::Mod => Ok(PREC_MUL_DIV_MOD),
+            Token::Plus | Token::Minus => Ok(Self::PREC_ADD_SUB),
+            Token::Mul | Token::Div | Token::IntDiv | Token::Mod => Ok(Self::PREC_MUL_DIV_MOD),
 
             // Cast
-            Token::DoubleColon => Ok(PREC_CAST),
+            Token::DoubleColon => Ok(Self::PREC_CAST),
 
             // Concat
-            Token::Concat => Ok(PREC_EVERYTHING_ELSE),
+            Token::Concat => Ok(Self::PREC_EVERYTHING_ELSE),
 
             // Array, struct literals
-            Token::LeftBrace | Token::LeftBracket => Ok(PREC_ARRAY_ELEM),
+            Token::LeftBrace | Token::LeftBracket => Ok(Self::PREC_ARRAY_ELEM),
 
             _ => Ok(0),
         }
@@ -494,7 +575,7 @@ mod tests {
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("sum")]),
             args: vec![FunctionArg::Unnamed {
-                arg: Expr::Ident(Ident::from_string("my_col")),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("my_col"))),
             }],
             filter: None,
         });
@@ -507,7 +588,7 @@ mod tests {
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("count")]),
             args: vec![FunctionArg::Unnamed {
-                arg: Expr::Ident(Ident::from_string("x")),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("x"))),
             }],
             filter: Some(Box::new(Expr::BinaryExpr {
                 left: Box::new(Expr::Ident(Ident::from_string("x"))),
@@ -515,6 +596,64 @@ mod tests {
                 right: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
             })),
         });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn nested_expr() {
+        let expr: Expr<_> = parse_ast("(1 + 2)").unwrap();
+        let expected = Expr::Nested(Box::new(Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(Literal::Number("1".to_string()))),
+            op: BinaryOperator::Plus,
+            right: Box::new(Expr::Literal(Literal::Number("2".to_string()))),
+        }));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn count_star() {
+        let expr: Expr<_> = parse_ast("count(*)").unwrap();
+        let expected = Expr::Function(Function {
+            reference: ObjectReference::from_strings(["count"]),
+            args: vec![FunctionArg::Unnamed {
+                arg: FunctionArgExpr::Wildcard,
+            }],
+            filter: None,
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn count_star_precedence_before() {
+        let expr: Expr<_> = parse_ast("111 * count(*)").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::Function(Function {
+                reference: ObjectReference::from_strings(["count"]),
+                args: vec![FunctionArg::Unnamed {
+                    arg: FunctionArgExpr::Wildcard,
+                }],
+                filter: None,
+            })),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn count_star_precedence_after() {
+        let expr: Expr<_> = parse_ast("count(*) * 111").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Function(Function {
+                reference: ObjectReference::from_strings(["count"]),
+                args: vec![FunctionArg::Unnamed {
+                    arg: FunctionArgExpr::Wildcard,
+                }],
+                filter: None,
+            })),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
+        };
         assert_eq!(expected, expr);
     }
 }
