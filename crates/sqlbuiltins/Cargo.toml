@@ -41,5 +41,5 @@ siphasher = "1.0.1"
 strum = "0.26.2"
 memoize = { version = "0.4.2", features = ["full"] }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
-arrow-cast = { version = "50.0.0" } # MUST synchronize sync with the datafusion::arrow version
+arrow-cast = { version = "52.0.0" } # MUST synchronize sync with the datafusion::arrow version
 lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" } # omits duckdb submodule

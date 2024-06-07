@@ -233,17 +233,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa285343fba4d829d49985bdc541e3789cf6000ed0e84be7c039438df4a4e78c"
 dependencies = [
  "arrow-arith",
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
  "arrow-csv",
- "arrow-data",
+ "arrow-data 50.0.0",
  "arrow-ipc",
  "arrow-json",
  "arrow-ord",
  "arrow-row",
- "arrow-schema",
- "arrow-select",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "arrow-string",
  "pyo3",
 ]
@@ -254,10 +254,10 @@ version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "753abd0a5290c1bcade7c6623a556f7d1659c5f4148b140b5b63ce7bd1a45705"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
  "chrono",
  "half",
  "num",
@@ -270,11 +270,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d390feeb7f21b78ec997a4081a025baef1e2e0d6069e181939b61864c9779609"
 dependencies = [
  "ahash 0.8.11",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
  "chrono",
  "chrono-tz 0.8.6",
+ "half",
+ "hashbrown 0.14.3",
+ "num",
+]
+
+[[package]]
+name = "arrow-array"
+version = "52.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d33238427c60271710695f17742f45b1a5dc5bcfc5c15331c25ddfe7abf70d97"
+dependencies = [
+ "ahash 0.8.11",
+ "arrow-buffer 52.0.0",
+ "arrow-data 52.0.0",
+ "arrow-schema 52.0.0",
+ "chrono",
  "half",
  "hashbrown 0.14.3",
  "num",
@@ -292,16 +308,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrow-buffer"
+version = "52.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe9b95e825ae838efaf77e366c00d3fc8cca78134c9db497d6bda425f2e7b7c1"
+dependencies = [
+ "bytes",
+ "half",
+ "num",
+]
+
+[[package]]
 name = "arrow-cast"
 version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e448e5dd2f4113bf5b74a1f26531708f5edcacc77335b7066f9398f4bcf4cdef"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
- "arrow-select",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "base64 0.21.7",
  "chrono",
  "comfy-table",
@@ -311,16 +338,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrow-cast"
+version = "52.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87cf8385a9d5b5fcde771661dd07652b79b9139fea66193eda6a88664400ccab"
+dependencies = [
+ "arrow-array 52.0.0",
+ "arrow-buffer 52.0.0",
+ "arrow-data 52.0.0",
+ "arrow-schema 52.0.0",
+ "arrow-select 52.0.0",
+ "atoi",
+ "base64 0.22.1",
+ "chrono",
+ "half",
+ "lexical-core",
+ "num",
+ "ryu",
+]
+
+[[package]]
 name = "arrow-csv"
 version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46af72211f0712612f5b18325530b9ad1bfbdc87290d5fbfd32a7da128983781"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
  "chrono",
  "csv",
  "csv-core",
@@ -335,8 +382,20 @@ version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67d644b91a162f3ad3135ce1184d0a31c28b816a581e08f29e8e9277a574c64e"
 dependencies = [
- "arrow-buffer",
- "arrow-schema",
+ "arrow-buffer 50.0.0",
+ "arrow-schema 50.0.0",
+ "half",
+ "num",
+]
+
+[[package]]
+name = "arrow-data"
+version = "52.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb29be98f987bcf217b070512bb7afba2f65180858bca462edf4a39d84a23e10"
+dependencies = [
+ "arrow-buffer 52.0.0",
+ "arrow-schema 52.0.0",
  "half",
  "num",
 ]
@@ -348,15 +407,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d7f215461ad6346f2e4cc853e377d4e076d533e1ed78d327debe83023e3601f"
 dependencies = [
  "arrow-arith",
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
  "arrow-ipc",
  "arrow-ord",
  "arrow-row",
- "arrow-schema",
- "arrow-select",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "arrow-string",
  "base64 0.21.7",
  "bytes",
@@ -374,11 +433,11 @@ version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03dea5e79b48de6c2e04f03f62b0afea7105be7b77d134f6c5414868feefb80d"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
  "flatbuffers",
  "lz4_flex",
  "zstd 0.13.1",
@@ -390,11 +449,11 @@ version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8950719280397a47d37ac01492e3506a8a724b3fb81001900b866637a829ee0f"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
  "chrono",
  "half",
  "indexmap 2.2.6",
@@ -410,11 +469,11 @@ version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ed9630979034077982d8e74a942b7ac228f33dd93a93b615b4d02ad60c260be"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
- "arrow-select",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "half",
  "num",
 ]
@@ -426,10 +485,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "007035e17ae09c4e8993e4cb8b5b96edf0afb927cd38e2dff27189b274d83dcf"
 dependencies = [
  "ahash 0.8.11",
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
  "half",
  "hashbrown 0.14.3",
 ]
@@ -445,16 +504,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrow-schema"
+version = "52.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32aae6a60458a2389c0da89c9de0b7932427776127da1a738e2efc21d32f3393"
+
+[[package]]
 name = "arrow-select"
 version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ce20973c1912de6514348e064829e50947e35977bb9d7fb637dc99ea9ffd78c"
 dependencies = [
  "ahash 0.8.11",
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
+ "num",
+]
+
+[[package]]
+name = "arrow-select"
+version = "52.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de36abaef8767b4220d7b4a8c2fe5ffc78b47db81b03d77e2136091c3ba39102"
+dependencies = [
+ "ahash 0.8.11",
+ "arrow-array 52.0.0",
+ "arrow-buffer 52.0.0",
+ "arrow-data 52.0.0",
+ "arrow-schema 52.0.0",
  "num",
 ]
 
@@ -464,11 +543,11 @@ version = "50.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00f3b37f2aeece31a2636d1b037dabb69ef590e03bdc7eb68519b51ec86932a7"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
- "arrow-select",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "num",
  "regex",
  "regex-syntax 0.8.3",
@@ -651,6 +730,15 @@ dependencies = [
  "futures-util",
  "memchr",
  "pin-project-lite",
+]
+
+[[package]]
+name = "atoi"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f28d99ec8bfea296261ca1af174f24225171fea9664ba9003cbebee704810528"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -1514,7 +1602,7 @@ dependencies = [
  "bitflags 2.5.0",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -2581,9 +2669,9 @@ dependencies = [
  "ahash 0.8.11",
  "apache-avro",
  "arrow",
- "arrow-array",
+ "arrow-array 50.0.0",
  "arrow-ipc",
- "arrow-schema",
+ "arrow-schema 50.0.0",
  "async-compression",
  "async-trait",
  "bytes",
@@ -2633,9 +2721,9 @@ dependencies = [
  "ahash 0.8.11",
  "apache-avro",
  "arrow",
- "arrow-array",
- "arrow-buffer",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-schema 50.0.0",
  "chrono",
  "half",
  "libc",
@@ -2675,7 +2763,7 @@ checksum = "e204d89909e678846b6a95f156aafc1ee5b36cb6c9e37ec2e1449b078a38c818"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
- "arrow-array",
+ "arrow-array 50.0.0",
  "datafusion-common",
  "paste",
  "sqlparser 0.43.1",
@@ -2738,10 +2826,10 @@ checksum = "dde620cd9ef76a3bca9c754fb68854bd2349c49f55baf97e08001f9e967f6d6b"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
- "arrow-array",
- "arrow-buffer",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
  "arrow-ord",
- "arrow-schema",
+ "arrow-schema 50.0.0",
  "arrow-string",
  "base64 0.21.7",
  "blake2",
@@ -2774,9 +2862,9 @@ checksum = "9a4c75fba9ea99d64b2246cbd2fcae2e6fc973e6616b1015237a616036506dd4"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
- "arrow-array",
- "arrow-buffer",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-schema 50.0.0",
  "async-trait",
  "chrono",
  "datafusion-common",
@@ -2819,7 +2907,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21474a95c3a62d113599d21b439fa15091b538bac06bd20be0bb2e7d22903c09"
 dependencies = [
  "arrow",
- "arrow-schema",
+ "arrow-schema 50.0.0",
  "datafusion-common",
  "datafusion-expr",
  "log",
@@ -3017,15 +3105,15 @@ source = "git+https://github.com/GlareDB/delta-rs.git?rev=94773cb304ebc5eaa48d75
 dependencies = [
  "arrow",
  "arrow-arith",
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
  "arrow-ipc",
  "arrow-json",
  "arrow-ord",
  "arrow-row",
- "arrow-schema",
- "arrow-select",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "async-trait",
  "bytes",
  "cfg-if",
@@ -4197,7 +4285,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.6",
  "tokio",
  "tower-service",
  "tracing",
@@ -4591,12 +4679,12 @@ source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00d
 dependencies = [
  "arrow",
  "arrow-arith",
- "arrow-array",
- "arrow-buffer",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
  "arrow-ord",
  "arrow-row",
- "arrow-schema",
- "arrow-select",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "async-recursion",
  "async-trait",
  "async_cell",
@@ -4646,12 +4734,12 @@ name = "lance-arrow"
 version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
- "arrow-schema",
- "arrow-select",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "getrandom",
  "half",
  "num-traits",
@@ -4664,9 +4752,9 @@ name = "lance-core"
 version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-schema 50.0.0",
  "async-trait",
  "byteorder",
  "bytes",
@@ -4699,9 +4787,9 @@ version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
  "arrow",
- "arrow-array",
+ "arrow-array 50.0.0",
  "arrow-ord",
- "arrow-schema",
+ "arrow-schema 50.0.0",
  "async-trait",
  "datafusion",
  "datafusion-common",
@@ -4721,9 +4809,9 @@ version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
  "arrow",
- "arrow-array",
- "arrow-cast",
- "arrow-schema",
+ "arrow-array 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-schema 50.0.0",
  "chrono",
  "hex",
  "rand",
@@ -4736,10 +4824,10 @@ version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
  "arrow-arith",
- "arrow-array",
- "arrow-buffer",
- "arrow-schema",
- "arrow-select",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "async-recursion",
  "async-trait",
  "datafusion-common",
@@ -4764,10 +4852,10 @@ version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
  "arrow",
- "arrow-array",
+ "arrow-array 50.0.0",
  "arrow-ord",
- "arrow-schema",
- "arrow-select",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "async-recursion",
  "async-trait",
  "datafusion",
@@ -4810,12 +4898,12 @@ source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00d
 dependencies = [
  "arrow",
  "arrow-arith",
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
- "arrow-schema",
- "arrow-select",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "async-recursion",
  "async-trait",
  "aws-config 0.56.1",
@@ -4845,9 +4933,9 @@ name = "lance-linalg"
 version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
- "arrow-array",
+ "arrow-array 50.0.0",
  "arrow-ord",
- "arrow-schema",
+ "arrow-schema 50.0.0",
  "cc",
  "futures",
  "half",
@@ -4867,10 +4955,10 @@ name = "lance-table"
 version = "0.10.6"
 source = "git+https://github.com/GlareDB/lance?branch=df36#7d8b8f4fa4807fd17f00db169284db53d83a64d2"
 dependencies = [
- "arrow-array",
- "arrow-buffer",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
  "arrow-ipc",
- "arrow-schema",
+ "arrow-schema 50.0.0",
  "async-trait",
  "aws-credential-types 0.56.1",
  "byteorder",
@@ -6035,13 +6123,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "547b92ebf0c1177e3892f44c8f79757ee62e678d564a9834189725f2c5b7a750"
 dependencies = [
  "ahash 0.8.11",
- "arrow-array",
- "arrow-buffer",
- "arrow-cast",
- "arrow-data",
+ "arrow-array 50.0.0",
+ "arrow-buffer 50.0.0",
+ "arrow-cast 50.0.0",
+ "arrow-data 50.0.0",
  "arrow-ipc",
- "arrow-schema",
- "arrow-select",
+ "arrow-schema 50.0.0",
+ "arrow-select 50.0.0",
  "base64 0.21.7",
  "brotli",
  "bytes",
@@ -6472,7 +6560,7 @@ checksum = "80b776a1b2dc779f5ee0641f8ade0125bc1298dd41a9a0c16d8bd57b42d222b1"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "log",
  "multimap",
  "once_cell",
@@ -6492,7 +6580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.58",
@@ -8191,7 +8279,7 @@ dependencies = [
 name = "sqlbuiltins"
 version = "0.9.3"
 dependencies = [
- "arrow-cast",
+ "arrow-cast 52.0.0",
  "async-openai",
  "async-trait",
  "bytes",
