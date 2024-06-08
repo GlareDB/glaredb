@@ -47,10 +47,10 @@ fn get_range_iter(start: &str, end: &str) -> Result<Vec<String>, ReplacerFindErr
     }
 
     match (start, end) {
-        (s, e) if s.is_empty() && e.is_empty() => Err(ReplacerFindError::new(
+        ("", "") => Err(ReplacerFindError::new(
             "both start and end in range are empty strings",
         )),
-        (s, e) if s.is_empty() => {
+        ("", e) => {
             if let Some(e_char) = is_char(e) {
                 let s_char = if e_char.is_ascii_uppercase() {
                     'A'
@@ -73,7 +73,7 @@ fn get_range_iter(start: &str, end: &str) -> Result<Vec<String>, ReplacerFindErr
                 }
             }
         }
-        (s, e) if e.is_empty() => {
+        (s, "") => {
             let s_char = is_char(s).ok_or_else(|| {
                 ReplacerFindError::new(format!("{s} not a valid char in N.. pattern"))
             })?;

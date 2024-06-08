@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::io::Cursor;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,17 +23,18 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use futures::StreamExt;
+use iceberg::spec::{
+    Manifest,
+    ManifestContentType,
+    ManifestList,
+    SnapshotRef,
+    StructType,
+    TableMetadata,
+};
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectMeta, ObjectStore};
 
-use super::spec::{
-    Manifest,
-    ManifestContent,
-    ManifestEntryStatus,
-    ManifestList,
-    Snapshot,
-    TableMetadata,
-};
+use super::spec::iceberg_schema_to_arrow;
 use crate::common::url::DatasourceUrl;
 use crate::lake::iceberg::errors::{IcebergError, Result};
 
@@ -189,58 +189,30 @@ impl TableState {
     }
 
     /// Get the current snapshot from the table metadata
-    fn current_snapshot(&self) -> Result<&Snapshot> {
-        let current_snapshot_id = self
-            .metadata
-            .current_snapshot_id
-            .ok_or_else(|| IcebergError::DataInvalid("Missing current snapshot id".to_string()))?;
-
-        let current_snapshot = self
-            .metadata
-            .snapshots
-            .iter()
-            .find(|s| s.snapshot_id == current_snapshot_id)
-            .ok_or_else(|| {
-                IcebergError::DataInvalid(format!(
-                    "Missing snapshot for id: {}",
-                    current_snapshot_id
-                ))
-            })?;
+    fn current_snapshot(&self) -> Result<&SnapshotRef> {
+        let current_snapshot = self.metadata.current_snapshot().ok_or_else(|| {
+            IcebergError::DataInvalid("Missing current snapshot from metadata".to_string())
+        })?;
 
         Ok(current_snapshot)
     }
 
     fn table_arrow_schema(&self) -> Result<ArrowSchema> {
-        // TODO: v1: Read `schema` (deprecated format).
-
-        let schema = self
-            .metadata
-            .schemas
-            .iter()
-            .find(|s| s.schema_id == self.metadata.current_schema_id)
-            .ok_or_else(|| {
-                IcebergError::DataInvalid(format!(
-                    "Missing schema for id: {}",
-                    self.metadata.current_schema_id
-                ))
-            })?;
-
-        schema.to_arrow_schema()
+        let schema = self.metadata.current_schema();
+        iceberg_schema_to_arrow(schema.as_ref())
     }
 
     async fn read_manifests(&self) -> Result<Vec<Manifest>> {
         let list = self.read_manifest_list().await?;
 
         let mut manifests = Vec::new();
-        for ent in list.entries {
+        for ent in list.entries() {
             let manifest_path = self.resolver.relative_path(&ent.manifest_path);
 
             let path = format_object_path(&self.location, manifest_path)?;
             let bs = self.store.get(&path).await?.bytes().await?;
 
-            let cursor = Cursor::new(bs);
-
-            let manifest = Manifest::from_raw_avro(cursor)?;
+            let manifest = Manifest::parse_avro(&bs)?;
             manifests.push(manifest);
         }
 
@@ -249,13 +221,28 @@ impl TableState {
 
     async fn read_manifest_list(&self) -> Result<ManifestList> {
         let current_snapshot = self.current_snapshot()?;
-        let manifest_list_path = self.resolver.relative_path(&current_snapshot.manifest_list);
+        let manifest_list_path = self
+            .resolver
+            .relative_path(current_snapshot.manifest_list());
 
         let path = format_object_path(&self.location, manifest_list_path)?;
         let bs = self.store.get(&path).await?.bytes().await?;
 
-        let cursor = Cursor::new(bs);
-        let list = ManifestList::from_raw_avro(cursor)?;
+        let partition_type_provider =
+            |partition_spec_id: i32| -> Result<Option<StructType>, iceberg::Error> {
+                self.metadata
+                    .partition_spec_by_id(partition_spec_id)
+                    .map(|partition_spec| {
+                        partition_spec.partition_type(self.metadata.current_schema().as_ref())
+                    })
+                    .transpose()
+            };
+
+        let list = ManifestList::parse_with_version(
+            &bs,
+            self.metadata.format_version(),
+            partition_type_provider,
+        )?;
 
         Ok(list)
     }
@@ -271,7 +258,7 @@ struct PathResolver {
 impl PathResolver {
     fn from_metadata(metadata: &TableMetadata) -> PathResolver {
         PathResolver {
-            metadata_location: metadata.location.clone(),
+            metadata_location: metadata.location().to_string(),
         }
     }
 
@@ -363,30 +350,27 @@ impl TableProvider for IcebergTableReader {
         //
         // TODO: Handle "delete" content and also pull out partition
         // information.
-        let data_files: Vec<_> = manifests
-            .into_iter()
-            .filter(|m| matches!(m.metadata.content, ManifestContent::Data))
+        let data_files = manifests
+            .iter()
+            .filter(|m| matches!(m.metadata().content(), ManifestContentType::Data))
             .flat_map(|m| {
-                m.entries.into_iter().filter_map(|ent| {
-                    let ent_status: ManifestEntryStatus = ent.status.try_into().unwrap_or_default();
-                    if ent_status.is_deleted() {
+                m.entries().iter().filter_map(|ent| {
+                    if ent.is_alive() {
+                        Some(ent.data_file())
+                    } else {
                         // Ignore deleted entries during table scans.
                         None
-                    } else {
-                        Some(ent.data_file)
                     }
                 })
-            })
-            .collect();
+            });
 
         let partitioned_files = data_files
-            .iter()
             .map(|f| {
-                let path = self.state.resolver.relative_path(&f.file_path);
+                let path = self.state.resolver.relative_path(f.file_path());
                 let meta = ObjectMeta {
                     location: format_object_path(&self.state.location, path)?,
                     last_modified: DateTime::<Utc>::MIN_UTC, // TODO: Get the actual time.
-                    size: f.file_size_in_bytes as usize,
+                    size: f.file_size_in_bytes() as usize,
                     e_tag: None,
                     version: None,
                 };

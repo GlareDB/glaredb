@@ -18,9 +18,3 @@
 
 mod schema;
 pub use schema::*;
-
-mod metadata;
-pub use metadata::*;
-
-mod manifest;
-pub use manifest::*;
