@@ -1,3 +1,6 @@
+pub mod aggregate_hash_table;
+pub mod grouping_set;
+
 use parking_lot::Mutex;
 use rayexec_bullet::array::{Array, NullArray};
 use rayexec_bullet::batch::Batch;
@@ -5,10 +8,8 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
-use std::fmt;
 use std::task::{Context, Waker};
 
-use crate::execution::operators::aggregate::aggregate_hash_table::AggregateStates;
 use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
@@ -16,27 +17,8 @@ use crate::execution::operators::{
 use crate::expr::PhysicalAggregateExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::aggregate_hash_table::{AggregateHashTableDrain, PartitionAggregateHashTable};
-use super::grouping_set::GroupingSets;
-
-/// Used to specify the output of an aggregate operator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HashAggregateColumnOutput {
-    /// Reference a column that part of the grouping set.
-    GroupingColumn(usize),
-
-    /// Reference a computed aggregate result.
-    AggregateResult(usize),
-}
-
-impl fmt::Display for HashAggregateColumnOutput {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::GroupingColumn(idx) => write!(f, "grouping_column({idx})"),
-            Self::AggregateResult(idx) => write!(f, "result_column({idx})"),
-        }
-    }
-}
+use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
+use grouping_set::GroupingSets;
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
@@ -328,27 +310,12 @@ impl PhysicalOperator for PhysicalHashAggregate {
                     hashtable_drain: None,
                 };
                 let aggregating_state = std::mem::replace(state, producing_state);
-                let mut partition_hashtables = match aggregating_state {
+                let partition_hashtables = match aggregating_state {
                     HashAggregatePartitionState::Aggregating {
                         output_hashtables, ..
                     } => output_hashtables,
                     _ => unreachable!("state variant already checked in outer match"),
                 };
-
-                // If we're ungrouped, and we have not received any input, make
-                // sure we have at least one empty group so we can produce
-                // results.
-                //
-                // TODO: This logic should be removed when the ungrouped
-                // operator is created.
-                let ungrouped = self.grouping_sets.columns().is_empty();
-                if ungrouped {
-                    let partition = partition_for_hash(0, partition_hashtables.len());
-                    let ht = &mut partition_hashtables[partition];
-                    if ht.num_groups() == 0 {
-                        ht.create_group_for_hash(0)?;
-                    }
-                }
 
                 for (partition_idx, partition_hashtable) in
                     partition_hashtables.into_iter().enumerate()

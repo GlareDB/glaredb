@@ -77,23 +77,21 @@ select * from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
 b  2
 c  3
 
-# TODO: Missing intrusive projection
-# query IT
-# select column2, column1 from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
-#     order by column1
-#     limit 2
-#     offset 1;
-# ----
-# 3  c
-# 2  b
+query IT
+select column2, column1 from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
+    order by column1
+    limit 2
+    offset 1;
+----
+2  b
+3  c
 
-# TODO: Missing intrusive projection
-# query I
-# select column2 from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
-#     order by column1
-#     limit 2
-#     offset 1;
-# ----
-# 3
-# 2
+query I
+select column2 from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
+    order by column1
+    limit 2
+    offset 1;
+----
+2
+3
 

@@ -65,6 +65,8 @@ impl PartialEq for dyn GenericAggregateFunction + '_ {
 }
 
 pub trait SpecializedAggregateFunction: Debug + Sync + Send + DynClone {
+    /// Create a new `GroupedStates` that's able to hold the aggregate state for
+    /// multiple groups.
     fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
 }
 
@@ -103,7 +105,6 @@ pub trait GroupedStates: Debug + Send {
     /// Errors if the concrete types do not match. Essentially this prevents
     /// trying to combine state between different aggregates (SumI32 and AvgF32)
     /// _and_ type (SumI32 and SumI64).
-    // TODO: Mapping
     fn try_combine(&mut self, consume: Box<dyn GroupedStates>, mapping: &[usize]) -> Result<()>;
 
     /// Drains some number of internal states, finalizing them and producing an
@@ -234,4 +235,55 @@ where
             .field("states", &self.states)
             .finish_non_exhaustive()
     }
+}
+
+/// Helper to drain from multiple states at a time.
+///
+/// Errors if all states do not produce arrays of the same length.
+///
+/// Returns None if there's nothing left to drain.
+pub fn multi_array_drain(
+    states: &mut [Box<dyn GroupedStates>],
+    n: usize,
+) -> Result<Option<Vec<Array>>> {
+    let mut iter = states.iter_mut();
+    let first = match iter.next() {
+        Some(state) => state.drain_finalize_n(n)?,
+        None => return Err(RayexecError::new("No states to drain from")),
+    };
+
+    let first = match first {
+        Some(array) => array,
+        None => {
+            // Check to make sure all other states produce none.
+            //
+            // If they don't, that means we're working with different numbers of
+            // groups.
+            for state in iter {
+                if state.drain_finalize_n(n)?.is_some() {
+                    return Err(RayexecError::new("Not all states completed"));
+                }
+            }
+
+            return Ok(None);
+        }
+    };
+
+    let len = first.len();
+    let mut arrays = Vec::new();
+    arrays.push(first);
+
+    for state in iter {
+        match state.drain_finalize_n(n)? {
+            Some(arr) => {
+                if arr.len() != len {
+                    return Err(RayexecError::new("Drained arrays differ in length"));
+                }
+                arrays.push(arr);
+            }
+            None => return Err(RayexecError::new("Draining completed early for state")),
+        }
+    }
+
+    Ok(Some(arrays))
 }

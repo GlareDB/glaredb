@@ -17,10 +17,15 @@ select sum(c2), sum(c1) from (values (1, 2), (3, 4)) as t(c1, c2);
 ----
 6  4
 
-# query I
-# select sum(t.c2), sum(t.c1) from (values (1, 2), (3, 4)) as t(c1, c2);
-# ----
-# 6  4
+query I
+select count(*), sum(c2), sum(c1) from (values (1, 2), (3, 4)) as t(c1, c2);
+----
+2  6  4
+
+query I
+select sum(t.c2), sum(t.c1) from (values (1, 2), (3, 4)) as t(c1, c2);
+----
+6  4
 
 query I
 select sum(column2 + 2) from (values (1, 2), (3, 4));

@@ -3,7 +3,7 @@ pub mod scalar;
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::logical::operator::LogicalExpression;
-use rayexec_bullet::field::TypeSchema;
+use rayexec_bullet::field::{DataType, TypeSchema};
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::{self, Debug};
@@ -156,8 +156,11 @@ pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
     pub function: Box<dyn SpecializedAggregateFunction>,
 
-    /// Column indices we'll be aggregating on.
+    /// Column indices for the input we'll be aggregating on.
     pub column_indices: Vec<usize>,
+
+    /// Output type of the aggregate.
+    pub output_type: DataType,
     // TODO: Filter
 }
 
@@ -178,11 +181,14 @@ impl PhysicalAggregateExpression {
                 }).collect::<Result<Vec<_>>>()?;
 
                 let input_types = column_indices.iter().map(|idx| input.types.get(*idx).cloned().ok_or_else(|| RayexecError::new(format!("Attempted to get a column outside the type schema, got: {idx}, max: {}", input.types.len() -1)))).collect::<Result<Vec<_>>>()?;
+                let output_type = agg.return_type_for_inputs(&input_types).ok_or_else(|| RayexecError::new("Failed to get return type for aggregate while converting to physical expression"))?;
+
                 let specialized = agg.specialize(&input_types)?;
 
                 PhysicalAggregateExpression {
                     function: specialized,
                     column_indices,
+                    output_type,
                 }
             }
             other => {

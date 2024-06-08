@@ -15,12 +15,11 @@ select 1 = 1 and 2 = 2;
 ----
 true
 
-# TODO: Concat bools
-# query B
-# select column1 and 2 = 2 from (values (true, 2), (false, 3));
-# ----
-# true
-# false
+query B
+select column1 and 2 = 2 from (values (true, 2), (false, 3));
+----
+true
+false
 
 # OR
 

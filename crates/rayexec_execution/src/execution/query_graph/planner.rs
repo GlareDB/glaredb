@@ -6,12 +6,12 @@ use crate::{
     engine::vars::SessionVars,
     execution::{
         operators::{
-            aggregate::{grouping_set::GroupingSets, hash_aggregate::PhysicalHashAggregate},
             create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
             drop::PhysicalDrop,
             empty::{EmptyPartitionState, PhysicalEmpty},
             filter::FilterOperation,
+            hash_aggregate::{grouping_set::GroupingSets, PhysicalHashAggregate},
             insert::PhysicalInsert,
             join::{
                 hash_join::PhysicalHashJoin,
@@ -27,6 +27,7 @@ use crate::{
             scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
+            ungrouped_aggregate::PhysicalUngroupedAggregate,
             values::PhysicalValues,
             OperatorState, PartitionState,
         },
@@ -38,7 +39,6 @@ use crate::{
 use rayexec_bullet::{
     array::{Array, Utf8Array},
     batch::Batch,
-    bitmap::Bitmap,
     compute::concat::concat,
     field::TypeSchema,
 };
@@ -528,22 +528,6 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
 
-        // Compute the grouping sets based on the grouping expression. It's
-        // expected that this plan only has uncorrelated column references as
-        // expressions.
-        let grouping_sets = match agg.grouping_expr {
-            Some(expr) => GroupingSets::try_from_grouping_expr(expr)?,
-            None => {
-                // TODO: We'd actually use a different (ungrouped) operator if
-                // not provided any grouping sets.
-                //
-                // This just works because all hashes are initialized to zero,
-                // and so everything does map to the same thing. Def not
-                // something we should rely on.
-                GroupingSets::try_new(Vec::new(), vec![Bitmap::default()])?
-            }
-        };
-
         let mut agg_exprs = Vec::with_capacity(agg.exprs.len());
         for expr in agg.exprs.into_iter() {
             let agg_expr =
@@ -551,27 +535,51 @@ impl BuildState {
             agg_exprs.push(agg_expr);
         }
 
-        let group_types: Vec<_> = grouping_sets
-            .columns()
-            .iter()
-            .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
-            .collect();
+        match agg.grouping_expr {
+            Some(expr) => {
+                // If we're working with groups, push a hash aggregate operator.
 
-        let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
-            pipeline.num_partitions(),
-            group_types,
-            grouping_sets,
-            agg_exprs,
-        )?;
+                // Compute the grouping sets based on the grouping expression. It's
+                // expected that this plan only has uncorrelated column references as
+                // expressions.
+                let grouping_sets = GroupingSets::try_from_grouping_expr(expr)?;
 
-        let operator = Arc::new(operator);
-        let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
-        let partition_states = partition_states
-            .into_iter()
-            .map(PartitionState::HashAggregate)
-            .collect();
+                let group_types: Vec<_> = grouping_sets
+                    .columns()
+                    .iter()
+                    .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
+                    .collect();
 
-        pipeline.push_operator(operator, operator_state, partition_states)?;
+                let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
+                    pipeline.num_partitions(),
+                    group_types,
+                    grouping_sets,
+                    agg_exprs,
+                )?;
+
+                let operator = Arc::new(operator);
+                let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
+                let partition_states = partition_states
+                    .into_iter()
+                    .map(PartitionState::HashAggregate)
+                    .collect();
+
+                pipeline.push_operator(operator, operator_state, partition_states)?;
+            }
+            None => {
+                // Otherwise push an ungrouped aggregate operator.
+                let operator = PhysicalUngroupedAggregate::new(agg_exprs);
+                let (operator_state, partition_states) =
+                    operator.create_states(pipeline.num_partitions());
+                let operator_state = Arc::new(OperatorState::UngroupedAggregate(operator_state));
+                let partition_states: Vec<_> = partition_states
+                    .into_iter()
+                    .map(PartitionState::UngroupedAggregate)
+                    .collect();
+
+                pipeline.push_operator(Arc::new(operator), operator_state, partition_states)?;
+            }
+        };
 
         Ok(())
     }

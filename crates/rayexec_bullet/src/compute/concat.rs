@@ -1,4 +1,6 @@
-use crate::array::{Array, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
+use crate::array::{
+    Array, BooleanArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
+};
 use crate::field::DataType;
 use rayexec_error::{RayexecError, Result};
 
@@ -23,8 +25,8 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         }
 
         DataType::Boolean => {
-            let _arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
-            unimplemented!()
+            let arrs = collect_arrays_of_type!(arrays, Boolean, datatype)?;
+            Ok(Array::Boolean(concat_boolean(arrs.as_slice())))
         }
         DataType::Float32 => {
             let arrs = collect_arrays_of_type!(arrays, Float32, datatype)?;
@@ -84,6 +86,13 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
         }
         DataType::Struct { .. } => unimplemented!(),
     }
+}
+
+pub fn concat_boolean(arrays: &[&BooleanArray]) -> BooleanArray {
+    // TODO: Nulls
+    let values_iters = arrays.iter().map(|arr| arr.values());
+    let values: Vec<bool> = values_iters.flat_map(|v| v.iter()).collect();
+    BooleanArray::from_iter(values)
 }
 
 pub fn concat_primitive<T: Copy>(arrays: &[&PrimitiveArray<T>]) -> PrimitiveArray<T> {
