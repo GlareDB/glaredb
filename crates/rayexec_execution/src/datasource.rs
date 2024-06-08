@@ -16,6 +16,19 @@ use crate::engine::EngineRuntime;
 /// logic for creating data source specific catalogs from a set of options. It's
 /// these catalogs that contain state (list of tables, external connections,
 /// etc). Catalogs are always scoped to single session.
+///
+/// Rules for writing a data source:
+///
+/// - Do not use tokio's fs module. Use std::fs. Tokio internally uses std::fs,
+///   and just sends it to a blocking thread. We don't want that, as it limits
+///   our control on how things get read (e.g. we might want to have our own
+///   blocking io threads).
+/// - Prefer to the ComputeScheduler for async tasks that do heavy computation
+///   (e.g. decompressing a zstd stream).
+/// - Use the tokio runtime if required, but keep the scope small. For example,
+///   the postgres data source will initialize the connection on the tokio
+///   runtime, but them move the actual streaming of data to the
+///   ComputeScheduler.
 pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(
