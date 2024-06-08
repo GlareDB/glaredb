@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::ast::{CommonTableExpr, DataType, Ident, ObjectReference};
+use crate::ast::{CommonTableExpr, DataType, FunctionArg, Ident, ObjectReference};
 
 /// Metadata associated with sql statements.
 ///
@@ -18,6 +18,12 @@ pub trait AstMeta: Clone {
     type ItemReference: Debug + Clone + PartialEq;
 
     type TableReference: Debug + Clone + PartialEq;
+
+    /// Reference to a table function.
+    type TableFunctionReference: Debug + Clone + PartialEq;
+
+    /// Arguments to a table function.
+    type TableFunctionArguments: Debug + Clone + PartialEq;
 
     type CteReference: Debug + Clone + PartialEq;
 
@@ -39,6 +45,8 @@ impl AstMeta for Raw {
     type DataSourceName = Ident;
     type ItemReference = ObjectReference;
     type TableReference = ObjectReference;
+    type TableFunctionReference = ObjectReference;
+    type TableFunctionArguments = Vec<FunctionArg<Raw>>;
     type CteReference = CommonTableExpr<Raw>;
     type FunctionReference = ObjectReference;
     type ColumnReference = Ident;

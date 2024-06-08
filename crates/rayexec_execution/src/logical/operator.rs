@@ -6,11 +6,12 @@ use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
+use crate::functions::table::{GenericTableFunction, TableFunctionArgs};
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
 };
-use rayexec_bullet::field::{DataType, Field, TypeSchema};
+use rayexec_bullet::field::{DataType, Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
@@ -39,6 +40,7 @@ pub enum LogicalOperator {
     CrossJoin(CrossJoin),
     Limit(Limit),
     Scan(Scan),
+    TableFunction(TableFunction),
     ExpressionList(ExpressionList),
     Empty,
     SetVar(SetVar),
@@ -70,6 +72,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => n.output_schema(outer),
             Self::Limit(n) => n.output_schema(outer),
             Self::Scan(n) => n.output_schema(outer),
+            Self::TableFunction(n) => n.output_schema(outer),
             Self::ExpressionList(n) => n.output_schema(outer),
             Self::Empty => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.output_schema(outer),
@@ -188,7 +191,8 @@ impl LogicalOperator {
             | LogicalOperator::AttachDatabase(_)
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::Drop(_)
-            | LogicalOperator::Scan(_) => (),
+            | LogicalOperator::Scan(_)
+            | LogicalOperator::TableFunction(_) => (),
         }
         post(self)?;
 
@@ -214,6 +218,7 @@ impl Explainable for LogicalOperator {
             Self::CrossJoin(p) => p.explain_entry(conf),
             Self::Limit(p) => p.explain_entry(conf),
             Self::Scan(p) => p.explain_entry(conf),
+            Self::TableFunction(p) => p.explain_entry(conf),
             Self::ExpressionList(p) => p.explain_entry(conf),
             Self::Empty => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.explain_entry(conf),
@@ -453,6 +458,25 @@ impl LogicalNode for Scan {
 impl Explainable for Scan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Scan").with_value("source", &self.source.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TableFunction {
+    pub function: Box<dyn GenericTableFunction>,
+    pub args: TableFunctionArgs,
+    pub schema: Schema,
+}
+
+impl LogicalNode for TableFunction {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(self.schema.type_schema())
+    }
+}
+
+impl Explainable for TableFunction {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("TableFunction").with_value("function", self.function.name())
     }
 }
 
@@ -1066,6 +1090,7 @@ impl LogicalExpression {
                 LogicalOperator::CrossJoin(_) => (),
                 LogicalOperator::Limit(_) => (),
                 LogicalOperator::Scan(_) => (),
+                LogicalOperator::TableFunction(_) => (),
                 LogicalOperator::ExpressionList(p) => {
                     for row in &mut p.rows {
                         LogicalExpression::walk_mut_many(row, pre, post)?;

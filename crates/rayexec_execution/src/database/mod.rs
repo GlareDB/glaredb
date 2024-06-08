@@ -11,7 +11,7 @@ use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use storage::memory::MemoryCatalog;
-use storage::system::GLOBAL_SYSTEM_CATALOG;
+use storage::system::SystemCatalog;
 
 /// Root of all accessible catalogs.
 #[derive(Debug)]
@@ -25,12 +25,9 @@ impl DatabaseContext {
     ///
     /// By itself, this context cannot be used to persist data. Additional
     /// catalogs need to be attached via `attach_catalog`.
-    pub fn new_with_temp() -> Self {
+    pub fn new(system_catalog: SystemCatalog) -> Self {
         let catalogs = [
-            (
-                "system".to_string(),
-                Box::new(&*GLOBAL_SYSTEM_CATALOG as &dyn Catalog) as _,
-            ),
+            ("system".to_string(), Box::new(system_catalog) as _),
             (
                 "temp".to_string(),
                 Box::new(MemoryCatalog::new_with_schema("temp")) as _,
@@ -83,11 +80,5 @@ impl DatabaseContext {
             .get(name)
             .map(|c| c.as_ref())
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
-    }
-}
-
-impl Default for DatabaseContext {
-    fn default() -> Self {
-        Self::new_with_temp()
     }
 }

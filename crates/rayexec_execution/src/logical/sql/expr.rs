@@ -113,7 +113,7 @@ impl<'a> ExpressionContext<'a> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
-            ast::Expr::Literal(literal) => self.plan_literal(literal),
+            ast::Expr::Literal(literal) => Self::plan_literal(literal),
             ast::Expr::BinaryExpr { left, op, right } => Ok(LogicalExpression::Binary {
                 op: op.try_into()?,
                 left: Box::new(self.plan_expression(*left)?),
@@ -191,7 +191,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Plan a sql literal
-    fn plan_literal(&self, literal: ast::Literal<Bound>) -> Result<LogicalExpression> {
+    pub(crate) fn plan_literal(literal: ast::Literal<Bound>) -> Result<LogicalExpression> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i64>() {

@@ -17,7 +17,7 @@ use crate::{
         Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
         DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
         Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
-        SetVar, ShowVar, VariableOrAll,
+        SetVar, ShowVar, TableFunction, VariableOrAll,
     },
 };
 use rayexec_bullet::{
@@ -694,15 +694,27 @@ impl<'a> PlanContext<'a> {
                 let mut nested = self.nested(current_scope);
                 nested.plan_query(query)?
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                reference: _,
-                args: _,
-            }) => {
-                // 1. Resolve table func
-                // 2. Specialize based on args.
-                // 3. Load schema?
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
+                let scope_reference = TableReference {
+                    database: None,
+                    schema: None,
+                    table: reference.func.name().to_string(),
+                };
+                let scope = Scope::with_columns(
+                    Some(scope_reference),
+                    reference.schema.iter().map(|f| f.name.clone()),
+                );
 
-                unimplemented!()
+                let operator = LogicalOperator::TableFunction(TableFunction {
+                    function: reference.func,
+                    args,
+                    schema: reference.schema,
+                });
+
+                LogicalQuery {
+                    root: operator,
+                    scope,
+                }
             }
             ast::FromNodeBody::Join(ast::FromJoin {
                 left,

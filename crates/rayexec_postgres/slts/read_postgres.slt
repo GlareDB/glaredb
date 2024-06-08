@@ -1,0 +1,17 @@
+# read_postgres table func
+
+query II
+select * from read_postgres('postgres://glaredb:password@localhost:5433/glaredb_test', 'public', 't1');
+----
+23  45
+
+query II
+select b from read_postgres('postgres://glaredb:password@localhost:5433/glaredb_test', 'public', 't1');
+----
+45
+
+query II
+select read_postgres.b from read_postgres('postgres://glaredb:password@localhost:5433/glaredb_test', 'public', 't1');
+----
+45
+

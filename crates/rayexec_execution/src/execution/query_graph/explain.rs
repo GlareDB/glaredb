@@ -106,6 +106,7 @@ impl ExplainNode {
             | LogicalOperator::ShowVar(_)
             | LogicalOperator::ResetVar(_)
             | LogicalOperator::Scan(_)
+            | LogicalOperator::TableFunction(_)
             | LogicalOperator::Drop(_)
             | LogicalOperator::AttachDatabase(_)
             | LogicalOperator::DetachDatabase(_)

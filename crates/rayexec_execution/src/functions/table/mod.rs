@@ -1,17 +1,21 @@
 pub mod series;
 
 use dyn_clone::DynClone;
+use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use series::GenerateSeries;
+use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::database::table::DataTableScan;
+use crate::{database::table::DataTable, engine::EngineRuntime};
 
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> = Lazy::new(Vec::new);
+pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
+    Lazy::new(|| vec![Box::new(GenerateSeries)]);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableFunctionArgs {
     pub named: HashMap<String, OwnedScalarValue>,
     pub positional: Vec<OwnedScalarValue>,
@@ -27,10 +31,10 @@ pub struct TableFunctionArgs {
 /// The specialized variant should be determined by function argument inputs.
 pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
     /// Name of the function.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     /// Optional aliases for this function.
-    fn aliases(&self) -> &[&str] {
+    fn aliases(&self) -> &'static [&'static str] {
         &[]
     }
 
@@ -44,11 +48,29 @@ impl Clone for Box<dyn GenericTableFunction> {
     }
 }
 
-// TODO: Don't think this is amazing yet.
-//
-// This current iteration ot to just get something going so I can generate a
-// bunch of data for testing.
+impl PartialEq<dyn GenericTableFunction> for Box<dyn GenericTableFunction + '_> {
+    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn GenericTableFunction + '_ {
+    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+        self.name() == other.name()
+    }
+}
+
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
-    fn schema(&mut self) -> Result<Schema>;
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>>;
+    /// Get the schema for the function output.
+    ///
+    /// Admittedly passing a runtime here feels a bit weird, but I don't think
+    /// is a terrible solution. This might change as we implement more data
+    /// sources.
+    fn schema<'a>(&'a mut self, runtime: &'a EngineRuntime) -> BoxFuture<Result<Schema>>;
+
+    /// Return a data table representing the function output.
+    ///
+    /// An engine runtime is provided for table funcs that return truly async
+    /// data tables.
+    fn datatable(&mut self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>>;
 }

@@ -136,6 +136,16 @@ impl Schema {
         self.fields.iter()
     }
 
+    pub fn type_schema(&self) -> TypeSchema {
+        TypeSchema {
+            types: self
+                .fields
+                .iter()
+                .map(|field| field.datatype.clone())
+                .collect(),
+        }
+    }
+
     /// Convert the schema into a type schema.
     pub fn into_type_schema(self) -> TypeSchema {
         TypeSchema {

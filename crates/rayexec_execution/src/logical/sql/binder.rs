@@ -1,17 +1,23 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use rayexec_bullet::field::DataType;
+use rayexec_bullet::field::{DataType, Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
-    ast::{self, ColumnDef, ObjectReference, QueryNode, ReplaceColumn},
+    ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
 
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
-    functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction},
+    engine::EngineRuntime,
+    functions::{
+        aggregate::GenericAggregateFunction,
+        scalar::GenericScalarFunction,
+        table::{GenericTableFunction, TableFunctionArgs},
+    },
+    logical::sql::expr::ExpressionContext,
 };
 
 pub type BoundStatement = Statement<Bound>;
@@ -40,6 +46,12 @@ pub enum BoundTableOrCteReference {
         entry: TableEntry,
     },
     Cte(BoundCteReference),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundTableFunctionReference {
+    pub func: Box<dyn GenericTableFunction>,
+    pub schema: Schema,
 }
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
@@ -102,6 +114,8 @@ impl AstMeta for Bound {
     type DataSourceName = String;
     type ItemReference = BoundItemReference;
     type TableReference = BoundTableOrCteReference;
+    type TableFunctionReference = BoundTableFunctionReference;
+    type TableFunctionArguments = TableFunctionArgs;
     type CteReference = BoundCteReference;
     type FunctionReference = BoundFunctionReference;
     type ColumnReference = String;
@@ -200,11 +214,20 @@ impl BindData {
 pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
+    runtime: &'a EngineRuntime,
 }
 
 impl<'a> Binder<'a> {
-    pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
-        Binder { tx, context }
+    pub fn new(
+        tx: &'a CatalogTx,
+        context: &'a DatabaseContext,
+        runtime: &'a EngineRuntime,
+    ) -> Self {
+        Binder {
+            tx,
+            context,
+            runtime,
+        }
     }
 
     pub async fn bind_statement(self, stmt: RawStatement) -> Result<(BoundStatement, BindData)> {
@@ -625,8 +648,31 @@ impl<'a> Binder<'a> {
                     query: Box::pin(self.bind_query(query, bind_data)).await?,
                 })
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction { .. }) => {
-                unimplemented!()
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
+                let table_fn = self.resolve_table_function(reference).await?;
+                let args = ExpressionBinder::new(self)
+                    .bind_table_function_args(args)
+                    .await?;
+
+                // TODO: This throws away the specialized function, which could
+                // result in duplicated work. I opted to go with this for now,
+                // since it's the most straigtforward and wanted to avoid
+                // working us into a corner when it comes to serializing
+                // functions and checking plan equality.
+                //
+                // I think there will end up being a type between the "generic"
+                // and "specialized" function that keeps easy serialization and
+                // equality checking while also holding optional state.
+                let mut specialized = table_fn.specialize(&args)?;
+                let schema = specialized.schema(self.runtime).await?;
+
+                ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                    reference: BoundTableFunctionReference {
+                        func: table_fn,
+                        schema,
+                    },
+                    args,
+                })
             }
             ast::FromNodeBody::Join(ast::FromJoin {
                 left,
@@ -714,6 +760,49 @@ impl<'a> Binder<'a> {
         } else {
             Err(RayexecError::new(format!(
                 "Unable to find table or view for '{catalog}.{schema}.{table}'"
+            )))
+        }
+    }
+
+    async fn resolve_table_function(
+        &self,
+        mut reference: ast::ObjectReference,
+    ) -> Result<Box<dyn GenericTableFunction>> {
+        // TODO: Search path.
+        let [catalog, schema, name] = match reference.0.len() {
+            1 => [
+                "system".to_string(),
+                "glare_catalog".to_string(),
+                reference.0.pop().unwrap().into_normalized_string(),
+            ],
+            2 => {
+                let name = reference.0.pop().unwrap().into_normalized_string();
+                let schema = reference.0.pop().unwrap().into_normalized_string();
+                ["system".to_string(), schema, name]
+            }
+            3 => {
+                let name = reference.0.pop().unwrap().into_normalized_string();
+                let schema = reference.0.pop().unwrap().into_normalized_string();
+                let catalog = reference.0.pop().unwrap().into_normalized_string();
+                [catalog, schema, name]
+            }
+            _ => {
+                return Err(RayexecError::new(
+                    "Unexpected number of identifiers in table function reference",
+                ))
+            }
+        };
+
+        if let Some(entry) = self
+            .context
+            .get_catalog(&catalog)?
+            .get_table_fn(self.tx, &schema, &name)
+            .await?
+        {
+            Ok(entry)
+        } else {
+            Err(RayexecError::new(format!(
+                "Unable to find table function '{catalog}.{schema}.{name}'"
             )))
         }
     }
@@ -811,6 +900,80 @@ impl<'a> ExpressionBinder<'a> {
                 ast::GroupByExpr::GroupingSets(self.bind_expressions(exprs, bind_data).await?)
             }
         })
+    }
+
+    /// Binds functions arguments for a table function.
+    ///
+    /// Slightly different from normal argument binding since arguments to a
+    /// table function are more restrictive. E.g. we only allow literals as
+    /// arguments.
+    ///
+    /// Note in the future we could allow more complex expressions as arguments,
+    /// and we could support table function that accept columns as inputs.
+    async fn bind_table_function_args(
+        &self,
+        args: Vec<FunctionArg<Raw>>,
+    ) -> Result<TableFunctionArgs> {
+        let bind_data = &mut BindData::default(); // Empty bind data since we don't allow complex expressions.
+
+        let mut named = HashMap::new();
+        let mut positional = Vec::new();
+
+        for func_arg in args {
+            match func_arg {
+                ast::FunctionArg::Named { name, arg } => {
+                    let name = name.into_normalized_string();
+                    let arg = match arg {
+                        ast::FunctionArgExpr::Wildcard => {
+                            return Err(RayexecError::new(
+                                "Cannot use '*' as an argument to a table function",
+                            ))
+                        }
+                        ast::FunctionArgExpr::Expr(expr) => {
+                            match Box::pin(self.bind_expression(expr, bind_data)).await? {
+                                ast::Expr::Literal(lit) => {
+                                    ExpressionContext::plan_literal(lit)?.try_into_scalar()?
+                                }
+                                other => {
+                                    return Err(RayexecError::new(format!(
+                                        "Table function arguments must be constant, got {other:?}"
+                                    )))
+                                }
+                            }
+                        }
+                    };
+
+                    if named.contains_key(&name) {
+                        return Err(RayexecError::new(format!("Duplicate argument: {name}")));
+                    }
+                    named.insert(name, arg);
+                }
+                FunctionArg::Unnamed { arg } => {
+                    let arg = match arg {
+                        ast::FunctionArgExpr::Wildcard => {
+                            return Err(RayexecError::new(
+                                "Cannot use '*' as an argument to a table function",
+                            ))
+                        }
+                        ast::FunctionArgExpr::Expr(expr) => {
+                            match Box::pin(self.bind_expression(expr, bind_data)).await? {
+                                ast::Expr::Literal(lit) => {
+                                    ExpressionContext::plan_literal(lit)?.try_into_scalar()?
+                                }
+                                other => {
+                                    return Err(RayexecError::new(format!(
+                                        "Table function arguments must be constant, got {other:?}"
+                                    )))
+                                }
+                            }
+                        }
+                    };
+                    positional.push(arg);
+                }
+            }
+        }
+
+        Ok(TableFunctionArgs { named, positional })
     }
 
     async fn bind_expressions(

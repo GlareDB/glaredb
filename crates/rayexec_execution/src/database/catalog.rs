@@ -2,7 +2,9 @@ use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
-use crate::functions::{aggregate::GenericAggregateFunction, scalar::GenericScalarFunction};
+use crate::functions::{
+    aggregate::GenericAggregateFunction, scalar::GenericScalarFunction, table::GenericTableFunction,
+};
 
 use super::{ddl::CatalogModifier, entry::TableEntry, table::DataTable};
 
@@ -49,6 +51,15 @@ pub trait Catalog: Debug + Sync + Send {
                 "Cannot get aggregate function from catalog",
             ))
         })
+    }
+
+    fn get_table_fn(
+        &self,
+        _tx: &CatalogTx,
+        _schema: &str,
+        _name: &str,
+    ) -> BoxFuture<Result<Option<Box<dyn GenericTableFunction>>>> {
+        Box::pin(async { Err(RayexecError::new("Cannot get table function from catalog")) })
     }
 
     fn data_table(

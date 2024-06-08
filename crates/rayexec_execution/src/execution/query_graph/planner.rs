@@ -3,7 +3,7 @@ use crate::{
         create::{CreateSchemaInfo, CreateTableInfo},
         DatabaseContext,
     },
-    engine::vars::SessionVars,
+    engine::{vars::SessionVars, EngineRuntime},
     execution::{
         operators::{
             create_schema::PhysicalCreateSchema,
@@ -27,6 +27,7 @@ use crate::{
             scan::PhysicalScan,
             simple::{SimpleOperator, SimplePartitionState},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
+            table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             values::PhysicalValues,
             OperatorState, PartitionState,
@@ -94,12 +95,14 @@ pub struct QueryGraphPlanner<'a> {
 impl<'a> QueryGraphPlanner<'a> {
     pub fn new(
         db_context: &'a DatabaseContext,
+        runtime: &'a Arc<EngineRuntime>,
         target_partitions: usize,
         debug: QueryGraphDebugConfig,
     ) -> Self {
         QueryGraphPlanner {
             conf: BuildConfig {
                 db_context,
+                runtime,
                 target_partitions,
                 debug,
             },
@@ -128,8 +131,16 @@ impl<'a> QueryGraphPlanner<'a> {
 
 #[derive(Debug)]
 struct BuildConfig<'a> {
+    /// Database context scoped to the "session" that's running this query.
     db_context: &'a DatabaseContext,
+
+    /// Reference to the engine runtime. Provied to table functions on scan.
+    runtime: &'a Arc<EngineRuntime>,
+
+    /// Target number of partitions to achieve when executing operators.
     target_partitions: usize,
+
+    /// Debug variables for triggering errors on certain conditions.
     debug: QueryGraphDebugConfig,
 }
 
@@ -176,6 +187,9 @@ impl BuildState {
             LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
             LogicalOperator::Insert(insert) => self.push_insert(conf, insert),
             LogicalOperator::Scan(scan) => self.push_scan(conf, scan),
+            LogicalOperator::TableFunction(table_func) => {
+                self.push_table_function(conf, table_func)
+            }
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
@@ -270,6 +284,34 @@ impl BuildState {
 
         let pipeline = self.in_progress_pipeline_mut()?;
         pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        Ok(())
+    }
+
+    fn push_table_function(
+        &mut self,
+        conf: &BuildConfig,
+        table_func: operator::TableFunction,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let physical = Arc::new(PhysicalTableFunction::new(
+            table_func.function,
+            table_func.args,
+        ));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.runtime, conf.target_partitions)?
+            .into_iter()
+            .map(PartitionState::TableFunction)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
+        pipeline.push_operator(physical, operator_state, partition_states)?;
+
+        self.in_progress = Some(pipeline);
 
         Ok(())
     }

@@ -43,9 +43,13 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(runtime: Arc<EngineRuntime>, registry: Arc<DataSourceRegistry>) -> Self {
+    pub fn new(
+        context: DatabaseContext,
+        runtime: Arc<EngineRuntime>,
+        registry: Arc<DataSourceRegistry>,
+    ) -> Self {
         Session {
-            context: DatabaseContext::new_with_temp(),
+            context,
             runtime,
             registry,
             vars: SessionVars::new_local(),
@@ -109,7 +113,9 @@ impl Session {
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let tx = CatalogTx::new();
-        let (bound_stmt, bind_data) = Binder::new(&tx, &self.context).bind_statement(stmt).await?;
+        let (bound_stmt, bind_data) = Binder::new(&tx, &self.context, &self.runtime)
+            .bind_statement(stmt)
+            .await?;
         let mut logical = PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 
         let optimizer = Optimizer::new();
@@ -118,6 +124,7 @@ impl Session {
         let (result_stream, result_sink) = unpartitioned_result_stream();
         let planner = QueryGraphPlanner::new(
             &self.context,
+            &self.runtime,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );

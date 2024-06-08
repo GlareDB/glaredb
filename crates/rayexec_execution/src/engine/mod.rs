@@ -8,6 +8,7 @@ use session::Session;
 use std::sync::Arc;
 
 use crate::{
+    database::{storage::system::SystemCatalog, DatabaseContext},
     datasource::{DataSourceRegistry, MemoryDataSource},
     scheduler::ComputeScheduler,
 };
@@ -48,6 +49,7 @@ impl EngineRuntime {
 pub struct Engine {
     rt: Arc<EngineRuntime>,
     registry: Arc<DataSourceRegistry>,
+    system_catalog: SystemCatalog,
 }
 
 impl Engine {
@@ -58,13 +60,21 @@ impl Engine {
     }
 
     pub fn new_with_registry(rt: Arc<EngineRuntime>, registry: DataSourceRegistry) -> Result<Self> {
+        let system_catalog = SystemCatalog::new(&registry);
+
         Ok(Engine {
             rt,
             registry: Arc::new(registry),
+            system_catalog,
         })
     }
 
     pub fn new_session(&self) -> Result<Session> {
-        Ok(Session::new(self.rt.clone(), self.registry.clone()))
+        let context = DatabaseContext::new(self.system_catalog.clone());
+        Ok(Session::new(
+            context,
+            self.rt.clone(),
+            self.registry.clone(),
+        ))
     }
 }
