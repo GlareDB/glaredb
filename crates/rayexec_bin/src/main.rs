@@ -3,7 +3,10 @@ use std::sync::Arc;
 use futures::StreamExt;
 use rayexec_bullet::format::ugly::ugly_print;
 use rayexec_error::Result;
+use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::engine::{Engine, EngineRuntime};
+use rayexec_parquet::ParquetDataSource;
+use rayexec_postgres::PostgresDataSource;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
@@ -39,7 +42,11 @@ fn main() {
 async fn inner(runtime: Arc<EngineRuntime>) -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
 
-    let engine = Engine::new(runtime)?;
+    let registry = DataSourceRegistry::default()
+        .with_datasource("memory", Box::new(MemoryDataSource))?
+        .with_datasource("postgres", Box::new(PostgresDataSource))?
+        .with_datasource("parquet", Box::new(ParquetDataSource))?;
+    let engine = Engine::new_with_registry(runtime, registry)?;
     let mut session = engine.new_session()?;
 
     let query = args[1].clone();

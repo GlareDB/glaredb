@@ -30,7 +30,7 @@ use tokio_postgres::{
 use tokio_postgres::{types::FromSql, NoTls};
 use tracing::debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PostgresDataSource;
 
 impl DataSource for PostgresDataSource {

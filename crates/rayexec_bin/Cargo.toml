@@ -9,6 +9,8 @@ edition.workspace = true
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_postgres = { path = '../rayexec_postgres' }
+rayexec_parquet = { path = '../rayexec_parquet' }
 tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
