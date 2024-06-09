@@ -17,12 +17,12 @@ jobs:
           submodules: 'true'
 
       - name: Tests
-        run: cargo test -- --skip _integration_slt
+        run: cargo test -- --skip slt_datasource_
 
       - name: SLTs Postgres
         run: |
           ./scripts/create-test-postgres-db.sh
-          cargo test postgres_integration_slt
+          cargo test slt_datasource_postgres
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings

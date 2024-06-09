@@ -53,6 +53,7 @@ where
         .into_iter()
         .map(|path| {
             let test_name = path.to_string_lossy().to_string();
+            let test_name = test_name.trim_start_matches("../");
             let rt = rt.clone();
             let engine_fn = engine_fn.clone();
             Trial::test(test_name, move || {

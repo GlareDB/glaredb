@@ -11,6 +11,3 @@ tokio-postgres = { version = "0.7.10" }
 futures = { workspace = true }
 tracing = { workspace = true }
 
-[dev-dependencies]
-rayexec_sqltest = { path = '../rayexec_sqltest' }
-

@@ -1496,7 +1496,6 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
- "rayexec_sqltest",
  "tokio-postgres",
  "tracing",
 ]
@@ -1519,13 +1518,12 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
- "rayexec_sqltest",
  "tokio-postgres",
  "tracing",
 ]
 
 [[package]]
-name = "rayexec_sqltest"
+name = "rayexec_slt"
 version = "0.0.1"
 dependencies = [
  "async-trait",
@@ -1888,6 +1886,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_parquet",
  "rayexec_postgres",
+ "rayexec_slt",
 ]
 
 [[package]]
