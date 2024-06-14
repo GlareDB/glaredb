@@ -11,3 +11,12 @@ select * from delta_local order by a;
 ----
 1   hello
 2   world
+
+statement ok
+copy (select * from delta_local) to 'file://${TMP}' format delta;
+
+query IT
+select * from read_delta('file://${TMP}') order by a;
+----
+1   hello
+2   world

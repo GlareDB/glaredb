@@ -23,6 +23,7 @@ use datafusion::physical_plan::{
 };
 use datasources::common::sink::bson::BsonSink;
 use datasources::common::sink::csv::{CsvSink, CsvSinkOpts};
+use datasources::common::sink::delta::DeltaSink;
 use datasources::common::sink::json::{JsonSink, JsonSinkOpts};
 use datasources::common::sink::lance::{LanceSink, LanceSinkOpts, LanceWriteParams};
 use datasources::common::sink::parquet::{ParquetSink, ParquetSinkOpts};
@@ -93,7 +94,7 @@ impl ExecutionPlan for CopyToExec {
         }
 
         let this = self.clone();
-        let stream = stream::once(this.copy_to(context));
+        let stream = stream::once(async move { this.copy_to(context).await });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.schema(),
@@ -140,32 +141,24 @@ impl DisplayAs for CopyToExec {
 }
 
 impl CopyToExec {
-    async fn copy_to(self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
-        let sink = match (self.dest, self.format) {
-            (CopyToDestinationOptions::Local(local_options), CopyToFormatOptions::Lance(opts)) => {
-                get_sink_for_obj(
-                    CopyToFormatOptions::Lance(opts),
-                    &LocalStoreAccess {},
-                    &local_options.location,
-                )?
-            }
-            (CopyToDestinationOptions::Local(local_options), format) => {
-                {
+    async fn get_destination(&self) -> DataFusionResult<(Arc<dyn ObjStoreAccess>, String)> {
+        Ok(match self.dest.clone() {
+            CopyToDestinationOptions::Local(local_options) => {
+                if !self.format.is_table() {
                     // Create the path if it doesn't exist (for local).
                     let _ = tokio::fs::File::create(&local_options.location).await?;
                 }
-                let access = LocalStoreAccess;
-                get_sink_for_obj(format, &access, &local_options.location)?
+                (Arc::new(LocalStoreAccess), local_options.location)
             }
-            (CopyToDestinationOptions::Gcs(gcs_options), format) => {
+            CopyToDestinationOptions::Gcs(gcs_options) => {
                 let access = GcsStoreAccess {
                     bucket: gcs_options.bucket,
                     service_account_key: gcs_options.service_account_key,
                     opts: HashMap::new(),
                 };
-                get_sink_for_obj(format, &access, &gcs_options.location)?
+                (Arc::new(access), gcs_options.location)
             }
-            (CopyToDestinationOptions::S3(s3_options), format) => {
+            CopyToDestinationOptions::S3(s3_options) => {
                 let access = S3StoreAccess {
                     bucket: s3_options.bucket,
                     region: Some(s3_options.region),
@@ -173,20 +166,42 @@ impl CopyToExec {
                     secret_access_key: s3_options.secret_access_key,
                     opts: HashMap::new(),
                 };
-                get_sink_for_obj(format, &access, &s3_options.location)?
+                (Arc::new(access), s3_options.location)
             }
-            (CopyToDestinationOptions::Azure(azure_options), format) => {
+            CopyToDestinationOptions::Azure(azure_options) => {
                 let access = AzureStoreAccess {
                     container: azure_options.container,
                     account_name: Some(azure_options.account),
                     access_key: Some(azure_options.access_key),
                     opts: HashMap::new(),
                 };
-                get_sink_for_obj(format, &access, &azure_options.location)?
+                (Arc::new(access), azure_options.location)
+            }
+        })
+    }
+
+    async fn copy_to(&self, context: Arc<TaskContext>) -> DataFusionResult<RecordBatch> {
+        let sink = match (self.dest.clone(), self.format.clone()) {
+            (CopyToDestinationOptions::Local(local_options), CopyToFormatOptions::Lance(opts)) => {
+                get_sink_for_obj(
+                    CopyToFormatOptions::Lance(opts),
+                    Arc::new(LocalStoreAccess {}),
+                    &local_options.location,
+                )?
+            }
+            (_, CopyToFormatOptions::Lance(_)) => {
+                return Err(DataFusionError::Execution(
+                    "COPY TO for lance format is only supported locally".to_string(),
+                ))
+            }
+            (_, format) => {
+                let (access, loc) = self.get_destination().await?;
+
+                get_sink_for_obj(format, access.clone(), &loc)?
             }
         };
 
-        let stream = execute_stream(self.source, context.clone())?;
+        let stream = execute_stream(self.source.clone(), context.clone())?;
         let count = sink.write_all(stream, &context).await?;
 
         Ok(new_operation_with_count_batch("copy", count))
@@ -196,7 +211,7 @@ impl CopyToExec {
 /// Get a sink for writing a file to.
 fn get_sink_for_obj(
     format: CopyToFormatOptions,
-    access: &dyn ObjStoreAccess,
+    access: Arc<dyn ObjStoreAccess>,
     location: &str,
 ) -> DataFusionResult<Box<dyn DataSink>> {
     let store = access
@@ -227,7 +242,6 @@ fn get_sink_for_obj(
             let wp = LanceWriteParams::default();
 
             Box::new(LanceSink::from_obj_store(
-                store,
                 path,
                 LanceSinkOpts {
                     url: Some(
@@ -246,14 +260,23 @@ fn get_sink_for_obj(
                 },
             ))
         }
+        CopyToFormatOptions::Delta(_) => Box::new(DeltaSink::new(
+            store,
+            url::Url::parse(
+                access
+                    .base_url()
+                    .map_err(|e| DataFusionError::External(Box::new(e)))?
+                    .as_str(),
+            )
+            .map_err(|e| DataFusionError::External(Box::new(e)))?,
+            location,
+        )),
+        CopyToFormatOptions::Bson(_) => Box::new(BsonSink::from_obj_store(store, path)),
         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
             store,
             path,
-            JsonSinkOpts {
-                array: json_opts.array,
-            },
+            JsonSinkOpts::with_array_format(json_opts.array),
         )),
-        CopyToFormatOptions::Bson(_) => Box::new(BsonSink::from_obj_store(store, path)),
     };
     Ok(sink)
 }
