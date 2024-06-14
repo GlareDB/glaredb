@@ -26,7 +26,7 @@ parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
-rustls = "0.23.9"
+rustls = "0.23.10"
 rustls-pemfile = "2.1.2"
 tokio-postgres = "0.7.8"
 tokio-rustls = "0.26.0"
