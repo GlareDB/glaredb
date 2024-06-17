@@ -28,4 +28,8 @@ harness = false
 name = "integration_slt_postgres"
 path = "integration_slt_postgres.rs"
 
+[[test]]
+harness = false
+name = "integration_slt_parquet"
+path = "integration_slt_parquet.rs"
 

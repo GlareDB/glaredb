@@ -1274,7 +1274,7 @@ mod tests {
 
     use crate::column::{
         page::PageReader,
-        reader::{get_column_reader, get_typed_column_reader, ColumnReaderImpl},
+        reader::{get_column_reader, get_typed_column_reader, GenericColumnReader},
     };
     use crate::file::writer::TrackedWrite;
     use crate::file::{
@@ -3248,17 +3248,15 @@ mod tests {
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
             .build();
-        let page_reader = Box::new(
-            SerializedPageReader::new_with_properties(
-                Arc::new(file),
-                &result.metadata,
-                result.rows_written as usize,
-                None,
-                Arc::new(props),
-            )
-            .unwrap(),
-        );
-        let mut reader = get_test_column_reader::<T>(page_reader, max_def_level, max_rep_level);
+        let page_reader = SerializedPageReader::new_with_properties(
+            Arc::new(file),
+            &result.metadata,
+            result.rows_written as usize,
+            None,
+            Arc::new(props),
+        )
+        .unwrap();
+        let mut reader = get_test_column_reader::<T, _>(page_reader, max_def_level, max_rep_level);
 
         let mut actual_values = Vec::with_capacity(max_batch_size);
         let mut actual_def_levels = def_levels.map(|_| Vec::with_capacity(max_batch_size));
@@ -3347,14 +3345,14 @@ mod tests {
     }
 
     /// Returns column reader.
-    fn get_test_column_reader<T: DataType>(
-        page_reader: Box<dyn PageReader>,
+    fn get_test_column_reader<T: DataType, P: PageReader>(
+        page_reader: P,
         max_def_level: i16,
         max_rep_level: i16,
-    ) -> ColumnReaderImpl<T> {
+    ) -> GenericColumnReader<T, P> {
         let descr = Arc::new(get_test_column_descr::<T>(max_def_level, max_rep_level));
         let column_reader = get_column_reader(descr, page_reader);
-        get_typed_column_reader::<T>(column_reader)
+        get_typed_column_reader::<T, _>(column_reader)
     }
 
     /// Returns descriptor for primitive column.

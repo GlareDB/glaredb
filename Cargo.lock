@@ -241,9 +241,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.5.0"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
+checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
 
 [[package]]
 name = "cast"
@@ -275,7 +275,9 @@ checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "wasm-bindgen",
  "windows-targets 0.52.0",
 ]
 
@@ -1483,8 +1485,18 @@ dependencies = [
  "rayexec_error",
  "rayexec_parser",
  "rayon",
+ "regex",
  "smallvec",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "rayexec_io"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "rayexec_error",
  "tracing",
 ]
 
@@ -1492,11 +1504,14 @@ dependencies = [
 name = "rayexec_parquet"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "futures",
+ "parquet 0.0.1",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
- "tokio-postgres",
+ "rayexec_io",
+ "regex",
  "tracing",
 ]
 
@@ -1570,9 +1585,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.10.3"
+version = "1.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
+checksum = "b91213439dad192326a0d7c6ee3955910425f441d7038e0d6933b0aec5c4517f"
 dependencies = [
  "aho-corasick",
  "memchr",

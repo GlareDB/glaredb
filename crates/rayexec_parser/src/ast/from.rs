@@ -17,32 +17,7 @@ pub struct FromNode<T: AstMeta> {
 impl AstParseable for FromNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         // Build the first part of the FROM clause.
-        let node = if parser.consume_token(&Token::LeftParen) {
-            // Subquery
-            //
-            // `FROM (SELECT * FROM my_table) AS alias`
-            let subquery = QueryNode::parse(parser)?;
-            parser.expect_token(&Token::RightParen)?;
-            let alias = Self::maybe_parse_alias(parser)?;
-            FromNode {
-                alias,
-                body: FromNodeBody::Subquery(FromSubquery { query: subquery }),
-            }
-        } else {
-            // Table or table function.
-            let reference = ObjectReference::parse(parser)?;
-
-            let body = match parser.peek() {
-                Some(TokenWithLocation { token, .. }) if token == &Token::LeftParen => {
-                    let args = parser.parse_parenthesized_comma_separated(FunctionArg::parse)?;
-                    FromNodeBody::TableFunction(FromTableFunction { reference, args })
-                }
-                _ => FromNodeBody::BaseTable(FromBaseTable { reference }),
-            };
-
-            let alias = Self::maybe_parse_alias(parser)?;
-            FromNode { alias, body }
-        };
+        let node = Self::parse_base_from(parser)?;
 
         // If followed by a join, recursively build up the FROM node using the
         // original node build above as the left part.
@@ -185,6 +160,50 @@ impl AstParseable for FromNode<Raw> {
 }
 
 impl FromNode<Raw> {
+    fn parse_base_from(parser: &mut Parser) -> Result<Self> {
+        if parser.consume_token(&Token::LeftParen) {
+            // Subquery
+            //
+            // `FROM (SELECT * FROM my_table) AS alias`
+            let subquery = QueryNode::parse(parser)?;
+            parser.expect_token(&Token::RightParen)?;
+            let alias = Self::maybe_parse_alias(parser)?;
+            Ok(FromNode {
+                alias,
+                body: FromNodeBody::Subquery(FromSubquery { query: subquery }),
+            })
+        } else {
+            if let Some(tok) = parser.peek().cloned() {
+                if let Token::SingleQuotedString(s) = tok.token {
+                    // `FROM 'my/file/path.paquet'
+                    let _ = parser.next();
+
+                    let alias = Self::maybe_parse_alias(parser)?;
+                    return Ok(FromNode {
+                        alias,
+                        body: FromNodeBody::File(FromFilePath {
+                            path: s.to_string(),
+                        }),
+                    });
+                }
+            }
+
+            // Table or table function.
+            let reference = ObjectReference::parse(parser)?;
+
+            let body = match parser.peek() {
+                Some(TokenWithLocation { token, .. }) if token == &Token::LeftParen => {
+                    let args = parser.parse_parenthesized_comma_separated(FunctionArg::parse)?;
+                    FromNodeBody::TableFunction(FromTableFunction { reference, args })
+                }
+                _ => FromNodeBody::BaseTable(FromBaseTable { reference }),
+            };
+
+            let alias = Self::maybe_parse_alias(parser)?;
+            Ok(FromNode { alias, body })
+        }
+    }
+
     fn maybe_parse_alias(parser: &mut Parser) -> Result<Option<FromAlias>> {
         let alias = match parser.parse_alias(RESERVED_FOR_TABLE_ALIAS)? {
             Some(alias) => alias,
@@ -211,9 +230,15 @@ pub struct FromAlias {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FromNodeBody<T: AstMeta> {
     BaseTable(FromBaseTable<T>),
+    File(FromFilePath),
     Subquery(FromSubquery<T>),
     TableFunction(FromTableFunction<T>),
     Join(FromJoin<T>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FromFilePath {
+    pub path: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -333,6 +358,24 @@ mod tests {
                     value: "my_table".into(),
                     quoted: false,
                 }]),
+            }),
+        };
+        assert_eq!(expected, node)
+    }
+
+    #[test]
+    fn base_table_path() {
+        let node: FromNode<_> = parse_ast("'dir/file.parquet' AS t1").unwrap();
+        let expected = FromNode {
+            alias: Some(FromAlias {
+                alias: Ident {
+                    value: "t1".into(),
+                    quoted: false,
+                },
+                columns: None,
+            }),
+            body: FromNodeBody::File(FromFilePath {
+                path: "dir/file.parquet".to_string(),
             }),
         };
         assert_eq!(expected, node)

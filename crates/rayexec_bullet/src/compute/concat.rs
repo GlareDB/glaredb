@@ -68,6 +68,21 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
         }
+        DataType::Timestamp(unit) => {
+            // TODO: Need to worry about unit?
+            let arrs = arrays
+                .iter()
+                .map(|arr| match arr {
+                    Array::Timestamp(_, arr) => Ok(arr),
+                    other => Err(RayexecError::new(format!(
+                        "Array is not of the expected type. Expected {}, got {}",
+                        DataType::Timestamp(unit),
+                        other.datatype()
+                    ))),
+                })
+                .collect::<rayexec_error::Result<Vec<_>>>()?;
+            Ok(Array::Timestamp(unit, concat_primitive(arrs.as_slice())))
+        }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
             Ok(Array::Utf8(concat_varlen(arrs.as_slice())))

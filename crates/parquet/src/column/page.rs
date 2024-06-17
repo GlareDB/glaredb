@@ -264,7 +264,7 @@ impl PageWriteSpec {
 }
 
 /// Contains metadata for a page
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PageMetadata {
     /// The number of rows within the page if known
     pub num_rows: Option<usize>,
@@ -360,9 +360,6 @@ pub trait PageWriter: Send {
     /// Page writer should not be used after this method is called.
     fn close(&mut self) -> Result<()>;
 }
-
-/// An iterator over pages of one specific column in a parquet file.
-pub trait PageIterator: Iterator<Item = Result<Box<dyn PageReader>>> + Send {}
 
 #[cfg(test)]
 mod tests {

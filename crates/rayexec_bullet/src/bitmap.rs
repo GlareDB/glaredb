@@ -87,7 +87,8 @@ impl Bitmap {
     /// the bit is set to '1'.
     pub const fn index_iter(&self) -> BitmapIndexIter {
         BitmapIndexIter {
-            idx: 0,
+            front: 0,
+            back: self.len(),
             bitmap: self,
         }
     }
@@ -182,7 +183,8 @@ impl<'a> Iterator for BitmapIter<'a> {
 /// Iterator over all "valid" indexes in the bitmap.
 #[derive(Debug)]
 pub struct BitmapIndexIter<'a> {
-    idx: usize,
+    front: usize,
+    back: usize,
     bitmap: &'a Bitmap,
 }
 
@@ -191,17 +193,36 @@ impl<'a> Iterator for BitmapIndexIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.idx >= self.bitmap.len() {
+            if self.front >= self.back {
                 return None;
             }
 
-            if self.bitmap.value(self.idx) {
-                let idx = self.idx;
-                self.idx += 1;
+            if self.bitmap.value(self.front) {
+                let idx = self.front;
+                self.front += 1;
                 return Some(idx);
             }
 
-            self.idx += 1;
+            self.front += 1;
+            // Continue to next iteration.
+        }
+    }
+}
+
+impl<'a> DoubleEndedIterator for BitmapIndexIter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.front >= self.back {
+                return None;
+            }
+
+            if self.bitmap.value(self.back - 1) {
+                let idx = self.back;
+                self.back -= 1;
+                return Some(idx - 1);
+            }
+
+            self.back -= 1;
             // Continue to next iteration.
         }
     }
@@ -354,5 +375,12 @@ mod tests {
         let bm = Bitmap::from_iter([false, false, false, false, false]);
         let indexes: Vec<_> = bm.index_iter().collect();
         assert!(indexes.is_empty());
+    }
+
+    #[test]
+    fn index_iter_rev() {
+        let bm = Bitmap::from_iter([true, false, false, true, false, true]);
+        let indexes: Vec<_> = bm.index_iter().rev().collect();
+        assert_eq!(vec![5, 3, 0], indexes);
     }
 }

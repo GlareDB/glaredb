@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use rayexec_bullet::field::{DataType, Schema};
+use rayexec_bullet::{field::DataType, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
@@ -11,11 +11,12 @@ use rayexec_parser::{
 
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
+    datasource::FileHandlers,
     engine::EngineRuntime,
     functions::{
         aggregate::GenericAggregateFunction,
         scalar::GenericScalarFunction,
-        table::{GenericTableFunction, TableFunctionArgs},
+        table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
     },
     logical::sql::expr::ExpressionContext,
 };
@@ -50,8 +51,14 @@ pub enum BoundTableOrCteReference {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundTableFunctionReference {
-    pub func: Box<dyn GenericTableFunction>,
-    pub schema: Schema,
+    /// Name of the original function.
+    ///
+    /// This is used to allow the user to reference the output of the function
+    /// if not provided an alias.
+    pub name: String,
+
+    /// The initialized table function.
+    pub func: Box<dyn InitializedTableFunction>,
 }
 
 // TODO: Figure out how we want to represent things like tables in a CREATE
@@ -214,6 +221,7 @@ impl BindData {
 pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
+    file_handlers: &'a FileHandlers,
     runtime: &'a EngineRuntime,
 }
 
@@ -221,11 +229,13 @@ impl<'a> Binder<'a> {
     pub fn new(
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
+        file_handlers: &'a FileHandlers,
         runtime: &'a EngineRuntime,
     ) -> Self {
         Binder {
             tx,
             context,
+            file_handlers,
             runtime,
         }
     }
@@ -648,29 +658,46 @@ impl<'a> Binder<'a> {
                     query: Box::pin(self.bind_query(query, bind_data)).await?,
                 })
             }
+            ast::FromNodeBody::File(ast::FromFilePath { path }) => {
+                match self.file_handlers.find_match(&path) {
+                    Some(func) => {
+                        let args = TableFunctionArgs {
+                            named: HashMap::new(),
+                            positional: vec![OwnedScalarValue::Utf8(path.into())],
+                        };
+
+                        let name = func.name().to_string();
+                        let func = func
+                            .specialize(args.clone())?
+                            .initialize(self.runtime)
+                            .await?;
+
+                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            reference: BoundTableFunctionReference { name, func },
+                            args,
+                        })
+                    }
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "No suitable file handlers found for '{path}'"
+                        )))
+                    }
+                }
+            }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
                 let table_fn = self.resolve_table_function(reference).await?;
                 let args = ExpressionBinder::new(self)
                     .bind_table_function_args(args)
                     .await?;
 
-                // TODO: This throws away the specialized function, which could
-                // result in duplicated work. I opted to go with this for now,
-                // since it's the most straigtforward and wanted to avoid
-                // working us into a corner when it comes to serializing
-                // functions and checking plan equality.
-                //
-                // I think there will end up being a type between the "generic"
-                // and "specialized" function that keeps easy serialization and
-                // equality checking while also holding optional state.
-                let mut specialized = table_fn.specialize(&args)?;
-                let schema = specialized.schema(self.runtime).await?;
+                let name = table_fn.name().to_string();
+                let func = table_fn
+                    .specialize(args.clone())?
+                    .initialize(self.runtime)
+                    .await?;
 
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                    reference: BoundTableFunctionReference {
-                        func: table_fn,
-                        schema,
-                    },
+                    reference: BoundTableFunctionReference { name, func },
                     args,
                 })
             }

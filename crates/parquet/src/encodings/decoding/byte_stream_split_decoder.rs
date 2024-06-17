@@ -25,6 +25,7 @@ use crate::errors::{ParquetError, Result};
 
 use super::Decoder;
 
+#[derive(Debug)]
 pub struct ByteStreamSplitDecoder<T: DataType> {
     _phantom: PhantomData<T>,
     encoded_bytes: Bytes,

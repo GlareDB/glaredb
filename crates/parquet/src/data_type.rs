@@ -26,7 +26,8 @@ use std::ops::{Deref, DerefMut};
 use std::str::from_utf8;
 
 use crate::basic::Type;
-use crate::column::reader::{ColumnReader, ColumnReaderImpl};
+use crate::column::page::PageReader;
+use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, ColumnWriterImpl};
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::FromBytes;
@@ -1059,7 +1060,7 @@ pub(crate) mod private {
 
 /// Contains the Parquet physical type information as well as the Rust primitive type
 /// presentation.
-pub trait DataType: 'static + Send {
+pub trait DataType: 'static + Send + fmt::Debug {
     type T: private::ParquetValueType;
 
     /// Returns Parquet physical type.
@@ -1070,7 +1071,9 @@ pub trait DataType: 'static + Send {
     /// Returns size in bytes for Rust representation of the physical type.
     fn get_type_size() -> usize;
 
-    fn get_column_reader(column_writer: ColumnReader) -> Option<ColumnReaderImpl<Self>>
+    fn get_column_reader<P: PageReader>(
+        column_writer: ColumnReader<P>,
+    ) -> Option<GenericColumnReader<Self, P>>
     where
         Self: Sized;
 
@@ -1107,7 +1110,7 @@ where
 
 macro_rules! make_type {
     ($name:ident, $reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
-        #[derive(Clone)]
+        #[derive(Debug, Clone)]
         pub struct $name {}
 
         impl DataType for $name {
@@ -1117,7 +1120,9 @@ macro_rules! make_type {
                 $size
             }
 
-            fn get_column_reader(column_reader: ColumnReader) -> Option<ColumnReaderImpl<Self>> {
+            fn get_column_reader<P: PageReader>(
+                column_reader: ColumnReader<P>,
+            ) -> Option<GenericColumnReader<Self, P>> {
                 match column_reader {
                     ColumnReader::$reader_ident(w) => Some(w),
                     _ => None,

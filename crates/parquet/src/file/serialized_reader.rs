@@ -36,9 +36,6 @@ use crate::file::{
     statistics,
 };
 use crate::format::{PageHeader, PageLocation, PageType};
-use crate::record::reader::RowIter;
-use crate::record::Row;
-use crate::schema::types::Type as SchemaType;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 use bytes::Bytes;
 use thrift::protocol::TCompactInputProtocol;
@@ -73,17 +70,6 @@ impl<'a> TryFrom<&'a str> for SerializedFileReader<File> {
 
     fn try_from(path: &str) -> Result<Self> {
         Self::try_from(Path::new(&path))
-    }
-}
-
-/// Conversion into a [`RowIter`]
-/// using the full file schema over all row groups.
-impl IntoIterator for SerializedFileReader<File> {
-    type Item = Result<Row>;
-    type IntoIter = RowIter<'static>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        RowIter::from_file_into(Box::new(self))
     }
 }
 
@@ -254,7 +240,9 @@ fn get_midpoint_offset(meta: &RowGroupMetaData) -> i64 {
     offset + meta.compressed_size() / 2
 }
 
-impl<R: 'static + ChunkReader> FileReader for SerializedFileReader<R> {
+impl<R: 'static + ChunkReader> FileReader<SerializedPageReader<R>, SerializedRowGroupReader<R>>
+    for SerializedFileReader<R>
+{
     fn metadata(&self) -> &ParquetMetaData {
         &self.metadata
     }
@@ -263,92 +251,89 @@ impl<R: 'static + ChunkReader> FileReader for SerializedFileReader<R> {
         self.metadata.num_row_groups()
     }
 
-    fn get_row_group(&self, i: usize) -> Result<Box<dyn RowGroupReader + '_>> {
-        let row_group_metadata = self.metadata.row_group(i);
+    fn get_row_group(&self, i: usize) -> Result<SerializedRowGroupReader<R>> {
         // Row groups should be processed sequentially.
-        let props = Arc::clone(&self.props);
-        let f = Arc::clone(&self.chunk_reader);
-        Ok(Box::new(SerializedRowGroupReader::new(
-            f,
-            row_group_metadata,
-            self.metadata.offset_index().map(|x| x[i].as_slice()),
-            props,
-        )?))
-    }
-
-    fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter> {
-        RowIter::from_file(projection, self)
+        SerializedRowGroupReader::new(
+            i,
+            self.chunk_reader.clone(),
+            self.metadata.clone(),
+            self.props.clone(),
+        )
     }
 }
 
 /// A serialized implementation for Parquet [`RowGroupReader`].
-pub struct SerializedRowGroupReader<'a, R: ChunkReader> {
+pub struct SerializedRowGroupReader<R: ChunkReader> {
     chunk_reader: Arc<R>,
-    metadata: &'a RowGroupMetaData,
-    page_locations: Option<&'a [Vec<PageLocation>]>,
+    row_group: usize,
+    parquet_metadata: Arc<ParquetMetaData>,
     props: ReaderPropertiesPtr,
     bloom_filters: Vec<Option<Sbbf>>,
 }
 
-impl<'a, R: ChunkReader> SerializedRowGroupReader<'a, R> {
+impl<R: ChunkReader> SerializedRowGroupReader<R> {
     /// Creates new row group reader from a file, row group metadata and custom config.
     pub fn new(
+        row_group: usize,
         chunk_reader: Arc<R>,
-        metadata: &'a RowGroupMetaData,
-        page_locations: Option<&'a [Vec<PageLocation>]>,
+        parquet_metadata: Arc<ParquetMetaData>,
         props: ReaderPropertiesPtr,
     ) -> Result<Self> {
         let bloom_filters = if props.read_bloom_filter() {
-            metadata
+            parquet_metadata
+                .row_group(row_group)
                 .columns()
                 .iter()
                 .map(|col| Sbbf::read_from_column_chunk(col, chunk_reader.clone()))
                 .collect::<Result<Vec<_>>>()?
         } else {
-            iter::repeat(None).take(metadata.columns().len()).collect()
+            iter::repeat(None)
+                .take(parquet_metadata.row_group(row_group).columns().len())
+                .collect()
         };
         Ok(Self {
             chunk_reader,
-            metadata,
-            page_locations,
+            row_group,
+            parquet_metadata,
             props,
             bloom_filters,
         })
     }
+
+    fn column_page_locations(&self, col: usize) -> Option<Vec<PageLocation>> {
+        self.parquet_metadata
+            .offset_index()
+            .map(|x| x[self.row_group][col].clone())
+    }
 }
 
-impl<'a, R: 'static + ChunkReader> RowGroupReader for SerializedRowGroupReader<'a, R> {
+impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
+    for SerializedRowGroupReader<R>
+{
     fn metadata(&self) -> &RowGroupMetaData {
-        self.metadata
+        self.parquet_metadata.row_group(self.row_group)
     }
 
     fn num_columns(&self) -> usize {
-        self.metadata.num_columns()
+        self.metadata().num_columns()
     }
 
     // TODO: fix PARQUET-816
-    fn get_column_page_reader(&self, i: usize) -> Result<Box<dyn PageReader>> {
-        let col = self.metadata.column(i);
+    fn get_column_page_reader(&self, i: usize) -> Result<SerializedPageReader<R>> {
+        let col = self.metadata().column(i);
 
-        let page_locations = self.page_locations.map(|x| x[i].clone());
-
-        let props = Arc::clone(&self.props);
-        Ok(Box::new(SerializedPageReader::new_with_properties(
+        SerializedPageReader::new_with_properties(
             Arc::clone(&self.chunk_reader),
             col,
-            self.metadata.num_rows() as usize,
-            page_locations,
-            props,
-        )?))
+            self.metadata().num_rows() as usize,
+            self.column_page_locations(i),
+            self.props.clone(),
+        )
     }
 
     /// get bloom filter for the `i`th column
     fn get_column_bloom_filter(&self, i: usize) -> Option<&Sbbf> {
         self.bloom_filters[i].as_ref()
-    }
-
-    fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter> {
-        RowIter::from_row_group(projection, self)
     }
 }
 
@@ -778,32 +763,31 @@ mod tests {
     use crate::file::page_index::index::{Index, NativeIndex};
     use crate::file::page_index::index_reader::{read_columns_indexes, read_pages_locations};
     use crate::file::writer::SerializedFileWriter;
-    use crate::record::RowAccessor;
     use crate::schema::parser::parse_message_type;
     use crate::util::bit_util::from_le_slice;
     use crate::util::test_common::file_util::{get_test_file, get_test_path};
 
     use super::*;
 
-    #[test]
-    fn test_cursor_and_file_has_the_same_behaviour() {
-        let mut buf: Vec<u8> = Vec::new();
-        get_test_file("alltypes_plain.parquet")
-            .read_to_end(&mut buf)
-            .unwrap();
-        let cursor = Bytes::from(buf);
-        let read_from_cursor = SerializedFileReader::new(cursor).unwrap();
+    // #[test]
+    // fn test_cursor_and_file_has_the_same_behaviour() {
+    //     let mut buf: Vec<u8> = Vec::new();
+    //     get_test_file("alltypes_plain.parquet")
+    //         .read_to_end(&mut buf)
+    //         .unwrap();
+    //     let cursor = Bytes::from(buf);
+    //     let read_from_cursor = SerializedFileReader::new(cursor).unwrap();
 
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_from_file = SerializedFileReader::new(test_file).unwrap();
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_from_file = SerializedFileReader::new(test_file).unwrap();
 
-        let file_iter = read_from_file.get_row_iter(None).unwrap();
-        let cursor_iter = read_from_cursor.get_row_iter(None).unwrap();
+    //     let file_iter = read_from_file.get_row_iter(None).unwrap();
+    //     let cursor_iter = read_from_cursor.get_row_iter(None).unwrap();
 
-        for (a, b) in file_iter.zip(cursor_iter) {
-            assert_eq!(a.unwrap(), b.unwrap())
-        }
-    }
+    //     for (a, b) in file_iter.zip(cursor_iter) {
+    //         assert_eq!(a.unwrap(), b.unwrap())
+    //     }
+    // }
 
     #[test]
     fn test_file_reader_try_from() {
@@ -839,27 +823,27 @@ mod tests {
         assert!(reader.is_err());
     }
 
-    #[test]
-    fn test_file_reader_into_iter() {
-        let path = get_test_path("alltypes_plain.parquet");
-        let reader = SerializedFileReader::try_from(path.as_path()).unwrap();
-        let iter = reader.into_iter();
-        let values: Vec<_> = iter.flat_map(|x| x.unwrap().get_int(0)).collect();
+    // #[test]
+    // fn test_file_reader_into_iter() {
+    //     let path = get_test_path("alltypes_plain.parquet");
+    //     let reader = SerializedFileReader::try_from(path.as_path()).unwrap();
+    //     let iter = reader.into_iter();
+    //     let values: Vec<_> = iter.flat_map(|x| x.unwrap().get_int(0)).collect();
 
-        assert_eq!(values, &[4, 5, 6, 7, 2, 3, 0, 1]);
-    }
+    //     assert_eq!(values, &[4, 5, 6, 7, 2, 3, 0, 1]);
+    // }
 
-    #[test]
-    fn test_file_reader_into_iter_project() {
-        let path = get_test_path("alltypes_plain.parquet");
-        let reader = SerializedFileReader::try_from(path.as_path()).unwrap();
-        let schema = "message schema { OPTIONAL INT32 id; }";
-        let proj = parse_message_type(schema).ok();
-        let iter = reader.into_iter().project(proj).unwrap();
-        let values: Vec<_> = iter.flat_map(|x| x.unwrap().get_int(0)).collect();
+    // #[test]
+    // fn test_file_reader_into_iter_project() {
+    //     let path = get_test_path("alltypes_plain.parquet");
+    //     let reader = SerializedFileReader::try_from(path.as_path()).unwrap();
+    //     let schema = "message schema { OPTIONAL INT32 id; }";
+    //     let proj = parse_message_type(schema).ok();
+    //     let iter = reader.into_iter().project(proj).unwrap();
+    //     let values: Vec<_> = iter.flat_map(|x| x.unwrap().get_int(0)).collect();
 
-        assert_eq!(values, &[4, 5, 6, 7, 2, 3, 0, 1]);
-    }
+    //     assert_eq!(values, &[4, 5, 6, 7, 2, 3, 0, 1]);
+    // }
 
     #[test]
     fn test_reuse_file_chunk() {
@@ -918,7 +902,7 @@ mod tests {
         // Test row group reader
         let row_group_reader_result = reader.get_row_group(0);
         assert!(row_group_reader_result.is_ok());
-        let row_group_reader: Box<dyn RowGroupReader> = row_group_reader_result.unwrap();
+        let row_group_reader = row_group_reader_result.unwrap();
         assert_eq!(
             row_group_reader.num_columns(),
             row_group_metadata.num_columns()
@@ -932,7 +916,7 @@ mod tests {
         // TODO: test for every column
         let page_reader_0_result = row_group_reader.get_column_page_reader(0);
         assert!(page_reader_0_result.is_ok());
-        let mut page_reader_0: Box<dyn PageReader> = page_reader_0_result.unwrap();
+        let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
         while let Ok(Some(page)) = page_reader_0.get_next_page() {
             let is_expected_page = match page {
@@ -1012,7 +996,7 @@ mod tests {
         // Test row group reader
         let row_group_reader_result = reader.get_row_group(0);
         assert!(row_group_reader_result.is_ok());
-        let row_group_reader: Box<dyn RowGroupReader> = row_group_reader_result.unwrap();
+        let row_group_reader = row_group_reader_result.unwrap();
         assert_eq!(
             row_group_reader.num_columns(),
             row_group_metadata.num_columns()
@@ -1026,7 +1010,7 @@ mod tests {
         // TODO: test for every column
         let page_reader_0_result = row_group_reader.get_column_page_reader(0);
         assert!(page_reader_0_result.is_ok());
-        let mut page_reader_0: Box<dyn PageReader> = page_reader_0_result.unwrap();
+        let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
         while let Ok(Some(page)) = page_reader_0.get_next_page() {
             let is_expected_page = match page {

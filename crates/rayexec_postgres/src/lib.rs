@@ -216,8 +216,8 @@ struct PostgresClient {
 }
 
 impl PostgresClient {
-    async fn connect(conn_str: &str, runtime: &EngineRuntime) -> Result<Self> {
-        let conn_str = conn_str.to_string();
+    async fn connect(conn_str: impl Into<String>, runtime: &EngineRuntime) -> Result<Self> {
+        let conn_str = conn_str.into();
         let (client, connection) = runtime
             .tokio
             .spawn(async move {

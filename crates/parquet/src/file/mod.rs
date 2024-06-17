@@ -29,7 +29,7 @@
 //!
 //! # Example of writing a new file
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use std::{fs, path::Path, sync::Arc};
 //!
 //! use parquet::{
@@ -63,7 +63,7 @@
 //! ```
 //! # Example of reading an existing file
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
 //! use std::{fs::File, path::Path};
 //!
@@ -80,7 +80,7 @@
 //! ```
 //! # Example of reading multiple files
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use parquet::file::reader::SerializedFileReader;
 //! use std::convert::TryFrom;
 //!

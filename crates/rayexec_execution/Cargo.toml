@@ -24,6 +24,7 @@ tracing = { workspace = true }
 crossbeam = "0.8.4"
 half = "2.4.1"
 tokio = { version = "1.38.0", features = ["rt", "net"] }
+regex = { workspace = true }
 
 [dev-dependencies]
 insta = "1.39.0"

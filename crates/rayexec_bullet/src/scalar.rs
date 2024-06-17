@@ -1,9 +1,9 @@
 use crate::array::{
     Array, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array,
-    Int64Array, Int8Array, LargeBinaryArray, LargeUtf8Array, NullArray, UInt16Array, UInt32Array,
-    UInt64Array, UInt8Array, Utf8Array,
+    Int64Array, Int8Array, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampArray,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
-use crate::field::DataType;
+use crate::field::{DataType, TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
@@ -47,6 +47,9 @@ pub enum ScalarValue<'a> {
     /// Unsigned 64bit int
     UInt64(u64),
 
+    /// Timestamp value
+    Timestamp(TimeUnit, i64),
+
     /// Utf-8 encoded string.
     Utf8(Cow<'a, str>),
 
@@ -80,6 +83,7 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::UInt16(_) => DataType::UInt16,
             ScalarValue::UInt32(_) => DataType::UInt32,
             ScalarValue::UInt64(_) => DataType::UInt64,
+            ScalarValue::Timestamp(unit, _) => DataType::Timestamp(*unit),
             ScalarValue::Utf8(_) => DataType::Utf8,
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
             ScalarValue::Binary(_) => DataType::Binary,
@@ -104,6 +108,7 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(v) => OwnedScalarValue::UInt16(v),
             Self::UInt32(v) => OwnedScalarValue::UInt32(v),
             Self::UInt64(v) => OwnedScalarValue::UInt64(v),
+            Self::Timestamp(unit, v) => OwnedScalarValue::Timestamp(unit, v),
             Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
@@ -135,6 +140,10 @@ impl<'a> ScalarValue<'a> {
             Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
+            Self::Timestamp(unit, v) => Array::Timestamp(
+                *unit,
+                TimestampArray::from_iter(std::iter::repeat(*v).take(n)),
+            ),
             Self::Utf8(v) => {
                 Array::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
             }
@@ -254,6 +263,7 @@ impl fmt::Display for ScalarValue<'_> {
             Self::UInt16(v) => write!(f, "{}", v),
             Self::UInt32(v) => write!(f, "{}", v),
             Self::UInt64(v) => write!(f, "{}", v),
+            Self::Timestamp(unit, v) => write!(f, "{v} {unit}"), // TODO: Definitely wrong
             Self::Utf8(v) => write!(f, "{}", v),
             Self::LargeUtf8(v) => write!(f, "{}", v),
             Self::Binary(v) => write!(f, "{:X?}", v),

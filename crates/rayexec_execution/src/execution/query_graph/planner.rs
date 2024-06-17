@@ -297,10 +297,7 @@ impl BuildState {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let physical = Arc::new(PhysicalTableFunction::new(
-            table_func.function,
-            table_func.args,
-        ));
+        let physical = Arc::new(PhysicalTableFunction::new(table_func.function));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states: Vec<_> = physical
             .try_create_states(conf.runtime, conf.target_partitions)?

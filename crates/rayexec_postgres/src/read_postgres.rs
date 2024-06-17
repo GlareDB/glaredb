@@ -4,7 +4,9 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     engine::EngineRuntime,
-    functions::table::{GenericTableFunction, SpecializedTableFunction, TableFunctionArgs},
+    functions::table::{
+        GenericTableFunction, InitializedTableFunction, SpecializedTableFunction, TableFunctionArgs,
+    },
 };
 use std::sync::Arc;
 
@@ -18,7 +20,21 @@ impl GenericTableFunction for ReadPostgres {
         "read_postgres"
     }
 
-    fn specialize(&self, args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+        let args = ReadPostgresArgs::try_from_table_args(args)?;
+        Ok(Box::new(args))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReadPostgresArgs {
+    conn_str: String,
+    schema: String,
+    table: String,
+}
+
+impl ReadPostgresArgs {
+    fn try_from_table_args(args: TableFunctionArgs) -> Result<Self> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "read_postgres does not accept named arguments",
@@ -33,25 +49,25 @@ impl GenericTableFunction for ReadPostgres {
         let schema = args.positional.pop().unwrap().try_into_string()?;
         let conn_str = args.positional.pop().unwrap().try_into_string()?;
 
-        Ok(Box::new(ReadPostgresImpl {
+        Ok(ReadPostgresArgs {
             conn_str,
             schema,
             table,
-        }))
+        })
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ReadPostgresImpl {
-    conn_str: String,
-    schema: String,
-    table: String,
-}
+impl SpecializedTableFunction for ReadPostgresArgs {
+    fn name(&self) -> &'static str {
+        "read_postgres"
+    }
 
-impl SpecializedTableFunction for ReadPostgresImpl {
-    fn schema<'a>(&'a mut self, runtime: &'a EngineRuntime) -> BoxFuture<Result<Schema>> {
-        let client = PostgresClient::connect(&self.conn_str, runtime);
-        Box::pin(async {
+    fn initialize(
+        self: Box<Self>,
+        runtime: &EngineRuntime,
+    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
+        let client = PostgresClient::connect(self.conn_str.clone(), runtime);
+        Box::pin(async move {
             let client = client.await?;
             let fields = match client
                 .get_fields_and_types(&self.schema, &self.table)
@@ -61,16 +77,39 @@ impl SpecializedTableFunction for ReadPostgresImpl {
                 None => return Err(RayexecError::new("Table not found")),
             };
 
-            Ok(Schema::new(fields))
+            let schema = Schema::new(fields);
+
+            Ok(Box::new(ReadPostgresImpl {
+                args: *self,
+                _client: client,
+                table_schema: schema,
+            }) as _)
         })
     }
+}
 
-    fn datatable(&mut self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
+#[derive(Debug, Clone)]
+pub struct ReadPostgresImpl {
+    args: ReadPostgresArgs,
+    _client: PostgresClient,
+    table_schema: Schema,
+}
+
+impl InitializedTableFunction for ReadPostgresImpl {
+    fn specialized(&self) -> &dyn SpecializedTableFunction {
+        &self.args
+    }
+
+    fn schema(&self) -> Schema {
+        self.table_schema.clone()
+    }
+
+    fn datatable(&self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
             runtime: runtime.clone(),
-            conn_str: self.conn_str.clone(),
-            schema: self.schema.clone(),
-            table: self.table.clone(),
+            conn_str: self.args.conn_str.clone(),
+            schema: self.args.schema.clone(),
+            table: self.args.table.clone(),
         }))
     }
 }

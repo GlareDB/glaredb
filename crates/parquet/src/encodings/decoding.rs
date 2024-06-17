@@ -20,7 +20,7 @@
 use bytes::Bytes;
 use num::traits::WrappingAdd;
 use num::FromPrimitive;
-use std::{cmp, marker::PhantomData, mem};
+use std::{cmp, fmt::Debug, marker::PhantomData, mem};
 
 use super::rle::RleDecoder;
 
@@ -166,7 +166,7 @@ pub(crate) mod private {
 // Decoders
 
 /// A Parquet decoder for the data type `T`.
-pub trait Decoder<T: DataType>: Send {
+pub trait Decoder<T: DataType>: Send + Debug {
     /// Sets the data to decode to be `data`, which should contain `num_values` of values
     /// to decode.
     fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()>;
@@ -250,7 +250,7 @@ pub fn get_decoder<T: DataType>(
 // ----------------------------------------------------------------------
 // PLAIN Decoding
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct PlainDecoderDetails {
     // The remaining number of values in the byte array
     pub(crate) num_values: usize,
@@ -272,6 +272,7 @@ pub struct PlainDecoderDetails {
 /// Values are encoded back to back. For native types, data is encoded as little endian.
 /// Floating point types are encoded in IEEE.
 /// See [`PlainEncoder`](crate::encoding::PlainEncoder) for more information.
+#[derive(Debug)]
 pub struct PlainDecoder<T: DataType> {
     // The binary details needed for decoding
     inner: PlainDecoderDetails,
@@ -332,6 +333,7 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
 /// The dictionary encoding builds a dictionary of values encountered in a given column.
 /// The dictionary is be stored in a dictionary page per column chunk.
 /// See [`DictEncoder`](crate::encoding::DictEncoder) for more information.
+#[derive(Debug)]
 pub struct DictDecoder<T: DataType> {
     // The dictionary, which maps ids to the values
     dictionary: Vec<T::T>,
@@ -418,6 +420,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
 /// RLE/Bit-Packing hybrid decoding for values.
 /// Currently is used only for data pages v2 and supports boolean types.
 /// See [`RleValueEncoder`](crate::encoding::RleValueEncoder) for more information.
+#[derive(Debug)]
 pub struct RleValueDecoder<T: DataType> {
     values_left: usize,
     decoder: RleDecoder,
@@ -490,6 +493,7 @@ impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
 /// Supports INT32 and INT64 types.
 /// See [`DeltaBitPackEncoder`](crate::encoding::DeltaBitPackEncoder) for more
 /// information.
+#[derive(Debug)]
 pub struct DeltaBitPackDecoder<T: DataType> {
     bit_reader: BitReader,
     initialized: bool,
@@ -824,6 +828,7 @@ where
 /// are encoded using DELTA_BINARY_PACKED encoding.
 /// See [`DeltaLengthByteArrayEncoder`](crate::encoding::DeltaLengthByteArrayEncoder)
 /// for more information.
+#[derive(Debug)]
 pub struct DeltaLengthByteArrayDecoder<T: DataType> {
     // Lengths for each byte array in `data`
     // TODO: add memory tracker to this
@@ -956,6 +961,7 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
 /// using `DELTA_LENGTH_BYTE_ARRAY` encoding.
 /// See [`DeltaByteArrayEncoder`](crate::encoding::DeltaByteArrayEncoder) for more
 /// information.
+#[derive(Debug)]
 pub struct DeltaByteArrayDecoder<T: DataType> {
     // Prefix lengths for each byte array
     // TODO: add memory tracker to this

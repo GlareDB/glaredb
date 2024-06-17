@@ -16,11 +16,31 @@ pub enum DataType {
     UInt16,
     UInt32,
     UInt64,
+    Timestamp(TimeUnit),
     Utf8,
     LargeUtf8,
     Binary,
     LargeBinary,
     Struct { fields: Vec<DataType> },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TimeUnit {
+    Nanosecond,
+    Microsecond,
+    Millisecond,
+    Second,
+}
+
+impl fmt::Display for TimeUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Nanosecond => write!(f, "ns"),
+            Self::Microsecond => write!(f, "μs"),
+            Self::Millisecond => write!(f, "ms"),
+            Self::Second => write!(f, "s"),
+        }
+    }
 }
 
 impl DataType {
@@ -70,6 +90,7 @@ impl fmt::Display for DataType {
             Self::UInt16 => write!(f, "UInt16"),
             Self::UInt32 => write!(f, "UInt32"),
             Self::UInt64 => write!(f, "UInt64"),
+            Self::Timestamp(unit) => write!(f, "Timestamp({unit})"),
             Self::Utf8 => write!(f, "Utf8"),
             Self::LargeUtf8 => write!(f, "LargeUtf8"),
             Self::Binary => write!(f, "Binary"),

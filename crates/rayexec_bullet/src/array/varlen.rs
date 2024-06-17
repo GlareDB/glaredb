@@ -110,6 +110,20 @@ impl OffsetIndex for i64 {
 }
 
 #[derive(Debug)]
+pub struct VarlenBuffer<O: OffsetIndex> {
+    pub offsets: Vec<O>,
+    pub data: Vec<u8>,
+}
+
+impl<O: OffsetIndex> Default for VarlenBuffer<O> {
+    fn default() -> Self {
+        let offsets: Vec<O> = vec![O::from_usize(0)];
+        let data: Vec<u8> = Vec::new();
+        VarlenBuffer { offsets, data }
+    }
+}
+
+#[derive(Debug)]
 pub struct VarlenArray<T: VarlenType + ?Sized, O: OffsetIndex> {
     /// Value validities.
     validity: Option<Bitmap>,
@@ -302,7 +316,15 @@ impl<A: AsVarlenType, O: OffsetIndex> Default for VarlenArrayBuilder<A, O> {
 }
 
 impl<A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
-    // TODO: With capacity
+    pub fn with_data_capacity(cap: usize) -> Self {
+        VarlenArrayBuilder {
+            validity: None,
+            offsets: vec![O::from_usize(0)],
+            data: Vec::with_capacity(cap),
+            varlen_type: PhantomData,
+        }
+    }
+
     pub fn new() -> Self {
         VarlenArrayBuilder {
             validity: None,

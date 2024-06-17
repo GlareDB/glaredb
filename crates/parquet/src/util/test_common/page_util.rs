@@ -18,7 +18,7 @@
 use bytes::Bytes;
 
 use crate::basic::Encoding;
-use crate::column::page::{Page, PageIterator};
+use crate::column::page::Page;
 use crate::column::page::{PageMetadata, PageReader};
 use crate::data_type::DataType;
 use crate::encodings::encoding::{get_encoder, Encoder};
@@ -233,5 +233,3 @@ impl<I: Iterator<Item = Vec<Page>>> Iterator for InMemoryPageIterator<I> {
             .map(|x| Ok(Box::new(InMemoryPageReader::new(x)) as Box<dyn PageReader>))
     }
 }
-
-impl<I: Iterator<Item = Vec<Page>> + Send> PageIterator for InMemoryPageIterator<I> {}

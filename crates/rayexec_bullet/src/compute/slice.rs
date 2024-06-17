@@ -27,11 +27,12 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
         Array::UInt16(arr) => Array::UInt16(slice_primitive(arr, start, count)?),
         Array::UInt32(arr) => Array::UInt32(slice_primitive(arr, start, count)?),
         Array::UInt64(arr) => Array::UInt64(slice_primitive(arr, start, count)?),
+        Array::Timestamp(unit, arr) => Array::Timestamp(*unit, slice_primitive(arr, start, count)?),
         Array::Utf8(arr) => Array::Utf8(slice_varlen(arr, start, count)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(slice_varlen(arr, start, count)?),
         Array::Binary(arr) => Array::Binary(slice_varlen(arr, start, count)?),
         Array::LargeBinary(arr) => Array::LargeBinary(slice_varlen(arr, start, count)?),
-        _ => unimplemented!(),
+        other => unimplemented!("{}", other.datatype()),
     })
 }
 

@@ -35,7 +35,7 @@
 //! The example uses column writer and reader APIs to write raw values, definition and
 //! repetition levels and read them to verify write/read correctness.
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! # use std::{fs, path::Path, sync::Arc};
 //! #
 //! # use parquet::{

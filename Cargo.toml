@@ -15,7 +15,7 @@ strip = true
 
 [workspace.dependencies]
 ahash = { version = "0.8.11", default-features = false }
-chrono = { version = "0.4.38", default-features = false }
+chrono = { version = "0.4.38" }
 futures = "0.3.30"
 hashbrown = "0.14.5"
 once_cell = "1.19.0"
@@ -25,3 +25,4 @@ smallvec = "1.13.2"
 rayon = "1.10.0"
 num_cpus = "1.16.0"
 tracing = { version = "0.1.40", default-features = false }
+regex = "1.10.5"

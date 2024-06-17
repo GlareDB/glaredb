@@ -113,9 +113,14 @@ impl Session {
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let tx = CatalogTx::new();
-        let (bound_stmt, bind_data) = Binder::new(&tx, &self.context, &self.runtime)
-            .bind_statement(stmt)
-            .await?;
+        let (bound_stmt, bind_data) = Binder::new(
+            &tx,
+            &self.context,
+            self.registry.get_file_handlers(),
+            &self.runtime,
+        )
+        .bind_statement(stmt)
+        .await?;
         let mut logical = PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 
         let optimizer = Optimizer::new();

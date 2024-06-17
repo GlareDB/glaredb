@@ -9,9 +9,9 @@ pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
 
-use crate::bitmap::Bitmap;
 use crate::field::DataType;
 use crate::scalar::ScalarValue;
+use crate::{bitmap::Bitmap, field::TimeUnit};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
@@ -29,6 +29,7 @@ pub enum Array {
     UInt16(UInt16Array),
     UInt32(UInt32Array),
     UInt64(UInt64Array),
+    Timestamp(TimeUnit, TimestampArray),
     Utf8(Utf8Array),
     LargeUtf8(LargeUtf8Array),
     Binary(BinaryArray),
@@ -51,6 +52,7 @@ impl Array {
             Array::UInt16(_) => DataType::UInt16,
             Array::UInt32(_) => DataType::UInt32,
             Array::UInt64(_) => DataType::UInt64,
+            Array::Timestamp(unit, _) => DataType::Timestamp(*unit),
             Array::Utf8(_) => DataType::Utf8,
             Array::LargeUtf8(_) => DataType::LargeUtf8,
             Array::Binary(_) => DataType::Binary,
@@ -78,6 +80,7 @@ impl Array {
             Self::UInt16(arr) => ScalarValue::UInt16(*arr.value(idx)?),
             Self::UInt32(arr) => ScalarValue::UInt32(*arr.value(idx)?),
             Self::UInt64(arr) => ScalarValue::UInt64(*arr.value(idx)?),
+            Self::Timestamp(unit, arr) => ScalarValue::Timestamp(*unit, *arr.value(idx)?),
             Self::Utf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::LargeUtf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
@@ -100,6 +103,7 @@ impl Array {
             Self::UInt16(arr) => arr.is_valid(idx),
             Self::UInt32(arr) => arr.is_valid(idx),
             Self::UInt64(arr) => arr.is_valid(idx),
+            Self::Timestamp(_, arr) => arr.is_valid(idx),
             Self::Utf8(arr) => arr.is_valid(idx),
             Self::LargeUtf8(arr) => arr.is_valid(idx),
             Self::Binary(arr) => arr.is_valid(idx),
@@ -122,6 +126,7 @@ impl Array {
             Self::UInt16(arr) => arr.len(),
             Self::UInt32(arr) => arr.len(),
             Self::UInt64(arr) => arr.len(),
+            Self::Timestamp(_, arr) => arr.len(),
             Self::Utf8(arr) => arr.len(),
             Self::LargeUtf8(arr) => arr.len(),
             Self::Binary(arr) => arr.len(),
@@ -148,6 +153,7 @@ impl Array {
             Self::UInt16(arr) => arr.validity(),
             Self::UInt32(arr) => arr.validity(),
             Self::UInt64(arr) => arr.validity(),
+            Self::Timestamp(_, arr) => arr.validity(),
             Self::Utf8(arr) => arr.validity(),
             Self::LargeUtf8(arr) => arr.validity(),
             Self::Binary(arr) => arr.validity(),
@@ -245,6 +251,29 @@ impl Array {
             }
             DataType::UInt64 => {
                 iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt64)
+            }
+            DataType::Timestamp(unit) => {
+                let mut validity = Bitmap::default();
+                let mut builder = PrimitiveArrayBuilder::with_capacity(cap);
+                for scalar in scalars {
+                    match scalar {
+                        ScalarValue::Null => {
+                            validity.push(false);
+                            builder.push_value(0);
+                        }
+                        ScalarValue::Timestamp(_, v) => {
+                            validity.push(true);
+                            builder.push_value(v);
+                        }
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Unexpected scalar value: {other}"
+                            )))
+                        }
+                    }
+                }
+                builder.put_validity(validity);
+                Ok(Array::Timestamp(unit, builder.into_typed_array()))
             }
             DataType::Utf8 => {
                 iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), Utf8)

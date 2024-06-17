@@ -6,12 +6,12 @@ use crate::database::entry::TableEntry;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
 use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
-use crate::functions::table::{GenericTableFunction, TableFunctionArgs};
+use crate::functions::table::InitializedTableFunction;
 use crate::{
     engine::vars::SessionVar,
     expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
 };
-use rayexec_bullet::field::{DataType, Field, Schema, TypeSchema};
+use rayexec_bullet::field::{DataType, Field, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
@@ -463,20 +463,19 @@ impl Explainable for Scan {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableFunction {
-    pub function: Box<dyn GenericTableFunction>,
-    pub args: TableFunctionArgs,
-    pub schema: Schema,
+    pub function: Box<dyn InitializedTableFunction>,
 }
 
 impl LogicalNode for TableFunction {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
-        Ok(self.schema.type_schema())
+        Ok(self.function.schema().type_schema())
     }
 }
 
 impl Explainable for TableFunction {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("TableFunction").with_value("function", self.function.name())
+        ExplainEntry::new("TableFunction")
+            .with_value("function", self.function.specialized().name())
     }
 }
 

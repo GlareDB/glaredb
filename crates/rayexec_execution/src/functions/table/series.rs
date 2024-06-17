@@ -12,7 +12,9 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
-use super::{GenericTableFunction, SpecializedTableFunction, TableFunctionArgs};
+use super::{
+    GenericTableFunction, InitializedTableFunction, SpecializedTableFunction, TableFunctionArgs,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;
@@ -22,7 +24,7 @@ impl GenericTableFunction for GenerateSeries {
         "generate_series"
     }
 
-    fn specialize(&self, args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "read_postgres does not accept named arguments",
@@ -53,29 +55,40 @@ impl GenericTableFunction for GenerateSeries {
             return Err(RayexecError::new("'step' may not be zero"));
         }
 
-        Ok(Box::new(GenerateSeriesI64 { start, stop, step }))
+        Ok(Box::new(GenerateSeriesI64 { start, stop, step }) as _)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenerateSeriesI64 {
-    pub start: i64,
-    pub stop: i64,
-    pub step: i64,
+    start: i64,
+    stop: i64,
+    step: i64,
 }
 
 impl SpecializedTableFunction for GenerateSeriesI64 {
-    fn schema<'a>(&'a mut self, _runtime: &'a EngineRuntime) -> BoxFuture<Result<Schema>> {
-        Box::pin(async {
-            Ok(Schema::new([Field::new(
-                "generate_series",
-                DataType::Int64,
-                false,
-            )]))
-        })
+    fn name(&self) -> &'static str {
+        "generate_series"
     }
 
-    fn datatable(&mut self, _runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
+    fn initialize(
+        self: Box<Self>,
+        _runtime: &EngineRuntime,
+    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
+        Box::pin(async move { Ok(self as _) })
+    }
+}
+
+impl InitializedTableFunction for GenerateSeriesI64 {
+    fn specialized(&self) -> &dyn SpecializedTableFunction {
+        self
+    }
+
+    fn schema(&self) -> Schema {
+        Schema::new([Field::new("generate_series", DataType::Int64, false)])
+    }
+
+    fn datatable(&self, _runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(self.clone()))
     }
 }

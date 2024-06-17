@@ -18,6 +18,14 @@ impl BooleanArray {
         }
     }
 
+    pub fn new_with_values_and_validity(values: Bitmap, validity: Bitmap) -> Self {
+        assert_eq!(values.len(), validity.len());
+        BooleanArray {
+            values,
+            validity: Some(validity),
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.values.len()
     }

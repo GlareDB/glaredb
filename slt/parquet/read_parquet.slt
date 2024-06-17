@@ -1,0 +1,31 @@
+# read_parquet tests
+
+query I
+select * from read_parquet('../testdata/parquet/small.parquet')
+----
+1  2
+
+query I
+select last_name from read_parquet('../testdata/parquet/userdata0.parquet') order by id desc limit 8;
+----
+Meyer
+Daniels
+Morris
+Hamilton
+Harris
+Mccoy
+Williams
+Henderson
+
+# Using registered file handler
+query I
+select last_name from '../testdata/parquet/userdata0.parquet' order by id desc limit 8;
+----
+Meyer
+Daniels
+Morris
+Hamilton
+Harris
+Mccoy
+Williams
+Henderson

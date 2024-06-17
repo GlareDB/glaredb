@@ -1,0 +1,9 @@
+[package]
+name = "rayexec_io"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_error = { path = '../rayexec_error' }
+futures = { workspace = true }
+tracing = { workspace = true }

@@ -22,20 +22,18 @@
 use bytes::{Buf, Bytes};
 use std::fs::File;
 use std::io::{BufReader, Seek, SeekFrom};
+use std::marker::PhantomData;
 use std::{io::Read, sync::Arc};
 
 use crate::bloom_filter::Sbbf;
-use crate::column::page::PageIterator;
 use crate::column::{page::PageReader, reader::ColumnReader};
 use crate::errors::{ParquetError, Result};
 use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};
-use crate::record::reader::RowIter;
-use crate::schema::types::Type as SchemaType;
 
 use crate::basic::Type;
 
-use crate::column::reader::ColumnReaderImpl;
+use crate::column::reader::GenericColumnReader;
 
 /// Length should return the total number of bytes in the input source.
 /// It's mainly used to read the metadata, which is at the end of the source.
@@ -124,7 +122,7 @@ impl ChunkReader for Bytes {
 
 /// Parquet file reader API. With this, user can get metadata information about the
 /// Parquet file, can get reader for each row group, and access record iterator.
-pub trait FileReader: Send + Sync {
+pub trait FileReader<P: PageReader, R: RowGroupReader<P>>: Send + Sync {
     /// Get metadata information about this file.
     fn metadata(&self) -> &ParquetMetaData;
 
@@ -132,20 +130,12 @@ pub trait FileReader: Send + Sync {
     fn num_row_groups(&self) -> usize;
 
     /// Get the `i`th row group reader. Note this doesn't do bound check.
-    fn get_row_group(&self, i: usize) -> Result<Box<dyn RowGroupReader + '_>>;
-
-    /// Get an iterator over the row in this file, see [`RowIter`] for caveats.
-    ///
-    /// Iterator will automatically load the next row group to advance.
-    ///
-    /// Projected schema can be a subset of or equal to the file schema, when it is None,
-    /// full file schema is assumed.
-    fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
+    fn get_row_group(&self, i: usize) -> Result<R>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata information about the
 /// row group, as well as readers for each individual column chunk.
-pub trait RowGroupReader: Send + Sync {
+pub trait RowGroupReader<P: PageReader>: Send + Sync {
     /// Get metadata information about this row group.
     fn metadata(&self) -> &RowGroupMetaData;
 
@@ -153,38 +143,43 @@ pub trait RowGroupReader: Send + Sync {
     fn num_columns(&self) -> usize;
 
     /// Get page reader for the `i`th column chunk.
-    fn get_column_page_reader(&self, i: usize) -> Result<Box<dyn PageReader>>;
+    fn get_column_page_reader(&self, i: usize) -> Result<P>;
 
     /// Get value reader for the `i`th column chunk.
-    fn get_column_reader(&self, i: usize) -> Result<ColumnReader> {
+    fn get_column_reader(&self, i: usize) -> Result<ColumnReader<P>> {
         let schema_descr = self.metadata().schema_descr();
         let col_descr = schema_descr.column(i);
         let col_page_reader = self.get_column_page_reader(i)?;
         let col_reader = match col_descr.physical_type() {
             Type::BOOLEAN => {
-                ColumnReader::BoolColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
+                ColumnReader::BoolColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
             }
-            Type::INT32 => {
-                ColumnReader::Int32ColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
-            }
-            Type::INT64 => {
-                ColumnReader::Int64ColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
-            }
-            Type::INT96 => {
-                ColumnReader::Int96ColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
-            }
-            Type::FLOAT => {
-                ColumnReader::FloatColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
-            }
-            Type::DOUBLE => {
-                ColumnReader::DoubleColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
-            }
-            Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(ColumnReaderImpl::new(
+            Type::INT32 => ColumnReader::Int32ColumnReader(GenericColumnReader::new(
+                col_descr,
+                col_page_reader,
+            )),
+            Type::INT64 => ColumnReader::Int64ColumnReader(GenericColumnReader::new(
+                col_descr,
+                col_page_reader,
+            )),
+            Type::INT96 => ColumnReader::Int96ColumnReader(GenericColumnReader::new(
+                col_descr,
+                col_page_reader,
+            )),
+            Type::FLOAT => ColumnReader::FloatColumnReader(GenericColumnReader::new(
+                col_descr,
+                col_page_reader,
+            )),
+            Type::DOUBLE => ColumnReader::DoubleColumnReader(GenericColumnReader::new(
+                col_descr,
+                col_page_reader,
+            )),
+            Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
             Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
-                ColumnReaderImpl::new(col_descr, col_page_reader),
+                GenericColumnReader::new(col_descr, col_page_reader),
             ),
         };
         Ok(col_reader)
@@ -193,27 +188,24 @@ pub trait RowGroupReader: Send + Sync {
     /// Get bloom filter for the `i`th column chunk, if present and the reader was configured
     /// to read bloom filters.
     fn get_column_bloom_filter(&self, i: usize) -> Option<&Sbbf>;
-
-    /// Get an iterator over the row in this file, see [`RowIter`] for caveats.
-    ///
-    /// Projected schema can be a subset of or equal to the file schema, when it is None,
-    /// full file schema is assumed.
-    fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
 }
 
 // ----------------------------------------------------------------------
 // Iterator
 
 /// Implementation of page iterator for parquet file.
-pub struct FilePageIterator {
+pub struct FilePageIterator<P, F, R> {
     column_index: usize,
     row_group_indices: Box<dyn Iterator<Item = usize> + Send>,
-    file_reader: Arc<dyn FileReader>,
+    file_reader: Arc<F>,
+
+    _page_reader: PhantomData<P>,
+    _row_group_reader: PhantomData<R>,
 }
 
-impl FilePageIterator {
+impl<P: PageReader, R: RowGroupReader<P>, F: FileReader<P, R>> FilePageIterator<P, F, R> {
     /// Creates a page iterator for all row groups in file.
-    pub fn new(column_index: usize, file_reader: Arc<dyn FileReader>) -> Result<Self> {
+    pub fn new(column_index: usize, file_reader: Arc<F>) -> Result<Self> {
         let num_row_groups = file_reader.metadata().num_row_groups();
 
         let row_group_indices = Box::new(0..num_row_groups);
@@ -225,7 +217,7 @@ impl FilePageIterator {
     pub fn with_row_groups(
         column_index: usize,
         row_group_indices: Box<dyn Iterator<Item = usize> + Send>,
-        file_reader: Arc<dyn FileReader>,
+        file_reader: Arc<F>,
     ) -> Result<Self> {
         // Check that column_index is valid
         let num_columns = file_reader
@@ -243,14 +235,18 @@ impl FilePageIterator {
             column_index,
             row_group_indices,
             file_reader,
+            _page_reader: PhantomData,
+            _row_group_reader: PhantomData,
         })
     }
 }
 
-impl Iterator for FilePageIterator {
-    type Item = Result<Box<dyn PageReader>>;
+impl<P: PageReader, R: RowGroupReader<P>, F: FileReader<P, R>> Iterator
+    for FilePageIterator<P, F, R>
+{
+    type Item = Result<P>;
 
-    fn next(&mut self) -> Option<Result<Box<dyn PageReader>>> {
+    fn next(&mut self) -> Option<Result<P>> {
         self.row_group_indices.next().map(|row_group_index| {
             self.file_reader
                 .get_row_group(row_group_index)
@@ -258,5 +254,3 @@ impl Iterator for FilePageIterator {
         })
     }
 }
-
-impl PageIterator for FilePageIterator {}

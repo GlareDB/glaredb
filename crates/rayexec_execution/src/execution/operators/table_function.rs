@@ -1,7 +1,7 @@
 use crate::{
     database::table::DataTableScan,
     engine::EngineRuntime,
-    functions::table::{GenericTableFunction, TableFunctionArgs},
+    functions::table::InitializedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use rayexec_bullet::batch::Batch;
@@ -18,13 +18,12 @@ pub struct TableFunctionPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
-    function: Box<dyn GenericTableFunction>,
-    args: TableFunctionArgs,
+    function: Box<dyn InitializedTableFunction>,
 }
 
 impl PhysicalTableFunction {
-    pub fn new(function: Box<dyn GenericTableFunction>, args: TableFunctionArgs) -> Self {
-        PhysicalTableFunction { function, args }
+    pub fn new(function: Box<dyn InitializedTableFunction>) -> Self {
+        PhysicalTableFunction { function }
     }
 
     pub fn try_create_states(
@@ -32,8 +31,7 @@ impl PhysicalTableFunction {
         runtime: &Arc<EngineRuntime>,
         num_partitions: usize, // yes
     ) -> Result<Vec<TableFunctionPartitionState>> {
-        let mut specialized = self.function.specialize(&self.args)?;
-        let data_table = specialized.datatable(runtime)?;
+        let data_table = self.function.datatable(runtime)?;
 
         // TODO: Pushdown projections, filters
         let scans = data_table.scan(num_partitions)?;

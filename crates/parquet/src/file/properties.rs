@@ -886,7 +886,7 @@ const DEFAULT_READ_BLOOM_FILTER: bool = false;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use parquet::file::properties::ReaderProperties;
 ///
 /// // Create properties with default configuration.

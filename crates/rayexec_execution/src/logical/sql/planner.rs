@@ -694,21 +694,19 @@ impl<'a> PlanContext<'a> {
                 let mut nested = self.nested(current_scope);
                 nested.plan_query(query)?
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args: _ }) => {
                 let scope_reference = TableReference {
                     database: None,
                     schema: None,
-                    table: reference.func.name().to_string(),
+                    table: reference.name,
                 };
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    reference.schema.iter().map(|f| f.name.clone()),
+                    reference.func.schema().fields.into_iter().map(|f| f.name),
                 );
 
                 let operator = LogicalOperator::TableFunction(TableFunction {
                     function: reference.func,
-                    args,
-                    schema: reference.schema,
                 });
 
                 LogicalQuery {
@@ -779,6 +777,11 @@ impl<'a> PlanContext<'a> {
                     },
                     _ => unimplemented!(),
                 }
+            }
+            ast::FromNodeBody::File(_) => {
+                return Err(RayexecError::new(
+                    "Binder should have replace file path with a table function",
+                ))
             }
         };
 

@@ -5,7 +5,7 @@ use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use series::GenerateSeries;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
@@ -17,7 +17,10 @@ pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableFunctionArgs {
+    /// Named arguments to a table function.
     pub named: HashMap<String, OwnedScalarValue>,
+
+    /// Positional arguments to a table function.
     pub positional: Vec<OwnedScalarValue>,
 }
 
@@ -38,8 +41,8 @@ pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
         &[]
     }
 
-    /// Return the specialized function to use based on the function arguments.
-    fn specialize(&self, args: &TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>>;
+    /// Specializes this function with the given arguments.
+    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>>;
 }
 
 impl Clone for Box<dyn GenericTableFunction> {
@@ -61,16 +64,74 @@ impl PartialEq for dyn GenericTableFunction + '_ {
 }
 
 pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
+    /// Name of the specialized function.
+    fn name(&self) -> &'static str;
+
+    /// Initializes the table function using the provided runtime.
+    fn initialize(
+        self: Box<Self>,
+        runtime: &EngineRuntime,
+    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>>;
+}
+
+impl PartialEq<dyn SpecializedTableFunction> for Box<dyn SpecializedTableFunction + '_> {
+    fn eq(&self, other: &dyn SpecializedTableFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn SpecializedTableFunction + '_ {
+    fn eq(&self, other: &dyn SpecializedTableFunction) -> bool {
+        self.name() == other.name()
+    }
+}
+
+pub trait InitializedTableFunction: Debug + Sync + Send + DynClone {
+    /// Returns a reference to the specialized function that initialized this
+    /// function.
+    fn specialized(&self) -> &dyn SpecializedTableFunction;
+
     /// Get the schema for the function output.
     ///
     /// Admittedly passing a runtime here feels a bit weird, but I don't think
     /// is a terrible solution. This might change as we implement more data
     /// sources.
-    fn schema<'a>(&'a mut self, runtime: &'a EngineRuntime) -> BoxFuture<Result<Schema>>;
+    fn schema(&self) -> Schema;
 
     /// Return a data table representing the function output.
     ///
     /// An engine runtime is provided for table funcs that return truly async
     /// data tables.
-    fn datatable(&mut self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>>;
+    fn datatable(&self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>>;
+}
+
+impl PartialEq<dyn InitializedTableFunction> for Box<dyn InitializedTableFunction + '_> {
+    fn eq(&self, other: &dyn InitializedTableFunction) -> bool {
+        self.as_ref() == other
+    }
+}
+
+impl PartialEq for dyn InitializedTableFunction + '_ {
+    fn eq(&self, other: &dyn InitializedTableFunction) -> bool {
+        self.specialized() == other.specialized() && self.schema() == other.schema()
+    }
+}
+
+impl Clone for Box<dyn InitializedTableFunction> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
+pub fn check_named_args_is_empty(
+    func: &dyn GenericTableFunction,
+    args: &TableFunctionArgs,
+) -> Result<()> {
+    if !args.named.is_empty() {
+        return Err(RayexecError::new(format!(
+            "'{}' does not take named arguments",
+            func.name()
+        )));
+    }
+    Ok(())
 }

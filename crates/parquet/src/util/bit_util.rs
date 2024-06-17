@@ -335,6 +335,7 @@ impl BitWriter {
 /// MAX_VLQ_BYTE_LEN = 5 for i32, and MAX_VLQ_BYTE_LEN = 10 for i64
 pub const MAX_VLQ_BYTE_LEN: usize = 10;
 
+#[derive(Debug)]
 pub struct BitReader {
     /// The byte buffer to read from, passed in by client
     buffer: Bytes,

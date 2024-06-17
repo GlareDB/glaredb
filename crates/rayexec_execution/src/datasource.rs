@@ -1,6 +1,7 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
+use regex::Regex;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -43,11 +44,54 @@ pub trait DataSource: Sync + Send + Debug {
     /// Note that these functions should be stateless, as they are registered
     /// into the system catalog at startup.
     fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>>;
+
+    /// Return file handlers that this data souce can handle.
+    ///
+    /// During binding, these file handlers will be used to determine if there's
+    /// a function that's able to handle a file path provided by the user in the
+    /// FROM segment of the query. The returned pair contains a regex and
+    /// function pair that indicate if that function is able to handle the file
+    /// path.
+    ///
+    /// For example, if the user provides the following query:
+    ///
+    /// SELECT * FROM 'dir/*.parquet'
+    ///
+    /// All registered file handlers will be provided the string
+    /// 'dir/*.parquet'. If the regex matches, then the function is inserted
+    /// into the query, essentially being rewritten as:
+    ///
+    /// SELECT * FROM read_parquet('dir/*.parqet')
+    ///
+    /// It's assumed that the file path is always the first argument to the
+    /// function.
+    ///
+    /// This is called once when registering a data source. Lazy is not needed.
+    fn file_handlers(&self) -> Vec<(Regex, Box<dyn GenericTableFunction>)> {
+        Vec::new()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct FileHandlers {
+    /// Registered file handlers for resolving file paths in FROM statements.
+    matchers: Vec<(Regex, Box<dyn GenericTableFunction>)>,
+}
+
+impl FileHandlers {
+    pub fn find_match(&self, path: &str) -> Option<Box<dyn GenericTableFunction>> {
+        let (_, func) = self
+            .matchers
+            .iter()
+            .find(|(regex, _)| regex.is_match(path))?;
+        Some(func.clone())
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct DataSourceRegistry {
     datasources: HashMap<String, Box<dyn DataSource>>,
+    file_handlers: FileHandlers,
 }
 
 impl DataSourceRegistry {
@@ -62,7 +106,12 @@ impl DataSourceRegistry {
                 "Duplicate data source with name '{name}'"
             )));
         }
+
+        self.file_handlers
+            .matchers
+            .extend(datasource.file_handlers());
         self.datasources.insert(name, datasource);
+
         Ok(self)
     }
 
@@ -71,6 +120,10 @@ impl DataSourceRegistry {
             .get(name)
             .map(|d| d.as_ref())
             .ok_or_else(|| RayexecError::new(format!("Missing data source: {name}")))
+    }
+
+    pub fn get_file_handlers(&self) -> &FileHandlers {
+        &self.file_handlers
     }
 
     /// Iterate all data sources.
