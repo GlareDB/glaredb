@@ -7,7 +7,13 @@ use atty::Stream;
 use clap::Subcommand;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
 use slt::discovery::SltDiscovery;
-use slt::hooks::{AllTestsHook, IcebergFormatVersionHook, SqliteTestsHook, SshTunnelHook};
+use slt::hooks::{
+    AllTestsHook,
+    DeltaWriteResetHook,
+    IcebergFormatVersionHook,
+    SqliteTestsHook,
+    SshTunnelHook,
+};
 use slt::tests::{PgBinaryEncoding, SshKeysTest};
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
@@ -242,6 +248,10 @@ impl RunCommand for SltArgs {
             // Sqlite tests
             .hook("sqllogictests_sqlite/*", Arc::new(SqliteTestsHook))?
             // Iceberg format version tests
+            .hook(
+                "sqllogictests_object_store/local/*",
+                Arc::new(DeltaWriteResetHook),
+            )?
             .hook(
                 "sqllogictests_iceberg/local_v1",
                 Arc::new(IcebergFormatVersionHook(1)),

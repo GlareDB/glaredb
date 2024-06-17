@@ -26,6 +26,7 @@ use datasources::lake::{storage_options_into_object_store, storage_options_into_
 use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::native::access::NativeTable;
 use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
@@ -241,7 +242,7 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
             }) => {
                 let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
-                let table = accessor.load_table(schema, name).await?;
+                let table = NativeTable::new(accessor.load_table(schema, name).await?);
                 Ok(Arc::new(table))
             }
             DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
@@ -643,11 +644,9 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 storage_options,
                 ..
-            }) => {
-                let provider =
-                    Arc::new(load_table_direct(location, storage_options.clone()).await?);
-                Ok(provider)
-            }
+            }) => Ok(Arc::new(NativeTable::new(
+                load_table_direct(location, storage_options.clone()).await?,
+            ))),
             TableOptionsV0::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,

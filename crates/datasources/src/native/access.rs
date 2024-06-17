@@ -334,7 +334,7 @@ pub struct NativeTable {
 }
 
 impl NativeTable {
-    fn new(delta: DeltaTable) -> Self {
+    pub fn new(delta: DeltaTable) -> Self {
         NativeTable { delta }
     }
 
