@@ -470,6 +470,7 @@ impl GlareDbParser<'_> {
         target: Target::Sql(Some(PrqlDialect::GlareDb)),
         signature_comment: false,
         color: false,
+        display: prql_compiler::DisplayOptions::Plain,
     };
     const SQL_DIALECT: &'static GenericDialect = &GenericDialect {};
 
