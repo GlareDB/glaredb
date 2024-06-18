@@ -17,7 +17,7 @@ strip = true
 wildcard_imports = "deny"
 
 [workspace.dependencies]
-clap = { version = "4.5.6", features = ["derive"] }
+clap = { version = "4.5.7", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "36.0.0" }
