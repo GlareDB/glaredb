@@ -29,7 +29,7 @@ impl ExcelTable {
     pub async fn open(
         store_access: Arc<dyn ObjStoreAccess>,
         source_url: DatasourceUrl,
-        sheet_name: Option<&str>,
+        sheet_name: Option<String>,
         has_header: bool,
     ) -> Result<ExcelTable, ExcelError> {
         match source_url {
@@ -37,10 +37,9 @@ impl ExcelTable {
                 let path = ioutil::resolve_path(&path)?;
                 let mut sheet = calamine::open_workbook_auto(path)?;
 
-                let first_sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
+                let first_sheet = sheet_name.unwrap_or_else(|| {
                     let sheets = sheet.sheet_names();
-                    let first = sheets.first().expect("file has a sheet");
-                    Cow::Owned(first.clone())
+                    sheets.first().expect("file has a sheet").to_owned()
                 });
 
                 Ok(ExcelTable {
@@ -75,7 +74,7 @@ impl ExcelTable {
 pub async fn excel_table_from_object(
     store: &dyn ObjectStore,
     meta: ObjectMeta,
-    sheet_name: Option<&str>,
+    sheet_name: Option<String>,
     has_header: bool,
 ) -> Result<ExcelTable, ExcelError> {
     let bs = store.get(&meta.location).await?.bytes().await?;
@@ -83,10 +82,9 @@ pub async fn excel_table_from_object(
     let buffer = Cursor::new(bs);
     let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer).unwrap();
 
-    let first_sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
+    let first_sheet = sheet_name.unwrap_or_else(|| {
         let sheets = sheets.sheet_names();
-        let first = sheets.first().unwrap();
-        Cow::Owned(first.clone())
+        sheets.first().unwrap().to_owned()
     });
 
     Ok(ExcelTable {
