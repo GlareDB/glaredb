@@ -21,7 +21,7 @@ clap = { version = "4.5.7", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "36.0.0" }
-reqwest = { version = "0.12.4", default-features = false, features = [
+reqwest = { version = "0.12.5", default-features = false, features = [
   "json",
   "rustls-tls",
 ] }
