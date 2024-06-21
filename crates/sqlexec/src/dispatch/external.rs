@@ -445,9 +445,13 @@ impl<'a> ExternalDispatcher<'a> {
                 let source_url = DatasourceUrl::try_new(location)?;
                 let store_access = storage_options_into_store_access(&source_url, storage_options)?;
 
-                let table =
-                    ExcelTable::open(store_access, source_url, sheet_name.to_owned(), *has_header)
-                        .await?;
+                let table = ExcelTable::open(
+                    store_access,
+                    source_url,
+                    sheet_name.to_owned(),
+                    has_header.unwrap_or(true),
+                )
+                .await?;
                 let provider = ExcelTableProvider::try_new(table).await?;
 
                 Ok(Arc::new(provider))

@@ -1369,7 +1369,7 @@ pub struct TableOptionsExcel {
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub sheet_name: Option<String>,
-    pub has_header: bool,
+    pub has_header: Option<bool>,
 }
 
 impl From<TableOptionsExcel> for TableOptionsV0 {

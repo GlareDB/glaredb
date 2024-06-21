@@ -32,7 +32,7 @@ pub struct ExcelTableProvider {
 
 impl ExcelTableProvider {
     pub async fn try_new(t: ExcelTable) -> Result<Self, ExcelError> {
-        let infer_num = t.cell_range.height();
+        let infer_num = t.cell_range.width();
         Self::try_new_with_inferred(t, infer_num).await
     }
 

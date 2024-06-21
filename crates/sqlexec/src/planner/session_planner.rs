@@ -925,8 +925,7 @@ impl<'a> SessionPlanner<'a> {
                 let has_header = storage_options
                     .inner
                     .get("has_header")
-                    .map(|val| val.parse::<bool>().unwrap_or(true))
-                    .unwrap_or_default();
+                    .map(|val| val.parse::<bool>().unwrap_or(true));
 
                 if let DatasourceUrl::File(p) = DatasourceUrl::try_new(&location)? {
                     if !p.exists() {

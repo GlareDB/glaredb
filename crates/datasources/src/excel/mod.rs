@@ -1,14 +1,11 @@
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use calamine::{open_workbook, DataType as CalamineDataType, Range, Reader, Sheets, Xlsx};
+use calamine::{DataType as CalamineDataType, Range, Reader, Sheets};
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::datasource::MemTable;
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::common::url::DatasourceUrl;
@@ -58,11 +55,14 @@ impl ExcelTable {
                     ));
                 } else if list.len() > 1 {
                     return Err(ExcelError::Load(
-                        "single file sheet on remote supported".to_string(),
+                        "multi-file globs are not supported for .xlsx sources".to_string(),
                     ));
                 };
 
-                let meta = list.pop().expect("remote file has a sheet");
+                let meta = list
+                    .pop()
+                    .ok_or_else(|| ExcelError::Load("could not find first file".to_string()))?;
+
                 let store = accessor.into_object_store();
 
                 excel_table_from_object(store.as_ref(), meta, sheet_name, has_header).await
@@ -80,40 +80,17 @@ pub async fn excel_table_from_object(
     let bs = store.get(&meta.location).await?.bytes().await?;
 
     let buffer = Cursor::new(bs);
-    let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer).unwrap();
+    let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer)?;
 
     let first_sheet = sheet_name.unwrap_or_else(|| {
         let sheets = sheets.sheet_names();
-        sheets.first().unwrap().to_owned()
+        sheets.first().expect("file has a sheet").to_owned()
     });
 
     Ok(ExcelTable {
-        cell_range: sheets.worksheet_range(&first_sheet).unwrap(),
+        cell_range: sheets.worksheet_range(&first_sheet)?,
         has_header,
     })
-}
-
-pub async fn read_excel_impl(
-    path: &PathBuf,
-    sheet_name: Option<&str>,
-    has_header: bool,
-    infer_schema_length: usize,
-) -> Result<MemTable, ExcelError> {
-    let mut workbook: Xlsx<_> = open_workbook(path).unwrap();
-    let sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
-        let sheets = workbook.sheet_names();
-        let first = sheets.first().expect("sheet is not empty");
-        Cow::Owned(first.clone())
-    });
-
-    if let Ok(r) = workbook.worksheet_range(&sheet) {
-        let batch = xlsx_sheet_value_to_record_batch(r, has_header, infer_schema_length)?;
-        let schema_ref = batch.schema();
-        let partitions = vec![vec![batch]];
-        Ok(MemTable::try_new(schema_ref, partitions).unwrap())
-    } else {
-        Err(ExcelError::Load("Failed to open .xlsx file.".to_owned()))
-    }
 }
 
 // TODO: vectorize this to improve performance
