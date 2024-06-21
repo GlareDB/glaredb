@@ -26,20 +26,25 @@ use crate::excel::ExcelTable;
 
 pub struct ExcelTableProvider {
     cell_range: calamine::Range<calamine::Data>,
-    header: bool,
+    has_header: bool,
     schema: Arc<Schema>,
 }
 
 impl ExcelTableProvider {
     pub async fn try_new(t: ExcelTable) -> Result<Self, ExcelError> {
-        let cell_range = t.cell_range;
-        let schema_len = cell_range.width();
-        let schema = excel::infer_schema(&cell_range, t.has_header, schema_len)?;
+        let infer_num = t.cell_range.width();
+        Self::try_new_with_inferred(t, infer_num).await
+    }
 
-        Ok(ExcelTableProvider {
-            schema: Arc::new(schema),
+    pub async fn try_new_with_inferred(t: ExcelTable, num: usize) -> Result<Self, ExcelError> {
+        let cell_range = t.cell_range;
+        let has_header = t.has_header;
+        let schema = Arc::new(excel::infer_schema(&cell_range, t.has_header, num)?);
+
+        Ok(Self {
+            schema,
             cell_range,
-            header: t.has_header,
+            has_header,
         })
     }
 }
@@ -76,7 +81,7 @@ impl TableProvider for ExcelTableProvider {
         Ok(Arc::new(ExcelExecutionPlan {
             arrow_schema: projected_schema,
             cell_range: self.cell_range.clone(),
-            header: self.header,
+            header: self.has_header,
         }))
     }
 }

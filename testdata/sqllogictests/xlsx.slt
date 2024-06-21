@@ -115,3 +115,34 @@ drop table basic_report;
 
 statement error
 create external table bad_report from excel options(location='./invalid_path/random.abc');
+
+# should default to has_header=true and the first sheet of the file, if not specified
+statement ok
+create external table html_table from excel options(location='https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx');
+
+query
+select "Resources", "Cost", "Revenue" from html_table;
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
+
+# should default to has_header=true and the first sheet of the file, if not specified
+query
+select "Resources", "Cost", "Revenue" from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx');
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
+
+query
+select * from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
+----
+NULL
+1
+2
+3
