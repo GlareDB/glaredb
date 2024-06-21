@@ -40,7 +40,7 @@ serde_json = "1.0.117"
 tempfile = "3.10.1"
 thiserror = "1.0"
 tracing = "0.1"
-url = "2.5.1"
+url = "2.5.2"
 bytes = "1.6.0"
 
 [workspace.dependencies.deltalake]
