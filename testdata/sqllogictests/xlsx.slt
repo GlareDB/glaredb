@@ -140,9 +140,9 @@ select "Resources", "Cost", "Revenue" from read_excel('https://github.com/GlareD
 5 50 500
 
 query
-select "Resources", "Cost", "Revenue" from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
+select * from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
 ----
-"HEADING"
+NULL
 1
 2
 3
