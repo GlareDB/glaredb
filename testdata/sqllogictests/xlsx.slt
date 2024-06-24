@@ -142,7 +142,17 @@ select "Resources", "Cost", "Revenue" from read_excel('https://github.com/GlareD
 query
 select * from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
 ----
-NULL
-1
-2
-3
+'HEADING'
+'1'
+'2'
+'3'
+
+query
+select * from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'multiple_data_types', has_header => true);
+----
+'1'	  1.0  'foo' 'foo'
+'2'	  2.0  'bar' 'bar'
+'3'	  3.0  'baz' 'baz'
+'foo' 4.0  '4'	 '4.0'
+'5'	  5.0  '5'	 '5.0'
+'bar' NULL NULL  NULL
