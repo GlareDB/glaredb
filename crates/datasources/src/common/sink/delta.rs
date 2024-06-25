@@ -9,11 +9,14 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_plan::insert::DataSink;
 use datafusion::physical_plan::metrics::MetricsSet;
 use datafusion::physical_plan::{DisplayAs, DisplayFormatType, SendableRecordBatchStream};
+use deltalake::operations::create::CreateBuilder;
 use deltalake::operations::write::WriteBuilder;
 use deltalake::storage::StorageOptions;
-use deltalake::DeltaTableConfig;
 use futures::StreamExt;
+use object_store::prefix::PrefixStore;
 use url::Url;
+
+use crate::native::access::arrow_to_delta_safe;
 
 
 /// Writes lance files to object storage.
@@ -21,12 +24,11 @@ use url::Url;
 pub struct DeltaSink {
     url: Url,
     store: Arc<dyn object_store::ObjectStore>,
-    path: String,
 }
 
 impl fmt::Display for DeltaSink {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DeltaSink({}:{})", self.url, &self.path)
+        write!(f, "DeltaSink({})", self.url)
     }
 }
 
@@ -40,33 +42,58 @@ impl DisplayAs for DeltaSink {
 }
 
 impl DeltaSink {
-    pub fn new(
-        store: Arc<dyn object_store::ObjectStore>,
-        url: Url,
-        path: impl Into<String>,
-    ) -> Self {
-        DeltaSink {
-            url,
-            store,
-            path: path.into(),
-        }
+    pub fn new(store: Arc<dyn object_store::ObjectStore>, url: Url) -> Self {
+        DeltaSink { url, store }
     }
 
     async fn stream_into_inner(&self, stream: SendableRecordBatchStream) -> DfResult<u64> {
-        let loc = self
-            .url
-            .clone()
-            .join(&self.path)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        // using this prefix store, mirroring the way that we use it
+        // in the native module; looks like delta sort of expects the
+        // location to show up both in the store and in the
+        // logstore. Feels wrong, probably is, but things work as expected.
+        let obj_store = PrefixStore::new(self.store.clone(), self.url.path());
 
-        let table = deltalake::DeltaTable::new(
-            deltalake::logstore::default_logstore(
-                self.store.clone(),
-                &loc,
-                &StorageOptions::default(),
-            ),
-            DeltaTableConfig::default(),
+        let store = deltalake::logstore::default_logstore(
+            Arc::new(obj_store),
+            &self.url.clone(),
+            &StorageOptions::default(),
         );
+
+        // eventually this should share code
+        // with "create_table" in the native module.
+        let mut builder = CreateBuilder::new()
+            .with_save_mode(deltalake::protocol::SaveMode::ErrorIfExists)
+            .with_table_name(
+                self.url
+                    .to_file_path()
+                    .ok()
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("could not resolve table path".to_string())
+                    })?
+                    .file_name()
+                    .ok_or_else(|| DataFusionError::Internal("missing  table name".to_string()))?
+                    .to_os_string()
+                    .into_string()
+                    .ok()
+                    .ok_or_else(|| {
+                        DataFusionError::Internal("could not resolve table path".to_string())
+                    })?,
+            )
+            .with_log_store(store.clone());
+
+        // get resolve the schema; eventually this should share code
+        // with "create_table" in the native module.
+        for field in stream.schema().fields().into_iter() {
+            let col = arrow_to_delta_safe(field.data_type())?;
+            builder = builder.with_column(
+                field.name().clone(),
+                col.data_type,
+                field.is_nullable(),
+                col.metadata,
+            );
+        }
+
+        let table = builder.await?;
 
         let mut chunks = stream.chunks(32);
 

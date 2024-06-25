@@ -99,14 +99,14 @@ impl LogStoreFactory for FakeStoreFactory {
 /// metadata for indicating the 'real' (original) type, for cases when
 /// downcasting occurs.
 #[derive(Debug)]
-struct DeltaField {
-    data_type: DeltaDataType,
-    metadata: Option<HashMap<String, Value>>,
+pub struct DeltaField {
+    pub data_type: DeltaDataType,
+    pub metadata: Option<HashMap<String, Value>>,
 }
 
 // Some datatypes get downgraded to a different type when they are stored in delta-lake.
 // So we add some metadata to the field to indicate that it needs to be converted back to the original type.
-fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
+pub fn arrow_to_delta_safe(arrow_type: &DataType) -> DeltaResult<DeltaField> {
     match arrow_type {
         dtype @ DataType::Timestamp(_, tz) => {
             let delta_type =

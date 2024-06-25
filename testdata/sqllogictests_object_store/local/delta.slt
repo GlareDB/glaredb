@@ -12,8 +12,11 @@ select * from delta_local order by a;
 1   hello
 2   world
 
+# for all cases, there MUST NOT be a delta table at this location or its an error.
+# for local cases the directory MUST exist and NOT have an existing delta table.
+
 statement ok
-copy (select * from delta_local) to '${TMP}' format delta;
+copy (select * from delta_local) to 'file://${TMP}' format delta;
 
 query IT
 select * from read_delta('${TMP}') order by a;

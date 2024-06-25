@@ -268,8 +268,9 @@ fn get_sink_for_obj(
                     .map_err(|e| DataFusionError::External(Box::new(e)))?
                     .as_str(),
             )
+            .map_err(|e| DataFusionError::External(Box::new(e)))?
+            .join(location)
             .map_err(|e| DataFusionError::External(Box::new(e)))?,
-            location,
         )),
         CopyToFormatOptions::Bson(_) => Box::new(BsonSink::from_obj_store(store, path)),
         CopyToFormatOptions::Json(json_opts) => Box::new(JsonSink::from_obj_store(
