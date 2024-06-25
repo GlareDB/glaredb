@@ -2091,10 +2091,7 @@ impl CopyToFormatOptions {
     }
 
     pub fn is_table(&self) -> bool {
-        match self {
-            Self::Delta(_) | Self::Lance(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Delta(_) | Self::Lance(_))
     }
 }
 
