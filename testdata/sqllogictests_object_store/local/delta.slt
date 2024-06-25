@@ -20,3 +20,29 @@ select * from read_delta('file://${TMP}') order by a;
 ----
 1   hello
 2   world
+
+ALTER TABLE delta_local SET ACCESS_MODE TO READ_WRITE;
+
+statement ok
+INSERT INTO delta_local VALUES (3, 'earth'), (4, 'morning');
+
+query I
+select count(*) from delta_local;
+----
+4
+
+query I
+select a from delta_local order by a;
+----
+1
+2
+3
+4
+
+query T
+select b from delta_local order by a;
+----
+hello
+world
+earth
+morning

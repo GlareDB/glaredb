@@ -301,3 +301,22 @@ impl Hook for IcebergFormatVersionHook {
         Ok(true)
     }
 }
+
+pub struct DeltaWriteResetHook;
+
+#[async_trait]
+impl Hook for DeltaWriteResetHook {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: TestClient,
+        _vars: &mut HashMap<String, String>,
+    ) -> Result<bool> {
+        Command::new("git")
+            .args(["clean", "-f", "-x", "testdata/delta/table1"])
+            .output()
+            .await?;
+
+        Ok(true)
+    }
+}

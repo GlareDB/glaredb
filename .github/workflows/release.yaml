@@ -70,7 +70,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         with:
           version: 11
-      - uses: dtolnay/rust-toolchain@1.75.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
       - uses: extractions/setup-just@v2
