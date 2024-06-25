@@ -31,7 +31,7 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
 bytes = { workspace = true }
-async-openai = "0.23.2"
+async-openai = "0.23.3"
 datafusion-functions-array = "36.0.0"
 fnv = "1.0.7"
 kdl = "5.0.0-alpha.1"

@@ -151,6 +151,7 @@ where
 mod tests {
     use std::io::Write;
 
+    use rustls::crypto::{aws_lc_rs, CryptoProvider};
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -191,6 +192,8 @@ MC4CAQAwBQYDK2VwBCIEIDGe13glRciPej49XvEZqqq4oZ5yUuL9HD2Pw1rSue2j
 
     #[tokio::test]
     async fn create_with_valid_cert() {
+        CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
+
         let cert = create_file(TEST_CERT);
         let key = create_file(TEST_KEY);
 

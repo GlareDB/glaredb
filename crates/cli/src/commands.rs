@@ -200,6 +200,7 @@ impl RunCommand for ServerArgs {
 impl RunCommand for PgProxyArgs {
     fn run(self) -> Result<()> {
         let runtime = build_runtime("pgsrv")?;
+
         runtime.block_on(async move {
             let pg_listener = TcpListener::bind(self.bind).await?;
             let proxy = PgProxy::new(
