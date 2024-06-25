@@ -6,7 +6,6 @@ use anyhow::{anyhow, Result};
 use atty::Stream;
 use clap::Subcommand;
 use pgsrv::auth::{LocalAuthenticator, PasswordlessAuthenticator, SingleUserAuthenticator};
-use rustls::crypto::{aws_lc_rs, CryptoProvider};
 use slt::discovery::SltDiscovery;
 use slt::hooks::{
     AllTestsHook,
@@ -240,8 +239,6 @@ impl RunCommand for RpcProxyArgs {
 
 impl RunCommand for SltArgs {
     fn run(self) -> Result<()> {
-        CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
-
         let disco = SltDiscovery::new()
             .test_files_dir("testdata")?
             // Rust tests
@@ -272,8 +269,6 @@ impl RunCommand for SltArgs {
 }
 
 fn build_runtime(thread_label: &'static str) -> Result<Runtime> {
-    CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
-
     let mut builder = Builder::new_multi_thread();
 
     // Bump the stack from the default 2MB.

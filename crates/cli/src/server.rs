@@ -14,7 +14,6 @@ use protogen::gen::rpcsrv::simple::simple_service_server::SimpleServiceServer;
 use rpcsrv::flight::handler::{FlightServiceServer, FlightSessionHandler};
 use rpcsrv::handler::RpcHandler;
 use rpcsrv::simple::SimpleHandler;
-use rustls::crypto::{aws_lc_rs, CryptoProvider};
 use sqlexec::engine::{Engine, EngineStorageConfig};
 use telemetry::{SegmentTracker, Tracker};
 use tokio::net::TcpListener;
@@ -225,8 +224,6 @@ impl ComputeServerBuilder {
         let engine = self.create_engine_from_opts(tracker).await?;
 
         let pg_config = if let Some(listener) = self.pg_listener {
-            CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
-
             let handler_conf = ProtocolHandlerConfig {
                 authenticator: self.authenticator.unwrap(),
                 // TODO: Allow specifying SSL/TLS on the GlareDB side as well. I

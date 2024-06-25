@@ -22,7 +22,6 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 url = { workspace = true }
-rustls = { workspace = true }
 object_store = { workspace = true, features = ["gcp"] }
 tracing = { workspace = true }
 

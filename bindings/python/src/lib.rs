@@ -14,7 +14,6 @@ use connection::Connection;
 use execution::PyExecutionOutput;
 use pyo3::prelude::*;
 use runtime::TokioRuntime;
-use rustls::crypto::{aws_lc_rs, CryptoProvider};
 use tokio::runtime::Builder;
 
 /// A Python module implemented in Rust.
@@ -30,10 +29,6 @@ fn glaredb(_py: Python, m: &PyModule) -> PyResult<()> {
         .enable_all()
         .build()
         .unwrap();
-
-
-    CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
-
 
     m.add("__runtime", TokioRuntime(runtime))?;
 

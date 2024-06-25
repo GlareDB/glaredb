@@ -22,7 +22,6 @@ use futures::StreamExt;
 use pgrepr::format::Format;
 use pgrepr::notice::NoticeSeverity;
 use reedline::{FileBackedHistory, Reedline, Signal};
-use rustls::crypto::{aws_lc_rs, CryptoProvider};
 use sqlexec::engine::{Engine, SessionStorageConfig, TrackedSession};
 use sqlexec::remote::client::{RemoteClient, RemoteClientType};
 use sqlexec::session::ExecutionResult;
@@ -48,8 +47,6 @@ pub struct LocalSession {
 
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
-        CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
-
         // Connect to metastore.
         let mut engine = if let StorageConfigArgs {
             location: Some(location),
