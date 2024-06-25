@@ -6667,6 +6667,7 @@ dependencies = [
  "lzma-sys",
  "once_cell",
  "pyo3",
+ "rustls 0.23.10",
  "telemetry",
  "terminal_util",
  "thiserror",
