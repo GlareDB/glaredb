@@ -4287,7 +4287,6 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.25.0",
  "tower-service",
- "webpki-roots 0.26.3",
 ]
 
 [[package]]
@@ -6665,7 +6664,6 @@ dependencies = [
  "lzma-sys",
  "once_cell",
  "pyo3",
- "rustls 0.23.10",
  "telemetry",
  "terminal_util",
  "thiserror",
@@ -8265,6 +8263,7 @@ dependencies = [
  "protogen",
  "proxyutil",
  "reqwest 0.12.4",
+ "rustls 0.23.10",
  "serde",
  "sqlbuiltins",
  "telemetry",
@@ -8585,23 +8584,6 @@ name = "sync_wrapper"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
-
-[[package]]
-name = "sync_wrapper"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7065abeca94b6a8a577f9bd45aa0867a2238b74e8eb67cf10d492bc39351394"
-
-[[package]]
-name = "synstructure"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8af7666ab7b6390ab78131fb5b0fce11d6b7a6951602017c35fa82800708971"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.58",
-]
 
 [[package]]
 name = "system-configuration"
