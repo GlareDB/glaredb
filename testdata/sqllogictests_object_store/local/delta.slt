@@ -13,10 +13,10 @@ select * from delta_local order by a;
 2   world
 
 statement ok
-copy (select * from delta_local) to 'file://${TMP}' format delta;
+copy (select * from delta_local) to '${TMP}' format delta;
 
 query IT
-select * from read_delta('file://${TMP}') order by a;
+select * from read_delta('${TMP}') order by a;
 ----
 1   hello
 2   world
