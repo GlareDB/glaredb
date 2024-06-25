@@ -28,6 +28,7 @@ deltalake = { workspace = true }
 futures = { workspace = true }
 object_store = { workspace = true, features = ["gcp", "aws", "http"] }
 reqwest = { workspace = true }
+rustls = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
@@ -51,7 +52,6 @@ parking_lot = "0.12.3"
 rand = "0.8.5"
 regex = "1.10.5"
 ring = "0.17.8"
-rustls = "0.23.10"
 scylla = "0.13.0"
 serde_with = "3.8.1"
 tokio-postgres-rustls = "0.12.0"

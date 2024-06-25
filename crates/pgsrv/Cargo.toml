@@ -16,6 +16,7 @@ bytes = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
+rustls = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -26,7 +27,6 @@ parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
-rustls = "0.23.10"
 rustls-pemfile = "2.1.2"
 tokio-postgres = "0.7.8"
 tokio-rustls = "0.26.0"
