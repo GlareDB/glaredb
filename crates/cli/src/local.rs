@@ -48,7 +48,7 @@ pub struct LocalSession {
 
 impl LocalSession {
     pub async fn connect(opts: LocalClientOpts) -> Result<Self> {
-        CryptoProvider::install_default(aws_lc_rs::default_provider())?;
+        CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
 
         // Connect to metastore.
         let mut engine = if let StorageConfigArgs {
