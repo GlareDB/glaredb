@@ -21,6 +21,7 @@ select * from read_delta('file://${TMP}') order by a;
 1   hello
 2   world
 
+statement ok
 ALTER TABLE delta_local SET ACCESS_MODE TO READ_WRITE;
 
 statement ok
