@@ -39,6 +39,7 @@ object_store = { workspace = true }
 tonic = { workspace = true }
 serde = { workspace = true }
 reqwest = { workspace = true }
+rustls = { workspace = true }
 url = { workspace = true }
 bytes = { workspace = true }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
