@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "arrow_util"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "comfy-table",
  "datafusion",
@@ -1462,7 +1462,7 @@ dependencies = [
 
 [[package]]
 name = "bench_runner"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1744,7 +1744,7 @@ dependencies = [
 
 [[package]]
 name = "bytesutil"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "bytes",
 ]
@@ -1819,7 +1819,7 @@ dependencies = [
 
 [[package]]
 name = "catalog"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "datafusion",
  "logutil",
@@ -2002,7 +2002,7 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 
 [[package]]
 name = "cli"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "anyhow",
  "arrow_util",
@@ -2843,7 +2843,7 @@ dependencies = [
 
 [[package]]
 name = "datafusion_ext"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -2875,7 +2875,7 @@ dependencies = [
 
 [[package]]
 name = "datasources"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "apache-avro",
  "async-channel",
@@ -2941,7 +2941,7 @@ dependencies = [
 
 [[package]]
 name = "decimal"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "num-traits",
  "regex",
@@ -3226,7 +3226,7 @@ dependencies = [
 
 [[package]]
 name = "distexec"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-channel",
  "datafusion",
@@ -3927,7 +3927,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "anyhow",
  "datafusion",
@@ -4425,7 +4425,7 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
 name = "ioutil"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "bytes",
  "home",
@@ -5129,7 +5129,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "logutil"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "chrono",
  "tracing",
@@ -5312,7 +5312,7 @@ dependencies = [
 
 [[package]]
 name = "metastore"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -5891,7 +5891,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_util"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6088,7 +6088,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "prql-compiler",
  "sqlparser 0.45.0",
@@ -6157,7 +6157,7 @@ dependencies = [
 
 [[package]]
 name = "pgprototest"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -6171,7 +6171,7 @@ dependencies = [
 
 [[package]]
 name = "pgrepr"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "bytes",
  "chrono",
@@ -6190,7 +6190,7 @@ dependencies = [
 
 [[package]]
 name = "pgsrv"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6517,7 +6517,7 @@ dependencies = [
 
 [[package]]
 name = "protogen"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "datafusion",
  "datafusion-proto",
@@ -6536,7 +6536,7 @@ dependencies = [
 
 [[package]]
 name = "proxyutil"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "async-trait",
  "futures",
@@ -6654,7 +6654,7 @@ dependencies = [
 
 [[package]]
 name = "py-glaredb"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "arrow_util",
  "async-trait",
@@ -6986,7 +6986,7 @@ dependencies = [
 
 [[package]]
 name = "repr"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "chrono",
  "decimal",
@@ -7196,7 +7196,7 @@ dependencies = [
 
 [[package]]
 name = "rpcsrv"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "arrow-flight",
  "async-trait",
@@ -7274,7 +7274,7 @@ dependencies = [
 
 [[package]]
 name = "rstests"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "assert_cmd",
  "predicates",
@@ -8068,7 +8068,7 @@ dependencies = [
 
 [[package]]
 name = "slt"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "anyhow",
  "arrow-flight",
@@ -8135,7 +8135,7 @@ checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
 
 [[package]]
 name = "snowflake_connector"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -8198,7 +8198,7 @@ dependencies = [
 
 [[package]]
 name = "sqlbuiltins"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "arrow-cast",
  "async-openai",
@@ -8236,7 +8236,7 @@ dependencies = [
 
 [[package]]
 name = "sqlexec"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "arrow_util",
  "async-trait",
@@ -8632,7 +8632,7 @@ checksum = "e1fc403891a21bcfb7c37834ba66a547a8f402146eba7265b5a6d88059c9ff2f"
 
 [[package]]
 name = "telemetry"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "segment",
  "serde_json",
@@ -8664,7 +8664,7 @@ dependencies = [
 
 [[package]]
 name = "terminal_util"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "crossterm",
 ]
