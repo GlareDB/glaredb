@@ -1,10 +1,14 @@
+pub mod avg;
 pub mod count;
-pub mod numeric;
+pub mod covar;
+pub mod sum;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::{array::Array, executor::aggregate::AggregateState, field::DataType};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::aggregate::StateCombiner;
+use rayexec_bullet::{array::Array, executor::aggregate::AggregateState};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
 use std::{
@@ -13,36 +17,21 @@ use std::{
     vec,
 };
 
-use super::{ReturnType, Signature};
+use super::FunctionInfo;
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn GenericAggregateFunction>>> =
-    Lazy::new(|| vec![Box::new(numeric::Sum), Box::new(count::Count)]);
+    Lazy::new(|| {
+        vec![
+            Box::new(sum::Sum),
+            Box::new(avg::Avg),
+            Box::new(count::Count),
+        ]
+    });
 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
-pub trait GenericAggregateFunction: Debug + Sync + Send + DynClone {
-    /// Name of the function.
-    fn name(&self) -> &str;
-
-    /// Optional aliases for this function.
-    fn aliases(&self) -> &[&str] {
-        &[]
-    }
-
-    fn signatures(&self) -> &[Signature];
-
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self
-            .signatures()
-            .iter()
-            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
-
-        match &sig.return_type {
-            ReturnType::Static(datatype) => Some(datatype.clone()),
-            ReturnType::Dynamic => None,
-        }
-    }
-
+pub trait GenericAggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    /// Specialize into an aggregate function specific to handling these inputs.
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>>;
 }
 
@@ -123,7 +112,7 @@ pub trait GroupedStates: Debug + Send {
 ///
 /// This essetially provides a wrapping around functions provided by the
 /// aggregate executors, and some number of aggregate states.
-pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, CombineFn, FinalizeFn> {
+pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn> {
     /// All states we're tracking.
     ///
     /// Each state corresponds to a single group.
@@ -132,9 +121,6 @@ pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, CombineF
     /// How we should update states given inputs and a mapping array.
     update_fn: UpdateFn,
 
-    /// How we should combine states.
-    combine_fn: CombineFn,
-
     /// How we should finalize the states once we're done updating states.
     finalize_fn: FinalizeFn,
 
@@ -142,18 +128,16 @@ pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, CombineF
     _o: PhantomData<OutputType>,
 }
 
-impl<S, T, O, UF, CF, FF> DefaultGroupedStates<S, T, O, UF, CF, FF>
+impl<S, T, O, UF, FF> DefaultGroupedStates<S, T, O, UF, FF>
 where
     S: AggregateState<T, O>,
     UF: Fn(&Bitmap, &[&Array], &[usize], &mut [S]) -> Result<()>,
-    CF: Fn(Vec<S>, &[usize], &mut [S]) -> Result<()>,
     FF: Fn(vec::Drain<'_, S>) -> Result<Array>,
 {
-    fn new(update_fn: UF, combine_fn: CF, finalize_fn: FF) -> Self {
+    fn new(update_fn: UF, finalize_fn: FF) -> Self {
         DefaultGroupedStates {
             states: Vec::new(),
             update_fn,
-            combine_fn,
             finalize_fn,
             _t: PhantomData,
             _o: PhantomData,
@@ -161,14 +145,13 @@ where
     }
 }
 
-impl<State, InputType, OutputType, UpdateFn, CombineFn, FinalizeFn> GroupedStates
-    for DefaultGroupedStates<State, InputType, OutputType, UpdateFn, CombineFn, FinalizeFn>
+impl<State, InputType, OutputType, UpdateFn, FinalizeFn> GroupedStates
+    for DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn>
 where
     State: AggregateState<InputType, OutputType> + Send + 'static,
     InputType: Send + 'static,
     OutputType: Send + 'static,
     UpdateFn: Fn(&Bitmap, &[&Array], &[usize], &mut [State]) -> Result<()> + Send + 'static,
-    CombineFn: Fn(Vec<State>, &[usize], &mut [State]) -> Result<()> + Send + 'static,
     FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -209,7 +192,7 @@ where
         };
 
         let consume = std::mem::take(&mut other.states);
-        (self.combine_fn)(consume, mapping, &mut self.states)
+        StateCombiner::combine(consume, mapping, &mut self.states)
     }
 
     fn drain_finalize_n(&mut self, n: usize) -> Result<Option<Array>> {
@@ -226,7 +209,7 @@ where
     }
 }
 
-impl<S, T, O, UF, CF, FF> Debug for DefaultGroupedStates<S, T, O, UF, CF, FF>
+impl<S, T, O, UF, FF> Debug for DefaultGroupedStates<S, T, O, UF, FF>
 where
     S: Debug,
 {

@@ -53,7 +53,7 @@ impl PartitionJoinHashTable {
     pub fn insert_batch(&mut self, batch: &Batch, hashes: &[u64], selection: Bitmap) -> Result<()> {
         assert_eq!(batch.num_rows(), hashes.len());
 
-        let selection = BooleanArray::new_with_values(selection); // TODO: I don't like needing to wrap the bitmap.
+        let selection = BooleanArray::new(selection, None); // TODO: I don't like needing to wrap the bitmap.
         let filtered_arrs = batch
             .columns()
             .iter()

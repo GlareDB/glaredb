@@ -1,0 +1,21 @@
+# NEGATE (unary minus)
+
+query I
+select -4;
+----
+-4
+
+query I
+select -4 * -5;
+----
+20
+
+query I
+select - 1234 % 12 % 3 * 1545 % 23;
+----
+-4
+
+query I
+select -4.3 * -5;
+----
+21.5

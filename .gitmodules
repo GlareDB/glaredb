@@ -4,3 +4,6 @@
 [submodule "submodules/parquet-testing"]
 	path = submodules/parquet-testing
 	url = https://github.com/apache/parquet-testing
+[submodule "submodules/testdata"]
+	path = submodules/testdata
+	url = git@github.com:glaredb/testdata

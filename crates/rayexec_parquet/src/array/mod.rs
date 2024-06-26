@@ -16,7 +16,8 @@ use primitive::PrimitiveArrayReader;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::field::{DataType, Schema, TimeUnit};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReadAt;
 use std::collections::VecDeque;
@@ -56,14 +57,19 @@ where
         DataType::Int64 => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
             datatype, desc,
         ))),
-        DataType::Timestamp(TimeUnit::Nanosecond) => Ok(Box::new(PrimitiveArrayReader::<
-            Int96Type,
-            P,
-        >::new(datatype, desc))),
+        DataType::TimestampNanoseconds => Ok(Box::new(PrimitiveArrayReader::<Int96Type, P>::new(
+            datatype, desc,
+        ))),
         DataType::Float32 => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
             datatype, desc,
         ))),
         DataType::Float64 => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
+            datatype, desc,
+        ))),
+        DataType::Date32 => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+            datatype, desc,
+        ))),
+        DataType::Decimal64(_) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
             datatype, desc,
         ))),
         DataType::Utf8 => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
@@ -385,7 +391,8 @@ where
 
             // Pad nulls.
             if values_read < levels_read {
-                // unimplemented!()
+                // TODO: Need to revisit how we handle definition
+                // levels/repetition levels and nulls.
                 self.values.resize(levels_read, T::T::default());
             }
 
@@ -404,10 +411,13 @@ where
     }
 
     pub fn take_def_levels(&mut self) -> Option<Vec<i16>> {
-        std::mem::take(&mut self.def_levels)
+        // We want to take the inner array and replace it with an empty array.
+        // Calling `take` on an option would replace Some with None.
+        self.def_levels.as_mut().map(std::mem::take)
     }
 
     pub fn take_rep_levels(&mut self) -> Option<Vec<i16>> {
-        std::mem::take(&mut self.rep_levels)
+        // See above.
+        self.rep_levels.as_mut().map(std::mem::take)
     }
 }

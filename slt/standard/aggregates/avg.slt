@@ -1,5 +1,0 @@
-# AVG
-
-statement ok
-create temp table ints(i int);
-

@@ -12,4 +12,5 @@ parquet = { path = '../parquet' }
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }
+url = { workspace = true }
 bytes = "1.6.0"

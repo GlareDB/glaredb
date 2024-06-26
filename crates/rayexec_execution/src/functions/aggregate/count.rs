@@ -1,13 +1,13 @@
 use rayexec_bullet::{
-    array::{Array, PrimitiveArrayBuilder, UnitArrayAccessor},
+    array::{Array, PrimitiveArray, UnitArrayAccessor},
     bitmap::Bitmap,
-    executor::aggregate::{AggregateState, StateCombiner, StateFinalizer, UnaryNonNullUpdater},
-    field::DataType,
+    datatype::{DataType, DataTypeId},
+    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::{RayexecError, Result};
 use std::vec;
 
-use crate::functions::{InputTypes, ReturnType, Signature};
+use crate::functions::{FunctionInfo, Signature};
 
 use super::{
     DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
@@ -16,18 +16,20 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Count;
 
-impl GenericAggregateFunction for Count {
-    fn name(&self) -> &str {
+impl FunctionInfo for Count {
+    fn name(&self) -> &'static str {
         "count"
     }
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Dynamic,
-            return_type: ReturnType::Static(DataType::Int64),
+            input: &[DataTypeId::Any],
+            return_type: DataTypeId::Int64,
         }]
     }
+}
 
+impl GenericAggregateFunction for Count {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
         if inputs.len() != 1 {
             return Err(RayexecError::new("Expected 1 input"));
@@ -39,27 +41,28 @@ impl GenericAggregateFunction for Count {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CountNonNull;
 
+impl CountNonNull {
+    fn update(
+        row_selection: &Bitmap,
+        arrays: &[&Array],
+        mapping: &[usize],
+        states: &mut [CountNonNullState],
+    ) -> Result<()> {
+        let unit_arr = UnitArrayAccessor::new(arrays[0]);
+        UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
+    }
+
+    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
+        let mut buffer = Vec::with_capacity(states.len());
+        let mut bitmap = Bitmap::with_capacity(states.len());
+        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+    }
+}
+
 impl SpecializedAggregateFunction for CountNonNull {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let update_fn = |row_selection: &Bitmap,
-                         arrays: &[&Array],
-                         mapping: &[usize],
-                         states: &mut [CountNonNullState]| {
-            let unit_arr = UnitArrayAccessor::new(arrays[0]);
-            UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
-        };
-
-        let finalize_fn = |states: vec::Drain<'_, _>| {
-            let mut builder = PrimitiveArrayBuilder::with_capacity(states.len());
-            StateFinalizer::finalize(states, &mut builder)?;
-            Ok(Array::Int64(builder.into_typed_array()))
-        };
-
-        Box::new(DefaultGroupedStates::new(
-            update_fn,
-            StateCombiner::combine,
-            finalize_fn,
-        ))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -79,7 +82,8 @@ impl AggregateState<(), i64> for CountNonNullState {
         Ok(())
     }
 
-    fn finalize(self) -> Result<i64> {
-        Ok(self.count)
+    fn finalize(self) -> Result<(i64, bool)> {
+        // Always valid, even when count is 0
+        Ok((self.count, true))
     }
 }

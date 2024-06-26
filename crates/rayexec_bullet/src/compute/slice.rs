@@ -1,7 +1,7 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, ArrayBuilder, BooleanArray, BooleanArrayBuilder, OffsetIndex,
-        PrimitiveArray, PrimitiveArrayBuilder, VarlenArray, VarlenType,
+        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, OffsetIndex, PrimitiveArray,
+        ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -27,7 +27,18 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
         Array::UInt16(arr) => Array::UInt16(slice_primitive(arr, start, count)?),
         Array::UInt32(arr) => Array::UInt32(slice_primitive(arr, start, count)?),
         Array::UInt64(arr) => Array::UInt64(slice_primitive(arr, start, count)?),
-        Array::Timestamp(unit, arr) => Array::Timestamp(*unit, slice_primitive(arr, start, count)?),
+        Array::TimestampSeconds(arr) => {
+            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
+        }
+        Array::TimestampMilliseconds(arr) => {
+            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
+        }
+        Array::TimestampMicroseconds(arr) => {
+            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
+        }
+        Array::TimestampNanoseconds(arr) => {
+            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
+        }
         Array::Utf8(arr) => Array::Utf8(slice_varlen(arr, start, count)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(slice_varlen(arr, start, count)?),
         Array::Binary(arr) => Array::Binary(slice_varlen(arr, start, count)?),
@@ -44,21 +55,20 @@ pub fn slice_boolean(arr: &BooleanArray, start: usize, count: usize) -> Result<B
         )));
     }
 
-    let mut builder = BooleanArrayBuilder::new();
+    let mut buffer = BooleanValuesBuffer::with_capacity(count);
     arr.values_iter()
         .skip(start)
         .take(count)
-        .for_each(|val| builder.push_value(val));
+        .for_each(|val| buffer.push_value(val));
 
-    if let Some(validity) = arr.validity() {
-        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
-        builder.put_validity(new_validity);
-    }
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(validity.iter().skip(start).take(count)));
 
-    Ok(builder.into_typed_array())
+    Ok(BooleanArray::new(buffer, validity))
 }
 
-pub fn slice_primitive<T: Copy>(
+pub fn slice_primitive<T: Copy + Default>(
     arr: &PrimitiveArray<T>,
     start: usize,
     count: usize,
@@ -72,17 +82,16 @@ pub fn slice_primitive<T: Copy>(
 
     let vals = arr.values_iter();
 
-    let mut builder = PrimitiveArrayBuilder::with_capacity(arr.len());
+    let mut buffer = Vec::with_capacity(arr.len());
     vals.skip(start)
         .take(count)
-        .for_each(|val| builder.push_value(val));
+        .for_each(|val| buffer.push_value(val));
 
-    if let Some(validity) = arr.validity() {
-        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
-        builder.put_validity(new_validity);
-    }
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(validity.iter().skip(start).take(count)));
 
-    Ok(builder.into_typed_array())
+    Ok(PrimitiveArray::new(buffer, validity))
 }
 
 pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
@@ -98,14 +107,17 @@ pub fn slice_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
     }
 
     let vals = arr.values_iter();
-    let mut new_arr = VarlenArray::from_iter(vals.skip(start).take(count));
 
-    if let Some(validity) = arr.validity() {
-        let new_validity = Bitmap::from_iter(validity.iter().skip(start).take(count));
-        new_arr.put_validity(new_validity);
-    }
+    let mut buffer = VarlenValuesBuffer::default();
+    vals.skip(start)
+        .take(count)
+        .for_each(|val| buffer.push_value(val));
 
-    Ok(new_arr)
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(validity.iter().skip(start).take(count)));
+
+    Ok(VarlenArray::new(buffer, validity))
 }
 
 #[cfg(test)]

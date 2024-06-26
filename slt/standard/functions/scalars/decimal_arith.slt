@@ -1,0 +1,8 @@
+# Arith on Decimals (with casting)
+
+# TODO: We should be able to infer precision/scale better, currently just set to
+# a default.
+query T
+select 8 - '4.20'::decimal
+----
+3.800000000

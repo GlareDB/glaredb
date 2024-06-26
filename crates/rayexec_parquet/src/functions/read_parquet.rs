@@ -3,8 +3,9 @@ use rayexec_execution::functions::table::{
     check_named_args_is_empty, GenericTableFunction, SpecializedTableFunction, TableFunctionArgs,
 };
 use std::path::PathBuf;
+use url::Url;
 
-use super::read_parquet_local::ReadParquetLocal;
+use super::{read_parquet_http::ReadParquetHttp, read_parquet_local::ReadParquetLocal};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadParquet;
@@ -26,8 +27,22 @@ impl GenericTableFunction for ReadParquet {
 
         // TODO: Glob, dispatch to object storage/http impls
 
-        let path = PathBuf::from(args.positional.pop().unwrap().try_into_string()?);
+        let path = args.positional.pop().unwrap().try_into_string()?;
 
-        Ok(Box::new(ReadParquetLocal { path }))
+        match Url::parse(&path) {
+            Ok(url) => match url.scheme() {
+                "http" | "https" => Ok(Box::new(ReadParquetHttp { url })),
+                "file" => Ok(Box::new(ReadParquetLocal {
+                    path: PathBuf::from(path),
+                })),
+                other => Err(RayexecError::new(format!("Unrecognized scheme: '{other}'"))),
+            },
+            Err(_) => {
+                // Assume file.
+                Ok(Box::new(ReadParquetLocal {
+                    path: PathBuf::from(path),
+                }))
+            }
+        }
     }
 }

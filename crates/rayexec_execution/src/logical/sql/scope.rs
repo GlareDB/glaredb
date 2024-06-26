@@ -78,9 +78,10 @@ impl Scope {
     }
 
     /// Create a new scope with the given columns for a table.
-    pub fn with_columns<I>(alias: Option<TableReference>, columns: I) -> Self
+    pub fn with_columns<S, I>(alias: Option<TableReference>, columns: I) -> Self
     where
-        I: IntoIterator<Item = String>,
+        S: Into<String>,
+        I: IntoIterator<Item = S>,
     {
         let mut scope = Scope::empty();
         scope.add_columns(alias, columns);
@@ -88,13 +89,14 @@ impl Scope {
     }
 
     /// Add columns to this scope for a table with the given alias.
-    pub fn add_columns<I>(&mut self, alias: Option<TableReference>, columns: I)
+    pub fn add_columns<S, I>(&mut self, alias: Option<TableReference>, columns: I)
     where
-        I: IntoIterator<Item = String>,
+        S: Into<String>,
+        I: IntoIterator<Item = S>,
     {
         let iter = columns.into_iter().map(|column| ScopeColumn {
             alias: alias.clone(),
-            column,
+            column: column.into(),
         });
         self.items.extend(iter);
     }

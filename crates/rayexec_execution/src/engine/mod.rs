@@ -35,6 +35,7 @@ impl EngineRuntime {
     pub fn try_new_shared() -> Result<Arc<Self>> {
         let tokio = tokio::runtime::Builder::new_current_thread()
             .enable_io()
+            .enable_time()
             .thread_name("rayexec_tokio")
             .build()
             .context("Failed to build tokio runtime")?;

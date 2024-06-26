@@ -1,0 +1,52 @@
+# Decimal casts
+
+query R
+select '1.00'::DECIMAL
+----
+1.000000000
+
+query R
+select '1.00'::DECIMAL(3)
+----
+1
+
+query R
+select '1.00'::DECIMAL(3, 2)
+----
+1.00
+
+query R
+select '1.001'::DECIMAL(3, 2)
+----
+1.00
+
+# TODO: Shoudl error
+# statement error
+# select '1.23'::decimal(8, 8);
+# ----
+
+# TODO: Failed to parse '123.001'
+# query R
+# select '123.001'::DECIMAL(3, -2)
+# ----
+# 100
+
+# TODO: Unable to cast from Float64 to Decimal64(8, 2)
+# query I
+# select 10.3::DECIMAL(8, 2);
+# ----
+
+query R
+select 10::DECIMAL(8, 2);
+----
+10.00
+
+query R
+select 10::DECIMAL(8, -1);
+----
+10
+
+# TODO: Make error better, print original value instead of the scaled value.
+statement error 10000 cannot be stored in decimal with a precision of 2
+select 1000::DECIMAL(2, 1);
+

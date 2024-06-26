@@ -1,17 +1,14 @@
-use parquet::column::page::PageReader;
 use parquet::basic::Type as PhysicalType;
+use parquet::column::page::PageReader;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
-use rayexec_bullet::array::TimestampArray;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::field::TimeUnit;
-use rayexec_bullet::{
-    array::{
-        Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-        Int8Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
-    },
-    field::DataType,
+use rayexec_bullet::array::{
+    Array, BooleanArray, Decimal64Array, Float32Array, Float64Array, Int16Array, Int32Array,
+    Int64Array, Int8Array, TimestampNanosecondsArray, UInt16Array, UInt32Array, UInt64Array,
+    UInt8Array,
 };
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
@@ -44,8 +41,22 @@ where
         let arr = match (T::get_physical_type(), &self.datatype) {
             (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array(def_levels),
             (PhysicalType::INT32, DataType::Int32) => data.into_array(def_levels),
+            (PhysicalType::INT32, DataType::Date32) => {
+                let arr = data.into_array(def_levels);
+                match arr {
+                    Array::Int32(arr) => Array::Date32(arr),
+                    other => return Err(RayexecError::new(format!("Unexpected array type when converting to Date32: {}", other.datatype())))
+                }
+            },
             (PhysicalType::INT64, DataType::Int64) => data.into_array(def_levels),
-            (PhysicalType::INT96, DataType::Timestamp(TimeUnit::Nanosecond)) => data.into_array(def_levels),
+            (PhysicalType::INT64, DataType::Decimal64(meta)) => {
+                let arr = data.into_array(def_levels);
+                match arr {
+                    Array::Int64(arr) => Array::Decimal64(Decimal64Array::new(meta.precision, meta.scale, arr)),
+                    other => return Err(RayexecError::new(format!("Unexpected array type when converting to Decimal64: {}", other.datatype())))
+                }
+            }
+            (PhysicalType::INT96, DataType::TimestampNanoseconds) => data.into_array(def_levels),
             (PhysicalType::FLOAT, DataType::Float32) => data.into_array(def_levels),
             (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(def_levels),
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parqet: {p_other}, bullet: {d_other}")))
@@ -81,7 +92,7 @@ impl IntoArray for Vec<bool> {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(self, &bitmap);
                 let values = Bitmap::from_iter(values);
-                Array::Boolean(BooleanArray::new_with_values_and_validity(values, bitmap))
+                Array::Boolean(BooleanArray::new(values, Some(bitmap)))
             }
             None => Array::Boolean(BooleanArray::from_iter(self)),
         }
@@ -95,12 +106,9 @@ impl IntoArray for Vec<Int96> {
             Some(levels) => {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(values, &bitmap);
-                Array::Timestamp(
-                    TimeUnit::Nanosecond,
-                    TimestampArray::new_from_values_and_validity(values, bitmap),
-                )
+                Array::TimestampNanoseconds(TimestampNanosecondsArray::new(values, Some(bitmap)))
             }
-            None => Array::Timestamp(TimeUnit::Nanosecond, TimestampArray::from_iter(values)),
+            None => Array::TimestampNanoseconds(TimestampNanosecondsArray::from_iter(values)),
         }
     }
 }
@@ -113,7 +121,7 @@ macro_rules! into_array_prim {
                     Some(levels) => {
                         let bitmap = def_levels_into_bitmap(levels);
                         let values = insert_null_values(self, &bitmap);
-                        Array::$variant(<$array>::new_from_values_and_validity(values, bitmap))
+                        Array::$variant(<$array>::new(values, Some(bitmap)))
                     }
                     None => Array::$variant(<$array>::from(self)),
                 }

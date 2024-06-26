@@ -2,7 +2,11 @@ use parquet::{
     basic::{ConvertedType, LogicalType, TimeUnit as ParquetTimeUnit},
     schema::types::{BasicTypeInfo, SchemaDescriptor, Type},
 };
-use rayexec_bullet::field::{DataType, Field, Schema, TimeUnit};
+use rayexec_bullet::{
+    datatype::{DataType, DecimalTypeMeta},
+    field::{Field, Schema},
+    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
+};
 use rayexec_error::{RayexecError, Result};
 
 /// Converts a parquet schema to a bullet schema.
@@ -71,13 +75,38 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
             parquet::basic::Type::BOOLEAN => Ok(DataType::Boolean),
             parquet::basic::Type::INT32 => from_int32(basic_info, *scale, *precision),
             parquet::basic::Type::INT64 => from_int64(basic_info, *scale, *precision),
-            parquet::basic::Type::INT96 => Ok(DataType::Timestamp(TimeUnit::Nanosecond)),
+            parquet::basic::Type::INT96 => Ok(DataType::TimestampNanoseconds),
             parquet::basic::Type::FLOAT => Ok(DataType::Float32),
             parquet::basic::Type::DOUBLE => Ok(DataType::Float64),
             parquet::basic::Type::BYTE_ARRAY => from_byte_array(basic_info, *precision, *scale),
             parquet::basic::Type::FIXED_LEN_BYTE_ARRAY => unimplemented!(),
         },
         Type::GroupType { .. } => unreachable!(),
+    }
+}
+
+fn decimal_type(precision: i32, scale: i32) -> Result<DataType> {
+    if precision < 0 {
+        return Err(RayexecError::new("Precision cannot be negative"));
+    }
+    if scale > precision {
+        return Err(RayexecError::new("Scale cannot be greater than precision"));
+    }
+
+    if precision <= Decimal64Type::MAX_PRECISION as i32 {
+        Ok(DataType::Decimal64(DecimalTypeMeta::new(
+            precision as u8,
+            scale as i8,
+        )))
+    } else if precision <= Decimal128Type::MAX_PRECISION as i32 {
+        Ok(DataType::Decimal128(DecimalTypeMeta::new(
+            precision as u8,
+            scale as i8,
+        )))
+    } else {
+        Err(RayexecError::new(format!(
+            "Decimal precision of {precision} is to high"
+        )))
     }
 }
 
@@ -127,7 +156,7 @@ fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
         (None, ConvertedType::INT_8) => Ok(DataType::Int8),
         (None, ConvertedType::INT_16) => Ok(DataType::Int16),
         (None, ConvertedType::INT_32) => Ok(DataType::Int32),
-        (None, ConvertedType::DATE) => unimplemented!(),
+        (None, ConvertedType::DATE) => Ok(DataType::Date32),
         (None, ConvertedType::TIME_MILLIS) => unimplemented!(),
         (None, ConvertedType::DECIMAL) => unimplemented!(),
         (logical, converted) => Err(RayexecError::new(format!(
@@ -180,13 +209,7 @@ fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
         (None, ConvertedType::TIME_MICROS) => unimplemented!(),
         (None, ConvertedType::TIMESTAMP_MILLIS) => unimplemented!(),
         (None, ConvertedType::TIMESTAMP_MICROS) => unimplemented!(),
-        (
-            Some(LogicalType::Decimal {
-                scale: _,
-                precision: _,
-            }),
-            _,
-        ) => unimplemented!(),
+        (Some(LogicalType::Decimal { scale, precision }), _) => decimal_type(precision, scale),
         (None, ConvertedType::DECIMAL) => unimplemented!(),
         (logical, converted) => Err(RayexecError::new(format!(
             "Unable to convert parquet INT64 logical type {:?} or converted type {}",

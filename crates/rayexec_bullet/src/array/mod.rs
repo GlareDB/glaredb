@@ -9,9 +9,15 @@ pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
 
-use crate::field::DataType;
-use crate::scalar::ScalarValue;
-use crate::{bitmap::Bitmap, field::TimeUnit};
+pub mod validity;
+
+use crate::bitmap::Bitmap;
+use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::scalar::interval::Interval;
+use crate::scalar::{
+    decimal::{Decimal128Scalar, Decimal64Scalar},
+    ScalarValue,
+};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 
@@ -25,11 +31,21 @@ pub enum Array {
     Int16(Int16Array),
     Int32(Int32Array),
     Int64(Int64Array),
+    Int128(Int128Array),
     UInt8(UInt8Array),
     UInt16(UInt16Array),
     UInt32(UInt32Array),
     UInt64(UInt64Array),
-    Timestamp(TimeUnit, TimestampArray),
+    UInt128(UInt128Array),
+    Decimal64(Decimal64Array),
+    Decimal128(Decimal128Array),
+    Date32(Date32Array),
+    Date64(Date64Array),
+    TimestampSeconds(TimestampSecondsArray),
+    TimestampMilliseconds(TimestampMillsecondsArray),
+    TimestampMicroseconds(TimestampMicrosecondsArray),
+    TimestampNanoseconds(TimestampNanosecondsArray),
+    Interval(IntervalArray),
     Utf8(Utf8Array),
     LargeUtf8(LargeUtf8Array),
     Binary(BinaryArray),
@@ -48,11 +64,25 @@ impl Array {
             Array::Int16(_) => DataType::Int16,
             Array::Int32(_) => DataType::Int32,
             Array::Int64(_) => DataType::Int64,
+            Array::Int128(_) => DataType::Int128,
             Array::UInt8(_) => DataType::UInt8,
             Array::UInt16(_) => DataType::UInt16,
             Array::UInt32(_) => DataType::UInt32,
             Array::UInt64(_) => DataType::UInt64,
-            Array::Timestamp(unit, _) => DataType::Timestamp(*unit),
+            Array::UInt128(_) => DataType::UInt128,
+            Self::Decimal64(arr) => {
+                DataType::Decimal64(DecimalTypeMeta::new(arr.precision(), arr.scale()))
+            }
+            Self::Decimal128(arr) => {
+                DataType::Decimal128(DecimalTypeMeta::new(arr.precision(), arr.scale()))
+            }
+            Array::Date32(_) => DataType::Date32,
+            Array::Date64(_) => DataType::Date64,
+            Array::TimestampSeconds(_) => DataType::TimestampSeconds,
+            Array::TimestampMilliseconds(_) => DataType::TimestampMilliseconds,
+            Array::TimestampMicroseconds(_) => DataType::TimestampMicroseconds,
+            Array::TimestampNanoseconds(_) => DataType::TimestampNanoseconds,
+            Array::Interval(_) => DataType::Interval,
             Array::Utf8(_) => DataType::Utf8,
             Array::LargeUtf8(_) => DataType::LargeUtf8,
             Array::Binary(_) => DataType::Binary,
@@ -76,11 +106,33 @@ impl Array {
             Self::Int16(arr) => ScalarValue::Int16(*arr.value(idx)?),
             Self::Int32(arr) => ScalarValue::Int32(*arr.value(idx)?),
             Self::Int64(arr) => ScalarValue::Int64(*arr.value(idx)?),
+            Self::Int128(arr) => ScalarValue::Int128(*arr.value(idx)?),
             Self::UInt8(arr) => ScalarValue::UInt8(*arr.value(idx)?),
             Self::UInt16(arr) => ScalarValue::UInt16(*arr.value(idx)?),
             Self::UInt32(arr) => ScalarValue::UInt32(*arr.value(idx)?),
             Self::UInt64(arr) => ScalarValue::UInt64(*arr.value(idx)?),
-            Self::Timestamp(unit, arr) => ScalarValue::Timestamp(*unit, *arr.value(idx)?),
+            Self::UInt128(arr) => ScalarValue::UInt128(*arr.value(idx)?),
+            Self::Decimal64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
+                precision: arr.precision(),
+                scale: arr.scale(),
+                value: *arr.get_primitive().value(idx)?,
+            }),
+            Self::Decimal128(arr) => ScalarValue::Decimal128(Decimal128Scalar {
+                precision: arr.precision(),
+                scale: arr.scale(),
+                value: *arr.get_primitive().value(idx)?,
+            }),
+            Self::Date32(arr) => ScalarValue::Date32(*arr.value(idx)?),
+            Self::Date64(arr) => ScalarValue::Date64(*arr.value(idx)?),
+            Self::TimestampSeconds(arr) => ScalarValue::TimestampSeconds(*arr.value(idx)?),
+            Self::TimestampMilliseconds(arr) => {
+                ScalarValue::TimestampMilliseconds(*arr.value(idx)?)
+            }
+            Self::TimestampMicroseconds(arr) => {
+                ScalarValue::TimestampMicroseconds(*arr.value(idx)?)
+            }
+            Self::TimestampNanoseconds(arr) => ScalarValue::TimestampNanoseconds(*arr.value(idx)?),
+            Self::Interval(arr) => ScalarValue::Interval(*arr.value(idx)?),
             Self::Utf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::LargeUtf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
@@ -99,11 +151,21 @@ impl Array {
             Self::Int16(arr) => arr.is_valid(idx),
             Self::Int32(arr) => arr.is_valid(idx),
             Self::Int64(arr) => arr.is_valid(idx),
+            Self::Int128(arr) => arr.is_valid(idx),
             Self::UInt8(arr) => arr.is_valid(idx),
             Self::UInt16(arr) => arr.is_valid(idx),
             Self::UInt32(arr) => arr.is_valid(idx),
             Self::UInt64(arr) => arr.is_valid(idx),
-            Self::Timestamp(_, arr) => arr.is_valid(idx),
+            Self::UInt128(arr) => arr.is_valid(idx),
+            Self::Decimal64(arr) => arr.get_primitive().is_valid(idx),
+            Self::Decimal128(arr) => arr.get_primitive().is_valid(idx),
+            Self::Date32(arr) => arr.is_valid(idx),
+            Self::Date64(arr) => arr.is_valid(idx),
+            Self::TimestampSeconds(arr) => arr.is_valid(idx),
+            Self::TimestampMilliseconds(arr) => arr.is_valid(idx),
+            Self::TimestampMicroseconds(arr) => arr.is_valid(idx),
+            Self::TimestampNanoseconds(arr) => arr.is_valid(idx),
+            Self::Interval(arr) => arr.is_valid(idx),
             Self::Utf8(arr) => arr.is_valid(idx),
             Self::LargeUtf8(arr) => arr.is_valid(idx),
             Self::Binary(arr) => arr.is_valid(idx),
@@ -122,11 +184,21 @@ impl Array {
             Self::Int16(arr) => arr.len(),
             Self::Int32(arr) => arr.len(),
             Self::Int64(arr) => arr.len(),
+            Self::Int128(arr) => arr.len(),
             Self::UInt8(arr) => arr.len(),
             Self::UInt16(arr) => arr.len(),
             Self::UInt32(arr) => arr.len(),
             Self::UInt64(arr) => arr.len(),
-            Self::Timestamp(_, arr) => arr.len(),
+            Self::UInt128(arr) => arr.len(),
+            Self::Decimal64(arr) => arr.get_primitive().len(),
+            Self::Decimal128(arr) => arr.get_primitive().len(),
+            Self::Date32(arr) => arr.len(),
+            Self::Date64(arr) => arr.len(),
+            Self::TimestampSeconds(arr) => arr.len(),
+            Self::TimestampMilliseconds(arr) => arr.len(),
+            Self::TimestampMicroseconds(arr) => arr.len(),
+            Self::TimestampNanoseconds(arr) => arr.len(),
+            Self::Interval(arr) => arr.len(),
             Self::Utf8(arr) => arr.len(),
             Self::LargeUtf8(arr) => arr.len(),
             Self::Binary(arr) => arr.len(),
@@ -149,11 +221,21 @@ impl Array {
             Self::Int16(arr) => arr.validity(),
             Self::Int32(arr) => arr.validity(),
             Self::Int64(arr) => arr.validity(),
+            Self::Int128(arr) => arr.validity(),
             Self::UInt8(arr) => arr.validity(),
             Self::UInt16(arr) => arr.validity(),
             Self::UInt32(arr) => arr.validity(),
             Self::UInt64(arr) => arr.validity(),
-            Self::Timestamp(_, arr) => arr.validity(),
+            Self::UInt128(arr) => arr.validity(),
+            Self::Decimal64(arr) => arr.get_primitive().validity(),
+            Self::Decimal128(arr) => arr.get_primitive().validity(),
+            Self::Date32(arr) => arr.validity(),
+            Self::Date64(arr) => arr.validity(),
+            Self::TimestampSeconds(arr) => arr.validity(),
+            Self::TimestampMilliseconds(arr) => arr.validity(),
+            Self::TimestampMicroseconds(arr) => arr.validity(),
+            Self::TimestampNanoseconds(arr) => arr.validity(),
+            Self::Interval(arr) => arr.validity(),
             Self::Utf8(arr) => arr.validity(),
             Self::LargeUtf8(arr) => arr.validity(),
             Self::Binary(arr) => arr.validity(),
@@ -179,18 +261,18 @@ impl Array {
         ///
         /// `variant` is the enum variant for the Array and ScalarValue.
         macro_rules! iter_scalars_for_type {
-            ($builder:expr, $default:expr, $variant:ident) => {{
-                let mut validity = Bitmap::default();
-                let mut builder = $builder;
+            ($buffer:expr, $variant:ident, $array:ident, $null:expr) => {{
+                let mut bitmap = Bitmap::default();
+                let mut buffer = $buffer;
                 for scalar in scalars {
                     match scalar {
                         ScalarValue::Null => {
-                            validity.push(false);
-                            builder.push_value($default);
+                            bitmap.push(false);
+                            buffer.push_value($null);
                         }
                         ScalarValue::$variant(v) => {
-                            validity.push(true);
-                            builder.push_value(v);
+                            bitmap.push(true);
+                            buffer.push_value(v);
                         }
                         other => {
                             return Err(RayexecError::new(format!(
@@ -199,8 +281,8 @@ impl Array {
                         }
                     }
                 }
-                builder.put_validity(validity);
-                Ok(Array::$variant(builder.into_typed_array()))
+                let arr = $array::new(buffer, Some(bitmap));
+                Ok(Array::$variant(arr))
             }};
         }
 
@@ -221,76 +303,136 @@ impl Array {
                 }
                 Ok(Array::Null(NullArray::new(len)))
             }
-            DataType::Boolean => iter_scalars_for_type!(BooleanArrayBuilder::new(), false, Boolean),
+            DataType::Boolean => iter_scalars_for_type!(
+                BooleanValuesBuffer::with_capacity(cap),
+                Boolean,
+                BooleanArray,
+                false
+            ),
             DataType::Float32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0.0, Float32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Float32, PrimitiveArray, 0.0)
             }
             DataType::Float64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0.0, Float64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Float64, PrimitiveArray, 0.0)
             }
             DataType::Int8 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int8)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int8, PrimitiveArray, 0)
             }
             DataType::Int16 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int16)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int16, PrimitiveArray, 0)
             }
             DataType::Int32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int32, PrimitiveArray, 0)
             }
             DataType::Int64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, Int64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int64, PrimitiveArray, 0)
+            }
+            DataType::Int128 => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), Int128, PrimitiveArray, 0)
             }
             DataType::UInt8 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt8)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt8, PrimitiveArray, 0)
             }
             DataType::UInt16 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt16)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt16, PrimitiveArray, 0)
             }
             DataType::UInt32 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt32)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt32, PrimitiveArray, 0)
             }
             DataType::UInt64 => {
-                iter_scalars_for_type!(PrimitiveArrayBuilder::with_capacity(cap), 0, UInt64)
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt64, PrimitiveArray, 0)
             }
-            DataType::Timestamp(unit) => {
-                let mut validity = Bitmap::default();
-                let mut builder = PrimitiveArrayBuilder::with_capacity(cap);
-                for scalar in scalars {
-                    match scalar {
-                        ScalarValue::Null => {
-                            validity.push(false);
-                            builder.push_value(0);
-                        }
-                        ScalarValue::Timestamp(_, v) => {
-                            validity.push(true);
-                            builder.push_value(v);
-                        }
-                        other => {
-                            return Err(RayexecError::new(format!(
-                                "Unexpected scalar value: {other}"
-                            )))
-                        }
-                    }
-                }
-                builder.put_validity(validity);
-                Ok(Array::Timestamp(unit, builder.into_typed_array()))
+            DataType::UInt128 => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), UInt128, PrimitiveArray, 0)
+            }
+            DataType::Decimal64(_meta) => {
+                unimplemented!()
+            }
+            DataType::Decimal128(_meta) => {
+                unimplemented!()
+            }
+            DataType::Date32 => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), Date32, PrimitiveArray, 0)
+            }
+            DataType::Date64 => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), Date64, PrimitiveArray, 0)
+            }
+            DataType::TimestampSeconds => {
+                iter_scalars_for_type!(Vec::with_capacity(cap), TimestampSeconds, PrimitiveArray, 0)
+            }
+            DataType::TimestampMilliseconds => {
+                iter_scalars_for_type!(
+                    Vec::with_capacity(cap),
+                    TimestampMilliseconds,
+                    PrimitiveArray,
+                    0
+                )
+            }
+            DataType::TimestampMicroseconds => {
+                iter_scalars_for_type!(
+                    Vec::with_capacity(cap),
+                    TimestampMicroseconds,
+                    PrimitiveArray,
+                    0
+                )
+            }
+            DataType::TimestampNanoseconds => {
+                iter_scalars_for_type!(
+                    Vec::with_capacity(cap),
+                    TimestampNanoseconds,
+                    PrimitiveArray,
+                    0
+                )
+            }
+            DataType::Interval => {
+                iter_scalars_for_type!(
+                    Vec::with_capacity(cap),
+                    Interval,
+                    PrimitiveArray,
+                    Interval::default()
+                )
             }
             DataType::Utf8 => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), Utf8)
+                iter_scalars_for_type!(VarlenValuesBuffer::default(), Utf8, VarlenArray, "")
             }
             DataType::LargeUtf8 => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), "".into(), LargeUtf8)
+                iter_scalars_for_type!(VarlenValuesBuffer::default(), LargeUtf8, VarlenArray, "")
             }
             DataType::Binary => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), (&[]).into(), Binary)
+                iter_scalars_for_type!(
+                    VarlenValuesBuffer::default(),
+                    Binary,
+                    VarlenArray,
+                    &[] as &[u8]
+                )
             }
             DataType::LargeBinary => {
-                iter_scalars_for_type!(VarlenArrayBuilder::new(), (&[]).into(), LargeBinary)
+                iter_scalars_for_type!(
+                    VarlenValuesBuffer::default(),
+                    LargeBinary,
+                    VarlenArray,
+                    &[] as &[u8]
+                )
             }
-            DataType::Struct { .. } => Err(RayexecError::new(
+            DataType::Struct(_) => Err(RayexecError::new(
                 "Cannot build a struct array from struct scalars",
             )), // yet
+            DataType::List(_) => Err(RayexecError::new(
+                "Cannot build a list array from struct scalars",
+            )), // yet
         }
+    }
+}
+
+impl From<Decimal64Array> for Array {
+    fn from(value: Decimal64Array) -> Self {
+        Array::Decimal64(value)
+    }
+}
+
+impl From<Decimal128Array> for Array {
+    fn from(value: Decimal128Array) -> Self {
+        Array::Decimal128(value)
     }
 }
 
@@ -316,13 +458,23 @@ pub trait ArrayAccessor<T: ?Sized> {
     fn validity(&self) -> Option<&Bitmap>;
 }
 
-/// Utility trait for building up a new array.
-pub trait ArrayBuilder<T: ?Sized> {
-    /// Push a value onto the builder.
+/// Storage for result values when executing operations on an array.
+pub trait ValuesBuffer<T: ?Sized> {
+    /// Put a computed value onto the buffer.
     fn push_value(&mut self, value: T);
 
-    /// Put a validity bitmap on the array.
-    fn put_validity(&mut self, validity: Bitmap);
+    /// Push a dummy value for null.
+    fn push_null(&mut self);
+}
+
+impl<T: Default> ValuesBuffer<T> for Vec<T> {
+    fn push_value(&mut self, value: T) {
+        self.push(value);
+    }
+
+    fn push_null(&mut self) {
+        self.push(T::default())
+    }
 }
 
 /// An implementation of an accessor that just returns unit values for

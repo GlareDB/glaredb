@@ -1,11 +1,11 @@
-use super::{
-    specialize_check_num_args, specialize_invalid_input_type, GenericScalarFunction, ScalarFn,
-    SpecializedScalarFunction,
+use super::{GenericScalarFunction, SpecializedScalarFunction};
+use crate::functions::{
+    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
 };
-use crate::functions::{InputTypes, ReturnType, Signature};
-use rayexec_bullet::array::BooleanArrayBuilder;
+use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::{array::Array, field::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -13,23 +13,25 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
 
-impl GenericScalarFunction for And {
-    fn name(&self) -> &str {
+impl FunctionInfo for And {
+    fn name(&self) -> &'static str {
         "and"
     }
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-            return_type: ReturnType::Static(DataType::Boolean),
+            input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            return_type: DataTypeId::Boolean,
         }]
     }
+}
 
+impl GenericScalarFunction for And {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndBool)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -38,44 +40,42 @@ impl GenericScalarFunction for And {
 pub struct AndBool;
 
 impl SpecializedScalarFunction for AndBool {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    let mut builder = BooleanArrayBuilder::new();
-                    BinaryExecutor::execute(first, second, |a, b| a && b, &mut builder)?;
-                    Array::Boolean(builder.into_typed_array())
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                let validity = BinaryExecutor::execute(first, second, |a, b| a && b, &mut buffer)?;
+                Array::Boolean(BooleanArray::new(buffer, validity))
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Or;
 
-impl GenericScalarFunction for Or {
-    fn name(&self) -> &str {
+impl FunctionInfo for Or {
+    fn name(&self) -> &'static str {
         "or"
     }
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: InputTypes::Exact(&[DataType::Boolean, DataType::Boolean]),
-            return_type: ReturnType::Static(DataType::Boolean),
+            input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            return_type: DataTypeId::Boolean,
         }]
     }
+}
 
+impl GenericScalarFunction for Or {
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
         specialize_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrBool)),
-            (a, b) => Err(specialize_invalid_input_type(self, &[a, b])),
+            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
@@ -84,21 +84,17 @@ impl GenericScalarFunction for Or {
 pub struct OrBool;
 
 impl SpecializedScalarFunction for OrBool {
-    fn function_impl(&self) -> ScalarFn {
-        fn inner(arrays: &[&Arc<Array>]) -> Result<Array> {
-            let first = arrays[0];
-            let second = arrays[1];
-            Ok(match (first.as_ref(), second.as_ref()) {
-                (Array::Boolean(first), Array::Boolean(second)) => {
-                    let mut builder = BooleanArrayBuilder::new();
-                    BinaryExecutor::execute(first, second, |a, b| a || b, &mut builder)?;
-                    Array::Boolean(builder.into_typed_array())
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            })
-        }
-
-        inner
+    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
+        let first = arrays[0];
+        let second = arrays[1];
+        Ok(match (first.as_ref(), second.as_ref()) {
+            (Array::Boolean(first), Array::Boolean(second)) => {
+                let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+                let validity = BinaryExecutor::execute(first, second, |a, b| a || b, &mut buffer)?;
+                Array::Boolean(BooleanArray::new(buffer, validity))
+            }
+            other => panic!("unexpected array type: {other:?}"),
+        })
     }
 }
 
@@ -119,7 +115,7 @@ mod tests {
             .specialize(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, false, false]));
 
         assert_eq!(expected, out);
@@ -136,7 +132,7 @@ mod tests {
             .specialize(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
-        let out = (specialized.function_impl())(&[&a, &b]).unwrap();
+        let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Boolean(BooleanArray::from_iter([true, true, false]));
 
         assert_eq!(expected, out);

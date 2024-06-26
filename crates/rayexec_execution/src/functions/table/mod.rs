@@ -70,7 +70,7 @@ pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     /// Initializes the table function using the provided runtime.
     fn initialize(
         self: Box<Self>,
-        runtime: &EngineRuntime,
+        runtime: &Arc<EngineRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>>;
 }
 

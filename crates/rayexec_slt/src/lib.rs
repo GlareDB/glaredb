@@ -3,7 +3,8 @@ use futures::StreamExt;
 use libtest_mimic::{Arguments, Trial};
 use rayexec_bullet::{
     batch::Batch,
-    field::{DataType, Schema},
+    datatype::DataType,
+    field::Schema,
     format::{FormatOptions, Formatter},
 };
 use rayexec_error::{RayexecError, Result, ResultExt};

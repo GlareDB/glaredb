@@ -1,9 +1,11 @@
+use rayexec_error::{RayexecError, Result};
+
 use crate::bitmap::Bitmap;
 use crate::storage::PrimitiveStorage;
 use std::marker::PhantomData;
 use std::{borrow::Cow, fmt::Debug};
 
-use super::{is_valid, ArrayAccessor, ArrayBuilder};
+use super::{is_valid, ArrayAccessor, ValuesBuffer};
 
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
@@ -49,10 +51,10 @@ impl AsVarlenType for String {
     }
 }
 
-impl AsVarlenType for &str {
+impl AsVarlenType for &String {
     type AsType = str;
     fn as_varlen_type(&self) -> &Self::AsType {
-        self
+        self.as_str()
     }
 }
 
@@ -70,17 +72,17 @@ impl AsVarlenType for Vec<u8> {
     }
 }
 
-impl AsVarlenType for &[u8] {
-    type AsType = [u8];
-    fn as_varlen_type(&self) -> &Self::AsType {
-        self
-    }
-}
-
 impl<'a> AsVarlenType for Cow<'a, [u8]> {
     type AsType = [u8];
     fn as_varlen_type(&self) -> &Self::AsType {
         self.as_ref()
+    }
+}
+
+impl<'a, T: VarlenType + ?Sized> AsVarlenType for &'a T {
+    type AsType = T;
+    fn as_varlen_type(&self) -> &Self::AsType {
+        self
     }
 }
 
@@ -110,16 +112,55 @@ impl OffsetIndex for i64 {
 }
 
 #[derive(Debug)]
-pub struct VarlenBuffer<O: OffsetIndex> {
-    pub offsets: Vec<O>,
-    pub data: Vec<u8>,
+pub struct VarlenValuesBuffer<O: OffsetIndex> {
+    offsets: Vec<O>,
+    data: Vec<u8>,
 }
 
-impl<O: OffsetIndex> Default for VarlenBuffer<O> {
+impl<O: OffsetIndex> VarlenValuesBuffer<O> {
+    pub fn try_new(data: Vec<u8>, offsets: Vec<O>) -> Result<Self> {
+        if data.len() != offsets.len() + 1 {
+            return Err(RayexecError::new("Invalid buffer lengths"));
+        }
+        Ok(VarlenValuesBuffer { offsets, data })
+    }
+
+    pub fn into_data_and_offsets(self) -> (Vec<u8>, Vec<O>) {
+        (self.data, self.offsets)
+    }
+}
+
+impl<A: AsVarlenType, O: OffsetIndex> ValuesBuffer<A> for VarlenValuesBuffer<O> {
+    fn push_value(&mut self, value: A) {
+        self.data.extend(value.as_varlen_type().as_binary());
+        let offset = self.data.len();
+        self.offsets.push(O::from_usize(offset));
+    }
+
+    fn push_null(&mut self) {
+        let offset = self.data.len();
+        self.offsets.push(O::from_usize(offset));
+    }
+}
+
+impl<O: OffsetIndex> Default for VarlenValuesBuffer<O> {
     fn default() -> Self {
         let offsets: Vec<O> = vec![O::from_usize(0)];
         let data: Vec<u8> = Vec::new();
-        VarlenBuffer { offsets, data }
+        VarlenValuesBuffer { offsets, data }
+    }
+}
+
+impl<A: AsVarlenType, O: OffsetIndex> FromIterator<A> for VarlenValuesBuffer<O> {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let mut buf = Self::default();
+
+        for v in iter {
+            buf.push_value(v);
+        }
+
+        buf
     }
 }
 
@@ -151,6 +192,15 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
+    pub fn new(values: VarlenValuesBuffer<O>, validity: Option<Bitmap>) -> Self {
+        VarlenArray {
+            validity,
+            offsets: values.offsets.into(),
+            data: values.data.into(),
+            varlen_type: PhantomData,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.offsets.as_ref().len() - 1
     }
@@ -208,33 +258,19 @@ where
     pub(crate) fn data(&self) -> &PrimitiveStorage<u8> {
         &self.data
     }
-
-    pub(crate) fn put_validity(&mut self, validity: Bitmap) {
-        assert_eq!(validity.len(), self.len());
-        self.validity = Some(validity);
-    }
 }
 
 impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
     fn from_iter<T: IntoIterator<Item = &'a A>>(iter: T) -> Self {
-        let mut offsets: Vec<O> = vec![O::from_usize(0)];
-        let mut data: Vec<u8> = Vec::new();
+        let buffer = VarlenValuesBuffer::from_iter(iter);
+        VarlenArray::new(buffer, None)
+    }
+}
 
-        for item in iter.into_iter() {
-            data.extend(item.as_binary());
-            let offset = data.len();
-            offsets.push(O::from_usize(offset));
-        }
-
-        let offsets = PrimitiveStorage::from(offsets);
-        let data = PrimitiveStorage::from(data);
-
-        VarlenArray {
-            validity: None,
-            offsets,
-            data,
-            varlen_type: PhantomData,
-        }
+impl<O: OffsetIndex> FromIterator<String> for VarlenArray<str, O> {
+    fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
+        let buffer = VarlenValuesBuffer::from_iter(iter);
+        VarlenArray::new(buffer, None)
     }
 }
 
@@ -294,64 +330,5 @@ where
 
     fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
-    }
-}
-
-#[derive(Debug)]
-pub struct VarlenArrayBuilder<A, O>
-where
-    A: AsVarlenType,
-    O: OffsetIndex,
-{
-    validity: Option<Bitmap>,
-    offsets: Vec<O>,
-    data: Vec<u8>,
-    varlen_type: PhantomData<A>,
-}
-
-impl<A: AsVarlenType, O: OffsetIndex> Default for VarlenArrayBuilder<A, O> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<A: AsVarlenType, O: OffsetIndex> VarlenArrayBuilder<A, O> {
-    pub fn with_data_capacity(cap: usize) -> Self {
-        VarlenArrayBuilder {
-            validity: None,
-            offsets: vec![O::from_usize(0)],
-            data: Vec::with_capacity(cap),
-            varlen_type: PhantomData,
-        }
-    }
-
-    pub fn new() -> Self {
-        VarlenArrayBuilder {
-            validity: None,
-            offsets: vec![O::from_usize(0)],
-            data: Vec::new(),
-            varlen_type: PhantomData,
-        }
-    }
-
-    pub fn into_typed_array(self) -> VarlenArray<A::AsType, O> {
-        VarlenArray {
-            validity: self.validity,
-            offsets: self.offsets.into(),
-            data: self.data.into(),
-            varlen_type: PhantomData,
-        }
-    }
-}
-
-impl<A: AsVarlenType, O: OffsetIndex> ArrayBuilder<A> for VarlenArrayBuilder<A, O> {
-    fn push_value(&mut self, value: A) {
-        self.data.extend(value.as_varlen_type().as_binary());
-        let offset = self.data.len();
-        self.offsets.push(O::from_usize(offset));
-    }
-
-    fn put_validity(&mut self, validity: Bitmap) {
-        self.validity = Some(validity)
     }
 }

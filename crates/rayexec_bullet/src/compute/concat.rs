@@ -1,7 +1,9 @@
+use crate::array::validity::concat_validities;
 use crate::array::{
-    Array, BooleanArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
+    Array, BooleanArray, BooleanValuesBuffer, DecimalArray, NullArray, OffsetIndex, PrimitiveArray,
+    VarlenArray, VarlenType, VarlenValuesBuffer,
 };
-use crate::field::DataType;
+use crate::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use super::macros::collect_arrays_of_type;
@@ -52,6 +54,10 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, Int64, datatype)?;
             Ok(Array::Int64(concat_primitive(arrs.as_slice())))
         }
+        DataType::Int128 => {
+            let arrs = collect_arrays_of_type!(arrays, Int128, datatype)?;
+            Ok(Array::Int128(concat_primitive(arrs.as_slice())))
+        }
         DataType::UInt8 => {
             let arrs = collect_arrays_of_type!(arrays, UInt8, datatype)?;
             Ok(Array::UInt8(concat_primitive(arrs.as_slice())))
@@ -68,20 +74,61 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, UInt64, datatype)?;
             Ok(Array::UInt64(concat_primitive(arrs.as_slice())))
         }
-        DataType::Timestamp(unit) => {
-            // TODO: Need to worry about unit?
-            let arrs = arrays
-                .iter()
-                .map(|arr| match arr {
-                    Array::Timestamp(_, arr) => Ok(arr),
-                    other => Err(RayexecError::new(format!(
-                        "Array is not of the expected type. Expected {}, got {}",
-                        DataType::Timestamp(unit),
-                        other.datatype()
-                    ))),
-                })
-                .collect::<rayexec_error::Result<Vec<_>>>()?;
-            Ok(Array::Timestamp(unit, concat_primitive(arrs.as_slice())))
+        DataType::UInt128 => {
+            let arrs = collect_arrays_of_type!(arrays, UInt128, datatype)?;
+            Ok(Array::UInt128(concat_primitive(arrs.as_slice())))
+        }
+        DataType::Decimal64(meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
+            let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            Ok(Array::Decimal64(DecimalArray::new(
+                meta.precision,
+                meta.scale,
+                concat_primitive(arrs.as_slice()),
+            )))
+        }
+        DataType::Decimal128(meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
+            let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            Ok(Array::Decimal128(DecimalArray::new(
+                meta.precision,
+                meta.scale,
+                concat_primitive(arrs.as_slice()),
+            )))
+        }
+        DataType::Date32 => {
+            let arrs = collect_arrays_of_type!(arrays, Date32, datatype)?;
+            Ok(Array::Date32(concat_primitive(arrs.as_slice())))
+        }
+        DataType::Date64 => {
+            let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
+            Ok(Array::Date64(concat_primitive(arrs.as_slice())))
+        }
+        DataType::TimestampSeconds => {
+            let arrs = collect_arrays_of_type!(arrays, TimestampSeconds, datatype)?;
+            Ok(Array::TimestampSeconds(concat_primitive(arrs.as_slice())))
+        }
+        DataType::TimestampMilliseconds => {
+            let arrs = collect_arrays_of_type!(arrays, TimestampMilliseconds, datatype)?;
+            Ok(Array::TimestampMilliseconds(concat_primitive(
+                arrs.as_slice(),
+            )))
+        }
+        DataType::TimestampMicroseconds => {
+            let arrs = collect_arrays_of_type!(arrays, TimestampMicroseconds, datatype)?;
+            Ok(Array::TimestampMicroseconds(concat_primitive(
+                arrs.as_slice(),
+            )))
+        }
+        DataType::TimestampNanoseconds => {
+            let arrs = collect_arrays_of_type!(arrays, TimestampNanoseconds, datatype)?;
+            Ok(Array::TimestampNanoseconds(concat_primitive(
+                arrs.as_slice(),
+            )))
+        }
+        DataType::Interval => {
+            let arrs = collect_arrays_of_type!(arrays, Interval, datatype)?;
+            Ok(Array::Interval(concat_primitive(arrs.as_slice())))
         }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
@@ -99,22 +146,23 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
             Ok(Array::LargeBinary(concat_varlen(arrs.as_slice())))
         }
-        DataType::Struct { .. } => unimplemented!(),
+        DataType::Struct(_) => unimplemented!(),
+        DataType::List(_) => unimplemented!(),
     }
 }
 
 pub fn concat_boolean(arrays: &[&BooleanArray]) -> BooleanArray {
-    // TODO: Nulls
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
     let values_iters = arrays.iter().map(|arr| arr.values());
-    let values: Vec<bool> = values_iters.flat_map(|v| v.iter()).collect();
-    BooleanArray::from_iter(values)
+    let values: BooleanValuesBuffer = values_iters.flat_map(|v| v.iter()).collect();
+    BooleanArray::new(values, validity)
 }
 
 pub fn concat_primitive<T: Copy>(arrays: &[&PrimitiveArray<T>]) -> PrimitiveArray<T> {
-    // TODO: Nulls
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
     let values_iters = arrays.iter().map(|arr| arr.values().as_ref());
     let values: Vec<T> = values_iters.flat_map(|v| v.iter().copied()).collect();
-    PrimitiveArray::from(values)
+    PrimitiveArray::new(values, validity)
 }
 
 pub fn concat_varlen<T, O>(arrays: &[&VarlenArray<T, O>]) -> VarlenArray<T, O>
@@ -122,10 +170,10 @@ where
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
-    // TODO: Nulls
-    // TODO: We should probably preallocate the values buffer.
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
     let values_iters = arrays.iter().map(|arr| arr.values_iter());
-    VarlenArray::from_iter(values_iters.flatten())
+    let values: VarlenValuesBuffer<_> = values_iters.flatten().collect();
+    VarlenArray::new(values, validity)
 }
 
 #[cfg(test)]

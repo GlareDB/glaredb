@@ -3,7 +3,9 @@ pub mod scalar;
 use crate::functions::aggregate::SpecializedAggregateFunction;
 use crate::functions::scalar::SpecializedScalarFunction;
 use crate::logical::operator::LogicalExpression;
-use rayexec_bullet::field::{DataType, TypeSchema};
+use rayexec_bullet::compute::cast::array::cast_array;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, batch::Batch, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use std::fmt::{self, Debug};
@@ -16,6 +18,12 @@ pub enum PhysicalScalarExpression {
 
     /// A scalar literal.
     Literal(OwnedScalarValue),
+
+    /// Cast an input expression.
+    Cast {
+        to: DataType,
+        expr: Box<PhysicalScalarExpression>,
+    },
 
     /// A scalar function.
     ScalarFunction {
@@ -56,10 +64,18 @@ impl PhysicalScalarExpression {
                 PhysicalScalarExpression::Column(col)
             }
             LogicalExpression::Literal(lit) => PhysicalScalarExpression::Literal(lit),
-            // LogicalExpression::Unary { op, expr } => PhysicalScalarExpression::Unary {
-            //     op,
-            //     expr: Box::new(Self::try_from_uncorrelated_expr(*expr, t)?),
-            // },
+            LogicalExpression::Unary { op, expr } => {
+                let datatype = expr.datatype(input, &[])?;
+                let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
+
+                let func = op.scalar_function();
+                let specialized = func.specialize(&[datatype])?;
+
+                PhysicalScalarExpression::ScalarFunction {
+                    function: specialized,
+                    inputs: vec![input],
+                }
+            }
             LogicalExpression::Binary { op, left, right } => {
                 let left_datatype = left.datatype(input, &[])?;
                 let right_datatype = right.datatype(input, &[])?;
@@ -76,6 +92,12 @@ impl PhysicalScalarExpression {
                     inputs: vec![left, right],
                 }
             }
+            LogicalExpression::Cast { to, expr } => PhysicalScalarExpression::Cast {
+                to,
+                expr: Box::new(PhysicalScalarExpression::try_from_uncorrelated_expr(
+                    *expr, input,
+                )?),
+            },
             LogicalExpression::ScalarFunction { function, inputs } => {
                 let datatypes = inputs
                     .iter()
@@ -121,10 +143,15 @@ impl PhysicalScalarExpression {
                     .map(|input| input.eval(batch))
                     .collect::<Result<Vec<_>>>()?;
                 let refs: Vec<_> = inputs.iter().collect(); // Can I not?
-                let out = (function.function_impl())(&refs)?;
+                let out = function.execute(&refs)?;
 
                 // TODO: Do we want to Arc here? Should we allow batches to be mutable?
 
+                Arc::new(out)
+            }
+            Self::Cast { to, expr } => {
+                let input = expr.eval(batch)?;
+                let out = cast_array(&input, to)?;
                 Arc::new(out)
             }
             _ => unimplemented!(),
@@ -137,6 +164,7 @@ impl fmt::Display for PhysicalScalarExpression {
         match self {
             Self::Column(idx) => write!(f, "#{idx}"),
             Self::Literal(lit) => write!(f, "{lit}"),
+            Self::Cast { to, expr } => write!(f, "cast({expr}, {to})"),
             Self::ScalarFunction { function, inputs } => write!(
                 f,
                 "{function:?}({})",

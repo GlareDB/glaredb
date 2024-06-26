@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::{bitmap::Bitmap, field::DataType, scalar::ScalarValue};
+use crate::{bitmap::Bitmap, datatype::DataType, scalar::ScalarValue};
 
 use super::Array;
 use std::sync::Arc;
@@ -46,12 +46,7 @@ impl StructArray {
     }
 
     pub fn datatype(&self) -> DataType {
-        let fields = self
-            .arrays
-            .iter()
-            .map(|(_key, arr)| arr.datatype())
-            .collect();
-        DataType::Struct { fields }
+        unimplemented!()
     }
 
     pub fn array_for_key(&self, key: &str) -> Option<&Arc<Array>> {

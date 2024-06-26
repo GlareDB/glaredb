@@ -1,0 +1,21 @@
+# Interval arithmetic
+
+query T
+select interval '1 day' * 3;
+----
+3 days
+
+query T
+select interval '1 day 1 hour' * 3;
+----
+3 days 03:00:00
+
+query T
+select '1 day'::interval * 3;
+----
+3 days
+
+query T
+select '1998-10-11'::date - 4;
+----
+1998-10-07

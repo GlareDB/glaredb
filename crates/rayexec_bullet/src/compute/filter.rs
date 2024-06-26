@@ -1,4 +1,7 @@
-use crate::array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
+use crate::array::{
+    Array, BooleanArray, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
+    VarlenType,
+};
 use rayexec_error::{RayexecError, Result};
 
 pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
@@ -14,11 +17,24 @@ pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
         Array::UInt16(arr) => Array::UInt16(filter_primitive(arr, selection)?),
         Array::UInt32(arr) => Array::UInt32(filter_primitive(arr, selection)?),
         Array::UInt64(arr) => Array::UInt64(filter_primitive(arr, selection)?),
+        Array::Decimal64(arr) => {
+            let primitive = filter_primitive(arr.get_primitive(), selection)?;
+            Array::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
+        }
+        Array::Decimal128(arr) => {
+            let primitive = filter_primitive(arr.get_primitive(), selection)?;
+            Array::Decimal128(Decimal128Array::new(
+                arr.precision(),
+                arr.scale(),
+                primitive,
+            ))
+        }
+        Array::Date32(arr) => Array::Date32(filter_primitive(arr, selection)?),
         Array::Utf8(arr) => Array::Utf8(filter_varlen(arr, selection)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(filter_varlen(arr, selection)?),
         Array::Binary(arr) => Array::Binary(filter_varlen(arr, selection)?),
         Array::LargeBinary(arr) => Array::LargeBinary(filter_varlen(arr, selection)?),
-        other => unimplemented!("{other:?}"), // TODO
+        other => unimplemented!("{}", other.datatype()), // TODO
     })
 }
 

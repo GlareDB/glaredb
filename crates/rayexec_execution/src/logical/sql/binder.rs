@@ -1,7 +1,14 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
-use rayexec_bullet::{field::DataType, scalar::OwnedScalarValue};
+use rayexec_bullet::{
+    datatype::{DataType, DecimalTypeMeta},
+    scalar::{
+        decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+        OwnedScalarValue,
+    },
+};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
@@ -23,22 +30,44 @@ use crate::{
 
 pub type BoundStatement = Statement<Bound>;
 
+/// Implementation of `AstMeta` which annotates the AST query with
+/// tables/functions/etc found in the db.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bound;
 
-// TODO: Table function
+impl AstMeta for Bound {
+    type DataSourceName = String;
+    type ItemReference = BoundItemReference;
+    type TableReference = BoundTableOrCteReference;
+    type TableFunctionReference = BoundTableFunctionReference;
+    type TableFunctionArguments = TableFunctionArgs;
+    type CteReference = BoundCteReference;
+    type FunctionReference = BoundFunctionReference;
+    type ColumnReference = String;
+    type DataType = DataType;
+}
+
+/// Represents a bound function found in the select list, where clause, or order
+/// by/group by clause.
+// TODO: If we want to support table functions in the select list, this will
+// need to be extended.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
     Scalar(Box<dyn GenericScalarFunction>),
     Aggregate(Box<dyn GenericAggregateFunction>),
 }
 
+/// References a CTE that can be found in `BindData`.
+///
+/// Note that this doesn't hold the CTE itself since it may be referenced more
+/// than once in a query.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundCteReference {
     /// Index into the CTE map.
     pub idx: usize,
 }
 
+/// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundTableOrCteReference {
     Table {
@@ -49,6 +78,7 @@ pub enum BoundTableOrCteReference {
     Cte(BoundCteReference),
 }
 
+/// Table function found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundTableFunctionReference {
     /// Name of the original function.
@@ -113,20 +143,6 @@ impl fmt::Display for BoundItemReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.join(","))
     }
-}
-
-// TODO: Table function associated type (separate from above). Will likely be
-// the specialized table function.
-impl AstMeta for Bound {
-    type DataSourceName = String;
-    type ItemReference = BoundItemReference;
-    type TableReference = BoundTableOrCteReference;
-    type TableFunctionReference = BoundTableFunctionReference;
-    type TableFunctionArguments = TableFunctionArgs;
-    type CteReference = BoundCteReference;
-    type FunctionReference = BoundFunctionReference;
-    type ColumnReference = String;
-    type DataType = DataType;
 }
 
 // TODO: This might need some scoping information.
@@ -222,7 +238,7 @@ pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
     file_handlers: &'a FileHandlers,
-    runtime: &'a EngineRuntime,
+    runtime: &'a Arc<EngineRuntime>,
 }
 
 impl<'a> Binder<'a> {
@@ -230,7 +246,7 @@ impl<'a> Binder<'a> {
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
-        runtime: &'a EngineRuntime,
+        runtime: &'a Arc<EngineRuntime>,
     ) -> Self {
         Binder {
             tx,
@@ -256,6 +272,14 @@ impl<'a> Binder<'a> {
                     output: explain.output,
                 })
             }
+            Statement::Describe(describe) => match describe {
+                ast::Describe::Query(query) => Statement::Describe(ast::Describe::Query(
+                    self.bind_query(query, &mut bind_data).await?,
+                )),
+                ast::Describe::FromNode(from) => Statement::Describe(ast::Describe::FromNode(
+                    self.bind_from(from, &mut bind_data).await?,
+                )),
+            },
             Statement::Query(query) => {
                 Statement::Query(self.bind_query(query, &mut bind_data).await?)
             }
@@ -386,15 +410,17 @@ impl<'a> Binder<'a> {
             }
         }
 
-        let columns: Vec<_> = create
+        let columns = create
             .columns
             .into_iter()
-            .map(|col| ColumnDef::<Bound> {
-                name: col.name.into_normalized_string(),
-                datatype: Self::ast_datatype_to_exec_datatype(col.datatype),
-                opts: col.opts,
+            .map(|col| {
+                Ok(ColumnDef::<Bound> {
+                    name: col.name.into_normalized_string(),
+                    datatype: Self::ast_datatype_to_exec_datatype(col.datatype)?,
+                    opts: col.opts,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         let source = match create.source {
             Some(source) => Some(self.bind_query(source, bind_data).await?),
@@ -842,16 +868,55 @@ impl<'a> Binder<'a> {
             .collect()
     }
 
-    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> DataType {
-        match datatype {
+    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
+        Ok(match datatype {
             ast::DataType::Varchar(_) => DataType::Utf8,
+            ast::DataType::TinyInt => DataType::Int8,
             ast::DataType::SmallInt => DataType::Int16,
             ast::DataType::Integer => DataType::Int32,
             ast::DataType::BigInt => DataType::Int64,
             ast::DataType::Real => DataType::Float32,
             ast::DataType::Double => DataType::Float64,
+            ast::DataType::Decimal(prec, scale) => {
+                let scale: i8 = match scale {
+                    Some(scale) => scale
+                        .try_into()
+                        .map_err(|_| RayexecError::new(format!("Scale too high: {scale}")))?,
+                    None if prec.is_some() => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
+                    None => DECIMAL_DEFUALT_SCALE,
+                };
+
+                let prec: u8 = match prec {
+                    Some(prec) if prec < 0 => {
+                        return Err(RayexecError::new("Precision cannot be negative"))
+                    }
+                    Some(prec) => prec
+                        .try_into()
+                        .map_err(|_| RayexecError::new(format!("Precision too high: {prec}")))?,
+                    None => Decimal64Type::MAX_PRECISION,
+                };
+
+                if scale as i16 > prec as i16 {
+                    return Err(RayexecError::new(
+                        "Decimal scale cannot be larger than precision",
+                    ));
+                }
+
+                if prec <= Decimal64Type::MAX_PRECISION {
+                    DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
+                } else if prec <= Decimal128Type::MAX_PRECISION {
+                    DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
+                } else {
+                    return Err(RayexecError::new(
+                        "Decimal precision too big for max decimal size",
+                    ));
+                }
+            }
             ast::DataType::Bool => DataType::Boolean,
-        }
+            ast::DataType::Date => DataType::Date32,
+            ast::DataType::Timestamp => DataType::TimestampMicroseconds, // Matches postgres default
+            ast::DataType::Interval => DataType::Interval,
+        })
     }
 }
 
@@ -1037,6 +1102,10 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             })),
+            ast::Expr::UnaryExpr { op, expr } => Ok(ast::Expr::UnaryExpr {
+                op,
+                expr: Box::new(Box::pin(self.bind_expression(*expr, bind_data)).await?),
+            }),
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
                 op,
@@ -1143,77 +1212,35 @@ impl<'a> ExpressionBinder<'a> {
                     not_exists,
                 })
             }
+            ast::Expr::TypedString { datatype, value } => {
+                let datatype = Binder::ast_datatype_to_exec_datatype(datatype)?;
+                Ok(ast::Expr::TypedString { datatype, value })
+            }
+            ast::Expr::Cast { datatype, expr } => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                let datatype = Binder::ast_datatype_to_exec_datatype(datatype)?;
+                Ok(ast::Expr::Cast {
+                    datatype,
+                    expr: Box::new(expr),
+                })
+            }
+            ast::Expr::Nested(expr) => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                Ok(ast::Expr::Nested(Box::new(expr)))
+            }
+            ast::Expr::Interval(ast::Interval {
+                value,
+                leading,
+                trailing,
+            }) => {
+                let value = Box::pin(self.bind_expression(*value, bind_data)).await?;
+                Ok(ast::Expr::Interval(ast::Interval {
+                    value: Box::new(value),
+                    leading,
+                    trailing,
+                }))
+            }
             other => unimplemented!("{other:?}"),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-
-    // #[test]
-    // fn bind_data_cte_basic() {
-    //     let mut bind_data = BindData::default();
-
-    //     bind_data.push_cte("cte1");
-    //     bind_data.push_cte("cte2");
-
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 1 }),
-    //         bind_data.find_cte("cte2")
-    //     );
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 0 }),
-    //         bind_data.find_cte("cte1")
-    //     );
-    //     assert_eq!(None, bind_data.find_cte("cte3"));
-    // }
-
-    // #[test]
-    // fn bind_data_cte_reference_from_parent() {
-    //     // with cte1 as
-    //     //     (select 1)
-    //     // select *
-    //     //     from (select * from cte1);
-
-    //     let mut bind_data = BindData::default();
-    //     bind_data.push_cte("cte1");
-
-    //     // Dive into subquery.
-    //     bind_data.inc_depth();
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 0 }),
-    //         bind_data.find_cte("cte1")
-    //     );
-    // }
-
-    // #[test]
-    // #[ignore] // Highlights the TODO in `find_cte`
-    // fn bind_data_cte_reference_from_parent_not_sibling() {
-    //     // with cte1 as
-    //     //     (select 1)
-    //     // select *
-    //     //   from (with cte1 as (select 2) select * from cte1)
-    //     //        cross join
-    //     //        (select * from cte1);
-    //     //
-    //     // Right side of cross join should reference the top-level CTE (at index
-    //     // 0)
-
-    //     let mut bind_data = BindData::default();
-    //     bind_data.push_cte("cte1");
-
-    //     // Dive into first subquery.
-    //     bind_data.inc_depth();
-    //     bind_data.push_cte("cte1");
-    //     bind_data.dec_depth();
-
-    //     // Dive into second subquery, get CTE reference.
-    //     bind_data.inc_depth();
-    //     assert_eq!(
-    //         Some(BoundCteReference { idx: 0 }),
-    //         bind_data.find_cte("cte1")
-    //     );
-    // }
 }

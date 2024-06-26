@@ -1,0 +1,12 @@
+# Date casts
+
+query T
+select '1992-10-11'::DATE
+----
+1992-10-11
+
+# query T
+# select '1992-10-11'::TIMESTAMP
+# ----
+# 1992-10-11 00:00:00
+

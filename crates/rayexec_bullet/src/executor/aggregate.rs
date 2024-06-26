@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 
 use crate::{
-    array::{ArrayAccessor, ArrayBuilder},
+    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
     bitmap::Bitmap,
 };
 
@@ -11,17 +11,19 @@ use crate::{
 ///
 /// An example state for SUM would be a struct that takes a running sum from
 /// values provided in `update`.
-pub trait AggregateState<T, O>: Default + Debug {
+pub trait AggregateState<Input, Output>: Default + Debug {
     /// Merge other state into this state.
     fn merge(&mut self, other: Self) -> Result<()>;
 
     /// Update this state with some input.
-    fn update(&mut self, input: T) -> Result<()>;
+    fn update(&mut self, input: Input) -> Result<()>;
 
-    /// Produce a single value from the state.
-    fn finalize(self) -> Result<O>;
+    /// Produce a single value from the state, along with a bool indicating if
+    /// the value is valid.
+    fn finalize(self) -> Result<(Output, bool)>;
 }
 
+/// Updates aggregate states for an aggregate that accepts one input.
 #[derive(Debug, Clone, Copy)]
 pub struct UnaryNonNullUpdater;
 
@@ -49,8 +51,6 @@ impl UnaryNonNullUpdater {
             mapping.len(),
             "number of rows selected in input must equal length of mappings"
         );
-
-        // TODO: Figure out null handling. Some aggs want it, some don't.
 
         match inputs.validity() {
             Some(validity) => {
@@ -84,6 +84,7 @@ impl UnaryNonNullUpdater {
     }
 }
 
+/// Updates aggregate states for an aggregate that accepts two inputs.
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryUpdater;
 
@@ -108,20 +109,40 @@ impl BinaryUpdater {
             "number of rows selected in input must equal length of mappings"
         );
 
-        // TODO: Figure out null handling. Some aggs want it, some don't.
-        // TOOD: Validity checks, see unary
+        // Unions both validities, essentially skipping rows where at least one
+        // argument is null. This matches the behavior of postgres.
+        let validity = union_validities([first.validity(), second.validity()])?;
 
         let first = first.values_iter();
         let second = second.values_iter();
 
-        let mut mapping_idx = 0;
-        for (selected, (first, second)) in row_selection.iter().zip(first.zip(second)) {
-            if !selected {
-                continue;
+        match validity {
+            Some(validity) => {
+                let mut mapping_idx = 0;
+                for ((selected, (first, second)), valid) in row_selection
+                    .iter()
+                    .zip(first.zip(second))
+                    .zip(validity.iter())
+                {
+                    if !selected || !valid {
+                        continue;
+                    }
+                    let target = &mut target_states[mapping[mapping_idx]];
+                    target.update((first, second))?;
+                    mapping_idx += 1;
+                }
             }
-            let target = &mut target_states[mapping[mapping_idx]];
-            target.update((first, second))?;
-            mapping_idx += 1;
+            None => {
+                let mut mapping_idx = 0;
+                for (selected, (first, second)) in row_selection.iter().zip(first.zip(second)) {
+                    if !selected {
+                        continue;
+                    }
+                    let target = &mut target_states[mapping[mapping_idx]];
+                    target.update((first, second))?;
+                    mapping_idx += 1;
+                }
+            }
         }
 
         Ok(())
@@ -158,16 +179,20 @@ impl StateCombiner {
 pub struct StateFinalizer;
 
 impl StateFinalizer {
+    /// Finalizes aggregate states, pushing values and validities into the
+    /// provided buffers.
     pub fn finalize<S, T, O>(
         states: impl IntoIterator<Item = S>,
-        builder: &mut impl ArrayBuilder<O>,
+        values: &mut impl ValuesBuffer<O>,
+        validities: &mut Bitmap,
     ) -> Result<()>
     where
         S: AggregateState<T, O>,
     {
         for state in states {
-            let out = state.finalize()?;
-            builder.push_value(out);
+            let (out, valid) = state.finalize()?;
+            values.push_value(out);
+            validities.push(valid);
         }
 
         Ok(())

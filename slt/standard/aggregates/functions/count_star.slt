@@ -17,11 +17,10 @@ select c1, count(*) from t1 group by c1 order by c1;
 a  2
 b  1
 
-# TODO: Error source: query failed: Got invalid type(s) 'Int32,Int64' for '>='
-# query II
-# select count(*) from t1 where c2 >= 2;
-# ----
-# 2
+query I
+select count(*) from t1 where c2 >= 2;
+----
+2
 
 query I
 select count(*) from t1 where false;

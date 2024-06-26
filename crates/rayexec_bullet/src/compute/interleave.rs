@@ -1,11 +1,11 @@
 use crate::{
     array::{
-        Array, ArrayBuilder, BooleanArray, BooleanArrayBuilder, NullArray, OffsetIndex,
-        PrimitiveArray, PrimitiveArrayBuilder, VarlenArray, VarlenType,
+        Array, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array, NullArray,
+        OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
     compute::macros::collect_arrays_of_type,
-    field::DataType,
+    datatype::DataType,
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -70,6 +70,26 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, Float64, datatype)?;
             Ok(Array::Float64(interleave_primitive(&arrs, indices)?))
         }
+        DataType::Decimal64(meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal64, datatype)?;
+            let primitives: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            let interleaved = interleave_primitive(&primitives, indices)?;
+            Ok(Array::Decimal64(Decimal64Array::new(
+                meta.precision,
+                meta.scale,
+                interleaved,
+            )))
+        }
+        DataType::Decimal128(meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Decimal128, datatype)?;
+            let primitives: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            let interleaved = interleave_primitive(&primitives, indices)?;
+            Ok(Array::Decimal128(Decimal128Array::new(
+                meta.precision,
+                meta.scale,
+                interleaved,
+            )))
+        }
         DataType::Utf8 => {
             let arrs = collect_arrays_of_type!(arrays, Utf8, datatype)?;
             Ok(Array::Utf8(interleave_varlen(&arrs, indices)?))
@@ -86,7 +106,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
             Ok(Array::LargeBinary(interleave_varlen(&arrs, indices)?))
         }
-        _ => unimplemented!(),
+        other => unimplemented!("{other}"),
     }
 }
 
@@ -94,54 +114,52 @@ pub fn interleave_boolean(
     arrays: &[&BooleanArray],
     indices: &[(usize, usize)],
 ) -> Result<BooleanArray> {
-    let mut builder = BooleanArrayBuilder::new();
+    let mut buffer = BooleanValuesBuffer::with_capacity(indices.len());
     for (arr_idx, row_idx) in indices {
         let v = arrays[*arr_idx].value(*row_idx).expect("row to exist");
-        builder.push_value(v);
+        buffer.push_value(v);
     }
 
     let validities: Vec<_> = arrays.iter().map(|arr| arr.validity()).collect();
-    if let Some(validity) = interleave_validities(&validities, indices) {
-        builder.put_validity(validity);
-    }
+    let validities = interleave_validities(&validities, indices);
 
-    Ok(builder.into_typed_array())
+    Ok(BooleanArray::new(buffer, validities))
 }
 
-pub fn interleave_primitive<T: Copy>(
+pub fn interleave_primitive<T: Copy + Default>(
     arrays: &[&PrimitiveArray<T>],
     indices: &[(usize, usize)],
 ) -> Result<PrimitiveArray<T>> {
-    let mut builder = PrimitiveArrayBuilder::with_capacity(indices.len());
+    let mut buffer = Vec::with_capacity(indices.len());
     for (arr_idx, row_idx) in indices {
         let v = arrays[*arr_idx].value(*row_idx).expect("row to exist");
-        builder.push_value(*v);
+        buffer.push_value(*v);
     }
 
     let validities: Vec<_> = arrays.iter().map(|arr| arr.validity()).collect();
-    if let Some(validity) = interleave_validities(&validities, indices) {
-        builder.put_validity(validity);
-    }
+    let validities = interleave_validities(&validities, indices);
 
-    Ok(builder.into_typed_array())
+    Ok(PrimitiveArray::new(buffer, validities))
 }
 
-pub fn interleave_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
+pub fn interleave_varlen<T, O>(
     arrays: &[&VarlenArray<T, O>],
     indices: &[(usize, usize)],
-) -> Result<VarlenArray<T, O>> {
-    let iter = indices
-        .iter()
-        .map(|(arr_idx, row_idx)| arrays[*arr_idx].value(*row_idx).expect("row to exist"));
-
-    let mut arr = VarlenArray::from_iter(iter);
-
-    let validities: Vec<_> = arrays.iter().map(|arr| arr.validity()).collect();
-    if let Some(validity) = interleave_validities(&validities, indices) {
-        arr.put_validity(validity);
+) -> Result<VarlenArray<T, O>>
+where
+    T: VarlenType + ?Sized,
+    O: OffsetIndex,
+{
+    let mut buffer = VarlenValuesBuffer::default();
+    for (arr_idx, row_idx) in indices {
+        let v = arrays[*arr_idx].value(*row_idx).expect("row to exist");
+        buffer.push_value(v);
     }
 
-    Ok(arr)
+    let validities: Vec<_> = arrays.iter().map(|arr| arr.validity()).collect();
+    let validities = interleave_validities(&validities, indices);
+
+    Ok(VarlenArray::new(buffer, validities))
 }
 
 fn interleave_validities(

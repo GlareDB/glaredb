@@ -7,7 +7,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::{
     array::{Array, Int64Array},
     batch::Batch,
-    field::{DataType, Field, Schema},
+    datatype::DataType,
+    field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
@@ -73,7 +74,7 @@ impl SpecializedTableFunction for GenerateSeriesI64 {
 
     fn initialize(
         self: Box<Self>,
-        _runtime: &EngineRuntime,
+        _runtime: &Arc<EngineRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
         Box::pin(async move { Ok(self as _) })
     }

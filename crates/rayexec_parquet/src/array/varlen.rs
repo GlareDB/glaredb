@@ -1,10 +1,9 @@
 use parquet::column::page::PageReader;
 use parquet::data_type::{AsBytes, ByteArray, DataType as ParquetDataType};
 use parquet::{basic::Type as PhysicalType, schema::types::ColumnDescPtr};
-use rayexec_bullet::{
-    array::{Array, ArrayBuilder as _, VarlenArrayBuilder},
-    field::DataType,
-};
+use rayexec_bullet::array::{Array, ValuesBuffer};
+use rayexec_bullet::array::{BinaryArray, VarlenArray, VarlenValuesBuffer};
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
@@ -38,9 +37,9 @@ where
                 data.into_array(def_levels)
             }
             (PhysicalType::BYTE_ARRAY, DataType::Binary) => {
-                let mut builder = VarlenArrayBuilder::new();
+                let mut buffer = VarlenValuesBuffer::default();
 
-                match def_levels {
+                let validity = match def_levels {
                     Some(levels) => {
                         let bitmap = def_levels_into_bitmap(levels);
                         let mut values_iter = data.iter();
@@ -48,23 +47,23 @@ where
                         for valid in bitmap.iter() {
                             if valid {
                                 let value = values_iter.next().expect("value to exist");
-                                builder.push_value(value.as_bytes());
+                                buffer.push_value(value.as_bytes());
                             } else {
-                                builder.push_value(&[]);
+                                let null: &[u8] = &[];
+                                buffer.push_value(null);
                             }
                         }
-
-                        builder.put_validity(bitmap);
+                        Some(bitmap)
                     }
                     None => {
                         for buf in &data {
-                            builder.push_value(buf.as_bytes());
+                            buffer.push_value(buf.as_bytes());
                         }
+                        None
                     }
-                }
+                };
 
-                let arr = builder.into_typed_array();
-                Array::Binary(arr)
+                Array::Binary(BinaryArray::new(buffer, validity))
             }
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in varlen reader; parqet: {p_other}, bullet: {d_other}")))
         };
@@ -94,9 +93,9 @@ where
 
 impl IntoArray for Vec<ByteArray> {
     fn into_array(self, def_levels: Option<Vec<i16>>) -> Array {
-        let mut builder = VarlenArrayBuilder::new();
+        let mut buffer = VarlenValuesBuffer::default();
 
-        match def_levels {
+        let validity = match def_levels {
             Some(levels) => {
                 let bitmap = def_levels_into_bitmap(levels);
                 let mut values_iter = self.iter();
@@ -105,23 +104,23 @@ impl IntoArray for Vec<ByteArray> {
                     if valid {
                         let value = values_iter.next().expect("value to exist");
                         let s = unsafe { std::str::from_utf8_unchecked(value.as_bytes()) };
-                        builder.push_value(s);
+                        buffer.push_value(s);
                     } else {
-                        builder.push_value("");
+                        buffer.push_value("");
                     }
                 }
 
-                builder.put_validity(bitmap);
+                Some(bitmap)
             }
             None => {
                 for buf in &self {
                     let s = unsafe { std::str::from_utf8_unchecked(buf.as_bytes()) };
-                    builder.push_value(s);
+                    buffer.push_value(s);
                 }
+                None
             }
-        }
+        };
 
-        let arr = builder.into_typed_array();
-        Array::Utf8(arr)
+        Array::Utf8(VarlenArray::new(buffer, validity))
     }
 }

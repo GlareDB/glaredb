@@ -64,7 +64,7 @@ impl SpecializedTableFunction for ReadPostgresArgs {
 
     fn initialize(
         self: Box<Self>,
-        runtime: &EngineRuntime,
+        runtime: &Arc<EngineRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
         let client = PostgresClient::connect(self.conn_str.clone(), runtime);
         Box::pin(async move {

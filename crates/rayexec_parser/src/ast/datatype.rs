@@ -1,12 +1,14 @@
-use super::AstParseable;
-use crate::keywords::Keyword;
+use super::{AstParseable, Expr};
 use crate::parser::Parser;
+use crate::{keywords::Keyword, tokens::Token};
 use rayexec_error::{RayexecError, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
     /// VARCHAR, VARCHAR(10), TEXT, STRING
     Varchar(Option<u64>),
+    /// TINYINT, INT1
+    TinyInt,
     /// SMALLINT, INT2
     SmallInt,
     /// INTEGER, INT, INT4
@@ -17,8 +19,16 @@ pub enum DataType {
     Real,
     /// DOUBLE, FLOAT8
     Double,
+    /// DECIMAL, DECIMAL(<prec>, <scale>), NUMERIC
+    Decimal(Option<i64>, Option<i64>),
     /// BOOL, BOOLEAN
     Bool,
+    /// DATE
+    Date,
+    /// TIMESTAMP
+    Timestamp,
+    /// INTERVAL
+    Interval,
 }
 
 impl AstParseable for DataType {
@@ -34,18 +44,40 @@ impl AstParseable for DataType {
         Ok(match kw {
             Keyword::VARCHAR => DataType::Varchar(None), // TODO: With length.
             Keyword::TEXT | Keyword::STRING => DataType::Varchar(None),
+            Keyword::TINYINT | Keyword::INT1 => DataType::TinyInt,
             Keyword::SMALLINT | Keyword::INT2 => DataType::SmallInt,
             Keyword::INT | Keyword::INTEGER | Keyword::INT4 => DataType::Integer,
             Keyword::BIGINT | Keyword::INT8 => DataType::BigInt,
             Keyword::REAL | Keyword::FLOAT | Keyword::FLOAT4 => DataType::Real,
             Keyword::DOUBLE | Keyword::FLOAT8 => DataType::Double,
+            Keyword::DECIMAL | Keyword::NUMERIC => {
+                let (prec, scale) = Self::parse_precision_scale(parser)?;
+                DataType::Decimal(prec, scale)
+            }
             Keyword::BOOL | Keyword::BOOLEAN => DataType::Bool,
+            Keyword::DATE => DataType::Date,
+            Keyword::TIMESTAMP => DataType::Timestamp,
+            Keyword::INTERVAL => DataType::Interval,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected keyword for data type: {other:?}",
                 )))
             }
         })
+    }
+}
+
+impl DataType {
+    fn parse_precision_scale(parser: &mut Parser) -> Result<(Option<i64>, Option<i64>)> {
+        let (mut prec, mut scale) = (None, None);
+        if parser.consume_token(&Token::LeftParen) {
+            prec = Some(Expr::parse_i64_literal(parser)?);
+            if parser.consume_token(&Token::Comma) {
+                scale = Some(Expr::parse_i64_literal(parser)?);
+            }
+            parser.expect_token(&Token::RightParen)?;
+        }
+        Ok((prec, scale))
     }
 }
 
@@ -64,6 +96,9 @@ mod tests {
         assert_ast_eq(DataType::Varchar(None), "varchar");
         assert_ast_eq(DataType::Varchar(None), "VARCHAR");
         assert_ast_eq(DataType::Varchar(None), "Varchar");
+
+        assert_ast_eq(DataType::TinyInt, "tinyint");
+        assert_ast_eq(DataType::TinyInt, "int1");
 
         assert_ast_eq(DataType::SmallInt, "smallint");
         assert_ast_eq(DataType::SmallInt, "int2");
@@ -84,5 +119,21 @@ mod tests {
 
         assert_ast_eq(DataType::Bool, "bool");
         assert_ast_eq(DataType::Bool, "boolean");
+
+        assert_ast_eq(DataType::Date, "date");
+
+        assert_ast_eq(DataType::Timestamp, "TIMESTAMP");
+
+        assert_ast_eq(DataType::Interval, "INTERVAL");
+    }
+
+    #[test]
+    fn decimal() {
+        assert_ast_eq(DataType::Decimal(None, None), "decimal");
+        assert_ast_eq(DataType::Decimal(Some(4), None), "decimal(4)");
+        assert_ast_eq(DataType::Decimal(Some(4), Some(1)), "decimal(4, 1)");
+        assert_ast_eq(DataType::Decimal(Some(4), Some(-1)), "decimal(4, -1)");
+
+        assert_ast_eq(DataType::Decimal(Some(4), Some(1)), "numeric(4, 1)");
     }
 }

@@ -108,6 +108,7 @@ impl ExplainNode {
             | LogicalOperator::Scan(_)
             | LogicalOperator::TableFunction(_)
             | LogicalOperator::Drop(_)
+            | LogicalOperator::Describe(_)
             | LogicalOperator::AttachDatabase(_)
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::CreateSchema(_)

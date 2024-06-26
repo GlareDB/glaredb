@@ -1,0 +1,99 @@
+# Cast to/from string
+
+query I
+select '2'::INT;
+----
+2
+
+query I
+select '2'::BIGINT;
+----
+2
+
+query I
+select '2'::TINYINT;
+----
+2
+
+query I
+select '2'::FLOAT;
+----
+2
+
+query I
+select '2'::REAL;
+----
+2
+
+query I
+select '2.2'::REAL;
+----
+2.2
+
+query I
+select '2'::DOUBLE;
+----
+2
+
+query I
+select '0000000000000003'::INT
+----
+3
+
+query I
+select '0000000000000000'::INT
+----
+0
+
+query R
+select '-2'::DOUBLE;
+----
+-2
+
+query R
+select '-infinity'::FLOAT
+----
+-inf
+
+query R
+select 'infinity'::FLOAT
+----
+inf
+
+query R
+select '1.2e3'::FLOAT
+----
+1200
+
+query T
+select '2.2'::REAL::TEXT
+----
+2.2
+
+# TODO: better error
+statement error Failed to parse '2.0'
+select '2.0'::INT;
+
+# TODO: Failed to parse '123456789e-1234'
+# query I
+# select '123456789e-1234'::int
+# ----
+# 0
+
+query I
+select '123456789e-1234'::float::int
+----
+0
+
+# Type overflows
+
+statement error
+select '128'::TINYINT
+
+query I
+select '32767'::SMALLINT
+----
+32767
+
+statement error
+select '32768'::SMALLINT

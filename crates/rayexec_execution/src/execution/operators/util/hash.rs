@@ -2,7 +2,7 @@ use ahash::RandomState;
 use rayexec_bullet::{
     array::{Array, BooleanArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType},
     row::ScalarRow,
-    scalar::ScalarValue,
+    scalar::{interval::Interval, ScalarValue},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -34,11 +34,21 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
             Array::Int16(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Int32(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Int64(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Int128(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt8(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt16(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt32(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::UInt64(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Timestamp(_, arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::UInt128(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Decimal64(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
+            Array::Decimal128(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
+            Array::Date32(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Date64(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::TimestampSeconds(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::TimestampMilliseconds(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::TimestampMicroseconds(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::TimestampNanoseconds(arr) => hash_primitive(arr, hashes, combine_hash),
+            Array::Interval(arr) => hash_primitive(arr, hashes, combine_hash),
             Array::Utf8(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::LargeUtf8(arr) => hash_varlen(arr, hashes, combine_hash),
             Array::Binary(arr) => hash_varlen(arr, hashes, combine_hash),
@@ -69,11 +79,21 @@ pub fn hash_row(row: &ScalarRow) -> Result<u64> {
             ScalarValue::Int16(v) => v.hash_one(),
             ScalarValue::Int32(v) => v.hash_one(),
             ScalarValue::Int64(v) => v.hash_one(),
+            ScalarValue::Int128(v) => v.hash_one(),
             ScalarValue::UInt8(v) => v.hash_one(),
             ScalarValue::UInt16(v) => v.hash_one(),
             ScalarValue::UInt32(v) => v.hash_one(),
             ScalarValue::UInt64(v) => v.hash_one(),
-            ScalarValue::Timestamp(_, v) => v.hash_one(),
+            ScalarValue::UInt128(v) => v.hash_one(),
+            ScalarValue::Decimal64(v) => v.value.hash_one(),
+            ScalarValue::Decimal128(v) => v.value.hash_one(),
+            ScalarValue::Date32(v) => v.hash_one(),
+            ScalarValue::Date64(v) => v.hash_one(),
+            ScalarValue::TimestampSeconds(v) => v.hash_one(),
+            ScalarValue::TimestampMilliseconds(v) => v.hash_one(),
+            ScalarValue::TimestampMicroseconds(v) => v.hash_one(),
+            ScalarValue::TimestampNanoseconds(v) => v.hash_one(),
+            ScalarValue::Interval(v) => v.hash_one(),
             ScalarValue::Utf8(v) => v.hash_one(),
             ScalarValue::LargeUtf8(v) => v.hash_one(),
             ScalarValue::Binary(v) => v.hash_one(),
@@ -116,12 +136,15 @@ impl_hash_value!(i8);
 impl_hash_value!(i16);
 impl_hash_value!(i32);
 impl_hash_value!(i64);
+impl_hash_value!(i128);
 impl_hash_value!(u8);
 impl_hash_value!(u16);
 impl_hash_value!(u32);
 impl_hash_value!(u64);
+impl_hash_value!(u128);
 impl_hash_value!(str);
 impl_hash_value!([u8]);
+impl_hash_value!(Interval);
 
 impl HashValue for f32 {
     fn hash_one(&self) -> u64 {

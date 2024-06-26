@@ -1,9 +1,8 @@
-use rayexec_bullet::field::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use std::fmt;
 
-use crate::functions::scalar::{arith, boolean, comparison, GenericScalarFunction};
+use crate::functions::scalar::{arith, boolean, comparison, negate, GenericScalarFunction};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UnaryOperator {
@@ -12,7 +11,15 @@ pub enum UnaryOperator {
     IsNull,
     IsNotNull,
     Negate,
-    Cast { to: DataType },
+}
+
+impl UnaryOperator {
+    pub fn scalar_function(&self) -> &dyn GenericScalarFunction {
+        match self {
+            Self::Negate => &negate::Negate,
+            other => unimplemented!("{other}"),
+        }
+    }
 }
 
 impl fmt::Display for UnaryOperator {
@@ -23,7 +30,6 @@ impl fmt::Display for UnaryOperator {
             Self::IsNull => write!(f, "IS NULL"),
             Self::IsNotNull => write!(f, "IS NOT NULL"),
             Self::Negate => write!(f, "-"),
-            Self::Cast { to } => write!(f, "CAST TO {to}"),
         }
     }
 }

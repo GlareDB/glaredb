@@ -1,0 +1,32 @@
+# Type string casts
+
+query B
+select bool 'true';
+----
+true
+
+query B
+select bool 't';
+----
+true
+
+query B
+select int '48';
+----
+48
+
+query I
+select int '48' + 29;
+----
+77
+
+query I
+select bigint '48' + 29;
+----
+77
+
+# TODO: Unable to cast utf8 array to Utf8
+# query T
+# select text 'hello';
+# ----
+# hello

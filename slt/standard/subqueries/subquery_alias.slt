@@ -1,9 +1,7 @@
 # Subquery aliasing in FROM
-#
-# TODO: Use int for tables (Error source: query failed: Got invalid type(s) 'Int32,Int64' for '=')
 
 statement ok
-create temp table t1 (a bigint, b bigint)
+create temp table t1 (a int, b int)
 
 statement ok
 insert into t1 values (23, 45), (67, 89);

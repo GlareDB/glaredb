@@ -1,10 +1,12 @@
+pub mod http;
+
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::fs::File;
 use std::future::{self, Future};
 use std::io::{Read, Seek, SeekFrom};
 
-pub trait AsyncReadAt: Send + Debug {
+pub trait AsyncReadAt: Sync + Send + Debug {
     /// Read an exact range of bytes starting at `start` from the source into
     /// `buf`.
     ///

@@ -1,0 +1,41 @@
+# Comparison between dates
+
+query B
+select '1998-09-02'::date == '1998-09-02'::date;
+----
+true
+
+query B
+select '1998-09-02'::date == '2008-09-02'::date;
+----
+false
+
+query B
+select '1998-09-02'::date != '1998-09-02'::date;
+----
+false
+
+query B
+select '1998-09-02'::date != '2008-09-02'::date;
+----
+true
+
+query B
+select '1998-09-02'::date < '2008-09-02'::date;
+----
+true
+
+query B
+select '1998-09-02'::date <= '2008-09-02'::date;
+----
+true
+
+query B
+select '1998-09-02'::date > '2008-09-02'::date;
+----
+false
+
+query B
+select '1998-09-02'::date >= '2008-09-02'::date;
+----
+false

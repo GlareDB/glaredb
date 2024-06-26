@@ -1,8 +1,5 @@
 //! Compute kernels.
-pub mod aggregate;
-pub mod arith;
 pub mod cast;
-pub mod cmp;
 pub mod concat;
 pub mod filter;
 pub mod interleave;
@@ -44,7 +41,7 @@ mod macros {
     mod tests {
         use crate::{
             array::{Array, Int32Array, UInt32Array},
-            field::DataType,
+            datatype::DataType,
         };
 
         use super::*;

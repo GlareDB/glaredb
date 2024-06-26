@@ -7,3 +7,6 @@ edition.workspace = true
 rayexec_error = { path = '../rayexec_error' }
 futures = { workspace = true }
 tracing = { workspace = true }
+reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls"] }
+url = { workspace = true }
+tokio = { workspace = true }

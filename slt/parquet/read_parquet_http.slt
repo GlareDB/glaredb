@@ -1,0 +1,31 @@
+# read_parquet with http source
+
+query I
+select last_name
+  from read_parquet('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet')
+  order by id desc limit 8;
+----
+Meyer
+Daniels
+Morris
+Hamilton
+Harris
+Mccoy
+Williams
+Henderson
+
+# Using registered file handler
+query I
+select last_name
+  from 'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet'
+  order by id desc limit 8;
+----
+Meyer
+Daniels
+Morris
+Hamilton
+Harris
+Mccoy
+Williams
+Henderson
+

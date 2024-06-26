@@ -1,18 +1,19 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
+pub mod negate;
 pub mod numeric;
 pub mod string;
 pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::{array::Array, field::DataType};
-use rayexec_error::{RayexecError, Result};
+use rayexec_bullet::{array::Array, datatype::DataType};
+use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::{ReturnType, Signature};
+use super::FunctionInfo;
 
 // List of all scalar functions.
 pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> = Lazy::new(|| {
@@ -41,45 +42,16 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn GenericScalarFunction>>> =
         Box::new(string::Repeat),
         // Struct
         Box::new(struct_funcs::StructPack),
+        // Unary
+        Box::new(negate::Negate),
     ]
 });
-
-/// A function pointer with the concrete implementation of a scalar function.
-pub type ScalarFn = fn(&[&Arc<Array>]) -> Result<Array>;
 
 /// A generic scalar function that can specialize into a more specific function
 /// depending on input types.
 ///
 /// Generic scalar functions must be cheaply cloneable.
-pub trait GenericScalarFunction: Debug + Sync + Send + DynClone {
-    /// Name of the function.
-    fn name(&self) -> &str;
-
-    /// Optional aliases for this function.
-    fn aliases(&self) -> &[&str] {
-        &[]
-    }
-
-    /// Signatures of the function.
-    fn signatures(&self) -> &[Signature];
-
-    /// Get the return type for this function.
-    ///
-    /// This is expected to be overridden by functions that return a dynamic
-    /// type based on input. The default implementation can only determine the
-    /// output if it can be statically determined.
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self
-            .signatures()
-            .iter()
-            .find(|sig| sig.inputs_satisfy_signature(inputs))?;
-
-        match &sig.return_type {
-            ReturnType::Static(datatype) => Some(datatype.clone()),
-            ReturnType::Dynamic => None,
-        }
-    }
-
+pub trait GenericScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// Specialize the function using the given input types.
     fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>>;
 }
@@ -108,8 +80,8 @@ impl PartialEq for dyn GenericScalarFunction + '_ {
 /// `GenericScalarFunction` because this will be what's serialized when
 /// serializing pipelines for distributed execution.
 pub trait SpecializedScalarFunction: Debug + Sync + Send + DynClone {
-    /// Return the function pointer that implements this scalar function.
-    fn function_impl(&self) -> ScalarFn;
+    /// Execution the function array inputs.
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array>;
 }
 
 impl Clone for Box<dyn SpecializedScalarFunction> {
@@ -118,36 +90,66 @@ impl Clone for Box<dyn SpecializedScalarFunction> {
     }
 }
 
-pub(crate) fn specialize_check_num_args(
-    scalar: &impl GenericScalarFunction,
-    inputs: &[DataType],
-    expected: usize,
-) -> Result<()> {
-    if inputs.len() != expected {
-        return Err(RayexecError::new(format!(
-            "Expected {} input for '{}', received {}",
-            expected,
-            scalar.name(),
-            inputs.len(),
-        )));
-    }
-    Ok(())
-}
+mod macros {
+    macro_rules! primitive_unary_execute {
+        ($input:expr, $output_variant:ident, $operation:expr) => {{
+            use rayexec_bullet::array::{Array, PrimitiveArray};
+            use rayexec_bullet::executor::scalar::UnaryExecutor;
 
-pub(crate) fn specialize_invalid_input_type(
-    scalar: &impl GenericScalarFunction,
-    got: &[&DataType],
-) -> RayexecError {
-    let got_types = got
-        .iter()
-        .map(|d| d.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-    RayexecError::new(format!(
-        "Got invalid type(s) '{}' for '{}'",
-        got_types,
-        scalar.name()
-    ))
+            let mut buffer = Vec::with_capacity($input.len());
+            UnaryExecutor::execute($input, $operation, &mut buffer)?;
+            Array::$output_variant(PrimitiveArray::new(buffer, $input.validity().cloned()))
+        }};
+    }
+    pub(crate) use primitive_unary_execute;
+
+    macro_rules! primitive_unary_execute_bool {
+        ($input:expr, $operation:expr) => {{
+            use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+            use rayexec_bullet::executor::scalar::UnaryExecutor;
+
+            let mut buffer = BooleanValuesBuffer::with_capacity($input.len());
+            UnaryExecutor::execute($input, $operation, &mut buffer)?;
+            Array::Boolean(BooleanArray::new(buffer, $input.validity().cloned()))
+        }};
+    }
+    pub(crate) use primitive_unary_execute_bool;
+
+    macro_rules! primitive_binary_execute {
+        ($first:expr, $second:expr, $output_variant:ident, $operation:expr) => {{
+            use rayexec_bullet::array::{Array, PrimitiveArray};
+            use rayexec_bullet::executor::scalar::BinaryExecutor;
+
+            let mut buffer = Vec::with_capacity($first.len());
+            let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
+            Array::$output_variant(PrimitiveArray::new(buffer, validity))
+        }};
+    }
+    pub(crate) use primitive_binary_execute;
+
+    macro_rules! primitive_binary_execute_no_wrap {
+        ($first:expr, $second:expr, $operation:expr) => {{
+            use rayexec_bullet::array::PrimitiveArray;
+            use rayexec_bullet::executor::scalar::BinaryExecutor;
+
+            let mut buffer = Vec::with_capacity($first.len());
+            let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
+            PrimitiveArray::new(buffer, validity)
+        }};
+    }
+    pub(crate) use primitive_binary_execute_no_wrap;
+
+    macro_rules! cmp_binary_execute {
+        ($first:expr, $second:expr, $operation:expr) => {{
+            use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+            use rayexec_bullet::executor::scalar::BinaryExecutor;
+
+            let mut buffer = BooleanValuesBuffer::with_capacity($first.len());
+            let validity = BinaryExecutor::execute($first, $second, $operation, &mut buffer)?;
+            Array::Boolean(BooleanArray::new(buffer, validity))
+        }};
+    }
+    pub(crate) use cmp_binary_execute;
 }
 
 #[cfg(test)]

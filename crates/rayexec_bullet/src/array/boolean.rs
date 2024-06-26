@@ -1,7 +1,50 @@
 use crate::bitmap::{Bitmap, BitmapIter};
 use std::fmt::Debug;
 
-use super::{ArrayAccessor, ArrayBuilder};
+use super::{ArrayAccessor, ValuesBuffer};
+
+#[derive(Debug, PartialEq)]
+pub struct BooleanValuesBuffer {
+    pub bitmap: Bitmap,
+}
+
+impl BooleanValuesBuffer {
+    pub fn with_capacity(cap: usize) -> Self {
+        BooleanValuesBuffer {
+            bitmap: Bitmap::with_capacity(cap),
+        }
+    }
+}
+
+impl ValuesBuffer<bool> for BooleanValuesBuffer {
+    fn push_value(&mut self, value: bool) {
+        self.bitmap.push(value);
+    }
+
+    fn push_null(&mut self) {
+        self.bitmap.push(false);
+    }
+}
+
+impl FromIterator<bool> for BooleanValuesBuffer {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let (cap, _) = iter.size_hint();
+        let mut buf = Self::with_capacity(cap);
+
+        for v in iter {
+            buf.push_value(v);
+        }
+
+        buf
+    }
+}
+
+impl From<BooleanValuesBuffer> for Bitmap {
+    fn from(value: BooleanValuesBuffer) -> Self {
+        value.bitmap
+    }
+}
 
 /// A logical array for representing bools.
 #[derive(Debug, PartialEq)]
@@ -11,19 +54,13 @@ pub struct BooleanArray {
 }
 
 impl BooleanArray {
-    pub fn new_with_values(values: Bitmap) -> Self {
-        BooleanArray {
-            validity: None,
-            values,
+    pub fn new(values: impl Into<Bitmap>, validity: Option<Bitmap>) -> Self {
+        let values = values.into();
+        if let Some(validity) = &validity {
+            assert_eq!(values.len(), validity.len());
         }
-    }
 
-    pub fn new_with_values_and_validity(values: Bitmap, validity: Bitmap) -> Self {
-        assert_eq!(values.len(), validity.len());
-        BooleanArray {
-            values,
-            validity: Some(validity),
-        }
+        BooleanArray { values, validity }
     }
 
     pub fn len(&self) -> usize {
@@ -85,7 +122,7 @@ impl BooleanArray {
 
 impl FromIterator<bool> for BooleanArray {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
-        Self::new_with_values(Bitmap::from_iter(iter))
+        Self::new(Bitmap::from_iter(iter), None)
     }
 }
 
@@ -155,15 +192,5 @@ impl BooleanArrayBuilder {
             validity: self.validity,
             values: self.values,
         }
-    }
-}
-
-impl ArrayBuilder<bool> for BooleanArrayBuilder {
-    fn push_value(&mut self, value: bool) {
-        self.values.push(value)
-    }
-
-    fn put_validity(&mut self, validity: Bitmap) {
-        self.validity = Some(validity)
     }
 }

@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use rayexec_bullet::array::{Array, NullArray};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::field::DataType;
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};

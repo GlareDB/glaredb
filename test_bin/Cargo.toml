@@ -20,6 +20,11 @@ path = "integration_register_all_datasources.rs"
 
 [[test]]
 harness = false
+name = "integration_slt_tpch"
+path = "integration_slt_tpch.rs"
+
+[[test]]
+harness = false
 name = "integration_slt_standard"
 path = "integration_slt_standard.rs"
 

@@ -1,4 +1,4 @@
-# read_parquet tests
+# read_parquet from local file source
 
 query I
 select * from read_parquet('../testdata/parquet/small.parquet')

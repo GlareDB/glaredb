@@ -1,8 +1,8 @@
 use crate::bitmap::Bitmap;
+use crate::scalar::interval::Interval;
 use crate::storage::PrimitiveStorage;
-use std::fmt::Debug;
 
-use super::{is_valid, ArrayAccessor, ArrayBuilder};
+use super::{is_valid, ArrayAccessor};
 
 pub trait PrimitiveNumeric: Sized {
     const MIN_VALUE: Self;
@@ -129,20 +129,27 @@ pub type Int8Array = PrimitiveArray<i8>;
 pub type Int16Array = PrimitiveArray<i16>;
 pub type Int32Array = PrimitiveArray<i32>;
 pub type Int64Array = PrimitiveArray<i64>;
+pub type Int128Array = PrimitiveArray<i128>;
 pub type UInt8Array = PrimitiveArray<u8>;
 pub type UInt16Array = PrimitiveArray<u16>;
 pub type UInt32Array = PrimitiveArray<u32>;
 pub type UInt64Array = PrimitiveArray<u64>;
+pub type UInt128Array = PrimitiveArray<u128>;
 pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
-pub type TimestampArray = PrimitiveArray<i64>;
+pub type TimestampSecondsArray = PrimitiveArray<i64>;
+pub type TimestampMillsecondsArray = PrimitiveArray<i64>;
+pub type TimestampMicrosecondsArray = PrimitiveArray<i64>;
+pub type TimestampNanosecondsArray = PrimitiveArray<i64>;
+pub type Date32Array = PrimitiveArray<i32>;
+pub type Date64Array = PrimitiveArray<i64>;
+pub type IntervalArray = PrimitiveArray<Interval>;
 
 impl<T> PrimitiveArray<T> {
-    pub fn new_from_values_and_validity(values: Vec<T>, validity: Bitmap) -> Self {
-        assert_eq!(values.len(), validity.len());
+    pub fn new(values: Vec<T>, validity: Option<Bitmap>) -> Self {
         PrimitiveArray {
             values: values.into(),
-            validity: Some(validity),
+            validity,
         }
     }
 
@@ -182,11 +189,6 @@ impl<T> PrimitiveArray<T> {
     /// Get a reference to the underlying primitive values.
     pub fn values(&self) -> &PrimitiveStorage<T> {
         &self.values
-    }
-
-    /// Get a mutable reference to the underlying primitive values.
-    pub(crate) fn values_mut(&mut self) -> &mut PrimitiveStorage<T> {
-        &mut self.values
     }
 
     pub fn iter(&self) -> PrimitiveArrayIter<T> {
@@ -309,12 +311,36 @@ impl<T> PrimitiveArrayBuilder<T> {
     }
 }
 
-impl<T> ArrayBuilder<T> for PrimitiveArrayBuilder<T> {
-    fn push_value(&mut self, value: T) {
-        self.values.push(value);
+/// Wrapper around a primitive array for storing the precision+scale for a
+/// decimal type.
+#[derive(Debug, PartialEq)]
+pub struct DecimalArray<T> {
+    precision: u8,
+    scale: i8,
+    array: PrimitiveArray<T>,
+}
+
+pub type Decimal64Array = DecimalArray<i64>;
+pub type Decimal128Array = DecimalArray<i128>;
+
+impl<T> DecimalArray<T> {
+    pub fn new(precision: u8, scale: i8, array: PrimitiveArray<T>) -> Self {
+        DecimalArray {
+            precision,
+            scale,
+            array,
+        }
     }
 
-    fn put_validity(&mut self, validity: Bitmap) {
-        self.validity = Some(validity);
+    pub fn get_primitive(&self) -> &PrimitiveArray<T> {
+        &self.array
+    }
+
+    pub fn precision(&self) -> u8 {
+        self.precision
+    }
+
+    pub fn scale(&self) -> i8 {
+        self.scale
     }
 }

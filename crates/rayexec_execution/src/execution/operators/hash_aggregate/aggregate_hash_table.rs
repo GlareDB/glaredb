@@ -4,7 +4,7 @@ use rayexec_bullet::{
     array::Array,
     batch::Batch,
     bitmap::Bitmap,
-    field::DataType,
+    datatype::DataType,
     row::{OwnedScalarRow, ScalarRow},
 };
 use rayexec_error::{RayexecError, Result};

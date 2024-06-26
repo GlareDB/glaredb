@@ -160,7 +160,9 @@ impl AstParseable for FromNode<Raw> {
 }
 
 impl FromNode<Raw> {
-    fn parse_base_from(parser: &mut Parser) -> Result<Self> {
+    /// Parses the first part of a FROM statement (a table, file, or table
+    /// function).
+    pub(crate) fn parse_base_from(parser: &mut Parser) -> Result<Self> {
         if parser.consume_token(&Token::LeftParen) {
             // Subquery
             //

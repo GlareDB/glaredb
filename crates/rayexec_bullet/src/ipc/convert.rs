@@ -1,4 +1,4 @@
-use crate::field::{DataType, Field};
+use crate::{datatype::DataType, field::Field};
 use rayexec_arrow_ipc::Schema::{Field as IpcField, Precision as IpcPrecision, Type as IpcType};
 use rayexec_error::{RayexecError, Result};
 

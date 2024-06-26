@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AstParseable, Attach, CreateSchema, CreateTable, Detach, DropStatement, ExplainNode, Ident,
-        Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
+        AstParseable, Attach, CreateSchema, CreateTable, Describe, Detach, DropStatement,
+        ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     meta::Raw,
@@ -88,6 +88,7 @@ impl Parser {
                     Keyword::SET => Ok(RawStatement::SetVariable(SetVariable::parse(self)?)),
                     Keyword::RESET => Ok(RawStatement::ResetVariable(ResetVariable::parse(self)?)),
                     Keyword::SHOW => Ok(RawStatement::ShowVariable(ShowVariable::parse(self)?)),
+                    Keyword::DESCRIBE => Ok(RawStatement::Describe(Describe::parse(self)?)),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(RawStatement::Query(QueryNode::parse(self)?))
                     }
@@ -219,6 +220,22 @@ impl Parser {
         let vals = self.parse_comma_separated(f)?;
         self.expect_token(&Token::RightParen)?;
         Ok(vals)
+    }
+
+    /// Try to parse using the given function, reverting back to the previous
+    /// state if not not successful.
+    pub(crate) fn maybe_parse<T>(
+        &mut self,
+        mut f: impl FnMut(&mut Parser) -> Result<T>,
+    ) -> Option<T> {
+        let idx = self.idx;
+        match f(self) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                self.idx = idx;
+                None
+            }
+        }
     }
 
     /// Parse a single keyword.

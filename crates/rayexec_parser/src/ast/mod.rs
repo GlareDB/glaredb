@@ -1,3 +1,5 @@
+pub mod describe;
+pub use describe::*;
 pub mod create_table;
 pub use create_table::*;
 pub mod create_schema;

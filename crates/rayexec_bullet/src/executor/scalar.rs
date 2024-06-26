@@ -9,7 +9,10 @@
 //! those are likely to be the most common, so have these operations be
 //! monomorphized is probably a good thing.
 
-use crate::array::{ArrayAccessor, ArrayBuilder};
+use crate::{
+    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
+    bitmap::Bitmap,
+};
 use rayexec_error::{RayexecError, Result};
 
 /// Execute an operation on a single array.
@@ -17,20 +20,65 @@ use rayexec_error::{RayexecError, Result};
 pub struct UnaryExecutor;
 
 impl UnaryExecutor {
+    /// Execute an infallible operation on an array.
     pub fn execute<Array, Type, Iter, Output>(
         array: Array,
         mut operation: impl FnMut(Type) -> Output,
-        builder: &mut impl ArrayBuilder<Output>,
+        buffer: &mut impl ValuesBuffer<Output>,
     ) -> Result<()>
     where
         Array: ArrayAccessor<Type, ValueIter = Iter>,
         Iter: Iterator<Item = Type>,
     {
-        // TODO: Union validity, skip over values as needed.
+        match array.validity() {
+            Some(validity) => {
+                for (value, valid) in array.values_iter().zip(validity.iter()) {
+                    if valid {
+                        let out = operation(value);
+                        buffer.push_value(out);
+                    } else {
+                        buffer.push_null();
+                    }
+                }
+            }
+            None => {
+                for value in array.values_iter() {
+                    let out = operation(value);
+                    buffer.push_value(out);
+                }
+            }
+        }
 
-        for val in array.values_iter() {
-            let out = operation(val);
-            builder.push_value(out);
+        Ok(())
+    }
+
+    /// Execute a potentially fallible operation on an array.
+    pub fn try_execute<Array, Type, Iter, Output>(
+        array: Array,
+        mut operation: impl FnMut(Type) -> Result<Output>,
+        buffer: &mut impl ValuesBuffer<Output>,
+    ) -> Result<()>
+    where
+        Array: ArrayAccessor<Type, ValueIter = Iter>,
+        Iter: Iterator<Item = Type>,
+    {
+        match array.validity() {
+            Some(validity) => {
+                for (value, valid) in array.values_iter().zip(validity.iter()) {
+                    if valid {
+                        let out = operation(value)?;
+                        buffer.push_value(out);
+                    } else {
+                        buffer.push_null();
+                    }
+                }
+            }
+            None => {
+                for value in array.values_iter() {
+                    let out = operation(value)?;
+                    buffer.push_value(out);
+                }
+            }
         }
 
         Ok(())
@@ -46,8 +94,8 @@ impl BinaryExecutor {
         left: Array1,
         right: Array2,
         mut operation: impl FnMut(Type1, Type2) -> Output,
-        builder: &mut impl ArrayBuilder<Output>,
-    ) -> Result<()>
+        buffer: &mut impl ValuesBuffer<Output>,
+    ) -> Result<Option<Bitmap>>
     where
         Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
         Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
@@ -62,14 +110,32 @@ impl BinaryExecutor {
             )));
         }
 
-        // TODO: Union validity, skip over values as needed.
+        let validity = union_validities([left.validity(), right.validity()])?;
 
-        for (left_val, right_val) in left.values_iter().zip(right.values_iter()) {
-            let out = operation(left_val, right_val);
-            builder.push_value(out);
+        match &validity {
+            Some(validity) => {
+                for ((left_val, right_val), valid) in left
+                    .values_iter()
+                    .zip(right.values_iter())
+                    .zip(validity.iter())
+                {
+                    if valid {
+                        let out = operation(left_val, right_val);
+                        buffer.push_value(out);
+                    } else {
+                        buffer.push_null();
+                    }
+                }
+            }
+            None => {
+                for (left_val, right_val) in left.values_iter().zip(right.values_iter()) {
+                    let out = operation(left_val, right_val);
+                    buffer.push_value(out);
+                }
+            }
         }
 
-        Ok(())
+        Ok(validity)
     }
 }
 
@@ -83,8 +149,8 @@ impl TernaryExecutor {
         second: Array2,
         third: Array3,
         mut operation: impl FnMut(Type1, Type2, Type3) -> Output,
-        builder: &mut impl ArrayBuilder<Output>,
-    ) -> Result<()>
+        buffer: &mut impl ValuesBuffer<Output>,
+    ) -> Result<Option<Bitmap>>
     where
         Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
         Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
@@ -102,17 +168,35 @@ impl TernaryExecutor {
             )));
         }
 
-        // TODO: Union validity, skip over values as needed.
+        let validity = union_validities([first.validity(), second.validity(), third.validity()])?;
 
-        for (first, (second, third)) in first
-            .values_iter()
-            .zip(second.values_iter().zip(third.values_iter()))
-        {
-            let out = operation(first, second, third);
-            builder.push_value(out);
+        match &validity {
+            Some(validity) => {
+                for ((first, (second, third)), valid) in first
+                    .values_iter()
+                    .zip(second.values_iter().zip(third.values_iter()))
+                    .zip(validity.iter())
+                {
+                    if valid {
+                        let out = operation(first, second, third);
+                        buffer.push_value(out);
+                    } else {
+                        buffer.push_null();
+                    }
+                }
+            }
+            None => {
+                for (first, (second, third)) in first
+                    .values_iter()
+                    .zip(second.values_iter().zip(third.values_iter()))
+                {
+                    let out = operation(first, second, third);
+                    buffer.push_value(out);
+                }
+            }
         }
 
-        Ok(())
+        Ok(validity)
     }
 }
 
@@ -124,43 +208,72 @@ impl UniformExecutor {
     pub fn execute<Array, Type, Iter, Output>(
         arrays: &[Array],
         mut operation: impl FnMut(&[Type]) -> Output,
-        builder: &mut impl ArrayBuilder<Output>,
-    ) -> Result<()>
+        buffer: &mut impl ValuesBuffer<Output>,
+    ) -> Result<Option<Bitmap>>
     where
         Array: ArrayAccessor<Type, ValueIter = Iter>,
         Iter: Iterator<Item = Type>,
     {
-        let len = arrays[0].len();
+        let len = match arrays.first() {
+            Some(arr) => arr.len(),
+            None => return Ok(None),
+        };
+
+        for arr in arrays {
+            if arr.len() != len {
+                return Err(RayexecError::new("Not all arrays are of the same length"));
+            }
+        }
+
+        let validity = union_validities(arrays.iter().map(|arr| arr.validity()))?;
 
         // TODO: Length check
 
         let mut values_iters: Vec<_> = arrays.iter().map(|arr| arr.values_iter()).collect();
-        let _validities = arrays.iter().map(|arr| arr.validity());
 
         let mut row_vals = Vec::with_capacity(arrays.len());
 
-        // TODO: Union validity, skip over values as needed.
+        match &validity {
+            Some(validity) => {
+                for valid in validity.iter() {
+                    if valid {
+                        row_vals.clear();
 
-        for _idx in 0..len {
-            row_vals.clear();
+                        for iter in values_iters.iter_mut() {
+                            let val = iter.next().expect("value to exist");
+                            row_vals.push(val);
+                        }
 
-            for iter in values_iters.iter_mut() {
-                let val = iter.next().expect("value to exist");
-                row_vals.push(val);
+                        let out = operation(&row_vals);
+                        buffer.push_value(out);
+                    } else {
+                        buffer.push_null();
+                    }
+                }
             }
+            None => {
+                for _idx in 0..len {
+                    row_vals.clear();
 
-            let out = operation(&row_vals);
-            builder.push_value(out);
+                    for iter in values_iters.iter_mut() {
+                        let val = iter.next().expect("value to exist");
+                        row_vals.push(val);
+                    }
+
+                    let out = operation(&row_vals);
+                    buffer.push_value(out);
+                }
+            }
         }
 
-        Ok(())
+        Ok(validity)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::array::{
-        Int32Array, Int64Array, PrimitiveArrayBuilder, Utf8Array, VarlenArrayBuilder,
+        Int32Array, Int64Array, PrimitiveArray, Utf8Array, VarlenArray, VarlenValuesBuffer,
     };
 
     use super::*;
@@ -172,13 +285,13 @@ mod tests {
         let left = Int32Array::from_iter([1, 2, 3]);
         let right = Int64Array::from_iter([4, 5, 6]);
 
-        let mut builder = PrimitiveArrayBuilder::with_capacity(3);
+        let mut buffer = Vec::with_capacity(3);
 
         let op = |a, b| (a as i64) + b;
 
-        BinaryExecutor::execute(&left, &right, op, &mut builder).unwrap();
+        let validity = BinaryExecutor::execute(&left, &right, op, &mut buffer).unwrap();
 
-        let got = builder.into_typed_array();
+        let got = PrimitiveArray::new(buffer, validity);
         let expected = Int64Array::from_iter([5, 7, 9]);
 
         assert_eq!(expected, got);
@@ -189,13 +302,13 @@ mod tests {
         let left = Int32Array::from_iter([1, 2, 3]);
         let right = Utf8Array::from_iter(["hello", "world", "goodbye!"]);
 
-        let mut builder = VarlenArrayBuilder::<_, i32>::new();
+        let mut buffer = VarlenValuesBuffer::default();
 
         let op = |a: i32, b: &str| b.repeat(a as usize);
 
-        BinaryExecutor::execute(&left, &right, op, &mut builder).unwrap();
+        let validity = BinaryExecutor::execute(&left, &right, op, &mut buffer).unwrap();
 
-        let got = builder.into_typed_array();
+        let got = VarlenArray::new(buffer, validity);
         let expected = Utf8Array::from_iter(["hello", "worldworld", "goodbye!goodbye!goodbye!"]);
 
         assert_eq!(expected, got);
@@ -207,7 +320,7 @@ mod tests {
         let second = Int32Array::from_iter([3]);
         let third = Int32Array::from_iter([2]);
 
-        let mut builder = VarlenArrayBuilder::<_, i32>::new();
+        let mut buffer = VarlenValuesBuffer::default();
 
         let op = |s: &str, from: i32, count: i32| {
             s.chars()
@@ -216,9 +329,9 @@ mod tests {
                 .collect::<String>()
         };
 
-        TernaryExecutor::execute(&first, &second, &third, op, &mut builder).unwrap();
+        let validity = TernaryExecutor::execute(&first, &second, &third, op, &mut buffer).unwrap();
 
-        let got = builder.into_typed_array();
+        let got = VarlenArray::new(buffer, validity);
         let expected = Utf8Array::from_iter(["ph"]);
 
         assert_eq!(expected, got);
@@ -230,13 +343,14 @@ mod tests {
         let second = Utf8Array::from_iter(["1", "2", "3"]);
         let third = Utf8Array::from_iter(["dog", "cat", "horse"]);
 
-        let mut builder = VarlenArrayBuilder::<_, i32>::new();
+        let mut buffer = VarlenValuesBuffer::default();
 
         let op = |strings: &[&str]| strings.join("");
 
-        UniformExecutor::execute(&[&first, &second, &third], op, &mut builder).unwrap();
+        let validity =
+            UniformExecutor::execute(&[&first, &second, &third], op, &mut buffer).unwrap();
 
-        let got = builder.into_typed_array();
+        let got = VarlenArray::new(buffer, validity);
         let expected = Utf8Array::from_iter(["a1dog", "b2cat", "c3horse"]);
 
         assert_eq!(expected, got);

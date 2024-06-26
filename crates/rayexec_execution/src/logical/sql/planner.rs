@@ -14,14 +14,14 @@ use crate::{
     expr::scalar::BinaryOperator,
     functions::aggregate::count::Count,
     logical::operator::{
-        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, DetachDatabase,
-        DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr, Insert, JoinType,
-        Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr, Projection, ResetVar, Scan,
-        SetVar, ShowVar, TableFunction, VariableOrAll,
+        Aggregate, AnyJoin, AttachDatabase, CreateSchema, CreateTable, CrossJoin, Describe,
+        DetachDatabase, DropEntry, Explain, ExplainFormat, ExpressionList, Filter, GroupingExpr,
+        Insert, JoinType, Limit, LogicalExpression, LogicalOperator, Order, OrderByExpr,
+        Projection, ResetVar, Scan, SetVar, ShowVar, TableFunction, VariableOrAll,
     },
 };
 use rayexec_bullet::{
-    field::{Field, TypeSchema},
+    field::{Field, Schema, TypeSchema},
     scalar::OwnedScalarValue,
 };
 use rayexec_error::{RayexecError, Result};
@@ -129,6 +129,28 @@ impl<'a> PlanContext<'a> {
             }
             Statement::Attach(attach) => self.plan_attach(attach),
             Statement::Detach(detach) => self.plan_detach(detach),
+            Statement::Describe(describe) => {
+                let plan = match describe {
+                    ast::Describe::Query(query) => self.plan_query(query)?,
+                    ast::Describe::FromNode(from) => self.plan_from_node(from, Scope::empty())?,
+                };
+
+                let type_schema = plan.root.output_schema(&[])?; // TODO: Include outer schema
+                debug_assert_eq!(plan.scope.num_columns(), type_schema.types.len());
+
+                let schema = Schema::new(
+                    plan.scope
+                        .items
+                        .into_iter()
+                        .zip(type_schema.types)
+                        .map(|(item, typ)| Field::new(item.column, typ, true)),
+                );
+
+                Ok(LogicalQuery {
+                    root: LogicalOperator::Describe(Describe { schema }),
+                    scope: Scope::with_columns(None, ["column_name", "datatype"]),
+                })
+            }
         }
     }
 
@@ -431,6 +453,11 @@ impl<'a> PlanContext<'a> {
         let mut names = Vec::with_capacity(projections.len());
         let expr_ctx = ExpressionContext::new(self, &plan.scope, &from_type_schema);
         for proj in projections {
+            // TODO: I feel like we should be modifying the scope here?
+            //
+            // I believe it would help with this query (ambiguous name a):
+            //
+            // with cte1 as (select 4 as a) select t1.a + t2.a from cte1 as t1, cte1 as t2
             match proj {
                 ExpandedSelectExpr::Expr { expr, name } => {
                     let expr = expr_ctx.plan_expression(expr)?;
@@ -1186,7 +1213,7 @@ impl<'a> PlanContext<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::functions::aggregate::numeric::Sum;
+    use crate::functions::aggregate::sum::Sum;
 
     use super::*;
 

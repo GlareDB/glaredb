@@ -1,8 +1,14 @@
 # ADD
 
-# TODO: Implicit cast
-statement error
+query R
 select add(1.0, 2);
+----
+3
+
+query R
+select add(1.1, 2);
+----
+3.1
 
 query I
 select add(1, 2);
@@ -49,9 +55,15 @@ select add(add(add(column2, 2), add(column1, 4)), add(5,column2)) from (values (
 
 # SUB
 
-# TODO: Implicit cast
-# statement error
-# select sub(1.0, 2);
+query R
+select sub(1.0, 2);
+----
+-1
+
+query R
+select sub(1.2, 2);
+----
+-0.8
 
 query I
 select sub(2, 1);
@@ -87,9 +99,15 @@ select column1- column2 from (values (1, 2), (3, 4));
 
 # MUL
 
-# TODO: Implicit cast
-# statement error
-# select mul(1.0, 2);
+query R
+select mul(1.0, 2);
+----
+2
+
+query R
+select mul(1.1, 2);
+----
+2.2
 
 query I
 select mul(2, 3);
@@ -120,9 +138,10 @@ select column1* column2 from (values (1, 2), (3, 4));
 
 # DIV
 
-# TODO: Implicit cast
-# statement error
-# select div(1.0, 2);
+query R
+select div(1.0, 2);
+----
+0.5
 
 query I
 select div(5, 2);
@@ -153,9 +172,10 @@ select column2/ column1 from (values (1, 2), (3, 4));
 
 # REM
 
-# TODO: Implicit cast
-# statement error
-# select rem(1.0, 2);
+query R
+select rem(1.0, 2);
+----
+1
 
 query I
 select rem(5, 2);

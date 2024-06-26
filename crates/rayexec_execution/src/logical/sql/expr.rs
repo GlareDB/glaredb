@@ -1,8 +1,15 @@
+use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::scalar::interval::Interval;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
+use crate::expr::scalar::{BinaryOperator, UnaryOperator};
+use crate::functions::aggregate::GenericAggregateFunction;
 use crate::functions::scalar::GenericScalarFunction;
+use crate::functions::CastType;
 use crate::logical::operator::LogicalExpression;
 
 use super::{
@@ -12,8 +19,6 @@ use super::{
 };
 
 /// An expanded select expression.
-// TODO: What does the below TODO mean?
-// TODO: Expand wildcard.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpandedSelectExpr {
     /// A typical expression. Can be a reference to a column, or a more complex
@@ -62,10 +67,23 @@ impl<'a> ExpressionContext<'a> {
         expr: ast::SelectExpr<Bound>,
     ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
-            ast::SelectExpr::Expr(expr) => vec![ExpandedSelectExpr::Expr {
-                expr,
-                name: "?column?".to_string(),
-            }],
+            ast::SelectExpr::Expr(expr) => match &expr {
+                ast::Expr::Ident(ident) => vec![ExpandedSelectExpr::Expr {
+                    name: ident.as_normalized_string(),
+                    expr,
+                }],
+                ast::Expr::CompoundIdent(ident) => vec![ExpandedSelectExpr::Expr {
+                    name: ident
+                        .last()
+                        .map(|n| n.as_normalized_string())
+                        .unwrap_or_else(|| "?column?".to_string()),
+                    expr,
+                }],
+                _ => vec![ExpandedSelectExpr::Expr {
+                    expr,
+                    name: "?column?".to_string(),
+                }],
+            },
             ast::SelectExpr::AliasedExpr(expr, alias) => vec![ExpandedSelectExpr::Expr {
                 expr,
                 name: alias.into_normalized_string(),
@@ -114,11 +132,34 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
             ast::Expr::Literal(literal) => Self::plan_literal(literal),
-            ast::Expr::BinaryExpr { left, op, right } => Ok(LogicalExpression::Binary {
-                op: op.try_into()?,
-                left: Box::new(self.plan_expression(*left)?),
-                right: Box::new(self.plan_expression(*right)?),
-            }),
+            ast::Expr::UnaryExpr { op, expr } => {
+                let expr = self.plan_expression(*expr)?;
+                let op = match op {
+                    ast::UnaryOperator::Plus => return Ok(expr), // Nothing to do.
+                    ast::UnaryOperator::Minus => UnaryOperator::Negate,
+                    ast::UnaryOperator::Not => unimplemented!(),
+                };
+
+                Ok(LogicalExpression::Unary {
+                    op,
+                    expr: Box::new(expr),
+                })
+            }
+            ast::Expr::BinaryExpr { left, op, right } => {
+                let op = BinaryOperator::try_from(op)?;
+                let left = self.plan_expression(*left)?;
+                let right = self.plan_expression(*right)?;
+
+                let mut out =
+                    self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
+                let [right, left] = [out.pop().unwrap(), out.pop().unwrap()];
+
+                Ok(LogicalExpression::Binary {
+                    op,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                })
+            }
             ast::Expr::Function(func) => {
                 let inputs = func
                     .args
@@ -142,22 +183,17 @@ impl<'a> ExpressionContext<'a> {
 
                 match func.reference {
                     BoundFunctionReference::Scalar(scalar) => {
-                        if !self.scalar_function_can_handle_input(scalar.as_ref(), &inputs)? {
-                            // TODO: Do we want to fall through? Is it possible for a
-                            // scalar and aggregate function to have the same name?
+                        let inputs =
+                            self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
-                            return Err(RayexecError::new(format!(
-                                "Invalid inputs to '{}'",
-                                scalar.name(),
-                            )));
-                        }
                         Ok(LogicalExpression::ScalarFunction {
                             function: scalar,
                             inputs,
                         })
                     }
                     BoundFunctionReference::Aggregate(agg) => {
-                        // TODO: Sig check
+                        let inputs =
+                            self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
 
                         Ok(LogicalExpression::Aggregate {
                             agg,
@@ -185,8 +221,88 @@ impl<'a> ExpressionContext<'a> {
                     subquery: Box::new(subquery.root),
                 })
             }
+            ast::Expr::Nested(expr) => self.plan_expression(*expr),
+            ast::Expr::TypedString { datatype, value } => {
+                let scalar = OwnedScalarValue::Utf8(value.into());
+                // TODO: Add this back. Currently doing this to avoid having to
+                // update cast rules for arrays and scalars at the same time.
+                //
+                // let scalar = cast_scalar(scalar, &datatype)?;
+                Ok(LogicalExpression::Cast {
+                    to: datatype,
+                    expr: Box::new(LogicalExpression::Literal(scalar)),
+                })
+            }
+            ast::Expr::Cast { datatype, expr } => {
+                let expr = self.plan_expression(*expr)?;
+                Ok(LogicalExpression::Cast {
+                    to: datatype,
+                    expr: Box::new(expr),
+                })
+            }
+            ast::Expr::Interval(ast::Interval {
+                value,
+                leading,
+                trailing,
+            }) => {
+                if leading.is_some() {
+                    return Err(RayexecError::new(
+                        "Leading unit in interval not yet supported",
+                    ));
+                }
+                let expr = self.plan_expression(*value)?;
 
-            _ => unimplemented!(),
+                match trailing {
+                    Some(trailing) => {
+                        // If a user provides a unit like `INTERVAL 3 YEARS`, we
+                        // go ahead an multiply 3 with the a constant interval
+                        // representing 1 YEAR.
+                        //
+                        // This builds on top of our existing casting/function
+                        // dispatch rules. It's assumed that we have a
+                        // `mul(interval, int64)` function (and similar).
+
+                        let const_interval = match trailing {
+                            ast::IntervalUnit::Year => Interval::new(12, 0, 0),
+                            ast::IntervalUnit::Month => Interval::new(1, 0, 0),
+                            ast::IntervalUnit::Week => Interval::new(0, 7, 0),
+                            ast::IntervalUnit::Day => Interval::new(0, 1, 0),
+                            ast::IntervalUnit::Hour => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_HOUR)
+                            }
+                            ast::IntervalUnit::Minute => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MINUTE)
+                            }
+                            ast::IntervalUnit::Second => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_SECOND)
+                            }
+                            ast::IntervalUnit::Millisecond => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MILLISECOND)
+                            }
+                            other => {
+                                // TODO: Got lazy, add the rest.
+                                return Err(RayexecError::new(format!(
+                                    "Missing interval constant for {other:?}"
+                                )));
+                            }
+                        };
+
+                        Ok(LogicalExpression::Binary {
+                            op: BinaryOperator::Multiply,
+                            left: Box::new(LogicalExpression::Literal(ScalarValue::Interval(
+                                const_interval,
+                            ))),
+                            right: Box::new(expr),
+                        })
+                    }
+                    None => Ok(LogicalExpression::Cast {
+                        to: DataType::Interval,
+                        expr: Box::new(expr),
+                    }),
+                }
+            }
+
+            other => unimplemented!("{other:?}"),
         }
     }
 
@@ -284,23 +400,110 @@ impl<'a> ExpressionContext<'a> {
         }
     }
 
-    /// Check if a scalar function is able to handle the given inputs.
-    ///
-    /// Errors if the datatypes for the inputs cannot be determined.
-    fn scalar_function_can_handle_input(
+    /// Applies casts to an input expression based on the signatures for a
+    /// scalar function.
+    fn apply_casts_for_scalar_function(
         &self,
-        function: &dyn GenericScalarFunction,
-        inputs: &[LogicalExpression],
-    ) -> Result<bool> {
-        let inputs = inputs
+        scalar: &dyn GenericScalarFunction,
+        inputs: Vec<LogicalExpression>,
+    ) -> Result<Vec<LogicalExpression>> {
+        let input_datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
-        if function.return_type_for_inputs(&inputs).is_some() {
-            return Ok(true);
-        }
+        if scalar.return_type_for_inputs(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = scalar.candidate(&input_datatypes);
 
-        Ok(false)
+            if candidates.is_empty() {
+                // TODO: Do we want to fall through? Is it possible for a
+                // scalar and aggregate function to have the same name?
+
+                // TODO: Better error.
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    scalar.name(),
+                    input_datatypes.displayable(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            //
+            // TODO: Sort by score
+            //
+            // We should do some lightweight const folding and prefer candidates
+            // that cast the consts over ones that need array inputs to be
+            // casted.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => LogicalExpression::Cast {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        },
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
+    }
+
+    // TODO: Reduce dupliation with the scalar one.
+    fn apply_casts_for_aggregate_function(
+        &self,
+        agg: &dyn GenericAggregateFunction,
+        inputs: Vec<LogicalExpression>,
+    ) -> Result<Vec<LogicalExpression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
+            .collect::<Result<Vec<_>>>()?;
+
+        if agg.return_type_for_inputs(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = agg.candidate(&input_datatypes);
+
+            if candidates.is_empty() {
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    agg.name(),
+                    input_datatypes.displayable(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => LogicalExpression::Cast {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        },
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
     }
 }

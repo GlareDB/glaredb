@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use rayexec_bullet::{
-    compute,
+    compute::cast::scalar::cast_scalar,
     scalar::{OwnedScalarValue, ScalarValue},
 };
 use rayexec_error::{RayexecError, Result};
@@ -152,7 +152,7 @@ impl SessionVars {
             .vars
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Session variable doesn't exist: {name}")))?;
-        let value = compute::cast::cast_scalar(value, var.value.datatype())?;
+        let value = cast_scalar(value, &var.value.datatype())?;
 
         Ok(value)
     }

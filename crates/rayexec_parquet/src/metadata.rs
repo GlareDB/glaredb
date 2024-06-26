@@ -12,7 +12,7 @@ pub struct Metadata {
 
 impl Metadata {
     /// Loads parquet metadata from an async source.
-    pub async fn load_from(mut reader: impl AsyncReadAt, size: usize) -> Result<Self> {
+    pub async fn load_from(reader: &mut impl AsyncReadAt, size: usize) -> Result<Self> {
         if size < 8 {
             return Err(RayexecError::new("File size is too small"));
         }

@@ -4,7 +4,8 @@ use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
     array::{Array, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array},
     batch::Batch,
-    field::{DataType, Field},
+    datatype::DataType,
+    field::Field,
     scalar::OwnedScalarValue,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};

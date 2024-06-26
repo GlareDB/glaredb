@@ -182,6 +182,7 @@ impl BuildState {
             LogicalOperator::Order(order) => self.push_global_sort(conf, order),
             LogicalOperator::ShowVar(show_var) => self.push_show_var(conf, show_var),
             LogicalOperator::Explain(explain) => self.push_explain(conf, explain),
+            LogicalOperator::Describe(describe) => self.push_describe(conf, describe),
             LogicalOperator::CreateTable(create) => self.push_create_table(conf, create),
             LogicalOperator::CreateSchema(create) => self.push_create_schema(conf, create),
             LogicalOperator::Drop(drop) => self.push_drop(conf, drop),
@@ -405,6 +406,34 @@ impl BuildState {
         let mut pipeline = Pipeline::new(self.next_pipeline_id(), partition_states.len());
         pipeline.push_operator(physical, operator_state, partition_states)?;
 
+        self.in_progress = Some(pipeline);
+
+        Ok(())
+    }
+
+    fn push_describe(&mut self, _conf: &BuildConfig, describe: operator::Describe) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let names = Array::Utf8(Utf8Array::from_iter(
+            describe.schema.iter().map(|f| f.name.as_str()),
+        ));
+        let datatypes = Array::Utf8(Utf8Array::from_iter(
+            describe.schema.iter().map(|f| f.datatype.to_string()),
+        ));
+        let batch = Batch::try_new(vec![names, datatypes])?;
+
+        let physical = Arc::new(PhysicalValues::new(vec![batch]));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states = physical
+            .create_states(1)
+            .into_iter()
+            .map(PartitionState::Values)
+            .collect();
+
+        let mut pipeline = Pipeline::new(self.next_pipeline_id(), 1);
+        pipeline.push_operator(physical, operator_state, partition_states)?;
         self.in_progress = Some(pipeline);
 
         Ok(())

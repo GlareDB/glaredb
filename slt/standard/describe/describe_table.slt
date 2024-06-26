@@ -1,0 +1,21 @@
+# DESCRIBE <table>
+
+statement ok
+create temp table t1 (a int, b decimal(18, 9), c text);
+
+query TT
+describe t1;
+----
+a  Int32
+b  Decimal64(18, 9)
+c  Utf8
+
+statement ok
+create temp table "a.b.c" (d text, e float, f bigint);
+
+query TT
+describe "a.b.c"
+----
+d  Utf8
+e  Float32
+f  Int64

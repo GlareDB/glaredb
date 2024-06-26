@@ -1,3 +1,5 @@
+use std::ops::Neg;
+
 use rayexec_error::{RayexecError, Result};
 
 use crate::{
@@ -7,7 +9,7 @@ use crate::{
     tokens::{Token, Word},
 };
 
-use super::{AstParseable, Ident, ObjectReference, QueryNode};
+use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -193,6 +195,24 @@ pub enum Expr<T: AstMeta> {
         subquery: Box<QueryNode<T>>,
         not_exists: bool,
     },
+    /// DATE '1992-10-11'
+    TypedString {
+        datatype: T::DataType,
+        value: String,
+    },
+    /// Cast expression.
+    ///
+    /// `CAST(<expr> AS <datatype>)`
+    /// `<expr>::<datatype>`
+    Cast {
+        datatype: T::DataType,
+        expr: Box<Expr<T>>,
+    },
+    /// Interval
+    ///
+    /// `INTERVAL '1 year 2 months'`
+    /// `INTERVAL 1 YEAR`
+    Interval(Interval<T>),
 }
 
 impl AstParseable for Expr<Raw> {
@@ -213,6 +233,7 @@ impl Expr<Raw> {
     const PREC_ADD_SUB: u8 = 80;
     const PREC_MUL_DIV_MOD: u8 = 90;
     const _PREC_EXPONENTIATION: u8 = 100;
+    const PREC_UNARY_MINUS: u8 = 105;
     const _PREC_AT: u8 = 110; // AT TIME ZONE
     const _PREC_COLLATE: u8 = 120;
     const PREC_ARRAY_ELEM: u8 = 130; // []
@@ -234,7 +255,25 @@ impl Expr<Raw> {
     }
 
     fn parse_prefix(parser: &mut Parser) -> Result<Self> {
-        // TODO: Typed string
+        // Try to parse a possibly typed string.
+        //
+        // DATE '1992-10-11'
+        // BOOL 'true'
+        match parser.maybe_parse(DataType::parse) {
+            // INTERVAL is a special case.
+            Some(DataType::Interval) => {
+                let interval = Interval::parse(parser)?;
+                return Ok(Expr::Interval(interval));
+            }
+            Some(dt) => {
+                let s = Self::parse_string_literal(parser)?;
+                return Ok(Expr::TypedString {
+                    datatype: dt,
+                    value: s,
+                });
+            }
+            None => (), // Continue trying to parse a normal expression.
+        }
 
         let tok = match parser.next() {
             Some(tok) => tok,
@@ -276,6 +315,17 @@ impl Expr<Raw> {
                             expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_NOT)?),
                         },
                     },
+                    Keyword::CAST => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let expr = Expr::parse(parser)?;
+                        parser.expect_keyword(Keyword::AS)?;
+                        let datatype = DataType::parse(parser)?;
+                        parser.expect_token(&Token::RightParen)?;
+                        Expr::Cast {
+                            datatype,
+                            expr: Box::new(expr),
+                        }
+                    }
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
@@ -297,6 +347,14 @@ impl Expr<Raw> {
                 parser.expect_token(&Token::RightParen)?;
                 expr
             }
+            Token::Minus => Expr::UnaryExpr {
+                op: UnaryOperator::Minus,
+                expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
+            },
+            Token::Plus => Expr::UnaryExpr {
+                op: UnaryOperator::Plus,
+                expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
+            },
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
@@ -354,8 +412,10 @@ impl Expr<Raw> {
             // Array index
             unimplemented!()
         } else if tok == &Token::DoubleColon {
-            // Cast
-            unimplemented!()
+            Ok(Expr::Cast {
+                datatype: DataType::parse(parser)?,
+                expr: Box::new(prefix),
+            })
         } else {
             Err(RayexecError::new(format!(
                 "Unable to parse token {:?} as an expression",
@@ -516,11 +576,124 @@ impl Expr<Raw> {
             })
         }
     }
+
+    pub fn parse_string_literal(parser: &mut Parser) -> Result<String> {
+        let tok = match parser.next() {
+            Some(tok) => &tok.token,
+            None => return Err(RayexecError::new("Unexpected end of statement")),
+        };
+
+        match tok {
+            Token::SingleQuotedString(s) => Ok(s.clone()),
+            other => Err(RayexecError::new(format!(
+                "Expected string literal, got {other:?}"
+            ))),
+        }
+    }
+
+    pub fn parse_i64_literal(parser: &mut Parser) -> Result<i64> {
+        let tok = match parser.next() {
+            Some(tok) => &tok.token,
+            None => return Err(RayexecError::new("Unexpected end of statement")),
+        };
+
+        let parse = |s: &str| {
+            s.parse::<i64>()
+                .map_err(|_| RayexecError::new(format!("Unable to parse '{s}' as an integer")))
+        };
+
+        match tok {
+            Token::Minus => {
+                let tok = match parser.next() {
+                    Some(tok) => &tok.token,
+                    None => return Err(RayexecError::new("Unexpected end of statement")),
+                };
+
+                if let Token::Number(s) = tok {
+                    return parse(s).map(|v| v.neg());
+                }
+
+                Err(RayexecError::new(format!(
+                    "Expected integer literal, got {tok:?}"
+                )))
+            }
+            Token::Number(s) => parse(s),
+            other => Err(RayexecError::new(format!(
+                "Expected integer literal, got {other:?}"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntervalUnit {
+    Millenium,
+    Century,
+    Decade,
+    Year,
+    Month,
+    Week,
+    Day,
+    Hour,
+    Minute,
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
+}
+
+impl AstParseable for IntervalUnit {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        Ok(match parser.next_keyword()? {
+            Keyword::MILLENIUM | Keyword::MILLENIUMS => Self::Millenium,
+            Keyword::CENTURY | Keyword::CENTURIES => Self::Century,
+            Keyword::DECADE | Keyword::DECADES => Self::Decade,
+            Keyword::YEAR | Keyword::YEARS => Self::Year,
+            Keyword::MONTH | Keyword::MONTHS => Self::Month,
+            Keyword::WEEK | Keyword::WEEKS => Self::Week,
+            Keyword::DAY | Keyword::DAYS => Self::Day,
+            Keyword::HOUR | Keyword::HOURS => Self::Hour,
+            Keyword::MINUTE | Keyword::MINUTES => Self::Minute,
+            Keyword::SECOND | Keyword::SECONDS => Self::Second,
+            Keyword::MILLISECOND | Keyword::MILLISECONDS => Self::Millisecond,
+            Keyword::MICROSECOND | Keyword::MICROSECONDS => Self::Microsecond,
+            Keyword::NANOSECOND | Keyword::NANOSECONDS => Self::Nanosecond,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected interval unit, got '{other}'"
+                )))
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Interval<T: AstMeta> {
+    pub value: Box<Expr<T>>,
+    pub leading: Option<IntervalUnit>,
+    pub trailing: Option<IntervalUnit>,
+}
+
+impl AstParseable for Interval<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        // TODO: Determine if this is the right precedence. It should be pretty
+        // high, but how high?
+        let expr = Expr::parse_subexpr(parser, Expr::PREC_CAST)?;
+
+        let trailing = parser.maybe_parse(IntervalUnit::parse);
+
+        Ok(Interval {
+            value: Box::new(expr),
+            leading: None,
+            trailing,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::ast::testutil::parse_ast;
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -655,5 +828,105 @@ mod tests {
             right: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
         };
         assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn date_typed_string() {
+        let expr: Expr<_> = parse_ast("date '1992-10-11'").unwrap();
+        let expected = Expr::TypedString {
+            datatype: DataType::Date,
+            value: "1992-10-11".to_string(),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn double_colon_cast() {
+        let expr: Expr<_> = parse_ast("4::TEXT").unwrap();
+        let expected = Expr::Cast {
+            datatype: DataType::Varchar(None),
+            expr: Box::new(Expr::Literal(Literal::Number("4".to_string()))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn cast_function() {
+        let expr: Expr<_> = parse_ast("CAST('4.0' AS REAL)").unwrap();
+        let expected = Expr::Cast {
+            datatype: DataType::Real,
+            expr: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                "4.0".to_string(),
+            ))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn interval_typed_string() {
+        let expr: Expr<_> = parse_ast("INTERVAL '1 year 2 months'").unwrap();
+        let expected = Expr::Interval(Interval {
+            value: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                "1 year 2 months".to_string(),
+            ))),
+            leading: None,
+            trailing: None,
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn interval_literal() {
+        let expr: Expr<_> = parse_ast("INTERVAL 2 YEARS").unwrap();
+        let expected = Expr::Interval(Interval {
+            value: Box::new(Expr::Literal(Literal::Number("2".to_string()))),
+            leading: None,
+            trailing: Some(IntervalUnit::Year),
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn interval_binary_expr() {
+        let expr: Expr<_> = parse_ast("INTERVAL '1 year' * 3").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Interval(Interval {
+                value: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                    "1 year".to_string(),
+                ))),
+                leading: None,
+                trailing: None,
+            })),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::Literal(Literal::Number("3".to_string()))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn unary_minus() {
+        let expr: Expr<_> = parse_ast("-12").unwrap();
+        let expected = Expr::UnaryExpr {
+            op: UnaryOperator::Minus,
+            expr: Box::new(Expr::Literal(Literal::Number("12".to_string()))),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn unary_minus_bind_right() {
+        let expr: Expr<_> = parse_ast("-12 * -23").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::UnaryExpr {
+                op: UnaryOperator::Minus,
+                expr: Box::new(Expr::Literal(Literal::Number("12".to_string()))),
+            }),
+            op: BinaryOperator::Multiply,
+            right: Box::new(Expr::UnaryExpr {
+                op: UnaryOperator::Minus,
+                expr: Box::new(Expr::Literal(Literal::Number("23".to_string()))),
+            }),
+        };
+        assert_eq!(expected, expr)
     }
 }

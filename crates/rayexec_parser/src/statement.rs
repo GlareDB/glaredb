@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        Attach, CreateSchema, CreateTable, Detach, DropStatement, ExplainNode, Insert, QueryNode,
-        ResetVariable, SetVariable, ShowVariable,
+        Attach, CreateSchema, CreateTable, Describe, Detach, DropStatement, ExplainNode, Insert,
+        QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     meta::{AstMeta, Raw},
 };
@@ -14,6 +14,10 @@ pub enum Statement<T: AstMeta> {
     Detach(Detach<T>),
 
     Explain(ExplainNode<T>),
+
+    /// DESCRIBE <table>
+    /// DESCRIBE <query>
+    Describe(Describe<T>),
 
     /// SELECT/VALUES
     Query(QueryNode<T>),
