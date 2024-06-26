@@ -2057,6 +2057,7 @@ pub enum CopyToFormatOptions {
     Csv(CopyToFormatOptionsCsv),
     Parquet(CopyToFormatOptionsParquet),
     Lance(CopyToFormatOptionsLance),
+    Delta(CopyToFormatOptionsDelta),
     Json(CopyToFormatOptionsJson),
     Bson(CopyToFormatOptionsBson),
 }
@@ -2076,6 +2077,7 @@ impl CopyToFormatOptions {
     pub const JSON: &'static str = "json";
     pub const BSON: &'static str = "bson";
     pub const LANCE: &'static str = "lance";
+    pub const DELTA: &'static str = "delta";
 
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -2084,7 +2086,12 @@ impl CopyToFormatOptions {
             Self::Json(_) => Self::JSON,
             Self::Bson(_) => Self::BSON,
             Self::Lance(_) => Self::LANCE,
+            Self::Delta(_) => Self::DELTA,
         }
+    }
+
+    pub fn is_table(&self) -> bool {
+        matches!(self, Self::Delta(_) | Self::Lance(_))
     }
 }
 
@@ -2106,6 +2113,9 @@ pub struct CopyToFormatOptionsJson {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsBson {}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct CopyToFormatOptionsDelta {}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct CopyToFormatOptionsLance {

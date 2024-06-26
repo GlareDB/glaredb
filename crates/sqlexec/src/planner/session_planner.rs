@@ -89,6 +89,7 @@ use protogen::metastore::types::options::{
     CopyToFormatOptions,
     CopyToFormatOptionsBson,
     CopyToFormatOptionsCsv,
+    CopyToFormatOptionsDelta,
     CopyToFormatOptionsJson,
     CopyToFormatOptionsLance,
     CopyToFormatOptionsParquet,
@@ -2039,6 +2040,9 @@ impl<'a> SessionPlanner<'a> {
                     max_bytes_per_file: m.remove_optional("max_bytes_per_file")?,
                     input_batch_size: m.remove_optional("input_batch_size")?,
                 })
+            }
+            Some(CopyToFormatOptions::DELTA) => {
+                CopyToFormatOptions::Delta(CopyToFormatOptionsDelta {})
             }
             Some(other) => return Err(internal!("unsupported output format: {other}")),
         };

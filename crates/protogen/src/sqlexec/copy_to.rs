@@ -80,6 +80,8 @@ pub enum CopyToFormatOptionsEnum {
     Lance(CopyToFormatOptionsLance),
     #[prost(message, tag = "5")]
     Bson(CopyToFormatOptionsBson),
+    #[prost(message, tag = "6")]
+    Delta(CopyToFormatOptionsDelta),
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -117,6 +119,9 @@ pub struct CopyToFormatOptionsLance {
 #[derive(Clone, PartialEq, Message)]
 pub struct CopyToFormatOptionsBson {}
 
+#[derive(Clone, PartialEq, Message)]
+pub struct CopyToFormatOptionsDelta {}
+
 impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFormatOptions {
     type Error = crate::errors::ProtoConvError;
     fn try_from(
@@ -124,6 +129,9 @@ impl TryFrom<crate::metastore::types::options::CopyToFormatOptions> for CopyToFo
     ) -> Result<Self, Self::Error> {
         match value {
             crate::metastore::types::options::CopyToFormatOptions::Bson(_) => {
+                Ok(CopyToFormatOptions::default())
+            }
+            crate::metastore::types::options::CopyToFormatOptions::Delta(_) => {
                 Ok(CopyToFormatOptions::default())
             }
             crate::metastore::types::options::CopyToFormatOptions::Lance(opts) => {
@@ -179,14 +187,6 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
             ))?;
 
         match value {
-            CopyToFormatOptionsEnum::Csv(csv) => {
-                Ok(crate::metastore::types::options::CopyToFormatOptions::Csv(
-                    crate::metastore::types::options::CopyToFormatOptionsCsv {
-                        delim: csv.delim as u8,
-                        header: csv.header,
-                    },
-                ))
-            }
             CopyToFormatOptionsEnum::Lance(lance) => Ok(
                 crate::metastore::types::options::CopyToFormatOptions::Lance(
                     crate::metastore::types::options::CopyToFormatOptionsLance {
@@ -197,6 +197,26 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
                     },
                 ),
             ),
+            CopyToFormatOptionsEnum::Delta(_) => Ok(
+                crate::metastore::types::options::CopyToFormatOptions::Delta(
+                    crate::metastore::types::options::CopyToFormatOptionsDelta {},
+                ),
+            ),
+            CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
+                crate::metastore::types::options::CopyToFormatOptions::Parquet(
+                    crate::metastore::types::options::CopyToFormatOptionsParquet {
+                        row_group_size: parquet.row_group_size as usize,
+                    },
+                ),
+            ),
+            CopyToFormatOptionsEnum::Csv(csv) => {
+                Ok(crate::metastore::types::options::CopyToFormatOptions::Csv(
+                    crate::metastore::types::options::CopyToFormatOptionsCsv {
+                        delim: csv.delim as u8,
+                        header: csv.header,
+                    },
+                ))
+            }
             CopyToFormatOptionsEnum::Json(json) => {
                 Ok(crate::metastore::types::options::CopyToFormatOptions::Json(
                     crate::metastore::types::options::CopyToFormatOptionsJson { array: json.array },
@@ -207,13 +227,6 @@ impl TryFrom<CopyToFormatOptions> for crate::metastore::types::options::CopyToFo
                     crate::metastore::types::options::CopyToFormatOptionsBson {},
                 ))
             }
-            CopyToFormatOptionsEnum::Parquet(parquet) => Ok(
-                crate::metastore::types::options::CopyToFormatOptions::Parquet(
-                    crate::metastore::types::options::CopyToFormatOptionsParquet {
-                        row_group_size: parquet.row_group_size as usize,
-                    },
-                ),
-            ),
         }
     }
 }
