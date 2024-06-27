@@ -196,8 +196,25 @@ pub fn infer_schema(
                 set
             });
 
-            let dt = set.iter().next().cloned().unwrap_or(DataType::Utf8);
-            Field::new(col_name.replace(' ', "_"), dt, true)
+            let field_name = col_name.replace(' ', "_");
+
+            if set.len() == 1 {
+                Field::new(
+                    field_name,
+                    set.iter().next().cloned().unwrap_or(DataType::Utf8),
+                    true,
+                )
+            } else if set.contains(&DataType::Utf8) {
+                Field::new(field_name, DataType::Utf8, true)
+            } else if set.contains(&DataType::Float64) {
+                Field::new(field_name, DataType::Float64, true)
+            } else if set.contains(&DataType::Int64) {
+                Field::new(field_name, DataType::Int64, true)
+            } else if set.contains(&DataType::Boolean) {
+                Field::new(field_name, DataType::Boolean, true)
+            } else {
+                Field::new(field_name, DataType::Null, true)
+            }
         })
         .collect();
 
@@ -210,6 +227,10 @@ fn infer_value_type(v: &calamine::Data) -> Result<DataType, ExcelError> {
         calamine::Data::Float(_) => Ok(DataType::Float64),
         calamine::Data::Bool(_) => Ok(DataType::Boolean),
         calamine::Data::String(_) => Ok(DataType::Utf8),
+        // TODO: parsing value errors that we get from the calamine
+        // library, could either become nulls or could be
+        // errors. right now they are errors, and this should probably
+        // be configurable, however...
         calamine::Data::Error(e) => Err(ExcelError::Load(e.to_string())),
         calamine::Data::DateTime(_) => Ok(DataType::Date64),
         calamine::Data::Empty => Ok(DataType::Null),
