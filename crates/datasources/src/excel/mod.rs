@@ -3,10 +3,16 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use calamine::{DataType as CalamineDataType, Range, Reader, Sheets};
-use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray};
+use datafusion::arrow::array::{
+    ArrayRef,
+    BooleanArray,
+    Date64Array,
+    NullArray,
+    PrimitiveArray,
+    StringArray,
+};
 use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use deltalake::arrow::array::NullArray;
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::common::url::DatasourceUrl;
@@ -161,11 +167,7 @@ pub fn infer_schema(
     let mut col_types: HashMap<&str, HashSet<DataType>> = HashMap::new();
     let mut rows = r.rows();
     let col_names: Vec<String> = if has_header {
-        let _ = rows.next();
-
-        r.rows()
-            .into_iter()
-            .next()
+        rows.next()
             .unwrap()
             .into_iter()
             .enumerate()
@@ -178,7 +180,7 @@ pub fn infer_schema(
             )
             .collect::<Result<_, _>>()?
     } else {
-        (0..r.rows().into_iter().next().unwrap_or_default().len())
+        (0..r.rows().next().unwrap_or_default().len())
             .map(|n| format!("{}", n))
             .collect()
     };
