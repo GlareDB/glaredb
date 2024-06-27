@@ -12,6 +12,18 @@ select * from delta_local order by a;
 1   hello
 2   world
 
+# for all cases, there MUST NOT be a delta table at this location or its an error.
+# for local cases the directory MUST exist and NOT have an existing delta table.
+
+statement ok
+copy (select * from delta_local) to 'file://${TMP}' format delta;
+
+query IT
+select * from read_delta('${TMP}') order by a;
+----
+1   hello
+2   world
+
 statement ok
 ALTER TABLE delta_local SET ACCESS_MODE TO READ_WRITE;
 

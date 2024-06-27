@@ -52,7 +52,6 @@ fn main() -> Result<()> {
         None => Commands::Local(cli.local_args),
     };
 
-
     match (&command, cli.log_mode, cli.verbose) {
         (
             // User specified a log file, so we should use it.

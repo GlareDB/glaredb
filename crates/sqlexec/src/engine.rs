@@ -24,6 +24,7 @@ use object_store::prefix::PrefixStore;
 use object_store::{Error as ObjectStoreError, ObjectStore};
 use object_store_util::conf::StorageConfig;
 use object_store_util::shared::SharedObjectStore;
+use once_cell::sync::OnceCell;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
 use protogen::rpcsrv::types::common;
 use sqlbuiltins::builtins::{SCHEMA_CURRENT_SESSION, SCHEMA_DEFAULT};
@@ -361,6 +362,22 @@ impl Engine {
             !task_executors.is_empty(),
             "there should be at least one executor"
         );
+
+        static CRYPTO_PROVIDER: OnceCell<()> = OnceCell::new();
+        CRYPTO_PROVIDER.get_or_try_init(|| {
+            if rustls::crypto::CryptoProvider::get_default().is_none() {
+                rustls::crypto::CryptoProvider::install_default(
+                    rustls::crypto::aws_lc_rs::default_provider(),
+                )
+                .map(|r| r.to_owned())
+                .map_err(|_| {
+                    ExecError::Internal("unable to register crypto provider".to_string())
+                })?;
+            }
+
+            Ok::<(), ExecError>(())
+        })?;
+
 
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),

@@ -1,5 +1,6 @@
 pub mod bson;
 pub mod csv;
+pub mod delta;
 pub mod json;
 pub mod lance;
 pub mod parquet;

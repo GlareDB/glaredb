@@ -16,6 +16,7 @@ bytes = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
+rustls = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -26,13 +27,12 @@ parser = { path = "../parser" }
 pgrepr = { path = "../pgrepr" }
 proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
-rustls = "0.23.10"
 rustls-pemfile = "2.1.2"
 tokio-postgres = "0.7.8"
 tokio-rustls = "0.26.0"
 tokio-util = { version = "0.7.11", features = ["codec"] }
 uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
-webpki-roots = "0.26.2"
+webpki-roots = "0.26.3"
 
 [dev-dependencies]
 tempfile = "3"

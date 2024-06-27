@@ -4,7 +4,7 @@ default-members = ["crates/*", "xtask", "rstests"]
 resolver = "2"
 
 [workspace.package]
-version = "0.9.3"
+version = "0.9.4"
 edition = "2021"
 
 [profile.release]
@@ -36,11 +36,12 @@ object_store = "0.9"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
+rustls = "0.23.10"
 serde_json = "1.0.117"
 tempfile = "3.10.1"
 thiserror = "1.0"
 tracing = "0.1"
-url = "2.5.1"
+url = "2.5.2"
 bytes = "1.6.0"
 
 [workspace.dependencies.deltalake]
