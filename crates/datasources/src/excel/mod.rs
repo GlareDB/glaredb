@@ -6,6 +6,7 @@ use calamine::{DataType as CalamineDataType, Range, Reader, Sheets};
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use deltalake::arrow::array::NullArray;
 use object_store::{ObjectMeta, ObjectStore};
 
 use crate::common::url::DatasourceUrl;
@@ -121,11 +122,11 @@ fn xlsx_sheet_value_to_record_batch(
                         .collect::<BooleanArray>(),
                 ) as ArrayRef,
                 DataType::Int64 => Arc::new(
-                    rows.map(|r| r.get(i).and_then(|v| v.get_int()))
+                    rows.map(|r| r.get(i).and_then(|v| v.as_i64()))
                         .collect::<PrimitiveArray<Int64Type>>(),
                 ) as ArrayRef,
                 DataType::Float64 => Arc::new(
-                    rows.map(|r| r.get(i).and_then(|v| v.get_float()))
+                    rows.map(|r| r.get(i).and_then(|v| v.as_f64()))
                         .collect::<PrimitiveArray<Float64Type>>(),
                 ) as ArrayRef,
                 DataType::Date64 => {
@@ -140,8 +141,9 @@ fn xlsx_sheet_value_to_record_batch(
                     }
                     Arc::new(arr.finish())
                 }
+                DataType::Null => Arc::new(NullArray::new(rows.len())),
                 _ => Arc::new(
-                    rows.map(|r| r.get(i).map(|v| v.get_string().unwrap_or("null")))
+                    rows.map(|r| r.get(i).map(|v| v.as_string().unwrap_or_default()))
                         .collect::<StringArray>(),
                 ) as ArrayRef,
             }
@@ -158,27 +160,34 @@ pub fn infer_schema(
 ) -> Result<Schema, ExcelError> {
     let mut col_types: HashMap<&str, HashSet<DataType>> = HashMap::new();
     let mut rows = r.rows();
-    let col_names: Vec<String> = rows
-        .next()
-        .unwrap()
-        .iter()
-        .enumerate()
-        .map(
-            |(i, c)| match (has_header, c.get_string().map(|s| s.to_string())) {
-                (true, Some(s)) => Ok(s),
-                (true, None) => Err(ExcelError::Load("failed to parse header".to_string())),
-                (false, _) => Ok(format!("col{}", i)),
-            },
-        )
-        .collect::<Result<_, _>>()?;
+    let col_names: Vec<String> = if has_header {
+        let _ = rows.next();
+
+        r.rows()
+            .into_iter()
+            .next()
+            .unwrap()
+            .into_iter()
+            .enumerate()
+            .map(
+                |(i, c)| match (has_header, c.get_string().map(|s| s.to_string())) {
+                    (true, Some(s)) => Ok(s),
+                    (true, None) => Err(ExcelError::Load("failed to parse header".to_string())),
+                    (false, _) => Ok(format!("col{}", i)),
+                },
+            )
+            .collect::<Result<_, _>>()?
+    } else {
+        (0..r.rows().into_iter().next().unwrap_or_default().len())
+            .map(|n| format!("{}", n))
+            .collect()
+    };
+
 
     for row in rows.take(infer_schema_length) {
         for (i, col_val) in row.iter().enumerate() {
             let col_name = col_names.get(i).unwrap();
             if let Ok(col_type) = infer_value_type(col_val) {
-                if col_type == DataType::Null {
-                    continue;
-                }
                 let entry = col_types.entry(col_name).or_default();
                 entry.insert(col_type);
             } else {
@@ -212,8 +221,10 @@ pub fn infer_schema(
                 Field::new(field_name, DataType::Int64, true)
             } else if set.contains(&DataType::Boolean) {
                 Field::new(field_name, DataType::Boolean, true)
-            } else {
+            } else if set.contains(&DataType::Null) {
                 Field::new(field_name, DataType::Null, true)
+            } else {
+                Field::new(field_name, DataType::Utf8, true)
             }
         })
         .collect();
@@ -234,8 +245,6 @@ fn infer_value_type(v: &calamine::Data) -> Result<DataType, ExcelError> {
         calamine::Data::Error(e) => Err(ExcelError::Load(e.to_string())),
         calamine::Data::DateTime(_) => Ok(DataType::Date64),
         calamine::Data::Empty => Ok(DataType::Null),
-        _ => Err(ExcelError::Load(
-            "Failed to parse the cell value".to_owned(),
-        )),
+        _ => Err(ExcelError::Parse),
     }
 }

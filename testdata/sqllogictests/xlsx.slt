@@ -118,10 +118,10 @@ create external table bad_report from excel options(location='./invalid_path/ran
 
 # should default to has_header=true and the first sheet of the file, if not specified
 statement ok
-create external table html_table from excel options(location='https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx');
+create external table http_table from excel options(location='https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx');
 
 query
-select "Resources", "Cost", "Revenue" from html_table;
+select "Resources", "Cost", "Revenue" from http_table;
 ----
 1 10 100
 2 20 200
@@ -131,7 +131,7 @@ select "Resources", "Cost", "Revenue" from html_table;
 
 # should default to has_header=true and the first sheet of the file, if not specified
 query
-select "Resources", "Cost", "Revenue" from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx');
+select "Resources", "Cost", "Revenue" from read_excel('./testdata/xlsx/multiple_sheets.xlsx');
 ----
 1 10 100
 2 20 200
@@ -139,20 +139,20 @@ select "Resources", "Cost", "Revenue" from read_excel('https://github.com/GlareD
 4 40 400
 5 50 500
 
-query
-select * from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
+query T
+select * from read_excel('./testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
 ----
-'HEADING'
-'1'
-'2'
-'3'
+HEADING
+1
+2
+3
 
 query
-select * from read_excel('https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'multiple_data_types', has_header => true);
+select * from read_excel('./testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'multiple_data_types', has_header => true);
 ----
-'1'	  1.0  'foo' 'foo'
-'2'	  2.0  'bar' 'bar'
-'3'	  3.0  'baz' 'baz'
-'foo' 4.0  '4'	 '4.0'
-'5'	  5.0  '5'	 '5.0'
-'bar' NULL NULL  NULL
+1 1 foo foo
+2 2 bar bar
+3 3 baz baz
+foo 4.0 4 4.0
+5 5.0 5 5.0
+bar (empty) (empty) (empty)
