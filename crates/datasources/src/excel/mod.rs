@@ -169,7 +169,7 @@ pub fn infer_schema(
     let col_names: Vec<String> = if has_header {
         rows.next()
             .unwrap()
-            .into_iter()
+            .iter()
             .enumerate()
             .map(
                 |(i, c)| match (has_header, c.get_string().map(|s| s.to_string())) {
