@@ -1,11 +1,11 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GlareDB/glaredb.git",
+    "url": "git+https://github.com/GlareDB/glaredb.git",
     "directory": "bindings/nodejs"
   },
   "files": [
