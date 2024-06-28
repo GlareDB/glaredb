@@ -31,7 +31,7 @@ rustls-pemfile = "2.1.2"
 tokio-postgres = "0.7.8"
 tokio-rustls = "0.26.0"
 tokio-util = { version = "0.7.11", features = ["codec"] }
-uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.9.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 webpki-roots = "0.26.3"
 
 [dev-dependencies]
