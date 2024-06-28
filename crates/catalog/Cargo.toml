@@ -22,5 +22,5 @@ thiserror.workspace = true
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.9.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
