@@ -121,7 +121,7 @@ impl ExecutionPlan for MongoDbInsertExecPlan {
                         }
 
                         count += coll
-                            .insert_many(docs, None)
+                            .insert_many(docs)
                             .await
                             .map(|res| res.inserted_ids.len())
                             .map_err(|e| DataFusionError::External(Box::new(e)))?
