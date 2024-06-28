@@ -2556,6 +2556,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "6.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "804c8821570c3f8b70230c2ba75ffa5c0f9a4189b9a432b6656c536712acae28"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.3",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2588,7 +2602,7 @@ dependencies = [
  "bytes",
  "bzip2",
  "chrono",
- "dashmap",
+ "dashmap 5.5.3",
  "datafusion-common",
  "datafusion-execution",
  "datafusion-expr",
@@ -2653,7 +2667,7 @@ checksum = "3f9c93043081487e335399a21ebf8295626367a647ac5cb87d41d18afad7d0f7"
 dependencies = [
  "arrow",
  "chrono",
- "dashmap",
+ "dashmap 5.5.3",
  "datafusion-common",
  "datafusion-expr",
  "futures",
@@ -3029,7 +3043,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "chrono",
- "dashmap",
+ "dashmap 5.5.3",
  "datafusion",
  "datafusion-common",
  "datafusion-expr",
@@ -4618,7 +4632,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "dashmap",
+ "dashmap 5.5.3",
  "datafusion",
  "datafusion-physical-expr",
  "futures",
@@ -5317,7 +5331,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "catalog",
- "dashmap",
+ "dashmap 6.0.1",
  "datafusion",
  "futures",
  "ioutil",
@@ -7202,7 +7216,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
- "dashmap",
+ "dashmap 6.0.1",
  "datafusion",
  "datafusion-proto",
  "datafusion_ext",
@@ -7622,7 +7636,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "dashmap",
+ "dashmap 5.5.3",
  "futures",
  "hashbrown 0.14.3",
  "histogram",
@@ -8242,7 +8256,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "catalog",
- "dashmap",
+ "dashmap 6.0.1",
  "datafusion",
  "datafusion-proto",
  "datafusion_ext",
