@@ -1,0 +1,31 @@
+# random()
+
+query B
+select random() < 1;
+----
+true
+
+query B
+select random() >= 0;
+----
+true
+
+# Should produce two rows. This is testing that we're properly extending arrays
+# when a function accepts no arguments.
+query B
+select random() >= 0 from (values (1), (2));
+----
+true
+true
+
+# Test "side-effect" in CTE.
+#
+# CTE is inlined twice, and so execution of it should result in two different
+# values.
+query B
+with rand_cte as (select random())
+  select a == b
+  from rand_cte t1(a), rand_cte t2(b);
+----
+false
+

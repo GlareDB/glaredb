@@ -32,5 +32,8 @@ pub mod binder;
 pub mod planner;
 pub mod scope;
 
-mod consteval;
+mod aggregate;
+mod decorrelate;
 mod expr;
+mod query;
+mod subquery;

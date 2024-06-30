@@ -7,9 +7,11 @@ use std::{
     fmt,
     sync::Arc,
     task::{Context, Poll},
+    time::Instant,
 };
+use tracing::trace;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PipelineId(pub usize);
 
 /// A pipeline represents execution across a sequence of operators.
@@ -123,7 +125,6 @@ pub struct PartitionPipeline {
     /// Information about the pipeline.
     ///
     /// Should only be used for debugging/logging.
-    #[allow(dead_code)]
     info: PartitionPipelineInfo,
 
     /// State of this pipeline.
@@ -143,6 +144,9 @@ pub struct PartitionPipeline {
     /// exhausted, this will be incremented to avoid pulling from an exhausted
     /// operator.
     pull_start_idx: usize,
+
+    /// Execution timings.
+    timings: PartitionPipelineTimings,
 }
 
 impl PartitionPipeline {
@@ -155,15 +159,52 @@ impl PartitionPipeline {
             state: PipelinePartitionState::PullFrom { operator_idx: 0 },
             operators: Vec::new(),
             pull_start_idx: 0,
+            timings: PartitionPipelineTimings::default(),
         }
+    }
+
+    /// Get the pipeline id for this partition pipeline.
+    pub fn pipeline_id(&self) -> PipelineId {
+        self.info.pipeline
+    }
+
+    /// Get the partition number for this partition pipeline.
+    pub fn partition(&self) -> usize {
+        self.info.partition
+    }
+
+    /// Get the current state of the pipeline.
+    pub(crate) fn state(&self) -> &PipelinePartitionState {
+        &self.state
+    }
+
+    pub(crate) fn timings(&self) -> &PartitionPipelineTimings {
+        &self.timings
+    }
+
+    /// Return an iterator over all the physcial operators in this partition
+    /// pipeline.
+    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
+        self.operators.iter().map(|op| &op.physical)
     }
 }
 
 /// Information about a partition pipeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct PartitionPipelineInfo {
+pub struct PartitionPipelineInfo {
     pipeline: PipelineId,
     partition: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PartitionPipelineTimings {
+    /// Instant at which the pipeline started execution. Set on the first call
+    /// the `poll_execute`.
+    pub start: Option<Instant>,
+
+    /// Instant at which the pipeline completed. Only set when the pipeline
+    /// completes without error.
+    pub completed: Option<Instant>,
 }
 
 #[derive(Debug)]
@@ -178,6 +219,7 @@ pub(crate) struct OperatorWithState {
     partition_state: PartitionState,
 }
 
+#[derive(Clone)]
 pub(crate) enum PipelinePartitionState {
     /// Need to pull from an operator.
     PullFrom { operator_idx: usize },
@@ -229,6 +271,16 @@ impl PartitionPipeline {
     /// they've not been exhausted. An example operator that would emit a Break
     /// is LIMIT.
     pub fn poll_execute(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>> {
+        trace!(
+            pipeline_id = %self.info.pipeline.0,
+            partition = %self.info.partition,
+            "executing partition pipeline",
+        );
+
+        if self.timings.start.is_none() {
+            self.timings.start = Some(Instant::now());
+        }
+
         let state = &mut self.state;
 
         loop {
@@ -253,7 +305,9 @@ impl PartitionPipeline {
                             };
                             continue;
                         }
-                        Ok(PollPull::Pending) => return Poll::Pending,
+                        Ok(PollPull::Pending) => {
+                            return Poll::Pending;
+                        }
                         Ok(PollPull::Exhausted) => {
                             // This operator is exhausted, we're never going to
                             // pull from it again.
@@ -384,7 +438,10 @@ impl PartitionPipeline {
                         }
                     }
                 }
-                PipelinePartitionState::Completed => return Poll::Ready(None),
+                PipelinePartitionState::Completed => {
+                    self.timings.completed = Some(Instant::now());
+                    return Poll::Ready(None);
+                }
             }
         }
     }

@@ -1,13 +1,17 @@
 pub mod future;
+pub mod handle;
 pub mod query;
 
+use handle::QueryHandle;
+use parking_lot::Mutex;
+use query::{PipelineState, TaskState};
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
-use std::{fmt, sync::mpsc};
 use tracing::debug;
 
-use crate::execution::pipeline::PartitionPipeline;
+use crate::engine::result::ErrorSink;
 use crate::execution::query_graph::QueryGraph;
 use rayexec_error::{RayexecError, Result};
 
@@ -40,26 +44,37 @@ impl ComputeScheduler {
         })
     }
 
-    /// Spawn execution of a partition pipeline on the thread pool.
-    pub fn spawn_partition_pipeline(
-        &self,
-        pipeline: PartitionPipeline,
-        errors: mpsc::Sender<RayexecError>,
-    ) {
-        let task = PartitionPipelineTask::new(pipeline, errors);
-        let pool = self.pool.clone();
-        self.pool.spawn(|| task.execute(pool));
-    }
-
     /// Spawn execution of a query graph on the thread pool.
     ///
     /// Each partition pipeline in the query graph will be independently
     /// executed.
-    pub fn spawn_query_graph(&self, query_graph: QueryGraph, errors: mpsc::Sender<RayexecError>) {
+    pub fn spawn_query_graph(&self, query_graph: QueryGraph, errors: ErrorSink) -> QueryHandle {
         debug!("spawning execution of query graph");
-        for partition_pipeline in query_graph.into_partition_pipeline_iter() {
-            self.spawn_partition_pipeline(partition_pipeline, errors.clone());
+
+        let task_states: Vec<_> = query_graph
+            .into_partition_pipeline_iter()
+            .map(|pipeline| {
+                Arc::new(TaskState {
+                    pipeline: Mutex::new(PipelineState {
+                        pipeline,
+                        query_canceled: false,
+                    }),
+                    errors: errors.clone(),
+                    pool: self.pool.clone(),
+                })
+            })
+            .collect();
+
+        let handle = QueryHandle {
+            states: Mutex::new(task_states.clone()),
+        };
+
+        for state in task_states {
+            let task = PartitionPipelineTask::from_task_state(state);
+            self.pool.spawn(|| task.execute());
         }
+
+        handle
     }
 
     /// Spawn a future on the scheduler.

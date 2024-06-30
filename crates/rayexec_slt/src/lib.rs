@@ -10,8 +10,11 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
 use sqllogictest::DefaultColumnType;
-use std::path::{Path, PathBuf};
 use std::{fs, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 /// Run all SLTs from the provided paths.
@@ -141,9 +144,26 @@ impl sqllogictest::AsyncDB for TestSession {
         }
 
         let typs = schema_to_types(&results[0].output_schema);
-        while let Some(result) = results[0].stream.next().await {
-            let batch = result?;
-            rows.extend(batch_to_rows(batch)?);
+
+        loop {
+            // Each pull on the stream has a 5 sec timeout. If it takes longer than
+            // 5 secs, we can assume that the query is stuck.
+            let timeout = tokio::time::timeout(Duration::from_secs(5), results[0].stream.next());
+
+            match timeout.await {
+                Ok(Some(result)) => {
+                    let batch = result?;
+                    rows.extend(batch_to_rows(batch)?);
+                }
+                Ok(None) => break,
+                Err(_) => {
+                    // Timed out.
+                    results[0].handle.cancel();
+
+                    let dump = results[0].handle.query_dump();
+                    return Err(RayexecError::new(format!("Query timed out\n---\n{dump}")));
+                }
+            }
         }
 
         Ok(sqllogictest::DBOutput::Rows { types: typs, rows })

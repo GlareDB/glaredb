@@ -1,6 +1,7 @@
 use crate::{
     execution::pipeline::Pipeline,
     logical::{
+        context::QueryContext,
         explainable::{ExplainConfig, ExplainEntry, Explainable},
         operator::{ExplainFormat, LogicalOperator},
     },
@@ -9,13 +10,16 @@ use rayexec_error::{Result, ResultExt};
 
 /// Formats a logical plan into explain output.
 pub fn format_logical_plan_for_explain(
+    context: Option<&QueryContext>,
     plan: &LogicalOperator,
     format: ExplainFormat,
     verbose: bool,
 ) -> Result<String> {
     let conf = ExplainConfig { verbose };
     match format {
-        ExplainFormat::Text => ExplainNode::walk_logical(plan, conf).format_text(0, String::new()),
+        ExplainFormat::Text => {
+            ExplainNode::walk_logical(context, plan, conf).format_text(0, String::new())
+        }
         ExplainFormat::Json => unimplemented!(),
     }
 }
@@ -72,34 +76,52 @@ impl ExplainNode {
         }
     }
 
-    fn walk_logical(plan: &LogicalOperator, conf: ExplainConfig) -> ExplainNode {
+    fn walk_logical(
+        context: Option<&QueryContext>,
+        plan: &LogicalOperator,
+        conf: ExplainConfig,
+    ) -> ExplainNode {
         let children = match plan {
-            LogicalOperator::Projection(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::Filter(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::Aggregate(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::Order(p) => vec![Self::walk_logical(&p.input, conf)],
+            LogicalOperator::Projection(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Filter(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Aggregate(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Order(p) => vec![Self::walk_logical(context, &p.input, conf)],
             LogicalOperator::AnyJoin(p) => {
                 vec![
-                    Self::walk_logical(&p.left, conf),
-                    Self::walk_logical(&p.right, conf),
+                    Self::walk_logical(context, &p.left, conf),
+                    Self::walk_logical(context, &p.right, conf),
                 ]
             }
             LogicalOperator::EqualityJoin(p) => {
                 vec![
-                    Self::walk_logical(&p.left, conf),
-                    Self::walk_logical(&p.right, conf),
+                    Self::walk_logical(context, &p.left, conf),
+                    Self::walk_logical(context, &p.right, conf),
                 ]
             }
             LogicalOperator::CrossJoin(p) => {
                 vec![
-                    Self::walk_logical(&p.left, conf),
-                    Self::walk_logical(&p.right, conf),
+                    Self::walk_logical(context, &p.left, conf),
+                    Self::walk_logical(context, &p.right, conf),
                 ]
             }
-            LogicalOperator::Limit(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::Insert(p) => vec![Self::walk_logical(&p.input, conf)],
-            LogicalOperator::Explain(p) => vec![Self::walk_logical(&p.input, conf)],
+            LogicalOperator::DependentJoin(p) => {
+                vec![
+                    Self::walk_logical(context, &p.left, conf),
+                    Self::walk_logical(context, &p.right, conf),
+                ]
+            }
+            LogicalOperator::Limit(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Insert(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Explain(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::MaterializedScan(scan) => {
+                if let Some(inner) = context {
+                    let plan = &inner.materialized[scan.idx].root;
+                    vec![Self::walk_logical(context, plan, conf)]
+                } else {
+                    Vec::new()
+                }
+            }
             LogicalOperator::Empty
             | LogicalOperator::ExpressionList(_)
             | LogicalOperator::SetVar(_)

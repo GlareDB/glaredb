@@ -26,6 +26,7 @@ crossbeam = "0.8.4"
 half = "2.4.1"
 tokio = { workspace = true }
 regex = { workspace = true }
+rand = "0.8.5"
 
 [dev-dependencies]
 insta = "1.39.0"

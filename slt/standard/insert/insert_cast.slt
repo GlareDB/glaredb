@@ -1,0 +1,31 @@
+# INSERT INTO with casting
+
+statement ok
+create temp table t1 (a int, b text, c float);
+
+statement ok
+insert into t1 values (1, 2, 3);
+
+query ITR
+select * from t1;
+----
+1  2  3
+
+statement ok
+insert into t1 values (4, 5, '6.5');
+
+query ITR rowsort
+select * from t1;
+----
+1  2  3
+4  5  6.5
+
+statement ok
+insert into t1 values (7, 'hello', null);
+
+query ITR rowsort
+select * from t1;
+----
+1  2      3
+4  5      6.5
+7  hello  NULL

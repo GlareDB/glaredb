@@ -7,7 +7,7 @@ query TT
 describe t1;
 ----
 a  Int32
-b  Decimal64(18, 9)
+b  Decimal64(18,9)
 c  Utf8
 
 statement ok

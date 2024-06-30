@@ -1,7 +1,5 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -32,21 +30,29 @@ impl FunctionInfo for Repeat {
     }
 }
 
-impl GenericScalarFunction for Repeat {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Repeat {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8)),
-            (DataType::LargeUtf8, DataType::Int64) => Ok(Box::new(RepeatLargeUtf8)),
+            (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8Impl)),
+            (DataType::LargeUtf8, DataType::Int64) => Ok(Box::new(RepeatLargeUtf8Impl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RepeatUtf8;
+pub struct RepeatUtf8Impl;
 
-impl SpecializedScalarFunction for RepeatUtf8 {
+impl PlannedScalarFunction for RepeatUtf8Impl {
+    fn name(&self) -> &'static str {
+        "repeat_utf8_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Utf8
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let strings = arrays[0];
         let nums = arrays[1];
@@ -67,9 +73,17 @@ impl SpecializedScalarFunction for RepeatUtf8 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RepeatLargeUtf8;
+pub struct RepeatLargeUtf8Impl;
 
-impl SpecializedScalarFunction for RepeatLargeUtf8 {
+impl PlannedScalarFunction for RepeatLargeUtf8Impl {
+    fn name(&self) -> &'static str {
+        "repeat_largeutf8_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::LargeUtf8
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let strings = arrays[0];
         let nums = arrays[1];

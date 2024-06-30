@@ -1,8 +1,8 @@
 pub mod scalar;
 
-use crate::functions::aggregate::SpecializedAggregateFunction;
-use crate::functions::scalar::SpecializedScalarFunction;
-use crate::logical::operator::LogicalExpression;
+use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::functions::scalar::PlannedScalarFunction;
+use crate::logical::expr::LogicalExpression;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::TypeSchema;
@@ -28,7 +28,7 @@ pub enum PhysicalScalarExpression {
     /// A scalar function.
     ScalarFunction {
         /// The specialized function we'll be calling.
-        function: Box<dyn SpecializedScalarFunction>,
+        function: Box<dyn PlannedScalarFunction>,
 
         /// Column inputs into the function.
         inputs: Vec<PhysicalScalarExpression>,
@@ -58,37 +58,26 @@ impl PhysicalScalarExpression {
                     return Err(RayexecError::new(format!(
                         "Invalid column index '{}', max index: '{}'",
                         col,
-                        input.types.len() - 1
+                        input.types.len() as i64 - 1 // Cast to i64 in case input we pass in has 0 columns.
                     )));
                 }
                 PhysicalScalarExpression::Column(col)
             }
             LogicalExpression::Literal(lit) => PhysicalScalarExpression::Literal(lit),
             LogicalExpression::Unary { op, expr } => {
-                let datatype = expr.datatype(input, &[])?;
                 let input = PhysicalScalarExpression::try_from_uncorrelated_expr(*expr, input)?;
 
-                let func = op.scalar_function();
-                let specialized = func.specialize(&[datatype])?;
-
                 PhysicalScalarExpression::ScalarFunction {
-                    function: specialized,
+                    function: op.scalar,
                     inputs: vec![input],
                 }
             }
             LogicalExpression::Binary { op, left, right } => {
-                let left_datatype = left.datatype(input, &[])?;
-                let right_datatype = right.datatype(input, &[])?;
-
                 let left = PhysicalScalarExpression::try_from_uncorrelated_expr(*left, input)?;
                 let right = PhysicalScalarExpression::try_from_uncorrelated_expr(*right, input)?;
 
-                let scalar_inputs = &[left_datatype, right_datatype];
-                let func = op.scalar_function();
-                let specialized = func.specialize(scalar_inputs)?;
-
                 PhysicalScalarExpression::ScalarFunction {
-                    function: specialized,
+                    function: op.scalar,
                     inputs: vec![left, right],
                 }
             }
@@ -99,22 +88,18 @@ impl PhysicalScalarExpression {
                 )?),
             },
             LogicalExpression::ScalarFunction { function, inputs } => {
-                let datatypes = inputs
-                    .iter()
-                    .map(|arg| arg.datatype(input, &[]))
-                    .collect::<Result<Vec<_>>>()?;
-
                 let inputs = inputs
                     .into_iter()
                     .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, input))
                     .collect::<Result<Vec<_>>>()?;
 
-                let specialized = function.specialize(&datatypes)?;
-
-                PhysicalScalarExpression::ScalarFunction {
-                    function: specialized,
-                    inputs,
-                }
+                PhysicalScalarExpression::ScalarFunction { function, inputs }
+            }
+            LogicalExpression::Subquery(_) => {
+                // Should have already been taken care of during planning.
+                return Err(RayexecError::new(
+                    "Cannot convert a subquery into a physical expression",
+                ));
             }
             other => unimplemented!("{other:?}"),
         })
@@ -143,7 +128,21 @@ impl PhysicalScalarExpression {
                     .map(|input| input.eval(batch))
                     .collect::<Result<Vec<_>>>()?;
                 let refs: Vec<_> = inputs.iter().collect(); // Can I not?
-                let out = function.execute(&refs)?;
+                let mut out = function.execute(&refs)?;
+
+                // If function is provided no input, it's expected to return an
+                // array of length 1. We extend the array here so that it's the
+                // same size as the rest.
+                if refs.is_empty() {
+                    let scalar = out
+                        .scalar(0)
+                        .ok_or_else(|| RayexecError::new("Missing scalar at index 0"))?;
+
+                    // TODO: Probably want to check null, and create the
+                    // appropriate array type since this will create a
+                    // NullArray, and not the type we're expecting.
+                    out = scalar.as_array(batch.num_rows());
+                }
 
                 // TODO: Do we want to Arc here? Should we allow batches to be mutable?
 
@@ -182,7 +181,7 @@ impl fmt::Display for PhysicalScalarExpression {
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
-    pub function: Box<dyn SpecializedAggregateFunction>,
+    pub function: Box<dyn PlannedAggregateFunction>,
 
     /// Column indices for the input we'll be aggregating on.
     pub column_indices: Vec<usize>,
@@ -195,7 +194,7 @@ pub struct PhysicalAggregateExpression {
 impl PhysicalAggregateExpression {
     pub fn try_from_logical_expression(
         expr: LogicalExpression,
-        input: &TypeSchema,
+        _input: &TypeSchema, // TODO: Do wil still need this?
     ) -> Result<Self> {
         Ok(match expr {
             LogicalExpression::Aggregate {
@@ -208,13 +207,10 @@ impl PhysicalAggregateExpression {
                     other => Err(RayexecError::new(format!("Physical aggregate expressions must be constructed with uncorrelated column inputs, got: {other}"))),
                 }).collect::<Result<Vec<_>>>()?;
 
-                let input_types = column_indices.iter().map(|idx| input.types.get(*idx).cloned().ok_or_else(|| RayexecError::new(format!("Attempted to get a column outside the type schema, got: {idx}, max: {}", input.types.len() -1)))).collect::<Result<Vec<_>>>()?;
-                let output_type = agg.return_type_for_inputs(&input_types).ok_or_else(|| RayexecError::new("Failed to get return type for aggregate while converting to physical expression"))?;
-
-                let specialized = agg.specialize(&input_types)?;
+                let output_type = agg.return_type();
 
                 PhysicalAggregateExpression {
-                    function: specialized,
+                    function: agg,
                     column_indices,
                     output_type,
                 }

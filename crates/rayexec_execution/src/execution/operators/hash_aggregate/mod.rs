@@ -1,5 +1,4 @@
 pub mod aggregate_hash_table;
-pub mod grouping_set;
 
 use parking_lot::Mutex;
 use rayexec_bullet::array::{Array, NullArray};
@@ -16,9 +15,9 @@ use crate::execution::operators::{
 };
 use crate::expr::PhysicalAggregateExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::grouping_set::GroupingSets;
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
-use grouping_set::GroupingSets;
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {

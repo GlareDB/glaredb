@@ -1,0 +1,32 @@
+# GROUP BY column ordinal
+
+statement ok
+create temp table t1 (a text, b int);
+
+statement ok
+insert into t1 values ('a', 1), ('c', 2), ('c', 3);
+
+query TI rowsort
+select a, sum(b) from t1 group by 1;
+----
+a  1
+c  5
+
+query TI
+select 1 as c1, sum(b) from t1 group by 1;
+----
+1  6
+
+# TODO: Weird behavior, need to investigate
+# query TI rowsort
+# select sum(b), b from t1 group by 2;
+# ----
+# 1  1
+# 2  2
+# 3  3
+
+query IT rowsort
+select sum(b), a from t1 group by 2;
+----
+1  a
+5  c

@@ -4,114 +4,6 @@ use crate::storage::PrimitiveStorage;
 
 use super::{is_valid, ArrayAccessor};
 
-pub trait PrimitiveNumeric: Sized {
-    const MIN_VALUE: Self;
-    const MAX_VALUE: Self;
-    const ZERO_VALUE: Self;
-
-    fn from_str(s: &str) -> Option<Self>;
-}
-
-impl PrimitiveNumeric for i8 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for i16 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for i32 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for i64 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for u8 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for u16 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for u32 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for u64 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for f32 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0.0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
-impl PrimitiveNumeric for f64 {
-    const MIN_VALUE: Self = Self::MIN;
-    const MAX_VALUE: Self = Self::MAX;
-    const ZERO_VALUE: Self = 0.0;
-
-    fn from_str(s: &str) -> Option<Self> {
-        s.parse().ok()
-    }
-}
-
 /// Array for storing primitive values.
 #[derive(Debug, PartialEq)]
 pub struct PrimitiveArray<T> {
@@ -144,6 +36,14 @@ pub type TimestampNanosecondsArray = PrimitiveArray<i64>;
 pub type Date32Array = PrimitiveArray<i32>;
 pub type Date64Array = PrimitiveArray<i64>;
 pub type IntervalArray = PrimitiveArray<Interval>;
+
+impl<T: Default + Clone> PrimitiveArray<T> {
+    pub fn new_nulls(len: usize) -> Self {
+        let values = vec![T::default(); len];
+        let validity = Bitmap::all_false(len);
+        Self::new(values, Some(validity))
+    }
+}
 
 impl<T> PrimitiveArray<T> {
     pub fn new(values: Vec<T>, validity: Option<Bitmap>) -> Self {

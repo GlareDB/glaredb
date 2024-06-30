@@ -1,10 +1,10 @@
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
+use rayexec_bullet::compute::concat::concat_batches;
 use rayexec_bullet::compute::filter::filter;
 use rayexec_bullet::compute::take::take;
 use rayexec_error::{RayexecError, Result};
-use std::collections::VecDeque;
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
@@ -49,8 +49,8 @@ pub struct NestedLoopJoinProbePartitionState {
     /// from the build side.
     is_populated: bool,
 
-    /// Buffered batches that are ready to be pulled.
-    buffered: VecDeque<Batch>,
+    /// Buffered batch that's ready to be pulled.
+    buffered: Option<Batch>,
 
     /// Push waker for if buffered isn't empty.
     ///
@@ -75,7 +75,7 @@ impl NestedLoopJoinProbePartitionState {
             partition_idx: partition,
             all_batches: Arc::new(Vec::new()),
             is_populated: false,
-            buffered: VecDeque::new(),
+            buffered: None,
             push_waker: None,
             pull_waker: None,
             input_finished: false,
@@ -222,9 +222,9 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                     }
                 }
 
-                // If we still have buffered batches, reschedule the push until
+                // If we still have a buffered batch, reschedule the push until
                 // it's empty.
-                if !state.buffered.is_empty() {
+                if state.buffered.is_some() {
                     state.push_waker = Some(cx.waker().clone());
                     return Ok(PollPush::Pending(batch));
                 }
@@ -232,11 +232,11 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
                 // Do the join.
                 let mut batches = Vec::new();
                 for left in state.all_batches.iter() {
-                    let mut out = cross_join(left, &batch, self.filter.as_ref())?;
-                    batches.append(&mut out);
+                    let out = cross_join(left, &batch, self.filter.as_ref())?;
+                    batches.push(out);
                 }
-
-                state.buffered.extend(batches);
+                let batch = concat_batches(&batches)?;
+                state.buffered = Some(batch);
 
                 // We have stuff in the buffer, wake up the puller.
                 if let Some(waker) = state.pull_waker.take() {
@@ -305,7 +305,7 @@ impl PhysicalOperator for PhysicalNestedLoopJoin {
     ) -> Result<PollPull> {
         match partition_state {
             PartitionState::NestedLoopJoinProbe(state) => {
-                match state.buffered.pop_front() {
+                match state.buffered.take() {
                     Some(batch) => Ok(PollPull::Batch(batch)),
                     None => {
                         if state.input_finished {
@@ -341,7 +341,7 @@ fn cross_join(
     left: &Batch,
     right: &Batch,
     filter_expr: Option<&PhysicalScalarExpression>,
-) -> Result<Vec<Batch>> {
+) -> Result<Batch> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 
     // For each row in the left batch, join the entirety of right.
@@ -386,7 +386,7 @@ fn cross_join(
         batches.push(batch);
     }
 
-    Ok(batches)
+    concat_batches(&batches)
 }
 
 impl Explainable for PhysicalNestedLoopJoin {

@@ -1,7 +1,5 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -26,20 +24,28 @@ impl FunctionInfo for And {
     }
 }
 
-impl GenericScalarFunction for And {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for And {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndBool)),
+            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AndBool;
+pub struct AndImpl;
 
-impl SpecializedScalarFunction for AndBool {
+impl PlannedScalarFunction for AndImpl {
+    fn name(&self) -> &'static str {
+        "and_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -70,20 +76,28 @@ impl FunctionInfo for Or {
     }
 }
 
-impl GenericScalarFunction for Or {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Or {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrBool)),
+            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OrBool;
+pub struct OrImpl;
 
-impl SpecializedScalarFunction for OrBool {
+impl PlannedScalarFunction for OrImpl {
+    fn name(&self) -> &'static str {
+        "or_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -112,7 +126,7 @@ mod tests {
         let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
 
         let specialized = And
-            .specialize(&[DataType::Boolean, DataType::Boolean])
+            .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
@@ -129,7 +143,7 @@ mod tests {
         let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
 
         let specialized = Or
-            .specialize(&[DataType::Boolean, DataType::Boolean])
+            .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();

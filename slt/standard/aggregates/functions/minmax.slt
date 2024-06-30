@@ -1,0 +1,32 @@
+# MIN/MAX
+
+query I
+select min(2);
+----
+2
+
+query I
+select max(2);
+----
+2
+
+query I
+select min(a) from generate_series(4,20,2) as g(a);
+----
+4
+
+query I
+select max(a) from generate_series(4,20,2) as g(a);
+----
+20
+
+query R
+select min(a) from (values ('1.23'::decimal), ('4.56'::decimal)) as v(a);
+----
+1.230000000
+
+query R
+select max(a) from (values ('1.23'::decimal), ('4.56'::decimal)) as v(a);
+----
+4.560000000
+

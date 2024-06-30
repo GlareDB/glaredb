@@ -87,7 +87,7 @@ select '123456789e-1234'::float::int
 
 # Type overflows
 
-statement error
+statement error Failed to parse '128'
 select '128'::TINYINT
 
 query I
@@ -95,5 +95,5 @@ select '32767'::SMALLINT
 ----
 32767
 
-statement error
+statement error Failed to parse '32768'
 select '32768'::SMALLINT

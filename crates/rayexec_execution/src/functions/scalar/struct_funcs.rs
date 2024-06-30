@@ -1,4 +1,4 @@
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::StructArray;
@@ -22,16 +22,10 @@ impl FunctionInfo for StructPack {
             return_type: DataTypeId::Struct,
         }]
     }
-
-    fn return_type_for_inputs(&self, _inputs: &[DataType]) -> Option<DataType> {
-        // TODO: Check "key" types.
-
-        unimplemented!()
-    }
 }
 
-impl GenericScalarFunction for StructPack {
-    fn specialize(&self, _inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for StructPack {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         Ok(Box::new(StructPackDynamic))
     }
 }
@@ -44,7 +38,15 @@ impl GenericScalarFunction for StructPack {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructPackDynamic;
 
-impl SpecializedScalarFunction for StructPackDynamic {
+impl PlannedScalarFunction for StructPackDynamic {
+    fn name(&self) -> &'static str {
+        unimplemented!()
+    }
+
+    fn return_type(&self) -> DataType {
+        unimplemented!()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let keys = arrays
             .iter()
@@ -82,14 +84,10 @@ impl FunctionInfo for StructExtract {
             return_type: DataTypeId::Any,
         }]
     }
-
-    fn return_type_for_inputs(&self, _inputs: &[DataType]) -> Option<DataType> {
-        unimplemented!()
-    }
 }
 
-impl GenericScalarFunction for StructExtract {
-    fn specialize(&self, _inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
+impl ScalarFunction for StructExtract {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unimplemented!()
     }
 }

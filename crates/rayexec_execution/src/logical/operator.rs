@@ -1,16 +1,13 @@
+use super::context::QueryContext;
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
-use super::sql::scope::ColumnRef;
+use super::expr::LogicalExpression;
+use super::grouping_set::GroupingSets;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
+use crate::engine::vars::SessionVar;
 use crate::execution::query_graph::explain::format_logical_plan_for_explain;
-use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
 use crate::functions::table::InitializedTableFunction;
-use crate::{
-    engine::vars::SessionVar,
-    expr::scalar::{BinaryOperator, UnaryOperator, VariadicOperator},
-};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -39,7 +36,9 @@ pub enum LogicalOperator {
     AnyJoin(AnyJoin),
     EqualityJoin(EqualityJoin),
     CrossJoin(CrossJoin),
+    DependentJoin(DependentJoin),
     Limit(Limit),
+    MaterializedScan(MaterializedScan),
     Scan(Scan),
     TableFunction(TableFunction),
     ExpressionList(ExpressionList),
@@ -72,7 +71,9 @@ impl LogicalOperator {
             Self::AnyJoin(n) => n.output_schema(outer),
             Self::EqualityJoin(n) => n.output_schema(outer),
             Self::CrossJoin(n) => n.output_schema(outer),
+            Self::DependentJoin(n) => n.output_schema(outer),
             Self::Limit(n) => n.output_schema(outer),
+            Self::MaterializedScan(n) => n.output_schema(outer),
             Self::Scan(n) => n.output_schema(outer),
             Self::TableFunction(n) => n.output_schema(outer),
             Self::ExpressionList(n) => n.output_schema(outer),
@@ -151,6 +152,15 @@ impl LogicalOperator {
                 p.right.walk_mut(pre, post)?;
                 post(&mut p.right)?;
             }
+            LogicalOperator::DependentJoin(p) => {
+                pre(&mut p.left)?;
+                p.left.walk_mut(pre, post)?;
+                post(&mut p.left)?;
+
+                pre(&mut p.right)?;
+                p.right.walk_mut(pre, post)?;
+                post(&mut p.right)?;
+            }
             LogicalOperator::AnyJoin(p) => {
                 pre(&mut p.left)?;
                 p.left.walk_mut(pre, post)?;
@@ -194,6 +204,7 @@ impl LogicalOperator {
             | LogicalOperator::AttachDatabase(_)
             | LogicalOperator::DetachDatabase(_)
             | LogicalOperator::Drop(_)
+            | LogicalOperator::MaterializedScan(_)
             | LogicalOperator::Scan(_)
             | LogicalOperator::Describe(_)
             | LogicalOperator::TableFunction(_) => (),
@@ -205,8 +216,8 @@ impl LogicalOperator {
 
     /// Return the explain string for a plan. Useful for println debugging.
     #[allow(dead_code)]
-    pub(crate) fn debug_explain(&self) -> String {
-        format_logical_plan_for_explain(self, ExplainFormat::Text, true).unwrap()
+    pub(crate) fn debug_explain(&self, context: Option<&QueryContext>) -> String {
+        format_logical_plan_for_explain(context, self, ExplainFormat::Text, true).unwrap()
     }
 }
 
@@ -220,7 +231,9 @@ impl Explainable for LogicalOperator {
             Self::AnyJoin(p) => p.explain_entry(conf),
             Self::EqualityJoin(p) => p.explain_entry(conf),
             Self::CrossJoin(p) => p.explain_entry(conf),
+            Self::DependentJoin(p) => p.explain_entry(conf),
             Self::Limit(p) => p.explain_entry(conf),
+            Self::MaterializedScan(p) => p.explain_entry(conf),
             Self::Scan(p) => p.explain_entry(conf),
             Self::TableFunction(p) => p.explain_entry(conf),
             Self::ExpressionList(p) => p.explain_entry(conf),
@@ -385,6 +398,7 @@ pub struct EqualityJoin {
     pub left_on: Vec<usize>,
     pub right_on: Vec<usize>,
     // TODO: Filter
+    // TODO: NULL == NULL
 }
 
 impl LogicalNode for EqualityJoin {
@@ -424,6 +438,27 @@ impl Explainable for CrossJoin {
     }
 }
 
+/// A join where the right input has columns that depend on output in the left.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DependentJoin {
+    pub left: Box<LogicalOperator>,
+    pub right: Box<LogicalOperator>,
+}
+
+impl LogicalNode for DependentJoin {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        let left = self.left.output_schema(outer)?;
+        let right = self.right.output_schema(outer)?;
+        Ok(left.merge(right))
+    }
+}
+
+impl Explainable for DependentJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("DependentJoin")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Limit {
     pub offset: Option<usize>,
@@ -440,6 +475,37 @@ impl LogicalNode for Limit {
 impl Explainable for Limit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Limit")
+    }
+}
+
+/// A scan of a materialized plan.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterializedScan {
+    /// Index of the materialized plan in the query context.
+    pub idx: usize,
+
+    /// Compute type schema of the underlying materialized plan.
+    // TODO: This currently exists on the operator to avoid needing to pass the
+    // QueryContext into `output_schema`. I actually think storing the schema is
+    // preferred to what we're currently doing where we compute it every time,
+    // but everything else needs to change in order to make it all consistent.
+    //
+    // I also believe that we can remove the `outer` stuff with my current plan
+    // for subqueries, but that's stil tbd.
+    pub schema: TypeSchema,
+}
+
+impl LogicalNode for MaterializedScan {
+    fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
+        Ok(self.schema.clone())
+    }
+}
+
+impl Explainable for MaterializedScan {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("MaterializedScan")
+            .with_value("idx", self.idx)
+            .with_values("column_types", &self.schema.types)
     }
 }
 
@@ -462,7 +528,10 @@ impl LogicalNode for Scan {
 
 impl Explainable for Scan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan").with_value("source", &self.source.name)
+        let column_types = self.source.columns.iter().map(|c| c.datatype.clone());
+        ExplainEntry::new("Scan")
+            .with_value("source", &self.source.name)
+            .with_values("column_types", column_types)
     }
 }
 
@@ -517,32 +586,39 @@ impl Explainable for ExpressionList {
     }
 }
 
+/// An aggregate node containing some number of aggregates, and optional groups.
+///
+/// The output schema of the this node is [aggregate_columns, group_columns]. A
+/// projection above this node should be used to reorder the columns as needed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Aggregate {
-    pub exprs: Vec<LogicalExpression>,
-    pub grouping_expr: Option<GroupingExpr>,
+    /// Aggregate functions calls.
+    ///
+    /// During planning, the aggregate function calls will be replaced with
+    /// column references.
+    pub aggregates: Vec<LogicalExpression>,
+
+    /// Expressions in the GROUP BY clauses.
+    ///
+    /// Empty indicates we'll be computing an aggregate over a single group.
+    pub group_exprs: Vec<LogicalExpression>,
+
+    /// Optional grouping set.
+    pub grouping_sets: Option<GroupingSets>,
+
+    /// Input to the aggregate.
     pub input: Box<LogicalOperator>,
 }
 
 impl LogicalNode for Aggregate {
     fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
         let current = self.input.output_schema(outer)?;
-        let mut types = self
-            .exprs
+        let types = self
+            .aggregates
             .iter()
+            .chain(self.group_exprs.iter())
             .map(|expr| expr.datatype(&current, outer))
             .collect::<Result<Vec<_>>>()?;
-
-        let mut grouping_types = match &self.grouping_expr {
-            Some(grouping) => grouping
-                .expressions()
-                .iter()
-                .map(|expr| expr.datatype(&current, outer))
-                .collect::<Result<Vec<_>>>()?,
-            None => Vec::new(),
-        };
-
-        types.append(&mut grouping_types);
 
         Ok(TypeSchema::new(types))
     }
@@ -550,51 +626,15 @@ impl LogicalNode for Aggregate {
 
 impl Explainable for Aggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut outputs = self.exprs.clone();
-        if let Some(grouping) = &self.grouping_expr {
-            outputs.extend(grouping.expressions().iter().cloned());
+        let mut ent = ExplainEntry::new("Aggregate")
+            .with_values("aggregates", &self.aggregates)
+            .with_values("group_exprs", &self.group_exprs);
+
+        if let Some(grouping_set) = &self.grouping_sets {
+            ent = ent.with_value("grouping_sets", grouping_set.num_groups());
         }
 
-        let mut ent = ExplainEntry::new("Aggregate").with_values("outputs", &outputs);
-        match self.grouping_expr.as_ref() {
-            Some(GroupingExpr::GroupBy(exprs)) => ent = ent.with_values("GROUP BY", exprs),
-            Some(GroupingExpr::Rollup(exprs)) => ent = ent.with_values("ROLLUP", exprs),
-            Some(GroupingExpr::Cube(exprs)) => ent = ent.with_values("CUBE", exprs),
-            None => (),
-        }
         ent
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GroupingExpr {
-    /// Group by a single set of columns.
-    GroupBy(Vec<LogicalExpression>),
-    /// Group by a column rollup.
-    Rollup(Vec<LogicalExpression>),
-    /// Group by a powerset of the columns.
-    Cube(Vec<LogicalExpression>),
-}
-
-impl GroupingExpr {
-    /// Get mutable references to the input expressions.
-    ///
-    /// This is used to allow modifying the expression to point to a
-    /// pre-projection into the aggregate.
-    pub fn expressions_mut(&mut self) -> &mut [LogicalExpression] {
-        match self {
-            Self::GroupBy(ref mut exprs) => exprs.as_mut_slice(),
-            Self::Rollup(ref mut exprs) => exprs.as_mut_slice(),
-            Self::Cube(ref mut exprs) => exprs.as_mut_slice(),
-        }
-    }
-
-    pub fn expressions(&self) -> &[LogicalExpression] {
-        match self {
-            Self::GroupBy(ref exprs) => exprs.as_slice(),
-            Self::Rollup(ref exprs) => exprs.as_slice(),
-            Self::Cube(ref exprs) => exprs.as_slice(),
-        }
     }
 }
 
@@ -829,419 +869,6 @@ impl LogicalNode for Describe {
 impl Explainable for Describe {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Describe")
-    }
-}
-
-/// An expression that can exist in a logical plan.
-#[derive(Debug, Clone, PartialEq)]
-pub enum LogicalExpression {
-    /// Reference to a column.
-    ///
-    /// Note that this includes scoping information since this expression can be
-    /// part of a correlated subquery.
-    ColumnRef(ColumnRef),
-
-    /// Literal value.
-    Literal(OwnedScalarValue),
-
-    /// A function that returns a single value.
-    ScalarFunction {
-        function: Box<dyn GenericScalarFunction>,
-        inputs: Vec<LogicalExpression>,
-    },
-
-    /// Cast an expression to some type.
-    Cast {
-        to: DataType,
-        expr: Box<LogicalExpression>,
-    },
-
-    /// Unary operator.
-    Unary {
-        op: UnaryOperator,
-        expr: Box<LogicalExpression>,
-    },
-
-    /// Binary operator.
-    Binary {
-        op: BinaryOperator,
-        left: Box<LogicalExpression>,
-        right: Box<LogicalExpression>,
-    },
-
-    /// Variadic operator.
-    Variadic {
-        op: VariadicOperator,
-        exprs: Vec<LogicalExpression>,
-    },
-
-    /// An aggregate function.
-    Aggregate {
-        /// The function.
-        agg: Box<dyn GenericAggregateFunction>,
-
-        /// Input expressions to the aggragate.
-        inputs: Vec<LogicalExpression>,
-
-        /// Optional filter to the aggregate.
-        filter: Option<Box<LogicalExpression>>,
-    },
-
-    /// A scalar subquery.
-    Subquery(Box<LogicalOperator>),
-
-    /// An exists/not exists subquery.
-    Exists {
-        not_exists: bool,
-        subquery: Box<LogicalOperator>,
-    },
-
-    /// Case expressions.
-    Case {
-        input: Box<LogicalExpression>,
-        /// When <left>, then <right>
-        when_then: Vec<(LogicalExpression, LogicalExpression)>,
-    },
-}
-
-impl fmt::Display for LogicalExpression {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ColumnRef(col) => {
-                if col.scope_level == 0 {
-                    write!(f, "#{}", col.item_idx)
-                } else {
-                    write!(f, "{}#{}", col.scope_level, col.item_idx)
-                }
-            }
-            Self::ScalarFunction {
-                function, inputs, ..
-            } => write!(
-                f,
-                "{}({})",
-                function.name(),
-                inputs
-                    .iter()
-                    .map(|input| input.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Self::Cast { to, expr } => write!(f, "CAST({expr}, {to})"),
-            Self::Literal(val) => write!(f, "{val}"),
-            Self::Unary { op, expr } => write!(f, "{op}{expr}"),
-            Self::Binary { op, left, right } => write!(f, "{left}{op}{right}"),
-            Self::Variadic { .. } => write!(f, "VARIADIC TODO"),
-            Self::Aggregate {
-                agg,
-                inputs,
-                filter,
-            } => {
-                write!(
-                    f,
-                    "{}({})",
-                    agg.name(),
-                    inputs
-                        .iter()
-                        .map(|input| input.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )?;
-                if let Some(filter) = filter {
-                    write!(f, " FILTER ({filter})")?;
-                }
-                Ok(())
-            }
-            Self::Subquery(_) => write!(f, "SUBQUERY TODO"),
-            Self::Exists { .. } => write!(f, "EXISTS TODO"),
-            Self::Case { .. } => write!(f, "CASE TODO"),
-        }
-    }
-}
-
-impl LogicalExpression {
-    /// Create a new uncorrelated column reference.
-    pub fn new_column(col: usize) -> Self {
-        LogicalExpression::ColumnRef(ColumnRef {
-            scope_level: 0,
-            item_idx: col,
-        })
-    }
-
-    /// Get the output data type of this expression.
-    ///
-    /// Since we're working with possibly correlated columns, both the schema of
-    /// the scope and the schema of the outer scopes are provided.
-    pub fn datatype(&self, current: &TypeSchema, outer: &[TypeSchema]) -> Result<DataType> {
-        Ok(match self {
-            LogicalExpression::ColumnRef(col) => {
-                if col.scope_level == 0 {
-                    // Get data type from current schema.
-                    current.types.get(col.item_idx).cloned().ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Column reference '{}' points to outside of current schema: {current:?}",
-                            col.item_idx
-                        ))
-                    })?
-                } else {
-                    // Get data type from one of the outer schemas.
-                    outer
-                        .get(col.scope_level - 1)
-                        .ok_or_else(|| {
-                            RayexecError::new("Column reference points to non-existent schema")
-                        })?
-                        .types
-                        .get(col.item_idx)
-                        .cloned()
-                        .ok_or_else(|| {
-                            RayexecError::new("Column reference points to outside of outer schema")
-                        })?
-                }
-            }
-            LogicalExpression::Literal(lit) => lit.datatype(),
-            LogicalExpression::ScalarFunction { function, inputs } => {
-                let datatypes = inputs
-                    .iter()
-                    .map(|input| input.datatype(current, outer))
-                    .collect::<Result<Vec<_>>>()?;
-
-                function.return_type_for_inputs(&datatypes).ok_or_else(|| {
-                    RayexecError::new(format!(
-                        "Failed to find correct signature for '{}'",
-                        function.name()
-                    ))
-                })?
-            }
-            LogicalExpression::Cast { to, .. } => to.clone(),
-            LogicalExpression::Aggregate {
-                agg,
-                inputs,
-                filter: _,
-            } => {
-                let datatypes = inputs
-                    .iter()
-                    .map(|input| input.datatype(current, outer))
-                    .collect::<Result<Vec<_>>>()?;
-
-                agg.return_type_for_inputs(&datatypes).ok_or_else(|| {
-                    RayexecError::new(format!(
-                        "Failed to find correct signature for '{}'",
-                        agg.name()
-                    ))
-                })?
-            }
-            LogicalExpression::Unary { op, expr } => {
-                let datatype = expr.datatype(current, outer)?;
-                op.scalar_function()
-                    .return_type_for_inputs(&[datatype])
-                    .ok_or_else(|| {
-                        RayexecError::new("Failed to get correct signature for scalar function")
-                    })?
-            }
-            LogicalExpression::Binary { op, left, right } => {
-                let left = left.datatype(current, outer)?;
-                let right = right.datatype(current, outer)?;
-
-                op.scalar_function()
-                    .return_type_for_inputs(&[left, right])
-                    .ok_or_else(|| {
-                        RayexecError::new("Failed to get correct signature for scalar function")
-                    })?
-            }
-            LogicalExpression::Subquery(subquery) => {
-                // TODO: Do we just need outer, or do we want current + outer?
-                let mut schema = subquery.output_schema(outer)?;
-                match schema.types.len() {
-                    1 => schema.types.pop().unwrap(),
-                    other => {
-                        return Err(RayexecError::new(format!(
-                            "Scalar subqueries should return 1 value, got {other}",
-                        )))
-                    }
-                }
-            }
-            _ => unimplemented!(),
-        })
-    }
-
-    pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
-    where
-        F: FnMut(&mut LogicalExpression) -> Result<()>,
-    {
-        self.walk_mut(pre, &mut |_| Ok(()))
-    }
-
-    pub fn walk_mut_post<F>(&mut self, post: &mut F) -> Result<()>
-    where
-        F: FnMut(&mut LogicalExpression) -> Result<()>,
-    {
-        self.walk_mut(&mut |_| Ok(()), post)
-    }
-
-    /// Walk the expression depth first.
-    ///
-    /// `pre` provides access to children on the way down, and `post` on the way
-    /// up.
-    pub fn walk_mut<F1, F2>(&mut self, pre: &mut F1, post: &mut F2) -> Result<()>
-    where
-        F1: FnMut(&mut LogicalExpression) -> Result<()>,
-        F2: FnMut(&mut LogicalExpression) -> Result<()>,
-    {
-        /// Helper function for walking a subquery in an expression.
-        fn walk_subquery<F1, F2>(
-            plan: &mut LogicalOperator,
-            pre: &mut F1,
-            post: &mut F2,
-        ) -> Result<()>
-        where
-            F1: FnMut(&mut LogicalExpression) -> Result<()>,
-            F2: FnMut(&mut LogicalExpression) -> Result<()>,
-        {
-            match plan {
-                LogicalOperator::Projection(p) => {
-                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?
-                }
-                LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
-                LogicalOperator::Aggregate(p) => {
-                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?;
-                    match &mut p.grouping_expr {
-                        Some(GroupingExpr::GroupBy(v)) => {
-                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                        }
-                        Some(GroupingExpr::Rollup(v)) => {
-                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                        }
-                        Some(GroupingExpr::Cube(v)) => {
-                            LogicalExpression::walk_mut_many(v.as_mut_slice(), pre, post)?;
-                        }
-                        _ => (),
-                    }
-                }
-                LogicalOperator::Order(p) => {
-                    for expr in &mut p.exprs {
-                        expr.expr.walk_mut(pre, post)?;
-                    }
-                }
-                LogicalOperator::AnyJoin(p) => p.on.walk_mut(pre, post)?,
-                LogicalOperator::EqualityJoin(_) => (),
-                LogicalOperator::CrossJoin(_) => (),
-                LogicalOperator::Limit(_) => (),
-                LogicalOperator::Scan(_) => (),
-                LogicalOperator::TableFunction(_) => (),
-                LogicalOperator::ExpressionList(p) => {
-                    for row in &mut p.rows {
-                        LogicalExpression::walk_mut_many(row, pre, post)?;
-                    }
-                }
-                LogicalOperator::SetVar(_) => (),
-                LogicalOperator::ShowVar(_) => (),
-                LogicalOperator::ResetVar(_) => (),
-                LogicalOperator::Insert(_) => (),
-                LogicalOperator::CreateSchema(_) => (),
-                LogicalOperator::CreateTable(_) => (),
-                LogicalOperator::CreateTableAs(_) => (),
-                LogicalOperator::AttachDatabase(_) => (),
-                LogicalOperator::DetachDatabase(_) => (),
-                LogicalOperator::Explain(_) => (),
-                LogicalOperator::Drop(_) => (),
-                LogicalOperator::Empty => (),
-                LogicalOperator::Describe(_) => (),
-            }
-            Ok(())
-        }
-
-        pre(self)?;
-        match self {
-            LogicalExpression::Unary { expr, .. } => {
-                pre(expr)?;
-                expr.walk_mut(pre, post)?;
-                post(expr)?;
-            }
-            LogicalExpression::Cast { expr, .. } => {
-                pre(expr)?;
-                expr.walk_mut(pre, post)?;
-                post(expr)?;
-            }
-            Self::Binary { left, right, .. } => {
-                pre(left)?;
-                left.walk_mut(pre, post)?;
-                post(left)?;
-
-                pre(right)?;
-                right.walk_mut(pre, post)?;
-                post(right)?;
-            }
-            Self::Variadic { exprs, .. } => {
-                for expr in exprs.iter_mut() {
-                    pre(expr)?;
-                    expr.walk_mut(pre, post)?;
-                    post(expr)?;
-                }
-            }
-            Self::ScalarFunction { inputs, .. } => {
-                for input in inputs.iter_mut() {
-                    pre(input)?;
-                    input.walk_mut(pre, post)?;
-                    post(input)?;
-                }
-            }
-            Self::Aggregate { inputs, .. } => {
-                for input in inputs.iter_mut() {
-                    pre(input)?;
-                    input.walk_mut(pre, post)?;
-                    post(input)?;
-                }
-            }
-            Self::ColumnRef(_) | Self::Literal(_) => (),
-            Self::Subquery(subquery) | Self::Exists { subquery, .. } => {
-                // We only care about the expressions in the plan, so it's
-                // sufficient to walk the operators only once on the way down.
-                subquery.walk_mut_pre(&mut |plan| walk_subquery(plan, pre, post))?;
-            }
-            Self::Case { .. } => unimplemented!(),
-        }
-        post(self)?;
-
-        Ok(())
-    }
-
-    fn walk_mut_many<F1, F2>(exprs: &mut [Self], pre: &mut F1, post: &mut F2) -> Result<()>
-    where
-        F1: FnMut(&mut LogicalExpression) -> Result<()>,
-        F2: FnMut(&mut LogicalExpression) -> Result<()>,
-    {
-        for expr in exprs.iter_mut() {
-            expr.walk_mut(pre, post)?;
-        }
-        Ok(())
-    }
-
-    /// Check if this expression is an aggregate.
-    pub const fn is_aggregate(&self) -> bool {
-        matches!(self, LogicalExpression::Aggregate { .. })
-    }
-
-    /// Try to get a top-level literal from this expression, erroring if it's
-    /// not one.
-    pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
-        match self {
-            Self::Literal(lit) => Ok(lit),
-            other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
-        }
-    }
-
-    pub fn try_into_column_ref(self) -> Result<ColumnRef> {
-        match self {
-            Self::ColumnRef(col) => Ok(col),
-            other => Err(RayexecError::new(format!(
-                "Not a column reference: {other:?}"
-            ))),
-        }
-    }
-}
-
-impl AsMut<LogicalExpression> for LogicalExpression {
-    fn as_mut(&mut self) -> &mut LogicalExpression {
-        self
     }
 }
 

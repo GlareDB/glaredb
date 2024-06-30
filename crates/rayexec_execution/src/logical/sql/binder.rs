@@ -21,8 +21,8 @@ use crate::{
     datasource::FileHandlers,
     engine::EngineRuntime,
     functions::{
-        aggregate::GenericAggregateFunction,
-        scalar::GenericScalarFunction,
+        aggregate::AggregateFunction,
+        scalar::ScalarFunction,
         table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
     },
     logical::sql::expr::ExpressionContext,
@@ -53,15 +53,24 @@ impl AstMeta for Bound {
 // need to be extended.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundFunctionReference {
-    Scalar(Box<dyn GenericScalarFunction>),
-    Aggregate(Box<dyn GenericAggregateFunction>),
+    Scalar(Box<dyn ScalarFunction>),
+    Aggregate(Box<dyn AggregateFunction>),
+}
+
+impl BoundFunctionReference {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Scalar(scalar) => scalar.name(),
+            Self::Aggregate(agg) => agg.name(),
+        }
+    }
 }
 
 /// References a CTE that can be found in `BindData`.
 ///
 /// Note that this doesn't hold the CTE itself since it may be referenced more
 /// than once in a query.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoundCteReference {
     /// Index into the CTE map.
     pub idx: usize,
@@ -1102,10 +1111,15 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             })),
-            ast::Expr::UnaryExpr { op, expr } => Ok(ast::Expr::UnaryExpr {
-                op,
-                expr: Box::new(Box::pin(self.bind_expression(*expr, bind_data)).await?),
-            }),
+            ast::Expr::UnaryExpr { op, expr } => match (op, *expr) {
+                (ast::UnaryOperator::Minus, ast::Expr::Literal(ast::Literal::Number(n))) => {
+                    Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+                }
+                (_, expr) => Ok(ast::Expr::UnaryExpr {
+                    op,
+                    expr: Box::new(Box::pin(self.bind_expression(expr, bind_data)).await?),
+                }),
+            },
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
                 op,
@@ -1239,6 +1253,21 @@ impl<'a> ExpressionBinder<'a> {
                     leading,
                     trailing,
                 }))
+            }
+            ast::Expr::Like {
+                not_like,
+                case_insensitive,
+                expr,
+                pattern,
+            } => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                let pattern = Box::pin(self.bind_expression(*pattern, bind_data)).await?;
+                Ok(ast::Expr::Like {
+                    not_like,
+                    case_insensitive,
+                    expr: Box::new(expr),
+                    pattern: Box::new(pattern),
+                })
             }
             other => unimplemented!("{other:?}"),
         }

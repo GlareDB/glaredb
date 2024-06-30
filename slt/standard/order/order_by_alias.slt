@@ -1,0 +1,21 @@
+# ORDER BY alias
+
+statement ok
+create temp table t1 (a text, b int);
+
+statement ok
+insert into t1 values ('a', 1), ('c', 2), ('c', 3);
+
+query T
+select a as c1 from t1 order by c1;
+----
+a
+c
+c
+
+query I
+select b + 2 as c1 from t1 order by c1;
+----
+3
+4
+5

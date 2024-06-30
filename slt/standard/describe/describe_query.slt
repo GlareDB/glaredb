@@ -21,7 +21,7 @@ describe select * from (values (1,2.0,3.0::decimal(18,9))) as v(a,b,c);
 ----
 a  Int64
 b  Float64
-c  Decimal64(18, 9)
+c  Decimal64(18,9)
 
 query TT
 describe select a from (values (1,2.0,3.0::decimal(18,9))) as v(a,b,c);
@@ -62,3 +62,7 @@ b  Int64
 c  Int64
 d  Int64
 
+query TT
+describe select min(1);
+----
+min  Int64

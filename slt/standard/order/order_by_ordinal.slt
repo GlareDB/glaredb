@@ -1,0 +1,28 @@
+# ORDER BY ordinal
+
+statement ok
+create temp table t1 (a text, b int);
+
+statement ok
+insert into t1 values ('a', 1), ('c', 2), ('c', 3);
+
+query T
+select a from t1 order by 1;
+----
+a
+c
+c
+
+query I
+select b + 2 from t1 order by 1;
+----
+3
+4
+5
+
+query I
+select a, b + 2 from t1 order by 2;
+----
+a  3
+c  4
+c  5

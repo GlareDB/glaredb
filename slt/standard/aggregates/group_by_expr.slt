@@ -1,0 +1,74 @@
+# GROUP BY on expression
+
+statement ok
+CREATE TEMP TABLE t1(i INTEGER, j INTEGER);
+
+statement ok
+INSERT INTO t1 VALUES (3, 4), (3, 5), (3, 7);
+
+# TODO: Error source: query failed: Aggregate hash table has no aggregates
+# # group by on expression
+# query I
+# SELECT j * 2 FROM t1 GROUP BY j * 2 ORDER BY j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# # verify that adding or removing the table name does not impact the validity of the query
+# query I
+# SELECT t1.j * 2 FROM t1 GROUP BY j * 2 ORDER BY j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT j * 2 FROM t1 GROUP BY t1.j * 2 ORDER BY j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT j * 2 FROM t1 GROUP BY j * 2 ORDER BY t1.j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT t1.j * 2 FROM t1 GROUP BY j * 2 ORDER BY t1.j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT j * 2 FROM t1 GROUP BY t1.j * 2 ORDER BY t1.j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT t1.j * 2 FROM t1 GROUP BY t1.j * 2 ORDER BY j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT t1.j * 2 FROM t1 GROUP BY t1.j * 2 ORDER BY t1.j * 2;
+# ----
+# 8
+# 10
+# 14
+
+# query I
+# SELECT j * 2 AS i FROM t1 GROUP BY j * 2 ORDER BY i;
+# ----
+# 8
+# 10
+# 14
+

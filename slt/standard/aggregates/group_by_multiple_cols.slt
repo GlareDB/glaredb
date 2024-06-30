@@ -1,0 +1,14 @@
+# GROUP BY multiple columns
+
+statement ok
+create temp table t1 (i bigint, j bigint, k bigint);
+
+statement ok
+insert into t1 values (1, 1, 2), (1, 2, 2), (1, 1, 2), (2, 1, 2), (1, 2, 4), (1, 2, 5);
+
+query IIIII
+select i, j, sum(k), count(*), count(k) from t1 group by i, j order by 1, 2;
+----
+1   1     4       2       2
+1   2    11       3       3
+2   1     2       1       1

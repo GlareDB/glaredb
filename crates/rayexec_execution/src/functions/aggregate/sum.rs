@@ -1,14 +1,10 @@
-use super::{
-    DefaultGroupedStates, GenericAggregateFunction, GroupedStates, SpecializedAggregateFunction,
-};
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use num_traits::CheckedAdd;
 use rayexec_bullet::{
     array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
     bitmap::Bitmap,
-    datatype::{DataType, DataTypeId},
+    datatype::{DataType, DataTypeId, DecimalTypeMeta},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::Result;
@@ -44,17 +40,20 @@ impl FunctionInfo for Sum {
     }
 }
 
-impl GenericAggregateFunction for Sum {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedAggregateFunction>> {
-        specialize_check_num_args(self, inputs, 1)?;
+impl AggregateFunction for Sum {
+    fn plan_from_datatypes(
+        &self,
+        inputs: &[DataType],
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(SumInt64Specialized)),
-            DataType::Float64 => Ok(Box::new(SumFloat64Specialized)),
-            DataType::Decimal64(meta) => Ok(Box::new(SumDecimal64Specialized {
+            DataType::Int64 => Ok(Box::new(SumInt64Impl)),
+            DataType::Float64 => Ok(Box::new(SumFloat64Impl)),
+            DataType::Decimal64(meta) => Ok(Box::new(SumDecimal64Impl {
                 precision: meta.precision,
                 scale: meta.scale,
             })),
-            DataType::Decimal128(meta) => Ok(Box::new(SumDecimal128Specialized {
+            DataType::Decimal128(meta) => Ok(Box::new(SumDecimal128Impl {
                 precision: meta.precision,
                 scale: meta.scale,
             })),
@@ -64,9 +63,9 @@ impl GenericAggregateFunction for Sum {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SumInt64Specialized;
+pub struct SumInt64Impl;
 
-impl SumInt64Specialized {
+impl SumInt64Impl {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -87,16 +86,24 @@ impl SumInt64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumInt64Specialized {
+impl PlannedAggregateFunction for SumInt64Impl {
+    fn name(&self) -> &'static str {
+        "sum_int64_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Int64
+    }
+
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SumFloat64Specialized;
+pub struct SumFloat64Impl;
 
-impl SumFloat64Specialized {
+impl SumFloat64Impl {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -117,19 +124,27 @@ impl SumFloat64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumFloat64Specialized {
+impl PlannedAggregateFunction for SumFloat64Impl {
+    fn name(&self) -> &'static str {
+        "sum_float64_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Float64
+    }
+
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SumDecimal64Specialized {
+pub struct SumDecimal64Impl {
     precision: u8,
     scale: i8,
 }
 
-impl SumDecimal64Specialized {
+impl SumDecimal64Impl {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -152,7 +167,15 @@ impl SumDecimal64Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumDecimal64Specialized {
+impl PlannedAggregateFunction for SumDecimal64Impl {
+    fn name(&self) -> &'static str {
+        "sum_decimal64_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale))
+    }
+
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -165,12 +188,12 @@ impl SpecializedAggregateFunction for SumDecimal64Specialized {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SumDecimal128Specialized {
+pub struct SumDecimal128Impl {
     precision: u8,
     scale: i8,
 }
 
-impl SumDecimal128Specialized {
+impl SumDecimal128Impl {
     fn update(
         row_selection: &Bitmap,
         arrays: &[&Array],
@@ -193,7 +216,15 @@ impl SumDecimal128Specialized {
     }
 }
 
-impl SpecializedAggregateFunction for SumDecimal128Specialized {
+impl PlannedAggregateFunction for SumDecimal128Impl {
+    fn name(&self) -> &'static str {
+        "sum_decimal128_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale))
+    }
+
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
         let scale = self.scale;
@@ -210,24 +241,24 @@ impl SpecializedAggregateFunction for SumDecimal128Specialized {
 #[derive(Debug, Default)]
 pub struct SumStateCheckedAdd<T> {
     sum: T,
-    at_least_one: bool,
+    set: bool,
 }
 
 impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
-        self.at_least_one = self.at_least_one || other.at_least_one;
+        self.set = self.set || other.set;
         Ok(())
     }
 
     fn update(&mut self, input: T) -> Result<()> {
         self.sum = self.sum.checked_add(&input).unwrap_or_default(); // TODO
-        self.at_least_one = true;
+        self.set = true;
         Ok(())
     }
 
     fn finalize(self) -> Result<(T, bool)> {
-        if self.at_least_one {
+        if self.set {
             Ok((self.sum, true))
         } else {
             Ok((T::default(), false))
@@ -238,24 +269,24 @@ impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAd
 #[derive(Debug, Default)]
 pub struct SumStateAdd<T> {
     sum: T,
-    at_least_one: bool,
+    valid: bool,
 }
 
 impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
     fn merge(&mut self, other: Self) -> Result<()> {
         self.sum += other.sum;
-        self.at_least_one = self.at_least_one || other.at_least_one;
+        self.valid = self.valid || other.valid;
         Ok(())
     }
 
     fn update(&mut self, input: T) -> Result<()> {
         self.sum += input;
-        self.at_least_one = true;
+        self.valid = true;
         Ok(())
     }
 
     fn finalize(self) -> Result<(T, bool)> {
-        if self.at_least_one {
+        if self.valid {
             Ok((self.sum, true))
         } else {
             Ok((T::default(), false))
@@ -276,7 +307,7 @@ mod tests {
         let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
         let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
@@ -330,7 +361,7 @@ mod tests {
         let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
         let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
@@ -399,7 +430,7 @@ mod tests {
         let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4]));
         let partition_2_vals = &Array::Int64(Int64Array::from_iter([5, 6, 7, 8]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
@@ -445,7 +476,7 @@ mod tests {
         // multiple times until states are exhausted.
         let vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
 
-        let specialized = Sum.specialize(&[DataType::Int64]).unwrap();
+        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
         let mut states = specialized.new_grouped_state();
 
         states.new_group();

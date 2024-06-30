@@ -1,0 +1,27 @@
+# INSERT INTO with parallel partitions
+
+statement ok
+create temp table ints (a int, b int, c int);
+
+statement ok
+insert into ints select * from generate_series(1, 100) s1,
+                               generate_series(1, 100) s2,
+                               generate_series(1, 100) s3;
+
+query II
+select count(*), sum(a) from ints;
+----
+1000000  50500000
+
+statement ok
+create temp table strings (a text, b text, c text);
+
+statement ok
+insert into strings select a::text, b::text, c::text from generate_series(1, 100) s1(a),
+                                                          generate_series(1, 100) s2(b),
+                                                          generate_series(1, 100) s3(c);
+
+query I
+select count(*) from strings;
+----
+1000000

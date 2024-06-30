@@ -1,4 +1,41 @@
 # CREATE TEMP TABLE ... AS ...
 
-statement error
-create temp table t1 as values (1, 2), (3, 4);
+statement ok
+create temp table t1 as select 1;
+
+query I
+select * from t1;
+----
+1
+
+query TT
+describe t1;
+----
+?column?  Int64
+
+statement ok
+create temp table t2 as select 4 as a;
+
+query I
+select * from t2;
+----
+4
+
+query TT
+describe t2;
+----
+a  Int64
+
+statement ok
+create temp table t3 as values ('hello'), ('world');
+
+query T rowsort
+select * from t3;
+----
+hello
+world
+
+query TT
+describe t3;
+----
+column1  Utf8

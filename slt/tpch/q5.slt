@@ -1,0 +1,31 @@
+# Error source: query failed: Missing column for reference: revenue
+# Alias in order by
+
+query TI
+DESCRIBE SELECT
+    n_name,
+    sum(l_extendedprice * (1 - l_discount)) AS revenue
+FROM
+  '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
+  '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
+  '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
+  '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+  '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
+  '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+WHERE
+    c_custkey = o_custkey
+    AND l_orderkey = o_orderkey
+    AND l_suppkey = s_suppkey
+    AND c_nationkey = s_nationkey
+    AND s_nationkey = n_nationkey
+    AND n_regionkey = r_regionkey
+    AND r_name = 'ASIA'
+    AND o_orderdate >= CAST('1994-01-01' AS date)
+    AND o_orderdate < CAST('1995-01-01' AS date)
+GROUP BY
+    n_name
+ORDER BY
+    revenue DESC;
+----
+n_name   Utf8
+revenue  Decimal64(15,2)

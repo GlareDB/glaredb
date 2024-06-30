@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::interval::Interval;
@@ -6,15 +8,18 @@ use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::expr::scalar::{BinaryOperator, UnaryOperator};
-use crate::functions::aggregate::GenericAggregateFunction;
-use crate::functions::scalar::GenericScalarFunction;
+use crate::expr::scalar::{
+    BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator, UnaryOperator,
+};
+use crate::functions::aggregate::AggregateFunction;
+use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
-use crate::logical::operator::LogicalExpression;
+use crate::logical::context::QueryContext;
+use crate::logical::expr::{LogicalExpression, Subquery};
 
+use super::query::QueryNodePlanner;
 use super::{
     binder::{Bound, BoundFunctionReference},
-    planner::PlanContext,
     scope::{Scope, TableReference},
 };
 
@@ -30,6 +35,12 @@ pub enum ExpandedSelectExpr {
         /// expression. If this references a column, then the name will just
         /// match that column.
         name: String,
+        /// Whether or not the user explicity provided us an alias.
+        ///
+        /// For GROUP BY and ORDER BY, aliases from the select list may be used
+        /// as references. This let's us determine if `name` is an alias that we
+        /// should looke for when resolving a reference.
+        explicit_alias: bool,
     },
     /// An index of a column in the current scope. This is needed for wildcards
     /// since they're expanded to match some number of columns in the current
@@ -45,8 +56,8 @@ pub enum ExpandedSelectExpr {
 /// Context for planning expressions.
 #[derive(Debug, Clone)]
 pub struct ExpressionContext<'a> {
-    /// Plan context containing this expression.
-    pub plan_context: &'a PlanContext<'a>,
+    /// Planer for the query containing this expression.
+    pub planner: &'a QueryNodePlanner<'a>,
     /// Scope for this expression.
     pub scope: &'a Scope,
     /// Schema of input that this expression will be executed on.
@@ -54,12 +65,24 @@ pub struct ExpressionContext<'a> {
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new(plan_context: &'a PlanContext, scope: &'a Scope, input: &'a TypeSchema) -> Self {
+    pub fn new(planner: &'a QueryNodePlanner, scope: &'a Scope, input: &'a TypeSchema) -> Self {
         ExpressionContext {
-            plan_context,
+            planner,
             scope,
             input,
         }
+    }
+
+    pub fn expand_all_select_exprs(
+        &self,
+        exprs: impl IntoIterator<Item = ast::SelectExpr<Bound>>,
+    ) -> Result<Vec<ExpandedSelectExpr>> {
+        let mut expanded = Vec::new();
+        for expr in exprs {
+            let mut ex = self.expand_select_expr(expr)?;
+            expanded.append(&mut ex);
+        }
+        Ok(expanded)
     }
 
     pub fn expand_select_expr(
@@ -71,6 +94,7 @@ impl<'a> ExpressionContext<'a> {
                 ast::Expr::Ident(ident) => vec![ExpandedSelectExpr::Expr {
                     name: ident.as_normalized_string(),
                     expr,
+                    explicit_alias: false,
                 }],
                 ast::Expr::CompoundIdent(ident) => vec![ExpandedSelectExpr::Expr {
                     name: ident
@@ -78,15 +102,25 @@ impl<'a> ExpressionContext<'a> {
                         .map(|n| n.as_normalized_string())
                         .unwrap_or_else(|| "?column?".to_string()),
                     expr,
+                    explicit_alias: false,
                 }],
+                ast::Expr::Function(ast::Function { reference, .. }) => {
+                    vec![ExpandedSelectExpr::Expr {
+                        name: reference.name().to_string(),
+                        expr,
+                        explicit_alias: false,
+                    }]
+                }
                 _ => vec![ExpandedSelectExpr::Expr {
                     expr,
                     name: "?column?".to_string(),
+                    explicit_alias: false,
                 }],
             },
             ast::SelectExpr::AliasedExpr(expr, alias) => vec![ExpandedSelectExpr::Expr {
                 expr,
                 name: alias.into_normalized_string(),
+                explicit_alias: true,
             }],
             ast::SelectExpr::Wildcard(_wildcard) => {
                 // TODO: Exclude, replace
@@ -127,35 +161,49 @@ impl<'a> ExpressionContext<'a> {
     }
 
     /// Converts an AST expression to a logical expression.
-    pub fn plan_expression(&self, expr: ast::Expr<Bound>) -> Result<LogicalExpression> {
+    pub fn plan_expression(
+        &self,
+        context: &mut QueryContext,
+        expr: ast::Expr<Bound>,
+    ) -> Result<LogicalExpression> {
         match expr {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
             ast::Expr::Literal(literal) => Self::plan_literal(literal),
             ast::Expr::UnaryExpr { op, expr } => {
-                let expr = self.plan_expression(*expr)?;
+                let expr = self.plan_expression(context, *expr)?;
                 let op = match op {
                     ast::UnaryOperator::Plus => return Ok(expr), // Nothing to do.
                     ast::UnaryOperator::Minus => UnaryOperator::Negate,
                     ast::UnaryOperator::Not => unimplemented!(),
                 };
 
+                let scalar = op
+                    .scalar_function()
+                    .plan_from_expressions(&[&expr], self.input)?;
+
                 Ok(LogicalExpression::Unary {
-                    op,
+                    op: PlannedUnaryOperator { op, scalar },
                     expr: Box::new(expr),
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
                 let op = BinaryOperator::try_from(op)?;
-                let left = self.plan_expression(*left)?;
-                let right = self.plan_expression(*right)?;
+                let left = self.plan_expression(context, *left)?;
+                let right = self.plan_expression(context, *right)?;
 
-                let mut out =
+                let mut inputs =
                     self.apply_casts_for_scalar_function(op.scalar_function(), vec![left, right])?;
-                let [right, left] = [out.pop().unwrap(), out.pop().unwrap()];
+
+                let right = inputs.pop().unwrap();
+                let left = inputs.pop().unwrap();
+
+                let scalar = op
+                    .scalar_function()
+                    .plan_from_expressions(&[&left, &right], self.input)?;
 
                 Ok(LogicalExpression::Binary {
-                    op,
+                    op: PlannedBinaryOperator { op, scalar },
                     left: Box::new(left),
                     right: Box::new(right),
                 })
@@ -166,7 +214,9 @@ impl<'a> ExpressionContext<'a> {
                     .into_iter()
                     .map(|arg| match arg {
                         ast::FunctionArg::Unnamed { arg } => match arg {
-                            ast::FunctionArgExpr::Expr(expr) => Ok(self.plan_expression(expr)?),
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                Ok(self.plan_expression(context, expr)?)
+                            }
                             ast::FunctionArgExpr::Wildcard => {
                                 // Binder should have handled removing '*' from
                                 // function calls.
@@ -186,14 +236,15 @@ impl<'a> ExpressionContext<'a> {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
-                        Ok(LogicalExpression::ScalarFunction {
-                            function: scalar,
-                            inputs,
-                        })
+                        let refs: Vec<_> = inputs.iter().collect();
+                        let function = scalar.plan_from_expressions(&refs, self.input)?;
+
+                        Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
                     BoundFunctionReference::Aggregate(agg) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
+                        let agg = agg.plan_from_expressions(&inputs, self.input)?;
 
                         Ok(LogicalExpression::Aggregate {
                             agg,
@@ -204,24 +255,28 @@ impl<'a> ExpressionContext<'a> {
                 }
             }
             ast::Expr::Subquery(subquery) => {
-                let mut nested = self.plan_context.nested(self.scope.clone());
-                let subquery = nested.plan_query(*subquery)?;
+                let mut nested = self.planner.nested(self.input.clone(), self.scope.clone());
+                let subquery = nested.plan_query(context, *subquery)?;
+
                 // We can ignore scope, as it's only relevant to planning of the
                 // subquery, which is complete.
-                Ok(LogicalExpression::Subquery(Box::new(subquery.root)))
+                Ok(LogicalExpression::Subquery(Subquery::Scalar {
+                    root: Box::new(subquery.root),
+                }))
             }
             ast::Expr::Exists {
                 subquery,
                 not_exists,
             } => {
-                let mut nested = self.plan_context.nested(self.scope.clone());
-                let subquery = nested.plan_query(*subquery)?;
-                Ok(LogicalExpression::Exists {
-                    not_exists,
-                    subquery: Box::new(subquery.root),
-                })
+                let mut nested = self.planner.nested(self.input.clone(), self.scope.clone());
+                let subquery = nested.plan_query(context, *subquery)?;
+
+                Ok(LogicalExpression::Subquery(Subquery::Exists {
+                    root: Box::new(subquery.root),
+                    negated: not_exists,
+                }))
             }
-            ast::Expr::Nested(expr) => self.plan_expression(*expr),
+            ast::Expr::Nested(expr) => self.plan_expression(context, *expr),
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.into());
                 // TODO: Add this back. Currently doing this to avoid having to
@@ -234,7 +289,7 @@ impl<'a> ExpressionContext<'a> {
                 })
             }
             ast::Expr::Cast { datatype, expr } => {
-                let expr = self.plan_expression(*expr)?;
+                let expr = self.plan_expression(context, *expr)?;
                 Ok(LogicalExpression::Cast {
                     to: datatype,
                     expr: Box::new(expr),
@@ -250,7 +305,7 @@ impl<'a> ExpressionContext<'a> {
                         "Leading unit in interval not yet supported",
                     ));
                 }
-                let expr = self.plan_expression(*value)?;
+                let expr = self.plan_expression(context, *value)?;
 
                 match trailing {
                     Some(trailing) => {
@@ -287,11 +342,18 @@ impl<'a> ExpressionContext<'a> {
                             }
                         };
 
+                        let interval =
+                            LogicalExpression::Literal(ScalarValue::Interval(const_interval));
+
+                        let op = BinaryOperator::Multiply;
+                        // Plan `mul(<interval>, <expr>)`
+                        let scalar = op
+                            .scalar_function()
+                            .plan_from_expressions(&[&interval, &expr], self.input)?;
+
                         Ok(LogicalExpression::Binary {
-                            op: BinaryOperator::Multiply,
-                            left: Box::new(LogicalExpression::Literal(ScalarValue::Interval(
-                                const_interval,
-                            ))),
+                            op: PlannedBinaryOperator { op, scalar },
+                            left: Box::new(interval),
                             right: Box::new(expr),
                         })
                     }
@@ -301,8 +363,75 @@ impl<'a> ExpressionContext<'a> {
                     }),
                 }
             }
+            ast::Expr::Like {
+                not_like,
+                case_insensitive,
+                expr,
+                pattern,
+            } => {
+                if not_like {
+                    unimplemented!()
+                }
+                if case_insensitive {
+                    unimplemented!()
+                }
+
+                let expr = self.plan_expression(context, *expr)?;
+                let pattern = self.plan_expression(context, *pattern)?;
+
+                let scalar = like::Like.plan_from_expressions(&[&expr, &pattern], self.input)?;
+
+                Ok(LogicalExpression::ScalarFunction {
+                    function: scalar,
+                    inputs: vec![expr, pattern],
+                })
+            }
 
             other => unimplemented!("{other:?}"),
+        }
+    }
+
+    /// Attempt to plan an expression with the possibility of it pointing to an
+    /// already planned expression in the select list.
+    ///
+    /// This allows GROUP BY and ORDER BY to reference columns in the output by
+    /// either its alias, or by its ordinal.
+    ///
+    /// If an alias and scoped column both exist with the same name, the scoped
+    /// column will take precedence.
+    pub fn plan_expression_with_select_list(
+        &self,
+        context: &mut QueryContext,
+        alias_map: &HashMap<String, usize>,
+        planned: &[LogicalExpression],
+        expr: ast::Expr<Bound>,
+    ) -> Result<LogicalExpression> {
+        if let ast::Expr::Literal(ast::Literal::Number(s)) = expr {
+            let n = s
+                .parse::<i64>()
+                .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
+            if n < 1 || n as usize > planned.len() {
+                return Err(RayexecError::new(format!(
+                    "Column out of range, expected 1 - {}",
+                    planned.len()
+                )))?;
+            }
+
+            return Ok(planned[n as usize - 1].clone());
+        }
+
+        match expr {
+            ast::Expr::Ident(ident) => match self.plan_ident(ident.clone()) {
+                Ok(expr) => Ok(expr),
+                Err(e) => {
+                    let s = ident.as_normalized_string();
+                    if let Some(idx) = alias_map.get(&s) {
+                        return Ok(planned[*idx].clone());
+                    }
+                    Err(e)
+                }
+            },
+            other => self.plan_expression(context, other),
         }
     }
 
@@ -339,11 +468,11 @@ impl<'a> ExpressionContext<'a> {
     ///
     /// Assumed to be a column name either in the current scope or one of the
     /// outer scopes.
-    fn plan_ident(&self, ident: ast::Ident) -> Result<LogicalExpression> {
+    pub(crate) fn plan_ident(&self, ident: ast::Ident) -> Result<LogicalExpression> {
         let val = ident.into_normalized_string();
         match self
             .scope
-            .resolve_column(&self.plan_context.outer_scopes, None, &val)?
+            .resolve_column(&self.planner.outer_scopes, None, &val)?
         {
             Some(col) => Ok(LogicalExpression::ColumnRef(col)),
             None => Err(RayexecError::new(format!(
@@ -385,7 +514,7 @@ impl<'a> ExpressionContext<'a> {
                     database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
                 };
                 match self.scope.resolve_column(
-                    &self.plan_context.outer_scopes,
+                    &self.planner.outer_scopes,
                     Some(&table_ref),
                     &col,
                 )? {
@@ -404,15 +533,15 @@ impl<'a> ExpressionContext<'a> {
     /// scalar function.
     fn apply_casts_for_scalar_function(
         &self,
-        scalar: &dyn GenericScalarFunction,
+        scalar: &dyn ScalarFunction,
         inputs: Vec<LogicalExpression>,
     ) -> Result<Vec<LogicalExpression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
+            .map(|expr| expr.datatype(self.input, &self.planner.outer_schemas))
             .collect::<Result<Vec<_>>>()?;
 
-        if scalar.return_type_for_inputs(&input_datatypes).is_some() {
+        if scalar.exact_signature(&input_datatypes).is_some() {
             // Exact
             Ok(inputs)
         } else {
@@ -462,7 +591,7 @@ impl<'a> ExpressionContext<'a> {
     // TODO: Reduce dupliation with the scalar one.
     fn apply_casts_for_aggregate_function(
         &self,
-        agg: &dyn GenericAggregateFunction,
+        agg: &dyn AggregateFunction,
         inputs: Vec<LogicalExpression>,
     ) -> Result<Vec<LogicalExpression>> {
         let input_datatypes = inputs
@@ -470,7 +599,7 @@ impl<'a> ExpressionContext<'a> {
             .map(|expr| expr.datatype(self.input, &[])) // TODO: Outer schemas
             .collect::<Result<Vec<_>>>()?;
 
-        if agg.return_type_for_inputs(&input_datatypes).is_some() {
+        if agg.exact_signature(&input_datatypes).is_some() {
             // Exact
             Ok(inputs)
         } else {

@@ -1,0 +1,27 @@
+# Duplicated conditions in where clause
+
+statement ok
+CREATE TEMP TABLE t1 (x INT);
+
+statement ok
+INSERT INTO t1 VALUES (1);
+
+query I
+SELECT *
+FROM t1
+WHERE x = 1
+  OR x = 1
+  OR x = 1
+  OR x = 1;
+----
+1
+
+query I
+SELECT *
+FROM t1
+WHERE x = 1
+  AND x = 1
+  AND x = 1
+  AND x = 1;
+----
+1

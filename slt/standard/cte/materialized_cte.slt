@@ -1,0 +1,108 @@
+# Materialized CTEs
+
+query I
+with cte1 as materialized (select 4) select * from cte1;
+----
+4
+
+# Multiple uses
+query II
+with cte1 as materialized (select 4 as a) select * from cte1 as t1, cte1 as t2;
+----
+4  4
+
+# Materialized call to random(). Multiple scans of the cte should result in the
+# same value. Compare this with the cte test in random.slt.
+query B
+with rand_cte as materialized (select random())
+  select a == b
+  from rand_cte t1(a), rand_cte t2(b);
+----
+true
+
+query TT
+describe with rand_cte as materialized (select random())
+  select a == b
+  from rand_cte t1(a), rand_cte t2(b);
+----
+?column?  Boolean
+
+# query TT
+# explain with rand_cte as materialized (select random())
+#   select a == b
+#   from rand_cte t1(a), rand_cte t2(b);
+# ----
+# logical    Projection (expressions = [#0=#1])
+# .            CrossJoin
+# .              MaterializedScan (idx = 0)
+# .              MaterializedScan (idx = 0)
+# pipelines  Pipeline 2
+# .            Project (projections = [EqImpl(#0, #1)])
+# .            NestedLoopJoin
+# .            PhysicalMaterialize
+# .          Pipeline 1
+# .            NestedLoopJoin
+# .            PhysicalMaterialize
+# .          Pipeline 0
+# .            PhysicalMaterialize
+# .            Project (projections = [RandomImpl()])
+# .            Empty
+
+query I
+with cte1 as materialized (select 1 as a),
+     cte2 as (select * from cte1)
+select * from cte1, cte2;
+----
+1  1
+
+query TT
+describe with cte1 as materialized (select 1 as a),
+     cte2 as (select * from cte1)
+select * from cte1, cte2;
+----
+a  Int64
+a  Int64
+
+query TT
+with cte1 as materialized (select 1 as a),
+     cte2 as (select * from cte1),
+     cte3 as materialized (select 3, * from cte2, cte1)
+select * from cte3;
+----
+3  1  1
+
+query TT
+describe with cte1 as materialized (select 1 as a),
+     cte2 as (select * from cte1),
+     cte3 as materialized (select 3, * from cte2, cte1)
+select * from cte3;
+----
+?column?  Int64
+a         Int64
+a         Int64
+
+# query TT
+# explain with cte1 as materialized (select 1 as a),
+#      cte2 as (select * from cte1),
+#      cte3 as materialized (select 3, * from cte2, cte1)
+# select * from cte3;
+# ----
+# logical    Projection (expressions = [#0, #1, #2])
+# .            MaterializedScan (idx = 1)
+# pipelines  Pipeline 3
+# .            Project (projections = [#0, #1, #2])
+# .            PhysicalMaterialize
+# .          Pipeline 2
+# .            PhysicalMaterialize
+# .            Project (projections = [3, #0, #1])
+# .            NestedLoopJoin
+# .            PhysicalMaterialize
+# .          Pipeline 1
+# .            NestedLoopJoin
+# .            Project (projections = [#0])
+# .            PhysicalMaterialize
+# .          Pipeline 0
+# .            PhysicalMaterialize
+# .            Project (projections = [1])
+# .            Empty
+

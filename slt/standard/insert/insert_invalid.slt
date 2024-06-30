@@ -1,0 +1,16 @@
+# INSERT INTO with invalid data
+
+statement ok
+create temp table t1 (a int, b text);
+
+# Invalid number of columns
+
+statement error Invalid number of inputs. Expected 2, got 1
+insert into t1 values (1);
+
+statement error Invalid number of inputs. Expected 2, got 3
+insert into t1 values (1, 'hello', 3);
+
+statement error Invalid number of inputs. Expected 2, got 1
+insert into t1 select 2;
+

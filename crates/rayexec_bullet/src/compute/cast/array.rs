@@ -32,6 +32,9 @@ use super::{
 /// Cast an array to some other data type.
 pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
     Ok(match (arr, to) {
+        // Null to whatever.
+        (Array::Null(arr), datatype) => cast_from_null(arr.len(), datatype)?,
+
         // Primitive numeric casts
         // From UInt8
         (Array::UInt8(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
@@ -249,6 +252,43 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
             return Err(RayexecError::new(format!(
                 "Unable to cast from {} to {to}",
                 arr.datatype(),
+            )))
+        }
+    })
+}
+
+pub fn cast_from_null(len: usize, datatype: &DataType) -> Result<Array> {
+    // TODO: Since the null array already contains a bitmap, we should maybe
+    // change these array constructors to accept the bitmap, and not the length.
+    Ok(match datatype {
+        DataType::Boolean => Array::Boolean(BooleanArray::new_nulls(len)),
+        DataType::Int8 => Array::Int8(PrimitiveArray::new_nulls(len)),
+        DataType::Int16 => Array::Int16(PrimitiveArray::new_nulls(len)),
+        DataType::Int32 => Array::Int32(PrimitiveArray::new_nulls(len)),
+        DataType::Int64 => Array::Int64(PrimitiveArray::new_nulls(len)),
+        DataType::UInt8 => Array::UInt8(PrimitiveArray::new_nulls(len)),
+        DataType::UInt16 => Array::UInt16(PrimitiveArray::new_nulls(len)),
+        DataType::UInt32 => Array::UInt32(PrimitiveArray::new_nulls(len)),
+        DataType::UInt64 => Array::UInt64(PrimitiveArray::new_nulls(len)),
+        DataType::Float32 => Array::Float32(PrimitiveArray::new_nulls(len)),
+        DataType::Float64 => Array::Float64(PrimitiveArray::new_nulls(len)),
+        DataType::Decimal64(meta) => {
+            let primitive = PrimitiveArray::new_nulls(len);
+            Array::Decimal64(DecimalArray::new(meta.precision, meta.scale, primitive))
+        }
+        DataType::Decimal128(meta) => {
+            let primitive = PrimitiveArray::new_nulls(len);
+            Array::Decimal128(DecimalArray::new(meta.precision, meta.scale, primitive))
+        }
+        DataType::Date32 => Array::Date32(PrimitiveArray::new_nulls(len)),
+        DataType::Interval => Array::Interval(PrimitiveArray::new_nulls(len)),
+        DataType::Utf8 => Array::Utf8(VarlenArray::new_nulls(len)),
+        DataType::LargeUtf8 => Array::LargeUtf8(VarlenArray::new_nulls(len)),
+        DataType::Binary => Array::Binary(VarlenArray::new_nulls(len)),
+        DataType::LargeBinary => Array::LargeBinary(VarlenArray::new_nulls(len)),
+        other => {
+            return Err(RayexecError::new(format!(
+                "Unable to cast null array to {other}"
             )))
         }
     })

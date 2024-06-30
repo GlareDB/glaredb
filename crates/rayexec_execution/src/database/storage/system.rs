@@ -8,8 +8,8 @@ use crate::database::ddl::CatalogModifier;
 use crate::database::entry::{CatalogEntry, FunctionEntry, FunctionImpl, TableEntry};
 use crate::database::table::DataTable;
 use crate::datasource::DataSourceRegistry;
-use crate::functions::aggregate::{GenericAggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
-use crate::functions::scalar::{GenericScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
+use crate::functions::aggregate::{AggregateFunction, BUILTIN_AGGREGATE_FUNCTIONS};
+use crate::functions::scalar::{ScalarFunction, BUILTIN_SCALAR_FUNCTIONS};
 use crate::functions::table::{GenericTableFunction, BUILTIN_TABLE_FUNCTIONS};
 
 /// Read-only system catalog that cannot be modified once constructed.
@@ -111,7 +111,7 @@ impl SystemCatalog {
         _tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericScalarFunction>>> {
+    ) -> Result<Option<Box<dyn ScalarFunction>>> {
         let schema = self
             .schemas
             .get(schema)
@@ -130,7 +130,7 @@ impl SystemCatalog {
         _tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> Result<Option<Box<dyn GenericAggregateFunction>>> {
+    ) -> Result<Option<Box<dyn AggregateFunction>>> {
         let schema = self
             .schemas
             .get(schema)
@@ -184,7 +184,7 @@ impl Catalog for SystemCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> BoxFuture<Result<Option<Box<dyn GenericScalarFunction>>>> {
+    ) -> BoxFuture<Result<Option<Box<dyn ScalarFunction>>>> {
         let result = self.get_scalar_fn_inner(tx, schema, name);
         Box::pin(async { result })
     }
@@ -194,7 +194,7 @@ impl Catalog for SystemCatalog {
         tx: &CatalogTx,
         schema: &str,
         name: &str,
-    ) -> BoxFuture<Result<Option<Box<dyn GenericAggregateFunction>>>> {
+    ) -> BoxFuture<Result<Option<Box<dyn AggregateFunction>>>> {
         let result = self.get_aggregate_fn_inner(tx, schema, name);
         Box::pin(async { result })
     }

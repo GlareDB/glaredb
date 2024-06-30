@@ -30,12 +30,12 @@ select * from generate_series(1, 5, 2);
 3
 5
 
-# query I
-# select * from generate_series(5, 1, -2);
-# ----
-# 5
-# 3
-# 1
+query I
+select * from generate_series(5, 1, -2);
+----
+5
+3
+1
 
 query I
 select * from generate_series(4, 3);
@@ -45,9 +45,9 @@ query I
 select * from generate_series(4, 3, 1);
 ----
 
-# query I
-# select * from generate_series(3, 4, -1);
-# ----
+query I
+select * from generate_series(3, 4, -1);
+----
 
 # Should lazily allocate
 query I

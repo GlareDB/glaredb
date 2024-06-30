@@ -1,0 +1,85 @@
+# LIKE
+
+# Function call
+
+query B
+select like('aaa', 'aaa');
+----
+true
+
+query B
+select like('aaa', 'bbb');
+----
+false
+
+query B
+select like('abc', '%bc');
+----
+true
+
+query B
+select like('abc', 'ab%');
+----
+true
+
+query B
+select like('abc', 'bc%');
+----
+false
+
+query B
+select like('abc', '%bc%');
+----
+true
+
+query B
+select like('abc', '%b%');
+----
+true
+
+query B
+select like('abc', '%');
+----
+true
+
+# LIKE expression
+
+query B
+select 'aaa' LIKE 'aaa';
+----
+true
+
+query B
+select 'aaa' LIKE 'bbb';
+----
+false
+
+query B
+select 'abc' LIKE '%bc';
+----
+true
+
+query B
+select 'abc' LIKE 'ab%';
+----
+true
+
+query B
+select 'abc' LIKE 'bc%';
+----
+false
+
+query B
+select 'abc' LIKE '%bc%';
+----
+true
+
+query B
+select 'abc' LIKE '%b%';
+----
+true
+
+query B
+select 'abc' LIKE '%';
+----
+true

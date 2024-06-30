@@ -19,9 +19,9 @@ pub struct Signature {
 
     /// The expected return type.
     ///
-    /// Note that for some functions, this might return a compound type
-    /// `DataType::Struct(TypeMeta::None)` which might require further
-    /// refinement.
+    /// This is purely informational (and could be used for documentation). The
+    /// concrete data type is determined by the planned function, which is what
+    /// gets used during planning.
     pub return_type: DataTypeId,
 }
 
@@ -77,21 +77,11 @@ pub trait FunctionInfo {
     /// function given some inputs, and how we should handle implicit casting.
     fn signatures(&self) -> &[Signature];
 
-    /// Get the return type for this function if the inputs have an exact
-    /// signature match.
+    /// Get the signature for a function if it's an exact match for the inputs.
     ///
     /// If there are no exact signatures for these types, None will be retuned.
-    ///
-    /// This can be overridden to allow for working with more complex types
-    /// (like extracting a field from a struct).
-    fn return_type_for_inputs(&self, inputs: &[DataType]) -> Option<DataType> {
-        let sig = self
-            .signatures()
-            .iter()
-            .find(|sig| sig.exact_match(inputs))?;
-        let datatype = DataType::try_default_datatype(sig.return_type).ok()?;
-
-        Some(datatype)
+    fn exact_signature(&self, inputs: &[DataType]) -> Option<&Signature> {
+        self.signatures().iter().find(|sig| sig.exact_match(inputs))
     }
 
     /// Get candidate signatures for this function given the input datatypes.
@@ -180,9 +170,9 @@ impl CandidateSignature {
 
 /// Check the number of arguments provided, erroring if it doesn't match the
 /// expected number of arguments.
-pub fn specialize_check_num_args(
+pub fn plan_check_num_args<T>(
     func: &impl FunctionInfo,
-    inputs: &[DataType],
+    inputs: &[T],
     expected: usize,
 ) -> Result<()> {
     if inputs.len() != expected {

@@ -1,0 +1,24 @@
+# GROUP BY alias
+
+statement ok
+create temp table t1 (a text, b int);
+
+statement ok
+insert into t1 values ('a', 1), ('c', 2), ('c', 3);
+
+query TI rowsort
+select a as c1, sum(b) from t1 group by c1;
+----
+a  1
+c  5
+
+query TI
+select 1 as c1, sum(b) from t1 group by c1;
+----
+1  6
+
+query TI rowsort
+select 1 as a, sum(b) from t1 group by a;
+----
+1  1
+1  5

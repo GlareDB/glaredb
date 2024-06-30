@@ -1,0 +1,45 @@
+# Error source: query failed: Expected RightParen, got Some(TokenWithLocation {
+# token: Word(Word { value: "from", quote: None, keyword: Some(FROM) }), line:
+# 0, col: 0 })
+
+query TT
+describe select
+    supp_nation,
+    cust_nation,
+    l_year,
+    sum(volume) as revenue
+from
+    (
+        select
+            n1.n_name as supp_nation,
+            n2.n_name as cust_nation,
+            extract(year from l_shipdate) as l_year,
+            l_extendedprice * (1 - l_discount) as volume
+        from
+            '../submodules/testdata/tpch_sf0.1/supplier.parquet' supplier,
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem,
+            '../submodules/testdata/tpch_sf0.1/orders.parquet' orders,
+            '../submodules/testdata/tpch_sf0.1/customer.parquet' customer,
+            '../submodules/testdata/tpch_sf0.1/nation.parquet' n1,
+            '../submodules/testdata/tpch_sf0.1/nation.parquet' n2,
+        where
+                s_suppkey = l_suppkey
+          and o_orderkey = l_orderkey
+          and c_custkey = o_custkey
+          and s_nationkey = n1.n_nationkey
+          and c_nationkey = n2.n_nationkey
+          and (
+                (n1.n_name = 'FRANCE' and n2.n_name = 'GERMANY')
+                or (n1.n_name = 'GERMANY' and n2.n_name = 'FRANCE')
+            )
+          and l_shipdate between date '1995-01-01' and date '1996-12-31'
+    ) as shipping
+group by
+    supp_nation,
+    cust_nation,
+    l_year
+order by
+    supp_nation,
+    cust_nation,
+    l_year;
+----

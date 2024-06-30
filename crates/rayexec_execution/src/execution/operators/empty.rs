@@ -13,6 +13,14 @@ pub struct EmptyPartitionState {
 #[derive(Debug)]
 pub struct PhysicalEmpty;
 
+impl PhysicalEmpty {
+    pub fn create_states(num_partitions: usize) -> Vec<EmptyPartitionState> {
+        (0..num_partitions)
+            .map(|_| EmptyPartitionState { finished: false })
+            .collect()
+    }
+}
+
 impl PhysicalOperator for PhysicalEmpty {
     fn poll_push(
         &self,

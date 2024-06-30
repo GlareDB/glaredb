@@ -1,5 +1,5 @@
 pub mod modify;
-pub mod result_stream;
+pub mod result;
 pub mod session;
 pub mod vars;
 

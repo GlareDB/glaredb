@@ -1,11 +1,9 @@
 use crate::functions::scalar::macros::{
     primitive_binary_execute, primitive_binary_execute_no_wrap,
 };
-use crate::functions::{
-    invalid_input_types_error, specialize_check_num_args, FunctionInfo, Signature,
-};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
-use super::{GenericScalarFunction, SpecializedScalarFunction};
+use super::{PlannedScalarFunction, ScalarFunction};
 use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::scalar::interval::Interval;
@@ -88,9 +86,9 @@ impl FunctionInfo for Add {
     }
 }
 
-impl GenericScalarFunction for Add {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Add {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -102,18 +100,30 @@ impl GenericScalarFunction for Add {
             | (DataType::UInt16, DataType::UInt16)
             | (DataType::UInt32, DataType::UInt32)
             | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
+            | (DataType::Decimal64(_), DataType::Decimal64(_)) // TODO: Split out decimal
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddPrimitiveSpecialized)),
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddPrimitiveImpl {
+                datatype: inputs[0].clone(),
+            })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AddPrimitiveSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddPrimitiveImpl {
+    datatype: DataType,
+}
 
-impl SpecializedScalarFunction for AddPrimitiveSpecialized {
+impl PlannedScalarFunction for AddPrimitiveImpl {
+    fn name(&self) -> &'static str {
+        "add_primitive_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -200,9 +210,9 @@ impl FunctionInfo for Sub {
     }
 }
 
-impl GenericScalarFunction for Sub {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Sub {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -216,16 +226,28 @@ impl GenericScalarFunction for Sub {
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(SubPrimitiveSpecialized)),
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(SubPrimitiveImpl {
+                datatype: inputs[0].clone(),
+            })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SubPrimitiveSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubPrimitiveImpl {
+    datatype: DataType,
+}
 
-impl SpecializedScalarFunction for SubPrimitiveSpecialized {
+impl PlannedScalarFunction for SubPrimitiveImpl {
+    fn name(&self) -> &'static str {
+        "sub_primitive_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -312,9 +334,9 @@ impl FunctionInfo for Div {
     }
 }
 
-impl GenericScalarFunction for Div {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Div {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -328,16 +350,28 @@ impl GenericScalarFunction for Div {
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivPrimitiveSpecialized)),
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(DivPrimitiveImpl {
+                datatype: inputs[0].clone(),
+            })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DivPrimitiveSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DivPrimitiveImpl {
+    datatype: DataType,
+}
 
-impl SpecializedScalarFunction for DivPrimitiveSpecialized {
+impl PlannedScalarFunction for DivPrimitiveImpl {
+    fn name(&self) -> &'static str {
+        "div_primitive_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -421,9 +455,9 @@ impl FunctionInfo for Mul {
     }
 }
 
-impl GenericScalarFunction for Mul {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Mul {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -438,16 +472,28 @@ impl GenericScalarFunction for Mul {
             | (DataType::Date32, DataType::Int64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulPrimitiveSpecialized)),
+            | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulPrimitiveImpl {
+                datatype: inputs[0].clone(),
+            })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MulPrimitiveSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MulPrimitiveImpl {
+    datatype: DataType,
+}
 
-impl SpecializedScalarFunction for MulPrimitiveSpecialized {
+impl PlannedScalarFunction for MulPrimitiveImpl {
+    fn name(&self) -> &'static str {
+        "mul_primitive_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -543,9 +589,9 @@ impl FunctionInfo for Rem {
     }
 }
 
-impl GenericScalarFunction for Rem {
-    fn specialize(&self, inputs: &[DataType]) -> Result<Box<dyn SpecializedScalarFunction>> {
-        specialize_check_num_args(self, inputs, 2)?;
+impl ScalarFunction for Rem {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
@@ -558,16 +604,28 @@ impl GenericScalarFunction for Rem {
             | (DataType::UInt32, DataType::UInt32)
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Date32, DataType::Int64)
-            | (DataType::Interval, DataType::Int64) => Ok(Box::new(RemPrimitiveSpecialized)),
+            | (DataType::Interval, DataType::Int64) => Ok(Box::new(RemPrimitiveImpl {
+                datatype: inputs[0].clone(),
+            })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RemPrimitiveSpecialized;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemPrimitiveImpl {
+    datatype: DataType,
+}
 
-impl SpecializedScalarFunction for RemPrimitiveSpecialized {
+impl PlannedScalarFunction for RemPrimitiveImpl {
+    fn name(&self) -> &'static str {
+        "rem_primitive_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
         let first = arrays[0];
         let second = arrays[1];
@@ -618,7 +676,9 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
 
-        let specialized = Add.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Add
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([5, 7, 9]));
@@ -631,7 +691,9 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
-        let specialized = Sub.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Sub
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([3, 3, 3]));
@@ -644,7 +706,9 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
-        let specialized = Div.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Div
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([4, 2, 2]));
@@ -657,7 +721,9 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
-        let specialized = Rem.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Rem
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([0, 1, 0]));
@@ -670,7 +736,9 @@ mod tests {
         let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
         let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
 
-        let specialized = Mul.specialize(&[DataType::Int32, DataType::Int32]).unwrap();
+        let specialized = Mul
+            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+            .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
         let expected = Array::Int32(Int32Array::from_iter([4, 10, 18]));
