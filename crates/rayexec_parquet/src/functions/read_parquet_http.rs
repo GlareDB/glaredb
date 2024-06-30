@@ -40,7 +40,7 @@ impl ReadParquetHttp {
         let mut reader = HttpClient::new(runtime.tokio.handle().clone()).reader(self.url.clone());
         let size = reader.content_length().await?;
 
-        let metadata = Metadata::load_from(&mut reader, size as usize).await?;
+        let metadata = Metadata::load_from(&mut reader, size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(ReadParquetHttpRowGroupPartitioned {
