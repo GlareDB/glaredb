@@ -24,7 +24,7 @@ def test_sql():
         }
     )
 
-    assert out.frame_equal(expected)
+    assert out.equals(expected)
     con.close()
 
 
@@ -51,8 +51,8 @@ def test_sql_multiple_references():
         }
     )
 
-    assert out1.frame_equal(expected)
-    assert out2.frame_equal(expected)
+    assert out1.equals(expected)
+    assert out2.equals(expected)
     con.close()
 
 
@@ -90,7 +90,7 @@ def test_can_query_outer_scope_var():
         }
     )
 
-    assert out.frame_equal(expected)
+    assert out.equals(expected)
 
 
 def test_execute():
@@ -114,7 +114,7 @@ def test_execute():
         }
     )
 
-    assert out.frame_equal(expected)
+    assert out.equals(expected)
     con.close()
 
 def test_select_polars_lazy():
@@ -138,5 +138,5 @@ def test_select_polars_lazy():
         }
     )
 
-    assert out.frame_equal(expected)
+    assert out.equals(expected)
     con.close()
