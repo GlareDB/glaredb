@@ -296,12 +296,17 @@ impl Converter {
                                 // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
                                 let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
-                                let date =
-                                    NaiveDate::parse_from_str(t, "%Y-%m-%d").map_err(|_| {
-                                        SqliteError::InvalidConversion {
-                                            from: Value::Text(t.to_string()),
-                                            to: DataType::Date32,
-                                        }
+
+                                let date = NaiveDate::parse_from_str(t, "%Y-%m-%d")
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc3339(t).map(|dt| dt.date_naive())
+                                    })
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc2822(t).map(|dt| dt.date_naive())
+                                    })
+                                    .map_err(|_| SqliteError::InvalidConversion {
+                                        from: Value::Text(t.to_string()),
+                                        to: DataType::Date32,
                                     })?;
                                 let num_days_since_epoch =
                                     date.signed_duration_since(epoch).num_days();
@@ -391,12 +396,20 @@ impl Converter {
                                 // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
                                 let epoch = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
-                                let time =
-                                    NaiveTime::parse_from_str(t, "%H:%M:%S%.f").map_err(|_| {
-                                        SqliteError::InvalidConversion {
-                                            from: Value::Text(t.to_string()),
-                                            to: DataType::Time64(TimeUnit::Microsecond),
-                                        }
+                                let time = NaiveTime::parse_from_str(t, "%H:%M:%S%.f")
+                                    .or_else(|_| {
+                                        NaiveDate::parse_from_str(t, "%Y-%m-%d")
+                                            .map(|nd| nd.and_time(epoch).time())
+                                    })
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc3339(t).map(|dt| dt.time())
+                                    })
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc2822(t).map(|dt| dt.time())
+                                    })
+                                    .map_err(|_| SqliteError::InvalidConversion {
+                                        from: Value::Text(t.to_string()),
+                                        to: DataType::Time64(TimeUnit::Microsecond),
                                     })?;
                                 let duration_since_midnight = time.signed_duration_since(epoch);
                                 let microseconds_since_midnight =
@@ -446,12 +459,24 @@ impl Converter {
                             ValueRef::Text(t) => {
                                 // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
+
                                 let timestamp =
                                     NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S%.f")
+                                        .or_else(|_| {
+                                            NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S")
+                                        })
+                                        .or_else(|_| NaiveDateTime::parse_from_str(t, "%Y-%m-%d"))
+                                        .or_else(|_| {
+                                            DateTime::parse_from_rfc3339(t).map(|dt| dt.naive_utc())
+                                        })
+                                        .or_else(|_| {
+                                            DateTime::parse_from_rfc2822(t).map(|dt| dt.naive_utc())
+                                        })
                                         .map_err(|_| SqliteError::InvalidConversion {
                                             from: Value::Text(t.to_string()),
                                             to: DataType::Timestamp(TimeUnit::Microsecond, None),
                                         })?;
+
                                 let micros = timestamp.and_utc().timestamp_micros();
                                 builder.append_value(micros);
                             }
