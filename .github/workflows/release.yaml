@@ -79,7 +79,7 @@ jobs:
       - run: just dist
       - uses: actions/upload-artifact@v3
         with:
-          name: dist-${{ matrix.target }}
+          name: dist-${{ matrix.target }}.zip
           path: ./target/dist/
       - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
@@ -92,8 +92,7 @@ jobs:
                    "fields": [
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
@@ -125,24 +124,24 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: dist-aarch64-apple-darwin
+          name: dist-aarch64-apple-darwin.zip
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: dist-x86_64-apple-darwin
+          name: dist-x86_64-apple-darwin.zip
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: dist-x86_64-unknown-linux-gnu
+          name: dist-x86_64-unknown-linux-gnu.zip
           path: dist
       - uses: actions/download-artifact@v3
         with:
-          name: dist-x86_64-pc-windows-msvc
+          name: dist-x86_64-pc-windows-msvc.zip
           path: dist
       - run: ls -al ./dist
       - uses: actions/upload-artifact@v3
         with:
-          name: releases
+          name: dist-kernel-releases.zip
           path: ./dist
       - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
@@ -154,8 +153,7 @@ jobs:
                  {
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
@@ -197,7 +195,7 @@ jobs:
           args: --release --out dist -m bindings/python/Cargo.toml
       - uses: actions/upload-artifact@v3
         with:
-          name: wheels
+          name: wheels.zip
           path: dist
       - uses: slackapi/slack-github-action@v1.26.0
         if: ${{ always() }}
@@ -210,8 +208,7 @@ jobs:
                    "fields": [
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
@@ -259,8 +256,7 @@ jobs:
                    "fields": [
                       { "title": "target", "value": "Windows ${{ matrix.target }}", "short": true },
                       { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "status", "value": "${{ job.status }}", "short": true }
                    ]
                  }
               ]
@@ -310,8 +306,7 @@ jobs:
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
@@ -345,8 +340,7 @@ jobs:
                  {
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
@@ -481,8 +475,7 @@ jobs:
                    "fields": [
                       { "title": "target", "value": "${{ matrix.target }}", "short": true },
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
@@ -538,8 +531,7 @@ jobs:
                  {
                    "fields": [
                       { "title": "status", "value": "${{ job.status }}", "short": true },
-                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true },
-                      { "title": "link", "value": "${{ github.event.pull_request.html_url || github.event.push.head_commit.url || github.event.workflow_run.html_url }}", "short": true }
+                      { "title": "trigger", "value": "${{ github.triggering_actor}}", "short": true }
                    ]
                  }
               ]
