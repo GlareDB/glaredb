@@ -6,10 +6,10 @@ CREATE TABLE IF NOT EXISTS datatypes (
 
     -- Dates and times
     c3 DATE,
-    c4 TIME,    
+    c4 TIME,
     c5 DATETIME,
     c6 TIMESTAMP,
-    
+
     -- Integers
     c7 INT,
     c8 BIGINT,
@@ -68,7 +68,7 @@ INSERT INTO datatypes (c1) VALUES (NULL);
 -- Create bikeshare_stations table
 CREATE TABLE IF NOT EXISTS bikeshare_stations (
     station_id        INT,
-    name              TEXT, 
+    name              TEXT,
     status            TEXT,
     address           TEXT,
     alternate_name    TEXT,
@@ -110,23 +110,24 @@ CREATE TABLE IF NOT EXISTS bikeshare_trips (
     duration_minutes   INT
 );
 
-CREATE TABLE IF NOT EXISTS orders (
+DROP TABLE IF EXISTS orders;
+CREATE TABLE orders (
     order_id TEXT,
-    customer_id INT,
+    customer_id TEXT,
     employee_id INT,
-    order_date TEXT,
-    required_date TEXT,
-    shipped_date TEXT,
+    order_date TIMESTAMP,
+    required_date DATE,
+    shipped_date TIME,
     ship_via INT,
     freight REAL,
     ship_name TEXT,
     ship_address TEXT,
     ship_city TEXT,
     ship_region TEXT,
-    ship_postal_code INT,
+    ship_postal_code TEXT,
     ship_country TEXT
 );
 
 .mode csv
 .import --skip 1 testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv bikeshare_trips
-.import testdata/sqllogictests_datasources_common/data/orders.csv orders
+.import --skip 1 testdata/sqllogictests_datasources_common/data/orders.csv orders

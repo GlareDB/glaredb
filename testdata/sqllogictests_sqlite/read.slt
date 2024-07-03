@@ -10,20 +10,20 @@ SELECT count(*) FROM read_sqlite('${SQLITE_DB_LOCATION}', 'orders');
 ----
 16282
 
-# TODO: change db location to our own test directory on github once this is merged
-query I
-SELECT COUNT(*) FROM read_sqlite('https://github.com/jpwhite3/northwind-SQLite3/raw/main/dist/northwind.db','Orders');
-----
-16282
+# TODO: in ./data/setup-test-sqlite-db.sql create a table that has:
+  DATE, TIME, TIMESTAMP fields with various string formats and make
+  sure that we can load the table.
 
+# TODO: uplaod this DB file to our own cloud storage and move this
+  test to the cloud storage directory.
 query III
-SELECT OrderID, OrderDate, RequiredDate, ShippedDate FROM FROM read_sqlite('https://github.com/jpwhite3/northwind-SQLite3/raw/main/dist/northwind.db','Orders');
+SELECT "OrderID", "OrderDate", "RequiredDate", "ShippedDate"
+FROM read_sqlite('https://github.com/jpwhite3/northwind-SQLite3/raw/main/dist/northwind.db','Orders')
+ORDER BY "OrderID"
+LIMIT 5;
 ----
-10248	2016-07-04	2016-08-01	2016-07-16
-10249	2016-07-05	2016-08-16	2016-07-10
-10250	2016-07-08	2016-08-05	2016-07-12
-10251	2016-07-08	2016-08-05	2016-07-15
-10252	2016-07-09	2016-08-06	2016-07-11
-
-
-
+10248 2016-07-04 00:00:00 2016-08-01 00:00:00 2016-07-16 00:00:00
+10249 2016-07-05 00:00:00 2016-08-16 00:00:00 2016-07-10 00:00:00
+10250 2016-07-08 00:00:00 2016-08-05 00:00:00 2016-07-12 00:00:00
+10251 2016-07-08 00:00:00 2016-08-05 00:00:00 2016-07-15 00:00:00
+10252 2016-07-09 00:00:00 2016-08-06 00:00:00 2016-07-11 00:00:00
