@@ -3,8 +3,8 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     database::table::DataTable,
-    engine::EngineRuntime,
     functions::table::{InitializedTableFunction, SpecializedTableFunction},
+    runtime::ExecutionRuntime,
 };
 use std::{
     fs::{File, OpenOptions},
@@ -28,7 +28,7 @@ impl SpecializedTableFunction for ReadParquetLocal {
 
     fn initialize(
         self: Box<Self>,
-        _runtime: &Arc<EngineRuntime>,
+        _runtime: &Arc<dyn ExecutionRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
         Box::pin(async move { self.initialize_inner().await })
     }
@@ -87,7 +87,7 @@ impl InitializedTableFunction for ReadParquetLocalRowGroupPartitioned {
         self.schema.clone()
     }
 
-    fn datatable(&self, _runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
+    fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(RowGroupPartitionedDataTable::new(
             self.specialized.clone(),
             self.metadata.clone(),

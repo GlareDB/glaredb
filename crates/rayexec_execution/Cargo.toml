@@ -7,6 +7,7 @@ edition = { workspace = true }
 rayexec_error = { path = "../rayexec_error" }
 rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
+rayexec_io = { path = "../rayexec_io" }
 fmtutil = { path = "../fmtutil" }
 
 ahash = { workspace = true }
@@ -18,15 +19,10 @@ num-traits = "0.2.19"
 num_cpus = "1.16.0"
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
-parquet = { workspace = true }
 rayon = { workspace = true }
 smallvec = { workspace = true }
 tracing = { workspace = true }
-crossbeam = "0.8.4"
 half = "2.4.1"
-tokio = { workspace = true }
+tokio = { workspace = true, default-features = false }
 regex = { workspace = true }
 rand = "0.8.5"
-
-[dev-dependencies]
-insta = "1.39.0"

@@ -3,10 +3,10 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
-    engine::EngineRuntime,
     functions::table::{
         GenericTableFunction, InitializedTableFunction, SpecializedTableFunction, TableFunctionArgs,
     },
+    runtime::ExecutionRuntime,
 };
 use std::sync::Arc;
 
@@ -64,9 +64,9 @@ impl SpecializedTableFunction for ReadPostgresArgs {
 
     fn initialize(
         self: Box<Self>,
-        runtime: &Arc<EngineRuntime>,
+        runtime: &Arc<dyn ExecutionRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
-        let client = PostgresClient::connect(self.conn_str.clone(), runtime);
+        let client = PostgresClient::connect(self.conn_str.clone(), runtime.as_ref());
         Box::pin(async move {
             let client = client.await?;
             let fields = match client
@@ -104,7 +104,7 @@ impl InitializedTableFunction for ReadPostgresImpl {
         self.table_schema.clone()
     }
 
-    fn datatable(&self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
+    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
             runtime: runtime.clone(),
             conn_str: self.args.conn_str.clone(),

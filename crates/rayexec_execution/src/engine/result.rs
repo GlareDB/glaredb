@@ -11,14 +11,14 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::{
     execution::{operators::PollPush, query_graph::sink::PartitionSink},
-    scheduler::handle::QueryHandle,
+    runtime::{ErrorSink, QueryHandle},
 };
 
 #[derive(Debug)]
 pub struct ExecutionResult {
     pub output_schema: Schema,
     pub stream: ResultAdapterStream,
-    pub handle: QueryHandle,
+    pub handle: Box<dyn QueryHandle>,
 }
 
 #[derive(Debug)]
@@ -65,8 +65,8 @@ impl ResultAdapterStream {
         }
     }
 
-    pub fn error_sink(&self) -> ErrorSink {
-        ErrorSink {
+    pub fn error_sink(&self) -> AdapterErrorSink {
+        AdapterErrorSink {
             state: self.state.clone(),
         }
     }
@@ -157,12 +157,12 @@ impl PartitionSink for ResultAdapterSink {
 }
 
 #[derive(Debug, Clone)]
-pub struct ErrorSink {
+pub struct AdapterErrorSink {
     state: Arc<Mutex<AdapterState>>,
 }
 
-impl ErrorSink {
-    pub fn push_error(&self, error: RayexecError) {
+impl ErrorSink for AdapterErrorSink {
+    fn push_error(&self, error: RayexecError) {
         let mut state = self.state.lock();
         state.did_error = true;
         if state.error.is_none() {

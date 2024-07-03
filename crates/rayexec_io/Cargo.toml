@@ -9,4 +9,4 @@ futures = { workspace = true }
 tracing = { workspace = true }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls"] }
 url = { workspace = true }
-tokio = { workspace = true }
+bytes = { version = "1.1", default-features = false, features = ["std"] }

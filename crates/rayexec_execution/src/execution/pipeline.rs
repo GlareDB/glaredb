@@ -174,17 +174,17 @@ impl PartitionPipeline {
     }
 
     /// Get the current state of the pipeline.
-    pub(crate) fn state(&self) -> &PipelinePartitionState {
+    pub fn state(&self) -> &PipelinePartitionState {
         &self.state
     }
 
-    pub(crate) fn timings(&self) -> &PartitionPipelineTimings {
+    pub fn timings(&self) -> &PartitionPipelineTimings {
         &self.timings
     }
 
     /// Return an iterator over all the physcial operators in this partition
     /// pipeline.
-    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
+    pub fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
         self.operators.iter().map(|op| &op.physical)
     }
 }
@@ -220,7 +220,7 @@ pub(crate) struct OperatorWithState {
 }
 
 #[derive(Clone)]
-pub(crate) enum PipelinePartitionState {
+pub enum PipelinePartitionState {
     /// Need to pull from an operator.
     PullFrom { operator_idx: usize },
 
@@ -277,9 +277,11 @@ impl PartitionPipeline {
             "executing partition pipeline",
         );
 
-        if self.timings.start.is_none() {
-            self.timings.start = Some(Instant::now());
-        }
+        // TODO: Time stuff currently commented out since wasm32-unknown-unknown
+        // doesn't have proper time implementations.
+        // if self.timings.start.is_none() {
+        //     self.timings.start = Some(Instant::now());
+        // }
 
         let state = &mut self.state;
 
@@ -439,7 +441,7 @@ impl PartitionPipeline {
                     }
                 }
                 PipelinePartitionState::Completed => {
-                    self.timings.completed = Some(Instant::now());
+                    // self.timings.completed = Some(Instant::now());
                     return Poll::Ready(None);
                 }
             }

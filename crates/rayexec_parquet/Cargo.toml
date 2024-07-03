@@ -14,3 +14,6 @@ tracing = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
 bytes = "1.6.0"
+
+[features]
+zstd = ["parquet/zstd"]

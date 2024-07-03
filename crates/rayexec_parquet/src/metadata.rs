@@ -3,7 +3,8 @@ use parquet::file::{
     metadata::ParquetMetaData,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::AsyncReadAt;
+use rayexec_io::AsyncReader;
+use tracing::trace;
 
 #[derive(Debug, Clone)]
 pub struct Metadata {
@@ -12,16 +13,17 @@ pub struct Metadata {
 
 impl Metadata {
     /// Loads parquet metadata from an async source.
-    pub async fn load_from(reader: &mut impl AsyncReadAt, size: usize) -> Result<Self> {
+    pub async fn load_from(reader: &mut impl AsyncReader, size: usize) -> Result<Self> {
         if size < 8 {
             return Err(RayexecError::new("File size is too small"));
         }
 
-        let mut footer = [0; 8];
         let footer_start = size - 8;
-        reader.read_at(footer_start, &mut footer).await?;
+        let footer = reader.read_range(footer_start, 8).await?;
+        trace!("read parquet footer bytes");
 
-        let len = decode_footer(&footer).context("failed to decode footer")?;
+        let len = decode_footer(footer.as_ref().try_into().unwrap())
+            .context("failed to decode footer")?;
         if size < len + 8 {
             return Err(RayexecError::new(format!(
                 "File size of {size} is less than footer + metadata {}",
@@ -30,8 +32,7 @@ impl Metadata {
         }
 
         let metadata_start = size - len - 8;
-        let mut metadata = vec![0; len];
-        reader.read_at(metadata_start, &mut metadata).await?;
+        let metadata = reader.read_range(metadata_start, len).await?;
 
         let metadata = decode_metadata(&metadata).context("failed to decode metadata")?;
 

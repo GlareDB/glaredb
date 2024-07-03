@@ -3,7 +3,7 @@ use crate::{
         create::{CreateSchemaInfo, CreateTableInfo},
         DatabaseContext,
     },
-    engine::{vars::SessionVars, EngineRuntime},
+    engine::vars::SessionVars,
     execution::{
         operators::{
             create_schema::PhysicalCreateSchema,
@@ -40,6 +40,7 @@ use crate::{
         context::QueryContext,
         operator::{self, LogicalOperator},
     },
+    runtime::ExecutionRuntime,
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},
@@ -99,7 +100,7 @@ pub struct QueryGraphPlanner<'a> {
 impl<'a> QueryGraphPlanner<'a> {
     pub fn new(
         db_context: &'a DatabaseContext,
-        runtime: &'a Arc<EngineRuntime>,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
         target_partitions: usize,
         debug: QueryGraphDebugConfig,
     ) -> Self {
@@ -189,7 +190,7 @@ struct BuildConfig<'a> {
     db_context: &'a DatabaseContext,
 
     /// Reference to the engine runtime. Provied to table functions on scan.
-    runtime: &'a Arc<EngineRuntime>,
+    runtime: &'a Arc<dyn ExecutionRuntime>,
 
     /// Target number of partitions to achieve when executing operators.
     target_partitions: usize,

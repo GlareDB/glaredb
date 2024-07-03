@@ -8,6 +8,7 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../crates/rayexec_error' }
 rayexec_execution = { path = '../crates/rayexec_execution' }
+rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_slt = { path = '../crates/rayexec_slt' }
 rayexec_bullet = { path = '../crates/rayexec_bullet' }
 rayexec_postgres = { path = '../crates/rayexec_postgres' }

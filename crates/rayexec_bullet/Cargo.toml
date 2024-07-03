@@ -11,6 +11,7 @@ rayexec_arrow_ipc = { path = "../rayexec_arrow_ipc" }
 num = "0.4.3"
 csv-core = { version = "0.1.11", default-features = false } # Default features has libc dependency.
 chrono = "0.4.38"
+textwrap = { version = "0.16.1", default-features = false, features = ["unicode-width"] }
 
 [dev-dependencies]
 backtrace-on-stack-overflow = "0.3.0"

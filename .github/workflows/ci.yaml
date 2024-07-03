@@ -30,3 +30,16 @@ jobs:
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
+
+  wasm:
+    name: "Build wasm"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build wasm
+        run: wasm-pack build crates/rayexec_wasm/ --scope glaredb

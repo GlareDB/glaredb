@@ -9,8 +9,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::catalog::Catalog, datasource::DataSource, engine::EngineRuntime,
-    functions::table::GenericTableFunction,
+    database::catalog::Catalog, datasource::DataSource, functions::table::GenericTableFunction,
+    runtime::ExecutionRuntime,
 };
 use regex::{Regex, RegexBuilder};
 use std::{collections::HashMap, sync::Arc};
@@ -21,7 +21,7 @@ pub struct ParquetDataSource;
 impl DataSource for ParquetDataSource {
     fn create_catalog(
         &self,
-        _runtime: &Arc<EngineRuntime>,
+        _runtime: &Arc<dyn ExecutionRuntime>,
         _options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async {

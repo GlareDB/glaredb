@@ -8,7 +8,11 @@ use rayexec_bullet::{
     format::{FormatOptions, Formatter},
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::engine::{session::Session, Engine, EngineRuntime};
+use rayexec_execution::{
+    engine::{session::Session, Engine},
+    runtime::ExecutionRuntime,
+};
+use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use sqllogictest::DefaultColumnType;
 use std::{fs, sync::Arc};
 use std::{
@@ -28,7 +32,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 /// `kind` should be used to group these SLTs together.
 pub fn run<F>(paths: impl IntoIterator<Item = PathBuf>, engine_fn: F, kind: &str) -> Result<()>
 where
-    F: Fn(Arc<EngineRuntime>) -> Result<Engine> + Clone + Send + 'static,
+    F: Fn(Arc<dyn ExecutionRuntime>) -> Result<Engine> + Clone + Send + 'static,
 {
     let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
@@ -51,7 +55,7 @@ where
         std::process::abort();
     }));
 
-    let rt = EngineRuntime::try_new_shared()?;
+    let rt = Arc::new(ThreadedExecutionRuntime::try_new()?.with_default_tokio()?);
 
     let tests = paths
         .into_iter()
@@ -61,7 +65,12 @@ where
             let rt = rt.clone();
             let engine_fn = engine_fn.clone();
             Trial::test(test_name, move || {
-                match rt.clone().tokio.block_on(run_test(path, rt, engine_fn)) {
+                match rt
+                    .clone()
+                    .tokio_handle()
+                    .expect("tokio to be configured")
+                    .block_on(run_test(path, rt, engine_fn))
+                {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
                 }
@@ -101,8 +110,8 @@ pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
 /// Run an SLT at path, creating an engine from the provided function.
 async fn run_test(
     path: impl AsRef<Path>,
-    rt: Arc<EngineRuntime>,
-    engine_fn: impl Fn(Arc<EngineRuntime>) -> Result<Engine>,
+    rt: Arc<dyn ExecutionRuntime>,
+    engine_fn: impl Fn(Arc<dyn ExecutionRuntime>) -> Result<Engine>,
 ) -> Result<()> {
     let path = path.as_ref();
 
@@ -160,7 +169,7 @@ impl sqllogictest::AsyncDB for TestSession {
                     // Timed out.
                     results[0].handle.cancel();
 
-                    let dump = results[0].handle.query_dump();
+                    let dump = results[0].handle.dump();
                     return Err(RayexecError::new(format!("Query timed out\n---\n{dump}")));
                 }
             }

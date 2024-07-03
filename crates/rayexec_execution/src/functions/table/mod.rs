@@ -10,7 +10,8 @@ use series::GenerateSeries;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::{database::table::DataTable, engine::EngineRuntime};
+use crate::database::table::DataTable;
+use crate::runtime::ExecutionRuntime;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
     Lazy::new(|| vec![Box::new(GenerateSeries)]);
@@ -70,7 +71,7 @@ pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
     /// Initializes the table function using the provided runtime.
     fn initialize(
         self: Box<Self>,
-        runtime: &Arc<EngineRuntime>,
+        runtime: &Arc<dyn ExecutionRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>>;
 }
 
@@ -102,7 +103,7 @@ pub trait InitializedTableFunction: Debug + Sync + Send + DynClone {
     ///
     /// An engine runtime is provided for table funcs that return truly async
     /// data tables.
-    fn datatable(&self, runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>>;
+    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>>;
 }
 
 impl PartialEq<dyn InitializedTableFunction> for Box<dyn InitializedTableFunction + '_> {

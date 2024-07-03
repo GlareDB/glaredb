@@ -38,6 +38,23 @@ pub struct LogicalQuery {
     pub scope: Scope,
 }
 
+impl LogicalQuery {
+    pub fn schema(&self) -> Result<Schema> {
+        let type_schema = self.root.output_schema(&[])?;
+        debug_assert_eq!(self.scope.num_columns(), type_schema.types.len());
+
+        let schema = Schema::new(
+            self.scope
+                .items
+                .iter()
+                .zip(type_schema.types)
+                .map(|(item, typ)| Field::new(item.column.clone(), typ, true)),
+        );
+
+        Ok(schema)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PlanContext<'a> {
     /// Session variables.
@@ -74,7 +91,7 @@ impl<'a> PlanContext<'a> {
                         format,
                         input: Box::new(plan.root),
                     }),
-                    scope: Scope::empty(),
+                    scope: Scope::with_columns(None, ["plan_type", "plan"]),
                 }
             }
             Statement::Query(query) => {

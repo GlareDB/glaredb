@@ -266,6 +266,18 @@ where
     }
 }
 
+impl<O: OffsetIndex> From<Vec<String>> for VarlenArray<str, O> {
+    fn from(value: Vec<String>) -> Self {
+        Self::from_iter(value.iter().map(|s| s.as_str()))
+    }
+}
+
+impl<O: OffsetIndex> From<Vec<Option<String>>> for VarlenArray<str, O> {
+    fn from(value: Vec<Option<String>>) -> Self {
+        Self::from_iter(value)
+    }
+}
+
 impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenArray<A, O> {
     fn from_iter<T: IntoIterator<Item = &'a A>>(iter: T) -> Self {
         let buffer = VarlenValuesBuffer::from_iter(iter);
@@ -273,10 +285,54 @@ impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<&'a A> for VarlenA
     }
 }
 
+impl<'a, A: VarlenType + ?Sized, O: OffsetIndex> FromIterator<Option<&'a A>> for VarlenArray<A, O> {
+    fn from_iter<T: IntoIterator<Item = Option<&'a A>>>(iter: T) -> Self {
+        let mut validity = Bitmap::default();
+        let mut values = VarlenValuesBuffer::default();
+
+        for item in iter {
+            match item {
+                Some(value) => {
+                    validity.push(true);
+                    values.push_value(value);
+                }
+                None => {
+                    validity.push(false);
+                    values.push_value("");
+                }
+            }
+        }
+
+        VarlenArray::new(values, Some(validity))
+    }
+}
+
 impl<O: OffsetIndex> FromIterator<String> for VarlenArray<str, O> {
     fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
         let buffer = VarlenValuesBuffer::from_iter(iter);
         VarlenArray::new(buffer, None)
+    }
+}
+
+impl<O: OffsetIndex> FromIterator<Option<String>> for VarlenArray<str, O> {
+    fn from_iter<T: IntoIterator<Item = Option<String>>>(iter: T) -> Self {
+        let mut validity = Bitmap::default();
+        let mut values = VarlenValuesBuffer::default();
+
+        for item in iter {
+            match item {
+                Some(value) => {
+                    validity.push(true);
+                    values.push_value(value);
+                }
+                None => {
+                    validity.push(false);
+                    values.push_value("");
+                }
+            }
+        }
+
+        VarlenArray::new(values, Some(validity))
     }
 }
 

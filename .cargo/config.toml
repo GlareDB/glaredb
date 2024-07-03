@@ -1,0 +1,5 @@
+# 4 times the default stack size of 1MB
+# [target.wasm32-unknown-unknown]
+# rustflags = [
+#   "-C", "link-args=-z stack-size=4194304",
+# ]

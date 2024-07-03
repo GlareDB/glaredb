@@ -1,8 +1,8 @@
 use crate::{
     database::table::DataTableScan,
-    engine::EngineRuntime,
     functions::table::InitializedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    runtime::ExecutionRuntime,
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
@@ -28,8 +28,8 @@ impl PhysicalTableFunction {
 
     pub fn try_create_states(
         &self,
-        runtime: &Arc<EngineRuntime>,
-        num_partitions: usize, // yes
+        runtime: &Arc<dyn ExecutionRuntime>,
+        num_partitions: usize,
     ) -> Result<Vec<TableFunctionPartitionState>> {
         let data_table = self.function.datatable(runtime)?;
 

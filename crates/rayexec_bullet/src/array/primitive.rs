@@ -143,6 +143,12 @@ impl<T> From<Vec<T>> for PrimitiveArray<T> {
     }
 }
 
+impl<T: Default> From<Vec<Option<T>>> for PrimitiveArray<T> {
+    fn from(value: Vec<Option<T>>) -> Self {
+        Self::from_iter(value)
+    }
+}
+
 #[derive(Debug)]
 pub struct PrimitiveArrayIter<'a, T> {
     idx: usize,

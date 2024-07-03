@@ -1,3 +1,4 @@
+pub mod pretty;
 pub mod ugly;
 
 use crate::{array::Array, scalar::ScalarValue};
@@ -34,7 +35,7 @@ pub struct Formatter<'a> {
 }
 
 impl<'a> Formatter<'a> {
-    pub fn new(options: FormatOptions<'a>) -> Self {
+    pub const fn new(options: FormatOptions<'a>) -> Self {
         Formatter { options }
     }
 

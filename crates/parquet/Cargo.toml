@@ -78,7 +78,7 @@ zstd-sys = { version = ">=2.0.0, <2.0.10", default-features = false }
 all-features = true
 
 [features]
-default = ["snap", "brotli", "flate2", "lz4", "zstd", "base64"]
+default = ["snap", "brotli", "flate2", "lz4", "base64"]
 # Enable lz4
 lz4 = ["lz4_flex"]
 # Enable CLI tools

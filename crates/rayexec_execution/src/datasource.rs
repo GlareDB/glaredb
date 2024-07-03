@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
-use crate::engine::EngineRuntime;
 use crate::functions::table::GenericTableFunction;
+use crate::runtime::ExecutionRuntime;
 
 /// An implementation of `DataSource` describes a data source type that we can
 /// read from.
@@ -35,7 +35,7 @@ pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(
         &self,
-        runtime: &Arc<EngineRuntime>,
+        runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>>;
 
@@ -164,7 +164,7 @@ pub struct MemoryDataSource;
 impl DataSource for MemoryDataSource {
     fn create_catalog(
         &self,
-        _runtime: &Arc<EngineRuntime>,
+        _runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async move {

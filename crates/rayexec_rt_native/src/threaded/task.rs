@@ -1,6 +1,6 @@
-use crate::{engine::result::ErrorSink, execution::pipeline::PartitionPipeline};
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
+use rayexec_execution::{execution::pipeline::PartitionPipeline, runtime::ErrorSink};
 use rayon::ThreadPool;
 use std::{
     sync::Arc,
@@ -15,7 +15,7 @@ pub(crate) struct TaskState {
     pub(crate) pipeline: Mutex<PipelineState>,
 
     /// Error sink for any errors that occur during execution.
-    pub(crate) errors: ErrorSink,
+    pub(crate) errors: Arc<dyn ErrorSink>,
 
     /// The threadpool to execute on.
     pub(crate) pool: Arc<ThreadPool>,

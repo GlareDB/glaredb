@@ -1,7 +1,7 @@
 use crate::{
     database::table::{DataTable, DataTableScan, EmptyTableScan},
-    engine::EngineRuntime,
     execution::operators::PollPull,
+    runtime::ExecutionRuntime,
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{
@@ -74,7 +74,7 @@ impl SpecializedTableFunction for GenerateSeriesI64 {
 
     fn initialize(
         self: Box<Self>,
-        _runtime: &Arc<EngineRuntime>,
+        _runtime: &Arc<dyn ExecutionRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
         Box::pin(async move { Ok(self as _) })
     }
@@ -89,7 +89,7 @@ impl InitializedTableFunction for GenerateSeriesI64 {
         Schema::new([Field::new("generate_series", DataType::Int64, false)])
     }
 
-    fn datatable(&self, _runtime: &Arc<EngineRuntime>) -> Result<Box<dyn DataTable>> {
+    fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(self.clone()))
     }
 }

@@ -14,9 +14,10 @@ use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
 };
-use rayexec_io::AsyncReadAt;
+use rayexec_io::AsyncReader;
 
-pub trait ReaderBuilder<R: AsyncReadAt>: Sync + Send + Debug {
+/// Helper trait for generating a reader per partition.
+pub trait ReaderBuilder<R: AsyncReader>: Sync + Send + Debug {
     /// Creates a new reader for reading a parquet file.
     fn new_reader(&self) -> Result<R>;
 }
@@ -35,7 +36,7 @@ pub struct RowGroupPartitionedDataTable<B, R> {
 impl<B, R> RowGroupPartitionedDataTable<B, R>
 where
     B: ReaderBuilder<R>,
-    R: AsyncReadAt + 'static,
+    R: AsyncReader + 'static,
 {
     pub fn new(reader_builder: B, metadata: Arc<Metadata>, schema: Schema) -> Self {
         RowGroupPartitionedDataTable {
@@ -50,7 +51,7 @@ where
 impl<B, R> DataTable for RowGroupPartitionedDataTable<B, R>
 where
     B: ReaderBuilder<R>,
-    R: AsyncReadAt + 'static,
+    R: AsyncReader + 'static,
 {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
         let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];

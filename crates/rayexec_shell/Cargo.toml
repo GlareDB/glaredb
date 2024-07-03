@@ -1,0 +1,11 @@
+[package]
+name = "rayexec_shell"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_error = { path = '../rayexec_error' }
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
+futures = { workspace = true }
+tracing = { workspace = true }

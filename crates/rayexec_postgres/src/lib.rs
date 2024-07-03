@@ -16,9 +16,9 @@ use rayexec_execution::{
         table::{DataTable, DataTableScan, EmptyTableScan},
     },
     datasource::{check_options_empty, take_option, DataSource},
-    engine::EngineRuntime,
     execution::operators::PollPull,
     functions::table::GenericTableFunction,
+    runtime::ExecutionRuntime,
 };
 use read_postgres::ReadPostgres;
 use std::fmt;
@@ -37,7 +37,7 @@ pub struct PostgresDataSource;
 impl DataSource for PostgresDataSource {
     fn create_catalog(
         &self,
-        runtime: &Arc<EngineRuntime>,
+        runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(self.create_catalog_inner(runtime.clone(), options))
@@ -51,14 +51,14 @@ impl DataSource for PostgresDataSource {
 impl PostgresDataSource {
     async fn create_catalog_inner(
         &self,
-        runtime: Arc<EngineRuntime>,
+        runtime: Arc<dyn ExecutionRuntime>,
         mut options: HashMap<String, OwnedScalarValue>,
     ) -> Result<Box<dyn Catalog>> {
         let conn_str = take_option("connection_string", &mut options)?.try_into_string()?;
         check_options_empty(&options)?;
 
         // Check we can connect.
-        let client = PostgresClient::connect(&conn_str, &runtime).await?;
+        let client = PostgresClient::connect(&conn_str, runtime.as_ref()).await?;
 
         let _ = client
             .client
@@ -72,7 +72,7 @@ impl PostgresDataSource {
 
 #[derive(Debug)]
 pub struct PostgresCatalog {
-    runtime: Arc<EngineRuntime>,
+    runtime: Arc<dyn ExecutionRuntime>,
     // TODO: Connection pooling.
     conn_str: String,
 }
@@ -84,7 +84,7 @@ impl Catalog for PostgresCatalog {
         schema: &str,
         name: &str,
     ) -> BoxFuture<Result<Option<TableEntry>>> {
-        let client = PostgresClient::connect(&self.conn_str, &self.runtime);
+        let client = PostgresClient::connect(&self.conn_str, self.runtime.as_ref());
         let schema = schema.to_string();
         let name = name.to_string();
         Box::pin(async move {
@@ -118,7 +118,7 @@ impl Catalog for PostgresCatalog {
 
 #[derive(Debug)]
 pub struct PostgresDataTable {
-    pub(crate) runtime: Arc<EngineRuntime>,
+    pub(crate) runtime: Arc<dyn ExecutionRuntime>,
     pub(crate) conn_str: String,
     pub(crate) schema: String,
     pub(crate) table: String,
@@ -132,7 +132,7 @@ impl DataTable for PostgresDataTable {
         let table = self.table.clone();
 
         let binary_copy_open = async move {
-            let client = PostgresClient::connect(&conn_str, &runtime).await?;
+            let client = PostgresClient::connect(&conn_str, runtime.as_ref()).await?;
 
             // TODO: Remove this, we should already have the types.
             let (fields, typs) = match client.get_fields_and_types(&schema, &table).await? {
@@ -217,10 +217,13 @@ struct PostgresClient {
 }
 
 impl PostgresClient {
-    async fn connect(conn_str: impl Into<String>, runtime: &EngineRuntime) -> Result<Self> {
+    async fn connect(conn_str: impl Into<String>, runtime: &dyn ExecutionRuntime) -> Result<Self> {
+        let tokio_handle = runtime
+            .tokio_handle()
+            .ok_or_else(|| RayexecError::new("Missing tokio runtime"))?;
+
         let conn_str = conn_str.into();
-        let (client, connection) = runtime
-            .tokio
+        let (client, connection) = tokio_handle
             .spawn(async move {
                 let (client, connection) = tokio_postgres::connect(&conn_str, NoTls).await?;
                 Ok::<_, tokio_postgres::Error>((client, connection))
@@ -229,8 +232,8 @@ impl PostgresClient {
             .context("Join error")?
             .context("Failed to connect to postgres instance")?;
 
-        // TODO: Currently this future is not cancellable.
-        runtime.scheduler.spawn_future(async move {
+        // TODO: Doesn't need to be on tokio.
+        tokio_handle.spawn(async move {
             if let Err(e) = connection.await {
                 debug!(%e, "postgres connection errored");
             }

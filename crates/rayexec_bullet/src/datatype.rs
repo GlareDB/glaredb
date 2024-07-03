@@ -255,6 +255,26 @@ impl DataType {
     pub const fn is_list(&self) -> bool {
         matches!(self, DataType::List(_))
     }
+
+    pub const fn is_numeric(&self) -> bool {
+        matches!(
+            self,
+            DataType::Int8
+                | DataType::Int16
+                | DataType::Int32
+                | DataType::Int64
+                | DataType::Int128
+                | DataType::UInt8
+                | DataType::UInt16
+                | DataType::UInt32
+                | DataType::UInt64
+                | DataType::UInt128
+                | DataType::Float32
+                | DataType::Float64
+                | DataType::Decimal64(_)
+                | DataType::Decimal128(_)
+        )
+    }
 }
 
 impl fmt::Display for DataType {

@@ -19,13 +19,13 @@ use rayexec_parser::{
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, DatabaseContext},
     datasource::FileHandlers,
-    engine::EngineRuntime,
     functions::{
         aggregate::AggregateFunction,
         scalar::ScalarFunction,
         table::{GenericTableFunction, InitializedTableFunction, TableFunctionArgs},
     },
     logical::sql::expr::ExpressionContext,
+    runtime::ExecutionRuntime,
 };
 
 pub type BoundStatement = Statement<Bound>;
@@ -247,7 +247,7 @@ pub struct Binder<'a> {
     tx: &'a CatalogTx,
     context: &'a DatabaseContext,
     file_handlers: &'a FileHandlers,
-    runtime: &'a Arc<EngineRuntime>,
+    runtime: &'a Arc<dyn ExecutionRuntime>,
 }
 
 impl<'a> Binder<'a> {
@@ -255,7 +255,7 @@ impl<'a> Binder<'a> {
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
-        runtime: &'a Arc<EngineRuntime>,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
     ) -> Self {
         Binder {
             tx,

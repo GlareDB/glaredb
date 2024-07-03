@@ -7,11 +7,13 @@ edition.workspace = true
 
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
+rayexec_shell = { path = '../rayexec_shell' }
 rayexec_execution = { path = '../rayexec_execution' }
+rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_bullet = { path = '../rayexec_bullet' }
 rayexec_postgres = { path = '../rayexec_postgres' }
-rayexec_parquet = { path = '../rayexec_parquet' }
-tokio = { version = "1", features = ["full"] }
+rayexec_parquet = { path = '../rayexec_parquet', features = ["zstd"] }
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 futures = { workspace = true }
+crossterm = "0.27.0"

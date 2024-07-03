@@ -1,25 +1,23 @@
-use crate::execution::operators::PhysicalOperator;
-use crate::execution::pipeline::PartitionPipelineTimings;
-use crate::execution::pipeline::PipelineId;
-use crate::execution::pipeline::PipelinePartitionState;
-use crate::logical::explainable::ExplainConfig;
+use std::{collections::BTreeMap, sync::Arc};
+
 use parking_lot::Mutex;
-use std::collections::BTreeMap;
-use std::fmt;
-use std::sync::Arc;
+use rayexec_execution::runtime::{
+    dump::{PartitionPipelineDump, PipelineDump, QueryDump},
+    QueryHandle,
+};
 
-use super::query::{PartitionPipelineTask, TaskState};
+use super::task::{PartitionPipelineTask, TaskState};
 
-/// A handle for all pipelines in a query.
+/// Query handle for queries being executed on the threaded runtime.
 #[derive(Debug)]
-pub struct QueryHandle {
+pub struct ThreadedQueryHandle {
     /// Registered task states for all pipelines in a query.
     pub(crate) states: Mutex<Vec<Arc<TaskState>>>,
 }
 
-impl QueryHandle {
+impl QueryHandle for ThreadedQueryHandle {
     /// Cancel the query.
-    pub fn cancel(&self) {
+    fn cancel(&self) {
         let states = self.states.lock();
 
         for state in states.iter() {
@@ -34,7 +32,7 @@ impl QueryHandle {
         }
     }
 
-    pub fn query_dump(&self) -> QueryDump {
+    fn dump(&self) -> QueryDump {
         use std::collections::btree_map::Entry;
 
         let mut dump = QueryDump {
@@ -72,60 +70,5 @@ impl QueryHandle {
         }
 
         dump
-    }
-}
-
-#[derive(Debug)]
-pub struct QueryDump {
-    pipelines: BTreeMap<PipelineId, PipelineDump>,
-}
-
-impl fmt::Display for QueryDump {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (id, pipeline) in &self.pipelines {
-            writeln!(f, "Pipeline: {}", id.0)?;
-            writeln!(f, "{pipeline}")?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct PipelineDump {
-    operators: Vec<Arc<dyn PhysicalOperator>>,
-    partitions: BTreeMap<usize, PartitionPipelineDump>,
-}
-
-#[derive(Debug)]
-pub struct PartitionPipelineDump {
-    state: PipelinePartitionState,
-    timings: PartitionPipelineTimings,
-}
-
-impl fmt::Display for PipelineDump {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "OPERATORS")?;
-        for (idx, operator) in self.operators.iter().enumerate() {
-            writeln!(
-                f,
-                "[{idx:>2}] {}",
-                operator.explain_entry(ExplainConfig { verbose: true })
-            )?;
-        }
-
-        writeln!(f, "PARTITIONS")?;
-        for (partition, dump) in &self.partitions {
-            write!(f, "[{partition:>2}] ")?;
-            match &dump.timings.completed {
-                Some(completed) => {
-                    let dur =
-                        completed.duration_since(dump.timings.start.expect("start to be set"));
-                    writeln!(f, "completed: {}ms", dur.as_millis())?;
-                }
-                None => writeln!(f, "incomplete: {:?}", dump.state)?,
-            }
-        }
-
-        Ok(())
     }
 }
