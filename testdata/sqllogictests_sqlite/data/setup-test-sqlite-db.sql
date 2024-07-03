@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS bikeshare_trips (
 );
 
 CREATE TABLE IF NOT EXISTS orders (
-    order_id INT,
+    order_id BIGINT,
     customer_id INT,
     employee_id INT,
     order_date TEXT,
