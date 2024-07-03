@@ -4,3 +4,26 @@ query I
 SELECT count(*) FROM read_sqlite('${SQLITE_DB_LOCATION}', 'bikeshare_stations');
 ----
 102
+
+query I
+SELECT count(*) FROM read_sqlite('./data/northwind.db', 'Customers');
+----
+93
+
+# TODO: change db location to our own test directory on github once this is merged
+query I
+SELECT COUNT(*) FROM read_sqlite('https://github.com/jpwhite3/northwind-SQLite3/raw/main/dist/northwind.db','Orders');
+----
+16282
+
+query III
+SELECT OrderID, OrderDate, RequiredDate, ShippedDate FROM FROM read_sqlite('https://github.com/jpwhite3/northwind-SQLite3/raw/main/dist/northwind.db','Orders');
+----
+10248	2016-07-04	2016-08-01	2016-07-16
+10249	2016-07-05	2016-08-16	2016-07-10
+10250	2016-07-08	2016-08-05	2016-07-12
+10251	2016-07-08	2016-08-05	2016-07-15
+10252	2016-07-09	2016-08-06	2016-07-11
+
+
+
