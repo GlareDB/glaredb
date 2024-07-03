@@ -6,9 +6,9 @@ SELECT count(*) FROM read_sqlite('${SQLITE_DB_LOCATION}', 'bikeshare_stations');
 102
 
 query I
-SELECT count(*) FROM read_sqlite('./data/northwind.db', 'Customers');
+SELECT count(*) FROM read_sqlite('${SQLITE_DB_LOCATION}', 'orders');
 ----
-93
+16282
 
 # TODO: change db location to our own test directory on github once this is merged
 query I

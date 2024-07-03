@@ -110,5 +110,23 @@ CREATE TABLE IF NOT EXISTS bikeshare_trips (
     duration_minutes   INT
 );
 
+CREATE TABLE IF NOT EXISTS orders (
+    order_id INT,
+    customer_id INT,
+    employee_id INT,
+    order_date TEXT,
+    required_date TEXT,
+    shipped_date TEXT,
+    ship_via INT,
+    freight REAL,
+    ship_name TEXT,
+    ship_address TEXT,
+    ship_city TEXT,
+    ship_region TEXT,
+    ship_postal_code INT,
+    ship_country TEXT
+);
+
 .mode csv
 .import --skip 1 testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv bikeshare_trips
+.import testdata/sqllogictests_datasources_common/data/orders.csv orders
