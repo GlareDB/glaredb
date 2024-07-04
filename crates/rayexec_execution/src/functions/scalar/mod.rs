@@ -2,6 +2,7 @@ pub mod arith;
 pub mod boolean;
 pub mod comparison;
 pub mod like;
+pub mod list;
 pub mod negate;
 pub mod numeric;
 pub mod random;
@@ -53,6 +54,9 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(negate::Negate),
         // Random
         Box::new(random::Random),
+        // List
+        Box::new(list::ListExtract),
+        Box::new(list::ListValues),
     ]
 });
 

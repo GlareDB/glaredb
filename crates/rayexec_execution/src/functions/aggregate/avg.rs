@@ -24,18 +24,22 @@ impl FunctionInfo for Avg {
         &[
             Signature {
                 input: &[DataTypeId::Float64],
+                variadic: None,
                 return_type: DataTypeId::Float64,
             },
             Signature {
                 input: &[DataTypeId::Int64],
+                variadic: None,
                 return_type: DataTypeId::Float64, // TODO: Should be decimal // TODO: Should it though?
             },
             Signature {
                 input: &[DataTypeId::Decimal64],
+                variadic: None,
                 return_type: DataTypeId::Decimal64,
             },
             Signature {
                 input: &[DataTypeId::Decimal128],
+                variadic: None,
                 return_type: DataTypeId::Decimal128,
             },
         ]

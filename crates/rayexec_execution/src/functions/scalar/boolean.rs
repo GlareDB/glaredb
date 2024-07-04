@@ -19,6 +19,7 @@ impl FunctionInfo for And {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            variadic: None,
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -71,6 +72,7 @@ impl FunctionInfo for Or {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            variadic: None,
             return_type: DataTypeId::Boolean,
         }]
     }

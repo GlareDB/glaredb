@@ -53,13 +53,13 @@ pub enum Token {
     DoubleColon,
     /// ';'
     SemiColon,
-    /// '['
-    LeftBrace,
-    /// ']'
-    RightBrace,
     /// '{'
-    LeftBracket,
+    LeftBrace,
     /// '}'
+    RightBrace,
+    /// '['
+    LeftBracket,
+    /// ']'
     RightBracket,
     /// '=>'
     RightArrow,
@@ -253,6 +253,14 @@ impl<'a> Tokenizer<'a> {
             ')' => {
                 self.state.next();
                 Token::RightParen
+            }
+            '[' => {
+                self.state.next();
+                Token::LeftBracket
+            }
+            ']' => {
+                self.state.next();
+                Token::RightBracket
             }
             ',' => {
                 self.state.next();

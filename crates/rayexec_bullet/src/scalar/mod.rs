@@ -4,9 +4,10 @@ pub mod interval;
 use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    IntervalArray, LargeBinaryArray, LargeUtf8Array, NullArray, TimestampMicrosecondsArray,
-    TimestampMillsecondsArray, TimestampNanosecondsArray, TimestampSecondsArray, UInt128Array,
-    UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
+    IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray,
+    TimestampMicrosecondsArray, TimestampMillsecondsArray, TimestampNanosecondsArray,
+    TimestampSecondsArray, UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Utf8Array,
 };
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
@@ -15,7 +16,7 @@ use crate::compute::cast::format::{
     TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
     UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
-use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{RayexecError, Result};
@@ -53,6 +54,7 @@ pub enum ScalarValue<'a> {
     Binary(Cow<'a, [u8]>),
     LargeBinary(Cow<'a, [u8]>),
     Struct(Vec<ScalarValue<'a>>),
+    List(Vec<ScalarValue<'a>>),
 }
 
 pub type OwnedScalarValue = ScalarValue<'static>;
@@ -92,6 +94,12 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::Binary(_) => DataType::Binary,
             ScalarValue::LargeBinary(_) => DataType::LargeBinary,
             ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
+            Self::List(list) => {
+                let first = list.first().unwrap(); // TODO: Allow empty list scalars?
+                DataType::List(ListTypeMeta {
+                    datatype: Box::new(first.datatype()),
+                })
+            }
         }
     }
 
@@ -126,6 +134,9 @@ impl<'a> ScalarValue<'a> {
             Self::LargeBinary(v) => OwnedScalarValue::LargeBinary(v.into_owned().into()),
             Self::Struct(v) => {
                 OwnedScalarValue::Struct(v.into_iter().map(|v| v.into_owned()).collect())
+            }
+            Self::List(v) => {
+                OwnedScalarValue::List(v.into_iter().map(|v| v.into_owned()).collect())
             }
         }
     }
@@ -193,6 +204,16 @@ impl<'a> ScalarValue<'a> {
                 std::iter::repeat(v.as_ref()).take(n),
             )),
             Self::Struct(_) => unimplemented!("struct into array"),
+            Self::List(v) => {
+                let children: Vec<_> = v.iter().map(|v| v.as_array(n)).collect();
+                let refs: Vec<_> = children.iter().collect();
+                let array = if refs.is_empty() {
+                    ListArray::new_empty_with_n_rows(n)
+                } else {
+                    ListArray::try_from_children(&refs).expect("list array to build")
+                };
+                Array::List(array)
+            }
         }
     }
 
@@ -322,6 +343,14 @@ impl fmt::Display for ScalarValue<'_> {
                 fields
                     .iter()
                     .map(|typ| format!("{typ}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::List(list) => write!(
+                f,
+                "[{}]",
+                list.iter()
+                    .map(|v| format!("{v}"))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),

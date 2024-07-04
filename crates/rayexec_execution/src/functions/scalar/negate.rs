@@ -19,30 +19,37 @@ impl FunctionInfo for Negate {
         &[
             Signature {
                 input: &[DataTypeId::Float32],
+                variadic: None,
                 return_type: DataTypeId::Float32,
             },
             Signature {
                 input: &[DataTypeId::Float64],
+                variadic: None,
                 return_type: DataTypeId::Float64,
             },
             Signature {
                 input: &[DataTypeId::Int8],
+                variadic: None,
                 return_type: DataTypeId::Int8,
             },
             Signature {
                 input: &[DataTypeId::Int16],
+                variadic: None,
                 return_type: DataTypeId::Int16,
             },
             Signature {
                 input: &[DataTypeId::Int32],
+                variadic: None,
                 return_type: DataTypeId::Int32,
             },
             Signature {
                 input: &[DataTypeId::Int64],
+                variadic: None,
                 return_type: DataTypeId::Int64,
             },
             Signature {
                 input: &[DataTypeId::Interval],
+                variadic: None,
                 return_type: DataTypeId::Interval,
             },
         ]

@@ -160,6 +160,13 @@ pub enum Expr<T: AstMeta> {
     QualifiedWildcard(Vec<Ident>),
     /// An expression literal,
     Literal(Literal<T>),
+    /// [<expr1>, <expr2>, ...]
+    Array(Vec<Expr<T>>),
+    /// my_array[1]
+    ArraySubscript {
+        expr: Box<Expr<T>>,
+        subscript: Box<ArraySubscript<T>>,
+    },
     /// Unary expression.
     UnaryExpr {
         op: UnaryOperator,
@@ -338,6 +345,15 @@ impl Expr<Raw> {
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
             },
+            Token::LeftBracket => {
+                if parser.consume_token(&Token::RightBracket) {
+                    Expr::Array(Vec::new())
+                } else {
+                    let expr = Expr::Array(parser.parse_comma_separated(Expr::parse)?);
+                    parser.expect_token(&Token::RightBracket)?;
+                    expr
+                }
+            }
             Token::SingleQuotedString(s) => Expr::Literal(Literal::SingleQuotedString(s.clone())),
             Token::Number(s) => Expr::Literal(Literal::Number(s.clone())),
             Token::LeftParen => {
@@ -468,8 +484,11 @@ impl Expr<Raw> {
                 }
             }
         } else if tok == &Token::LeftBracket {
-            // Array index
-            unimplemented!()
+            let subscript = ArraySubscript::parse(parser)?;
+            Ok(Expr::ArraySubscript {
+                expr: Box::new(prefix),
+                subscript: Box::new(subscript),
+            })
         } else if tok == &Token::DoubleColon {
             Ok(Expr::Cast {
                 datatype: DataType::parse(parser)?,
@@ -754,6 +773,70 @@ impl AstParseable for Interval<Raw> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArraySubscript<T: AstMeta> {
+    Index(Expr<T>),
+    Slice {
+        lower: Option<Expr<T>>,
+        upper: Option<Expr<T>>,
+        stride: Option<Expr<T>>,
+    },
+}
+
+impl AstParseable for ArraySubscript<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        let lower = if parser.consume_token(&Token::Colon) {
+            None
+        } else {
+            Some(Expr::parse(parser)?)
+        };
+
+        if parser.consume_token(&Token::RightBracket) {
+            if let Some(lower) = lower {
+                return Ok(ArraySubscript::Index(lower));
+            }
+            return Ok(ArraySubscript::Slice {
+                lower,
+                upper: None,
+                stride: None,
+            });
+        }
+
+        if lower.is_some() {
+            parser.expect_token(&Token::Colon)?;
+        }
+
+        if parser.consume_token(&Token::RightBracket) {
+            return Ok(ArraySubscript::Slice {
+                lower,
+                upper: None,
+                stride: None,
+            });
+        }
+
+        let upper = Some(Expr::parse(parser)?);
+
+        if parser.consume_token(&Token::RightBracket) {
+            return Ok(ArraySubscript::Slice {
+                lower,
+                upper,
+                stride: None,
+            });
+        }
+
+        parser.expect_token(&Token::Colon)?;
+
+        let stride = Some(Expr::parse(parser)?);
+        parser.expect_token(&Token::RightBracket)?;
+
+        Ok(ArraySubscript::Slice {
+            lower,
+            upper,
+            stride,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ast::testutil::parse_ast;
@@ -1000,6 +1083,91 @@ mod tests {
             right: Box::new(Expr::UnaryExpr {
                 op: UnaryOperator::Minus,
                 expr: Box::new(Expr::Literal(Literal::Number("23".to_string()))),
+            }),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_literal_basic() {
+        let expr: Expr<_> = parse_ast("[a, b]").unwrap();
+        let expected = Expr::Array(vec![
+            Expr::Ident(Ident::from_string("a")),
+            Expr::Ident(Ident::from_string("b")),
+        ]);
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_literal_empty() {
+        let expr: Expr<_> = parse_ast("[]").unwrap();
+        let expected = Expr::Array(Vec::new());
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_subscript_index() {
+        let expr: Expr<_> = parse_ast("my_array[2]").unwrap();
+        let expected = Expr::ArraySubscript {
+            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            subscript: Box::new(ArraySubscript::Index(Expr::Literal(Literal::Number(
+                "2".to_string(),
+            )))),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_subscript_slice() {
+        let expr: Expr<_> = parse_ast("my_array[1:2]").unwrap();
+        let expected = Expr::ArraySubscript {
+            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            subscript: Box::new(ArraySubscript::Slice {
+                lower: Some(Expr::Literal(Literal::Number("1".to_string()))),
+                upper: Some(Expr::Literal(Literal::Number("2".to_string()))),
+                stride: None,
+            }),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_subscript_slice_no_upper() {
+        let expr: Expr<_> = parse_ast("my_array[1:]").unwrap();
+        let expected = Expr::ArraySubscript {
+            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            subscript: Box::new(ArraySubscript::Slice {
+                lower: Some(Expr::Literal(Literal::Number("1".to_string()))),
+                upper: None,
+                stride: None,
+            }),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_subscript_slice_no_lower() {
+        let expr: Expr<_> = parse_ast("my_array[:2]").unwrap();
+        let expected = Expr::ArraySubscript {
+            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            subscript: Box::new(ArraySubscript::Slice {
+                lower: None,
+                upper: Some(Expr::Literal(Literal::Number("2".to_string()))),
+                stride: None,
+            }),
+        };
+        assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn array_subscript_slice_with_stride() {
+        let expr: Expr<_> = parse_ast("my_array[1:2:3]").unwrap();
+        let expected = Expr::ArraySubscript {
+            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            subscript: Box::new(ArraySubscript::Slice {
+                lower: Some(Expr::Literal(Literal::Number("1".to_string()))),
+                upper: Some(Expr::Literal(Literal::Number("2".to_string()))),
+                stride: Some(Expr::Literal(Literal::Number("3".to_string()))),
             }),
         };
         assert_eq!(expected, expr)

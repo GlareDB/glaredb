@@ -19,10 +19,12 @@ impl FunctionInfo for IsNan {
         &[
             Signature {
                 input: &[DataTypeId::Float32],
+                variadic: None,
                 return_type: DataTypeId::Boolean,
             },
             Signature {
                 input: &[DataTypeId::Float64],
+                variadic: None,
                 return_type: DataTypeId::Boolean,
             },
         ]
@@ -81,10 +83,12 @@ impl FunctionInfo for Ceil {
         &[
             Signature {
                 input: &[DataTypeId::Float32],
+                variadic: None,
                 return_type: DataTypeId::Float32,
             },
             Signature {
                 input: &[DataTypeId::Float64],
+                variadic: None,
                 return_type: DataTypeId::Float64,
             },
         ]
@@ -143,10 +147,12 @@ impl FunctionInfo for Floor {
         &[
             Signature {
                 input: &[DataTypeId::Float32],
+                variadic: None,
                 return_type: DataTypeId::Float32,
             },
             Signature {
                 input: &[DataTypeId::Float64],
+                variadic: None,
                 return_type: DataTypeId::Float64,
             },
         ]

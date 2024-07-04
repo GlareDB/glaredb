@@ -19,6 +19,7 @@ impl FunctionInfo for StructPack {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: &[DataTypeId::Struct],
+            variadic: None,
             return_type: DataTypeId::Struct,
         }]
     }
@@ -81,6 +82,7 @@ impl FunctionInfo for StructExtract {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: &[DataTypeId::Struct],
+            variadic: None,
             return_type: DataTypeId::Any,
         }]
     }

@@ -30,10 +30,12 @@ impl FunctionInfo for Like {
             // like(input, pattern)
             Signature {
                 input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+                variadic: None,
                 return_type: DataTypeId::Boolean,
             },
             Signature {
                 input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
+                variadic: None,
                 return_type: DataTypeId::Boolean,
             },
         ]

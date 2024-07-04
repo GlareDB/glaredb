@@ -22,6 +22,7 @@ impl FunctionInfo for Count {
     fn signatures(&self) -> &[Signature] {
         &[Signature {
             input: &[DataTypeId::Any],
+            variadic: None,
             return_type: DataTypeId::Int64,
         }]
     }

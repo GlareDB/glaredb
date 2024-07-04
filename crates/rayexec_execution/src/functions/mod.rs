@@ -17,6 +17,17 @@ pub struct Signature {
     /// variadic.
     pub input: &'static [DataTypeId],
 
+    /// Type of the variadic args if this function is variadic.
+    ///
+    /// If None, the function is not considered variadic.
+    ///
+    /// If the variadic type is `DataTypeId::Any`, and the user provides 1 or
+    /// more variadic arguments, the signature will never be considered an exact
+    /// match, and instead a candidate signature search will be triggered. This
+    /// allows us to determine a single data type that all variadic args can be
+    /// cast to, which simplifies planning and function implementation.
+    pub variadic: Option<DataTypeId>,
+
     /// The expected return type.
     ///
     /// This is purely informational (and could be used for documentation). The
@@ -28,19 +39,12 @@ pub struct Signature {
 impl Signature {
     /// Check if this signature is a variadic signature.
     pub const fn is_variadic(&self) -> bool {
-        match self.input.last() {
-            Some(id) => matches!(id, DataTypeId::List),
-            None => false,
-        }
+        self.variadic.is_some()
     }
 
     /// Return if inputs given data types exactly satisfy the signature.
     fn exact_match(&self, inputs: &[DataType]) -> bool {
-        if self.is_variadic() {
-            unimplemented!()
-        }
-
-        if self.input.len() != inputs.len() {
+        if self.input.len() != inputs.len() && !self.is_variadic() {
             return false;
         }
 
@@ -51,6 +55,21 @@ impl Signature {
 
             if have.datatype_id() != expected {
                 return false;
+            }
+        }
+
+        // Check variadic.
+        if let Some(expected) = self.variadic {
+            let remaining = &inputs[self.input.len()..];
+            for have in remaining {
+                if expected == DataTypeId::Any {
+                    // If we're matching against any, we're never an exact match.
+                    return false;
+                }
+
+                if have.datatype_id() != expected {
+                    return false;
+                }
             }
         }
 
@@ -118,11 +137,7 @@ impl CandidateSignature {
 
         let mut buf = Vec::new();
         for (idx, sig) in sigs.iter().enumerate() {
-            if sig.is_variadic() {
-                unimplemented!()
-            }
-
-            if !Self::compare_and_fill_types(inputs, sig.input, &mut buf) {
+            if !Self::compare_and_fill_types(inputs, sig.input, sig.variadic, &mut buf) {
                 continue;
             }
 
@@ -142,9 +157,10 @@ impl CandidateSignature {
     fn compare_and_fill_types(
         have: &[DataType],
         want: &[DataTypeId],
+        variadic: Option<DataTypeId>,
         buf: &mut Vec<CastType>,
     ) -> bool {
-        if have.len() != want.len() {
+        if have.len() != want.len() && variadic.is_none() {
             return false;
         }
         buf.clear();
@@ -164,7 +180,82 @@ impl CandidateSignature {
             return false;
         }
 
-        true
+        // Check variadic.
+        let remaining = &have[want.len()..];
+        match variadic {
+            Some(expected) if !remaining.is_empty() => {
+                let expected = if expected == DataTypeId::Any {
+                    // Find a common data type to use in place of Any.
+                    match Self::best_datatype_for_variadic_any(remaining) {
+                        Some(typ) => typ,
+                        None => return false, // No common data type for all remaining args.
+                    }
+                } else {
+                    expected
+                };
+
+                for have in remaining {
+                    if have.datatype_id() == expected {
+                        buf.push(CastType::NoCastNeeded);
+                        continue;
+                    }
+
+                    let score = implicit_cast_score(have, expected);
+                    if score > 0 {
+                        buf.push(CastType::Cast {
+                            to: expected,
+                            score,
+                        });
+                        continue;
+                    }
+
+                    return false;
+                }
+
+                // Everything's valid, casts have been pushed to the buffer.
+                true
+            }
+            _ => {
+                // No variadics to check. If we got this far, everything's valid
+                // for this signature.
+                true
+            }
+        }
+    }
+
+    /// Get the best common data type that we can cast to for the given inputs. Returns None
+    /// if there isn't a common data type.
+    fn best_datatype_for_variadic_any(inputs: &[DataType]) -> Option<DataTypeId> {
+        let mut best_type = None;
+        let mut best_total_score = 0;
+
+        for input in inputs {
+            let test_type = input.datatype_id();
+            let mut total_score = 0;
+            let mut valid = true;
+
+            for input in inputs {
+                if input.datatype_id() == test_type {
+                    // Arbitrary.
+                    total_score += 200;
+                    continue;
+                }
+
+                let score = implicit_cast_score(input, test_type);
+                if score == 0 {
+                    // Test type is not a valid cast for this input.
+                    valid = false;
+                }
+                total_score += score;
+            }
+
+            if total_score > best_total_score && valid {
+                best_type = Some(test_type);
+                best_total_score = total_score;
+            }
+        }
+
+        best_type
     }
 }
 
@@ -195,4 +286,77 @@ pub fn invalid_input_types_error(func: &impl FunctionInfo, got: &[&DataType]) ->
         got.displayable(),
         func.name()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_candidate_no_match() {
+        let inputs = &[DataType::Int64];
+        let sigs = &[Signature {
+            input: &[DataTypeId::List],
+            variadic: None,
+            return_type: DataTypeId::Int64,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected: Vec<CandidateSignature> = Vec::new();
+        assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn find_candidate_simple_no_variadic() {
+        let inputs = &[DataType::Int64];
+        let sigs = &[Signature {
+            input: &[DataTypeId::Int64],
+            variadic: None,
+            return_type: DataTypeId::Int64,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected = vec![CandidateSignature {
+            signature_idx: 0,
+            casts: vec![CastType::NoCastNeeded],
+        }];
+
+        assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn find_candidate_simple_with_variadic() {
+        let inputs = &[DataType::Int64, DataType::Int64, DataType::Int64];
+        let sigs = &[Signature {
+            input: &[],
+            variadic: Some(DataTypeId::Any),
+            return_type: DataTypeId::List,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected = vec![CandidateSignature {
+            signature_idx: 0,
+            casts: vec![
+                CastType::NoCastNeeded,
+                CastType::NoCastNeeded,
+                CastType::NoCastNeeded,
+            ],
+        }];
+
+        assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn best_datatype_for_ints_and_floats() {
+        let inputs = &[DataType::Int64, DataType::Float64, DataType::Int64];
+        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
+        assert_eq!(Some(DataTypeId::Float64), best);
+    }
+
+    #[test]
+    fn best_datatype_for_floats() {
+        let inputs = &[DataType::Float64, DataType::Float64, DataType::Float64];
+        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
+        assert_eq!(Some(DataTypeId::Float64), best);
+    }
 }

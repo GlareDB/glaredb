@@ -22,18 +22,22 @@ impl FunctionInfo for Sum {
         &[
             Signature {
                 input: &[DataTypeId::Float64],
+                variadic: None,
                 return_type: DataTypeId::Float64,
             },
             Signature {
                 input: &[DataTypeId::Int64],
+                variadic: None,
                 return_type: DataTypeId::Int64, // TODO: Should be big num
             },
             Signature {
                 input: &[DataTypeId::Decimal64],
+                variadic: None,
                 return_type: DataTypeId::Decimal64,
             },
             Signature {
                 input: &[DataTypeId::Decimal128],
+                variadic: None,
                 return_type: DataTypeId::Decimal128,
             },
         ]

@@ -57,6 +57,10 @@ pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a m
                 // Yet
                 return Err(RayexecError::new("hashing struct arrays not supported"));
             }
+            Array::List(_) => {
+                // Yet
+                return Err(RayexecError::new("hashing list arrays not supported"));
+            }
         }
     }
 
@@ -101,6 +105,10 @@ pub fn hash_row(row: &ScalarRow) -> Result<u64> {
             ScalarValue::Struct(_) => {
                 // Yet
                 return Err(RayexecError::new("hashing struct values not supported"));
+            }
+            ScalarValue::List(_) => {
+                // Yet
+                return Err(RayexecError::new("hashing list values not supported"));
             }
         };
 

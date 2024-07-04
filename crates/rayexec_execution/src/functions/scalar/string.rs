@@ -20,10 +20,12 @@ impl FunctionInfo for Repeat {
         &[
             Signature {
                 input: &[DataTypeId::Utf8, DataTypeId::Int64],
+                variadic: None,
                 return_type: DataTypeId::Utf8,
             },
             Signature {
                 input: &[DataTypeId::LargeUtf8, DataTypeId::Int64],
+                variadic: None,
                 return_type: DataTypeId::LargeUtf8,
             },
         ]

@@ -8,6 +8,8 @@ pub mod primitive;
 pub use primitive::*;
 pub mod varlen;
 pub use varlen::*;
+pub mod list;
+pub use list::*;
 
 pub mod validity;
 
@@ -51,6 +53,7 @@ pub enum Array {
     Binary(BinaryArray),
     LargeBinary(LargeBinaryArray),
     Struct(StructArray),
+    List(ListArray),
 }
 
 impl Array {
@@ -88,6 +91,7 @@ impl Array {
             Array::Binary(_) => DataType::Binary,
             Array::LargeBinary(_) => DataType::LargeBinary,
             Self::Struct(arr) => arr.datatype(),
+            Self::List(arr) => arr.data_type(),
         }
     }
 
@@ -138,6 +142,7 @@ impl Array {
             Self::Binary(arr) => ScalarValue::Binary(arr.value(idx)?.into()),
             Self::LargeBinary(arr) => ScalarValue::LargeBinary(arr.value(idx)?.into()),
             Self::Struct(arr) => arr.scalar(idx)?,
+            Self::List(arr) => arr.scalar(idx)?,
         })
     }
 
@@ -171,6 +176,7 @@ impl Array {
             Self::Binary(arr) => arr.is_valid(idx),
             Self::LargeBinary(arr) => arr.is_valid(idx),
             Self::Struct(arr) => arr.is_valid(idx),
+            Self::List(arr) => arr.is_valid(idx),
         }
     }
 
@@ -204,6 +210,7 @@ impl Array {
             Self::Binary(arr) => arr.len(),
             Self::LargeBinary(arr) => arr.len(),
             Self::Struct(arr) => arr.len(),
+            Self::List(arr) => arr.len(),
         }
     }
 
@@ -241,6 +248,7 @@ impl Array {
             Self::Binary(arr) => arr.validity(),
             Self::LargeBinary(arr) => arr.validity(),
             Self::Struct(_arr) => unimplemented!(),
+            Self::List(arr) => arr.validity(),
         }
     }
 

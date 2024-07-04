@@ -15,58 +15,72 @@ use std::sync::Arc;
 const COMPARISON_SIGNATURES: &[Signature] = &[
     Signature {
         input: &[DataTypeId::Boolean, DataTypeId::Boolean],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Int8, DataTypeId::Int8],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Int16, DataTypeId::Int16],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Int32, DataTypeId::Int32],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Int64, DataTypeId::Int64],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::UInt8, DataTypeId::UInt8],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::UInt16, DataTypeId::UInt16],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::UInt32, DataTypeId::UInt32],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::UInt64, DataTypeId::UInt64],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Float32, DataTypeId::Float32],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Float64, DataTypeId::Float64],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Decimal128, DataTypeId::Decimal128],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::TimestampSeconds, DataTypeId::TimestampSeconds],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
@@ -74,6 +88,7 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
             DataTypeId::TimestampMilliseconds,
             DataTypeId::TimestampMilliseconds,
         ],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
@@ -81,6 +96,7 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
             DataTypeId::TimestampMicroseconds,
             DataTypeId::TimestampMicroseconds,
         ],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
@@ -88,26 +104,32 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
             DataTypeId::TimestampNanoseconds,
             DataTypeId::TimestampNanoseconds,
         ],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Date32, DataTypeId::Date32],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::Binary, DataTypeId::Binary],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
     Signature {
         input: &[DataTypeId::LargeBinary, DataTypeId::LargeBinary],
+        variadic: None,
         return_type: DataTypeId::Boolean,
     },
 ];

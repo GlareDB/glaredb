@@ -17,54 +17,67 @@ use std::sync::Arc;
 const PRIMITIVE_ARITH_SIGNATURES: &[Signature] = &[
     Signature {
         input: &[DataTypeId::Float32, DataTypeId::Float32],
+        variadic: None,
         return_type: DataTypeId::Float32,
     },
     Signature {
         input: &[DataTypeId::Float64, DataTypeId::Float64],
+        variadic: None,
         return_type: DataTypeId::Float64,
     },
     Signature {
         input: &[DataTypeId::Int8, DataTypeId::Int8],
+        variadic: None,
         return_type: DataTypeId::Int8,
     },
     Signature {
         input: &[DataTypeId::Int16, DataTypeId::Int16],
+        variadic: None,
         return_type: DataTypeId::Int16,
     },
     Signature {
         input: &[DataTypeId::Int32, DataTypeId::Int32],
+        variadic: None,
         return_type: DataTypeId::Int32,
     },
     Signature {
         input: &[DataTypeId::Int64, DataTypeId::Int64],
+        variadic: None,
         return_type: DataTypeId::Int64,
     },
     Signature {
         input: &[DataTypeId::UInt8, DataTypeId::UInt8],
+        variadic: None,
         return_type: DataTypeId::UInt8,
     },
     Signature {
         input: &[DataTypeId::UInt16, DataTypeId::UInt16],
+        variadic: None,
         return_type: DataTypeId::UInt16,
     },
     Signature {
         input: &[DataTypeId::UInt32, DataTypeId::UInt32],
+        variadic: None,
         return_type: DataTypeId::UInt32,
     },
     Signature {
         input: &[DataTypeId::UInt64, DataTypeId::UInt64],
+        variadic: None,
         return_type: DataTypeId::UInt64,
     },
     Signature {
         input: &[DataTypeId::Date32, DataTypeId::Int64],
+        variadic: None,
         return_type: DataTypeId::Date32,
     },
     Signature {
         input: &[DataTypeId::Interval, DataTypeId::Int64],
+        variadic: None,
         return_type: DataTypeId::Interval,
     },
     Signature {
         input: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+        variadic: None,
         return_type: DataTypeId::Decimal64,
     },
 ];

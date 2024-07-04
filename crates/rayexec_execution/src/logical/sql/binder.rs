@@ -1111,6 +1111,57 @@ impl<'a> ExpressionBinder<'a> {
                     }
                 }
             })),
+            ast::Expr::Array(arr) => {
+                let mut new_arr = Vec::with_capacity(arr.len());
+                for v in arr {
+                    let new_v = Box::pin(self.bind_expression(v, bind_data)).await?;
+                    new_arr.push(new_v);
+                }
+                Ok(ast::Expr::Array(new_arr))
+            }
+            ast::Expr::ArraySubscript { expr, subscript } => {
+                let expr = Box::pin(self.bind_expression(*expr, bind_data)).await?;
+                let subscript = match *subscript {
+                    ast::ArraySubscript::Index(index) => ast::ArraySubscript::Index(
+                        Box::pin(self.bind_expression(index, bind_data)).await?,
+                    ),
+                    ast::ArraySubscript::Slice {
+                        lower,
+                        upper,
+                        stride,
+                    } => {
+                        let lower = match lower {
+                            Some(lower) => {
+                                Some(Box::pin(self.bind_expression(lower, bind_data)).await?)
+                            }
+                            None => None,
+                        };
+                        let upper = match upper {
+                            Some(upper) => {
+                                Some(Box::pin(self.bind_expression(upper, bind_data)).await?)
+                            }
+                            None => None,
+                        };
+                        let stride = match stride {
+                            Some(stride) => {
+                                Some(Box::pin(self.bind_expression(stride, bind_data)).await?)
+                            }
+                            None => None,
+                        };
+
+                        ast::ArraySubscript::Slice {
+                            lower,
+                            upper,
+                            stride,
+                        }
+                    }
+                };
+
+                Ok(ast::Expr::ArraySubscript {
+                    expr: Box::new(expr),
+                    subscript: Box::new(subscript),
+                })
+            }
             ast::Expr::UnaryExpr { op, expr } => match (op, *expr) {
                 (ast::UnaryOperator::Minus, ast::Expr::Literal(ast::Literal::Number(n))) => {
                     Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))

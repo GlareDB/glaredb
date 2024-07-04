@@ -12,6 +12,7 @@ use crate::expr::scalar::{
     BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator, UnaryOperator,
 };
 use crate::functions::aggregate::AggregateFunction;
+use crate::functions::scalar::list::{ListExtract, ListValues};
 use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
 use crate::logical::context::QueryContext;
@@ -170,6 +171,47 @@ impl<'a> ExpressionContext<'a> {
             ast::Expr::Ident(ident) => self.plan_ident(ident),
             ast::Expr::CompoundIdent(idents) => self.plan_idents(idents),
             ast::Expr::Literal(literal) => Self::plan_literal(literal),
+            ast::Expr::Array(arr) => {
+                let exprs = arr
+                    .into_iter()
+                    .map(|v| self.plan_expression(context, v))
+                    .collect::<Result<Vec<_>>>()?;
+
+                let scalar = Box::new(ListValues);
+                let exprs = self.apply_casts_for_scalar_function(scalar.as_ref(), exprs)?;
+
+                let refs: Vec<_> = exprs.iter().collect();
+                let planned = scalar.plan_from_expressions(&refs, self.input)?;
+
+                Ok(LogicalExpression::ScalarFunction {
+                    function: planned,
+                    inputs: exprs,
+                })
+            }
+            ast::Expr::ArraySubscript { expr, subscript } => {
+                let expr = self.plan_expression(context, *expr)?;
+                match *subscript {
+                    ast::ArraySubscript::Index(index) => {
+                        let index = self.plan_expression(context, index)?;
+
+                        let scalar = Box::new(ListExtract);
+                        let mut exprs = self
+                            .apply_casts_for_scalar_function(scalar.as_ref(), vec![expr, index])?;
+                        let index = exprs.pop().unwrap();
+                        let expr = exprs.pop().unwrap();
+
+                        let planned = scalar.plan_from_expressions(&[&expr, &index], self.input)?;
+
+                        Ok(LogicalExpression::ScalarFunction {
+                            function: planned,
+                            inputs: vec![expr, index],
+                        })
+                    }
+                    ast::ArraySubscript::Slice { .. } => {
+                        Err(RayexecError::new("Array slicing not yet implemented"))
+                    }
+                }
+            }
             ast::Expr::UnaryExpr { op, expr } => {
                 let expr = self.plan_expression(context, *expr)?;
                 let op = match op {
