@@ -133,12 +133,15 @@ CREATE TABLE orders (
 .import --skip 1 testdata/sqllogictests_datasources_common/data/orders.csv orders
 
 CREATE TABLE IF NOT EXISTS date_test(
-    datetime_a DATETIME,
-    datetime_b DATETIME,
-    text_a TEXT
+    id INT,
+    datetime_value DATETIME,
+    time_value TIME,
+    text_value TEXT
 );
 
-INSERT INTO date_test (datetime_a, datetime_b, text_a) VALUES
-('2016-07-04', '13:46:17', '2012-12-26 04:58:22'),
-('2022-02-09','23:37:27', '2016-07-11' ),
-('2022-02-09 08:20:12','2022-02-09 23:37:27', '2016-07-11' );
+INSERT INTO date_test (id, datetime_value, time_value, text_value) VALUES
+(0, '2016-07-04', '13:46:17', '2012-12-26 04:58:22'),
+(1, '2022-02-09','23:37:27', '2016-07-11' ),
+(2, '2022-02-09 08:20:12','2022-02-09 23:37:27', '2016-07-11' ),
+(3, '2016-07-05 13:46:17', '2016-07-04', '2012-12-26 04:58:22'),
+(4, '2022-02-10','2016-07-04 23:37:27', '2016-07-11' );

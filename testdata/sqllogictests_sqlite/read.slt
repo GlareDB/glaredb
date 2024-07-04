@@ -23,9 +23,20 @@ LIMIT 5;
 10252 2016-07-09 00:00:00 2016-08-06 00:00:00 2016-07-11 00:00:00
 
 query III
-SELECT "datetime_a", "datetime_b", "text_a"
-FROM read_sqlite('${SQLITE_DB_LOCATION}', 'date_test');
+SELECT "id", "datetime_value", "time_value", "text_value"
+FROM read_sqlite('${SQLITE_DB_LOCATION}', 'date_test')
+WHERE id <= 2
+ORDER BY id;
 ----
-2016-07-04	13:46:17	2012-12-26 04:58:22
-2022-02-09	23:37:27	2016-07-11
-2022-02-09 08:20:12 2022-02-09 23:37:27 2016-07-11
+0 2016-07-04 00:00:00 13:46:17 2012-12-26 04:58:22
+1 2022-02-09 00:00:00 23:37:27 2016-07-11
+2 2022-02-09 08:20:12 23:37:27 2016-07-11
+
+query III
+SELECT "id", "datetime_value", "time_value", "text_value"
+FROM read_sqlite('${SQLITE_DB_LOCATION}', 'date_test')
+WHERE id > 2
+ORDER BY id;
+----
+3 2016-07-05 13:46:17 00:00:00 2012-12-26 04:58:22
+4 2022-02-10 00:00:00 23:37:27 2016-07-11
