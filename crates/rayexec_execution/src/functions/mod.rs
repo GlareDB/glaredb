@@ -3,6 +3,8 @@ pub mod implicit;
 pub mod scalar;
 pub mod table;
 
+use std::{borrow::Borrow, fmt::Display};
+
 use fmtutil::IntoDisplayableSlice;
 use implicit::implicit_cast_score;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -280,7 +282,12 @@ pub fn plan_check_num_args<T>(
 /// Return an error indicating the input types we got are not ones we can
 /// handle.
 // TODO: Include valid signatures in the error
-pub fn invalid_input_types_error(func: &impl FunctionInfo, got: &[&DataType]) -> RayexecError {
+pub fn invalid_input_types_error<T>(func: &impl FunctionInfo, got: &[T]) -> RayexecError
+where
+    T: Borrow<DataType> + Display,
+{
+    // TODO: Include relevant valid signatures. What "relevant" means and how we
+    // determine that is stil tbd.
     RayexecError::new(format!(
         "Got invalid type(s) '{}' for '{}'",
         got.displayable(),

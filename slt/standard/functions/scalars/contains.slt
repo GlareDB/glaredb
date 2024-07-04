@@ -1,0 +1,22 @@
+# contains function
+
+query B
+select contains('alphabet', 'alph');
+----
+true
+
+query B
+select contains('alphabet', 'bet');
+----
+true
+
+query B
+select contains('alphabet', 'pha');
+----
+true
+
+query B
+select contains('alphabet', 'dog');
+----
+false
+

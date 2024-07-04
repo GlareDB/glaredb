@@ -65,6 +65,10 @@ pub enum Token {
     RightArrow,
     /// '!'
     Exclamation,
+    /// '^'
+    Caret,
+    /// '^@'
+    CaretAt,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -291,6 +295,16 @@ impl<'a> Tokenizer<'a> {
             '%' => {
                 self.state.next();
                 Token::Mod
+            }
+            '^' => {
+                self.state.next();
+                match self.state.peek() {
+                    Some('@') => {
+                        self.state.next();
+                        Token::CaretAt
+                    }
+                    _ => Token::Caret,
+                }
             }
             '>' => {
                 self.state.next();

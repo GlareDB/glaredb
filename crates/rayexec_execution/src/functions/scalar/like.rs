@@ -5,12 +5,13 @@ use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
     field::TypeSchema,
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::{
     functions::{
         invalid_input_types_error, plan_check_num_args,
-        scalar::macros::primitive_unary_execute_bool, FunctionInfo, Signature,
+        scalar::macros::{primitive_binary_execute_bool, primitive_unary_execute_bool},
+        FunctionInfo, Signature,
     },
     logical::{consteval::ConstEval, expr::LogicalExpression},
 };
@@ -88,21 +89,21 @@ impl ScalarFunction for Like {
                 // '%search'
                 (Some((0, _)), None, None) => {
                     let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(EndsWithImpl { pattern }))
+                    Ok(Box::new(EndsWithConstantImpl { pattern }))
                 }
                 // 'search%'
                 (Some((n, _)), None, None)
                     if n == pattern.len() - 1 && pattern.as_bytes()[n - 1] != escape_char =>
                 {
                     let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(StartsWithImpl { pattern }))
+                    Ok(Box::new(StartsWithConstantImpl { pattern }))
                 }
                 // '%search%'
                 (Some((0, _)), Some((n, _)), None)
                     if n == pattern.len() - 1 && pattern.as_bytes()[n - 1] != escape_char =>
                 {
                     let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(ContainsImpl { pattern }))
+                    Ok(Box::new(ContainsConstantImpl { pattern }))
                 }
                 // 'search'
                 // aka just equals
@@ -119,10 +120,43 @@ impl ScalarFunction for Like {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StartsWithImpl {
-    pattern: String,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StartsWith;
+
+impl FunctionInfo for StartsWith {
+    fn name(&self) -> &'static str {
+        "starts_with"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        &[
+            Signature {
+                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+                variadic: None,
+                return_type: DataTypeId::Boolean,
+            },
+            Signature {
+                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
+                variadic: None,
+                return_type: DataTypeId::Boolean,
+            },
+        ]
+    }
 }
+
+impl ScalarFunction for StartsWith {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        match (&inputs[0], &inputs[1]) {
+            (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
+                Ok(Box::new(StartsWithImpl))
+            }
+            _ => Err(invalid_input_types_error(self, inputs)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StartsWithImpl;
 
 impl PlannedScalarFunction for StartsWithImpl {
     fn name(&self) -> &'static str {
@@ -134,6 +168,33 @@ impl PlannedScalarFunction for StartsWithImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
+            (Array::Utf8(a), Array::Utf8(b)) => {
+                primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
+            }
+            (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
+            }
+            _ => return Err(RayexecError::new("invalid types")),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartsWithConstantImpl {
+    pattern: String,
+}
+
+impl PlannedScalarFunction for StartsWithConstantImpl {
+    fn name(&self) -> &'static str {
+        "starts_with_constant_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
         let arr = inputs[0].as_ref();
         Ok(match arr {
             Array::Utf8(arr) => {
@@ -147,14 +208,74 @@ impl PlannedScalarFunction for StartsWithImpl {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EndsWithImpl {
-    pattern: String,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EndsWith;
+
+impl FunctionInfo for EndsWith {
+    fn name(&self) -> &'static str {
+        "ends_with"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        &[
+            Signature {
+                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+                variadic: None,
+                return_type: DataTypeId::Boolean,
+            },
+            Signature {
+                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
+                variadic: None,
+                return_type: DataTypeId::Boolean,
+            },
+        ]
+    }
 }
+
+impl ScalarFunction for EndsWith {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        match (&inputs[0], &inputs[1]) {
+            (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
+                Ok(Box::new(EndsWithImpl))
+            }
+            _ => Err(invalid_input_types_error(self, inputs)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EndsWithImpl;
 
 impl PlannedScalarFunction for EndsWithImpl {
     fn name(&self) -> &'static str {
         "ends_with_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
+            (Array::Utf8(a), Array::Utf8(b)) => {
+                primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
+            }
+            (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
+            }
+            _ => return Err(RayexecError::new("invalid types")),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndsWithConstantImpl {
+    pattern: String,
+}
+
+impl PlannedScalarFunction for EndsWithConstantImpl {
+    fn name(&self) -> &'static str {
+        "ends_with_constant_impl"
     }
 
     fn return_type(&self) -> DataType {
@@ -175,14 +296,74 @@ impl PlannedScalarFunction for EndsWithImpl {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Contains;
+
+impl FunctionInfo for Contains {
+    fn name(&self) -> &'static str {
+        "contains"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        &[
+            Signature {
+                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+                variadic: None,
+                return_type: DataTypeId::Boolean,
+            },
+            Signature {
+                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
+                variadic: None,
+                return_type: DataTypeId::Boolean,
+            },
+        ]
+    }
+}
+
+impl ScalarFunction for Contains {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        match (&inputs[0], &inputs[1]) {
+            (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
+                Ok(Box::new(ContainsWithImpl))
+            }
+            _ => Err(invalid_input_types_error(self, inputs)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContainsWithImpl;
+
+impl PlannedScalarFunction for ContainsWithImpl {
+    fn name(&self) -> &'static str {
+        "contains_impl"
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
+            (Array::Utf8(a), Array::Utf8(b)) => {
+                primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
+            }
+            (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
+            }
+            _ => return Err(RayexecError::new("invalid types")),
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContainsImpl {
+pub struct ContainsConstantImpl {
     pattern: String,
 }
 
-impl PlannedScalarFunction for ContainsImpl {
+impl PlannedScalarFunction for ContainsConstantImpl {
     fn name(&self) -> &'static str {
-        "contains_impl"
+        "contains_constant_impl"
     }
 
     fn return_type(&self) -> DataType {

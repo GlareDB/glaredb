@@ -1,0 +1,40 @@
+# concat (string) function
+
+query T
+select concat();
+----
+(empty)
+
+query T
+select concat('a');
+----
+a
+
+query T
+select concat('a', 'b');
+----
+ab
+
+query T
+select concat(a, b) from (values ('mario', 'luigi'), ('peach', 'yoshi')) v(a, b);
+----
+marioluigi
+peachyoshi
+
+# TODO: ?
+# Not all arrays are of the same length
+# query T
+# select concat('a', null);
+# ----
+
+# Syntactic sugar
+
+query T
+select 'a' || 'b'
+----
+ab
+
+query T
+select 'a' || 'b' || 'c'
+----
+abc

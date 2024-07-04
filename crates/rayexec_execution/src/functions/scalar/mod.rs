@@ -1,6 +1,7 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
+pub mod concat;
 pub mod like;
 pub mod list;
 pub mod negate;
@@ -46,6 +47,10 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(numeric::IsNan),
         // String
         Box::new(string::Repeat),
+        Box::new(concat::Concat),
+        Box::new(like::StartsWith),
+        Box::new(like::EndsWith),
+        Box::new(like::Contains),
         // Like
         Box::new(like::Like),
         // Struct
@@ -202,7 +207,7 @@ mod macros {
     }
     pub(crate) use primitive_binary_execute_no_wrap;
 
-    macro_rules! cmp_binary_execute {
+    macro_rules! primitive_binary_execute_bool {
         ($first:expr, $second:expr, $operation:expr) => {{
             use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
             use rayexec_bullet::executor::scalar::BinaryExecutor;
@@ -212,7 +217,7 @@ mod macros {
             Array::Boolean(BooleanArray::new(buffer, validity))
         }};
     }
-    pub(crate) use cmp_binary_execute;
+    pub(crate) use primitive_binary_execute_bool;
 }
 
 #[cfg(test)]

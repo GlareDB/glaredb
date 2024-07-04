@@ -37,6 +37,8 @@ pub enum BinaryOperator {
     Modulo,
     /// String/Array Concat operator, e.g. `a || b`
     StringConcat,
+    /// String starts with operator, e.g. `a ^@ b`
+    StringStartsWith,
     /// Greater than, e.g. `a > b`
     Gt,
     /// Less than, e.g. `a < b`
@@ -414,6 +416,7 @@ impl Expr<Raw> {
             Token::IntDiv => Some(BinaryOperator::IntDiv),
             Token::Mod => Some(BinaryOperator::Modulo),
             Token::Concat => Some(BinaryOperator::StringConcat),
+            Token::CaretAt => Some(BinaryOperator::StringStartsWith),
             Token::Word(w) => match w.keyword {
                 Some(Keyword::AND) => Some(BinaryOperator::And),
                 Some(Keyword::OR) => Some(BinaryOperator::Or),
@@ -582,6 +585,9 @@ impl Expr<Raw> {
 
             // Concat
             Token::Concat => Ok(Self::PREC_EVERYTHING_ELSE),
+
+            // Starts with
+            Token::CaretAt => Ok(Self::PREC_EVERYTHING_ELSE),
 
             // Array, struct literals
             Token::LeftBrace | Token::LeftBracket => Ok(Self::PREC_ARRAY_ELEM),
@@ -1171,5 +1177,16 @@ mod tests {
             }),
         };
         assert_eq!(expected, expr)
+    }
+
+    #[test]
+    fn string_contains_sugar() {
+        let expr: Expr<_> = parse_ast("s1 ^@ s2").unwrap();
+        let expected = Expr::BinaryExpr {
+            left: Box::new(Expr::Ident(Ident::from_string("s1"))),
+            op: BinaryOperator::StringStartsWith,
+            right: Box::new(Expr::Ident(Ident::from_string("s2"))),
+        };
+        assert_eq!(expected, expr);
     }
 }

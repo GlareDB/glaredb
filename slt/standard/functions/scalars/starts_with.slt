@@ -1,0 +1,18 @@
+# starts_with function
+
+query B
+select starts_with('alphabet', 'alph');
+----
+true
+
+query B
+select starts_with('alphabet', 'dog');
+----
+false
+
+# Syntactic sugar
+
+query B
+select 'alphabet' ^@ 'alph';
+----
+true
