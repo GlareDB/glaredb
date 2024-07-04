@@ -10,12 +10,6 @@ SELECT count(*) FROM read_sqlite('${SQLITE_DB_LOCATION}', 'orders');
 ----
 16282
 
-# TODO: in ./data/setup-test-sqlite-db.sql create a table that has:
-#   DATE, TIME, TIMESTAMP fields with various string formats and make
-#   sure that we can load the table.
-
-# TODO: uplaod this DB file to our own cloud storage and move this
-#   test to the cloud storage directory.
 query III
 SELECT "OrderID", "OrderDate", "RequiredDate", "ShippedDate"
 FROM read_sqlite('https://github.com/jpwhite3/northwind-SQLite3/raw/main/dist/northwind.db','Orders')
@@ -27,3 +21,11 @@ LIMIT 5;
 10250 2016-07-08 00:00:00 2016-08-05 00:00:00 2016-07-12 00:00:00
 10251 2016-07-08 00:00:00 2016-08-05 00:00:00 2016-07-15 00:00:00
 10252 2016-07-09 00:00:00 2016-08-06 00:00:00 2016-07-11 00:00:00
+
+query III
+SELECT "datetime_a", "datetime_b", "text_a"
+FROM read_sqlite('${SQLITE_DB_LOCATION}', 'date_test');
+----
+2016-07-04	13:46:17	2012-12-26 04:58:22
+2022-02-09	23:37:27	2016-07-11
+2022-02-09 08:20:12 2022-02-09 23:37:27 2016-07-11

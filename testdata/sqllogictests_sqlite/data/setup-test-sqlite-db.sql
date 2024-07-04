@@ -131,3 +131,14 @@ CREATE TABLE orders (
 .mode csv
 .import --skip 1 testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv bikeshare_trips
 .import --skip 1 testdata/sqllogictests_datasources_common/data/orders.csv orders
+
+CREATE TABLE IF NOT EXISTS date_test(
+    datetime_a DATETIME,
+    datetime_b DATETIME,
+    text_a TEXT
+);
+
+INSERT INTO date_test (datetime_a, datetime_b, text_a) VALUES
+('2016-07-04', '13:46:17', '2012-12-26 04:58:22'),
+('2022-02-09','23:37:27', '2016-07-11' ),
+('2022-02-09 08:20:12','2022-02-09 23:37:27', '2016-07-11' );
