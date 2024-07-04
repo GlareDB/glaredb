@@ -51,5 +51,5 @@ query I
 select * from read_sqlite('gs://${GCS_BUCKET_NAME}/northwind.db', gcp_creds, Orders)
 ORDER BY "OrderID" LIMIT 2;
 ----
-10248 VINET 5 2016-07-04 2016-08-01 2016-07-16 3 16.75 Vins et alcools Chevalier 59 rue de l-Abbaye Reims Western Europe 51100 France
-10249 TOMSP 6 2016-07-05 2016-08-16 2016-07-10 1 22.25 Toms Spezialitäten Luisenstr. 48 Münster Western Europe 44087 Germany
+10248 VINET 5 2016-07-04 00:00:00 2016-08-01 00:00:00 2016-07-16 00:00:00 3 16.75 Vins et alcools Chevalier 59 rue de l-Abbaye Reims Western Europe 51100 France
+10249 TOMSP 6 2016-07-05 00:00:00 2016-08-16 00:00:00 2016-07-10 00:00:00 1 22.25 Toms Spezialitäten Luisenstr. 48 Münster Western Europe 44087 Germany
