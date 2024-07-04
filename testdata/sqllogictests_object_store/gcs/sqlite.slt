@@ -1,4 +1,4 @@
-sqlite.sltstatement ok
+statement ok
 CREATE CREDENTIALS gcp_creds PROVIDER gcp OPTIONS
 	( service_account_key '${GCP_SERVICE_ACCOUNT_KEY}' );
 
