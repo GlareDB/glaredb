@@ -38,7 +38,7 @@ tracing = { workspace = true }
 url = { workspace = true }
 apache-avro = "0.16"
 async-channel = "2.3.1"
-async-sqlite = "0.2.2"
+async-sqlite = "0.3.0"
 async-stream = "0.3.5"
 bitvec = "1"
 bson = "2.11.0"
