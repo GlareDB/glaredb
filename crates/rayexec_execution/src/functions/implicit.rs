@@ -40,10 +40,7 @@ pub const fn implicit_cast_score(have: &DataType, want: DataTypeId) -> i32 {
             | DataTypeId::Decimal64
             | DataTypeId::Decimal128
             | DataTypeId::Interval
-            | DataTypeId::TimestampSeconds
-            | DataTypeId::TimestampMilliseconds
-            | DataTypeId::TimestampMicroseconds
-            | DataTypeId::TimestampNanoseconds => return target_score(want),
+            | DataTypeId::Timestamp => return target_score(want),
 
             // Non-zero since it's a valid cast, just we would prefer something
             // else.
@@ -201,16 +198,18 @@ const fn float64_cast_score(want: DataTypeId) -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use rayexec_bullet::datatype::{TimeUnit, TimestampTypeMeta};
+
     use super::*;
 
     #[test]
     fn implicit_cast_from_utf8() {
         assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Int32) > 0);
-        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::TimestampMilliseconds) > 0);
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Timestamp) > 0);
         assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Interval) > 0);
 
         assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::Int32) > 0);
-        assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::TimestampMilliseconds) > 0);
+        assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::Timestamp) > 0);
         assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::Interval) > 0);
     }
 
@@ -218,7 +217,12 @@ mod tests {
     fn never_implicit_to_utf8() {
         // ...except when we're casting from utf8 utf8
         assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Utf8) < 0);
-        assert!(implicit_cast_score(&DataType::TimestampMilliseconds, DataTypeId::Utf8) < 0);
+        assert!(
+            implicit_cast_score(
+                &DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Millisecond)),
+                DataTypeId::Utf8
+            ) < 0
+        );
     }
 
     #[test]

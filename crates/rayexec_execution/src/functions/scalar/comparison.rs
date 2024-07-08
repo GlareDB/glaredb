@@ -79,31 +79,7 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
         return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataTypeId::TimestampSeconds, DataTypeId::TimestampSeconds],
-        variadic: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        input: &[
-            DataTypeId::TimestampMilliseconds,
-            DataTypeId::TimestampMilliseconds,
-        ],
-        variadic: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        input: &[
-            DataTypeId::TimestampMicroseconds,
-            DataTypeId::TimestampMicroseconds,
-        ],
-        variadic: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        input: &[
-            DataTypeId::TimestampNanoseconds,
-            DataTypeId::TimestampNanoseconds,
-        ],
+        input: &[DataTypeId::Timestamp, DataTypeId::Timestamp],
         variadic: None,
         return_type: DataTypeId::Boolean,
     },
@@ -164,10 +140,7 @@ impl ScalarFunction for Eq {
             | (DataType::Float64, DataType::Float64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::TimestampSeconds, DataType::TimestampSeconds)
-            | (DataType::TimestampMilliseconds, DataType::TimestampMilliseconds)
-            | (DataType::TimestampMicroseconds, DataType::TimestampMicroseconds)
-            | (DataType::TimestampNanoseconds, DataType::TimestampNanoseconds)
+            | (DataType::Timestamp(_), DataType::Timestamp(_))
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
@@ -244,17 +217,13 @@ impl PlannedScalarFunction for EqImpl {
                     |a, b| a == b
                 )
             }
-            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
+            (Array::Timestamp(first), Array::Timestamp(second)) => {
+                // TODO: Unit check
+                primitive_binary_execute_bool!(
+                    first.get_primitive(),
+                    second.get_primitive(),
+                    |a, b| a == b
+                )
             }
             (Array::Date32(first), Array::Date32(second)) => {
                 primitive_binary_execute_bool!(first, second, |a, b| a == b)
@@ -313,10 +282,7 @@ impl ScalarFunction for Neq {
             | (DataType::Float64, DataType::Float64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::TimestampSeconds, DataType::TimestampSeconds)
-            | (DataType::TimestampMilliseconds, DataType::TimestampMilliseconds)
-            | (DataType::TimestampMicroseconds, DataType::TimestampMicroseconds)
-            | (DataType::TimestampNanoseconds, DataType::TimestampNanoseconds)
+            | (DataType::Timestamp(_), DataType::Timestamp(_))
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
@@ -393,17 +359,13 @@ impl PlannedScalarFunction for NeqImpl {
                     |a, b| a != b
                 )
             }
-            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
+            (Array::Timestamp(first), Array::Timestamp(second)) => {
+                // TODO: Unit check
+                primitive_binary_execute_bool!(
+                    first.get_primitive(),
+                    second.get_primitive(),
+                    |a, b| a != b
+                )
             }
             (Array::Date32(first), Array::Date32(second)) => {
                 primitive_binary_execute_bool!(first, second, |a, b| a != b)
@@ -458,10 +420,7 @@ impl ScalarFunction for Lt {
             | (DataType::Float64, DataType::Float64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::TimestampSeconds, DataType::TimestampSeconds)
-            | (DataType::TimestampMilliseconds, DataType::TimestampMilliseconds)
-            | (DataType::TimestampMicroseconds, DataType::TimestampMicroseconds)
-            | (DataType::TimestampNanoseconds, DataType::TimestampNanoseconds)
+            | (DataType::Timestamp(_), DataType::Timestamp(_))
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
@@ -538,17 +497,13 @@ impl PlannedScalarFunction for LtImpl {
                     |a, b| a < b
                 )
             }
-            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
+            (Array::Timestamp(first), Array::Timestamp(second)) => {
+                // TODO: Unit check
+                primitive_binary_execute_bool!(
+                    first.get_primitive(),
+                    second.get_primitive(),
+                    |a, b| a < b
+                )
             }
             (Array::Date32(first), Array::Date32(second)) => {
                 primitive_binary_execute_bool!(first, second, |a, b| a < b)
@@ -603,10 +558,7 @@ impl ScalarFunction for LtEq {
             | (DataType::Float64, DataType::Float64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::TimestampSeconds, DataType::TimestampSeconds)
-            | (DataType::TimestampMilliseconds, DataType::TimestampMilliseconds)
-            | (DataType::TimestampMicroseconds, DataType::TimestampMicroseconds)
-            | (DataType::TimestampNanoseconds, DataType::TimestampNanoseconds)
+            | (DataType::Timestamp(_), DataType::Timestamp(_))
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
@@ -683,17 +635,13 @@ impl PlannedScalarFunction for LtEqImpl {
                     |a, b| a <= b
                 )
             }
-            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
+            (Array::Timestamp(first), Array::Timestamp(second)) => {
+                // TODO: Unit check
+                primitive_binary_execute_bool!(
+                    first.get_primitive(),
+                    second.get_primitive(),
+                    |a, b| a <= b
+                )
             }
             (Array::Date32(first), Array::Date32(second)) => {
                 primitive_binary_execute_bool!(first, second, |a, b| a <= b)
@@ -748,10 +696,7 @@ impl ScalarFunction for Gt {
             | (DataType::Float64, DataType::Float64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::TimestampSeconds, DataType::TimestampSeconds)
-            | (DataType::TimestampMilliseconds, DataType::TimestampMilliseconds)
-            | (DataType::TimestampMicroseconds, DataType::TimestampMicroseconds)
-            | (DataType::TimestampNanoseconds, DataType::TimestampNanoseconds)
+            | (DataType::Timestamp(_), DataType::Timestamp(_))
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
@@ -828,17 +773,13 @@ impl PlannedScalarFunction for GtImpl {
                     |a, b| a > b
                 )
             }
-            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
+            (Array::Timestamp(first), Array::Timestamp(second)) => {
+                // TODO: Unit check
+                primitive_binary_execute_bool!(
+                    first.get_primitive(),
+                    second.get_primitive(),
+                    |a, b| a > b
+                )
             }
             (Array::Date32(first), Array::Date32(second)) => {
                 primitive_binary_execute_bool!(first, second, |a, b| a > b)
@@ -893,10 +834,7 @@ impl ScalarFunction for GtEq {
             | (DataType::Float64, DataType::Float64)
             | (DataType::Decimal64(_), DataType::Decimal64(_))
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::TimestampSeconds, DataType::TimestampSeconds)
-            | (DataType::TimestampMilliseconds, DataType::TimestampMilliseconds)
-            | (DataType::TimestampMicroseconds, DataType::TimestampMicroseconds)
-            | (DataType::TimestampNanoseconds, DataType::TimestampNanoseconds)
+            | (DataType::Timestamp(_), DataType::Timestamp(_))
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
@@ -973,17 +911,13 @@ impl PlannedScalarFunction for GtEqImpl {
                     |a, b| a >= b
                 )
             }
-            (Array::TimestampSeconds(first), Array::TimestampSeconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::TimestampMilliseconds(first), Array::TimestampMilliseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::TimestampMicroseconds(first), Array::TimestampMicroseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::TimestampNanoseconds(first), Array::TimestampNanoseconds(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
+            (Array::Timestamp(first), Array::Timestamp(second)) => {
+                // TODO: Unit check
+                primitive_binary_execute_bool!(
+                    first.get_primitive(),
+                    second.get_primitive(),
+                    |a, b| a >= b
+                )
             }
             (Array::Date32(first), Array::Date32(second)) => {
                 primitive_binary_execute_bool!(first, second, |a, b| a >= b)

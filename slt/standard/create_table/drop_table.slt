@@ -1,0 +1,8 @@
+# DROP [TEMP] TABLE
+
+statement ok
+create temp table t1 (a int);
+
+statement error Not yet implemented
+drop table t1;
+

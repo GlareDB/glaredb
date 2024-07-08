@@ -30,6 +30,7 @@ use crate::{
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
+            union::PhysicalUnion,
             values::PhysicalValues,
             OperatorState, PartitionState,
         },
@@ -48,7 +49,7 @@ use rayexec_bullet::{
     compute::concat::concat,
     field::TypeSchema,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
@@ -361,6 +362,9 @@ impl BuildState {
             LogicalOperator::TableFunction(table_func) => {
                 self.push_table_function(conf, id_gen, table_func)
             }
+            LogicalOperator::SetOperation(setop) => {
+                self.push_set_operation(conf, id_gen, materializations, setop)
+            }
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }
@@ -370,7 +374,7 @@ impl BuildState {
             LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
                 RayexecError::new("ATTACH/DETACH should be handled in the session"),
             ),
-            other => unimplemented!("other: {other:?}"),
+            other => not_implemented!("logical plan to pipeline: {other:?}"),
         }
     }
 
@@ -382,6 +386,12 @@ impl BuildState {
             Some(pipeline) => Ok(pipeline),
             None => Err(RayexecError::new("No pipeline in-progress")),
         }
+    }
+
+    fn take_in_progress_pipeline(&mut self) -> Result<Pipeline> {
+        self.in_progress
+            .take()
+            .ok_or_else(|| RayexecError::new("No in-progress pipeline to take"))
     }
 
     /// Push a query sink onto the current pipeline. This marks the current
@@ -417,6 +427,62 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_set_operation(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        setop: operator::SetOperation,
+    ) -> Result<()> {
+        // Continue building top.
+        self.walk(conf, materializations, id_gen, *setop.top)?;
+
+        // Create new pipeline for bottom.
+        let mut bottom_builder = BuildState::new();
+        bottom_builder.walk(conf, materializations, id_gen, *setop.bottom)?;
+        self.completed.append(&mut bottom_builder.completed);
+
+        let bottom_pipeline_partitions =
+            bottom_builder.in_progress_pipeline_mut()?.num_partitions();
+        let top_pipeline = self.in_progress_pipeline_mut()?;
+
+        if bottom_pipeline_partitions != top_pipeline.num_partitions() {
+            bottom_builder.push_round_robin(conf, id_gen, top_pipeline.num_partitions())?;
+        }
+
+        let mut bottom_pipeline = bottom_builder.take_in_progress_pipeline()?;
+
+        match setop.kind {
+            operator::SetOpKind::Union => {
+                let operator = Arc::new(PhysicalUnion);
+                let (operator_state, top_states, bottom_states) =
+                    operator.create_states(top_pipeline.num_partitions());
+                let operator_state = Arc::new(OperatorState::Union(operator_state));
+                let top_states = top_states
+                    .into_iter()
+                    .map(PartitionState::UnionTop)
+                    .collect();
+                let bottom_states = bottom_states
+                    .into_iter()
+                    .map(PartitionState::UnionBottom)
+                    .collect();
+
+                top_pipeline.push_operator(operator.clone(), operator_state.clone(), top_states)?;
+
+                // Union is the "sink" for the bottom pipeline. Push it and put into completed.
+                bottom_pipeline.push_operator(operator, operator_state, bottom_states)?;
+                self.completed.push(bottom_pipeline);
+            }
+            other => not_implemented!("set op {other}"),
+        }
+
+        if !setop.all {
+            not_implemented!("non-ALL setops")
+        }
 
         Ok(())
     }

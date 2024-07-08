@@ -30,10 +30,7 @@ pub enum DataTypeId {
     Float64,
     Decimal64,
     Decimal128,
-    TimestampSeconds,
-    TimestampMilliseconds,
-    TimestampMicroseconds,
-    TimestampNanoseconds,
+    Timestamp,
     Date32,
     Date64,
     Interval,
@@ -65,10 +62,7 @@ impl fmt::Display for DataTypeId {
             Self::Float64 => write!(f, "Float64"),
             Self::Decimal64 => write!(f, "Decimal64"),
             Self::Decimal128 => write!(f, "Decimal128"),
-            Self::TimestampSeconds => write!(f, "Timestamp(s)"),
-            Self::TimestampMilliseconds => write!(f, "Timestamp(ms)"),
-            Self::TimestampMicroseconds => write!(f, "Timestamp(μs)"),
-            Self::TimestampNanoseconds => write!(f, "Timestamp(ns)"),
+            Self::Timestamp => write!(f, "Timestamp"),
             Self::Date32 => write!(f, "Date32"),
             Self::Date64 => write!(f, "Date64"),
             Self::Interval => write!(f, "Interval"),
@@ -92,6 +86,41 @@ pub struct DecimalTypeMeta {
 impl DecimalTypeMeta {
     pub const fn new(precision: u8, scale: i8) -> Self {
         DecimalTypeMeta { precision, scale }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TimestampTypeMeta {
+    pub unit: TimeUnit,
+    // TODO: Optional timezone (hence no copy)
+}
+
+impl TimestampTypeMeta {
+    pub const fn new(unit: TimeUnit) -> Self {
+        TimestampTypeMeta { unit }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TimeUnit {
+    Second,
+    Millisecond,
+    Microsecond,
+    Nanosecond,
+}
+
+impl fmt::Display for TimeUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TimeUnit::Second => "s",
+                TimeUnit::Millisecond => "ms",
+                TimeUnit::Microsecond => "μs",
+                TimeUnit::Nanosecond => "ns",
+            }
+        )
     }
 }
 
@@ -134,14 +163,8 @@ pub enum DataType {
     Decimal64(DecimalTypeMeta),
     /// 128-bit decimal.
     Decimal128(DecimalTypeMeta),
-    /// Timestamp in seconds.
-    TimestampSeconds,
-    /// Timestamp in milliseconds.
-    TimestampMilliseconds,
-    /// Timestamp in microseconds.
-    TimestampMicroseconds,
-    /// Timestamp in nanoseconds.
-    TimestampNanoseconds,
+    /// Timestamp
+    Timestamp(TimestampTypeMeta),
     /// Days since epoch.
     Date32,
     /// Milliseconds since epoch.
@@ -191,10 +214,9 @@ impl DataType {
                 Decimal128Type::MAX_PRECISION,
                 DECIMAL_DEFUALT_SCALE,
             )),
-            DataTypeId::TimestampSeconds => DataType::TimestampSeconds,
-            DataTypeId::TimestampMilliseconds => DataType::TimestampMilliseconds,
-            DataTypeId::TimestampMicroseconds => DataType::TimestampMicroseconds,
-            DataTypeId::TimestampNanoseconds => DataType::TimestampNanoseconds,
+            DataTypeId::Timestamp => DataType::Timestamp(TimestampTypeMeta {
+                unit: TimeUnit::Microsecond,
+            }),
             DataTypeId::Date32 => DataType::Date32,
             DataTypeId::Date64 => DataType::Date64,
             DataTypeId::Interval => DataType::Interval,
@@ -230,10 +252,7 @@ impl DataType {
             DataType::Float64 => DataTypeId::Float64,
             DataType::Decimal64(_) => DataTypeId::Decimal64,
             DataType::Decimal128(_) => DataTypeId::Decimal128,
-            DataType::TimestampSeconds => DataTypeId::TimestampSeconds,
-            DataType::TimestampMilliseconds => DataTypeId::TimestampMilliseconds,
-            DataType::TimestampMicroseconds => DataTypeId::TimestampMicroseconds,
-            DataType::TimestampNanoseconds => DataTypeId::TimestampNanoseconds,
+            DataType::Timestamp(_) => DataTypeId::Timestamp,
             DataType::Date32 => DataTypeId::Date32,
             DataType::Date64 => DataTypeId::Date64,
             DataType::Interval => DataTypeId::Interval,
@@ -296,10 +315,7 @@ impl fmt::Display for DataType {
             Self::Float64 => write!(f, "Float64"),
             Self::Decimal64(meta) => write!(f, "Decimal64({},{})", meta.precision, meta.scale),
             Self::Decimal128(meta) => write!(f, "Decimal128({},{})", meta.precision, meta.scale),
-            Self::TimestampSeconds => write!(f, "Timestamp(s)"),
-            Self::TimestampMilliseconds => write!(f, "Timestamp(ms)"),
-            Self::TimestampMicroseconds => write!(f, "Timestamp(μs)"),
-            Self::TimestampNanoseconds => write!(f, "Timestamp(ns)"),
+            Self::Timestamp(meta) => write!(f, "Timestamp({})", meta.unit),
             Self::Date32 => write!(f, "Date32"),
             Self::Date64 => write!(f, "Date64"),
             Self::Interval => write!(f, "Interval"),

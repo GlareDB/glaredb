@@ -3,7 +3,7 @@ use parquet::{
     schema::types::{BasicTypeInfo, SchemaDescriptor, Type},
 };
 use rayexec_bullet::{
-    datatype::{DataType, DecimalTypeMeta},
+    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     field::{Field, Schema},
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
@@ -75,7 +75,9 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
             parquet::basic::Type::BOOLEAN => Ok(DataType::Boolean),
             parquet::basic::Type::INT32 => from_int32(basic_info, *scale, *precision),
             parquet::basic::Type::INT64 => from_int64(basic_info, *scale, *precision),
-            parquet::basic::Type::INT96 => Ok(DataType::TimestampNanoseconds),
+            parquet::basic::Type::INT96 => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+                TimeUnit::Nanosecond,
+            ))),
             parquet::basic::Type::FLOAT => Ok(DataType::Float32),
             parquet::basic::Type::DOUBLE => Ok(DataType::Float64),
             parquet::basic::Type::BYTE_ARRAY => from_byte_array(basic_info, *precision, *scale),

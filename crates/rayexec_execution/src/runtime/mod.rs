@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::http::HttpClient;
+use rayexec_io::{filesystem::FileSystemProvider, http::HttpClient};
 
 use crate::execution::query_graph::QueryGraph;
 
@@ -55,6 +55,9 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     ///
     /// May error if prereqs aren't met for creating an http client.
     fn http_client(&self) -> Result<Arc<dyn HttpClient>>;
+
+    /// Get a reference to the filesystem.
+    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>>;
 }
 
 pub trait QueryHandle: Debug + Sync + Send {

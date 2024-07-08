@@ -3,13 +3,13 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::{
-    datatype::{DataType, DecimalTypeMeta},
+    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
         decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
         OwnedScalarValue,
     },
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{
     ast::{self, ColumnDef, FunctionArg, ObjectReference, QueryNode, ReplaceColumn},
     meta::{AstMeta, Raw},
@@ -480,15 +480,7 @@ impl<'a> Binder<'a> {
                 None => None,
             };
 
-            let body = match query.body {
-                ast::QueryNodeBody::Select(select) => ast::QueryNodeBody::Select(Box::new(
-                    binder.bind_select(*select, bind_data).await?,
-                )),
-                ast::QueryNodeBody::Values(values) => {
-                    ast::QueryNodeBody::Values(binder.bind_values(values, bind_data).await?)
-                }
-                ast::QueryNodeBody::Set { .. } => unimplemented!(),
-            };
+            let body = binder.bind_query_node_body(query.body, bind_data).await?;
 
             // Bind ORDER BY
             let mut order_by = Vec::with_capacity(query.order_by.len());
@@ -527,6 +519,36 @@ impl<'a> Binder<'a> {
         bind_data.dec_depth();
 
         result
+    }
+
+    async fn bind_query_node_body(
+        &self,
+        body: ast::QueryNodeBody<Raw>,
+        bind_data: &mut BindData,
+    ) -> Result<ast::QueryNodeBody<Bound>> {
+        Ok(match body {
+            ast::QueryNodeBody::Select(select) => {
+                ast::QueryNodeBody::Select(Box::new(self.bind_select(*select, bind_data).await?))
+            }
+            ast::QueryNodeBody::Values(values) => {
+                ast::QueryNodeBody::Values(self.bind_values(values, bind_data).await?)
+            }
+            ast::QueryNodeBody::Set {
+                left,
+                right,
+                operation,
+                all,
+            } => {
+                let left = Box::pin(self.bind_query_node_body(*left, bind_data)).await?;
+                let right = Box::pin(self.bind_query_node_body(*right, bind_data)).await?;
+                ast::QueryNodeBody::Set {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    operation,
+                    all,
+                }
+            }
+        })
     }
 
     async fn bind_ctes(
@@ -923,7 +945,10 @@ impl<'a> Binder<'a> {
             }
             ast::DataType::Bool => DataType::Boolean,
             ast::DataType::Date => DataType::Date32,
-            ast::DataType::Timestamp => DataType::TimestampMicroseconds, // Matches postgres default
+            ast::DataType::Timestamp => {
+                // Microsecond matches postgres default.
+                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            }
             ast::DataType::Interval => DataType::Interval,
         })
     }
@@ -1320,7 +1345,7 @@ impl<'a> ExpressionBinder<'a> {
                     pattern: Box::new(pattern),
                 })
             }
-            other => unimplemented!("{other:?}"),
+            other => not_implemented!("bind expr {other:?}"),
         }
     }
 }

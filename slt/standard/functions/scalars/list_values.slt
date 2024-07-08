@@ -62,10 +62,21 @@ select [];
 ----
 []
 
-# TODO: Concat on list arrays
-# query ?
-# select * from (values ([1, 2, 3, 4.0]));
-# ----
+query ?
+select * from (values ([1, 2, 3, 4.0]));
+----
+[1, 2, 3, 4]
+
+query ?TTTT rowsort
+select *, c1[1], c1[2], c1[3], c1[4]
+  from (values (['a', 'b']),
+               (['c']),
+               (['d', 'e', 'f'])) v(c1)
+----
+[a, b]     a  b     NULL  NULL
+[c]        c  NULL  NULL  NULL
+[d, e, f]  d  e     f     NULL
+
 
 query ?
 select [a, b] from (values ('yoshi', 'mario'), ('luigi', 'peach')) as v(a,b);

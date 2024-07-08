@@ -1,9 +1,9 @@
 use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::{
-    array::{Array, DecimalArray, PrimitiveArray},
+    array::{Array, DecimalArray, PrimitiveArray, TimestampArray},
     bitmap::Bitmap,
-    datatype::{DataType, DataTypeId},
+    datatype::{DataType, DataTypeId, TimeUnit},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
     scalar::interval::Interval,
 };
@@ -46,10 +46,7 @@ impl AggregateFunction for Min {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
-            | DataType::TimestampSeconds
-            | DataType::TimestampMilliseconds
-            | DataType::TimestampMicroseconds
-            | DataType::TimestampNanoseconds => Ok(Box::new(MinPrimitiveImpl {
+            | DataType::Timestamp(_) => Ok(Box::new(MinPrimitiveImpl {
                 datatype: inputs[0].clone(),
             })),
             other => Err(invalid_input_types_error(self, &[other])),
@@ -93,10 +90,7 @@ impl AggregateFunction for Max {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
-            | DataType::TimestampSeconds
-            | DataType::TimestampMilliseconds
-            | DataType::TimestampMicroseconds
-            | DataType::TimestampNanoseconds => Ok(Box::new(MaxPrimitiveImpl {
+            | DataType::Timestamp(_) => Ok(Box::new(MaxPrimitiveImpl {
                 datatype: inputs[0].clone(),
             })),
             other => Err(invalid_input_types_error(self, &[other])),
@@ -158,6 +152,28 @@ macro_rules! create_decimal_grouped_state {
     }};
 }
 
+fn create_timestamp_grouped_state<S: AggregateState<i64, i64> + Send + 'static>(
+    unit: TimeUnit,
+) -> Box<dyn GroupedStates> {
+    Box::new(DefaultGroupedStates::new(
+        |row_selection: &Bitmap, arrays: &[&Array], mapping: &[usize], states: &mut [S]| {
+            match &arrays[0] {
+                Array::Timestamp(arr) => {
+                    UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+                }
+                other => panic!("unexpected array type: {other:?}"),
+            }
+        },
+        move |states: vec::Drain<S>| {
+            let mut buffer = Vec::with_capacity(states.len());
+            let mut bitmap = Bitmap::with_capacity(states.len());
+            StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+            let arr = PrimitiveArray::new(buffer, Some(bitmap));
+            Ok(Array::Timestamp(TimestampArray::new(unit, arr)))
+        },
+    ))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MinPrimitiveImpl {
     datatype: DataType,
@@ -185,18 +201,7 @@ impl PlannedAggregateFunction for MinPrimitiveImpl {
             DataType::Float32 => create_primitive_grouped_state!(Float32, MinState<f32>),
             DataType::Float64 => create_primitive_grouped_state!(Float64, MinState<f64>),
             DataType::Interval => create_primitive_grouped_state!(Interval, MinState<Interval>),
-            DataType::TimestampSeconds => {
-                create_primitive_grouped_state!(TimestampSeconds, MinState<i64>)
-            }
-            DataType::TimestampMilliseconds => {
-                create_primitive_grouped_state!(TimestampMilliseconds, MinState<i64>)
-            }
-            DataType::TimestampMicroseconds => {
-                create_primitive_grouped_state!(TimestampMicroseconds, MinState<i64>)
-            }
-            DataType::TimestampNanoseconds => {
-                create_primitive_grouped_state!(TimestampNanoseconds, MinState<i64>)
-            }
+            DataType::Timestamp(meta) => create_timestamp_grouped_state::<MinState<i64>>(meta.unit),
             DataType::Decimal64(meta) => {
                 create_decimal_grouped_state!(Decimal64, MinState<i64>, meta.precision, meta.scale)
             }
@@ -240,18 +245,7 @@ impl PlannedAggregateFunction for MaxPrimitiveImpl {
             DataType::Float32 => create_primitive_grouped_state!(Float32, MaxState<f32>),
             DataType::Float64 => create_primitive_grouped_state!(Float64, MaxState<f64>),
             DataType::Interval => create_primitive_grouped_state!(Interval, MaxState<Interval>),
-            DataType::TimestampSeconds => {
-                create_primitive_grouped_state!(TimestampSeconds, MaxState<i64>)
-            }
-            DataType::TimestampMilliseconds => {
-                create_primitive_grouped_state!(TimestampMilliseconds, MaxState<i64>)
-            }
-            DataType::TimestampMicroseconds => {
-                create_primitive_grouped_state!(TimestampMicroseconds, MaxState<i64>)
-            }
-            DataType::TimestampNanoseconds => {
-                create_primitive_grouped_state!(TimestampNanoseconds, MaxState<i64>)
-            }
+            DataType::Timestamp(meta) => create_timestamp_grouped_state::<MaxState<i64>>(meta.unit),
             DataType::Decimal64(meta) => {
                 create_decimal_grouped_state!(Decimal64, MaxState<i64>, meta.precision, meta.scale)
             }

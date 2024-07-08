@@ -1,0 +1,12 @@
+# UNION tests
+
+query I rowsort
+SELECT 1 AS two UNION ALL SELECT 2;
+----
+1
+2
+
+query TT
+DESCRIBE SELECT 1 AS two UNION ALL SELECT 2;
+----
+two  Int64

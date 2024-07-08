@@ -11,7 +11,7 @@ use crate::functions::table::InitializedTableFunction;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -38,6 +38,7 @@ pub enum LogicalOperator {
     CrossJoin(CrossJoin),
     DependentJoin(DependentJoin),
     Limit(Limit),
+    SetOperation(SetOperation),
     MaterializedScan(MaterializedScan),
     Scan(Scan),
     TableFunction(TableFunction),
@@ -73,6 +74,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => n.output_schema(outer),
             Self::DependentJoin(n) => n.output_schema(outer),
             Self::Limit(n) => n.output_schema(outer),
+            Self::SetOperation(n) => n.output_schema(outer),
             Self::MaterializedScan(n) => n.output_schema(outer),
             Self::Scan(n) => n.output_schema(outer),
             Self::TableFunction(n) => n.output_schema(outer),
@@ -83,7 +85,7 @@ impl LogicalOperator {
             Self::ResetVar(n) => n.output_schema(outer),
             Self::CreateSchema(n) => n.output_schema(outer),
             Self::CreateTable(n) => n.output_schema(outer),
-            Self::CreateTableAs(_) => unimplemented!(),
+            Self::CreateTableAs(_) => not_implemented!("create table as output schema"),
             Self::AttachDatabase(n) => n.output_schema(outer),
             Self::DetachDatabase(n) => n.output_schema(outer),
             Self::Drop(n) => n.output_schema(outer),
@@ -179,6 +181,15 @@ impl LogicalOperator {
                 p.right.walk_mut(pre, post)?;
                 post(&mut p.right)?;
             }
+            LogicalOperator::SetOperation(p) => {
+                pre(&mut p.top)?;
+                p.top.walk_mut(pre, post)?;
+                post(&mut p.top)?;
+
+                pre(&mut p.bottom)?;
+                p.bottom.walk_mut(pre, post)?;
+                post(&mut p.bottom)?;
+            }
             LogicalOperator::CreateTableAs(p) => {
                 pre(&mut p.input)?;
                 p.input.walk_mut(pre, post)?;
@@ -233,6 +244,7 @@ impl Explainable for LogicalOperator {
             Self::CrossJoin(p) => p.explain_entry(conf),
             Self::DependentJoin(p) => p.explain_entry(conf),
             Self::Limit(p) => p.explain_entry(conf),
+            Self::SetOperation(p) => p.explain_entry(conf),
             Self::MaterializedScan(p) => p.explain_entry(conf),
             Self::Scan(p) => p.explain_entry(conf),
             Self::TableFunction(p) => p.explain_entry(conf),
@@ -475,6 +487,50 @@ impl LogicalNode for Limit {
 impl Explainable for Limit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Limit")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetOpKind {
+    Union,
+    Except,
+    Intersect,
+}
+
+impl fmt::Display for SetOpKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Union => write!(f, "UNION"),
+            Self::Except => write!(f, "EXCEPT"),
+            Self::Intersect => write!(f, "INTERSECT"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SetOperation {
+    pub top: Box<LogicalOperator>,
+    pub bottom: Box<LogicalOperator>,
+    pub kind: SetOpKind,
+    pub all: bool,
+}
+
+impl LogicalNode for SetOperation {
+    fn output_schema(&self, outer: &[TypeSchema]) -> Result<TypeSchema> {
+        self.top.output_schema(outer)
+    }
+}
+
+impl Explainable for SetOperation {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("SetOperation").with_value(
+            "operation",
+            if self.all {
+                format!("{} ALL", self.kind)
+            } else {
+                self.kind.to_string()
+            },
+        )
     }
 }
 

@@ -1,6 +1,6 @@
-use crate::bitmap::Bitmap;
 use crate::scalar::interval::Interval;
 use crate::storage::PrimitiveStorage;
+use crate::{bitmap::Bitmap, datatype::TimeUnit};
 
 use super::{is_valid, ArrayAccessor};
 
@@ -29,10 +29,6 @@ pub type UInt64Array = PrimitiveArray<u64>;
 pub type UInt128Array = PrimitiveArray<u128>;
 pub type Float32Array = PrimitiveArray<f32>;
 pub type Float64Array = PrimitiveArray<f64>;
-pub type TimestampSecondsArray = PrimitiveArray<i64>;
-pub type TimestampMillsecondsArray = PrimitiveArray<i64>;
-pub type TimestampMicrosecondsArray = PrimitiveArray<i64>;
-pub type TimestampNanosecondsArray = PrimitiveArray<i64>;
 pub type Date32Array = PrimitiveArray<i32>;
 pub type Date64Array = PrimitiveArray<i64>;
 pub type IntervalArray = PrimitiveArray<Interval>;
@@ -248,5 +244,25 @@ impl<T> DecimalArray<T> {
 
     pub fn scale(&self) -> i8 {
         self.scale
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TimestampArray {
+    unit: TimeUnit,
+    array: PrimitiveArray<i64>,
+}
+
+impl TimestampArray {
+    pub fn new(unit: TimeUnit, array: PrimitiveArray<i64>) -> Self {
+        TimestampArray { unit, array }
+    }
+
+    pub fn get_primitive(&self) -> &PrimitiveArray<i64> {
+        &self.array
+    }
+
+    pub fn unit(&self) -> TimeUnit {
+        self.unit
     }
 }

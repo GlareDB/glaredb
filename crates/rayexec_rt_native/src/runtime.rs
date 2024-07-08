@@ -6,9 +6,14 @@ use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::http::{HttpClient, ReqwestClient};
+use rayexec_io::{
+    filesystem::FileSystemProvider,
+    http::{HttpClient, ReqwestClient},
+};
 
-use crate::{http::WrappedReqwestClient, threaded::ThreadedScheduler};
+use crate::{
+    filesystem::LocalFileSystemProvider, http::WrappedReqwestClient, threaded::ThreadedScheduler,
+};
 
 /// Inner behavior of the execution runtime.
 // TODO: Single-threaded scheduler to run our SLTs on to ensure no operators
@@ -94,5 +99,9 @@ impl<S: Scheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
                 "Cannot create http client, missing tokio runtime",
             )),
         }
+    }
+
+    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
+        Ok(Arc::new(LocalFileSystemProvider))
     }
 }

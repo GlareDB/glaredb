@@ -110,6 +110,13 @@ impl ExplainNode {
                     Self::walk_logical(context, &p.right, conf),
                 ]
             }
+            LogicalOperator::SetOperation(p) => {
+                vec![
+                    Self::walk_logical(context, &p.top, conf),
+                    Self::walk_logical(context, &p.bottom, conf),
+                ]
+            }
+
             LogicalOperator::Limit(p) => vec![Self::walk_logical(context, &p.input, conf)],
             LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(context, &p.input, conf)],
             LogicalOperator::Insert(p) => vec![Self::walk_logical(context, &p.input, conf)],

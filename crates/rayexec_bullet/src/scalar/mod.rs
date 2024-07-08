@@ -1,13 +1,12 @@
 pub mod decimal;
 pub mod interval;
+pub mod timestamp;
 
 use crate::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
     Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray,
-    TimestampMicrosecondsArray, TimestampMillsecondsArray, TimestampNanosecondsArray,
-    TimestampSecondsArray, UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
-    Utf8Array,
+    IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray, TimestampArray,
+    UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
 };
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
@@ -16,12 +15,13 @@ use crate::compute::cast::format::{
     TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
     UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
-use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta};
+use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{RayexecError, Result};
 use std::borrow::Cow;
 use std::fmt;
+use timestamp::TimestampScalar;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq)]
@@ -44,10 +44,7 @@ pub enum ScalarValue<'a> {
     Decimal128(Decimal128Scalar),
     Date32(i32),
     Date64(i64),
-    TimestampSeconds(i64),
-    TimestampMilliseconds(i64),
-    TimestampMicroseconds(i64),
-    TimestampNanoseconds(i64),
+    Timestamp(TimestampScalar),
     Interval(Interval),
     Utf8(Cow<'a, str>),
     LargeUtf8(Cow<'a, str>),
@@ -84,10 +81,7 @@ impl<'a> ScalarValue<'a> {
             }
             ScalarValue::Date32(_) => DataType::Date32,
             ScalarValue::Date64(_) => DataType::Date64,
-            ScalarValue::TimestampSeconds(_) => DataType::TimestampSeconds,
-            ScalarValue::TimestampMilliseconds(_) => DataType::TimestampMilliseconds,
-            ScalarValue::TimestampMicroseconds(_) => DataType::TimestampMicroseconds,
-            ScalarValue::TimestampNanoseconds(_) => DataType::TimestampNanoseconds,
+            ScalarValue::Timestamp(v) => DataType::Timestamp(TimestampTypeMeta::new(v.unit)),
             ScalarValue::Interval(_) => DataType::Interval,
             ScalarValue::Utf8(_) => DataType::Utf8,
             ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
@@ -123,10 +117,7 @@ impl<'a> ScalarValue<'a> {
             Self::Decimal128(v) => OwnedScalarValue::Decimal128(v),
             Self::Date32(v) => OwnedScalarValue::Date32(v),
             Self::Date64(v) => OwnedScalarValue::Date64(v),
-            Self::TimestampSeconds(v) => OwnedScalarValue::TimestampSeconds(v),
-            Self::TimestampMilliseconds(v) => OwnedScalarValue::TimestampMilliseconds(v),
-            Self::TimestampMicroseconds(v) => OwnedScalarValue::TimestampMicroseconds(v),
-            Self::TimestampNanoseconds(v) => OwnedScalarValue::TimestampNanoseconds(v),
+            Self::Timestamp(v) => OwnedScalarValue::Timestamp(v),
             Self::Interval(v) => OwnedScalarValue::Interval(v),
             Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
             Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
@@ -176,18 +167,10 @@ impl<'a> ScalarValue<'a> {
             }
             Self::Date32(v) => Array::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n))),
             Self::Date64(v) => Array::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::TimestampSeconds(v) => Array::TimestampSeconds(TimestampSecondsArray::from_iter(
-                std::iter::repeat(*v).take(n),
-            )),
-            Self::TimestampMilliseconds(v) => Array::TimestampMilliseconds(
-                TimestampMillsecondsArray::from_iter(std::iter::repeat(*v).take(n)),
-            ),
-            Self::TimestampMicroseconds(v) => Array::TimestampMicroseconds(
-                TimestampMicrosecondsArray::from_iter(std::iter::repeat(*v).take(n)),
-            ),
-            Self::TimestampNanoseconds(v) => Array::TimestampNanoseconds(
-                TimestampNanosecondsArray::from_iter(std::iter::repeat(*v).take(n)),
-            ),
+            Self::Timestamp(v) => {
+                let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
+                Array::Timestamp(TimestampArray::new(v.unit, primitive))
+            }
             Self::Interval(v) => {
                 Array::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))
             }
@@ -328,10 +311,16 @@ impl fmt::Display for ScalarValue<'_> {
             }
             Self::Date32(v) => Date32Formatter.write(v, f),
             Self::Date64(v) => Date64Formatter.write(v, f),
-            Self::TimestampSeconds(v) => TimestampSecondsFormatter::default().write(v, f),
-            Self::TimestampMilliseconds(v) => TimestampMillisecondsFormatter::default().write(v, f),
-            Self::TimestampMicroseconds(v) => TimestampMicrosecondsFormatter::default().write(v, f),
-            Self::TimestampNanoseconds(v) => TimestampNanosecondsFormatter::default().write(v, f),
+            Self::Timestamp(v) => match v.unit {
+                TimeUnit::Second => TimestampSecondsFormatter::default().write(&v.value, f),
+                TimeUnit::Millisecond => {
+                    TimestampMillisecondsFormatter::default().write(&v.value, f)
+                }
+                TimeUnit::Microsecond => {
+                    TimestampMicrosecondsFormatter::default().write(&v.value, f)
+                }
+                TimeUnit::Nanosecond => TimestampNanosecondsFormatter::default().write(&v.value, f),
+            },
             Self::Interval(v) => IntervalFormatter.write(v, f),
             Self::Utf8(v) => write!(f, "{}", v),
             Self::LargeUtf8(v) => write!(f, "{}", v),

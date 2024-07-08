@@ -4,11 +4,11 @@ use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::{
     Array, BooleanArray, Decimal64Array, Float32Array, Float64Array, Int16Array, Int32Array,
-    Int64Array, Int8Array, TimestampNanosecondsArray, UInt16Array, UInt32Array, UInt64Array,
+    Int64Array, Int8Array, PrimitiveArray, TimestampArray, UInt16Array, UInt32Array, UInt64Array,
     UInt8Array,
 };
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, TimeUnit};
 use rayexec_error::{RayexecError, Result};
 
 use super::{def_levels_into_bitmap, ArrayBuilder, IntoArray, ValuesReader};
@@ -56,7 +56,10 @@ where
                     other => return Err(RayexecError::new(format!("Unexpected array type when converting to Decimal64: {}", other.datatype())))
                 }
             }
-            (PhysicalType::INT96, DataType::TimestampNanoseconds) => data.into_array(def_levels),
+            (PhysicalType::INT96, DataType::Timestamp(meta)) => match meta.unit {
+                TimeUnit::Nanosecond => data.into_array(def_levels),
+                other => return Err(RayexecError::new(format!("Unexpected time unit for INT96 physical type: {other}")))
+            },
             (PhysicalType::FLOAT, DataType::Float32) => data.into_array(def_levels),
             (PhysicalType::DOUBLE, DataType::Float64) => data.into_array(def_levels),
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parqet: {p_other}, bullet: {d_other}")))
@@ -106,9 +109,15 @@ impl IntoArray for Vec<Int96> {
             Some(levels) => {
                 let bitmap = def_levels_into_bitmap(levels);
                 let values = insert_null_values(values, &bitmap);
-                Array::TimestampNanoseconds(TimestampNanosecondsArray::new(values, Some(bitmap)))
+                Array::Timestamp(TimestampArray::new(
+                    TimeUnit::Nanosecond,
+                    PrimitiveArray::new(values, Some(bitmap)),
+                ))
             }
-            None => Array::TimestampNanoseconds(TimestampNanosecondsArray::from_iter(values)),
+            None => Array::Timestamp(TimestampArray::new(
+                TimeUnit::Nanosecond,
+                PrimitiveArray::from_iter(values),
+            )),
         }
     }
 }

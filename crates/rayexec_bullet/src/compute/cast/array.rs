@@ -3,7 +3,7 @@ use crate::{
         Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
         DecimalArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenValuesBuffer,
     },
-    datatype::DataType,
+    datatype::{DataType, TimeUnit},
     executor::scalar::UnaryExecutor,
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
@@ -356,18 +356,24 @@ where
             arr.get_primitive(),
             Decimal128Formatter::new(arr.precision(), arr.scale()),
         )?,
-        Array::TimestampSeconds(arr) => {
-            format_values_into_varlen(arr, TimestampSecondsFormatter::default())?
-        }
-        Array::TimestampMilliseconds(arr) => {
-            format_values_into_varlen(arr, TimestampMillisecondsFormatter::default())?
-        }
-        Array::TimestampMicroseconds(arr) => {
-            format_values_into_varlen(arr, TimestampMicrosecondsFormatter::default())?
-        }
-        Array::TimestampNanoseconds(arr) => {
-            format_values_into_varlen(arr, TimestampNanosecondsFormatter::default())?
-        }
+        Array::Timestamp(arr) => match arr.unit() {
+            TimeUnit::Second => format_values_into_varlen(
+                arr.get_primitive(),
+                TimestampSecondsFormatter::default(),
+            )?,
+            TimeUnit::Millisecond => format_values_into_varlen(
+                arr.get_primitive(),
+                TimestampMillisecondsFormatter::default(),
+            )?,
+            TimeUnit::Microsecond => format_values_into_varlen(
+                arr.get_primitive(),
+                TimestampMicrosecondsFormatter::default(),
+            )?,
+            TimeUnit::Nanosecond => format_values_into_varlen(
+                arr.get_primitive(),
+                TimestampNanosecondsFormatter::default(),
+            )?,
+        },
         _ => unimplemented!(),
     })
 }

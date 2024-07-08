@@ -1,16 +1,13 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::Result;
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{InitializedTableFunction, SpecializedTableFunction},
     runtime::ExecutionRuntime,
 };
-use std::{
-    fs::{File, OpenOptions},
-    path::PathBuf,
-    sync::Arc,
-};
+use rayexec_io::filesystem::{FileReader, FileSystemProvider};
+use std::{path::PathBuf, sync::Arc};
 
 use crate::{metadata::Metadata, schema::convert_schema};
 
@@ -28,52 +25,53 @@ impl SpecializedTableFunction for ReadParquetLocal {
 
     fn initialize(
         self: Box<Self>,
-        _runtime: &Arc<dyn ExecutionRuntime>,
+        runtime: &Arc<dyn ExecutionRuntime>,
     ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
-        Box::pin(async move { self.initialize_inner().await })
+        Box::pin(async move { self.initialize_inner(runtime.as_ref()).await })
     }
 }
 
 impl ReadParquetLocal {
-    async fn initialize_inner(self) -> Result<Box<dyn InitializedTableFunction>> {
-        let mut file = self.open_file()?;
-        let size = file
-            .metadata()
-            .context("failed to get file metadata")?
-            .len();
+    async fn initialize_inner(
+        self,
+        runtime: &dyn ExecutionRuntime,
+    ) -> Result<Box<dyn InitializedTableFunction>> {
+        let fs = runtime.filesystem()?;
 
-        let metadata = Metadata::load_from(&mut file, size as usize).await?;
+        let mut file = fs.reader(&self.path)?;
+        let size = file.size().await?;
+
+        let metadata = Metadata::load_from(&mut file, size).await?;
         let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(ReadParquetLocalRowGroupPartitioned {
+            reader_builder: FileReaderBuilder {
+                fs,
+                path: self.path.clone(),
+            },
             specialized: self,
             metadata: Arc::new(metadata),
             schema,
         }))
     }
-
-    fn open_file(&self) -> Result<File> {
-        OpenOptions::new().read(true).open(&self.path).map_err(|e| {
-            RayexecError::with_source(
-                format!(
-                    "Failed to open file at location: {}",
-                    self.path.to_string_lossy()
-                ),
-                Box::new(e),
-            )
-        })
-    }
 }
 
-impl ReaderBuilder<File> for ReadParquetLocal {
-    fn new_reader(&self) -> Result<File> {
-        self.open_file()
+#[derive(Debug, Clone)]
+struct FileReaderBuilder {
+    fs: Arc<dyn FileSystemProvider>,
+    path: PathBuf,
+}
+
+impl ReaderBuilder<Box<dyn FileReader>> for FileReaderBuilder {
+    fn new_reader(&self) -> Result<Box<dyn FileReader>> {
+        self.fs.reader(&self.path)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ReadParquetLocalRowGroupPartitioned {
     specialized: ReadParquetLocal,
+    reader_builder: FileReaderBuilder,
     metadata: Arc<Metadata>,
     schema: Schema,
 }
@@ -89,7 +87,7 @@ impl InitializedTableFunction for ReadParquetLocalRowGroupPartitioned {
 
     fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(RowGroupPartitionedDataTable::new(
-            self.specialized.clone(),
+            self.reader_builder.clone(),
             self.metadata.clone(),
             self.schema.clone(),
         )))

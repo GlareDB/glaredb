@@ -4,7 +4,10 @@ use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::http::{HttpClient, ReqwestClient};
+use rayexec_io::{
+    filesystem::FileSystemProvider,
+    http::{HttpClient, ReqwestClient},
+};
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -13,19 +16,23 @@ use std::{
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::http::WrappedReqwestClient;
+use crate::{filesystem::WasmMemoryFileSystem, http::WrappedReqwestClient};
 
 /// Execution runtime for wasm.
 ///
 /// This implementation works on a single thread which each pipeline task being
 /// spawned local to the thread (using js promises under the hood).
 #[derive(Debug)]
-pub struct WasmExecutionRuntime {}
+pub struct WasmExecutionRuntime {
+    pub(crate) fs: Arc<WasmMemoryFileSystem>,
+}
 
 impl WasmExecutionRuntime {
     pub fn try_new() -> Result<Self> {
         debug!("creating wasm execution runtime");
-        Ok(WasmExecutionRuntime {})
+        Ok(WasmExecutionRuntime {
+            fs: Arc::new(WasmMemoryFileSystem::default()),
+        })
     }
 }
 
@@ -63,6 +70,10 @@ impl ExecutionRuntime for WasmExecutionRuntime {
         Ok(Arc::new(WrappedReqwestClient {
             inner: ReqwestClient::default(),
         }))
+    }
+
+    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
+        Ok(self.fs.clone())
     }
 }
 

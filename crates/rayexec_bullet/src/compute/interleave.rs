@@ -7,7 +7,7 @@ use crate::{
     compute::macros::collect_arrays_of_type,
     datatype::DataType,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Interleave multiple arrays into a single array.
 ///
@@ -106,7 +106,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
             Ok(Array::LargeBinary(interleave_varlen(&arrs, indices)?))
         }
-        other => unimplemented!("{other}"),
+        other => not_implemented!("interleave {other}"),
     }
 }
 

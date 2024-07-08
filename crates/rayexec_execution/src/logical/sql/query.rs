@@ -8,13 +8,20 @@ use super::{
     scope::{ColumnRef, Scope, TableReference},
     subquery::SubqueryPlanner,
 };
-use crate::logical::operator::{
-    AnyJoin, CrossJoin, ExpressionList, Filter, JoinType, Limit, LogicalOperator, Order,
-    OrderByExpr, Projection, Scan, TableFunction,
+use crate::logical::{
+    context::QueryContext,
+    expr::LogicalExpression,
+    operator::{SetOpKind, SetOperation},
 };
-use crate::logical::{context::QueryContext, expr::LogicalExpression};
+use crate::{
+    functions::implicit::implicit_cast_score,
+    logical::operator::{
+        AnyJoin, CrossJoin, ExpressionList, Filter, JoinType, Limit, LogicalOperator, Order,
+        OrderByExpr, Projection, Scan, TableFunction,
+    },
+};
 use rayexec_bullet::field::TypeSchema;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, OrderByNulls, OrderByType};
 
 const EMPTY_SCOPE: &Scope = &Scope::empty();
@@ -60,17 +67,7 @@ impl<'a> QueryNodePlanner<'a> {
         context: &mut QueryContext,
         query: ast::QueryNode<Bound>,
     ) -> Result<LogicalQuery> {
-        let mut planned = match query.body {
-            ast::QueryNodeBody::Select(select) => {
-                self.plan_select(context, *select, query.order_by)?
-            }
-            ast::QueryNodeBody::Set {
-                left: _,
-                right: _,
-                operation: _,
-            } => unimplemented!(),
-            ast::QueryNodeBody::Values(values) => self.plan_values(context, values)?,
-        };
+        let mut planned = self.plan_query_body(context, query.body, query.order_by)?;
 
         // Handle LIMIT/OFFSET
         let expr_ctx = ExpressionContext::new(self, EMPTY_SCOPE, EMPTY_TYPE_SCHEMA);
@@ -96,6 +93,55 @@ impl<'a> QueryNodePlanner<'a> {
         }
 
         Ok(planned)
+    }
+
+    fn plan_query_body(
+        &mut self,
+        context: &mut QueryContext,
+        body: ast::QueryNodeBody<Bound>,
+        order_by: Vec<ast::OrderByNode<Bound>>,
+    ) -> Result<LogicalQuery> {
+        Ok(match body {
+            ast::QueryNodeBody::Select(select) => self.plan_select(context, *select, order_by)?,
+            ast::QueryNodeBody::Set {
+                left,
+                right,
+                operation,
+                all,
+            } => {
+                let top = self.plan_query_body(context, *left, Vec::new())?;
+                let bottom = self.plan_query_body(context, *right, Vec::new())?;
+
+                // Output scope always takes the scope from the top. Aliases and
+                // column names from the bottom get thrown away.
+                let scope = top.scope;
+
+                let [top, bottom] =
+                    Self::apply_setop_casts(top.root, bottom.root, &self.outer_schemas)?;
+
+                let kind = match operation {
+                    ast::SetOperation::Union => SetOpKind::Union,
+                    ast::SetOperation::Except => SetOpKind::Except,
+                    ast::SetOperation::Intersect => SetOpKind::Intersect,
+                };
+
+                let plan = LogicalOperator::SetOperation(SetOperation {
+                    top: Box::new(top),
+                    bottom: Box::new(bottom),
+                    kind,
+                    all,
+                });
+
+                // TODO: Apply ORDER BY to plan making use of scope. Similar to
+                // what happens in planning select.
+                if !order_by.is_empty() {
+                    not_implemented!("order by on set ops");
+                }
+
+                LogicalQuery { root: plan, scope }
+            }
+            ast::QueryNodeBody::Values(values) => self.plan_values(context, values)?,
+        })
     }
 
     fn plan_select(
@@ -631,5 +677,112 @@ impl<'a> QueryNodePlanner<'a> {
         select_exprs.push(orig);
 
         Ok(1)
+    }
+
+    /// Applies casts to both components of a set operation.
+    ///
+    /// Errors if either the plans produce different number of outputs, or
+    /// suitables casts cannot be found.
+    fn apply_setop_casts(
+        mut top: LogicalOperator,
+        mut bottom: LogicalOperator,
+        outer: &[TypeSchema],
+    ) -> Result<[LogicalOperator; 2]> {
+        let top_inputs = top.output_schema(outer)?;
+        let bottom_inputs = bottom.output_schema(outer)?;
+
+        if top_inputs.types.len() != bottom_inputs.types.len() {
+            return Err(RayexecError::new(format!(
+                "Inputs to set operations must produce the same number of columns, got {} and {}",
+                top_inputs.types.len(),
+                bottom_inputs.types.len()
+            )));
+        }
+
+        #[derive(Debug, Clone, Copy)]
+        enum CastPreference {
+            /// Cast bottom to top.
+            ToTop,
+            /// Cast top to bottom.
+            ToBottom,
+            /// No cast needed.
+            NotNeeded,
+        }
+
+        let mut casts = vec![CastPreference::NotNeeded; top_inputs.types.len()];
+
+        for (idx, (top, bottom)) in top_inputs
+            .types
+            .iter()
+            .zip(bottom_inputs.types.iter())
+            .enumerate()
+        {
+            if top == bottom {
+                // Nothing needed.
+                continue;
+            }
+
+            let top_score = implicit_cast_score(bottom, top.datatype_id());
+            let bottom_score = implicit_cast_score(top, bottom.datatype_id());
+
+            if top_score == 0 && bottom_score == 0 {
+                return Err(RayexecError::new(format!(
+                    "Cannot find suitable type to cast to for column '{idx}'"
+                )));
+            }
+
+            if top_score >= bottom_score {
+                casts[idx] = CastPreference::ToTop;
+            } else {
+                casts[idx] = CastPreference::ToBottom;
+            }
+        }
+
+        let top_cast_needed = casts
+            .iter()
+            .any(|pref| matches!(pref, CastPreference::ToBottom));
+        let bottom_cast_needed = casts
+            .iter()
+            .any(|pref| matches!(pref, CastPreference::ToTop));
+
+        if top_cast_needed {
+            let mut projections = Vec::with_capacity(top_inputs.types.len());
+            for (idx, pref) in casts.iter().enumerate() {
+                if matches!(pref, CastPreference::ToBottom) {
+                    projections.push(LogicalExpression::Cast {
+                        to: bottom_inputs.types[idx].clone(),
+                        expr: Box::new(LogicalExpression::new_column(idx)),
+                    })
+                } else {
+                    projections.push(LogicalExpression::new_column(idx))
+                }
+            }
+
+            top = LogicalOperator::Projection(Projection {
+                exprs: projections,
+                input: Box::new(top),
+            })
+        }
+
+        if bottom_cast_needed {
+            let mut projections = Vec::with_capacity(bottom_inputs.types.len());
+            for (idx, pref) in casts.iter().enumerate() {
+                if matches!(pref, CastPreference::ToTop) {
+                    projections.push(LogicalExpression::Cast {
+                        to: top_inputs.types[idx].clone(),
+                        expr: Box::new(LogicalExpression::new_column(idx)),
+                    })
+                } else {
+                    projections.push(LogicalExpression::new_column(idx))
+                }
+            }
+
+            bottom = LogicalOperator::Projection(Projection {
+                exprs: projections,
+                input: Box::new(bottom),
+            })
+        }
+
+        Ok([top, bottom])
     }
 }

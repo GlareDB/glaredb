@@ -23,7 +23,7 @@ use crate::{
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{ast, statement::Statement};
 use tracing::trace;
 
@@ -297,7 +297,7 @@ impl<'a> PlanContext<'a> {
                     scope: Scope::empty(),
                 })
             }
-            _other => unimplemented!(),
+            other => not_implemented!("drop {other:?}"),
         }
     }
 

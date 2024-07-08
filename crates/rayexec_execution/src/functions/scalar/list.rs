@@ -1,12 +1,15 @@
 use std::{ops::Deref, sync::Arc};
 
 use rayexec_bullet::{
-    array::{Array, ListArray, OffsetIndex, PrimitiveArray},
+    array::{
+        Array, ListArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray, VarlenType,
+        VarlenValuesBuffer,
+    },
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId, ListTypeMeta},
     field::TypeSchema,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::{
     functions::{plan_check_num_args, FunctionInfo, Signature},
@@ -141,7 +144,13 @@ impl PlannedScalarFunction for ListExtractImpl {
             Array::Float64(arr) => {
                 Array::Float64(list_extract_primitive(arr, offsets, validity, self.index)?)
             }
-            other => unimplemented!("{}", other.datatype()),
+            Array::Utf8(arr) => {
+                Array::Utf8(list_extract_varlen(arr, offsets, validity, self.index)?)
+            }
+            Array::LargeUtf8(arr) => {
+                Array::LargeUtf8(list_extract_varlen(arr, offsets, validity, self.index)?)
+            }
+            other => not_implemented!("list extract {}", other.datatype()),
         })
     }
 }
@@ -172,6 +181,35 @@ where
     }
 
     Ok(PrimitiveArray::new(values, Some(result_validity)))
+}
+
+fn list_extract_varlen<T, O1, O2>(
+    array: &VarlenArray<T, O1>,
+    offsets: &[O2],
+    validity: Option<&Bitmap>,
+    idx: usize,
+) -> Result<VarlenArray<T, O1>>
+where
+    T: VarlenType + ?Sized,
+    O1: OffsetIndex,
+    O2: OffsetIndex,
+{
+    let mut result_validity = Bitmap::with_capacity(offsets.len() - 1);
+    let mut values = VarlenValuesBuffer::default();
+
+    for row_idx in 0..(offsets.len() - 1) {
+        let offset = offsets[row_idx].as_usize();
+        let value_offset = offset + idx;
+        if value_offset >= offsets[row_idx + 1].as_usize() {
+            result_validity.push(false);
+            values.push_value(T::NULL);
+        } else {
+            result_validity.push(validity.map(|v| v.value(value_offset)).unwrap_or(true));
+            values.push_value(array.value(value_offset).expect("value to exist"))
+        }
+    }
+
+    Ok(VarlenArray::new(values, Some(result_validity)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

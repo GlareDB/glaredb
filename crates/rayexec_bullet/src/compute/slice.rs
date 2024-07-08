@@ -1,11 +1,11 @@
 use crate::{
     array::{
         Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, OffsetIndex, PrimitiveArray,
-        ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
+        TimestampArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Slice an array at the given range.
 ///
@@ -15,7 +15,7 @@ use rayexec_error::{RayexecError, Result};
 /// "view" type arrays.
 pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
     Ok(match arr {
-        Array::Null(_) => unimplemented!(), // TODO
+        Array::Null(_) => not_implemented!("slice null array"), // TODO
         Array::Boolean(arr) => Array::Boolean(slice_boolean(arr, start, count)?),
         Array::Float32(arr) => Array::Float32(slice_primitive(arr, start, count)?),
         Array::Float64(arr) => Array::Float64(slice_primitive(arr, start, count)?),
@@ -27,23 +27,15 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
         Array::UInt16(arr) => Array::UInt16(slice_primitive(arr, start, count)?),
         Array::UInt32(arr) => Array::UInt32(slice_primitive(arr, start, count)?),
         Array::UInt64(arr) => Array::UInt64(slice_primitive(arr, start, count)?),
-        Array::TimestampSeconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
-        }
-        Array::TimestampMilliseconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
-        }
-        Array::TimestampMicroseconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
-        }
-        Array::TimestampNanoseconds(arr) => {
-            Array::TimestampSeconds(slice_primitive(arr, start, count)?)
+        Array::Timestamp(arr) => {
+            let sliced = slice_primitive(arr.get_primitive(), start, count)?;
+            Array::Timestamp(TimestampArray::new(arr.unit(), sliced))
         }
         Array::Utf8(arr) => Array::Utf8(slice_varlen(arr, start, count)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(slice_varlen(arr, start, count)?),
         Array::Binary(arr) => Array::Binary(slice_varlen(arr, start, count)?),
         Array::LargeBinary(arr) => Array::LargeBinary(slice_varlen(arr, start, count)?),
-        other => unimplemented!("{}", other.datatype()),
+        other => not_implemented!("slice array {}", other.datatype()),
     })
 }
 

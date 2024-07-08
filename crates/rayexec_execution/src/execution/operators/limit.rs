@@ -187,6 +187,16 @@ impl PhysicalOperator for PhysicalLimit {
     }
 }
 
+impl Explainable for PhysicalLimit {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
+        if let Some(offset) = self.offset {
+            ent = ent.with_value("offset", offset);
+        }
+        ent
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::execution::operators::test_util::{
@@ -395,15 +405,5 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Exhausted, poll_pull);
-    }
-}
-
-impl Explainable for PhysicalLimit {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
-        if let Some(offset) = self.offset {
-            ent = ent.with_value("offset", offset);
-        }
-        ent
     }
 }

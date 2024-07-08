@@ -337,6 +337,7 @@ impl LogicalExpression {
                 LogicalOperator::EqualityJoin(_) => (),
                 LogicalOperator::CrossJoin(_) => (),
                 LogicalOperator::DependentJoin(_) => (),
+                LogicalOperator::SetOperation(_) => (),
                 LogicalOperator::Limit(_) => (),
                 LogicalOperator::MaterializedScan(_) => (),
                 LogicalOperator::Scan(_) => (),

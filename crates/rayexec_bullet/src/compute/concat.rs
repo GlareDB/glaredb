@@ -1,11 +1,11 @@
 use crate::array::validity::concat_validities;
 use crate::array::{
-    Array, BooleanArray, BooleanValuesBuffer, DecimalArray, NullArray, OffsetIndex, PrimitiveArray,
-    VarlenArray, VarlenType, VarlenValuesBuffer,
+    Array, BooleanArray, BooleanValuesBuffer, DecimalArray, ListArray, NullArray, OffsetIndex,
+    PrimitiveArray, TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
 };
 use crate::batch::Batch;
 use crate::datatype::DataType;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::macros::collect_arrays_of_type;
 
@@ -129,26 +129,12 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, Date64, datatype)?;
             Ok(Array::Date64(concat_primitive(arrs.as_slice())))
         }
-        DataType::TimestampSeconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampSeconds, datatype)?;
-            Ok(Array::TimestampSeconds(concat_primitive(arrs.as_slice())))
-        }
-        DataType::TimestampMilliseconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampMilliseconds, datatype)?;
-            Ok(Array::TimestampMilliseconds(concat_primitive(
-                arrs.as_slice(),
-            )))
-        }
-        DataType::TimestampMicroseconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampMicroseconds, datatype)?;
-            Ok(Array::TimestampMicroseconds(concat_primitive(
-                arrs.as_slice(),
-            )))
-        }
-        DataType::TimestampNanoseconds => {
-            let arrs = collect_arrays_of_type!(arrays, TimestampNanoseconds, datatype)?;
-            Ok(Array::TimestampNanoseconds(concat_primitive(
-                arrs.as_slice(),
+        DataType::Timestamp(ref meta) => {
+            let arrs = collect_arrays_of_type!(arrays, Timestamp, datatype)?;
+            let arrs: Vec<_> = arrs.iter().map(|arr| arr.get_primitive()).collect();
+            Ok(Array::Timestamp(TimestampArray::new(
+                meta.unit,
+                concat_primitive(arrs.as_slice()),
             )))
         }
         DataType::Interval => {
@@ -171,8 +157,11 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
             let arrs = collect_arrays_of_type!(arrays, LargeBinary, datatype)?;
             Ok(Array::LargeBinary(concat_varlen(arrs.as_slice())))
         }
-        DataType::Struct(_) => unimplemented!(),
-        DataType::List(_) => unimplemented!(),
+        DataType::Struct(_) => not_implemented!("struct concat"),
+        DataType::List(_) => {
+            let arrs = collect_arrays_of_type!(arrays, List, datatype)?;
+            Ok(Array::List(concat_list(arrs.as_slice())?))
+        }
     }
 }
 
@@ -199,6 +188,29 @@ where
     let values_iters = arrays.iter().map(|arr| arr.values_iter());
     let values: VarlenValuesBuffer<_> = values_iters.flatten().collect();
     VarlenArray::new(values, validity)
+}
+
+pub fn concat_list(arrays: &[&ListArray]) -> Result<ListArray> {
+    let validity = concat_validities(arrays.iter().map(|arr| (arr.len(), arr.validity())));
+    let inners: Vec<_> = arrays
+        .iter()
+        .map(|arr| arr.child_array().as_ref())
+        .collect();
+    let concat_inner = concat(&inners)?;
+
+    let offsets = arrays.iter().map(|arr| arr.offsets());
+    let mut new_offsets = Vec::new();
+    let mut start = 0;
+    new_offsets.push(start);
+
+    for offset in offsets {
+        // Always skip first offset, as it's always 0. The first offset will be
+        // the last offset from the previous array.
+        new_offsets.extend(offset.iter().skip(1).map(|o| o + start));
+        start = *new_offsets.last().unwrap();
+    }
+
+    Ok(ListArray::new(concat_inner, new_offsets, validity))
 }
 
 #[cfg(test)]
@@ -235,5 +247,69 @@ mod tests {
         ]));
 
         assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn concat_list_arrays_equal_list_sizes() {
+        let lists = vec![
+            Array::List(ListArray::new(
+                Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
+                vec![0, 3],
+                None,
+            )),
+            Array::List(ListArray::new(
+                Array::Utf8(Utf8Array::from_iter(["d", "e", "f"])),
+                vec![0, 3],
+                None,
+            )),
+            Array::List(ListArray::new(
+                Array::Utf8(Utf8Array::from_iter(["g", "h", "i"])),
+                vec![0, 3],
+                None,
+            )),
+        ];
+        let refs: Vec<_> = lists.iter().collect();
+
+        let got = concat(&refs).unwrap();
+        let expected = Array::List(ListArray::new(
+            Array::Utf8(Utf8Array::from_iter([
+                "a", "b", "c", "d", "e", "f", "g", "h", "i",
+            ])),
+            vec![0, 3, 6, 9],
+            None,
+        ));
+
+        assert_eq!(expected, got)
+    }
+
+    #[test]
+    fn concat_list_arrays_different_list_sizes() {
+        let lists = vec![
+            Array::List(ListArray::new(
+                Array::Utf8(Utf8Array::from_iter(["a", "c"])),
+                vec![0, 2],
+                None,
+            )),
+            Array::List(ListArray::new(
+                Array::Utf8(Utf8Array::from_iter(["f"])),
+                vec![0, 1],
+                None,
+            )),
+            Array::List(ListArray::new(
+                Array::Utf8(Utf8Array::from_iter(["g", "h", "i"])),
+                vec![0, 3],
+                None,
+            )),
+        ];
+        let refs: Vec<_> = lists.iter().collect();
+
+        let got = concat(&refs).unwrap();
+        let expected = Array::List(ListArray::new(
+            Array::Utf8(Utf8Array::from_iter(["a", "c", "f", "g", "h", "i"])),
+            vec![0, 2, 3, 6],
+            None,
+        ));
+
+        assert_eq!(expected, got)
     }
 }

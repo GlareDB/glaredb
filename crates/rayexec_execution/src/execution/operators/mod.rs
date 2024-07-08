@@ -18,6 +18,7 @@ pub mod simple;
 pub mod sort;
 pub mod table_function;
 pub mod ungrouped_aggregate;
+pub mod union;
 pub mod values;
 
 mod util;
@@ -39,6 +40,7 @@ use std::fmt::Debug;
 use std::task::Context;
 use table_function::TableFunctionPartitionState;
 use ungrouped_aggregate::{UngroupedAggregateOperatorState, UngroupedAggregatePartitionState};
+use union::{UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
 
 use crate::logical::explainable::Explainable;
 
@@ -83,6 +85,8 @@ pub enum PartitionState {
     Limit(LimitPartitionState),
     MaterializePush(MaterializePushPartitionState),
     MaterializePull(MaterializePullPartitionState),
+    UnionTop(UnionTopPartitionState),
+    UnionBottom(UnionBottomPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
@@ -105,6 +109,7 @@ pub enum OperatorState {
     RoundRobin(RoundRobinOperatorState),
     MergeSorted(MergeSortedOperatorState),
     Materialize(MaterializeOperatorState),
+    Union(UnionOperatorState),
     CreateTable(CreateTableOperatorState),
     None,
 }

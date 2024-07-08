@@ -9,3 +9,5 @@ rayexec_execution = { path = '../rayexec_execution' }
 rayexec_bullet = { path = '../rayexec_bullet' }
 futures = { workspace = true }
 tracing = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true, default-features = false, features = ["sync"] }

@@ -5,6 +5,17 @@ use std::fmt;
 
 pub type Result<T, E = RayexecError> = std::result::Result<T, E>;
 
+/// Helper macros for returning an error for currently unimplemented items.
+///
+/// This should generally be used in place of the `unimplemented` macro.
+#[macro_export]
+macro_rules! not_implemented {
+    ($($arg:tt)+) => {{
+        let msg = format!($($arg)+);
+        return Err($crate::RayexecError::new(format!("Not yet implemented: {msg}")));
+    }};
+}
+
 #[derive(Debug)]
 pub struct RayexecError {
     /// Message for the error.

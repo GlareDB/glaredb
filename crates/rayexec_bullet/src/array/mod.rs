@@ -14,8 +14,9 @@ pub use list::*;
 pub mod validity;
 
 use crate::bitmap::Bitmap;
-use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::datatype::{DataType, DecimalTypeMeta, TimestampTypeMeta};
 use crate::scalar::interval::Interval;
+use crate::scalar::timestamp::TimestampScalar;
 use crate::scalar::{
     decimal::{Decimal128Scalar, Decimal64Scalar},
     ScalarValue,
@@ -43,10 +44,7 @@ pub enum Array {
     Decimal128(Decimal128Array),
     Date32(Date32Array),
     Date64(Date64Array),
-    TimestampSeconds(TimestampSecondsArray),
-    TimestampMilliseconds(TimestampMillsecondsArray),
-    TimestampMicroseconds(TimestampMicrosecondsArray),
-    TimestampNanoseconds(TimestampNanosecondsArray),
+    Timestamp(TimestampArray),
     Interval(IntervalArray),
     Utf8(Utf8Array),
     LargeUtf8(LargeUtf8Array),
@@ -81,10 +79,7 @@ impl Array {
             }
             Array::Date32(_) => DataType::Date32,
             Array::Date64(_) => DataType::Date64,
-            Array::TimestampSeconds(_) => DataType::TimestampSeconds,
-            Array::TimestampMilliseconds(_) => DataType::TimestampMilliseconds,
-            Array::TimestampMicroseconds(_) => DataType::TimestampMicroseconds,
-            Array::TimestampNanoseconds(_) => DataType::TimestampNanoseconds,
+            Array::Timestamp(arr) => DataType::Timestamp(TimestampTypeMeta::new(arr.unit())),
             Array::Interval(_) => DataType::Interval,
             Array::Utf8(_) => DataType::Utf8,
             Array::LargeUtf8(_) => DataType::LargeUtf8,
@@ -128,14 +123,10 @@ impl Array {
             }),
             Self::Date32(arr) => ScalarValue::Date32(*arr.value(idx)?),
             Self::Date64(arr) => ScalarValue::Date64(*arr.value(idx)?),
-            Self::TimestampSeconds(arr) => ScalarValue::TimestampSeconds(*arr.value(idx)?),
-            Self::TimestampMilliseconds(arr) => {
-                ScalarValue::TimestampMilliseconds(*arr.value(idx)?)
-            }
-            Self::TimestampMicroseconds(arr) => {
-                ScalarValue::TimestampMicroseconds(*arr.value(idx)?)
-            }
-            Self::TimestampNanoseconds(arr) => ScalarValue::TimestampNanoseconds(*arr.value(idx)?),
+            Self::Timestamp(arr) => ScalarValue::Timestamp(TimestampScalar {
+                unit: arr.unit(),
+                value: *arr.get_primitive().value(idx)?,
+            }),
             Self::Interval(arr) => ScalarValue::Interval(*arr.value(idx)?),
             Self::Utf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
             Self::LargeUtf8(arr) => ScalarValue::Utf8(arr.value(idx)?.into()),
@@ -166,10 +157,7 @@ impl Array {
             Self::Decimal128(arr) => arr.get_primitive().is_valid(idx),
             Self::Date32(arr) => arr.is_valid(idx),
             Self::Date64(arr) => arr.is_valid(idx),
-            Self::TimestampSeconds(arr) => arr.is_valid(idx),
-            Self::TimestampMilliseconds(arr) => arr.is_valid(idx),
-            Self::TimestampMicroseconds(arr) => arr.is_valid(idx),
-            Self::TimestampNanoseconds(arr) => arr.is_valid(idx),
+            Self::Timestamp(arr) => arr.get_primitive().is_valid(idx),
             Self::Interval(arr) => arr.is_valid(idx),
             Self::Utf8(arr) => arr.is_valid(idx),
             Self::LargeUtf8(arr) => arr.is_valid(idx),
@@ -200,10 +188,7 @@ impl Array {
             Self::Decimal128(arr) => arr.get_primitive().len(),
             Self::Date32(arr) => arr.len(),
             Self::Date64(arr) => arr.len(),
-            Self::TimestampSeconds(arr) => arr.len(),
-            Self::TimestampMilliseconds(arr) => arr.len(),
-            Self::TimestampMicroseconds(arr) => arr.len(),
-            Self::TimestampNanoseconds(arr) => arr.len(),
+            Self::Timestamp(arr) => arr.get_primitive().len(),
             Self::Interval(arr) => arr.len(),
             Self::Utf8(arr) => arr.len(),
             Self::LargeUtf8(arr) => arr.len(),
@@ -238,10 +223,7 @@ impl Array {
             Self::Decimal128(arr) => arr.get_primitive().validity(),
             Self::Date32(arr) => arr.validity(),
             Self::Date64(arr) => arr.validity(),
-            Self::TimestampSeconds(arr) => arr.validity(),
-            Self::TimestampMilliseconds(arr) => arr.validity(),
-            Self::TimestampMicroseconds(arr) => arr.validity(),
-            Self::TimestampNanoseconds(arr) => arr.validity(),
+            Self::Timestamp(arr) => arr.get_primitive().validity(),
             Self::Interval(arr) => arr.validity(),
             Self::Utf8(arr) => arr.validity(),
             Self::LargeUtf8(arr) => arr.validity(),
@@ -366,32 +348,8 @@ impl Array {
             DataType::Date64 => {
                 iter_scalars_for_type!(Vec::with_capacity(cap), Date64, PrimitiveArray, 0)
             }
-            DataType::TimestampSeconds => {
-                iter_scalars_for_type!(Vec::with_capacity(cap), TimestampSeconds, PrimitiveArray, 0)
-            }
-            DataType::TimestampMilliseconds => {
-                iter_scalars_for_type!(
-                    Vec::with_capacity(cap),
-                    TimestampMilliseconds,
-                    PrimitiveArray,
-                    0
-                )
-            }
-            DataType::TimestampMicroseconds => {
-                iter_scalars_for_type!(
-                    Vec::with_capacity(cap),
-                    TimestampMicroseconds,
-                    PrimitiveArray,
-                    0
-                )
-            }
-            DataType::TimestampNanoseconds => {
-                iter_scalars_for_type!(
-                    Vec::with_capacity(cap),
-                    TimestampNanoseconds,
-                    PrimitiveArray,
-                    0
-                )
+            DataType::Timestamp(_) => {
+                unimplemented!()
             }
             DataType::Interval => {
                 iter_scalars_for_type!(
@@ -442,6 +400,24 @@ impl From<Decimal64Array> for Array {
 impl From<Decimal128Array> for Array {
     fn from(value: Decimal128Array) -> Self {
         Array::Decimal128(value)
+    }
+}
+
+impl From<Utf8Array> for Array {
+    fn from(value: Utf8Array) -> Self {
+        Array::Utf8(value)
+    }
+}
+
+impl From<LargeUtf8Array> for Array {
+    fn from(value: LargeUtf8Array) -> Self {
+        Array::LargeUtf8(value)
+    }
+}
+
+impl From<ListArray> for Array {
+    fn from(value: ListArray) -> Self {
+        Array::List(value)
     }
 }
 

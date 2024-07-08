@@ -68,21 +68,52 @@ pub enum QueryNodeBody<T: AstMeta> {
         left: Box<QueryNodeBody<T>>,
         right: Box<QueryNodeBody<T>>,
         operation: SetOperation,
+        all: bool,
     },
     Values(Values<T>),
 }
 
 impl AstParseable for QueryNodeBody<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
-        // TODO: Set operations.
+        Self::parse_inner(parser, 0)
+    }
+}
 
-        if parser.parse_keyword(Keyword::SELECT) {
-            Ok(QueryNodeBody::Select(Box::new(SelectNode::parse(parser)?)))
+impl QueryNodeBody<Raw> {
+    fn parse_inner(parser: &mut Parser, precedence: u8) -> Result<Self> {
+        let mut body = if parser.parse_keyword(Keyword::SELECT) {
+            QueryNodeBody::Select(Box::new(SelectNode::parse(parser)?))
         } else if parser.parse_keyword(Keyword::VALUES) {
-            Ok(QueryNodeBody::Values(Values::parse(parser)?))
+            QueryNodeBody::Values(Values::parse(parser)?)
         } else {
-            return Err(RayexecError::new("Expected SELECT, or VALUES"));
+            return Err(RayexecError::new("Expected SELECT or VALUES"));
+        };
+
+        // Parse set operation(s)
+        while let Some(tok) = parser.peek() {
+            let (op, next_precedence) = match tok.keyword() {
+                Some(Keyword::UNION) => (SetOperation::Union, 10),
+                Some(Keyword::EXCEPT) => (SetOperation::Except, 10),
+                Some(Keyword::INTERSECT) => (SetOperation::Intersect, 20),
+                _ => break,
+            };
+
+            if precedence >= next_precedence {
+                break;
+            }
+
+            let _ = parser.next();
+            let all = parser.parse_keyword(Keyword::ALL);
+
+            body = QueryNodeBody::Set {
+                left: Box::new(body),
+                right: Box::new(Self::parse_inner(parser, next_precedence)?),
+                operation: op,
+                all,
+            };
         }
+
+        Ok(body)
     }
 }
 

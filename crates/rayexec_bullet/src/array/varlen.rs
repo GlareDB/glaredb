@@ -9,7 +9,13 @@ use super::{is_valid, ArrayAccessor, ValuesBuffer};
 
 /// Trait for determining how to interpret binary data stored in a variable
 /// length array.
-pub trait VarlenType: PartialEq + PartialOrd {
+pub trait VarlenType: PartialEq + PartialOrd + 'static {
+    /// Value to use in when inserting a "null" into an array.
+    ///
+    /// This value has no semantic meaning, and is just used in order to keep
+    /// offsets accurate.
+    const NULL: &'static Self;
+
     /// Interpret some binary input into an output type.
     fn interpret(input: &[u8]) -> &Self;
 
@@ -18,6 +24,8 @@ pub trait VarlenType: PartialEq + PartialOrd {
 }
 
 impl VarlenType for [u8] {
+    const NULL: &'static Self = &[];
+
     fn interpret(input: &[u8]) -> &Self {
         input
     }
@@ -28,6 +36,8 @@ impl VarlenType for [u8] {
 }
 
 impl VarlenType for str {
+    const NULL: &'static Self = "";
+
     fn interpret(input: &[u8]) -> &Self {
         std::str::from_utf8(input).expect("input should be valid utf8")
     }
