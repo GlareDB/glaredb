@@ -6,7 +6,7 @@ use rayexec_execution::{
     functions::table::{InitializedTableFunction, SpecializedTableFunction},
     runtime::ExecutionRuntime,
 };
-use rayexec_io::http::{HttpClient, HttpReader};
+use rayexec_io::{http::HttpClient, FileSource};
 use std::sync::Arc;
 use tracing::trace;
 use url::Url;
@@ -40,7 +40,7 @@ impl ReadParquetHttp {
     ) -> Result<Box<dyn InitializedTableFunction>> {
         let client = runtime.http_client()?;
         let mut reader = client.reader(self.url.clone());
-        let size = reader.content_length().await?;
+        let size = reader.size().await?;
         trace!(%size, "got content length of file");
 
         let metadata = Metadata::load_from(&mut reader, size).await?;
@@ -64,8 +64,8 @@ struct HttpReaderBuilder {
     url: Url,
 }
 
-impl ReaderBuilder<Box<dyn HttpReader>> for HttpReaderBuilder {
-    fn new_reader(&self) -> Result<Box<dyn HttpReader>> {
+impl ReaderBuilder<Box<dyn FileSource>> for HttpReaderBuilder {
+    fn new_reader(&self) -> Result<Box<dyn FileSource>> {
         Ok(self.client.reader(self.url.clone()))
     }
 }

@@ -1,9 +1,13 @@
 use std::fs::{File, OpenOptions};
 use std::path::Path;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures::future::{self, BoxFuture, FutureExt};
-use rayexec_error::{RayexecError, Result, ResultExt};
+use futures::stream::BoxStream;
+use futures::{Stream, StreamExt};
+use rayexec_error::{RayexecError, Result};
 use rayexec_io::{
     filesystem::{FileReader, FileSystemProvider},
     AsyncReader,
@@ -26,19 +30,21 @@ impl FileSystemProvider for LocalFileSystemProvider {
             )
         })?;
 
-        Ok(Box::new(LocalFile { file }))
+        let len = file.metadata()?.len() as usize;
+
+        Ok(Box::new(LocalFile { len, file }))
     }
 }
 
 #[derive(Debug)]
 pub struct LocalFile {
+    len: usize,
     file: File,
 }
 
 impl FileReader for LocalFile {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
-        let result = self.file.metadata();
-        async move { Ok(result.context("failed to get file metadata")?.len() as usize) }.boxed()
+        async move { Ok(self.len) }.boxed()
     }
 }
 
@@ -52,6 +58,58 @@ impl AsyncReader for LocalFile {
         let result = read_at(&mut self.file, start, &mut buf);
         let bytes = Bytes::from(buf);
         future::ready(result.map(|_| bytes)).boxed()
+    }
+
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
+        // TODO: Remove these when this function is changed to
+        // `into_read_stream`. This shares the same file handle which isn't
+        // good. We should be taking full ownership of it.
+        let mut file = self.file.try_clone().unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        FileStream {
+            file,
+            curr: 0,
+            len: self.len,
+        }
+        .boxed()
+    }
+}
+
+struct FileStream {
+    file: File,
+    curr: usize,
+    len: usize,
+}
+
+impl FileStream {
+    fn read_next(&mut self) -> Result<Bytes> {
+        const FILE_STREAM_BUF_SIZE: usize = 4 * 1024;
+
+        let rem = self.len - self.curr;
+        let to_read = usize::min(rem, FILE_STREAM_BUF_SIZE);
+
+        // TODO: Reuse buffer. This might be tricky just given that we're
+        // requiring the future to be static.
+        let mut buf = vec![0; to_read];
+
+        self.file.read_exact(&mut buf)?;
+        self.curr += buf.len();
+
+        Ok(buf.into())
+    }
+}
+
+impl Stream for FileStream {
+    type Item = Result<Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.curr >= self.len {
+            return Poll::Ready(None);
+        }
+
+        let result = self.read_next();
+        Poll::Ready(Some(result))
     }
 }
 

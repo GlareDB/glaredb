@@ -13,6 +13,7 @@ rayexec_slt = { path = '../crates/rayexec_slt' }
 rayexec_bullet = { path = '../crates/rayexec_bullet' }
 rayexec_postgres = { path = '../crates/rayexec_postgres' }
 rayexec_parquet = { path = '../crates/rayexec_parquet' }
+rayexec_csv = { path = '../crates/rayexec_csv' }
 
 [[test]]
 harness = false
@@ -38,4 +39,10 @@ path = "integration_slt_postgres.rs"
 harness = false
 name = "integration_slt_parquet"
 path = "integration_slt_parquet.rs"
+
+[[test]]
+harness = false
+name = "integration_slt_csv"
+path = "integration_slt_csv.rs"
+
 

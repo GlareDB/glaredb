@@ -530,6 +530,9 @@ impl<'a> Binder<'a> {
             ast::QueryNodeBody::Select(select) => {
                 ast::QueryNodeBody::Select(Box::new(self.bind_select(*select, bind_data).await?))
             }
+            ast::QueryNodeBody::Nested(nested) => ast::QueryNodeBody::Nested(Box::new(
+                Box::pin(self.bind_query(*nested, bind_data)).await?,
+            )),
             ast::QueryNodeBody::Values(values) => {
                 ast::QueryNodeBody::Values(self.bind_values(values, bind_data).await?)
             }

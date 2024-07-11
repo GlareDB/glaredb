@@ -1,21 +1,35 @@
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::sync::Arc;
 
+use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
+use rayexec_csv::CsvDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::engine::Engine;
 use rayexec_execution::runtime::ExecutionRuntime;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use rayexec_shell::lineedit::KeyEvent;
+use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::{Shell, ShellSignal};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
+#[derive(Parser)]
+#[clap(name = "rayexec_bin")]
+struct Arguments {
+    /// Queries to execute.
+    ///
+    /// If omitted, an interactive session will be automatically started.
+    #[clap(trailing_var_arg = true)]
+    queries: Vec<String>,
+}
+
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
+    let args = Arguments::parse();
+
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::ERROR.into())
         .from_env_lossy()
@@ -43,7 +57,7 @@ fn main() {
     // Note we do an explicit clone here to avoid dropping the tokio runtime
     // owned by the execution runtime inside the async context.
     let runtime_clone = runtime.clone();
-    let result = tokio_handle.block_on(async move { inner(runtime_clone).await });
+    let result = tokio_handle.block_on(async move { inner(args, runtime_clone).await });
 
     if let Err(e) = result {
         println!("ERROR: {e}");
@@ -70,22 +84,40 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
     }
 }
 
-async fn inner(runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
+async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", Box::new(PostgresDataSource))?
-        .with_datasource("parquet", Box::new(ParquetDataSource))?;
-    let engine = Engine::new_with_registry(runtime, registry)?;
-    let session = engine.new_session()?;
+        .with_datasource("parquet", Box::new(ParquetDataSource))?
+        .with_datasource("csv", Box::new(CsvDataSource))?;
+    let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
-    let stdout = BufWriter::new(std::io::stdout());
+    let mut stdout = BufWriter::new(std::io::stdout());
+
+    if !args.queries.is_empty() {
+        // Queries provided directly, run and print them, and exit.
+
+        // TODO: Check if file, read file...
+
+        for query in args.queries {
+            let tables = engine.sql(&query).await?;
+            for table in tables {
+                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+            }
+            stdout.flush()?;
+        }
+
+        return Ok(());
+    }
+
+    // Otherwise continue on with interactive shell.
 
     crossterm::terminal::enable_raw_mode()?;
 
     let shell = Shell::new(stdout);
     shell.set_cols(cols as usize);
-    shell.attach(session, "Rayexec Shell")?;
+    shell.attach(engine, "Rayexec Shell")?;
 
     let inner_loop = || async move {
         loop {

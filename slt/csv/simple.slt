@@ -1,0 +1,15 @@
+# Reading 'simple.csv'
+
+query TT
+describe '../testdata/csv/simple.csv';
+----
+c1  Int64
+c2  Utf8
+c3  Float64
+
+query ITR rowsort
+select * from '../testdata/csv/simple.csv';
+----
+1  mario  2.3
+4  wario  5.6
+7  peach  8.9

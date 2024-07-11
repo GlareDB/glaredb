@@ -43,6 +43,12 @@ pub struct FromStrParser<T: FromStr> {
     _type: PhantomData<T>,
 }
 
+impl<T: FromStr> FromStrParser<T> {
+    pub const fn new() -> Self {
+        FromStrParser { _type: PhantomData }
+    }
+}
+
 impl<T: FromStr> Parser for FromStrParser<T> {
     type Type = T;
     fn parse(&mut self, s: &str) -> Option<Self::Type> {

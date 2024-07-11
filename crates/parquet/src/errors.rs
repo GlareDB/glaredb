@@ -20,9 +20,6 @@
 use std::error::Error;
 use std::{cell, io, result, str};
 
-#[cfg(feature = "arrow")]
-use arrow_schema::ArrowError;
-
 /// Parquet error enumeration
 // Note: we don't implement PartialEq as the semantics for the
 // external variant are not well defined (#4469)

@@ -13,7 +13,9 @@ rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_bullet = { path = '../rayexec_bullet' }
 rayexec_postgres = { path = '../rayexec_postgres' }
 rayexec_parquet = { path = '../rayexec_parquet', features = ["zstd"] }
+rayexec_csv = { path = '../rayexec_csv' }
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 futures = { workspace = true }
 crossterm = "0.27.0"
+clap = { version = "4.5.9", features = ["derive"] }

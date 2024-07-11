@@ -4,6 +4,7 @@ pub mod varlen;
 use bytes::{Buf, Bytes};
 use futures::stream::{self, BoxStream};
 use futures::StreamExt;
+use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
@@ -16,7 +17,7 @@ use primitive::PrimitiveArrayReader;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, TimeUnit};
+use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::AsyncReader;
@@ -42,40 +43,48 @@ pub trait ArrayBuilder<P: PageReader>: Send {
 /// Create a new array builder based on the provided type.
 pub fn builder_for_type<P>(
     datatype: DataType,
+    physical: PhysicalType,
     desc: ColumnDescPtr,
 ) -> Result<Box<dyn ArrayBuilder<P>>>
 where
     P: PageReader + 'static,
 {
-    match &datatype {
-        DataType::Boolean => Ok(Box::new(PrimitiveArrayReader::<BoolType, P>::new(
+    match (&datatype, physical) {
+        (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<BoolType, P>::new(
             datatype, desc,
         ))),
-        DataType::Int32 => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+        (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
             datatype, desc,
         ))),
-        DataType::Int64 => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+        (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
             datatype, desc,
         ))),
-        DataType::Timestamp(meta) if meta.unit == TimeUnit::Nanosecond => Ok(Box::new(
-            PrimitiveArrayReader::<Int96Type, P>::new(datatype, desc),
-        )),
-        DataType::Float32 => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
+        (DataType::Timestamp(_), PhysicalType::INT64) => {
+            Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+                datatype, desc,
+            )))
+        }
+        (DataType::Timestamp(_), PhysicalType::INT96) => {
+            Ok(Box::new(PrimitiveArrayReader::<Int96Type, P>::new(
+                datatype, desc,
+            )))
+        }
+        (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
             datatype, desc,
         ))),
-        DataType::Float64 => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
+        (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
             datatype, desc,
         ))),
-        DataType::Date32 => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+        (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
             datatype, desc,
         ))),
-        DataType::Decimal64(_) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+        (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
             datatype, desc,
         ))),
-        DataType::Utf8 => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
+        (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
             datatype, desc,
         ))),
-        DataType::Binary => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
+        (DataType::Binary, _) => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
             datatype, desc,
         ))),
         other => Err(RayexecError::new(format!(
@@ -138,7 +147,9 @@ impl<R: AsyncReader + 'static> AsyncBatchReader<R> {
             .map(|f| f.datatype.clone())
             .zip(metadata.parquet_metadata.row_group(0).columns())
         {
-            let builder = builder_for_type(datatype, column_chunk_meta.column_descr_ptr())?;
+            let physical = column_chunk_meta.column_type();
+            let builder =
+                builder_for_type(datatype, physical, column_chunk_meta.column_descr_ptr())?;
             builders.push(builder)
         }
 

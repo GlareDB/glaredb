@@ -1,0 +1,30 @@
+# GROUP BY with no aggregates
+#
+# Used for generating distinct rows.
+
+statement ok
+create temp table t1 as
+  select a, b from (values (1, 'a'),
+                           (2, 'b'),
+                           (2, 'b'),
+                           (1, 'b'),
+                           (1, 'a')) as v(a, b);
+
+query IT rowsort
+select * from t1 group by a, b;
+----
+1   a
+1   b
+2   b
+
+query I rowsort
+select a from t1 group by a;
+----
+1
+2
+
+query I rowsort
+select b from t1 group by b;
+----
+a
+b

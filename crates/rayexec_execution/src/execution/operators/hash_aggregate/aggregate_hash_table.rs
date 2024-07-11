@@ -141,20 +141,10 @@ impl PartitionAggregateHashTable {
                     self.indexes_buffer.push(*group_idx);
                 }
                 None => {
+                    let group_idx = self.group_values.len();
+
                     // Need to create new states and insert them into the hash table.
-                    let mut states_iter = self.agg_states.iter_mut();
-
-                    // Use first state to generate the group index. Each new
-                    // state we create for this group should generate the same
-                    // index.
-                    let group_idx = match states_iter.next() {
-                        Some(agg_state) => agg_state.states.new_group(),
-                        None => {
-                            return Err(RayexecError::new("Aggregate hash table has no aggregates"))
-                        }
-                    };
-
-                    for agg_state in states_iter {
+                    for agg_state in self.agg_states.iter_mut() {
                         let idx = agg_state.states.new_group();
                         // Very critical, if we're not generating the same
                         // index, all bets are off.
@@ -202,20 +192,10 @@ impl PartitionAggregateHashTable {
                 None => {
                     // 'self' has never seend this group before. Add it to the map with
                     // an empty state.
+                    let group_idx = self.group_values.len();
 
-                    let mut states_iter = self.agg_states.iter_mut();
-
-                    // Use first state to generate the group index. Each new
-                    // state we create for this group should generate the same
-                    // index.
-                    let group_idx = match states_iter.next() {
-                        Some(agg_state) => agg_state.states.new_group(),
-                        None => {
-                            return Err(RayexecError::new("Aggregate hash table has no aggregates"))
-                        }
-                    };
-
-                    for agg_state in states_iter {
+                    // Need to create new states and insert them into the hash table.
+                    for agg_state in self.agg_states.iter_mut() {
                         let idx = agg_state.states.new_group();
                         // Very critical, if we're not generating the same
                         // index, all bets are off.
@@ -295,7 +275,19 @@ impl AggregateHashTableDrain {
         };
 
         // Convert group values into arrays.
-        let num_rows = result_cols.first().map(|col| col.len()).unwrap_or(0);
+        //
+        // If we have nothing for results, we still want to try to pull from
+        // groups, so set to non-zero value.
+        let num_rows = result_cols
+            .first()
+            .map(|col| col.len())
+            .unwrap_or(usize::min(self.table.group_values.len(), self.batch_size));
+
+        // No results, and nothing left in groups.
+        if num_rows == 0 {
+            return Ok(None);
+        }
+
         let mut group_cols = Vec::with_capacity(self.group_types.len());
 
         // Drain out collected group rows into our local buffer equal to the

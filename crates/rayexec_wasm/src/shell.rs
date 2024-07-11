@@ -1,8 +1,8 @@
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
-use rayexec_execution::engine::Engine;
 use rayexec_parquet::ParquetDataSource;
+use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::ShellSignal;
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io::{self, BufWriter};
@@ -77,7 +77,6 @@ impl io::Write for TerminalWrapper {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct WasmShell {
-    pub(crate) engine: Engine,
     // TODO: For some reason, without the buf writer, the output gets all messed
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
@@ -94,15 +93,14 @@ impl WasmShell {
             .with_datasource("memory", Box::new(MemoryDataSource))?
             .with_datasource("parquet", Box::new(ParquetDataSource))?;
 
-        let engine = Engine::new_with_registry(runtime, registry)?;
+        let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
 
         let terminal = TerminalWrapper::new(terminal);
         let shell = Rc::new(Shell::new(BufWriter::new(terminal)));
 
-        let session = engine.new_session()?;
-        shell.attach(session, "Rayexec WASM Shell")?;
+        shell.attach(engine, "Rayexec WASM Shell")?;
 
-        Ok(WasmShell { engine, shell })
+        Ok(WasmShell { shell })
     }
 
     /// Notify on terminal resize.

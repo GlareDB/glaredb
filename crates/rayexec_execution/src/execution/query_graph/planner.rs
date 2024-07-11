@@ -39,6 +39,7 @@ use crate::{
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
     logical::{
         context::QueryContext,
+        grouping_set::GroupingSets,
         operator::{self, LogicalOperator},
     },
     runtime::ExecutionRuntime,
@@ -438,6 +439,10 @@ impl BuildState {
         materializations: &mut Materializations,
         setop: operator::SetOperation,
     ) -> Result<()> {
+        // Schema from the top. Used as the input to a GROUP BY if ALL is
+        // omitted.
+        let top_schema = setop.top.output_schema(&[])?;
+
         // Continue building top.
         self.walk(conf, materializations, id_gen, *setop.top)?;
 
@@ -480,8 +485,30 @@ impl BuildState {
             other => not_implemented!("set op {other}"),
         }
 
+        // Make output distinct by grouping on all columns. No output
+        // aggregates, so the output schema remains the same.
         if !setop.all {
-            not_implemented!("non-ALL setops")
+            let top_pipeline = self.in_progress_pipeline_mut()?;
+
+            let grouping_sets =
+                GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
+            let group_types = top_schema.types;
+
+            let (operator, operator_state, partition_states) = PhysicalHashAggregate::try_new(
+                top_pipeline.num_partitions(),
+                group_types,
+                grouping_sets,
+                Vec::new(),
+            )?;
+
+            let operator = Arc::new(operator);
+            let operator_state = Arc::new(OperatorState::HashAggregate(operator_state));
+            let partition_states = partition_states
+                .into_iter()
+                .map(PartitionState::HashAggregate)
+                .collect();
+
+            top_pipeline.push_operator(operator, operator_state, partition_states)?;
         }
 
         Ok(())

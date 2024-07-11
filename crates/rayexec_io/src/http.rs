@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use reqwest::{
     header::{CONTENT_LENGTH, RANGE},
@@ -9,16 +8,11 @@ use std::fmt::Debug;
 use tracing::debug;
 use url::Url;
 
-use crate::AsyncReader;
+use crate::FileSource;
 
 pub trait HttpClient: Debug + Sync + Send + 'static {
     /// Create a reader for the given url.
-    fn reader(&self, url: Url) -> Box<dyn HttpReader>;
-}
-
-pub trait HttpReader: AsyncReader {
-    /// Get the content length of the whatever this reader is pointing to.
-    fn content_length(&mut self) -> BoxFuture<Result<usize>>;
+    fn reader(&self, url: Url) -> Box<dyn FileSource>;
 }
 
 /// Shared logic for http clients implemented on top of reqwest.
@@ -54,8 +48,8 @@ impl ReqwestClient {
 
 #[derive(Debug, Clone)]
 pub struct ReqwestClientReader {
-    client: reqwest::Client,
-    url: Url,
+    pub client: reqwest::Client,
+    pub url: Url,
 }
 
 impl ReqwestClientReader {

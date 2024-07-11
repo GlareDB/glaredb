@@ -103,6 +103,7 @@ impl<'a> QueryNodePlanner<'a> {
     ) -> Result<LogicalQuery> {
         Ok(match body {
             ast::QueryNodeBody::Select(select) => self.plan_select(context, *select, order_by)?,
+            ast::QueryNodeBody::Nested(nested) => self.plan_query(context, *nested)?,
             ast::QueryNodeBody::Set {
                 left,
                 right,

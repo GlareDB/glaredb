@@ -359,10 +359,12 @@ impl Explainable for Order {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
-    Inner,
     Left,
     Right,
+    Inner,
     Full,
+    Semi,
+    Anti,
 }
 
 impl fmt::Display for JoinType {
@@ -372,6 +374,8 @@ impl fmt::Display for JoinType {
             Self::Left => write!(f, "LEFT"),
             Self::Right => write!(f, "RIGHT"),
             Self::Full => write!(f, "FULL"),
+            Self::Semi => write!(f, "SEMI"),
+            Self::Anti => write!(f, "ANTI"),
         }
     }
 }

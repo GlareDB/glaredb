@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
@@ -284,15 +284,7 @@ impl PhysicalOperator for PhysicalHashJoin {
                         state.buffered_output = Some(joined);
                         Ok(PollPush::Pushed)
                     }
-                    JoinType::Left => {
-                        unimplemented!()
-                    }
-                    JoinType::Right => {
-                        unimplemented!()
-                    }
-                    JoinType::Full => {
-                        unimplemented!()
-                    }
+                    other => not_implemented!("join type {other}"),
                 }
             }
             other => panic!("invalid partition state: {other:?}"),

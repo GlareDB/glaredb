@@ -7,7 +7,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Converts a parquet schema to a bullet schema.
 ///
@@ -30,11 +30,13 @@ fn convert_complex(parquet_type: &Type) -> Result<DataType> {
             fields: _,
         } => {
             match basic_info.converted_type() {
-                ConvertedType::LIST => unimplemented!(),
-                ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => unimplemented!(),
+                ConvertedType::LIST => not_implemented!("parqet list"),
+                ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => {
+                    not_implemented!("parquet map")
+                }
                 _ => {
                     // let struct_fields = convert_group_fields(parquet_type)?;
-                    unimplemented!()
+                    not_implemented!("parquet struct")
                 }
             }
         }
@@ -81,7 +83,9 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
             parquet::basic::Type::FLOAT => Ok(DataType::Float32),
             parquet::basic::Type::DOUBLE => Ok(DataType::Float64),
             parquet::basic::Type::BYTE_ARRAY => from_byte_array(basic_info, *precision, *scale),
-            parquet::basic::Type::FIXED_LEN_BYTE_ARRAY => unimplemented!(),
+            parquet::basic::Type::FIXED_LEN_BYTE_ARRAY => {
+                not_implemented!("parquet fixed len byte array")
+            }
         },
         Type::GroupType { .. } => unreachable!(),
     }
@@ -190,22 +194,21 @@ fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
         },
         (
             Some(LogicalType::Timestamp {
-                is_adjusted_to_u_t_c: _,
-                unit: _,
+                is_adjusted_to_u_t_c,
+                unit,
             }),
             _,
-        ) => unimplemented!(), // Ok(DataType::Timestamp(
-        //     match unit {
-        //         TimeUnit::MILLIS(_) => unimplemented!(),
-        //         TimeUnit::MICROS(_) => unimplemented!(),
-        //         TimeUnit::NANOS(_) => unimplemented!(),
-        //     },
-        //     if is_adjusted_to_u_t_c {
-        //         Some("UTC".into())
-        //     } else {
-        //         None
-        //     },
-        // ))
+        ) => {
+            let unit = match unit {
+                ParquetTimeUnit::MILLIS(_) => TimeUnit::Millisecond,
+                ParquetTimeUnit::MICROS(_) => TimeUnit::Microsecond,
+                ParquetTimeUnit::NANOS(_) => TimeUnit::Nanosecond,
+            };
+            if is_adjusted_to_u_t_c {
+                not_implemented!("parquet timestamp adjusted to utc");
+            }
+            Ok(DataType::Timestamp(TimestampTypeMeta::new(unit)))
+        }
         (None, ConvertedType::INT_64) => Ok(DataType::Int64),
         (None, ConvertedType::UINT_64) => Ok(DataType::UInt64),
         (None, ConvertedType::TIME_MICROS) => unimplemented!(),

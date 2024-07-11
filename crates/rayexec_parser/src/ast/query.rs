@@ -64,6 +64,7 @@ impl QueryNode<Raw> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum QueryNodeBody<T: AstMeta> {
     Select(Box<SelectNode<T>>),
+    Nested(Box<QueryNode<T>>),
     Set {
         left: Box<QueryNodeBody<T>>,
         right: Box<QueryNodeBody<T>>,
@@ -85,6 +86,10 @@ impl QueryNodeBody<Raw> {
             QueryNodeBody::Select(Box::new(SelectNode::parse(parser)?))
         } else if parser.parse_keyword(Keyword::VALUES) {
             QueryNodeBody::Values(Values::parse(parser)?)
+        } else if parser.consume_token(&Token::LeftParen) {
+            let nested = QueryNode::parse(parser)?;
+            parser.expect_token(&Token::RightParen)?;
+            QueryNodeBody::Nested(Box::new(nested))
         } else {
             return Err(RayexecError::new("Expected SELECT or VALUES"));
         };

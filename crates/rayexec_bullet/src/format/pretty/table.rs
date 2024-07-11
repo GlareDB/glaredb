@@ -17,7 +17,7 @@ use textwrap::{fill_inplace, wrap};
 use super::display::{table_width, Alignment, PrettyFooter, PrettyHeader, PrettyValues};
 
 /// How many values to use for the avg width calculation.
-const NUM_VALS_FOR_AVG: usize = 10;
+const NUM_VALS_FOR_AVG: usize = 30;
 
 /// Default number of rows to display.
 const DEFAULT_MAX_ROWS: usize = 50;

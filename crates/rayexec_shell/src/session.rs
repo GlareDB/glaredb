@@ -1,4 +1,5 @@
 use futures::TryStreamExt;
+use rayexec_bullet::format::pretty::table::PrettyTable;
 use std::sync::Arc;
 
 use rayexec_bullet::batch::Batch;
@@ -67,4 +68,10 @@ impl SingleUserEngine {
 pub struct ResultTable {
     pub schema: Schema,
     pub batches: Vec<Batch>,
+}
+
+impl ResultTable {
+    pub fn pretty_table(&self, width: usize, max_rows: Option<usize>) -> Result<PrettyTable> {
+        PrettyTable::try_new(&self.schema, &self.batches, width, max_rows)
+    }
 }

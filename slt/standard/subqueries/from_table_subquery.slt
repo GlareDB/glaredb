@@ -56,11 +56,10 @@ select * from (select a as c1, b from t1 where a < 3), (select b as c2, a from t
 ----
 1  2  6  5
 
-# TODO: Aggregate hash table has no aggregates
-# query I
-# select sum(x) from (select a as x from t1 group by a);
-# ----
-# 9
+query I
+select sum(x) from (select a as x from t1 group by a);
+----
+9
 
 statement ok
 create temp table t2 (a bigint, b bigint);
@@ -68,11 +67,10 @@ create temp table t2 (a bigint, b bigint);
 statement ok
 insert into t2 values (1, 2), (3, 4), (5, 6);
 
-# TODO: Aggregate hash table has no aggregates
-# query I
-# select sum(x) from (select a as x from t2 group by a);
-# ----
-# 9
+query I
+select sum(x) from (select a as x from t2 group by a);
+----
+9
 
 query I
 select * from (select sum(a) from t2);

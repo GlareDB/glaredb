@@ -3,14 +3,12 @@ use std::{
     io::{self, Write},
 };
 
-use futures::StreamExt;
-use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::engine::{result::ExecutionResult, session::Session};
 use tracing::trace;
 
 use crate::{
     lineedit::{KeyEvent, LineEditor, Signal},
+    session::SingleUserEngine,
     vt100::{MODES_OFF, MODE_BOLD},
 };
 
@@ -29,12 +27,12 @@ pub enum ShellSignal {
 #[derive(Debug)]
 pub struct Shell<W: io::Write> {
     editor: RefCell<LineEditor<W>>,
-    session: RefCell<Option<SessionWithConfig>>,
+    engine: RefCell<Option<EngineWithConfig>>,
 }
 
 #[derive(Debug)]
-struct SessionWithConfig {
-    session: Session,
+struct EngineWithConfig {
+    engine: SingleUserEngine,
     pending: Option<String>,
 }
 
@@ -43,14 +41,14 @@ impl<W: io::Write> Shell<W> {
         let editor = LineEditor::new(writer, ">> ", 80);
         Shell {
             editor: RefCell::new(editor),
-            session: RefCell::new(None),
+            engine: RefCell::new(None),
         }
     }
 
-    pub fn attach(&self, session: Session, shell_msg: &str) -> Result<()> {
-        let mut current = self.session.borrow_mut();
-        *current = Some(SessionWithConfig {
-            session,
+    pub fn attach(&self, engine: SingleUserEngine, shell_msg: &str) -> Result<()> {
+        let mut current = self.engine.borrow_mut();
+        *current = Some(EngineWithConfig {
+            engine,
             pending: None,
         });
 
@@ -86,7 +84,7 @@ impl<W: io::Write> Shell<W> {
             Signal::KeepEditing => Ok(ShellSignal::Continue),
             Signal::InputCompleted(query) => {
                 let query = query.to_string();
-                let mut session = self.session.borrow_mut();
+                let mut session = self.engine.borrow_mut();
                 match session.as_mut() {
                     Some(session) => {
                         session.pending = Some(query);
@@ -110,21 +108,21 @@ impl<W: io::Write> Shell<W> {
         let mut editor = self.editor.borrow_mut();
         let width = editor.get_cols();
 
-        let mut session = self.session.borrow_mut();
-        match session.as_mut() {
-            Some(session) => {
-                let query = match session.pending.take() {
+        let mut engine = self.engine.borrow_mut();
+        match engine.as_mut() {
+            Some(engine) => {
+                let query = match engine.pending.take() {
                     Some(query) => query,
                     None => return Ok(()), // Nothing to execute.
                 };
                 let mut writer = editor.raw_writer();
                 writer.write_all(&[b'\n'])?;
 
-                match session.session.simple(&query).await {
-                    Ok(results) => {
+                match engine.engine.sql(&query).await {
+                    Ok(tables) => {
                         trace!("writing results");
-                        for result in results {
-                            match Self::format_execution_stream(result, width).await {
+                        for table in tables {
+                            match table.pretty_table(width, None) {
                                 Ok(table) => {
                                     writeln!(writer, "{table}")?;
                                 }
@@ -152,22 +150,8 @@ impl<W: io::Write> Shell<W> {
                 Ok(())
             }
             None => Err(RayexecError::new(
-                "Attempted to run query without attached session",
+                "Attempted to run query without attached engine",
             )),
         }
-    }
-
-    /// Collects the entire stream in memory and creates a pretty table from the
-    /// stream.
-    async fn format_execution_stream(result: ExecutionResult, width: usize) -> Result<PrettyTable> {
-        let batches = result
-            .stream
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
-        let table = PrettyTable::try_new(&result.output_schema, &batches, width, None)?;
-
-        Ok(table)
     }
 }

@@ -56,6 +56,13 @@ where
                     other => return Err(RayexecError::new(format!("Unexpected array type when converting to Decimal64: {}", other.datatype())))
                 }
             }
+            (PhysicalType::INT64, DataType::Timestamp(meta)) => {
+                let prim = match data.into_array(def_levels) {
+                    Array::Int64(prim) => prim,
+                    other => return Err(RayexecError::new(format!("Expected Int64 primitive array for timestamp, got {}", other.datatype()))),
+                };
+                Array::Timestamp(TimestampArray::new(meta.unit, prim))
+            }
             (PhysicalType::INT96, DataType::Timestamp(meta)) => match meta.unit {
                 TimeUnit::Nanosecond => data.into_array(def_levels),
                 other => return Err(RayexecError::new(format!("Unexpected time unit for INT96 physical type: {other}")))

@@ -98,10 +98,7 @@ impl DataTableScan for RowGroupsScan {
     fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
         match self.stream.poll_next_unpin(cx) {
             Poll::Ready(Some(Ok(batch))) => Ok(PollPull::Batch(batch)),
-            Poll::Ready(Some(Err(e))) => {
-                println!("ERR: {e}");
-                Err(e)
-            }
+            Poll::Ready(Some(Err(e))) => Err(e),
             Poll::Ready(None) => Ok(PollPull::Exhausted),
             Poll::Pending => Ok(PollPull::Pending),
         }

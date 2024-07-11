@@ -226,9 +226,34 @@ fn hash_primitive<T: HashValue>(array: &PrimitiveArray<T>, hashes: &mut [u64], c
 
     let values = array.values();
     match array.validity() {
-        Some(_bitmap) => {
-            // TODO: Nulls
-            unimplemented!()
+        Some(bitmap) => {
+            if combine {
+                for ((val, hash), valid) in values
+                    .as_ref()
+                    .iter()
+                    .zip(hashes.iter_mut())
+                    .zip(bitmap.iter())
+                {
+                    if valid {
+                        *hash = combine_hashes(val.hash_one(), *hash);
+                    } else {
+                        *hash = combine_hashes(null_hash_value(), *hash);
+                    }
+                }
+            } else {
+                for ((val, hash), valid) in values
+                    .as_ref()
+                    .iter()
+                    .zip(hashes.iter_mut())
+                    .zip(bitmap.iter())
+                {
+                    if valid {
+                        *hash = val.hash_one();
+                    } else {
+                        *hash = null_hash_value();
+                    }
+                }
+            }
         }
         None => {
             if combine {
@@ -258,9 +283,24 @@ where
 
     let values_iter = array.values_iter();
     match array.validity() {
-        Some(_bitmap) => {
-            // TODO: Nulls
-            unimplemented!()
+        Some(bitmap) => {
+            if combine {
+                for ((val, hash), valid) in values_iter.zip(hashes.iter_mut()).zip(bitmap.iter()) {
+                    if valid {
+                        *hash = combine_hashes(val.hash_one(), *hash);
+                    } else {
+                        *hash = combine_hashes(null_hash_value(), *hash);
+                    }
+                }
+            } else {
+                for ((val, hash), valid) in values_iter.zip(hashes.iter_mut()).zip(bitmap.iter()) {
+                    if valid {
+                        *hash = val.hash_one();
+                    } else {
+                        *hash = null_hash_value();
+                    }
+                }
+            }
         }
         None => {
             if combine {
@@ -307,5 +347,18 @@ mod tests {
         }
 
         assert_eq!(hashes, row_hashes);
+    }
+
+    #[test]
+    fn nulls_produce_different_values() {
+        let arr1 = Array::Utf8(Utf8Array::from_iter([Some("a"), Some("b"), Some("c")]));
+        let mut hashes1 = vec![0; 3];
+        hash_arrays(&[&arr1], &mut hashes1).unwrap();
+
+        let arr2 = Array::Utf8(Utf8Array::from_iter([Some("a"), None, Some("c")]));
+        let mut hashes2 = vec![0; 3];
+        hash_arrays(&[&arr2], &mut hashes2).unwrap();
+
+        assert_ne!(hashes1, hashes2);
     }
 }

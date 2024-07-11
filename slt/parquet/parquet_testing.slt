@@ -1,0 +1,123 @@
+# Queries that hit parquet files in the parquet-testing submodule.
+
+query TT
+describe '../submodules/parquet-testing/data/alltypes_plain.parquet';
+----
+id               Int32
+bool_col         Boolean
+tinyint_col      Int32
+smallint_col     Int32
+int_col          Int32
+bigint_col       Int64
+float_col        Float32
+double_col       Float64
+date_string_col  Binary
+string_col       Binary
+timestamp_col    Timestamp(ns)
+
+# TODO: ascii binary formatting if within ascii range
+query ITIIIIRR??T rowsort
+select * from '../submodules/parquet-testing/data/alltypes_plain.parquet';
+----
+0  true   0  0  0  0   0    0     [30, 31, 2F, 30, 31, 2F, 30, 39]  [30]  2009-01-01 00:00:00 UTC
+1  false  1  1  1  10  1.1  10.1  [30, 31, 2F, 30, 31, 2F, 30, 39]  [31]  2009-01-01 00:01:00 UTC
+2  true   0  0  0  0   0    0     [30, 32, 2F, 30, 31, 2F, 30, 39]  [30]  2009-02-01 00:00:00 UTC
+3  false  1  1  1  10  1.1  10.1  [30, 32, 2F, 30, 31, 2F, 30, 39]  [31]  2009-02-01 00:01:00 UTC
+4  true   0  0  0  0   0    0     [30, 33, 2F, 30, 31, 2F, 30, 39]  [30]  2009-03-01 00:00:00 UTC
+5  false  1  1  1  10  1.1  10.1  [30, 33, 2F, 30, 31, 2F, 30, 39]  [31]  2009-03-01 00:01:00 UTC
+6  true   0  0  0  0   0    0     [30, 34, 2F, 30, 31, 2F, 30, 39]  [30]  2009-04-01 00:00:00 UTC
+7  false  1  1  1  10  1.1  10.1  [30, 34, 2F, 30, 31, 2F, 30, 39]  [31]  2009-04-01 00:01:00 UTC
+
+query TT
+describe '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet';
+----
+id               Int32
+bool_col         Boolean
+tinyint_col      Int32
+smallint_col     Int32
+int_col          Int32
+bigint_col       Int64
+float_col        Float32
+double_col       Float64
+date_string_col  Binary
+string_col       Binary
+timestamp_col    Timestamp(ns)
+
+# TODO: ascii binary formatting if within ascii range
+query ITIIIIRR??T rowsort
+select * from '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet';
+----
+6  true   0  0  0  0   0    0     [30, 34, 2F, 30, 31, 2F, 30, 39]  [30]  2009-04-01 00:00:00 UTC
+7  false  1  1  1  10  1.1  10.1  [30, 34, 2F, 30, 31, 2F, 30, 39]  [31]  2009-04-01 00:01:00 UTC
+
+query TT
+describe '../submodules/parquet-testing/data/binary.parquet';
+----
+foo  Binary
+
+query ? rowsort
+select * from '../submodules/parquet-testing/data/binary.parquet';
+----
+[0]
+[1]
+[2]
+[3]
+[4]
+[5]
+[6]
+[7]
+[8]
+[9]
+[A]
+[B]
+
+query TT
+describe '../submodules/parquet-testing/data/single_nan.parquet';
+----
+mycol  Float64
+
+# You might expect that a file named 'single_nan.parquet' would contain a single
+# non-null nan, but this file actually contains a single null nan.
+query R
+select * from '../submodules/parquet-testing/data/single_nan.parquet';
+----
+NULL
+
+query TT
+describe '../submodules/parquet-testing/data/datapage_v1-corrupt-checksum.parquet';
+----
+a  Int32
+b  Int32
+
+query IIIII
+select count(*), min(a), min(b), max(a), max(b) from '../submodules/parquet-testing/data/datapage_v1-corrupt-checksum.parquet';
+----
+5120  -2122153084  -2088599168  2138996092  2138996092
+
+query TT
+describe '../submodules/parquet-testing/data/datapage_v1-snappy-compressed-checksum.parquet';
+----
+a  Int32
+b  Int32
+
+query IIIII
+select count(*), min(a), min(b), max(a), max(b) from '../submodules/parquet-testing/data/datapage_v1-snappy-compressed-checksum.parquet';
+----
+5120  -2122153084  -2088599168  2138996092  2138996092
+
+query TT
+describe '../submodules/parquet-testing/data/datapage_v1-uncompressed-checksum.parquet';
+----
+a  Int32
+b  Int32
+
+query IIIII
+select count(*), min(a), min(b), max(a), max(b) from '../submodules/parquet-testing/data/datapage_v1-uncompressed-checksum.parquet';
+----
+5120  -2122153084  -2088599168  2138996092  2138996092
+
+# TODO: Convert to list
+# query TT
+# describe '../submodules/parquet-testing/data/datapage_v2.snappy.parquet';
+# ----
+

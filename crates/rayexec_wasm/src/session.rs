@@ -2,6 +2,7 @@ use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{errors::Result, runtime::WasmExecutionRuntime};
 use rayexec_bullet::format::{FormatOptions, Formatter};
+use rayexec_csv::CsvDataSource;
 use rayexec_error::RayexecError;
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
@@ -22,7 +23,8 @@ impl WasmSession {
         let runtime = Arc::new(WasmExecutionRuntime::try_new()?);
         let registry = DataSourceRegistry::default()
             .with_datasource("memory", Box::new(MemoryDataSource))?
-            .with_datasource("parquet", Box::new(ParquetDataSource))?;
+            .with_datasource("parquet", Box::new(ParquetDataSource))?
+            .with_datasource("csv", Box::new(CsvDataSource))?;
 
         let engine = SingleUserEngine::new_with_runtime(runtime.clone(), registry)?;
 
