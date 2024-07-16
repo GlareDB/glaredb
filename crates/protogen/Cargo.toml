@@ -23,6 +23,6 @@ tracing = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
 [build-dependencies]
-tonic-build = "0.12"
+tonic-build = "0.11"
 # Only needed to handle custom btree mapping; can be removed when we bump the tonic version which will have this too
 prost-build = { workspace = true }
