@@ -2,10 +2,12 @@ pub mod series;
 
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
+use futures::FutureExt;
 use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
@@ -13,10 +15,10 @@ use std::{collections::HashMap, fmt::Debug};
 use crate::database::table::DataTable;
 use crate::runtime::ExecutionRuntime;
 
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn GenericTableFunction>>> =
+pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> =
     Lazy::new(|| vec![Box::new(GenerateSeries)]);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableFunctionArgs {
     /// Named arguments to a table function.
     pub named: HashMap<String, OwnedScalarValue>,
@@ -33,7 +35,7 @@ pub struct TableFunctionArgs {
 /// object store, etc.
 ///
 /// The specialized variant should be determined by function argument inputs.
-pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
+pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// Name of the function.
     fn name(&self) -> &'static str;
 
@@ -42,55 +44,70 @@ pub trait GenericTableFunction: Debug + Sync + Send + DynClone {
         &[]
     }
 
-    /// Specializes this function with the given arguments.
-    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>>;
+    /// Plan the table function using the provide args, and do any necessary
+    /// initialization.
+    ///
+    /// Intialization may include opening connections a remote database, and
+    /// should be used determine the schema of the table we'll be returning. Any
+    /// connections should remain open through execution.
+    fn plan_and_initialize<'a>(
+        &'a self,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
+
+    /// Deserialize existing state into a planned table function.
+    ///
+    /// The planned functions `renitialize` method will be called prior to
+    /// executing of the pipeline containing this function. `reinitialize` will
+    /// not be called if the machine deserializing the function will not be
+    /// executing the function.
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>>;
 }
 
-impl Clone for Box<dyn GenericTableFunction> {
+impl Clone for Box<dyn TableFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn GenericTableFunction> for Box<dyn GenericTableFunction + '_> {
-    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+impl PartialEq<dyn TableFunction> for Box<dyn TableFunction + '_> {
+    fn eq(&self, other: &dyn TableFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn GenericTableFunction + '_ {
-    fn eq(&self, other: &dyn GenericTableFunction) -> bool {
+impl PartialEq for dyn TableFunction + '_ {
+    fn eq(&self, other: &dyn TableFunction) -> bool {
         self.name() == other.name()
     }
 }
 
-pub trait SpecializedTableFunction: Debug + Sync + Send + DynClone {
-    /// Name of the specialized function.
-    fn name(&self) -> &'static str;
-
-    /// Initializes the table function using the provided runtime.
-    fn initialize(
-        self: Box<Self>,
-        runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>>;
-}
-
-impl PartialEq<dyn SpecializedTableFunction> for Box<dyn SpecializedTableFunction + '_> {
-    fn eq(&self, other: &dyn SpecializedTableFunction) -> bool {
-        self.as_ref() == other
+pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
+    /// Reinitialize the table function, including re-opening any connections
+    /// needed.
+    ///
+    /// This is called immediately after deserializing a planned function in
+    /// order populate fields that cannot be serialized and moved across
+    /// machines.
+    ///
+    /// The default implementation does nothing.
+    fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
+        async move { Ok(()) }.boxed()
     }
-}
 
-impl PartialEq for dyn SpecializedTableFunction + '_ {
-    fn eq(&self, other: &dyn SpecializedTableFunction) -> bool {
-        self.name() == other.name()
-    }
-}
+    /// Return an reference to some serializable state.
+    ///
+    /// Typically this just returns `self` with Self implementing Serialize via
+    /// a derive macro.
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize;
 
-pub trait InitializedTableFunction: Debug + Sync + Send + DynClone {
-    /// Returns a reference to the specialized function that initialized this
+    /// Returns a reference to the table function that initialized this
     /// function.
-    fn specialized(&self) -> &dyn SpecializedTableFunction;
+    fn table_function(&self) -> &dyn TableFunction;
 
     /// Get the schema for the function output.
     ///
@@ -106,28 +123,25 @@ pub trait InitializedTableFunction: Debug + Sync + Send + DynClone {
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>>;
 }
 
-impl PartialEq<dyn InitializedTableFunction> for Box<dyn InitializedTableFunction + '_> {
-    fn eq(&self, other: &dyn InitializedTableFunction) -> bool {
+impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> {
+    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn InitializedTableFunction + '_ {
-    fn eq(&self, other: &dyn InitializedTableFunction) -> bool {
-        self.specialized() == other.specialized() && self.schema() == other.schema()
+impl PartialEq for dyn PlannedTableFunction + '_ {
+    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
+        self.table_function() == other.table_function() && self.schema() == other.schema()
     }
 }
 
-impl Clone for Box<dyn InitializedTableFunction> {
+impl Clone for Box<dyn PlannedTableFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-pub fn check_named_args_is_empty(
-    func: &dyn GenericTableFunction,
-    args: &TableFunctionArgs,
-) -> Result<()> {
+pub fn check_named_args_is_empty(func: &dyn TableFunction, args: &TableFunctionArgs) -> Result<()> {
     if !args.named.is_empty() {
         return Err(RayexecError::new(format!(
             "'{}' does not take named arguments",

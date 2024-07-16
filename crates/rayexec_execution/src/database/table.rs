@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::task::Context;
 
-use crate::execution::operators::{PollPull, PollPush};
+use crate::execution::operators::{PollFinalize, PollPull, PollPush};
 
 pub trait DataTable: Debug + Sync + Send {
     /// Return table scanners for the table.
@@ -43,7 +43,7 @@ impl DataTableScan for EmptyTableScan {
 
 pub trait DataTableInsert: Debug + Sync + Send {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-    fn finalize(&mut self) -> Result<()>;
+    fn poll_finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }
 
 pub trait DataTableUpdate: Debug + Sync + Send {}

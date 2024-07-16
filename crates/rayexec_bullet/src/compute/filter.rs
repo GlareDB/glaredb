@@ -1,11 +1,15 @@
-use crate::array::{
-    Array, BooleanArray, Decimal128Array, Decimal64Array, OffsetIndex, PrimitiveArray, VarlenArray,
-    VarlenType,
+use crate::{
+    array::{
+        Array, BooleanArray, Decimal128Array, Decimal64Array, NullArray, OffsetIndex,
+        PrimitiveArray, TimestampArray, VarlenArray, VarlenType, VarlenValuesBuffer,
+    },
+    bitmap::Bitmap,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
     Ok(match arr {
+        Array::Null(_) => Array::Null(NullArray::new(selection.true_count())),
         Array::Boolean(arr) => Array::Boolean(filter_boolean(arr, selection)?),
         Array::Float32(arr) => Array::Float32(filter_primitive(arr, selection)?),
         Array::Float64(arr) => Array::Float64(filter_primitive(arr, selection)?),
@@ -13,10 +17,12 @@ pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
         Array::Int16(arr) => Array::Int16(filter_primitive(arr, selection)?),
         Array::Int32(arr) => Array::Int32(filter_primitive(arr, selection)?),
         Array::Int64(arr) => Array::Int64(filter_primitive(arr, selection)?),
+        Array::Int128(arr) => Array::Int128(filter_primitive(arr, selection)?),
         Array::UInt8(arr) => Array::UInt8(filter_primitive(arr, selection)?),
         Array::UInt16(arr) => Array::UInt16(filter_primitive(arr, selection)?),
         Array::UInt32(arr) => Array::UInt32(filter_primitive(arr, selection)?),
         Array::UInt64(arr) => Array::UInt64(filter_primitive(arr, selection)?),
+        Array::UInt128(arr) => Array::UInt128(filter_primitive(arr, selection)?),
         Array::Decimal64(arr) => {
             let primitive = filter_primitive(arr.get_primitive(), selection)?;
             Array::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
@@ -30,11 +36,18 @@ pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
             ))
         }
         Array::Date32(arr) => Array::Date32(filter_primitive(arr, selection)?),
+        Array::Date64(arr) => Array::Date64(filter_primitive(arr, selection)?),
+        Array::Timestamp(arr) => {
+            let primitive = filter_primitive(arr.get_primitive(), selection)?;
+            Array::Timestamp(TimestampArray::new(arr.unit(), primitive))
+        }
+        Array::Interval(arr) => Array::Interval(filter_primitive(arr, selection)?),
         Array::Utf8(arr) => Array::Utf8(filter_varlen(arr, selection)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(filter_varlen(arr, selection)?),
         Array::Binary(arr) => Array::Binary(filter_varlen(arr, selection)?),
         Array::LargeBinary(arr) => Array::LargeBinary(filter_varlen(arr, selection)?),
-        other => unimplemented!("{}", other.datatype()), // TODO
+        Array::List(_) => not_implemented!("list filter"),
+        Array::Struct(_) => not_implemented!("struct filter"),
     })
 }
 
@@ -45,16 +58,17 @@ pub fn filter_boolean(arr: &BooleanArray, selection: &BooleanArray) -> Result<Bo
         ));
     }
 
-    // TODO: validity
-
     let values_iter = arr.values().iter();
     let select_iter = selection.values().iter();
 
-    let iter = values_iter
+    let values: Bitmap = values_iter
         .zip(select_iter)
-        .filter_map(|(v, take)| if take { Some(v) } else { None });
+        .filter_map(|(v, take)| if take { Some(v) } else { None })
+        .collect();
 
-    Ok(BooleanArray::from_iter(iter))
+    let validity = filter_validity(arr.validity(), selection.values());
+
+    Ok(BooleanArray::new(values, validity))
 }
 
 pub fn filter_primitive<T: Copy>(
@@ -67,16 +81,17 @@ pub fn filter_primitive<T: Copy>(
         ));
     }
 
-    // TODO: validity
-
     let values_iter = arr.values().as_ref().iter();
     let select_iter = selection.values().iter();
 
-    let iter = values_iter
+    let values: Vec<_> = values_iter
         .zip(select_iter)
-        .filter_map(|(v, take)| if take { Some(*v) } else { None });
+        .filter_map(|(v, take)| if take { Some(*v) } else { None })
+        .collect();
 
-    let arr = PrimitiveArray::from_iter(iter);
+    let validity = filter_validity(arr.validity(), selection.values());
+
+    let arr = PrimitiveArray::new(values, validity);
 
     Ok(arr)
 }
@@ -91,18 +106,29 @@ pub fn filter_varlen<T: VarlenType + ?Sized, O: OffsetIndex>(
         ));
     }
 
-    // TODO: Validity
-
     let values_iter = arr.values_iter();
     let select_iter = selection.values().iter();
 
-    let iter = values_iter
+    let values: VarlenValuesBuffer<O> = values_iter
         .zip(select_iter)
-        .filter_map(|(v, take)| if take { Some(v) } else { None });
+        .filter_map(|(v, take)| if take { Some(v) } else { None })
+        .collect();
 
-    let arr = VarlenArray::from_iter(iter);
+    let validity = filter_validity(arr.validity(), selection.values());
+
+    let arr = VarlenArray::new(values, validity);
 
     Ok(arr)
+}
+
+fn filter_validity(validity: Option<&Bitmap>, selection: &Bitmap) -> Option<Bitmap> {
+    validity.map(|validity| {
+        validity
+            .iter()
+            .zip(selection.iter())
+            .filter_map(|(v, take)| if take { Some(v) } else { None })
+            .collect()
+    })
 }
 
 #[cfg(test)]
@@ -128,6 +154,16 @@ mod tests {
 
         let filtered = filter_varlen(&arr, &selection).unwrap();
         let expected = Utf8Array::from_iter(["aaa", "ccc"]);
+        assert_eq!(expected, filtered);
+    }
+
+    #[test]
+    fn filter_primitive_with_nulls() {
+        let arr = Int32Array::from_iter([Some(6), Some(7), None, None]);
+        let selection = BooleanArray::from_iter([true, false, true, false]);
+
+        let filtered = filter_primitive(&arr, &selection).unwrap();
+        let expected = Int32Array::from_iter([Some(6), None]);
         assert_eq!(expected, filtered);
     }
 }

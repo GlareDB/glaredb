@@ -1,3 +1,4 @@
+use crate::execution::operators::PollFinalize;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
@@ -100,11 +101,12 @@ impl PhysicalOperator for PhysicalLocalSort {
         }
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::LocalSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -142,7 +144,7 @@ impl PhysicalOperator for PhysicalLocalSort {
                 // Update partition state to "producing" using the merger.
                 *state = LocalSortPartitionState::Producing { merger };
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             LocalSortPartitionState::Producing { .. } => {
                 panic!("attempted to finalize partition that's already producing data")
@@ -233,7 +235,11 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .finalize_push(&mut partition_states[0], &operator_state)
+            .poll_finalize_push(
+                &mut push_cx.context(),
+                &mut partition_states[0],
+                &operator_state,
+            )
             .unwrap();
 
         // Now pull.
@@ -271,7 +277,11 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .finalize_push(&mut partition_states[0], &operator_state)
+            .poll_finalize_push(
+                &mut push_cx.context(),
+                &mut partition_states[0],
+                &operator_state,
+            )
             .unwrap();
 
         // Now pull.
@@ -309,7 +319,11 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .finalize_push(&mut partition_states[0], &operator_state)
+            .poll_finalize_push(
+                &mut push_cx.context(),
+                &mut partition_states[0],
+                &operator_state,
+            )
             .unwrap();
 
         // Now pull.

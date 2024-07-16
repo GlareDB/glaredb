@@ -4,11 +4,12 @@ use crate::{
     parser::Parser,
 };
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr};
 
 /// A single node in an ORDER BY clause.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrderByNode<T: AstMeta> {
     pub typ: Option<OrderByType>,
     pub nulls: Option<OrderByNulls>,
@@ -39,19 +40,19 @@ impl AstParseable for OrderByNode<Raw> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OrderByType {
     Asc,
     Desc,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OrderByNulls {
     First,
     Last,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LimitModifier<T: AstMeta> {
     pub limit: Option<Expr<T>>,
     pub offset: Option<Expr<T>>,
@@ -79,7 +80,7 @@ impl AstParseable for LimitModifier<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DistinctModifier<T: AstMeta> {
     On(Vec<Expr<T>>),
     All,

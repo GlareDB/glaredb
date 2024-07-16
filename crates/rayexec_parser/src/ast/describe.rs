@@ -1,10 +1,11 @@
 use crate::meta::{AstMeta, Raw};
 use crate::{keywords::Keyword, parser::Parser};
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, FromNode, QueryNode};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Describe<T: AstMeta> {
     /// DESCRIBE <query>
     Query(QueryNode<T>),

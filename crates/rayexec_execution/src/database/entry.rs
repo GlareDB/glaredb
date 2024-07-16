@@ -1,8 +1,9 @@
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::functions::{
-    aggregate::AggregateFunction, scalar::ScalarFunction, table::GenericTableFunction,
+    aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
 };
 
 #[derive(Debug, Clone)]
@@ -27,7 +28,7 @@ impl From<FunctionEntry> for CatalogEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableEntry {
     pub name: String,
     pub columns: Vec<Field>,
@@ -43,5 +44,5 @@ pub struct FunctionEntry {
 pub enum FunctionImpl {
     Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn AggregateFunction>),
-    Table(Box<dyn GenericTableFunction>),
+    Table(Box<dyn TableFunction>),
 }

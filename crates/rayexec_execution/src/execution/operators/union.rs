@@ -4,7 +4,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::{Context, Waker};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct UnionTopPartitionState {
@@ -136,18 +136,19 @@ impl PhysicalOperator for PhysicalUnion {
         }
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::UnionTop(state) => {
                 state.finished = true;
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
 
             PartitionState::UnionBottom(state) => {
@@ -163,7 +164,7 @@ impl PhysicalOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
 
             other => panic!("invalid partition state: {other:?}"),

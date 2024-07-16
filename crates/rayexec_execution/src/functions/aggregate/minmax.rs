@@ -8,6 +8,7 @@ use rayexec_bullet::{
     scalar::interval::Interval,
 };
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, vec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,6 +29,13 @@ impl FunctionInfo for Min {
 }
 
 impl AggregateFunction for Min {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(MinImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
@@ -46,7 +54,7 @@ impl AggregateFunction for Min {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
-            | DataType::Timestamp(_) => Ok(Box::new(MinPrimitiveImpl {
+            | DataType::Timestamp(_) => Ok(Box::new(MinImpl {
                 datatype: inputs[0].clone(),
             })),
             other => Err(invalid_input_types_error(self, &[other])),
@@ -72,6 +80,13 @@ impl FunctionInfo for Max {
 }
 
 impl AggregateFunction for Max {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(MaxImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
@@ -90,7 +105,7 @@ impl AggregateFunction for Max {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
-            | DataType::Timestamp(_) => Ok(Box::new(MaxPrimitiveImpl {
+            | DataType::Timestamp(_) => Ok(Box::new(MaxImpl {
                 datatype: inputs[0].clone(),
             })),
             other => Err(invalid_input_types_error(self, &[other])),
@@ -174,14 +189,18 @@ fn create_timestamp_grouped_state<S: AggregateState<i64, i64> + Send + 'static>(
     ))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MinPrimitiveImpl {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MinImpl {
     datatype: DataType,
 }
 
-impl PlannedAggregateFunction for MinPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "min_primitive_impl"
+impl PlannedAggregateFunction for MinImpl {
+    fn aggregate_function(&self) -> &dyn AggregateFunction {
+        &Min
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -218,14 +237,18 @@ impl PlannedAggregateFunction for MinPrimitiveImpl {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaxPrimitiveImpl {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MaxImpl {
     datatype: DataType,
 }
 
-impl PlannedAggregateFunction for MaxPrimitiveImpl {
-    fn name(&self) -> &'static str {
-        "max_primitive_impl"
+impl PlannedAggregateFunction for MaxImpl {
+    fn aggregate_function(&self) -> &dyn AggregateFunction {
+        &Max
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

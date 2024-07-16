@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 
-use crate::ast::{CommonTableExpr, DataType, FunctionArg, Ident, ObjectReference};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use crate::ast::{CommonTableExpr, CopyToTarget, DataType, FunctionArg, Ident, ObjectReference};
 
 /// Metadata associated with sql statements.
 ///
@@ -13,32 +15,34 @@ use crate::ast::{CommonTableExpr, DataType, FunctionArg, Ident, ObjectReference}
 /// resolved tables and types.
 pub trait AstMeta: Clone {
     /// Name of a data source for ATTACH.
-    type DataSourceName: Debug + Clone + PartialEq;
+    type DataSourceName: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
-    type ItemReference: Debug + Clone + PartialEq;
+    type ItemReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
-    type TableReference: Debug + Clone + PartialEq;
+    type TableReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a table function.
-    type TableFunctionReference: Debug + Clone + PartialEq;
+    type TableFunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Arguments to a table function.
-    type TableFunctionArguments: Debug + Clone + PartialEq;
+    type TableFunctionArguments: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
-    type CteReference: Debug + Clone + PartialEq;
+    type CteReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a scalar or aggregate function.
-    type FunctionReference: Debug + Clone + PartialEq;
+    type FunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// Reference to a column.
-    type ColumnReference: Debug + Clone + PartialEq;
+    type ColumnReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     /// A data type.
-    type DataType: Debug + Clone + PartialEq;
+    type DataType: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+
+    type CopyToDestination: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 }
 
 /// The raw representation of a statement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Raw;
 
 impl AstMeta for Raw {
@@ -51,4 +55,5 @@ impl AstMeta for Raw {
     type FunctionReference = ObjectReference;
     type ColumnReference = Ident;
     type DataType = DataType;
+    type CopyToDestination = CopyToTarget;
 }

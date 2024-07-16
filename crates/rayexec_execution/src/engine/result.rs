@@ -10,7 +10,10 @@ use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 
 use crate::{
-    execution::{operators::PollPush, query_graph::sink::PartitionSink},
+    execution::{
+        operators::{PollFinalize, PollPush},
+        query_graph::sink::PartitionSink,
+    },
     runtime::{ErrorSink, QueryHandle},
 };
 
@@ -145,14 +148,14 @@ impl PartitionSink for ResultAdapterSink {
         Ok(PollPush::Pushed)
     }
 
-    fn finalize_push(&mut self) -> Result<()> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
         let mut state = self.state.lock();
         state.finished = true;
         if let Some(waker) = state.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 }
 

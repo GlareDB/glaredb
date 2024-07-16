@@ -1,9 +1,13 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::compute::cast::format::{Formatter, IntervalFormatter};
 
 /// A representation of an interval with nanosecond resolution.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct Interval {
     pub months: i32,
     pub days: i32,

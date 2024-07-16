@@ -19,12 +19,13 @@ use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, Timesta
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt;
 use timestamp::TimestampScalar;
 
 /// A single scalar value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScalarValue<'a> {
     Null,
     Boolean(bool),

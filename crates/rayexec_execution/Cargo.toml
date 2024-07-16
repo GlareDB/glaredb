@@ -8,6 +8,7 @@ rayexec_error = { path = "../rayexec_error" }
 rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_io = { path = "../rayexec_io" }
+rayexec_server_client = { path = "../rayexec_server_client" }
 fmtutil = { path = "../fmtutil" }
 
 ahash = { workspace = true }
@@ -25,4 +26,6 @@ tracing = { workspace = true }
 half = "2.4.1"
 tokio = { workspace = true, default-features = false }
 regex = { workspace = true }
+serde = { workspace = true }
+erased-serde = { workspace = true }
 rand = "0.8.5"

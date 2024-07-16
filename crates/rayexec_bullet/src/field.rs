@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::datatype::DataType;
 
 /// A named field.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Field {
     pub name: String,
     pub datatype: DataType,
@@ -21,7 +23,7 @@ impl Field {
 /// Represents the full schema of an output batch.
 ///
 /// Includes the names and nullability of each of the columns.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Schema {
     pub fields: Vec<Field>,
 }
@@ -72,7 +74,7 @@ impl Schema {
 }
 
 /// Represents the output types of a batch.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema {
     pub types: Vec<DataType>,
 }

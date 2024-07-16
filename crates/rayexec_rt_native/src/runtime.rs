@@ -1,18 +1,16 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{
-    filesystem::FileSystemProvider,
-    http::{HttpClient, ReqwestClient},
-};
+use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
 
 use crate::{
-    filesystem::LocalFileSystemProvider, http::WrappedReqwestClient, threaded::ThreadedScheduler,
+    filesystem::LocalFileSystemProvider, http::WrappedReqwestClientReader,
+    threaded::ThreadedScheduler,
 };
 
 /// Inner behavior of the execution runtime.
@@ -89,19 +87,40 @@ impl<S: Scheduler + 'static> ExecutionRuntime for NativeExecutionRuntime<S> {
         self.tokio.as_ref().map(|rt| rt.handle().clone())
     }
 
-    fn http_client(&self) -> Result<Arc<dyn HttpClient>> {
-        match &self.tokio {
-            Some(tokio) => Ok(Arc::new(WrappedReqwestClient {
-                inner: ReqwestClient::default(),
-                handle: tokio.handle().clone(),
+    fn file_provider(&self) -> Arc<dyn FileProvider> {
+        Arc::new(NativeFileProvider {
+            handle: self.tokio_handle(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NativeFileProvider {
+    /// For http (reqwest).
+    ///
+    /// If we don't have it, we return an error when attempting to access an
+    /// http file.
+    handle: Option<tokio::runtime::Handle>,
+}
+
+impl FileProvider for NativeFileProvider {
+    fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>> {
+        match (location, self.handle.as_ref()) {
+            (FileLocation::Url(url), Some(handle)) => Ok(Box::new(WrappedReqwestClientReader {
+                inner: ReqwestClient::default().reader(url),
+                handle: handle.clone(),
             })),
-            None => Err(RayexecError::new(
+            (FileLocation::Url(_), None) => Err(RayexecError::new(
                 "Cannot create http client, missing tokio runtime",
             )),
+            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_source(&path),
         }
     }
 
-    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>> {
-        Ok(Arc::new(LocalFileSystemProvider))
+    fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>> {
+        match (location, self.handle.as_ref()) {
+            (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
+            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
+        }
     }
 }

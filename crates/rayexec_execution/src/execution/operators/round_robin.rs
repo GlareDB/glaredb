@@ -12,6 +12,8 @@ use crate::execution::operators::{
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
+use super::PollFinalize;
+
 /// Create the appropriate states for the round robin repartition operator.
 pub fn round_robin_states(
     input_partitions: usize,
@@ -144,11 +146,12 @@ impl PhysicalOperator for PhysicalRoundRobinRepartition {
         Ok(PollPush::Pushed)
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let operator_state = match operator_state {
             OperatorState::RoundRobin(state) => state,
             other => panic!("invalid operator state: {other:?}"),
@@ -179,7 +182,7 @@ impl PhysicalOperator for PhysicalRoundRobinRepartition {
             }
         }
 
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 
     fn poll_pull(

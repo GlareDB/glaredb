@@ -1,5 +1,6 @@
+use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use rayexec_error::{ Result, RayexecError };
 
 use crate::{
     keywords::Keyword,
@@ -9,13 +10,13 @@ use crate::{
 
 use super::{AstParseable, Expr, Ident, ObjectReference};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachType {
     Database,
     Table,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Attach<T: AstMeta> {
     pub datasource_name: T::DataSourceName,
     pub attach_type: AttachType,
@@ -61,7 +62,7 @@ impl AstParseable for Attach<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Detach<T: AstMeta> {
     pub attach_type: AttachType,
     pub alias: T::ItemReference,

@@ -6,8 +6,10 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
+rayexec_server_client = { path = '../rayexec_server_client' }
 rayexec_bullet = { path = '../rayexec_bullet' }
 futures = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["sync"] }
+url = { workspace = true }

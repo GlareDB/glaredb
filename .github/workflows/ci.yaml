@@ -23,6 +23,9 @@ jobs:
       - name: SLTs Parquet
         run: cargo test slt_datasource_parquet
 
+      - name: SLTs CSV
+        run: cargo test slt_datasource_csv
+
       - name: SLTs Postgres
         run: |
           ./scripts/create-test-postgres-db.sh
@@ -32,7 +35,7 @@ jobs:
         run: cargo clippy --all --all-features -- --deny warnings
 
   wasm:
-    name: "Build wasm"
+    name: Build wasm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -43,3 +46,27 @@ jobs:
 
       - name: Build wasm
         run: wasm-pack build crates/rayexec_wasm/ --scope glaredb
+
+  docker:
+    name: Build and push docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure gcloud docker
+        run: gcloud auth configure-docker -q
+
+      - name: Build and push docker image
+        run: |
+          docker build . -t gcr.io/glaredb-artifacts/rayexec-dev
+          docker push gcr.io/glaredb-artifacts/rayexec-dev

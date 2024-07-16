@@ -1,6 +1,6 @@
 use crate::{
     database::table::DataTableScan,
-    functions::table::InitializedTableFunction,
+    functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::ExecutionRuntime,
 };
@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::Context;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct TableFunctionPartitionState {
@@ -18,11 +18,11 @@ pub struct TableFunctionPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
-    function: Box<dyn InitializedTableFunction>,
+    function: Box<dyn PlannedTableFunction>,
 }
 
 impl PhysicalTableFunction {
-    pub fn new(function: Box<dyn InitializedTableFunction>) -> Self {
+    pub fn new(function: Box<dyn PlannedTableFunction>) -> Self {
         PhysicalTableFunction { function }
     }
 
@@ -57,11 +57,12 @@ impl PhysicalOperator for PhysicalTableFunction {
         Err(RayexecError::new("Cannot push to physical table function"))
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical table function"))
     }
 

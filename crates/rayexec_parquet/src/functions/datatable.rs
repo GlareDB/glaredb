@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
     fmt::{self, Debug},
-    marker::PhantomData,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -13,47 +12,24 @@ use rayexec_error::Result;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
+    runtime::ExecutionRuntime,
 };
-use rayexec_io::AsyncReader;
-
-/// Helper trait for generating a reader per partition.
-pub trait ReaderBuilder<R: AsyncReader>: Sync + Send + Debug {
-    /// Creates a new reader for reading a parquet file.
-    fn new_reader(&self) -> Result<R>;
-}
+use rayexec_io::FileLocation;
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
 #[derive(Debug)]
-pub struct RowGroupPartitionedDataTable<B, R> {
-    reader_builder: B,
-    metadata: Arc<Metadata>,
-    schema: Schema,
-
-    _reader: PhantomData<R>,
+pub struct RowGroupPartitionedDataTable {
+    pub metadata: Arc<Metadata>,
+    pub schema: Schema,
+    pub location: FileLocation,
+    pub runtime: Arc<dyn ExecutionRuntime>,
 }
 
-impl<B, R> RowGroupPartitionedDataTable<B, R>
-where
-    B: ReaderBuilder<R>,
-    R: AsyncReader + 'static,
-{
-    pub fn new(reader_builder: B, metadata: Arc<Metadata>, schema: Schema) -> Self {
-        RowGroupPartitionedDataTable {
-            reader_builder,
-            metadata,
-            schema,
-            _reader: PhantomData,
-        }
-    }
-}
-
-impl<B, R> DataTable for RowGroupPartitionedDataTable<B, R>
-where
-    B: ReaderBuilder<R>,
-    R: AsyncReader + 'static,
-{
+impl DataTable for RowGroupPartitionedDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+        let file_provider = self.runtime.file_provider();
+
         let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];
 
         // Split row groups into individual partitions.
@@ -65,7 +41,7 @@ where
         let readers = partitioned_row_groups
             .into_iter()
             .map(|row_groups| {
-                let reader = self.reader_builder.new_reader()?;
+                let reader = file_provider.file_source(self.location.clone())?;
                 const BATCH_SIZE: usize = 2048; // TODO
                 AsyncBatchReader::try_new(
                     reader,

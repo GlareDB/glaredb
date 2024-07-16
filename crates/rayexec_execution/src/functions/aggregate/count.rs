@@ -5,6 +5,7 @@ use rayexec_bullet::{
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use std::vec;
 
 use crate::functions::{FunctionInfo, Signature};
@@ -29,6 +30,13 @@ impl FunctionInfo for Count {
 }
 
 impl AggregateFunction for Count {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(CountNonNullImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
@@ -40,7 +48,7 @@ impl AggregateFunction for Count {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CountNonNullImpl;
 
 impl CountNonNullImpl {
@@ -63,8 +71,12 @@ impl CountNonNullImpl {
 }
 
 impl PlannedAggregateFunction for CountNonNullImpl {
-    fn name(&self) -> &'static str {
-        "count_non_null_impl"
+    fn aggregate_function(&self) -> &dyn AggregateFunction {
+        &Count
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

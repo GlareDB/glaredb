@@ -26,6 +26,13 @@ impl FunctionInfo for StructPack {
 }
 
 impl ScalarFunction for StructPack {
+    fn state_deserialize(
+        &self,
+        _deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        unimplemented!()
+    }
+
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         Ok(Box::new(StructPackDynamic))
     }
@@ -40,7 +47,11 @@ impl ScalarFunction for StructPack {
 pub struct StructPackDynamic;
 
 impl PlannedScalarFunction for StructPackDynamic {
-    fn name(&self) -> &'static str {
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &StructPack
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
         unimplemented!()
     }
 
@@ -89,6 +100,13 @@ impl FunctionInfo for StructExtract {
 }
 
 impl ScalarFunction for StructExtract {
+    fn state_deserialize(
+        &self,
+        _deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        unimplemented!()
+    }
+
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unimplemented!()
     }

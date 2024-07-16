@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::task::Context;
 use std::{
     fmt::{self, Debug},
@@ -8,28 +9,14 @@ use futures::stream::{BoxStream, StreamExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_execution::database::table::EmptyTableScan;
+use rayexec_execution::runtime::ExecutionRuntime;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
 };
-use rayexec_io::AsyncReader;
+use rayexec_io::FileLocation;
 
 use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
-
-// TODO: This is a common trait between parquet/csv. I think there's a way to
-// unify these somehow to have it more integrated into the data source
-// interface.
-//
-// Currently we need to implement this for file sources and http sources which
-// isn't amazing.
-//
-// Also we're having to get the reader twice, once when getting the
-// schema/metadata, and another we build the actual scan. This is mostly due to
-// mutability limitations right now, and might be solved by just having the
-// `DataTable` interface table mutable references to allow for reader reuse.
-pub trait ReaderBuilder: Sync + Send + Debug {
-    fn new_reader(&self) -> Result<Box<dyn AsyncReader>>;
-}
 
 /// Data table implementation that reads from a single file.
 ///
@@ -42,12 +29,16 @@ pub trait ReaderBuilder: Sync + Send + Debug {
 pub struct SingleFileCsvDataTable {
     pub options: DialectOptions,
     pub csv_schema: CsvSchema,
-    pub reader_builder: Box<dyn ReaderBuilder>,
+    pub location: FileLocation,
+    pub runtime: Arc<dyn ExecutionRuntime>,
 }
 
 impl DataTable for SingleFileCsvDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let reader = self.reader_builder.new_reader()?;
+        let reader = self
+            .runtime
+            .file_provider()
+            .file_source(self.location.clone())?;
         let csv_reader = AsyncCsvReader::new(reader, self.csv_schema.clone(), self.options);
         let stream = csv_reader.into_stream().boxed();
 

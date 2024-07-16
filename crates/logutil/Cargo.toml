@@ -1,0 +1,8 @@
+[package]
+name = "logutil"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tracing = { workspace = true }
+tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }

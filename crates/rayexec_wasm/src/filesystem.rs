@@ -6,14 +6,12 @@ use futures::{
 };
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{
-    filesystem::{FileReader, FileSystemProvider},
-    AsyncReader,
-};
+use rayexec_io::{FileSink, FileSource};
 use std::{
     collections::HashMap,
     path::{Component, Path},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -28,7 +26,7 @@ use std::{
 #[derive(Debug, Default)]
 pub struct WasmMemoryFileSystem {
     /// A simple file name -> file bytes mapping.
-    files: Mutex<HashMap<String, Bytes>>,
+    files: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
 impl WasmMemoryFileSystem {
@@ -43,8 +41,8 @@ impl WasmMemoryFileSystem {
     }
 }
 
-impl FileSystemProvider for WasmMemoryFileSystem {
-    fn reader(&self, path: &Path) -> Result<Box<dyn FileReader>> {
+impl WasmMemoryFileSystem {
+    pub fn file_source(&self, path: &Path) -> Result<Box<dyn FileSource>> {
         let name = get_normalized_file_name(path)?;
         let content = self
             .files
@@ -55,6 +53,15 @@ impl FileSystemProvider for WasmMemoryFileSystem {
 
         Ok(Box::new(WasmMemoryFile { content }))
     }
+
+    pub fn file_sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
+        let name = get_normalized_file_name(path)?;
+        Ok(Box::new(WasmMemoryFileSink {
+            name: name.to_string(),
+            buf: Vec::new(),
+            files: self.files.clone(),
+        }))
+    }
 }
 
 #[derive(Debug)]
@@ -62,7 +69,7 @@ pub struct WasmMemoryFile {
     content: Bytes,
 }
 
-impl AsyncReader for WasmMemoryFile {
+impl FileSource for WasmMemoryFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let result = if start + len > self.content.len() {
             Err(RayexecError::new("Byte range out of bounds"))
@@ -80,12 +87,30 @@ impl AsyncReader for WasmMemoryFile {
         }
         .boxed()
     }
-}
 
-impl FileReader for WasmMemoryFile {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
         let size = self.content.len();
         async move { Ok(size) }.boxed()
+    }
+}
+
+#[derive(Debug)]
+pub struct WasmMemoryFileSink {
+    name: String,
+    buf: Vec<u8>,
+    files: Arc<Mutex<HashMap<String, Bytes>>>,
+}
+
+impl FileSink for WasmMemoryFileSink {
+    fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>> {
+        self.buf.extend_from_slice(buf.as_ref());
+        async { Ok(()) }.boxed()
+    }
+
+    fn finish(&mut self) -> BoxFuture<'static, Result<()>> {
+        let bytes = Bytes::from(std::mem::take(&mut self.buf));
+        self.files.lock().insert(self.name.clone(), bytes);
+        async { Ok(()) }.boxed()
     }
 }
 

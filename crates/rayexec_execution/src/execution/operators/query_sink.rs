@@ -4,7 +4,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub struct QuerySinkPartitionState {
@@ -37,17 +37,18 @@ impl PhysicalOperator for PhysicalQuerySink {
         state.sink.poll_push(cx, batch)
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::QuerySink(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        state.sink.finalize_push()
+        state.sink.poll_finalize_push(cx)
     }
 
     fn poll_pull(

@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod copy;
 pub mod implicit;
 pub mod scalar;
 pub mod table;
@@ -113,6 +114,20 @@ pub trait FunctionInfo {
         CandidateSignature::find_candidates(inputs, self.signatures())
     }
 }
+
+// pub trait SerializableFunction {
+//     /// Name of the function inside the catalog.
+//     ///
+//     /// This is used to "tag" the function during serialization so we know which
+//     /// function to try to deserialize to.
+//     // TODO: This may need to change to be more specific if we allow adding
+//     // functions outside the 'glare_catalog' schema.
+//     fn catalog_name(&self) -> &'static str;
+
+//     fn serialize_data<S>(&self, serializer: S) -> Result<(), S::Error>
+//     where
+//         S: Serializer;
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CastType {

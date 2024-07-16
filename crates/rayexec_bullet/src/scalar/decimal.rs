@@ -1,5 +1,6 @@
 use num::{PrimInt, Signed};
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 
 /// Default scale to use for decimals if one isn't provided.
@@ -66,7 +67,7 @@ impl DecimalType for Decimal128Type {
 }
 
 /// Represents a single decimal value.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct DecimalScalar<T: DecimalType> {
     pub precision: u8,
     pub scale: i8,

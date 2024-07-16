@@ -1,6 +1,6 @@
 use crate::{
     ast::{
-        AstParseable, Attach, CreateSchema, CreateTable, Describe, Detach, DropStatement,
+        AstParseable, Attach, CopyTo, CreateSchema, CreateTable, Describe, Detach, DropStatement,
         ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
@@ -83,6 +83,7 @@ impl Parser {
                 match keyword {
                     Keyword::ATTACH => Ok(RawStatement::Attach(Attach::parse(self)?)),
                     Keyword::DETACH => Ok(RawStatement::Detach(Detach::parse(self)?)),
+                    Keyword::COPY => Ok(RawStatement::CopyTo(CopyTo::parse(self)?)),
                     Keyword::CREATE => self.parse_create(),
                     Keyword::DROP => Ok(RawStatement::Drop(DropStatement::parse(self)?)),
                     Keyword::SET => Ok(RawStatement::SetVariable(SetVariable::parse(self)?)),

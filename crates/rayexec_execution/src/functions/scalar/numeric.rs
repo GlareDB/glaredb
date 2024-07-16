@@ -4,6 +4,7 @@ use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionI
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -32,6 +33,13 @@ impl FunctionInfo for IsNan {
 }
 
 impl ScalarFunction for IsNan {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(IsNanImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
@@ -41,12 +49,16 @@ impl ScalarFunction for IsNan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IsNanImpl;
 
 impl PlannedScalarFunction for IsNanImpl {
-    fn name(&self) -> &'static str {
-        "isnan_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &IsNan
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -96,6 +108,13 @@ impl FunctionInfo for Ceil {
 }
 
 impl ScalarFunction for Ceil {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(CeilImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
@@ -107,14 +126,18 @@ impl ScalarFunction for Ceil {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CeilImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for CeilImpl {
-    fn name(&self) -> &'static str {
-        "ceil_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Ceil
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -160,6 +183,13 @@ impl FunctionInfo for Floor {
 }
 
 impl ScalarFunction for Floor {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(FloorImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
@@ -171,14 +201,18 @@ impl ScalarFunction for Floor {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FloorImpl {
     datatype: DataType,
 }
 
 impl PlannedScalarFunction for FloorImpl {
-    fn name(&self) -> &'static str {
-        "floor_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Floor
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

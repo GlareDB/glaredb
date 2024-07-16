@@ -5,10 +5,11 @@ use crate::{
     tokens::Token,
 };
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateTable<T: AstMeta> {
     pub or_replace: bool,
     pub if_not_exists: bool,
@@ -62,14 +63,14 @@ impl AstParseable for CreateTable<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDef<T: AstMeta> {
     pub name: T::ColumnReference,
     pub datatype: T::DataType,
     pub opts: Vec<ColumnOption>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ColumnOption {
     Null,
     NotNull,

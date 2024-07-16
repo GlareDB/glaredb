@@ -2,8 +2,9 @@ use super::{AstParseable, Expr};
 use crate::parser::Parser;
 use crate::{keywords::Keyword, tokens::Token};
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DataType {
     /// VARCHAR, VARCHAR(10), TEXT, STRING
     Varchar(Option<u64>),

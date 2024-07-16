@@ -5,10 +5,11 @@ use crate::{
     tokens::Token,
 };
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByNode, SelectNode};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryNode<T: AstMeta> {
     pub ctes: Option<CommonTableExprDefs<T>>,
     pub body: QueryNodeBody<T>,
@@ -61,7 +62,7 @@ impl QueryNode<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum QueryNodeBody<T: AstMeta> {
     Select(Box<SelectNode<T>>),
     Nested(Box<QueryNode<T>>),
@@ -122,14 +123,14 @@ impl QueryNodeBody<Raw> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SetOperation {
     Union,
     Except,
     Intersect,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Values<T: AstMeta> {
     pub rows: Vec<Vec<Expr<T>>>,
 }

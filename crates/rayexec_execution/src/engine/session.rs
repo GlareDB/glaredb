@@ -3,6 +3,7 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
+use rayexec_server_client::HybridClient;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -25,15 +26,54 @@ use super::{
     DataSourceRegistry,
 };
 
+/// A "client" session capable of executing queries from arbitrary sql
+/// statements.
+///
+/// The general flow of execution follows the postgres extended protocol, with
+/// the flow being:
+///
+/// 1. Receive sql statement, parse.
+/// 2. Prepare parsed sql statement.
+/// 3. Move prepared statement to portal.
+/// 4. Executed statement inside portal.
+/// 5. Stream results...
+///
+/// The `simple` method can take care of all of these steps, letting
+/// you go from a sql statement to the result stream(s).
+///
+/// Note that most methods take a mutable reference. This is by design. We don't
+/// want to lock any of the internal structures. During parsing or planning.
+/// This does mean that synchronization has to happen at a higher level, either
+/// by keeping the session directly on a stream (postgres protocol) or wrapping
+/// in a mutex.
+///
+/// If the session is wrapped in a mutex, the lock can be safely dropped once
+/// the `ExecutionResult`s are returned. This allows not having to hold the lock
+/// during actual execution (pulling on the stream) as execution is completely
+/// independent of any state inside the session.
 #[derive(Debug)]
 pub struct Session {
+    /// Context containg everything in the "database" that's visible to this
+    /// session.
     context: DatabaseContext,
+
+    /// Variables for this session.
     vars: SessionVars,
+
+    /// Reference configured data source implementations.
     registry: Arc<DataSourceRegistry>,
+
+    /// Reference to runtime for executing queries.
     runtime: Arc<dyn ExecutionRuntime>,
 
+    /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
+
+    /// Portals for statements ready to be executed.
     portals: HashMap<String, Portal>,
+
+    /// Client for hybrid execution if enabled.
+    hybrid_client: Option<HybridClient>,
 }
 
 impl Session {
@@ -49,6 +89,7 @@ impl Session {
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),
             portals: HashMap::new(),
+            hybrid_client: None,
         }
     }
 
@@ -115,6 +156,11 @@ impl Session {
         )
         .bind_statement(stmt)
         .await?;
+
+        if bind_data.any_unbound() && self.hybrid_client.is_some() {
+            // Hybrid
+        }
+
         let (mut logical, context) =
             PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
 
@@ -195,6 +241,14 @@ impl Session {
             stream: adapter_stream,
             handle,
         })
+    }
+
+    pub fn attach_hybrid_client(&mut self, client: HybridClient) {
+        self.hybrid_client = Some(client);
+    }
+
+    pub fn detach_hybrid_client(&mut self) {
+        self.hybrid_client = None;
     }
 }
 

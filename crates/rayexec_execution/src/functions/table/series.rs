@@ -11,24 +11,40 @@ use rayexec_bullet::{
     field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 use std::{sync::Arc, task::Context};
 
-use super::{
-    GenericTableFunction, InitializedTableFunction, SpecializedTableFunction, TableFunctionArgs,
-};
+use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;
 
-impl GenericTableFunction for GenerateSeries {
+impl TableFunction for GenerateSeries {
     fn name(&self) -> &'static str {
         "generate_series"
     }
 
-    fn specialize(&self, args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
+    fn plan_and_initialize(
+        &self,
+        _runtime: &Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(async move { Self::plan_and_initialize_inner(args) })
+    }
+
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(GenerateSeriesI64::deserialize(deserializer)?))
+    }
+}
+
+impl GenerateSeries {
+    fn plan_and_initialize_inner(args: TableFunctionArgs) -> Result<Box<dyn PlannedTableFunction>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
-                "read_postgres does not accept named arguments",
+                "generate_series does not accept named arguments",
             ));
         }
 
@@ -60,29 +76,20 @@ impl GenericTableFunction for GenerateSeries {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenerateSeriesI64 {
     start: i64,
     stop: i64,
     step: i64,
 }
 
-impl SpecializedTableFunction for GenerateSeriesI64 {
-    fn name(&self) -> &'static str {
-        "generate_series"
-    }
-
-    fn initialize(
-        self: Box<Self>,
-        _runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
-        Box::pin(async move { Ok(self as _) })
-    }
-}
-
-impl InitializedTableFunction for GenerateSeriesI64 {
-    fn specialized(&self) -> &dyn SpecializedTableFunction {
+impl PlannedTableFunction for GenerateSeriesI64 {
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
         self
+    }
+
+    fn table_function(&self) -> &dyn TableFunction {
+        &GenerateSeries
     }
 
     fn schema(&self) -> Schema {

@@ -1,8 +1,10 @@
 pub mod result;
+pub mod server_session;
 pub mod session;
 pub mod vars;
 
 use rayexec_error::Result;
+use server_session::ServerSession;
 use session::Session;
 use std::sync::Arc;
 
@@ -42,6 +44,15 @@ impl Engine {
     pub fn new_session(&self) -> Result<Session> {
         let context = DatabaseContext::new(self.system_catalog.clone());
         Ok(Session::new(
+            context,
+            self.runtime.clone(),
+            self.registry.clone(),
+        ))
+    }
+
+    pub fn new_server_session(&self) -> Result<ServerSession> {
+        let context = DatabaseContext::new(self.system_catalog.clone());
+        Ok(ServerSession::new(
             context,
             self.runtime.clone(),
             self.registry.clone(),

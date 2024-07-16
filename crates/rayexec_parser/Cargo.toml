@@ -7,6 +7,7 @@ edition = { workspace = true }
 rayexec_error = { path = '../rayexec_error' }
 unicase = "2.7.0"
 tracing = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

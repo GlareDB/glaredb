@@ -14,3 +14,6 @@ regex = { workspace = true }
 url = { workspace = true }
 bytes = { workspace = true }
 csv-core = "0.1.11"
+csv = "1.3.0"
+serde = { workspace = true }
+erased-serde = { workspace = true }

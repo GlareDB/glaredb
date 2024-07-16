@@ -145,7 +145,7 @@ impl fmt::Display for LogicalExpression {
             } => write!(
                 f,
                 "{}({})",
-                function.name(),
+                function.scalar_function().name(),
                 inputs
                     .iter()
                     .map(|input| input.to_string())
@@ -165,7 +165,7 @@ impl fmt::Display for LogicalExpression {
                 write!(
                     f,
                     "{}({})",
-                    agg.name(),
+                    agg.aggregate_function().name(),
                     inputs
                         .iter()
                         .map(|input| input.to_string())
@@ -351,6 +351,7 @@ impl LogicalExpression {
                 LogicalOperator::ShowVar(_) => (),
                 LogicalOperator::ResetVar(_) => (),
                 LogicalOperator::Insert(_) => (),
+                LogicalOperator::CopyTo(_) => (),
                 LogicalOperator::CreateSchema(_) => (),
                 LogicalOperator::CreateTable(_) => (),
                 LogicalOperator::CreateTableAs(_) => (),

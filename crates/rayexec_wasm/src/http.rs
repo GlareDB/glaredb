@@ -5,37 +5,20 @@ use futures::{
     Stream,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::{
-    http::{HttpClient, ReqwestClient, ReqwestClientReader},
-    AsyncReader, FileSource,
-};
+use rayexec_io::{http::ReqwestClientReader, FileSource};
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 use tracing::debug;
-use url::Url;
-
-#[derive(Debug)]
-pub struct WrappedReqwestClient {
-    pub inner: ReqwestClient,
-}
-
-impl HttpClient for WrappedReqwestClient {
-    fn reader(&self, url: Url) -> Box<dyn FileSource> {
-        Box::new(WrappedReqwestClientReader {
-            inner: self.inner.reader(url),
-        })
-    }
-}
 
 #[derive(Debug)]
 pub struct WrappedReqwestClientReader {
     pub inner: ReqwestClientReader,
 }
 
-impl AsyncReader for WrappedReqwestClientReader {
+impl FileSource for WrappedReqwestClientReader {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let fut = self.inner.read_range(start, len);
         let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
@@ -69,9 +52,7 @@ impl AsyncReader for WrappedReqwestClientReader {
 
         FakeSendStream { stream }.boxed()
     }
-}
 
-impl FileSource for WrappedReqwestClientReader {
     fn size(&mut self) -> BoxFuture<Result<usize>> {
         let fut = self.inner.content_length();
         let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };

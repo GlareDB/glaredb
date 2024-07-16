@@ -7,19 +7,16 @@ use bytes::Bytes;
 use futures::future::{self, BoxFuture, FutureExt};
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
-use rayexec_error::{RayexecError, Result};
-use rayexec_io::{
-    filesystem::{FileReader, FileSystemProvider},
-    AsyncReader,
-};
-use std::io::{Read, Seek, SeekFrom};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_io::{FileSink, FileSource};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 
 /// Standard file system access, nothing special.
 #[derive(Debug, Clone, Copy)]
 pub struct LocalFileSystemProvider;
 
-impl FileSystemProvider for LocalFileSystemProvider {
-    fn reader(&self, path: &Path) -> Result<Box<dyn FileReader>> {
+impl LocalFileSystemProvider {
+    pub fn file_source(&self, path: &Path) -> Result<Box<dyn FileSource>> {
         let file = OpenOptions::new().read(true).open(path).map_err(|e| {
             RayexecError::with_source(
                 format!(
@@ -34,6 +31,27 @@ impl FileSystemProvider for LocalFileSystemProvider {
 
         Ok(Box::new(LocalFile { len, file }))
     }
+
+    pub fn file_sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .map_err(|e| {
+                RayexecError::with_source(
+                    format!(
+                        "Failed to open file for writing at location: {}",
+                        path.to_string_lossy()
+                    ),
+                    Box::new(e),
+                )
+            })?;
+
+        Ok(Box::new(LocalFileSink {
+            file: BufWriter::new(file),
+        }))
+    }
 }
 
 #[derive(Debug)]
@@ -42,17 +60,11 @@ pub struct LocalFile {
     file: File,
 }
 
-impl FileReader for LocalFile {
-    fn size(&mut self) -> BoxFuture<Result<usize>> {
-        async move { Ok(self.len) }.boxed()
-    }
-}
-
 /// Implementation of async reading on top of a file.
 ///
 /// Note that we're not using tokio's async read+sync traits as the
 /// implementation for files will attempt to spawn the read on a block thread.
-impl AsyncReader for LocalFile {
+impl FileSource for LocalFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let mut buf = vec![0; len];
         let result = read_at(&mut self.file, start, &mut buf);
@@ -73,6 +85,30 @@ impl AsyncReader for LocalFile {
             len: self.len,
         }
         .boxed()
+    }
+
+    fn size(&mut self) -> BoxFuture<Result<usize>> {
+        async move { Ok(self.len) }.boxed()
+    }
+}
+
+#[derive(Debug)]
+pub struct LocalFileSink {
+    file: BufWriter<File>,
+}
+
+impl FileSink for LocalFileSink {
+    fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>> {
+        let result = self
+            .file
+            .write_all(buf.as_ref())
+            .context("failed to write buffer");
+        async move { result }.boxed()
+    }
+
+    fn finish(&mut self) -> BoxFuture<'static, Result<()>> {
+        let result = self.file.flush().context("failed to flush");
+        async move { result }.boxed()
     }
 }
 

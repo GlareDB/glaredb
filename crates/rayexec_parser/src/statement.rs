@@ -1,19 +1,24 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     ast::{
-        Attach, CreateSchema, CreateTable, Describe, Detach, DropStatement, ExplainNode, Insert,
-        QueryNode, ResetVariable, SetVariable, ShowVariable,
+        Attach, CopyTo, CreateSchema, CreateTable, Describe, Detach, DropStatement, ExplainNode,
+        Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     meta::{AstMeta, Raw},
 };
 
 pub type RawStatement = Statement<Raw>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement<T: AstMeta> {
     Attach(Attach<T>),
     Detach(Detach<T>),
 
     Explain(ExplainNode<T>),
+
+    /// COPY <table> TO <file>
+    CopyTo(CopyTo<T>),
 
     /// DESCRIBE <table>
     /// DESCRIBE <query>

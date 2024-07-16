@@ -4,10 +4,11 @@ use crate::{
     parser::Parser,
 };
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, ObjectReference};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DropType {
     Index,
     Function,
@@ -16,14 +17,14 @@ pub enum DropType {
     Schema,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum DropDependents {
     #[default]
     Restrict,
     Cascade,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DropStatement<T: AstMeta> {
     pub drop_type: DropType,
     pub if_exists: bool,

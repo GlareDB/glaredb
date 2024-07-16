@@ -5,7 +5,8 @@ use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
     field::TypeSchema,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     functions::{
@@ -44,9 +45,15 @@ impl FunctionInfo for Like {
 }
 
 impl ScalarFunction for Like {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(LikeImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        // TODO: Non-const like functions
-        unimplemented!()
+        unreachable!("plan_from_expressions implemented")
     }
 
     fn plan_from_expressions(
@@ -89,33 +96,70 @@ impl ScalarFunction for Like {
                 // '%search'
                 (Some((0, _)), None, None) => {
                     let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(EndsWithConstantImpl { pattern }))
+                    Ok(Box::new(EndsWithImpl {
+                        constant: Some(pattern),
+                    }))
                 }
                 // 'search%'
                 (Some((n, _)), None, None)
                     if n == pattern.len() - 1 && pattern.as_bytes()[n - 1] != escape_char =>
                 {
                     let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(StartsWithConstantImpl { pattern }))
+                    Ok(Box::new(StartsWithImpl {
+                        constant: Some(pattern),
+                    }))
                 }
                 // '%search%'
                 (Some((0, _)), Some((n, _)), None)
                     if n == pattern.len() - 1 && pattern.as_bytes()[n - 1] != escape_char =>
                 {
                     let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(ContainsConstantImpl { pattern }))
+                    Ok(Box::new(ContainsImpl {
+                        constant: Some(pattern),
+                    }))
                 }
                 // 'search'
                 // aka just equals
                 (None, None, None) => Ok(Box::new(EqImpl)),
                 other => {
                     // TODO: Regex
-                    unimplemented!("{other:?}")
+                    not_implemented!("string search {other:?}")
                 }
             }
         } else {
             // TODO: Non-constant variants
-            unimplemented!()
+            not_implemented!("non-constant string search")
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LikeImpl {
+    StartsWith(StartsWithImpl),
+    EndsWith(EndsWithImpl),
+    Contains(ContainsImpl),
+    Regex(),
+}
+
+impl PlannedScalarFunction for LikeImpl {
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Like
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        match self {
+            Self::StartsWith(f) => f.execute(inputs),
+            Self::EndsWith(f) => f.execute(inputs),
+            Self::Contains(f) => f.execute(inputs),
+            Self::Regex() => not_implemented!("like regex exec"),
         }
     }
 }
@@ -145,22 +189,35 @@ impl FunctionInfo for StartsWith {
 }
 
 impl ScalarFunction for StartsWith {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(StartsWithImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
-                Ok(Box::new(StartsWithImpl))
+                Ok(Box::new(StartsWithImpl { constant: None }))
             }
             _ => Err(invalid_input_types_error(self, inputs)),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StartsWithImpl;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StartsWithImpl {
+    constant: Option<String>,
+}
 
 impl PlannedScalarFunction for StartsWithImpl {
-    fn name(&self) -> &'static str {
-        "starts_with_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &StartsWith
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -168,43 +225,26 @@ impl PlannedScalarFunction for StartsWithImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-            (Array::Utf8(a), Array::Utf8(b)) => {
-                primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
-            }
-            (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
-                primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
-            }
-            _ => return Err(RayexecError::new("invalid types")),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StartsWithConstantImpl {
-    pattern: String,
-}
-
-impl PlannedScalarFunction for StartsWithConstantImpl {
-    fn name(&self) -> &'static str {
-        "starts_with_constant_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        let arr = inputs[0].as_ref();
-        Ok(match arr {
-            Array::Utf8(arr) => {
-                primitive_unary_execute_bool!(arr, |s| s.starts_with(&self.pattern))
-            }
-            Array::LargeUtf8(arr) => {
-                primitive_unary_execute_bool!(arr, |s| s.starts_with(&self.pattern))
-            }
-            other => panic!("unexpected array type: {}", other.datatype()),
-        })
+        match self.constant.as_ref() {
+            Some(constant) => Ok(match inputs[0].as_ref() {
+                Array::Utf8(arr) => {
+                    primitive_unary_execute_bool!(arr, |s| s.starts_with(constant))
+                }
+                Array::LargeUtf8(arr) => {
+                    primitive_unary_execute_bool!(arr, |s| s.starts_with(constant))
+                }
+                other => panic!("unexpected array type: {}", other.datatype()),
+            }),
+            None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
+                (Array::Utf8(a), Array::Utf8(b)) => {
+                    primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
+                }
+                (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                    primitive_binary_execute_bool!(a, b, |a, b| a.starts_with(b))
+                }
+                _ => return Err(RayexecError::new("invalid types")),
+            }),
+        }
     }
 }
 
@@ -233,22 +273,35 @@ impl FunctionInfo for EndsWith {
 }
 
 impl ScalarFunction for EndsWith {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(EndsWithImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
-                Ok(Box::new(EndsWithImpl))
+                Ok(Box::new(EndsWithImpl { constant: None }))
             }
             _ => Err(invalid_input_types_error(self, inputs)),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EndsWithImpl;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EndsWithImpl {
+    constant: Option<String>,
+}
 
 impl PlannedScalarFunction for EndsWithImpl {
-    fn name(&self) -> &'static str {
-        "ends_with_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &EndsWith
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -256,43 +309,26 @@ impl PlannedScalarFunction for EndsWithImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-            (Array::Utf8(a), Array::Utf8(b)) => {
-                primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
-            }
-            (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
-                primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
-            }
-            _ => return Err(RayexecError::new("invalid types")),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EndsWithConstantImpl {
-    pattern: String,
-}
-
-impl PlannedScalarFunction for EndsWithConstantImpl {
-    fn name(&self) -> &'static str {
-        "ends_with_constant_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        let arr = inputs[0].as_ref();
-        Ok(match arr {
-            Array::Utf8(arr) => {
-                primitive_unary_execute_bool!(arr, |s| s.ends_with(&self.pattern))
-            }
-            Array::LargeUtf8(arr) => {
-                primitive_unary_execute_bool!(arr, |s| s.ends_with(&self.pattern))
-            }
-            other => panic!("unexpected array type: {}", other.datatype()),
-        })
+        match self.constant.as_ref() {
+            Some(constant) => Ok(match inputs[0].as_ref() {
+                Array::Utf8(arr) => {
+                    primitive_unary_execute_bool!(arr, |s| s.ends_with(constant))
+                }
+                Array::LargeUtf8(arr) => {
+                    primitive_unary_execute_bool!(arr, |s| s.ends_with(constant))
+                }
+                other => panic!("unexpected array type: {}", other.datatype()),
+            }),
+            None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
+                (Array::Utf8(a), Array::Utf8(b)) => {
+                    primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
+                }
+                (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                    primitive_binary_execute_bool!(a, b, |a, b| a.ends_with(b))
+                }
+                _ => return Err(RayexecError::new("invalid types")),
+            }),
+        }
     }
 }
 
@@ -321,22 +357,35 @@ impl FunctionInfo for Contains {
 }
 
 impl ScalarFunction for Contains {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(ContainsImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
-                Ok(Box::new(ContainsWithImpl))
+                Ok(Box::new(ContainsImpl { constant: None }))
             }
             _ => Err(invalid_input_types_error(self, inputs)),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ContainsWithImpl;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContainsImpl {
+    constant: Option<String>,
+}
 
-impl PlannedScalarFunction for ContainsWithImpl {
-    fn name(&self) -> &'static str {
-        "contains_impl"
+impl PlannedScalarFunction for ContainsImpl {
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Contains
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -344,42 +393,25 @@ impl PlannedScalarFunction for ContainsWithImpl {
     }
 
     fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
-            (Array::Utf8(a), Array::Utf8(b)) => {
-                primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
-            }
-            (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
-                primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
-            }
-            _ => return Err(RayexecError::new("invalid types")),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContainsConstantImpl {
-    pattern: String,
-}
-
-impl PlannedScalarFunction for ContainsConstantImpl {
-    fn name(&self) -> &'static str {
-        "contains_constant_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        let arr = inputs[0].as_ref();
-        Ok(match arr {
-            Array::Utf8(arr) => {
-                primitive_unary_execute_bool!(arr, |s| s.contains(&self.pattern))
-            }
-            Array::LargeUtf8(arr) => {
-                primitive_unary_execute_bool!(arr, |s| s.contains(&self.pattern))
-            }
-            other => panic!("unexpected array type: {}", other.datatype()),
-        })
+        match self.constant.as_ref() {
+            Some(constant) => Ok(match inputs[0].as_ref() {
+                Array::Utf8(arr) => {
+                    primitive_unary_execute_bool!(arr, |s| s.contains(constant))
+                }
+                Array::LargeUtf8(arr) => {
+                    primitive_unary_execute_bool!(arr, |s| s.contains(constant))
+                }
+                other => panic!("unexpected array type: {}", other.datatype()),
+            }),
+            None => Ok(match (inputs[0].as_ref(), inputs[1].as_ref()) {
+                (Array::Utf8(a), Array::Utf8(b)) => {
+                    primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
+                }
+                (Array::LargeUtf8(a), Array::LargeUtf8(b)) => {
+                    primitive_binary_execute_bool!(a, b, |a, b| a.contains(b))
+                }
+                _ => return Err(RayexecError::new("invalid types")),
+            }),
+        }
     }
 }

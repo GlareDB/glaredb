@@ -5,10 +5,11 @@ use crate::{
     tokens::Token,
 };
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, ObjectReference};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SetVariable<T: AstMeta> {
     pub reference: T::ItemReference,
     pub value: Expr<T>,
@@ -33,7 +34,7 @@ impl AstParseable for SetVariable<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShowVariable<T: AstMeta> {
     pub reference: T::ItemReference,
 }
@@ -46,13 +47,13 @@ impl AstParseable for ShowVariable<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum VariableOrAll<T: AstMeta> {
     Variable(T::ItemReference),
     All,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResetVariable<T: AstMeta> {
     pub var: VariableOrAll<T>,
 }

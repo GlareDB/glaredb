@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use libtest_mimic::{Arguments, Trial};
+use rand::{distributions::Alphanumeric, Rng};
 use rayexec_bullet::{
     batch::Batch,
     datatype::DataType,
@@ -14,12 +15,89 @@ use rayexec_execution::{
 };
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use sqllogictest::DefaultColumnType;
-use std::{fs, sync::Arc};
+use std::{collections::HashMap, fs, sync::Arc};
 use std::{
+    fmt,
     path::{Path, PathBuf},
     time::Duration,
 };
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+/// Variables that can be referenced in sql queries and automatically replaced
+/// with concrete values.
+///
+/// Variable format in sql queries: __MYVARIABLE__
+///
+/// When adding a variable, they'll automatically be uppercased and surrounded
+/// with understores.
+///
+/// See default implementation for predefined variables.
+///
+/// A new instance of these variables is created for each file run.
+#[derive(Debug, Clone)]
+pub struct ReplacementVars {
+    vars: HashMap<String, String>,
+}
+
+impl Default for ReplacementVars {
+    fn default() -> Self {
+        let mut vars = ReplacementVars {
+            vars: HashMap::new(),
+        };
+
+        let s: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+
+        // Dir (relative to test_bin) where tests can write temp files for
+        // things like COPY TO.
+        vars.add_var("SLT_TMP", format!("../slt_tmp/{s}"));
+
+        vars
+    }
+}
+
+impl ReplacementVars {
+    pub fn add_var(&mut self, key: &str, val: impl Into<String>) {
+        let key = format!("__{}__", key.to_uppercase());
+        self.vars.insert(key, val.into());
+    }
+
+    fn replace_in_query(&self, query: impl Into<String>, conf: &RunConfig) -> Result<String> {
+        let mut query = query.into();
+
+        for (k, v) in &self.vars {
+            if k == "__SLT_TMP__" && conf.create_slt_tmp {
+                std::fs::create_dir_all(v).context("failed to create slt tmp dir")?
+            }
+
+            query = query.replace(k, v);
+        }
+
+        Ok(query)
+    }
+}
+
+impl fmt::Display for ReplacementVars {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (k, v) in &self.vars {
+            writeln!(f, "{k} = {v}")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RunConfig {
+    /// Create the slt tmp dir that the variable '__SLT_TMP__' points to.
+    ///
+    /// If false, the directory won't be created, but the '__SLT_TMP__' will
+    /// still be populated, which allows for testing if a certain action can
+    /// create a directory.
+    pub create_slt_tmp: bool,
+}
 
 /// Run all SLTs from the provided paths.
 ///
@@ -30,7 +108,12 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 /// associated session) for just the file. An engine runtime will be provided.
 ///
 /// `kind` should be used to group these SLTs together.
-pub fn run<F>(paths: impl IntoIterator<Item = PathBuf>, engine_fn: F, kind: &str) -> Result<()>
+pub fn run<F>(
+    paths: impl IntoIterator<Item = PathBuf>,
+    engine_fn: F,
+    conf: RunConfig,
+    kind: &str,
+) -> Result<()>
 where
     F: Fn(Arc<dyn ExecutionRuntime>) -> Result<Engine> + Clone + Send + 'static,
 {
@@ -64,12 +147,13 @@ where
             let test_name = test_name.trim_start_matches("../");
             let rt = rt.clone();
             let engine_fn = engine_fn.clone();
+            let conf = conf.clone();
             Trial::test(test_name, move || {
                 match rt
                     .clone()
                     .tokio_handle()
                     .expect("tokio to be configured")
-                    .block_on(run_test(path, rt, engine_fn))
+                    .block_on(run_test(path, rt, engine_fn, conf))
                 {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
@@ -112,39 +196,48 @@ async fn run_test(
     path: impl AsRef<Path>,
     rt: Arc<dyn ExecutionRuntime>,
     engine_fn: impl Fn(Arc<dyn ExecutionRuntime>) -> Result<Engine>,
+    conf: RunConfig,
 ) -> Result<()> {
     let path = path.as_ref();
 
     let mut runner = sqllogictest::Runner::new(|| async {
         let engine = engine_fn(rt.clone())?;
         let session = engine.new_session()?;
-        Ok(TestSession { session, engine })
+
+        let replacement_vars = ReplacementVars::default();
+
+        Ok(TestSession {
+            conf: conf.clone(),
+            replacement_vars,
+            session,
+            engine,
+        })
     });
     runner
         .run_file_async(path)
         .await
-        .map_err(|e| RayexecError::with_source("Failed to run SLT".to_string(), Box::new(e)))?;
+        .context("Failed to run SLT")?;
     Ok(())
 }
 
 #[derive(Debug)]
 #[allow(dead_code)]
 struct TestSession {
+    conf: RunConfig,
+    replacement_vars: ReplacementVars,
     engine: Engine,
     session: Session,
 }
 
-#[async_trait]
-impl sqllogictest::AsyncDB for TestSession {
-    type Error = RayexecError;
-    type ColumnType = DefaultColumnType;
-
-    async fn run(
+impl TestSession {
+    async fn run_inner(
         &mut self,
         sql: &str,
-    ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
+    ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, RayexecError> {
+        let sql = self.replacement_vars.replace_in_query(sql, &self.conf)?;
+
         let mut rows = Vec::new();
-        let mut results = self.session.simple(sql).await?;
+        let mut results = self.session.simple(&sql).await?;
         if results.len() != 1 {
             return Err(RayexecError::new(format!(
                 "Unexpected number of results for '{sql}': {}",
@@ -176,6 +269,25 @@ impl sqllogictest::AsyncDB for TestSession {
         }
 
         Ok(sqllogictest::DBOutput::Rows { types: typs, rows })
+    }
+}
+
+#[async_trait]
+impl sqllogictest::AsyncDB for TestSession {
+    type Error = RayexecError;
+    type ColumnType = DefaultColumnType;
+
+    async fn run(
+        &mut self,
+        sql: &str,
+    ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
+        match self.run_inner(sql).await {
+            Ok(cols) => Ok(cols),
+            Err(e) => Err(RayexecError::with_source(
+                format!("Variables:\n{}", self.replacement_vars),
+                Box::new(e),
+            )),
+        }
     }
 
     fn engine_name(&self) -> &str {

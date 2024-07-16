@@ -1,0 +1,15 @@
+# Basic COPY TO statements
+
+statement ok
+COPY (select 1 as a, 2 as b) TO '__SLT_TMP__/myfile.csv'
+
+query TT
+describe '__SLT_TMP__/myfile.csv'
+----
+a  Int64
+b  Int64
+
+query II
+select * from '__SLT_TMP__/myfile.csv'
+----
+1  2

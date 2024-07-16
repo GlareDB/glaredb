@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use dump::QueryDump;
-use rayexec_error::{RayexecError, Result};
-use rayexec_io::{filesystem::FileSystemProvider, http::HttpClient};
+use rayexec_error::RayexecError;
+use rayexec_io::FileProvider;
 
 use crate::execution::query_graph::QueryGraph;
 
@@ -51,13 +51,9 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     /// None.
     fn tokio_handle(&self) -> Option<tokio::runtime::Handle>;
 
-    /// Get a new http client.
-    ///
-    /// May error if prereqs aren't met for creating an http client.
-    fn http_client(&self) -> Result<Arc<dyn HttpClient>>;
-
-    /// Get a reference to the filesystem.
-    fn filesystem(&self) -> Result<Arc<dyn FileSystemProvider>>;
+    /// Returns a file provider that's able to construct file sources and sinks
+    /// depending a location.
+    fn file_provider(&self) -> Arc<dyn FileProvider>;
 }
 
 pub trait QueryHandle: Debug + Sync + Send {

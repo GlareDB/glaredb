@@ -2,6 +2,7 @@ use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::{Array, PrimitiveArray};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::{PlannedScalarFunction, ScalarFunction};
@@ -24,18 +25,29 @@ impl FunctionInfo for Random {
 }
 
 impl ScalarFunction for Random {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(RandomImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 0)?;
         Ok(Box::new(RandomImpl))
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomImpl;
 
 impl PlannedScalarFunction for RandomImpl {
-    fn name(&self) -> &'static str {
-        "random_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Random
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

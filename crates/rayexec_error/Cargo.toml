@@ -4,4 +4,4 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-parquet = { workspace = true }
+erased-serde = { workspace = true }

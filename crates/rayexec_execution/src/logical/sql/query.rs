@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::{
     aggregate::AggregatePlanner,
-    binder::{BindData, Bound, BoundCteReference, BoundTableOrCteReference},
+    binder::{BindData, Bound, BoundCteReference, TableOrCteReference},
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,
     scope::{ColumnRef, Scope, TableReference},
@@ -328,8 +328,8 @@ impl<'a> QueryNodePlanner<'a> {
         // Plan the "body" of the FROM.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                match reference {
-                    BoundTableOrCteReference::Table {
+                match self.bind_data.get_bound_table(reference)? {
+                    TableOrCteReference::Table {
                         catalog,
                         schema,
                         entry,
@@ -349,15 +349,15 @@ impl<'a> QueryNodePlanner<'a> {
                         );
                         LogicalQuery {
                             root: LogicalOperator::Scan(Scan {
-                                catalog,
-                                schema,
-                                source: entry,
+                                catalog: catalog.clone(),
+                                schema: schema.clone(),
+                                source: entry.clone(),
                             }),
                             scope,
                         }
                     }
-                    BoundTableOrCteReference::Cte(bound) => {
-                        self.plan_cte_body(context, bound, current_schema, current_scope)?
+                    TableOrCteReference::Cte(bound) => {
+                        self.plan_cte_body(context, *bound, current_schema, current_scope)?
                     }
                 }
             }
@@ -373,11 +373,18 @@ impl<'a> QueryNodePlanner<'a> {
                 };
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    reference.func.schema().fields.into_iter().map(|f| f.name),
+                    reference
+                        .func
+                        .as_ref()
+                        .unwrap()
+                        .schema()
+                        .fields
+                        .into_iter()
+                        .map(|f| f.name),
                 );
 
                 let operator = LogicalOperator::TableFunction(TableFunction {
-                    function: reference.func,
+                    function: reference.func.unwrap(),
                 });
 
                 LogicalQuery {

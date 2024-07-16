@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    binder::{BindData, Bound, BoundTableOrCteReference},
+    binder::{BindData, Bound, TableOrCteReference},
     expr::ExpressionContext,
     scope::Scope,
 };
@@ -15,9 +15,9 @@ use crate::{
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
-            AttachDatabase, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
-            Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, SetVar, ShowVar,
-            VariableOrAll,
+            AttachDatabase, CopyTo, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
+            Explain, ExplainFormat, Insert, LogicalOperator, Projection, ResetVar, Scan, SetVar,
+            ShowVar, VariableOrAll,
         },
         sql::query::QueryNodePlanner,
     },
@@ -98,6 +98,7 @@ impl<'a> PlanContext<'a> {
                 let mut planner = QueryNodePlanner::new(self.bind_data);
                 planner.plan_query(&mut context, query)?
             }
+            Statement::CopyTo(copy_to) => self.plan_copy_to(&mut context, copy_to)?,
             Statement::CreateTable(create) => self.plan_create_table(&mut context, create)?,
             Statement::CreateSchema(create) => self.plan_create_schema(create)?,
             Statement::Drop(drop) => self.plan_drop(drop)?,
@@ -242,6 +243,55 @@ impl<'a> PlanContext<'a> {
         }
     }
 
+    fn plan_copy_to(
+        &mut self,
+        context: &mut QueryContext,
+        copy_to: ast::CopyTo<Bound>,
+    ) -> Result<LogicalQuery> {
+        let source = match copy_to.source {
+            ast::CopyToSource::Query(query) => {
+                let mut planner = QueryNodePlanner::new(self.bind_data);
+                planner.plan_query(context, query)?
+            }
+            ast::CopyToSource::Table(table) => {
+                let (catalog, schema, ent) = match self.bind_data.get_bound_table(table)? {
+                    TableOrCteReference::Table {
+                        catalog,
+                        schema,
+                        entry,
+                    } => (catalog, schema, entry),
+                    TableOrCteReference::Cte(_) => {
+                        // Shouldn't be possible.
+                        return Err(RayexecError::new("Cannot COPY from CTE"));
+                    }
+                };
+
+                let scope = Scope::with_columns(None, ent.columns.iter().map(|f| f.name.clone()));
+
+                LogicalQuery {
+                    root: LogicalOperator::Scan(Scan {
+                        catalog: catalog.clone(),
+                        schema: schema.clone(),
+                        source: ent.clone(),
+                    }),
+                    scope,
+                }
+            }
+        };
+
+        let source_schema = source.schema()?;
+
+        Ok(LogicalQuery {
+            root: LogicalOperator::CopyTo(CopyTo {
+                source: Box::new(source.root),
+                source_schema,
+                location: copy_to.target.location,
+                copy_to: copy_to.target.func.unwrap(), // TODO, remove unwrap when serialization works
+            }),
+            scope: Scope::empty(),
+        })
+    }
+
     fn plan_insert(
         &mut self,
         context: &mut QueryContext,
@@ -250,11 +300,9 @@ impl<'a> PlanContext<'a> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
 
-        let entry = match insert.table {
-            BoundTableOrCteReference::Table { entry, .. } => entry,
-            BoundTableOrCteReference::Cte(_) => {
-                return Err(RayexecError::new("Cannot insert into CTE"))
-            }
+        let entry = match self.bind_data.get_bound_table(insert.table)? {
+            TableOrCteReference::Table { entry, .. } => entry,
+            TableOrCteReference::Cte(_) => return Err(RayexecError::new("Cannot insert into CTE")), // Shouldn't be possible.
         };
 
         let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));
@@ -267,7 +315,7 @@ impl<'a> PlanContext<'a> {
 
         Ok(LogicalQuery {
             root: LogicalOperator::Insert(Insert {
-                table: entry,
+                table: entry.clone(),
                 input: Box::new(input),
             }),
             scope: Scope::empty(),

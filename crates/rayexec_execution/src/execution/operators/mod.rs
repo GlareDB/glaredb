@@ -1,5 +1,6 @@
 //! Implementations of physical operators in an execution pipeline.
 
+pub mod copy_to;
 pub mod create_schema;
 pub mod create_table;
 pub mod drop;
@@ -26,6 +27,7 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use copy_to::CopyToPartitionState;
 use create_schema::CreateSchemaPartitionState;
 use create_table::{CreateTableOperatorState, CreateTablePartitionState};
 use drop::DropPartitionState;
@@ -91,6 +93,7 @@ pub enum PartitionState {
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
     Insert(InsertPartitionState),
+    CopyTo(CopyToPartitionState),
     CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
     Drop(DropPartitionState),
@@ -156,6 +159,12 @@ pub enum PollPull {
     Exhausted,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum PollFinalize {
+    Finalized,
+    Pending,
+}
+
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     /// Try to push a batch for this partition.
     fn poll_push(
@@ -170,11 +179,12 @@ pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
     ///
     /// This indicates the operator will receive no more input for a given
     /// partition, allowing the operator to execution some finalization logic.
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()>;
+    ) -> Result<PollFinalize>;
 
     /// Try to pull a batch for this partition.
     fn poll_pull(

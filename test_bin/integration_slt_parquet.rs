@@ -1,5 +1,6 @@
 use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine};
 use rayexec_parquet::ParquetDataSource;
+use rayexec_slt::RunConfig;
 use std::path::Path;
 
 pub fn main() {
@@ -13,6 +14,7 @@ pub fn main() {
                     .with_datasource("parquet", Box::new(ParquetDataSource))?,
             )
         },
+        RunConfig::default(),
         "slt_datasource_parquet",
     )
     .unwrap();

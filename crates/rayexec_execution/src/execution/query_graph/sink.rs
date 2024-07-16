@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use std::task::Context;
 
-use crate::execution::operators::PollPush;
+use crate::execution::operators::{PollFinalize, PollPush};
 
 /// Where query results should be written.
 #[derive(Debug)]
@@ -46,5 +46,5 @@ pub trait PartitionSink: Sync + Send + Debug {
     fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
 
     /// Finalize the push.
-    fn finalize_push(&mut self) -> Result<()>;
+    fn poll_finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }

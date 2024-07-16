@@ -1,18 +1,23 @@
+pub mod copy_to;
 pub mod datatable;
 pub mod reader;
+pub mod writer;
 
 mod decoder;
 mod read_csv;
 
+use copy_to::CsvCopyToFunction;
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::catalog::Catalog, datasource::DataSource, functions::table::GenericTableFunction,
+    database::catalog::Catalog,
+    datasource::{DataSource, FileHandler},
+    functions::table::TableFunction,
     runtime::ExecutionRuntime,
 };
 use read_csv::ReadCsv;
-use regex::{Regex, RegexBuilder};
+use regex::RegexBuilder;
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,15 +36,20 @@ impl DataSource for CsvDataSource {
         })
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadCsv)]
     }
 
-    fn file_handlers(&self) -> Vec<(Regex, Box<dyn GenericTableFunction>)> {
-        let file_regex = RegexBuilder::new(r"^.*\.(csv)$")
+    fn file_handlers(&self) -> Vec<FileHandler> {
+        let regex = RegexBuilder::new(r"^.*\.(csv)$")
             .case_insensitive(true)
             .build()
             .expect("regex to build");
-        vec![(file_regex, Box::new(ReadCsv))]
+
+        vec![FileHandler {
+            regex,
+            table_func: Box::new(ReadCsv),
+            copy_to: Some(Box::new(CsvCopyToFunction)),
+        }]
     }
 }

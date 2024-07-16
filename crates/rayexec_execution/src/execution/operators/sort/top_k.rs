@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use std::task::Context;
 
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -36,11 +36,12 @@ impl PhysicalOperator for PhysicalTopK {
         unimplemented!()
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         unimplemented!()
     }
 

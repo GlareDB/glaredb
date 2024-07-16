@@ -47,15 +47,7 @@ impl fmt::Display for PipelineDump {
 
         writeln!(f, "PARTITIONS")?;
         for (partition, dump) in &self.partitions {
-            write!(f, "[{partition:>2}] ")?;
-            match &dump.timings.completed {
-                Some(completed) => {
-                    let dur =
-                        completed.duration_since(dump.timings.start.expect("start to be set"));
-                    writeln!(f, "completed: {}ms", dur.as_millis())?;
-                }
-                None => writeln!(f, "incomplete: {:?}", dump.state)?,
-            }
+            write!(f, "[{partition:>2}] {:?}", dump.state)?;
         }
 
         Ok(())

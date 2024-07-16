@@ -1,5 +1,8 @@
 # Cargo target directories.
 /*target
 
+# Temp dir for slts
+/slt_tmp
+
 # Outputs from cargo flamegraph
 flamegraph.svg

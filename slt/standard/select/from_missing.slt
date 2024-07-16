@@ -1,0 +1,6 @@
+# Assert error messages when trying to select from tables that don't exist.
+
+statement error Unable to find table or view for 'table_does_not_exist'
+select * from table_does_not_exist
+
+

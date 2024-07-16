@@ -13,6 +13,7 @@ use crate::database::create::{
 use crate::database::ddl::CatalogModifier;
 use crate::database::drop::{DropInfo, DropObject};
 use crate::database::entry::{CatalogEntry, TableEntry};
+use crate::execution::operators::PollFinalize;
 use crate::{
     database::table::{DataTable, DataTableInsert, DataTableScan},
     execution::operators::{PollPull, PollPush},
@@ -301,9 +302,9 @@ impl DataTableInsert for MemoryDataTableInsert {
         Ok(PollPush::NeedsMore)
     }
 
-    fn finalize(&mut self) -> Result<()> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
         let mut data = self.data.lock();
         data.append(&mut self.collected);
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 }

@@ -3,7 +3,7 @@ use parquet::file::{
     metadata::ParquetMetaData,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::AsyncReader;
+use rayexec_io::FileSource;
 use tracing::trace;
 
 #[derive(Debug, Clone)]
@@ -13,7 +13,7 @@ pub struct Metadata {
 
 impl Metadata {
     /// Loads parquet metadata from an async source.
-    pub async fn load_from(reader: &mut impl AsyncReader, size: usize) -> Result<Self> {
+    pub async fn load_from(reader: &mut dyn FileSource, size: usize) -> Result<Self> {
         if size < 8 {
             return Err(RayexecError::new("File size is too small"));
         }

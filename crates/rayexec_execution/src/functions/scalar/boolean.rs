@@ -5,6 +5,7 @@ use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -26,6 +27,13 @@ impl FunctionInfo for And {
 }
 
 impl ScalarFunction for And {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(AndImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -35,12 +43,16 @@ impl ScalarFunction for And {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AndImpl;
 
 impl PlannedScalarFunction for AndImpl {
-    fn name(&self) -> &'static str {
-        "and_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &And
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {
@@ -79,6 +91,13 @@ impl FunctionInfo for Or {
 }
 
 impl ScalarFunction for Or {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(OrImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
@@ -88,12 +107,16 @@ impl ScalarFunction for Or {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrImpl;
 
 impl PlannedScalarFunction for OrImpl {
-    fn name(&self) -> &'static str {
-        "or_impl"
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Or
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
 
     fn return_type(&self) -> DataType {

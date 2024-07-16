@@ -1,20 +1,19 @@
 use futures::{future::BoxFuture, StreamExt};
 use rayexec_bullet::field::Schema;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{
-        check_named_args_is_empty, GenericTableFunction, InitializedTableFunction,
-        SpecializedTableFunction, TableFunctionArgs,
+        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
     },
     runtime::ExecutionRuntime,
 };
-use rayexec_io::{filesystem::FileSystemProvider, AsyncReader};
-use std::{path::PathBuf, sync::Arc};
-use url::Url;
+use rayexec_io::{FileLocation, FileSource};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{
-    datatable::{ReaderBuilder, SingleFileCsvDataTable},
+    datatable::SingleFileCsvDataTable,
     decoder::{CsvDecoder, DecoderState},
     reader::{CsvSchema, DialectOptions},
 };
@@ -22,7 +21,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadCsv;
 
-impl GenericTableFunction for ReadCsv {
+impl TableFunction for ReadCsv {
     fn name(&self) -> &'static str {
         "read_csv"
     }
@@ -31,55 +30,47 @@ impl GenericTableFunction for ReadCsv {
         &["csv_scan"]
     }
 
-    fn specialize(&self, mut args: TableFunctionArgs) -> Result<Box<dyn SpecializedTableFunction>> {
-        check_named_args_is_empty(self, &args)?;
+    fn plan_and_initialize<'a>(
+        &'a self,
+        runtime: &'a Arc<dyn ExecutionRuntime>,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(ReadCsvImpl::initialize(runtime.as_ref(), args))
+    }
+
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(ReadCsvImpl::deserialize(deserializer)?))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ReadCsvImpl {
+    location: FileLocation,
+    csv_schema: CsvSchema,
+    dialect: DialectOptions,
+}
+
+impl ReadCsvImpl {
+    async fn initialize(
+        runtime: &dyn ExecutionRuntime,
+        mut args: TableFunctionArgs,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
+        check_named_args_is_empty(&ReadCsv, &args)?;
         if args.positional.len() != 1 {
             return Err(RayexecError::new("Expected one argument"));
         }
 
         // TODO: Glob, dispatch to object storage/http impls
 
-        let path = args.positional.pop().unwrap().try_into_string()?;
+        let location = args.positional.pop().unwrap().try_into_string()?;
+        let location = FileLocation::parse(&location);
 
-        match Url::parse(&path) {
-            Ok(_) => not_implemented!("remote csv"),
-            Err(_) => {
-                // Assume file.
-                Ok(Box::new(ReadCsvLocal {
-                    path: PathBuf::from(path),
-                }))
-            }
-        }
-    }
-}
+        let mut source = runtime.file_provider().file_source(location.clone())?;
 
-#[derive(Debug, Clone)]
-struct ReadCsvLocal {
-    path: PathBuf,
-}
-
-impl SpecializedTableFunction for ReadCsvLocal {
-    fn name(&self) -> &'static str {
-        "read_csv_local"
-    }
-
-    fn initialize(
-        self: Box<Self>,
-        runtime: &Arc<dyn ExecutionRuntime>,
-    ) -> BoxFuture<Result<Box<dyn InitializedTableFunction>>> {
-        Box::pin(async move { self.initialize_inner(runtime.as_ref()).await })
-    }
-}
-
-impl ReadCsvLocal {
-    async fn initialize_inner(
-        self,
-        runtime: &dyn ExecutionRuntime,
-    ) -> Result<Box<dyn InitializedTableFunction>> {
-        let fs = runtime.filesystem()?;
-        let mut file = fs.reader(&self.path)?;
-
-        let mut stream = file.read_stream();
+        let mut stream = source.read_stream();
         // TODO: Actually make sure this is a sufficient size to infer from.
         // TODO: This throws away the buffer after inferring.
         let infer_buf = match stream.next().await {
@@ -95,44 +86,28 @@ impl ReadCsvLocal {
             None => return Err(RayexecError::new("Stream returned no data")),
         };
 
-        let options = DialectOptions::infer_from_sample(&infer_buf)?;
-        let mut decoder = CsvDecoder::new(options);
+        let dialect = DialectOptions::infer_from_sample(&infer_buf)?;
+        let mut decoder = CsvDecoder::new(dialect);
         let mut state = DecoderState::default();
         let _ = decoder.decode(&infer_buf, &mut state)?;
         let completed = state.completed_records();
-        let schema = CsvSchema::infer_from_records(completed)?;
+        let csv_schema = CsvSchema::infer_from_records(completed)?;
 
-        Ok(Box::new(InitializedLocalCsvFunction {
-            specialized: self,
-            options,
-            csv_schema: schema,
+        Ok(Box::new(Self {
+            location,
+            dialect,
+            csv_schema,
         }))
     }
 }
 
-#[derive(Debug)]
-struct FilesystemReaderBuilder {
-    filesystem: Arc<dyn FileSystemProvider>,
-    path: PathBuf,
-}
-
-impl ReaderBuilder for FilesystemReaderBuilder {
-    fn new_reader(&self) -> Result<Box<dyn AsyncReader>> {
-        let file = self.filesystem.reader(&self.path)?;
-        Ok(Box::new(file))
+impl PlannedTableFunction for ReadCsvImpl {
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
     }
-}
 
-#[derive(Debug, Clone)]
-struct InitializedLocalCsvFunction {
-    specialized: ReadCsvLocal,
-    options: DialectOptions,
-    csv_schema: CsvSchema,
-}
-
-impl InitializedTableFunction for InitializedLocalCsvFunction {
-    fn specialized(&self) -> &dyn SpecializedTableFunction {
-        &self.specialized
+    fn table_function(&self) -> &dyn TableFunction {
+        &ReadCsv
     }
 
     fn schema(&self) -> Schema {
@@ -143,12 +118,10 @@ impl InitializedTableFunction for InitializedLocalCsvFunction {
 
     fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(SingleFileCsvDataTable {
-            options: self.options,
+            options: self.dialect,
             csv_schema: self.csv_schema.clone(),
-            reader_builder: Box::new(FilesystemReaderBuilder {
-                filesystem: runtime.filesystem()?,
-                path: self.specialized.path.clone(),
-            }),
+            location: self.location.clone(),
+            runtime: runtime.clone(),
         }))
     }
 }

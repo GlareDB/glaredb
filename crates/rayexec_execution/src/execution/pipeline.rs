@@ -1,4 +1,7 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    execution::operators::PollFinalize,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 
 use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
 use rayexec_bullet::batch::Batch;
@@ -227,6 +230,9 @@ pub enum PipelinePartitionState {
     /// Need to push to an operator.
     PushTo { batch: Batch, operator_idx: usize },
 
+    /// Need to finalize a push to an operator.
+    FinalizePush { operator_idx: usize },
+
     /// Pipeline is completed.
     Completed,
 }
@@ -240,6 +246,10 @@ impl fmt::Debug for PipelinePartitionState {
                 .finish(),
             Self::PushTo { operator_idx, .. } => f
                 .debug_struct("PushTo")
+                .field("operator_idx", operator_idx)
+                .finish(),
+            Self::FinalizePush { operator_idx } => f
+                .debug_struct("Finalize")
                 .field("operator_idx", operator_idx)
                 .finish(),
             Self::Completed => f.debug_struct("Completed").finish(),
@@ -317,20 +327,30 @@ impl PartitionPipeline {
 
                             // Finalize the next operator to indicate that it
                             // will no longer be receiving batch inputs.
-                            let next_operator = self
-                                .operators
-                                .get_mut(self.pull_start_idx)
-                                .expect("next operator to exist");
-                            let result = next_operator.physical.finalize_push(
-                                &mut next_operator.partition_state,
-                                &next_operator.operator_state,
-                            );
-                            if result.is_err() {
-                                // Erroring on finalize is not recoverable.
-                                *state = PipelinePartitionState::Completed;
-                                return Poll::Ready(Some(result));
-                            }
-
+                            *state = PipelinePartitionState::FinalizePush {
+                                operator_idx: self.pull_start_idx,
+                            };
+                        }
+                        Err(e) => {
+                            // We received an error. Currently no way to
+                            // recover, so just mark this as completed and
+                            // assume the error gets bubbled up.
+                            *state = PipelinePartitionState::Completed;
+                            return Poll::Ready(Some(Err(e)));
+                        }
+                    }
+                }
+                PipelinePartitionState::FinalizePush { operator_idx } => {
+                    let next_operator = self
+                        .operators
+                        .get_mut(*operator_idx)
+                        .expect("next operator to exist");
+                    match next_operator.physical.poll_finalize_push(
+                        cx,
+                        &mut next_operator.partition_state,
+                        &next_operator.operator_state,
+                    ) {
+                        Ok(PollFinalize::Finalized) => {
                             if self.pull_start_idx == self.operators.len() - 1 {
                                 // This partition pipeline has been completely exhausted, and
                                 // we've just finalized the "sink" operator. We're done.
@@ -344,10 +364,9 @@ impl PartitionPipeline {
                                 operator_idx: self.pull_start_idx,
                             };
                         }
+                        Ok(PollFinalize::Pending) => return Poll::Pending,
                         Err(e) => {
-                            // We received an error. Currently no way to
-                            // recover, so just mark this as completed and
-                            // assume the error gets bubbled up.
+                            // Erroring on finalize is not recoverable.
                             *state = PipelinePartitionState::Completed;
                             return Poll::Ready(Some(Err(e)));
                         }

@@ -8,7 +8,7 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::task::{Context, Poll};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 pub struct DropPartitionState {
     drop: BoxFuture<'static, Result<()>>,
@@ -54,11 +54,12 @@ impl PhysicalOperator for PhysicalDrop {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 

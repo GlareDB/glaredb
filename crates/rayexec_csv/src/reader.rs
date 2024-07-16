@@ -35,9 +35,10 @@ use rayexec_bullet::{
     field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::AsyncReader;
+use rayexec_io::FileSource;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialectOptions {
     /// Delimiter character.
     pub delimiter: u8,
@@ -222,7 +223,7 @@ impl CandidateType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CsvSchema {
     /// All fields in the the csv input.
     pub fields: Vec<Field>,
@@ -316,13 +317,13 @@ impl CsvSchema {
 }
 
 #[derive(Debug)]
-pub struct AsyncCsvReader<R: AsyncReader> {
+pub struct AsyncCsvReader<R: FileSource> {
     reader: R,
     csv_schema: CsvSchema,
     dialect: DialectOptions,
 }
 
-impl<R: AsyncReader> AsyncCsvReader<R> {
+impl<R: FileSource> AsyncCsvReader<R> {
     pub fn new(reader: R, csv_schema: CsvSchema, dialect: DialectOptions) -> Self {
         AsyncCsvReader {
             reader,

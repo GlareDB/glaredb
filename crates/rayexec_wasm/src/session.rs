@@ -61,6 +61,11 @@ impl WasmSession {
         names
     }
 
+    pub async fn connect_hybrid(&self, connection_string: String) -> Result<()> {
+        self.engine.connect_hybrid(connection_string).await?;
+        Ok(())
+    }
+
     pub fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
@@ -80,19 +85,7 @@ impl WasmResultTables {
     pub fn get_tables(&self) -> Vec<WasmResultTable> {
         self.0
             .iter()
-            .map(|table| {
-                let mut first_row_indices = Vec::with_capacity(table.batches.len());
-                let mut curr_idx = 0;
-                for batch in &table.batches {
-                    first_row_indices.push(curr_idx);
-                    curr_idx += batch.num_rows();
-                }
-
-                WasmResultTable {
-                    table: table.clone(),
-                    first_row_indices,
-                }
-            })
+            .map(|table| WasmResultTable::new(table.clone()))
             .collect()
     }
 
@@ -111,18 +104,17 @@ pub struct WasmResultTable {
     /// Result table for a single query. The result table may contain more than
     /// one batch.
     pub(crate) table: Rc<ResultTable>,
-    /// Row indices for where each batch starts.
-    ///
-    /// For example, the 0th batch has a row start index of 0, the 1st batch
-    /// will have an index of 0+len(batches[0]), and so on.
-    ///
-    /// Storing these indices allow us to not have to concat batches into a
-    /// single large batch.
-    pub(crate) first_row_indices: Vec<usize>,
 }
 
 #[wasm_bindgen]
 impl WasmResultTable {
+    /// Wraps a result table for wasm.
+    ///
+    /// Generates first row indices for each batch in the result table.
+    fn new(table: Rc<ResultTable>) -> Self {
+        WasmResultTable { table }
+    }
+
     pub fn column_names(&self) -> Vec<String> {
         self.table
             .schema
@@ -136,23 +128,68 @@ impl WasmResultTable {
         self.table.batches.iter().map(|b| b.num_rows()).sum()
     }
 
+    #[inline]
+    fn batch_row(&self, mut row: usize) -> (usize, usize) {
+        for (batch_idx, batch) in self.table.batches.iter().enumerate() {
+            if row < batch.num_rows() {
+                return (batch_idx, row);
+            }
+            row -= batch.num_rows();
+        }
+        (0, 0)
+    }
+
     pub fn format_cell(&self, col: usize, row: usize) -> Result<String> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
 
-        let batch_idx = self
-            .first_row_indices
-            .iter()
-            .position(|&idx| row >= idx)
-            .unwrap();
+        let (batch_idx, row) = self.batch_row(row);
 
         let arr = self.table.batches[batch_idx]
             .column(col)
             .ok_or_else(|| RayexecError::new(format!("Column index {col} out of range")))?;
 
         let v = FORMATTER
-            .format_array_value(arr, row - self.first_row_indices[batch_idx])
+            .format_array_value(arr, row)
             .ok_or_else(|| RayexecError::new(format!("Row index {row} out of range")))?;
 
         Ok(v.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_bullet::{
+        array::{Array, Int32Array},
+        batch::Batch,
+        datatype::DataType,
+        field::{Field, Schema},
+    };
+
+    use super::*;
+
+    #[test]
+    fn format_cells() {
+        let table = ResultTable {
+            schema: Schema::new([Field::new("c1", DataType::Int32, true)]),
+            batches: vec![
+                Batch::try_new([Array::Int32(Int32Array::from_iter([0, 1, 2, 3]))]).unwrap(),
+                Batch::try_new([Array::Int32(Int32Array::from_iter([4, 5]))]).unwrap(),
+                Batch::try_new([Array::Int32(Int32Array::from_iter([6, 7, 8, 9, 10]))]).unwrap(),
+            ],
+        };
+
+        let table = WasmResultTable::new(Rc::new(table));
+
+        // From first batch.
+        assert_eq!("0", table.format_cell(0, 0).unwrap());
+        assert_eq!("1", table.format_cell(0, 1).unwrap());
+
+        // From second batch.
+        assert_eq!("4", table.format_cell(0, 4).unwrap());
+        assert_eq!("5", table.format_cell(0, 5).unwrap());
+
+        // Last batch.
+        assert_eq!("6", table.format_cell(0, 6).unwrap());
+        assert_eq!("10", table.format_cell(0, 10).unwrap());
     }
 }

@@ -6,6 +6,7 @@ use crate::{
     engine::vars::SessionVars,
     execution::{
         operators::{
+            copy_to::PhysicalCopyTo,
             create_schema::PhysicalCreateSchema,
             create_table::PhysicalCreateTable,
             drop::PhysicalDrop,
@@ -356,6 +357,9 @@ impl BuildState {
             LogicalOperator::Insert(insert) => {
                 self.push_insert(conf, id_gen, materializations, insert)
             }
+            LogicalOperator::CopyTo(copy_to) => {
+                self.push_copy_to(conf, id_gen, materializations, copy_to)
+            }
             LogicalOperator::MaterializedScan(scan) => {
                 self.push_materialized_scan(conf, materializations, scan)
             }
@@ -428,6 +432,40 @@ impl BuildState {
 
         current.push_operator(physical, operator_state, partition_states)?;
         self.completed.push(current);
+
+        Ok(())
+    }
+
+    fn push_copy_to(
+        &mut self,
+        conf: &BuildConfig,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        copy_to: operator::CopyTo,
+    ) -> Result<()> {
+        self.walk(conf, materializations, id_gen, *copy_to.source)?;
+
+        let current_partitions = self.in_progress_pipeline_mut()?.num_partitions();
+
+        // This should be temporary until there's a better understanding of how we
+        // want to handle parallel writes.
+        if current_partitions != 1 {
+            self.push_round_robin(conf, id_gen, 1)?;
+        }
+
+        let physical = Arc::new(PhysicalCopyTo::new(copy_to.copy_to, copy_to.location));
+        let operator_state = Arc::new(OperatorState::None);
+        let partition_states: Vec<_> = physical
+            .try_create_states(conf.runtime, copy_to.source_schema, 1)?
+            .into_iter()
+            .map(PartitionState::CopyTo)
+            .collect();
+
+        self.in_progress_pipeline_mut()?.push_operator(
+            physical,
+            operator_state,
+            partition_states,
+        )?;
 
         Ok(())
     }

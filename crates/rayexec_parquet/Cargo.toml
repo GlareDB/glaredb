@@ -14,6 +14,8 @@ tracing = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
 bytes = { workspace = true }
+serde = { workspace = true }
+erased-serde = { workspace = true }
 
 [features]
 zstd = ["parquet/zstd"]

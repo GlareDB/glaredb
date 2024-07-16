@@ -264,14 +264,14 @@ impl AggregatePlanner {
 
 #[cfg(test)]
 mod tests {
-    use crate::functions::aggregate::sum::SumFloat64Impl;
+    use crate::functions::aggregate::sum::{SumFloat64Impl, SumImpl};
 
     use super::*;
 
     #[test]
     fn extract_aggregates_only_aggregate() {
         let mut selects = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
+            agg: Box::new(SumImpl::Float64(SumFloat64Impl)),
             inputs: vec![LogicalExpression::new_column(0)],
             filter: None,
         }];
@@ -282,7 +282,7 @@ mod tests {
             .unwrap();
 
         let expect_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
+            agg: Box::new(SumImpl::Float64(SumFloat64Impl)),
             inputs: vec![LogicalExpression::new_column(0)],
             filter: None,
         }];
@@ -297,7 +297,7 @@ mod tests {
         let mut selects = vec![
             LogicalExpression::new_column(1),
             LogicalExpression::Aggregate {
-                agg: Box::new(SumFloat64Impl),
+                agg: Box::new(SumImpl::Float64(SumFloat64Impl)),
                 inputs: vec![LogicalExpression::new_column(0)],
                 filter: None,
             },
@@ -309,7 +309,7 @@ mod tests {
             .unwrap();
 
         let expect_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
+            agg: Box::new(SumImpl::Float64(SumFloat64Impl)),
             inputs: vec![LogicalExpression::new_column(0)],
             filter: None,
         }];
@@ -357,7 +357,7 @@ mod tests {
         let mut selects = vec![
             LogicalExpression::new_column(0),
             LogicalExpression::Aggregate {
-                agg: Box::new(SumFloat64Impl),
+                agg: Box::new(SumImpl::Float64(SumFloat64Impl)),
                 inputs: vec![LogicalExpression::new_column(1)],
                 filter: None,
             },
@@ -374,7 +374,7 @@ mod tests {
             .unwrap();
 
         let expected_aggs = vec![LogicalExpression::Aggregate {
-            agg: Box::new(SumFloat64Impl),
+            agg: Box::new(SumImpl::Float64(SumFloat64Impl)),
             inputs: vec![LogicalExpression::new_column(1)],
             filter: None,
         }];

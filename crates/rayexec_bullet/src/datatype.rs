@@ -1,10 +1,11 @@
 use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
     /// Any datatype.
     ///
@@ -77,7 +78,7 @@ impl fmt::Display for DataTypeId {
 }
 
 /// Metadata associated with decimals.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DecimalTypeMeta {
     pub precision: u8,
     pub scale: i8,
@@ -89,7 +90,7 @@ impl DecimalTypeMeta {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimestampTypeMeta {
     pub unit: TimeUnit,
     // TODO: Optional timezone (hence no copy)
@@ -101,7 +102,7 @@ impl TimestampTypeMeta {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TimeUnit {
     Second,
     Millisecond,
@@ -125,13 +126,13 @@ impl fmt::Display for TimeUnit {
 }
 
 /// Metadata associated with structs.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct StructTypeMeta {
     pub fields: Vec<(String, DataType)>,
 }
 
 /// Metadata associated with lists.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ListTypeMeta {
     pub datatype: Box<DataType>,
 }
@@ -142,7 +143,7 @@ pub struct ListTypeMeta {
 ///
 /// Some types may include additional metadata, which acts to refine the type
 /// even further.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataType {
     /// Constant null columns.
     Null,

@@ -1,3 +1,4 @@
+use crate::execution::operators::PollFinalize;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
@@ -223,11 +224,12 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
         Ok(PollPush::Pushed)
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::MergeSortedPush(state) => state,
             PartitionState::MergeSortedPull(_) => {
@@ -250,7 +252,7 @@ impl PhysicalOperator for PhysicalMergeSortedInputs {
             }
         }
 
-        Ok(())
+        Ok(PollFinalize::Finalized)
     }
 
     fn poll_pull(
@@ -611,7 +613,7 @@ mod tests {
 
         // Partition input is finished.
         operator
-            .finalize_push(&mut push_states[0], &operator_state)
+            .poll_finalize_push(&mut push_cx.context(), &mut push_states[0], &operator_state)
             .unwrap();
 
         // Now we can pull the sorted result.
@@ -731,10 +733,18 @@ mod tests {
 
         // Partition inputs is finished.
         operator
-            .finalize_push(&mut push_states[0], &operator_state)
+            .poll_finalize_push(
+                &mut p0_push_cx.context(),
+                &mut push_states[0],
+                &operator_state,
+            )
             .unwrap();
         operator
-            .finalize_push(&mut push_states[1], &operator_state)
+            .poll_finalize_push(
+                &mut p1_push_cx.context(),
+                &mut push_states[1],
+                &operator_state,
+            )
             .unwrap();
 
         // Now we can pull the sorted result.

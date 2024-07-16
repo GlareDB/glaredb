@@ -8,6 +8,7 @@ use rayexec_bullet::{
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
 use rayexec_error::Result;
+use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::AddAssign, vec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,28 +46,71 @@ impl FunctionInfo for Sum {
 }
 
 impl AggregateFunction for Sum {
+    fn state_deserialize(
+        &self,
+        deserializer: &mut dyn erased_serde::Deserializer,
+    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(SumImpl::deserialize(deserializer)?))
+    }
+
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(SumInt64Impl)),
-            DataType::Float64 => Ok(Box::new(SumFloat64Impl)),
-            DataType::Decimal64(meta) => Ok(Box::new(SumDecimal64Impl {
+            DataType::Int64 => Ok(Box::new(SumImpl::Int64(SumInt64Impl))),
+            DataType::Float64 => Ok(Box::new(SumImpl::Float64(SumFloat64Impl))),
+            DataType::Decimal64(meta) => Ok(Box::new(SumImpl::Decimal64(SumDecimal64Impl {
                 precision: meta.precision,
                 scale: meta.scale,
-            })),
-            DataType::Decimal128(meta) => Ok(Box::new(SumDecimal128Impl {
+            }))),
+            DataType::Decimal128(meta) => Ok(Box::new(SumImpl::Decimal128(SumDecimal128Impl {
                 precision: meta.precision,
                 scale: meta.scale,
-            })),
+            }))),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SumImpl {
+    Int64(SumInt64Impl),
+    Float64(SumFloat64Impl),
+    Decimal64(SumDecimal64Impl),
+    Decimal128(SumDecimal128Impl),
+}
+
+impl PlannedAggregateFunction for SumImpl {
+    fn aggregate_function(&self) -> &dyn AggregateFunction {
+        &Sum
+    }
+
+    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+
+    fn return_type(&self) -> DataType {
+        match self {
+            Self::Decimal64(s) => DataType::Decimal64(DecimalTypeMeta::new(s.precision, s.scale)),
+            Self::Decimal128(s) => DataType::Decimal128(DecimalTypeMeta::new(s.precision, s.scale)),
+            Self::Float64(_) => DataType::Float64,
+            Self::Int64(_) => DataType::Int64,
+        }
+    }
+
+    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+        match self {
+            Self::Decimal64(s) => s.new_grouped_state(),
+            Self::Decimal128(s) => s.new_grouped_state(),
+            Self::Float64(s) => s.new_grouped_state(),
+            Self::Int64(s) => s.new_grouped_state(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SumInt64Impl;
 
 impl SumInt64Impl {
@@ -88,23 +132,13 @@ impl SumInt64Impl {
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
         Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
-}
-
-impl PlannedAggregateFunction for SumInt64Impl {
-    fn name(&self) -> &'static str {
-        "sum_int64_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Int64
-    }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SumFloat64Impl;
 
 impl SumFloat64Impl {
@@ -126,23 +160,13 @@ impl SumFloat64Impl {
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
         Ok(Array::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
-}
-
-impl PlannedAggregateFunction for SumFloat64Impl {
-    fn name(&self) -> &'static str {
-        "sum_float64_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SumDecimal64Impl {
     precision: u8,
     scale: i8,
@@ -169,16 +193,6 @@ impl SumDecimal64Impl {
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
         Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
-}
-
-impl PlannedAggregateFunction for SumDecimal64Impl {
-    fn name(&self) -> &'static str {
-        "sum_decimal64_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale))
-    }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let precision = self.precision;
@@ -191,7 +205,7 @@ impl PlannedAggregateFunction for SumDecimal64Impl {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SumDecimal128Impl {
     precision: u8,
     scale: i8,
@@ -217,16 +231,6 @@ impl SumDecimal128Impl {
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
         Ok(Array::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
-    }
-}
-
-impl PlannedAggregateFunction for SumDecimal128Impl {
-    fn name(&self) -> &'static str {
-        "sum_decimal128_impl"
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {

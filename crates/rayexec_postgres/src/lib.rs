@@ -17,7 +17,7 @@ use rayexec_execution::{
     },
     datasource::{check_options_empty, take_option, DataSource},
     execution::operators::PollPull,
-    functions::table::GenericTableFunction,
+    functions::table::TableFunction,
     runtime::ExecutionRuntime,
 };
 use read_postgres::ReadPostgres;
@@ -43,7 +43,7 @@ impl DataSource for PostgresDataSource {
         Box::pin(self.create_catalog_inner(runtime.clone(), options))
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn GenericTableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadPostgres)]
     }
 }

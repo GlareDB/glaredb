@@ -1,4 +1,3 @@
-use parquet::errors::ParquetError;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::error::Error;
 use std::fmt;
@@ -52,12 +51,6 @@ impl RayexecError {
     }
 }
 
-impl From<ParquetError> for RayexecError {
-    fn from(value: ParquetError) -> Self {
-        Self::with_source("Parquet error", Box::new(value))
-    }
-}
-
 impl From<fmt::Error> for RayexecError {
     fn from(value: fmt::Error) -> Self {
         Self::with_source("Format error", Box::new(value))
@@ -67,6 +60,12 @@ impl From<fmt::Error> for RayexecError {
 impl From<std::io::Error> for RayexecError {
     fn from(value: std::io::Error) -> Self {
         Self::with_source("IO error", Box::new(value))
+    }
+}
+
+impl From<erased_serde::Error> for RayexecError {
+    fn from(value: erased_serde::Error) -> Self {
+        Self::with_source("Serialization error", Box::new(value))
     }
 }
 

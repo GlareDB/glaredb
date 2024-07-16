@@ -10,7 +10,7 @@ use std::task::{Context, Waker};
 
 use crate::logical::explainable::Explainable;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
 
 #[derive(Debug)]
 pub enum UngroupedAggregatePartitionState {
@@ -146,11 +146,12 @@ impl PhysicalOperator for PhysicalUngroupedAggregate {
         }
     }
 
-    fn finalize_push(
+    fn poll_finalize_push(
         &self,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<()> {
+    ) -> Result<PollFinalize> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -210,7 +211,7 @@ impl PhysicalOperator for PhysicalUngroupedAggregate {
                     }
                 }
 
-                Ok(())
+                Ok(PollFinalize::Finalized)
             }
             UngroupedAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
                 "Attempted to finalize push partition that's producing",

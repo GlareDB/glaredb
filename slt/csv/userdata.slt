@@ -23,4 +23,25 @@ select * from '../testdata/csv/userdata1.csv' where id = 1 limit 1;
 ----
 2016-02-03T07:55:29.000000000  1  Amanda  Jordan  ajordan0@com.com  Female  1.197.201.2  6759521864920116  Indonesia  3/8/1971  49756.53  Internal  Auditor  1E+02
 
+# Over http (located in the glaredb repo)
+query TT
+describe 'https://github.com/GlareDB/glaredb/raw/main/testdata/csv/userdata1.csv';
+----
+registration_dttm  Utf8
+id                 Int64
+first_name         Utf8
+last_name          Utf8
+email              Utf8
+gender             Utf8
+ip_address         Utf8
+cc                 Utf8
+country            Utf8
+birthdate          Utf8
+salary             Utf8
+title              Utf8
+comments           Utf8
 
+query TITTTTTTTTTTT
+select * from 'https://github.com/GlareDB/glaredb/raw/main/testdata/csv/userdata1.csv' where id = 1 limit 1;
+----
+2016-02-03T07:55:29.000000000  1  Amanda  Jordan  ajordan0@com.com  Female  1.197.201.2  6759521864920116  Indonesia  3/8/1971  49756.53  Internal  Auditor  1E+02

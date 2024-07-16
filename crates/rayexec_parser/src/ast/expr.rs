@@ -1,6 +1,7 @@
 use std::ops::Neg;
 
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     keywords::Keyword,
@@ -11,7 +12,7 @@ use crate::{
 
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOperator {
     /// Plus, e.g. `+9`
     Plus,
@@ -21,7 +22,7 @@ pub enum UnaryOperator {
     Not,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BinaryOperator {
     /// Plus, e.g. `a + b`
     Plus,
@@ -67,7 +68,7 @@ pub enum BinaryOperator {
     BitwiseXor,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Literal<T: AstMeta> {
     /// Unparsed number literal.
     Number(String),
@@ -86,7 +87,7 @@ pub enum Literal<T: AstMeta> {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Function<T: AstMeta> {
     pub reference: T::FunctionReference,
     pub args: Vec<FunctionArg<T>>,
@@ -94,7 +95,7 @@ pub struct Function<T: AstMeta> {
     pub filter: Option<Box<Expr<T>>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FunctionArg<T: AstMeta> {
     /// A named argument. Allows use of either `=>` or `=` for assignment.
     ///
@@ -130,7 +131,7 @@ impl AstParseable for FunctionArg<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FunctionArgExpr<T: AstMeta> {
     Wildcard,
     Expr(Expr<T>),
@@ -148,7 +149,7 @@ impl AstParseable for FunctionArgExpr<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expr<T: AstMeta> {
     /// Column or table identifier.
     Ident(Ident),
@@ -714,7 +715,7 @@ impl Expr<Raw> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IntervalUnit {
     Millenium,
     Century,
@@ -756,7 +757,7 @@ impl AstParseable for IntervalUnit {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Interval<T: AstMeta> {
     pub value: Box<Expr<T>>,
     pub leading: Option<IntervalUnit>,
@@ -779,7 +780,7 @@ impl AstParseable for Interval<Raw> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ArraySubscript<T: AstMeta> {
     Index(Expr<T>),
     Slice {

@@ -13,8 +13,6 @@ use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
 use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::{Shell, ShellSignal};
-use tracing_subscriber::filter::EnvFilter;
-use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_bin")]
@@ -29,22 +27,7 @@ struct Arguments {
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
     let args = Arguments::parse();
-
-    let env_filter = EnvFilter::builder()
-        .with_default_directive(tracing::Level::ERROR.into())
-        .from_env_lossy()
-        .add_directive("h2=info".parse().unwrap())
-        .add_directive("hyper=info".parse().unwrap())
-        .add_directive("sqllogictest=info".parse().unwrap());
-    let subscriber = FmtSubscriber::builder()
-        .with_test_writer() // TODO: Actually capture
-        .with_env_filter(env_filter)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_file(true)
-        .with_line_number(true)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    logutil::configure_global_logger(tracing::Level::ERROR);
 
     let runtime = Arc::new(
         ThreadedExecutionRuntime::try_new()
