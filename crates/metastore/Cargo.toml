@@ -28,7 +28,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
-uuid = { version = "1.9.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 bytes = { workspace = true }
 once_cell = "1.19.0"
 tower = "0.4"
