@@ -1,0 +1,90 @@
+statement error
+select jaq_matches('{"a": 1}', 'invalid filter')
+
+statement error
+select jaq_matches('not a json', '.a')
+
+statement error
+select jaq_select('{"a": 1}', 'invalid filter')
+
+statement error
+select jaq_select('not a json', '.a')
+
+statement error
+select jaq_select('not json', '.')
+
+statement ok
+select jaq_select('"technically json"', '.')
+
+statement ok
+select jaq_select('{"a": 1}', '.a')
+
+statement ok
+select jaq_matches('{"a": 1}', '.a')
+
+query T
+select jaq_select('{"a":1}', '.')
+----
+{"a":1}
+
+query I
+select jaq_select('{"a":1}', '.a')
+----
+1
+
+query B
+select jaq_matches('{"a":1}', '.')
+----
+t
+
+query B
+select jaq_matches('{"a":1}', '.b')
+----
+f
+
+query T
+select jaq_select('{"a":"rsc","b":"ksr"}', '.b')
+----
+ksr
+
+query T
+select round(jaq_select('{"price": 100, "tax": 0.15}', '(.price * (.tax + 1))')::float)
+----
+115
+
+query T
+select jaq_select('{"user": {"name": "Alice", "age": 30}}', '.user.name')
+----
+Alice
+
+query T
+select jaq_select('{"a": 1, "b": 2, "c": 3}', '[.a, .b]')
+----
+[1,2]
+
+query T
+select jaq_select('[0, 1, 2, 3, 4, 5]', '.[2:4]')
+----
+[2,3]
+
+query T
+select jaq_select('{}', '.')
+----
+{}
+
+query T
+select jaq_select('{"a": {"b":1.0}}', '.a.b')
+----
+1.0
+
+query T
+select jaq_select('{"a": {"b":1.0}}', '.a')
+----
+{"b":1.0}
+
+
+query B
+select jaq_select('{"a": {"b":1.0}}', '.a.b') = '1.0'
+----
+t
+

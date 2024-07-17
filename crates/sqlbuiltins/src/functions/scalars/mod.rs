@@ -1,5 +1,6 @@
 pub mod df_scalars;
 pub mod hashing;
+pub mod jaq;
 pub mod kdl;
 pub mod openai;
 pub mod postgres;
