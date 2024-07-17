@@ -98,7 +98,7 @@ impl ScalarUDFImpl for JAQSelect {
 
                 Ok(match output.len() {
                     0 => ScalarValue::Utf8(None),
-                    1 => output.get(0).unwrap().to_owned(),
+                    1 => output.first().unwrap().to_owned(),
                     _ => ScalarValue::List(ScalarValue::new_list(&output, &DataType::Utf8)),
                 })
             },
@@ -196,10 +196,11 @@ impl ScalarUDFImpl for JAQMatches {
             0,
             &|value: String| -> Result<ScalarValue, BuiltinError> {
                 let val: Value = serde_json::from_str(&value)?;
-                let inputs = RcIter::new(core::iter::empty());
+                let input = RcIter::new(core::iter::empty());
 
-                let mut output = filter.run((Ctx::new([], &inputs), Val::from(val)));
-                while let Some(res) = output.next() {
+                let output = filter.run((Ctx::new([], &input), Val::from(val)));
+
+                for res in output {
                     match res? {
                         Val::Null => continue,
                         Val::Str(s) if s.is_empty() => continue,
