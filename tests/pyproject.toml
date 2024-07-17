@@ -8,13 +8,18 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 pytest = "^7.4.3"
-pymongo = "^4.6.1"
+pymongo = "^4.6.3"
 psycopg2 = "^2.9.9"
 pyarrow = "^14.0.2"
 pylance = "^0.9.6"
 ruff = "0.1.14"
-dbt-core = "^1.7.7"
-dbt-postgres = "^1.7.7"
+dbt-core = "^1.7.13"
+dbt-postgres = "^1.7.13"
+pytest-timeout = "^2.2.0"
+pytest-xdist = "^3.5.0"
+pytest-benchmark = "^4.0.0"
+botocore = "^1.34.81"
+pyiceberg = { version = "^0.6.0", extras = ["pyarrow", "sql-sqlite"] }
 
 [build-system]
 requires = ["poetry-core"]
@@ -22,3 +27,12 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 100
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "DEBUG"
+log_cli_format = "%(asctime)s [%(levelname)s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+[tool.pytest]
+timeout = 120

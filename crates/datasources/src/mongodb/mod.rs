@@ -7,12 +7,17 @@ mod insert;
 
 use std::any::Any;
 use std::fmt::{Display, Write};
+use std::future::IntoFuture;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use bson::RawBson;
-use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
+use datafusion::arrow::datatypes::{
+    FieldRef,
+    Fields,
+    Schema as ArrowSchema,
+    SchemaRef as ArrowSchemaRef,
+};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -22,9 +27,12 @@ use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use mongodb::bson::spec::BinarySubtype;
-use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
+use mongodb::bson::{bson, doc, Binary, Bson, Document, RawBson, RawDocumentBuf};
 use mongodb::options::{ClientOptions, FindOptions};
 use mongodb::{Client, Collection};
+use parser::errors::ParserError;
+use parser::options::{OptionValue, ParseOptionValue};
+use parser::{parser_err, unexpected_type_err};
 use tracing::debug;
 
 use crate::bson::array_to_bson;
@@ -63,6 +71,18 @@ impl FromStr for MongoDbProtocol {
             s => return Err(MongoDbError::InvalidProtocol(s.to_owned())),
         };
         Ok(proto)
+    }
+}
+
+impl ParseOptionValue<MongoDbProtocol> for OptionValue {
+    fn parse_opt(self) -> Result<MongoDbProtocol, ParserError> {
+        let opt = match self {
+            Self::QuotedLiteral(s) | Self::UnquotedLiteral(s) => {
+                s.parse().map_err(|e| parser_err!("{e}"))?
+            }
+            o => return Err(unexpected_type_err!("mongodb protocol", o)),
+        };
+        Ok(opt)
     }
 }
 
@@ -136,14 +156,15 @@ impl MongoDbAccessor {
     }
 
     pub async fn validate_external_database(connection_string: &str) -> Result<()> {
-        let accessor = Self::connect(connection_string).await?;
-        let mut filter = Document::new();
-        filter.insert("name".to_string(), Bson::String("glaredb".to_string()));
-        let _ = accessor
+        Self::connect(connection_string)
+            .await?
             .client
-            .list_database_names(Some(filter), None)
-            .await?;
-        Ok(())
+            .database("test")
+            .run_command(doc! {"ping": 1})
+            .into_future()
+            .await
+            .map_err(MongoDbError::from)
+            .map(|_| ())
     }
 
     pub fn into_table_accessor(self, info: MongoDbTableAccessInfo) -> MongoDbTableAccessor {
@@ -157,27 +178,18 @@ impl MongoDbAccessor {
 #[async_trait]
 impl VirtualLister for MongoDbAccessor {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
-        use ExtensionError::ListingErrBoxed;
-
-        let databases = self
-            .client
-            .list_database_names(/* filter: */ None, /* options: */ None)
+        self.client
+            .list_database_names()
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
-
-        Ok(databases)
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))
     }
 
     async fn list_tables(&self, database: &str) -> Result<Vec<String>, ExtensionError> {
-        use ExtensionError::ListingErrBoxed;
-
-        let database = self.client.database(database);
-        let collections = database
-            .list_collection_names(/* filter: */ None)
+        self.client
+            .database(database)
+            .list_collection_names()
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
-
-        Ok(collections)
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))
     }
 
     async fn list_columns(
@@ -185,20 +197,17 @@ impl VirtualLister for MongoDbAccessor {
         database: &str,
         collection: &str,
     ) -> Result<Fields, ExtensionError> {
-        use ExtensionError::ListingErrBoxed;
-
         let collection = self.client.database(database).collection(collection);
-        let sampler = TableSampler::new(&collection);
 
         let count = collection
-            .estimated_document_count(None)
+            .estimated_document_count()
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))?;
 
-        let schema = sampler
+        let schema = TableSampler::new(&collection)
             .infer_schema_from_sample(count)
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))?;
 
         Ok(schema.fields)
     }
@@ -208,6 +217,7 @@ impl VirtualLister for MongoDbAccessor {
 pub struct MongoDbTableAccessInfo {
     pub database: String, // "Schema"
     pub collection: String,
+    pub fields: Option<Vec<FieldRef>>, // filter
 }
 
 #[derive(Debug, Clone)]
@@ -223,7 +233,7 @@ impl MongoDbTableAccessor {
             .client
             .database(&self.info.database)
             .collection::<Document>(&self.info.collection)
-            .estimated_document_count(None)
+            .estimated_document_count()
             .await?;
 
         Ok(())
@@ -234,13 +244,17 @@ impl MongoDbTableAccessor {
             .client
             .database(&self.info.database)
             .collection(&self.info.collection);
-        let sampler = TableSampler::new(&collection);
 
-        let estimated_count = collection.estimated_document_count(None).await?;
-        let schema = sampler.infer_schema_from_sample(estimated_count).await?;
+        let schema = if self.info.fields.is_some() {
+            ArrowSchema::new(self.info.fields.unwrap())
+        } else {
+            TableSampler::new(&collection)
+                .infer_schema_from_sample(128)
+                .await?
+        };
 
         Ok(MongoDbTableProvider {
-            estimated_count,
+            estimated_count: collection.estimated_document_count().await?,
             schema: Arc::new(schema),
             collection: self
                 .client
@@ -281,7 +295,7 @@ impl TableProvider for MongoDbTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
+        filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Projection.
@@ -309,11 +323,7 @@ impl TableProvider for MongoDbTableProvider {
             proj_doc.insert(ID_FIELD_NAME, 0);
         }
 
-        let mut find_opts = FindOptions::default();
-        find_opts.limit = limit.map(|v| v as i64);
-        find_opts.projection = Some(proj_doc);
-
-        let filter = match exprs_to_mdb_query(_filters) {
+        let filter = match exprs_to_mdb_query(filters) {
             Ok(query) => query,
             Err(err) => {
                 debug!("mdb pushdown query err: {}", err.to_string());
@@ -322,7 +332,13 @@ impl TableProvider for MongoDbTableProvider {
         };
         let cursor = Mutex::new(Some(
             self.collection
-                .find(Some(filter), Some(find_opts))
+                .find(filter)
+                .with_options(Some(
+                    FindOptions::builder()
+                        .limit(limit.map(|v| v as i64))
+                        .projection(proj_doc)
+                        .build(),
+                ))
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));
@@ -436,15 +452,24 @@ fn df_to_bson(val: ScalarValue) -> Result<Bson, ExtensionError> {
         ScalarValue::UInt64(v) => Ok(Bson::Int64(i64::try_from(v.unwrap_or_default()).unwrap())),
         ScalarValue::Float32(v) => Ok(Bson::Double(f64::from(v.unwrap_or_default()))),
         ScalarValue::Float64(v) => Ok(Bson::Double(v.unwrap_or_default())),
-        ScalarValue::Struct(v, f) => {
+        ScalarValue::Struct(sa) => {
             let mut doc = RawDocumentBuf::new();
-            for (key, value) in f.into_iter().zip(v.unwrap_or_default().into_iter()) {
+            let fields = sa.fields();
+            let columns = sa.columns();
+            for (field, column) in fields.iter().zip(columns.iter()) {
+                if column.len() != 1 {
+                    return Err(ExtensionError::String(
+                        "Struct column should have only one row".to_string(),
+                    ));
+                }
+                let sv = ScalarValue::try_from_array(column, 0).unwrap();
                 doc.append(
-                    key.name(),
-                    RawBson::try_from(df_to_bson(value)?)
+                    field.name(),
+                    RawBson::try_from(df_to_bson(sv)?)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?,
                 );
             }
+
             Ok(Bson::Document(
                 doc.to_document()
                     .map_err(|e| DataFusionError::External(Box::new(e)))?,

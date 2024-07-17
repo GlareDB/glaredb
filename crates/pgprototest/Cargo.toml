@@ -6,6 +6,12 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
+[[bin]]
+name = "pgprototest"
+# no tests currently implemented in this package; skip, then
+doctest = false
+test = false 
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -13,5 +19,5 @@ clap = { workspace = true }
 anyhow = { workspace = true }
 datadriven = "0.6.0"
 postgres-protocol = "0.6.5"
-bytes = "1.4.0"
+bytes = { workspace = true }
 fallible-iterator = "0.2.0"

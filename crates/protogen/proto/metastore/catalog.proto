@@ -39,6 +39,12 @@ import "common/arrow.proto";
 
 // The state of the catalog at some version.
 message CatalogState {
+  // The version of the actual catalog implementation.
+  // This is incremented when there are incompatible changes to the physical
+  // catalog layout.
+  // Purposely set to a high number to avoid accidental collisions
+  optional uint32 catalog_version = 2047;
+
   // Version of this catalog. Increments on every mutation.
   uint64 version = 1;
 
@@ -49,7 +55,6 @@ message CatalogState {
 
   // Metadata for the deployment.
   DeploymentMetadata deployment = 3;
-
   // next: 4
 }
 
@@ -160,10 +165,15 @@ message TableEntry {
 
   reserved 2;  // Column fields
 
-  options.TableOptions options = 3;
+  // The old table options. This is deprecated and should not be used.
+  // It is only here for backwards compatibility.
+  options.TableOptionsV0 options_v0 = 3;
   optional uint32 tunnel_id = 4;
   SourceAccessMode access_mode = 5;
-  // next: 6
+  repeated options.InternalColumnDefinition columns = 6;
+  // The new table options.
+  options.TableOptionsV1 options = 7;
+  // next: 8
 }
 
 message ViewEntry {
@@ -188,24 +198,26 @@ message TunnelEntry {
 // available are builtins. We can change this however we need and not have to
 // worry about backwards compatability.
 message FunctionEntry {
-  enum FunctionType {
-    // Unknown catalog entry. We should error if this is encountered.
-    UNKNOWN = 0;
-    AGGREGATE = 1;
-    SCALAR = 2;
-    TABLE_RETURNING = 3;
-  }
-
-  enum RuntimePreference {
-    UNSPECIFIED = 0;
-    LOCAL = 1;
-    REMOTE = 2;
-  }
-
   EntryMeta meta = 1;
   FunctionType func_type = 2;
   reserved 3;  // Function runtime preference (static)
   Signature signature = 4;
+  bool user_defined = 5;
+  // next: 6
+}
+
+enum RuntimePreference {
+  UNSPECIFIED = 0;
+  LOCAL = 1;
+  REMOTE = 2;
+}
+
+enum FunctionType {
+  // Unknown catalog entry. We should error if this is encountered.
+  UNKNOWN = 0;
+  AGGREGATE = 1;
+  SCALAR = 2;
+  TABLE_RETURNING = 3;
 }
 
 message CredentialsEntry {

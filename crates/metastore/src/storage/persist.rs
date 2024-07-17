@@ -6,7 +6,11 @@ use object_store::{Error as ObjectStoreError, ObjectStore};
 use pgrepr::oid::FIRST_AVAILABLE_ID;
 use prost::Message;
 use protogen::gen::metastore::storage;
-use protogen::metastore::types::catalog::{CatalogState, DeploymentMetadata};
+use protogen::metastore::types::catalog::{
+    CatalogState,
+    DeploymentMetadata,
+    CURRENT_CATALOG_VERSION,
+};
 use protogen::metastore::types::storage::{CatalogMetadata, ExtraState, PersistedCatalog};
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -75,6 +79,7 @@ impl Storage {
                 version: 0,
                 entries: HashMap::new(),
                 deployment: DeploymentMetadata { storage_size: 0 },
+                catalog_version: CURRENT_CATALOG_VERSION,
             },
             extra: ExtraState {
                 oid_counter: FIRST_AVAILABLE_ID,
@@ -316,8 +321,14 @@ mod tests {
         let db_id = Uuid::new_v4();
         storage.initialize(db_id).await.unwrap();
 
-        // Sneakily get lease for catalog.
-        let lease = storage.leaser.acquire(db_id).await.unwrap();
+        // Sneakily get lease for catalog from a different process.
+        let process_id = Uuid::new_v4();
+        let different = Storage {
+            process_id,
+            store: storage.store.clone(), // Use the same store (in memory).
+            leaser: RemoteLeaser::new(process_id, storage.store.clone()),
+        };
+        let lease = different.leaser.acquire(db_id).await.unwrap();
 
         // Reads should work.
         let mut catalog = storage.read_catalog(db_id).await.unwrap();

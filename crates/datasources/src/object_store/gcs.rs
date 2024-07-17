@@ -1,10 +1,12 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use datafusion::execution::object_store::ObjectStoreUrl;
-use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::gcp::{GcpCredential, GoogleCloudStorageBuilder, GoogleConfigKey};
 use object_store::path::Path as ObjectStorePath;
-use object_store::ObjectStore;
+use object_store::{CredentialProvider, ObjectStore};
 
 use super::errors::Result;
 use super::ObjStoreAccess;
@@ -15,6 +17,8 @@ pub struct GcsStoreAccess {
     pub bucket: String,
     /// Service account key (JSON) for credentials.
     pub service_account_key: Option<String>,
+    /// Other options for GCS.
+    pub opts: HashMap<GoogleConfigKey, String>,
 }
 
 impl Display for GcsStoreAccess {
@@ -31,19 +35,49 @@ impl ObjStoreAccess for GcsStoreAccess {
     }
 
     fn create_store(&self) -> Result<Arc<dyn ObjectStore>> {
-        let builder = GoogleCloudStorageBuilder::new().with_bucket_name(&self.bucket);
-        let builder = match &self.service_account_key {
-            Some(key) => builder.with_service_account_key(key),
-            None => {
-                // TODO: Null Credentials
-                builder
+        let mut builder = GoogleCloudStorageBuilder::new();
+
+        let mut creds = false;
+
+        for (key, val) in self.opts.iter() {
+            if matches!(
+                key,
+                GoogleConfigKey::ServiceAccount | GoogleConfigKey::ServiceAccountKey
+            ) {
+                creds = true;
             }
-        };
-        let build = builder.build()?;
+
+            builder = builder.with_config(*key, val);
+        }
+
+        if let Some(service_account_key) = &self.service_account_key {
+            creds = true;
+            builder = builder.with_service_account_key(service_account_key);
+        }
+
+        if !creds {
+            builder = builder.with_credentials(Arc::new(NullCredentialsProvider));
+        }
+
+        let build = builder.with_bucket_name(&self.bucket).build()?;
         Ok(Arc::new(build))
     }
 
     fn path(&self, location: &str) -> Result<ObjectStorePath> {
         Ok(ObjectStorePath::from_url_path(location)?)
+    }
+}
+
+#[derive(Debug)]
+struct NullCredentialsProvider;
+
+#[async_trait]
+impl CredentialProvider for NullCredentialsProvider {
+    type Credential = GcpCredential;
+
+    async fn get_credential(&self) -> Result<Arc<Self::Credential>, object_store::Error> {
+        Ok(Arc::new(GcpCredential {
+            bearer: String::new(),
+        }))
     }
 }

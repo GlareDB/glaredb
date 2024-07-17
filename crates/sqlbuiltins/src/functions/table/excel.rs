@@ -4,15 +4,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Fields};
 use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, TableFuncContextProvider};
-use datasources::common::url::DatasourceUrl;
-use datasources::excel::read_excel_impl;
-use ioutil::resolve_path;
+use datasources::common::url::DatasourceUrlType;
+use datasources::excel::table::ExcelTableProvider;
+use datasources::excel::ExcelTable;
+use datasources::lake::storage_options_into_store_access;
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
 
 use super::{table_location_and_opts, TableFunc};
+use crate::functions::table::object_store::urls_from_args;
 use crate::functions::ConstBuiltinFunction;
 
 #[derive(Debug, Clone, Copy)]
@@ -48,10 +51,24 @@ impl ConstBuiltinFunction for ExcelScan {
 impl TableFunc for ExcelScan {
     fn detect_runtime(
         &self,
-        _args: &[FuncParamValue],
+        args: &[FuncParamValue],
         _parent: RuntimePreference,
     ) -> Result<RuntimePreference> {
-        Ok(RuntimePreference::Local)
+        let urls = urls_from_args(args)?;
+        if urls.is_empty() {
+            return Err(ExtensionError::ExpectedIndexedArgument {
+                index: 0,
+                what: "location of the table".to_string(),
+            });
+        }
+
+        Ok(match urls.first().unwrap().datasource_url_type() {
+            DatasourceUrlType::File => RuntimePreference::Local,
+            DatasourceUrlType::Http => RuntimePreference::Remote,
+            DatasourceUrlType::Gcs => RuntimePreference::Remote,
+            DatasourceUrlType::S3 => RuntimePreference::Remote,
+            DatasourceUrlType::Azure => RuntimePreference::Remote,
+        })
     }
 
     async fn create_provider(
@@ -60,19 +77,11 @@ impl TableFunc for ExcelScan {
         args: Vec<FuncParamValue>,
         mut opts: HashMap<String, FuncParamValue>,
     ) -> Result<Arc<dyn TableProvider>> {
-        let (source_url, _) = table_location_and_opts(ctx, args, &mut opts)?;
+        let (source_url, storage_options) = table_location_and_opts(ctx, args, &mut opts)?;
 
-        let url = match source_url {
-            DatasourceUrl::File(path) => path,
-            DatasourceUrl::Url(url) => {
-                return Err(ExtensionError::String(format!(
-                    "Expected file, received url: {}",
-                    url
-                )))
-            }
-        };
+        let store_access = storage_options_into_store_access(&source_url, &storage_options)
+            .map_err(ExtensionError::access)?;
 
-        let url = resolve_path(&url)?;
         let sheet_name: Option<String> = opts
             .remove("sheet_name")
             .map(FuncParamValue::try_into)
@@ -84,15 +93,20 @@ impl TableFunc for ExcelScan {
             .transpose()?
             .unwrap_or(true);
 
-        let infer_schema_len = opts
+        let infer_num = opts
             .remove("infer_rows")
             .map(FuncParamValue::try_into)
             .transpose()?
             .unwrap_or(100);
 
-        let table = read_excel_impl(&url, sheet_name.as_deref(), has_header, infer_schema_len)
+        let table = ExcelTable::open(store_access, source_url, sheet_name, has_header)
             .await
-            .map_err(|e| ExtensionError::Access(Box::new(e)))?;
-        Ok(Arc::new(table))
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        let provider = ExcelTableProvider::try_new_with_inferred(table, infer_num)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        Ok(Arc::new(provider))
     }
 }

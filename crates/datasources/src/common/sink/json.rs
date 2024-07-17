@@ -34,6 +34,12 @@ impl Default for JsonSinkOpts {
     }
 }
 
+impl JsonSinkOpts {
+    pub fn with_array_format(array: bool) -> Self {
+        JsonSinkOpts { array }
+    }
+}
+
 #[derive(Debug)]
 pub struct JsonSink {
     store: Arc<dyn ObjectStore>,

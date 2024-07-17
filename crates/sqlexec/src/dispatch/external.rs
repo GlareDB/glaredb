@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use catalog::session_catalog::SessionCatalog;
+use datafusion::arrow::datatypes::{Field, Schema};
 use datafusion::datasource::file_format::csv::CsvFormat;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::json::JsonFormat;
@@ -16,13 +17,18 @@ use datasources::cassandra::CassandraTableProvider;
 use datasources::clickhouse::{ClickhouseAccess, ClickhouseTableProvider, OwnedClickhouseTableRef};
 use datasources::common::url::DatasourceUrl;
 use datasources::debug::DebugTableType;
+use datasources::excel::table::ExcelTableProvider;
+use datasources::excel::ExcelTable;
+use datasources::json::table::json_streaming_table;
 use datasources::lake::delta::access::{load_table_direct, DeltaLakeAccessor};
 use datasources::lake::iceberg::table::IcebergTable;
+use datasources::lake::{storage_options_into_object_store, storage_options_into_store_access};
 use datasources::lance::LanceTable;
 use datasources::mongodb::{MongoDbAccessor, MongoDbTableAccessInfo};
 use datasources::mysql::{MysqlAccessor, MysqlTableAccess};
+use datasources::native::access::NativeTable;
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
 use datasources::object_store::{ObjStoreAccess, ObjStoreAccessor};
@@ -48,7 +54,6 @@ use protogen::metastore::types::options::{
     DatabaseOptionsSnowflake,
     DatabaseOptionsSqlServer,
     DatabaseOptionsSqlite,
-    TableOptions,
     TableOptionsBigQuery,
     TableOptionsCassandra,
     TableOptionsClickhouse,
@@ -64,11 +69,12 @@ use protogen::metastore::types::options::{
     TableOptionsS3,
     TableOptionsSnowflake,
     TableOptionsSqlServer,
-    TableOptionsSqlite,
+    TableOptionsV0,
     TunnelOptions,
 };
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
-use sqlbuiltins::functions::FUNCTION_REGISTRY;
+use sqlbuiltins::functions::FunctionRegistry;
+use uuid::Uuid;
 
 use super::{DispatchError, Result};
 
@@ -77,6 +83,8 @@ pub struct ExternalDispatcher<'a> {
     catalog: &'a SessionCatalog,
     // TODO: Remove need for this.
     df_ctx: &'a SessionContext,
+
+    function_registry: &'a FunctionRegistry,
     /// Whether or not local file system access should be disabled.
     disable_local_fs_access: bool,
 }
@@ -85,11 +93,13 @@ impl<'a> ExternalDispatcher<'a> {
     pub fn new(
         catalog: &'a SessionCatalog,
         df_ctx: &'a SessionContext,
+        function_registry: &'a FunctionRegistry,
         disable_local_fs_access: bool,
     ) -> Self {
         ExternalDispatcher {
             catalog,
             df_ctx,
+            function_registry,
             disable_local_fs_access,
         }
     }
@@ -139,14 +149,14 @@ impl<'a> ExternalDispatcher<'a> {
         name: &str,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(db.tunnel_id)?;
-
+        // TODO: use the DatasourceRegistry to dispatch instead
         match &db.options {
-            DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Debug(DatabaseOptionsDebug {}) => {
                 // Use name of the table as table type here.
                 let provider = DebugTableType::from_str(name)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
             }
+            DatabaseOptions::Internal(_) => unimplemented!(),
             DatabaseOptions::Postgres(DatabaseOptionsPostgres { connection_string }) => {
                 let access = PostgresAccess::new_from_conn_str(connection_string, tunnel);
                 let prov_conf = PostgresTableProviderConfig {
@@ -186,6 +196,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let table_info = MongoDbTableAccessInfo {
                     database: schema.to_string(), // A mongodb database is pretty much a schema.
                     collection: name.to_string(),
+                    fields: None,
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
@@ -231,7 +242,7 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
             }) => {
                 let accessor = DeltaLakeAccessor::connect(catalog, storage_options.clone()).await?;
-                let table = accessor.load_table(schema, name).await?;
+                let table = NativeTable::new(accessor.load_table(schema, name).await?);
                 Ok(Arc::new(table))
             }
             DatabaseOptions::SqlServer(DatabaseOptionsSqlServer { connection_string }) => {
@@ -267,31 +278,186 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
-            DatabaseOptions::Sqlite(DatabaseOptionsSqlite { location }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
+            DatabaseOptions::Sqlite(DatabaseOptionsSqlite {
+                location,
+                storage_options,
+            }) => {
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, storage_options.to_owned())
+                        .await?
+                        .connect()
+                        .await?;
                 let table = SqliteTableProvider::try_new(state, name).await?;
                 Ok(Arc::new(table))
             }
         }
     }
 
+
     pub async fn dispatch_external_table(
         &self,
         table: &TableEntry,
     ) -> Result<Arc<dyn TableProvider>> {
         let tunnel = self.get_tunnel_opts(table.tunnel_id)?;
+        let columns_opt = table.columns.clone();
+        let optional_schema = columns_opt.map(|cols| {
+            let fields: Vec<Field> = cols
+                .into_iter()
+                .map(|col| {
+                    let fld: Field = col.into();
+                    fld
+                })
+                .collect();
+            Schema::new(fields)
+        });
 
-        match &table.options {
-            TableOptions::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
-            TableOptions::Excel(TableOptionsExcel { .. }) => todo!(),
-            TableOptions::Debug(TableOptionsDebug { table_type }) => {
+
+        self.dispatch_table_options_v0(&table.options, tunnel, optional_schema)
+            .await
+    }
+
+    async fn create_obj_store_table_provider(
+        &self,
+        access: Arc<dyn ObjStoreAccess>,
+        path: impl AsRef<str>,
+        file_type: &str,
+        compression: Option<&String>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let path = path.as_ref();
+        // TODO: only parquet/ndjson/csv actually support compression,
+        // so we'll end up attempting to handle compression for some
+        // types and not others.
+        let compression = compression
+            .map(|c| c.parse::<FileCompressionType>())
+            .transpose()?
+            .unwrap_or(FileCompressionType::UNCOMPRESSED);
+
+        let accessor = ObjStoreAccessor::new(access.clone())?;
+
+        match file_type {
+            "csv" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(
+                        CsvFormat::default()
+                            .with_file_compression_type(compression)
+                            .with_schema_infer_max_rec(Some(20480)),
+                    ),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "parquet" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(ParquetFormat::default()),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            "bson" => Ok(bson_streaming_table(
+                access.clone(),
+                DatasourceUrl::try_new(path)?,
+                None,
+                Some(128),
+            )
+            .await?),
+            "json" => Ok(
+                json_streaming_table(access.clone(), DatasourceUrl::try_new(path)?, None).await?,
+            ),
+            "ndjson" | "jsonl" => Ok(accessor
+                .clone()
+                .into_table_provider(
+                    &self.df_ctx.state(),
+                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
+                    accessor.clone().list_globbed(path).await?,
+                )
+                .await?),
+            _ => Err(DispatchError::String(
+                format!("Unsupported file type: '{}', for '{}'", file_type, path,).to_string(),
+            )),
+        }
+    }
+
+    pub async fn dispatch_function(
+        &self,
+        func: &FunctionEntry,
+        args: Option<Vec<FuncParamValue>>,
+        opts: Option<HashMap<String, FuncParamValue>>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        let args = args.unwrap_or_default();
+        let opts = opts.unwrap_or_default();
+        let resolve_func = if func.meta.builtin {
+            self.function_registry.get_table_func(&func.meta.name)
+        } else {
+            // We only have builtin functions right now.
+            None
+        };
+        let prov = resolve_func
+            .unwrap()
+            .create_provider(
+                &DefaultTableContextProvider::new(self.catalog, self.df_ctx),
+                args,
+                opts,
+            )
+            .await?;
+        Ok(prov)
+    }
+
+    fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {
+        let tunnel_options = if let Some(tunnel_id) = tunnel_id {
+            let ent = self
+                .catalog
+                .get_by_oid(tunnel_id)
+                .ok_or(DispatchError::MissingTunnel(tunnel_id))?;
+
+            let ent = match ent {
+                CatalogEntry::Tunnel(ent) => ent,
+                _ => return Err(DispatchError::MissingTunnel(tunnel_id)),
+            };
+            Some(ent.options.clone())
+        } else {
+            None
+        };
+        Ok(tunnel_options)
+    }
+
+    // TODO: Remove this function once everything is using the new table options
+    async fn dispatch_table_options_v0(
+        &self,
+        opts: &TableOptionsV0,
+        tunnel: Option<TunnelOptions>,
+        schema: Option<Schema>,
+    ) -> Result<Arc<dyn TableProvider>> {
+        match &opts {
+            TableOptionsV0::Debug(TableOptionsDebug { table_type }) => {
                 let provider = DebugTableType::from_str(table_type)?;
                 Ok(provider.into_table_provider(tunnel.as_ref()))
             }
-            TableOptions::Postgres(TableOptionsPostgres {
+            TableOptionsV0::Internal(TableOptionsInternal { .. }) => unimplemented!(), // Purposely unimplemented.
+            TableOptionsV0::Excel(TableOptionsExcel {
+                location,
+                storage_options,
+                has_header,
+                sheet_name,
+                ..
+            }) => {
+                let source_url = DatasourceUrl::try_new(location)?;
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
+
+                let table = ExcelTable::open(
+                    store_access,
+                    source_url,
+                    sheet_name.to_owned(),
+                    has_header.unwrap_or(true),
+                )
+                .await?;
+                let provider = ExcelTableProvider::try_new(table).await?;
+
+                Ok(Arc::new(provider))
+            }
+
+            TableOptionsV0::Postgres(TableOptionsPostgres {
                 connection_string,
                 schema,
                 table,
@@ -305,7 +471,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let prov = PostgresTableProvider::try_new(prov_conf).await?;
                 Ok(Arc::new(prov))
             }
-            TableOptions::BigQuery(TableOptionsBigQuery {
+            TableOptionsV0::BigQuery(TableOptionsBigQuery {
                 service_account_key,
                 project_id,
                 dataset_id,
@@ -322,7 +488,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Mysql(TableOptionsMysql {
+            TableOptionsV0::Mysql(TableOptionsMysql {
                 connection_string,
                 schema,
                 table,
@@ -336,7 +502,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let provider = accessor.into_table_provider(table_access, true).await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::MongoDb(TableOptionsMongoDb {
+            TableOptionsV0::MongoDb(TableOptionsMongoDb {
                 connection_string,
                 database,
                 collection,
@@ -344,13 +510,14 @@ impl<'a> ExternalDispatcher<'a> {
                 let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
+                    fields: None,
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
                 let provider = table_accessor.into_table_provider().await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Snowflake(TableOptionsSnowflake {
+            TableOptionsV0::Snowflake(TableOptionsSnowflake {
                 account_name,
                 login_name,
                 password,
@@ -384,7 +551,7 @@ impl<'a> ExternalDispatcher<'a> {
                     .await?;
                 Ok(Arc::new(provider))
             }
-            TableOptions::Local(TableOptionsLocal {
+            TableOptionsV0::Local(TableOptionsLocal {
                 location,
                 file_type,
                 compression,
@@ -403,7 +570,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::Gcs(TableOptionsGcs {
+            TableOptionsV0::Gcs(TableOptionsGcs {
                 service_account_key,
                 bucket,
                 location,
@@ -413,6 +580,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let access = Arc::new(GcsStoreAccess {
                     service_account_key: service_account_key.clone(),
                     bucket: bucket.clone(),
+                    opts: HashMap::new(),
                 });
                 self.create_obj_store_table_provider(
                     access,
@@ -422,7 +590,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::S3(TableOptionsS3 {
+            TableOptionsV0::S3(TableOptionsS3 {
                 access_key_id,
                 secret_access_key,
                 region,
@@ -432,10 +600,11 @@ impl<'a> ExternalDispatcher<'a> {
                 compression,
             }) => {
                 let access = Arc::new(S3StoreAccess {
-                    region: region.clone(),
                     bucket: bucket.clone(),
+                    region: Some(region.clone()),
                     access_key_id: access_key_id.clone(),
                     secret_access_key: secret_access_key.clone(),
+                    opts: HashMap::new(),
                 });
                 self.create_obj_store_table_provider(
                     access,
@@ -445,7 +614,7 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::Azure(TableOptionsObjectStore {
+            TableOptionsV0::Azure(TableOptionsObjectStore {
                 location,
                 storage_options,
                 file_type,
@@ -464,10 +633,9 @@ impl<'a> ExternalDispatcher<'a> {
                     }
                 };
 
-                let access = Arc::new(GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.clone(),
-                )?);
+                let uri = DatasourceUrl::try_new(location)?;
+                let access = Arc::new(AzureStoreAccess::try_from_uri(&uri, storage_options)?);
+
                 self.create_obj_store_table_provider(
                     access,
                     DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
@@ -476,31 +644,25 @@ impl<'a> ExternalDispatcher<'a> {
                 )
                 .await
             }
-            TableOptions::Delta(TableOptionsObjectStore {
+            TableOptionsV0::Delta(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
-            }) => {
-                let provider =
-                    Arc::new(load_table_direct(location, storage_options.clone()).await?);
-                Ok(provider)
-            }
-            TableOptions::Iceberg(TableOptionsObjectStore {
+            }) => Ok(Arc::new(NativeTable::new(
+                load_table_direct(location, storage_options.clone()).await?,
+            ))),
+            TableOptionsV0::Iceberg(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             }) => {
                 let url = DatasourceUrl::try_new(location)?;
-                let store = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.clone(),
-                )?
-                .create_store()?;
+                let store = storage_options_into_object_store(&url, storage_options)?;
                 let table = IcebergTable::open(url, store).await?;
                 let reader = table.table_reader().await?;
                 Ok(reader)
             }
-            TableOptions::SqlServer(TableOptionsSqlServer {
+            TableOptionsV0::SqlServer(TableOptionsSqlServer {
                 connection_string,
                 schema,
                 table,
@@ -514,7 +676,7 @@ impl<'a> ExternalDispatcher<'a> {
                 .await?;
                 Ok(Arc::new(table))
             }
-            TableOptions::Clickhouse(TableOptionsClickhouse {
+            TableOptionsV0::Clickhouse(TableOptionsClickhouse {
                 connection_string,
                 database,
                 table,
@@ -525,32 +687,30 @@ impl<'a> ExternalDispatcher<'a> {
                 let table = ClickhouseTableProvider::try_new(access, table_ref).await?;
                 Ok(Arc::new(table))
             }
-            TableOptions::Lance(TableOptionsObjectStore {
+            TableOptionsV0::Lance(TableOptionsObjectStore {
                 location,
                 storage_options,
                 ..
             }) => Ok(Arc::new(
                 LanceTable::new(location, storage_options.clone()).await?,
             )),
-            TableOptions::Bson(TableOptionsObjectStore {
+            TableOptionsV0::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
                 schema_sample_size,
                 ..
             }) => {
-                let store_access = GenericStoreAccess::new_from_location_and_opts(
-                    location,
-                    storage_options.to_owned(),
-                )?;
                 let source_url = DatasourceUrl::try_new(location)?;
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
                 Ok(bson_streaming_table(
-                    Arc::new(store_access),
-                    schema_sample_size.to_owned(),
+                    store_access,
                     source_url,
+                    schema,
+                    schema_sample_size.to_owned(),
                 )
                 .await?)
             }
-            TableOptions::Cassandra(TableOptionsCassandra {
+            TableOptionsV0::Cassandra(TableOptionsCassandra {
                 host,
                 keyspace,
                 table,
@@ -568,113 +728,27 @@ impl<'a> ExternalDispatcher<'a> {
 
                 Ok(Arc::new(table))
             }
-            TableOptions::Sqlite(TableOptionsSqlite { location, table }) => {
-                let access = SqliteAccess {
-                    db: location.into(),
-                };
-                let state = access.connect().await?;
-                let table = SqliteTableProvider::try_new(state, table).await?;
-                Ok(Arc::new(table))
+            TableOptionsV0::Sqlite(TableOptionsObjectStore {
+                location,
+                storage_options,
+                name,
+                ..
+            }) => {
+                let mut storage_options = storage_options.to_owned();
+
+                storage_options
+                    .inner
+                    .insert("__tmp_prefix".to_string(), Uuid::new_v4().to_string());
+
+                let table = name.clone().ok_or(DispatchError::MissingTable)?;
+                let state =
+                    SqliteAccess::new(location.as_str().try_into()?, Some(storage_options.clone()))
+                        .await?
+                        .connect()
+                        .await?;
+
+                Ok(Arc::new(SqliteTableProvider::try_new(state, table).await?))
             }
         }
-    }
-
-    async fn create_obj_store_table_provider(
-        &self,
-        access: Arc<dyn ObjStoreAccess>,
-        path: impl AsRef<str>,
-        file_type: &str,
-        compression: Option<&String>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let path = path.as_ref();
-        let compression = compression
-            .map(|c| c.parse::<FileCompressionType>())
-            .transpose()?
-            .unwrap_or(FileCompressionType::UNCOMPRESSED);
-
-        let accessor = ObjStoreAccessor::new(access.clone())?;
-
-        match file_type {
-            "csv" => Ok(accessor
-                .clone()
-                .into_table_provider(
-                    &self.df_ctx.state(),
-                    Arc::new(
-                        CsvFormat::default()
-                            .with_file_compression_type(compression)
-                            .with_schema_infer_max_rec(Some(20480)),
-                    ),
-                    accessor.clone().list_globbed(path).await?,
-                )
-                .await?),
-            "parquet" => Ok(accessor
-                .clone()
-                .into_table_provider(
-                    &self.df_ctx.state(),
-                    Arc::new(ParquetFormat::default()),
-                    accessor.clone().list_globbed(path).await?,
-                )
-                .await?),
-            "ndjson" | "json" => Ok(accessor
-                .clone()
-                .into_table_provider(
-                    &self.df_ctx.state(),
-                    Arc::new(JsonFormat::default().with_file_compression_type(compression)),
-                    accessor.clone().list_globbed(path).await?,
-                )
-                .await?),
-            "bson" => {
-                Ok(
-                    bson_streaming_table(access.clone(), Some(128), DatasourceUrl::try_new(path)?)
-                        .await?,
-                )
-            }
-            _ => Err(DispatchError::String(
-                format!("Unsupported file type: {}, for '{}'", file_type, path,).to_string(),
-            )),
-        }
-    }
-
-    pub async fn dispatch_function(
-        &self,
-        func: &FunctionEntry,
-        args: Option<Vec<FuncParamValue>>,
-        opts: Option<HashMap<String, FuncParamValue>>,
-    ) -> Result<Arc<dyn TableProvider>> {
-        let args = args.unwrap_or_default();
-        let opts = opts.unwrap_or_default();
-        let resolve_func = if func.meta.builtin {
-            FUNCTION_REGISTRY.get_table_func(&func.meta.name)
-        } else {
-            // We only have builtin functions right now.
-            None
-        };
-        let prov = resolve_func
-            .unwrap()
-            .create_provider(
-                &DefaultTableContextProvider::new(self.catalog, self.df_ctx),
-                args,
-                opts,
-            )
-            .await?;
-        Ok(prov)
-    }
-
-    fn get_tunnel_opts(&self, tunnel_id: Option<u32>) -> Result<Option<TunnelOptions>> {
-        let tunnel_options = if let Some(tunnel_id) = tunnel_id {
-            let ent = self
-                .catalog
-                .get_by_oid(tunnel_id)
-                .ok_or(DispatchError::MissingTunnel(tunnel_id))?;
-
-            let ent = match ent {
-                CatalogEntry::Tunnel(ent) => ent,
-                _ => return Err(DispatchError::MissingTunnel(tunnel_id)),
-            };
-            Some(ent.options.clone())
-        } else {
-            None
-        };
-        Ok(tunnel_options)
     }
 }

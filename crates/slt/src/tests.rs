@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use tokio_postgres::Config;
 use tracing::warn;
 
-use crate::test::{FnTest, TestClient};
+use crate::clients::TestClient;
+use crate::test::FnTest;
 
 macro_rules! test_assert {
     ($e:expr, $err:expr) => {

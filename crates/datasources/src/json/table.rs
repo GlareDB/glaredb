@@ -1,81 +1,107 @@
 use std::sync::Arc;
 use std::vec::Vec;
 
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Schema};
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::physical_plan::streaming::PartitionStream;
-use object_store::ObjectStore;
+use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
 
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
-use crate::json::stream::{JsonPartitionStream, LazyJsonPartitionStream};
-use crate::object_store::generic::GenericStoreAccess;
-use crate::object_store::ObjStoreAccess;
+use crate::json::stream::{ObjectStorePartition, VectorPartition};
+use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
 pub async fn json_streaming_table(
-    store_access: GenericStoreAccess,
+    store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
+    fields: Option<Vec<FieldRef>>,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
-    let path = source_url.path();
+    let path = source_url.path().into_owned();
 
-    let store = store_access.create_store()?;
+    let accessor = ObjStoreAccessor::new(store_access)?;
 
-    // assume that the file type is a glob and see if there are
-    // more files...
-    let mut list = store_access.list_globbed(&store, path.as_ref()).await?;
-
+    let mut list = accessor.list_globbed(&path).await?;
     if list.is_empty() {
-        return Err(JsonError::NotFound(path.into_owned()));
+        return Err(JsonError::NotFound(path));
     }
 
     // for consistent results, particularly for the sample, always
     // sort by location
     list.sort_by(|a, b| a.location.cmp(&b.location));
 
-    let mut data = Vec::new();
-    {
-        let first_obj = list
-            .pop()
-            .ok_or_else(|| JsonError::NotFound(path.into_owned()))?;
-        let blob = store
-            .get(&first_obj.location)
-            .await?
-            .bytes()
-            .await?
-            .to_vec();
+    let store = accessor.into_object_store();
 
-        push_unwind_json_values(
-            &mut data,
-            serde_json::from_slice::<serde_json::Value>(&blob),
-        )?;
-    }
+    json_streaming_table_inner(store, &path, list, fields).await
+}
 
-    let mut field_set = indexmap::IndexMap::<String, DataType>::new();
-    for obj in &data {
-        for (key, value) in obj.into_iter() {
-            let typ = type_for_value(value);
-            match field_set.get(key) {
-                Some(v) => match widen_type(v, typ) {
-                    Some(wider) => field_set.insert(key.to_string(), wider),
-                    None => None,
-                },
-                None => field_set.insert(key.to_string(), typ),
-            };
-        }
-    }
-    let schema = Arc::new(Schema::new(
-        field_set
-            .into_iter()
-            .map(|(k, v)| Field::new(k, v, true))
-            .collect::<Vec<_>>(),
-    ));
+pub async fn json_streaming_table_from_object(
+    store: Arc<dyn ObjectStore>,
+    object: ObjectMeta,
+) -> Result<Arc<dyn TableProvider>, JsonError> {
+    json_streaming_table_inner(store, "", vec![object], None).await
+}
 
+async fn json_streaming_table_inner(
+    store: Arc<dyn ObjectStore>,
+    original_path: &str, // Just for error
+    mut list: Vec<ObjectMeta>,
+    fields: Option<Vec<FieldRef>>,
+) -> Result<Arc<dyn TableProvider>, JsonError> {
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
-    streams.push(Arc::new(JsonPartitionStream::new(schema.clone(), data)));
+
+    let schema = match fields {
+        Some(fields) => Arc::new(Schema::new(fields)),
+        None => {
+            let mut data = Vec::new();
+            {
+                let first_obj = list
+                    .pop()
+                    .ok_or_else(|| JsonError::NotFound(original_path.to_string()))?;
+
+                let blob = store
+                    .get(&first_obj.location)
+                    .await?
+                    .bytes()
+                    .await?
+                    .to_vec();
+
+                push_unwind_json_values(
+                    &mut data,
+                    serde_json::Deserializer::from_slice(&blob).into_iter(),
+                )?;
+            }
+
+            let mut field_set = indexmap::IndexMap::<String, DataType>::new();
+            for obj in &data {
+                for (key, value) in obj.into_iter() {
+                    let typ = type_for_value(value);
+                    match field_set.get(key) {
+                        Some(v) => match widen_type(v, typ) {
+                            Some(wider) => field_set.insert(key.to_string(), wider),
+                            None => None,
+                        },
+                        None => field_set.insert(key.to_string(), typ),
+                    };
+                }
+            }
+
+            let schema = Arc::new(Schema::new(
+                field_set
+                    .into_iter()
+                    .map(|(k, v)| Field::new(k, v, true))
+                    .collect::<Vec<_>>(),
+            ));
+
+            streams.push(Arc::new(VectorPartition::new(schema.clone(), data)));
+            schema
+        }
+    };
+
+
     for obj in list {
-        streams.push(Arc::new(LazyJsonPartitionStream::new(
+        streams.push(Arc::new(ObjectStorePartition::new(
             schema.clone(),
             store.clone(),
             obj,
@@ -85,32 +111,35 @@ pub async fn json_streaming_table(
     Ok(Arc::new(StreamingTable::try_new(schema.clone(), streams)?))
 }
 
-pub(crate) fn push_unwind_json_values(
+
+fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
-    val: Result<Value, serde_json::Error>,
+    vals: impl Iterator<Item = Result<Value, serde_json::Error>>,
 ) -> Result<(), JsonError> {
-    match val? {
-        Value::Array(vals) => {
-            for v in vals {
-                match v {
-                    Value::Object(doc) => data.push(doc),
-                    Value::Null => data.push(Map::new()),
-                    _ => {
-                        return Err(JsonError::UnspportedType(
-                            "only objects and arrays of objects are supported",
-                        ))
+    for val in vals {
+        match val? {
+            Value::Array(vals) => {
+                for v in vals {
+                    match v {
+                        Value::Object(doc) => data.push(doc),
+                        Value::Null => data.push(Map::new()),
+                        _ => {
+                            return Err(JsonError::UnspportedType(
+                                "only objects and arrays of objects are supported",
+                            ))
+                        }
                     }
                 }
             }
-        }
-        Value::Object(doc) => data.push(doc),
-        Value::Null => data.push(Map::new()),
-        _ => {
-            return Err(JsonError::UnspportedType(
-                "only objects and arrays of objects are supported",
-            ))
-        }
-    };
+            Value::Object(doc) => data.push(doc),
+            Value::Null => data.push(Map::new()),
+            _ => {
+                return Err(JsonError::UnspportedType(
+                    "only objects and arrays of objects are supported",
+                ))
+            }
+        };
+    }
     Ok(())
 }
 

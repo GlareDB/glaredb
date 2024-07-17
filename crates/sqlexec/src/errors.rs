@@ -64,7 +64,7 @@ pub enum ExecError {
     DataFusion(#[from] datafusion::common::DataFusionError),
 
     #[error(transparent)]
-    ParseError(#[from] datafusion::sql::sqlparser::parser::ParserError),
+    ParseError(#[from] parser::errors::ParseError),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),
@@ -166,6 +166,18 @@ pub enum ExecError {
     #[error(transparent)]
     Metastore(#[from] metastore::errors::MetastoreError),
 }
+
+impl From<ExecError> for datafusion::error::DataFusionError {
+    fn from(e: ExecError) -> Self {
+        match e {
+            ExecError::DataFusion(e) => e,
+            ExecError::Arrow(e) => datafusion::error::DataFusionError::ArrowError(e, None),
+            ExecError::Io(e) => datafusion::error::DataFusionError::IoError(e),
+            _ => datafusion::error::DataFusionError::External(Box::new(e)),
+        }
+    }
+}
+
 
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
 

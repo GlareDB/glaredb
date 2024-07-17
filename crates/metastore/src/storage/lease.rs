@@ -27,7 +27,7 @@ use protogen::gen::metastore::storage;
 use protogen::metastore::types::storage::{LeaseInformation, LeaseState};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
-use tracing::{debug_span, error, Instrument};
+use tracing::{debug, debug_span, error, Instrument};
 use uuid::Uuid;
 
 use crate::storage::{Result, SingletonStorageObject, StorageError, StorageObject};
@@ -99,12 +99,10 @@ impl RemoteLeaser {
     ///
     /// Errors if some other process holds the lease.
     pub async fn acquire(&self, db_id: Uuid) -> Result<RemoteLease> {
-        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(&db_id, &self.process_id);
         let visible_path = LEASE_INFORMATION_OBJECT.visible_path(&db_id);
         let renewer = LeaseRenewer {
             db_id,
             process_id: self.process_id,
-            tmp_path,
             visible_path,
             store: self.store.clone(),
         };
@@ -218,8 +216,6 @@ impl RemoteLease {
 struct LeaseRenewer {
     db_id: Uuid,
     process_id: Uuid,
-    /// Where to store the temporary lease object.
-    tmp_path: ObjectPath,
     /// Path to the visible lease object.
     visible_path: ObjectPath,
     store: Arc<dyn ObjectStore>,
@@ -242,12 +238,19 @@ impl LeaseRenewer {
             })?;
 
             // Some other process has the lease.
-            if expires_at > now {
+            if expires_at > now && held_by != self.process_id {
                 return Err(StorageError::LeaseHeldByOtherProcess {
                     db_id: self.db_id,
                     other_process_id: held_by,
                     current_process_id: self.process_id,
                 });
+            }
+
+            if expires_at - LEASE_DURATION + (LEASE_RENEW_INTERVAL / 2) > now {
+                // Don't acquire a new lease. Let the process use the existing
+                // lease. This should help in reducing the number of writes to
+                // the lease object.
+                return Ok(lease.generation);
             }
 
             // Lease was locked, but expired. This should not happen in normal
@@ -339,12 +342,15 @@ impl LeaseRenewer {
         Ok(lease)
     }
 
-    async fn write_lease(&self, lease: LeaseInformation) -> Result<()> {
+    async fn try_write_lease(&self, lease: LeaseInformation) -> Result<()> {
         // Write to storage.
         let proto: storage::LeaseInformation = lease.into();
         let mut bs = BytesMut::new();
         proto.encode(&mut bs)?;
-        self.store.put(&self.tmp_path, bs.freeze()).await?;
+
+        let tmp_path = LEASE_INFORMATION_OBJECT.tmp_path(&self.db_id, &self.process_id);
+
+        self.store.put(&tmp_path, bs.freeze()).await?;
 
         // Rename...
         //
@@ -354,11 +360,45 @@ impl LeaseRenewer {
         // want to look into object versioning for gcs.
         //
         // See <https://cloud.google.com/storage/docs/object-versioning>
-        self.store
-            .rename(&self.tmp_path, &self.visible_path)
-            .await?;
+        self.store.rename(&tmp_path, &self.visible_path).await?;
 
         Ok(())
+    }
+
+    async fn write_lease(&self, lease: LeaseInformation) -> Result<()> {
+        let mut final_err = String::new();
+
+        for num_try in 1..=5 {
+            if let Err(err) = self.try_write_lease(lease.clone()).await {
+                final_err = err.to_string();
+
+                if let StorageError::ObjectStore(err) = &err {
+                    if let ObjectStoreError::Generic { store, source } = err {
+                        let source = source.to_string();
+                        // Error code 429 is not handled by object_store's retry
+                        // configuration. We should maybe upstream to catch this
+                        // and retry properly.
+                        if store == &"GCS" && source.contains("429") {
+                            debug!(%err, %num_try, "hit rate limit for writing lease object");
+                            // Sleep for some time (half the time of when the
+                            // request wouldn't throttle) before trying to write
+                            // the lease.
+                            //
+                            // See: https://cloud.google.com/storage/docs/objects#immutability
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                            continue;
+                        }
+                    }
+                }
+
+                return Err(err);
+            } else {
+                return Ok(());
+            }
+        }
+
+        // Return the original error if failed after retries.
+        Err(StorageError::LeaseWriteError(final_err))
     }
 }
 
@@ -381,12 +421,13 @@ mod tests {
         proto.try_into().unwrap()
     }
 
+    // Note that the implementation for default uses non-zero uuids.
+    #[derive(Debug, Clone)]
     struct LeaseRenewerTestParams {
         now: SystemTime,
         process_id: Uuid,
         db_id: Uuid,
         store: Arc<dyn ObjectStore>,
-        tmp_path: ObjectPath,
         visible_path: ObjectPath,
     }
 
@@ -396,7 +437,6 @@ mod tests {
             LeaseRenewer {
                 db_id: self.db_id,
                 process_id: self.process_id,
-                tmp_path: self.tmp_path.clone(),
                 visible_path: self.visible_path.clone(),
                 store: self.store.clone(),
             }
@@ -412,7 +452,6 @@ mod tests {
                 process_id,
                 db_id,
                 store: Arc::new(TempObjectStore::new().unwrap()),
-                tmp_path: LEASE_INFORMATION_OBJECT.tmp_path(&db_id, &process_id),
                 visible_path: LEASE_INFORMATION_OBJECT.visible_path(&db_id),
             }
         }
@@ -510,6 +549,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn lease_renewer_reacquire_own_lease() {
+        // See second error message in https://github.com/GlareDB/cloud/issues/2746
+        //
+        // If this process has already acquired the lease, attempting to acquire
+        // it again from the same process should work. This may happen if the
+        // metastore hits an error writing to object store (rate limit), and so
+        // fails the full request without actually being able to unlock the
+        // lease. Attempting to reacquire the lease in a second request should
+        // work though, since we still have the lease.
+        let params = LeaseRenewerTestParams::default();
+
+        let start = LeaseInformation {
+            state: LeaseState::Locked,
+            generation: 1,
+            expires_at: Some(params.now + LEASE_DURATION),
+            held_by: Some(params.process_id),
+        };
+        insert_lease(params.store.as_ref(), &params.visible_path, start).await;
+
+        let renewer = params.renewer();
+
+        // Make sure we can acquire it even though it's already been "acquired"
+        // (active lease inserted).
+        renewer.acquire_lease().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn remote_lease_idempotent_initialize() {
         let store = Arc::new(object_store::memory::InMemory::new());
         let process_id = Uuid::new_v4();
@@ -540,24 +606,26 @@ mod tests {
     async fn remote_leaser_fail_acquire() {
         let store = Arc::new(object_store::memory::InMemory::new());
         let process_id = Uuid::new_v4();
-        let leaser = RemoteLeaser::new(process_id, store);
+        let leaser = RemoteLeaser::new(process_id, store.clone());
 
         let db_id = Uuid::new_v4();
         leaser.initialize(&db_id).await.unwrap();
 
         let active = leaser.acquire(db_id).await.unwrap();
 
-        // Try to acquire a second lease.
-        let result = leaser.acquire(db_id).await;
+        // Try to acquire the lease using a different leaser.
+        let different = RemoteLeaser::new(Uuid::new_v4(), store);
+        let result = different.acquire(db_id).await;
         assert!(
             matches!(result, Err(StorageError::LeaseHeldByOtherProcess { .. })),
             "result: {:?}",
             result,
         );
 
-        // Dropping previous lease should allow us to acquire a new one.
+        // Dropping previous lease should allow us to acquire a new one in the
+        // other process.
         active.drop_lease().await.unwrap();
 
-        let _ = leaser.acquire(db_id).await.unwrap();
+        let _ = different.acquire(db_id).await.unwrap();
     }
 }

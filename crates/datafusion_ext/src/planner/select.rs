@@ -27,8 +27,6 @@ use datafusion::logical_expr::expr_rewriter::{
 };
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::utils::{
-    expand_qualified_wildcard,
-    expand_wildcard,
     expr_as_column_expr,
     expr_to_columns,
     find_aggregate_exprs,
@@ -44,7 +42,7 @@ use datafusion::logical_expr::{
 };
 use datafusion::prelude::Column;
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{
+use parser::sqlparser::ast::{
     Distinct,
     Expr as SQLExpr,
     GroupByExpr,
@@ -60,6 +58,8 @@ use datafusion::sql::sqlparser::ast::{
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 use crate::utils::{
     check_columns_satisfy_exprs,
+    expand_qualified_wildcard,
+    expand_wildcard,
     extract_aliases,
     rebase_expr,
     resolve_aliases_to_exprs,
@@ -416,6 +416,7 @@ impl<'a, S: AsyncContextProvider> SqlQueryPlanner<'a, S> {
                 if empty_from {
                     return plan_err!("SELECT * with no tables specified is not valid");
                 }
+
                 // do not expand from outer schema
                 let expanded_exprs = expand_wildcard(plan.schema().as_ref(), plan, Some(&options))?;
                 // If there is a REPLACE statement, replace that column with the given

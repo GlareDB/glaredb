@@ -122,18 +122,27 @@ pub struct AuthenticateClientError {
     pub msg: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum RemoteClientType {
     Cli,
     Node,
     Python,
+    Rust,
 }
+
+impl Default for RemoteClientType {
+    fn default() -> Self {
+        Self::Rust
+    }
+}
+
 impl fmt::Display for RemoteClientType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RemoteClientType::Cli => write!(f, "cli"),
             RemoteClientType::Node => write!(f, "node"),
             RemoteClientType::Python => write!(f, "python"),
+            RemoteClientType::Rust => write!(f, "rust"),
         }
     }
 }
@@ -281,12 +290,13 @@ impl RemoteClient {
 
         Ok((
             remote_sess_client,
-            SessionCatalog::new(
+            SessionCatalog::new_with_alias(
                 Arc::new(resp.catalog),
                 ResolveConfig {
                     default_schema_oid: SCHEMA_DEFAULT.oid,
                     session_schema_oid: SCHEMA_CURRENT_SESSION.oid,
                 },
+                self.get_deployment_name().to_string(),
             ),
         ))
     }

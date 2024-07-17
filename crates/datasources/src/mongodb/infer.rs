@@ -36,7 +36,7 @@ impl<'a> TableSampler<'a> {
             "$sample": {"size": sample_count}
         }];
 
-        let mut cursor = self.collection.aggregate(sample_pipeline, None).await?;
+        let mut cursor = self.collection.aggregate(sample_pipeline).await?;
 
         let mut schemas = Vec::with_capacity(sample_count as usize);
         while let Some(doc) = cursor.try_next().await? {

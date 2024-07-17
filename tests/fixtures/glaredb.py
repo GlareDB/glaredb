@@ -1,34 +1,47 @@
+import socket
+import contextlib
 import pathlib
 import time
 import subprocess
 import sys
+import logging
 
 import pytest
 import psycopg2
 
 import tests
 
-
-@pytest.fixture
-def release_path() -> pathlib.Path:
-    return tests.PKG_DIRECTORY.joinpath("target", "release", "glaredb")
+logger = logging.getLogger("fixtures.glaredb")
 
 
 @pytest.fixture
-def debug_path() -> pathlib.Path:
-    return tests.PKG_DIRECTORY.joinpath("target", "debug", "glaredb")
+def glaredb_path() -> list[pathlib.Path]:
+    return [
+        tests.PKG_DIRECTORY.joinpath("target", "release", "glaredb"),
+        tests.PKG_DIRECTORY.joinpath("target", "debug", "glaredb"),
+    ]
+
+
+@pytest.fixture
+def binary_path(glaredb_path: list[pathlib.Path]) -> pathlib.Path:
+    return glaredb_path[0] if glaredb_path[0].exists() else glaredb_path[1]
 
 
 @pytest.fixture
 def glaredb_connection(
-    debug_path: pathlib.Path,
+    binary_path: list[pathlib.Path],
     tmp_path_factory: pytest.TempPathFactory,
 ) -> psycopg2.extensions.connection:
-    addr = ("127.0.0.1", "5432")
+    with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        addr = ("127.0.0.1", str(s.getsockname()[1]))
+
+    logger.info(f"starting glaredb on port {addr[0]}")
 
     with subprocess.Popen(
         [
-            debug_path.absolute(),
+            binary_path.absolute(),
             "--verbose",
             "server",
             "--data-dir",

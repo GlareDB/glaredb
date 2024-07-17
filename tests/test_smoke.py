@@ -5,20 +5,15 @@ import subprocess
 import pytest
 import psycopg2
 
-from tests.fixtures.glaredb import glaredb_connection, release_path, debug_path
+
+def test_binary_exists(glaredb_path: list[pathlib.Path]):
+    assert len(glaredb_path) == 2
+    assert glaredb_path[0].exists() or glaredb_path[1].exists()
 
 
-def test_release_exists(release_path: pathlib.Path):
-    assert not release_path.exists()  # the release binary does not exist
-
-
-def test_debug_exists(debug_path: pathlib.Path):
-    assert debug_path.exists()  # the debug binary exists
-
-
-def test_debug_executes(debug_path: pathlib.Path):
+def test_binary_executes(binary_path: list[pathlib.Path]):
     # run the binary and see if it returns:
-    assert subprocess.check_call([debug_path.absolute(), "-q", "SELECT 1;"]) == 0
+    assert subprocess.check_call([binary_path.absolute(), "-q", "SELECT 1;"]) == 0
 
 
 def test_start(
@@ -29,14 +24,14 @@ def test_start(
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="linux version of the test")
-def test_expected_linking_linux(debug_path: pathlib.Path):
+def test_expected_linking_linux(binary_path: pathlib.Path):
     out = [
         ll
         for cell in [
             item
             for item in [
                 line.split(" ")
-                for line in str(subprocess.check_output(["ldd", debug_path.absolute()], text=True))
+                for line in str(subprocess.check_output(["ldd", binary_path.absolute()], text=True))
                 .replace("\t", "")
                 .split("\n")
             ]

@@ -1,35 +1,22 @@
 use std::fmt::Display;
 
-use datafusion::arrow::error::ArrowError;
-use metastore::errors::MetastoreError;
 use napi::bindgen_prelude::*;
 pub use napi::Result as JsResult;
-use sqlexec::errors::ExecError;
 
 #[derive(Debug, thiserror::Error)]
-pub enum JsGlareDbError {
-    #[error(transparent)]
-    Arrow(#[from] ArrowError),
-    #[error(transparent)]
-    Metastore(#[from] MetastoreError),
-    #[error(transparent)]
-    Exec(#[from] ExecError),
-    #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
-    #[error(transparent)]
-    DataFusion(#[from] datafusion::error::DataFusionError),
+pub enum JsDatabaseError {
     #[error("{0}")]
-    Other(String),
+    Database(#[from] glaredb::DatabaseError),
 }
 
-impl JsGlareDbError {
+impl JsDatabaseError {
     pub fn new(msg: impl Display) -> Self {
-        Self::Other(msg.to_string())
+        Self::Database(glaredb::DatabaseError::new(msg.to_string()))
     }
 }
 
-impl From<JsGlareDbError> for napi::Error {
-    fn from(err: JsGlareDbError) -> Self {
+impl From<JsDatabaseError> for napi::Error {
+    fn from(err: JsDatabaseError) -> Self {
         let reason = format!("{}", err);
 
         napi::Error::from_reason(reason)

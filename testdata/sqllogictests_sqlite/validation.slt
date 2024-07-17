@@ -1,31 +1,43 @@
 # Validation tests for sqlite external database and external tables
+#
 
-# External database validation
+# Originally these operations failed because GlareDB validated that
+# the table existed when the table was created in the catalog, but
+# these should error at query time: they may fail to exist now but may
+# exist later.
 
-# Validation test error with the wrong location
-statement error unable to open database file
+statement ok
 CREATE EXTERNAL DATABASE wrong_location
 	FROM sqlite
 	OPTIONS (
 		location = '/some/path/not/exists.db'
 	);
 
-# External table validation
 
-# Validation test error with the wrong location
-statement error unable to open database file
-CREATE EXTERNAL TABLE wrong_location
+statement error
+select * from wrong_location.public.datatypes;
+
+statement ok
+CREATE EXTERNAL TABLE wrong_location2
 	FROM sqlite
 	OPTIONS (
 		location = '/some/path/not/exists.db',
 		table = 'datatypes'
 	);
 
-# Validation test error with the wrong table
-statement error no such table
+statement error
+select * from wrong_location2.datatypes;
+
+statement error
+select * from wrong_location2.public.datatypes;
+
+statement ok
 CREATE EXTERNAL TABLE wrong_table
 	FROM sqlite
 	OPTIONS (
 		location = '${SQLITE_DB_LOCATION}',
 		table = 'invalid_table'
 	);
+
+statement error
+select * from wrong_table;

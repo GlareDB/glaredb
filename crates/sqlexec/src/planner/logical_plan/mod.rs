@@ -49,7 +49,6 @@ use datafusion::logical_expr::{
     UserDefinedLogicalNodeCore,
 };
 use datafusion::scalar::ScalarValue;
-use datafusion::sql::sqlparser::ast;
 use datafusion::sql::TableReference;
 pub use delete::*;
 pub use describe_table::*;
@@ -61,12 +60,12 @@ pub use drop_tunnel::*;
 pub use drop_views::*;
 pub use insert::*;
 use once_cell::sync::Lazy;
+use parser::sqlparser::ast;
 use protogen::metastore::types::options::{
     CopyToDestinationOptions,
     CopyToFormatOptions,
     CredentialsOptions,
     DatabaseOptions,
-    TableOptions,
     TunnelOptions,
 };
 pub use set_variable::*;

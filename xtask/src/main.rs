@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use xshell::Shell;
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 #[allow(clippy::pedantic)]
@@ -55,7 +55,7 @@ fn zip(src_path: &Path, dest_path: &Path) -> Result<()> {
     let mut writer = ZipWriter::new(io::BufWriter::new(file));
     writer.start_file(
         src_path.file_name().unwrap().to_str().unwrap(),
-        FileOptions::default()
+        SimpleFileOptions::default()
             .unix_permissions(0o755)
             .compression_method(zip::CompressionMethod::Deflated)
             .compression_level(Some(9)),

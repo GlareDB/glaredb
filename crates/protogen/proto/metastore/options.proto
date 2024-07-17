@@ -50,7 +50,7 @@ message DatabaseOptions {
     DatabaseOptionsCassandra cassandra = 11;
     DatabaseOptionsSqlite sqlite = 12;
   }
-  // next: 12
+  // next: 13
 }
 
 message DatabaseOptionsInternal {}
@@ -78,6 +78,11 @@ message DatabaseOptionsSqlServer {
   string connection_string = 1;
 }
 
+message DatabaseOptionsSqlite {
+  string location = 1;
+  StorageOptions storage_options = 2;
+}
+
 message DatabaseOptionsClickhouse {
   string connection_string = 1;
 }
@@ -86,10 +91,6 @@ message DatabaseOptionsCassandra {
   string host = 1;
   optional string username = 2;
   optional string password = 3;
-}
-
-message DatabaseOptionsSqlite {
-  string location = 1;
 }
 
 message DatabaseOptionsSnowflake {
@@ -119,9 +120,15 @@ message StorageOptions {
   map<string, string> inner = 1;
 }
 
+message TableOptionsV1 {
+  string name = 1;
+  bytes options = 2;
+  uint32 version = 3;
+}
+
 // Table options
 
-message TableOptions {
+message TableOptionsV0 {
   oneof options {
     TableOptionsInternal internal = 1;
     TableOptionsDebug debug = 2;
@@ -142,7 +149,7 @@ message TableOptions {
     TableOptionsClickhouse clickhouse = 17;
     TableOptionsCassandra cassandra = 18;
     TableOptionsExcel excel = 19;
-    TableOptionsSqlite sqlite = 20;
+    TableOptionsObjectStore sqlite = 20;
   }
   // next: 21
 }
@@ -205,13 +212,13 @@ message TableOptionsMongo {
   string collection = 3;
 }
 
-message TableOptionsExcel{
+message TableOptionsExcel {
   string location = 1;
   StorageOptions storage_options = 2;
   optional string file_type = 3;
   optional string compression = 4;
   optional string sheet_name = 5;
-  bool has_header = 6;
+  optional bool has_header = 6;
 }
 
 message TableOptionsSnowflake {
@@ -240,6 +247,11 @@ message TableOptionsObjectStore {
 
   // Optional: number of records to sample for formats with inferred schema.
   optional int64 schema_sample_size = 5;
+
+  // explit schema (not used anymore)
+  reserved 6;
+
+  optional string name = 7;
 }
 
 message TableOptionsSqlServer {
@@ -260,11 +272,6 @@ message TableOptionsCassandra {
   string table = 3;
   optional string username = 4;
   optional string password = 5;
-}
-
-message TableOptionsSqlite {
-  string location = 1;
-  string table = 2;
 }
 
 // Tunnel options

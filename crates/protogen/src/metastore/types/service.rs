@@ -1,17 +1,18 @@
-use proptest_derive::Arbitrary;
+use datafusion::logical_expr::Signature;
 
-use super::catalog::SourceAccessMode;
+use super::catalog::{FunctionType, SourceAccessMode};
 use super::options::{
     CredentialsOptions,
     DatabaseOptions,
-    TableOptions,
+    InternalColumnDefinition,
     TableOptionsInternal,
+    TableOptionsV0,
     TunnelOptions,
 };
 use crate::gen::metastore::service;
-use crate::{FromOptionalField, ProtoConvError};
+use crate::{gen, FromOptionalField, ProtoConvError};
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mutation {
     DropDatabase(DropDatabase),
     DropSchema(DropSchema),
@@ -30,6 +31,7 @@ pub enum Mutation {
     DropCredentials(DropCredentials),
     // Deployment metadata updates
     UpdateDeploymentStorage(UpdateDeploymentStorage),
+    CreateFunction(CreateFunction),
 }
 
 impl TryFrom<service::Mutation> for Mutation {
@@ -71,10 +73,12 @@ impl TryFrom<service::mutation::Mutation> for Mutation {
             service::mutation::Mutation::UpdateDeploymentStorage(v) => {
                 Mutation::UpdateDeploymentStorage(v.try_into()?)
             }
+            service::mutation::Mutation::CreateFunction(v) => {
+                Mutation::CreateFunction(v.try_into()?)
+            }
         })
     }
 }
-
 impl TryFrom<Mutation> for service::mutation::Mutation {
     type Error = ProtoConvError;
     fn try_from(value: Mutation) -> Result<Self, Self::Error> {
@@ -105,6 +109,9 @@ impl TryFrom<Mutation> for service::mutation::Mutation {
             Mutation::UpdateDeploymentStorage(v) => {
                 service::mutation::Mutation::UpdateDeploymentStorage(v.into())
             }
+            Mutation::CreateFunction(v) => {
+                service::mutation::Mutation::CreateFunction(v.try_into()?)
+            }
         })
     }
 }
@@ -118,7 +125,7 @@ impl TryFrom<Mutation> for service::Mutation {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropDatabase {
     pub name: String,
     pub if_exists: bool,
@@ -144,7 +151,7 @@ impl From<DropDatabase> for service::DropDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropSchema {
     pub name: String,
     pub if_exists: bool,
@@ -173,7 +180,7 @@ impl From<DropSchema> for service::DropSchema {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropObject {
     pub schema: String,
     pub name: String,
@@ -202,7 +209,7 @@ impl From<DropObject> for service::DropObject {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateSchema {
     pub name: String,
     pub if_not_exists: bool,
@@ -227,7 +234,7 @@ impl From<CreateSchema> for service::CreateSchema {
         }
     }
 }
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateView {
     pub schema: String,
     pub name: String,
@@ -262,7 +269,7 @@ impl From<CreateView> for service::CreateView {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTable {
     pub schema: String,
     pub name: String,
@@ -298,19 +305,72 @@ impl TryFrom<CreateTable> for service::CreateTable {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateFunction {
+    pub name: String,
+    pub aliases: Vec<String>,
+    pub signature: Signature,
+    pub function_type: FunctionType,
+}
+
+impl TryFrom<service::CreateFunction> for CreateFunction {
+    type Error = ProtoConvError;
+    fn try_from(value: service::CreateFunction) -> Result<Self, Self::Error> {
+        let signature = value.signature.required("signature")?;
+        let function_type = value.r#type;
+        let function_type = FunctionType::try_from(function_type)?;
+
+        Ok(CreateFunction {
+            name: value.name,
+            aliases: value.aliases,
+            signature,
+            function_type,
+        })
+    }
+}
+
+impl TryFrom<CreateFunction> for service::CreateFunction {
+    type Error = ProtoConvError;
+    fn try_from(value: CreateFunction) -> Result<service::CreateFunction, Self::Error> {
+        Ok(service::CreateFunction {
+            name: value.name,
+            aliases: value.aliases,
+            signature: Some(value.signature.into()),
+            r#type: value.function_type as i32,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalTable {
     pub schema: String,
     pub name: String,
-    pub options: TableOptions,
+    pub options: TableOptionsV0,
     pub or_replace: bool,
     pub if_not_exists: bool,
     pub tunnel: Option<String>,
+    pub columns: Option<Vec<InternalColumnDefinition>>,
 }
+
 
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
     type Error = ProtoConvError;
     fn try_from(value: service::CreateExternalTable) -> Result<Self, Self::Error> {
+        let columns: Vec<InternalColumnDefinition> = value
+            .columns
+            .into_iter()
+            .map(|column| {
+                let col: InternalColumnDefinition = column.try_into()?;
+                Ok::<_, ProtoConvError>(col)
+            })
+            .collect::<Result<_, _>>()?;
+
+        let columns = if columns.is_empty() {
+            None
+        } else {
+            Some(columns)
+        };
+
         // TODO: Check if string are zero value.
         Ok(CreateExternalTable {
             schema: value.schema,
@@ -319,6 +379,7 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
+            columns,
         })
     }
 }
@@ -326,6 +387,11 @@ impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
 impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
     type Error = ProtoConvError;
     fn try_from(value: CreateExternalTable) -> Result<Self, Self::Error> {
+        let columns: Vec<gen::metastore::options::InternalColumnDefinition> = value
+            .columns
+            .map(|s| s.into_iter().map(Into::into).collect())
+            .unwrap_or_default();
+
         Ok(service::CreateExternalTable {
             schema: value.schema,
             name: value.name,
@@ -333,11 +399,12 @@ impl TryFrom<CreateExternalTable> for service::CreateExternalTable {
             or_replace: value.or_replace,
             if_not_exists: value.if_not_exists,
             tunnel: value.tunnel,
+            columns,
         })
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateExternalDatabase {
     pub name: String,
     pub options: DatabaseOptions,
@@ -368,7 +435,7 @@ impl From<CreateExternalDatabase> for service::CreateExternalDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AlterTableOperation {
     RenameTable { new_name: String },
     SetAccessMode { access_mode: SourceAccessMode },
@@ -424,7 +491,7 @@ impl From<AlterTableOperation> for service::AlterTableOperation {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterTable {
     pub schema: String,
     pub name: String,
@@ -452,7 +519,7 @@ impl From<AlterTable> for service::AlterTable {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AlterDatabaseOperation {
     RenameDatabase { new_name: String },
     SetAccessMode { access_mode: SourceAccessMode },
@@ -508,7 +575,7 @@ impl From<AlterDatabaseOperation> for service::AlterDatabaseOperation {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterDatabase {
     pub name: String,
     pub operation: AlterDatabaseOperation,
@@ -533,7 +600,7 @@ impl From<AlterDatabase> for service::AlterDatabase {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTunnel {
     pub name: String,
     pub options: TunnelOptions,
@@ -561,7 +628,7 @@ impl From<CreateTunnel> for service::CreateTunnel {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropTunnel {
     pub name: String,
     pub if_exists: bool,
@@ -586,7 +653,7 @@ impl From<DropTunnel> for service::DropTunnel {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlterTunnelRotateKeys {
     pub name: String,
     pub if_exists: bool,
@@ -614,7 +681,7 @@ impl From<AlterTunnelRotateKeys> for service::AlterTunnelRotateKeys {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateCredentials {
     pub name: String,
     pub options: CredentialsOptions,
@@ -645,7 +712,7 @@ impl From<CreateCredentials> for service::CreateCredentials {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropCredentials {
     pub name: String,
     pub if_exists: bool,
@@ -670,7 +737,7 @@ impl From<DropCredentials> for service::DropCredentials {
     }
 }
 
-#[derive(Debug, Clone, Arbitrary, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateDeploymentStorage {
     pub new_storage_size: u64,
 }
@@ -688,23 +755,6 @@ impl From<UpdateDeploymentStorage> for service::UpdateDeploymentStorage {
     fn from(value: UpdateDeploymentStorage) -> Self {
         Self {
             new_storage_size: value.new_storage_size,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
-
-    use super::*;
-
-    proptest! {
-        #[test]
-        fn roundtrip_mutation(expected in any::<Mutation>()) {
-            let p: service::mutation::Mutation = expected.clone().try_into().unwrap();
-            let got: Mutation = p.try_into().unwrap();
-            assert_eq!(expected, got)
         }
     }
 }

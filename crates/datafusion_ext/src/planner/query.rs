@@ -19,14 +19,8 @@ use async_recursion::async_recursion;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{Distinct, Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{
-    Expr as SQLExpr,
-    Offset as SQLOffset,
-    OrderByExpr,
-    Query,
-    Value,
-};
 use datafusion::sql::sqlparser::parser::ParserError::ParserError;
+use parser::sqlparser::ast::{Expr as SQLExpr, Offset as SQLOffset, OrderByExpr, Query, Value};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

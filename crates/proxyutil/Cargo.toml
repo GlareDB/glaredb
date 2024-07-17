@@ -6,6 +6,10 @@ edition.workspace = true
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
@@ -14,4 +18,4 @@ futures = { workspace = true }
 reqwest = { workspace = true }
 async-trait = { workspace = true }
 serde_json = { workspace = true }
-uuid = { version = "1.7.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }

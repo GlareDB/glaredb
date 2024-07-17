@@ -14,7 +14,6 @@ use futures::StreamExt;
 use lance::dataset::WriteMode;
 use lance::Dataset;
 use object_store::path::Path as ObjectPath;
-use object_store::ObjectStore;
 
 pub type LanceWriteParams = lance::dataset::WriteParams;
 
@@ -30,14 +29,13 @@ pub struct LanceSinkOpts {
 /// Writes lance files to object storage.
 #[derive(Debug, Clone)]
 pub struct LanceSink {
-    store: Arc<dyn ObjectStore>,
     loc: ObjectPath,
     opts: LanceSinkOpts,
 }
 
 impl fmt::Display for LanceSink {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LanceSink({}:{})", self.store, self.loc)
+        write!(f, "LanceSink({})", self.loc)
     }
 }
 
@@ -51,13 +49,8 @@ impl DisplayAs for LanceSink {
 }
 
 impl LanceSink {
-    pub fn from_obj_store(
-        store: Arc<dyn ObjectStore>,
-        loc: impl Into<ObjectPath>,
-        opts: LanceSinkOpts,
-    ) -> Self {
+    pub fn from_obj_store(loc: impl Into<ObjectPath>, opts: LanceSinkOpts) -> Self {
         LanceSink {
-            store,
             loc: loc.into(),
             opts,
         }
@@ -79,6 +72,7 @@ impl LanceSink {
             mode: WriteMode::Overwrite,
             ..Default::default()
         };
+
 
         let mut ds: Option<Dataset> = None;
 

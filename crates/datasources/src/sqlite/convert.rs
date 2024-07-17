@@ -1,6 +1,6 @@
 use async_sqlite::rusqlite::types::{Value, ValueRef};
 use async_sqlite::rusqlite::Rows;
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
 use datafusion::arrow::array::{
     ArrayBuilder,
     BinaryBuilder,
@@ -11,6 +11,7 @@ use datafusion::arrow::array::{
     StringBuilder,
     Time64MicrosecondBuilder,
     TimestampMicrosecondBuilder,
+    UInt64Builder,
 };
 use datafusion::arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -40,6 +41,12 @@ impl Converter {
                 let builder: Box<dyn ArrayBuilder> = match field.data_type() {
                     DataType::Boolean => {
                         Box::new(BooleanBuilder::with_capacity(RECORD_BATCH_CAPACITY))
+                    }
+                    DataType::UInt64 => {
+                        // sqlite can't produce this type, but for
+                        // consistency with other glaredb count
+                        // interfaces, we might
+                        Box::new(UInt64Builder::with_capacity(RECORD_BATCH_CAPACITY))
                     }
                     DataType::Int64 => Box::new(Int64Builder::with_capacity(RECORD_BATCH_CAPACITY)),
                     DataType::Float64 => {
@@ -105,16 +112,21 @@ impl Converter {
                                     builder.append_null();
                                 } else {
                                     let t = std::str::from_utf8(t).unwrap();
+
                                     return Err(SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Text(t.to_string()),
                                         to: DataType::Boolean,
+                                        cause: None,
                                     });
                                 }
                             }
                             v => {
                                 return Err(SqliteError::InvalidConversion {
+                                    field: field.name().to_string(),
                                     from: v.into(),
                                     to: DataType::Boolean,
+                                    cause: None,
                                 });
                             }
                         };
@@ -132,8 +144,10 @@ impl Converter {
                                     builder.append_value(r as i64);
                                 } else {
                                     return Err(SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Real(r),
                                         to: DataType::Int64,
+                                        cause: None,
                                     });
                                 }
                             }
@@ -142,10 +156,12 @@ impl Converter {
                                     builder.append_null();
                                 } else {
                                     let t = std::str::from_utf8(t).unwrap();
-                                    let i = t.parse::<i64>().map_err(|_| {
+                                    let i = t.parse::<i64>().map_err(|e| {
                                         SqliteError::InvalidConversion {
+                                            field: field.name().to_string(),
                                             from: Value::Text(t.to_string()),
                                             to: DataType::Int64,
+                                            cause: Some(e.to_string()),
                                         }
                                     })?;
                                     builder.append_value(i);
@@ -153,8 +169,10 @@ impl Converter {
                             }
                             v => {
                                 return Err(SqliteError::InvalidConversion {
+                                    field: field.name().to_string(),
                                     from: v.into(),
                                     to: DataType::Int64,
+                                    cause: None,
                                 });
                             }
                         };
@@ -173,8 +191,10 @@ impl Converter {
                                     builder.append_value(f);
                                 } else {
                                     return Err(SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Integer(i),
                                         to: DataType::Float64,
+                                        cause: None,
                                     });
                                 }
                             }
@@ -184,10 +204,12 @@ impl Converter {
                                     builder.append_null();
                                 } else {
                                     let t = std::str::from_utf8(t).unwrap();
-                                    let f = t.parse::<f64>().map_err(|_| {
+                                    let f = t.parse::<f64>().map_err(|e| {
                                         SqliteError::InvalidConversion {
+                                            field: field.name().to_string(),
                                             from: Value::Text(t.to_string()),
                                             to: DataType::Float64,
+                                            cause: Some(e.to_string()),
                                         }
                                     })?;
                                     builder.append_value(f);
@@ -195,8 +217,10 @@ impl Converter {
                             }
                             v => {
                                 return Err(SqliteError::InvalidConversion {
+                                    field: field.name().to_string(),
                                     from: v.into(),
                                     to: DataType::Float64,
+                                    cause: None,
                                 });
                             }
                         };
@@ -262,20 +286,24 @@ impl Converter {
                         match val_ref {
                             ValueRef::Null => builder.append_null(),
                             ValueRef::Integer(i) => {
-                                let i = i32::try_from(i).map_err(|_| {
+                                let i = i32::try_from(i).map_err(|e| {
                                     SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Integer(i),
                                         to: DataType::Date32,
+                                        cause: Some(e.to_string()),
                                     }
                                 })?;
                                 builder.append_value(i);
                             }
                             ValueRef::Real(r) if r.fract() == 0_f64 => {
                                 let i = r as i64;
-                                let i = i32::try_from(i).map_err(|_| {
+                                let i = i32::try_from(i).map_err(|e| {
                                     SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Real(r),
                                         to: DataType::Date32,
+                                        cause: Some(e.to_string()),
                                     }
                                 })?;
                                 builder.append_value(i);
@@ -289,27 +317,46 @@ impl Converter {
                                 // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
                                 let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
-                                let date =
-                                    NaiveDate::parse_from_str(t, "%Y-%m-%d").map_err(|_| {
-                                        SqliteError::InvalidConversion {
-                                            from: Value::Text(t.to_string()),
-                                            to: DataType::Date32,
-                                        }
+
+                                let date = NaiveDate::parse_from_str(t, "%Y-%m-%d")
+                                    .or_else(|_| {
+                                        NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S%.f")
+                                            .map(|ndt| ndt.date())
+                                    })
+                                    .or_else(|_| {
+                                        NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S")
+                                            .map(|ndt| ndt.date())
+                                    })
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc3339(t).map(|dt| dt.date_naive())
+                                    })
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc2822(t).map(|dt| dt.date_naive())
+                                    })
+                                    .map_err(|e| SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
+                                        from: Value::Text(t.to_string()),
+                                        to: DataType::Date32,
+                                        cause: Some(e.to_string()),
                                     })?;
                                 let num_days_since_epoch =
                                     date.signed_duration_since(epoch).num_days();
-                                let i = i32::try_from(num_days_since_epoch).map_err(|_| {
+                                let i = i32::try_from(num_days_since_epoch).map_err(|e| {
                                     SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Text(t.to_string()),
                                         to: DataType::Date32,
+                                        cause: Some(e.to_string()),
                                     }
                                 })?;
                                 builder.append_value(i);
                             }
                             v => {
                                 return Err(SqliteError::InvalidConversion {
+                                    field: field.name().to_string(),
                                     from: v.into(),
                                     to: DataType::Date32,
+                                    cause: None,
                                 });
                             }
                         };
@@ -322,10 +369,12 @@ impl Converter {
                         match val_ref {
                             ValueRef::Null => builder.append_null(),
                             ValueRef::Integer(i) => {
-                                let seconds_since_midnight = u32::try_from(i).map_err(|_| {
+                                let seconds_since_midnight = u32::try_from(i).map_err(|e| {
                                     SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Integer(i),
                                         to: DataType::Time64(TimeUnit::Microsecond),
+                                        cause: Some(e.to_string()),
                                     }
                                 })?;
                                 // Verify it's a valid time.
@@ -335,8 +384,10 @@ impl Converter {
                                 )
                                 .ok_or_else(|| {
                                     SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Integer(i),
                                         to: DataType::Time64(TimeUnit::Microsecond),
+                                        cause: None,
                                     }
                                 })?;
                                 let microseconds_since_midnight =
@@ -347,8 +398,10 @@ impl Converter {
                                 let seconds_since_midnight: u32 =
                                     (r as i64).try_into().map_err(|_| {
                                         SqliteError::InvalidConversion {
+                                            field: field.name().to_string(),
                                             from: Value::Real(r),
                                             to: DataType::Time64(TimeUnit::Microsecond),
+                                            cause: None,
                                         }
                                     })?;
                                 let sub_microseconds = {
@@ -366,8 +419,10 @@ impl Converter {
                                 )
                                 .ok_or_else(|| {
                                     SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
                                         from: Value::Real(r),
                                         to: DataType::Time64(TimeUnit::Microsecond),
+                                        cause: None,
                                     }
                                 })?;
                                 let microseconds_since_midnight = (seconds_since_midnight as i64
@@ -384,13 +439,33 @@ impl Converter {
                                 // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
                                 let epoch = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
-                                let time =
-                                    NaiveTime::parse_from_str(t, "%H:%M:%S%.f").map_err(|_| {
-                                        SqliteError::InvalidConversion {
-                                            from: Value::Text(t.to_string()),
-                                            to: DataType::Time64(TimeUnit::Microsecond),
-                                        }
+                                let time = NaiveTime::parse_from_str(t, "%H:%M:%S%.f")
+                                    .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M:%S%"))
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc3339(t).map(|dt| dt.time())
+                                    })
+                                    .or_else(|_| {
+                                        DateTime::parse_from_rfc2822(t).map(|dt| dt.time())
+                                    })
+                                    .or_else(|_| {
+                                        NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S%.f")
+                                            .map(|ndt| ndt.time())
+                                    })
+                                    .or_else(|_| {
+                                        NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S")
+                                            .map(|ndt| ndt.time())
+                                    })
+                                    .or_else(|_| {
+                                        NaiveDate::parse_from_str(t, "%Y-%m-%d")
+                                            .map(|_| NaiveTime::default())
+                                    })
+                                    .map_err(|e| SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
+                                        from: Value::Text(t.to_string()),
+                                        to: DataType::Time64(TimeUnit::Microsecond),
+                                        cause: Some(e.to_string()),
                                     })?;
+
                                 let duration_since_midnight = time.signed_duration_since(epoch);
                                 let microseconds_since_midnight =
                                     duration_since_midnight.num_microseconds().unwrap();
@@ -398,8 +473,10 @@ impl Converter {
                             }
                             v => {
                                 return Err(SqliteError::InvalidConversion {
+                                    field: field.name().to_string(),
                                     from: v.into(),
                                     to: DataType::Time64(TimeUnit::Microsecond),
+                                    cause: None,
                                 });
                             }
                         };
@@ -412,24 +489,26 @@ impl Converter {
                         match val_ref {
                             ValueRef::Null => builder.append_null(),
                             ValueRef::Integer(i) => {
-                                let timestamp =
-                                    NaiveDateTime::from_timestamp_opt(i, /* nsecs = */ 0)
-                                        .ok_or_else(|| SqliteError::InvalidConversion {
-                                            from: Value::Integer(i),
-                                            to: DataType::Timestamp(TimeUnit::Microsecond, None),
-                                        })?;
+                                let timestamp = DateTime::from_timestamp(i, /* nsecs = */ 0)
+                                    .ok_or_else(|| SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
+                                        from: Value::Integer(i),
+                                        to: DataType::Timestamp(TimeUnit::Microsecond, None),
+                                        cause: None,
+                                    })?;
                                 let micros = timestamp.timestamp_micros();
                                 builder.append_value(micros);
                             }
                             ValueRef::Real(r) => {
                                 let seconds = r as i64;
                                 let sub_nanos = (r.fract() * 1_000_000_000_f64) as u32;
-                                let timestamp =
-                                    NaiveDateTime::from_timestamp_opt(seconds, sub_nanos)
-                                        .ok_or_else(|| SqliteError::InvalidConversion {
-                                            from: Value::Real(r),
-                                            to: DataType::Timestamp(TimeUnit::Microsecond, None),
-                                        })?;
+                                let timestamp = DateTime::from_timestamp(seconds, sub_nanos)
+                                    .ok_or_else(|| SqliteError::InvalidConversion {
+                                        field: field.name().to_string(),
+                                        from: Value::Real(r),
+                                        to: DataType::Timestamp(TimeUnit::Microsecond, None),
+                                        cause: None,
+                                    })?;
                                 let micros = timestamp.timestamp_micros();
                                 builder.append_value(micros);
                             }
@@ -441,19 +520,38 @@ impl Converter {
                             ValueRef::Text(t) => {
                                 // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
+
                                 let timestamp =
                                     NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S%.f")
-                                        .map_err(|_| SqliteError::InvalidConversion {
+                                        .or_else(|_| {
+                                            DateTime::parse_from_rfc3339(t).map(|dt| dt.naive_utc())
+                                        })
+                                        .or_else(|_| {
+                                            DateTime::parse_from_rfc2822(t).map(|dt| dt.naive_utc())
+                                        })
+                                        .or_else(|_| {
+                                            NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S")
+                                        })
+                                        .or_else(|_| {
+                                            NaiveDate::parse_from_str(t, "%Y-%m-%d")
+                                                .map(|nd| nd.and_time(NaiveTime::default()))
+                                        })
+                                        .map_err(|e| SqliteError::InvalidConversion {
+                                            field: field.name().to_string(),
                                             from: Value::Text(t.to_string()),
                                             to: DataType::Timestamp(TimeUnit::Microsecond, None),
+                                            cause: Some(e.to_string()),
                                         })?;
-                                let micros = timestamp.timestamp_micros();
+
+                                let micros = timestamp.and_utc().timestamp_micros();
                                 builder.append_value(micros);
                             }
                             v => {
                                 return Err(SqliteError::InvalidConversion {
+                                    field: field.name().to_string(),
                                     from: v.into(),
                                     to: DataType::Timestamp(TimeUnit::Microsecond, None),
+                                    cause: None,
                                 });
                             }
                         };

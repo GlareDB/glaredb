@@ -16,20 +16,28 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::{Signature, TypeSignature, Volatility};
 use datafusion_ext::errors::{ExtensionError, Result};
 use datafusion_ext::functions::{FuncParamValue, IdentValue, TableFuncContextProvider};
+use datasources::bson::table::bson_streaming_table_from_object;
 use datasources::common::url::{DatasourceUrl, DatasourceUrlType};
+use datasources::excel::excel_table_from_object;
+use datasources::excel::table::ExcelTableProvider;
+use datasources::json::table::json_streaming_table_from_object;
 use datasources::native::access::NativeTableStorage;
+use datasources::object_store::azure::AzureStoreAccess;
 use datasources::object_store::gcs::GcsStoreAccess;
-use datasources::object_store::generic::GenericStoreAccess;
 use datasources::object_store::http::HttpStoreAccess;
 use datasources::object_store::local::LocalStoreAccess;
 use datasources::object_store::s3::S3StoreAccess;
-use datasources::object_store::{MultiSourceTableProvider, ObjStoreAccess, ObjStoreTableProvider};
+use datasources::object_store::{
+    MultiSourceTableProvider,
+    ObjStoreAccess,
+    ObjStoreAccessor,
+    ObjStoreTableProvider,
+};
 use futures::TryStreamExt;
-use object_store::azure::AzureConfigKey;
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use protogen::metastore::types::catalog::{FunctionType, RuntimePreference};
-use protogen::metastore::types::options::{CredentialsOptions, StorageOptions};
+use protogen::metastore::types::options::CredentialsOptions;
 
 use crate::functions::{BuiltinFunction, ConstBuiltinFunction, TableFunc};
 
@@ -162,15 +170,15 @@ impl WithCompression for ParquetFormat {
 #[derive(Debug, Clone)]
 pub struct ObjScanTableFunc<Opts> {
     /// Primary name for the function.
-    name: &'static str,
+    pub(super) name: &'static str,
 
     /// Additional aliases for this function.
-    aliases: &'static [&'static str],
+    pub(super) aliases: &'static [&'static str],
 
-    description: &'static str,
-    example: &'static str,
+    pub(super) description: &'static str,
+    pub(super) example: &'static str,
 
-    phantom: PhantomData<Opts>,
+    pub(super) phantom: PhantomData<Opts>,
 }
 
 impl<Opts: OptionReader> BuiltinFunction for ObjScanTableFunc<Opts> {
@@ -294,11 +302,7 @@ impl<Opts: OptionReader> TableFunc for ObjScanTableFunc<Opts> {
         let format: Arc<dyn FileFormat> = Arc::new(format);
         let table = fn_registry
             .into_values()
-            .map(|(access, locations)| {
-                let provider =
-                    get_table_provider(ctx, format.clone(), access, locations.into_iter());
-                provider
-            })
+            .map(|(access, locations)| get_table_provider(ctx, format.clone(), access, locations))
             .collect::<futures::stream::FuturesUnordered<_>>()
             .try_collect::<Vec<_>>()
             .await
@@ -369,11 +373,19 @@ async fn get_table_provider(
     ctx: &dyn TableFuncContextProvider,
     ft: Arc<dyn FileFormat>,
     access: Arc<dyn ObjStoreAccess>,
-    locations: impl Iterator<Item = DatasourceUrl>,
+    locations: Vec<DatasourceUrl>,
 ) -> Result<Arc<dyn TableProvider>> {
     let state = ctx.get_session_state();
-    let prov = access
-        .create_table_provider(&state, ft, locations.collect())
+    let accessor = ObjStoreAccessor::new(access)?;
+
+    let mut objects = Vec::new();
+    for loc in locations {
+        let objs = accessor.list_globbed(loc.path()).await?;
+        objects.extend(objs.into_iter());
+    }
+
+    let prov = accessor
+        .into_table_provider(&state, ft, objects)
         .await
         .map_err(|e| ExtensionError::Access(Box::new(e)))?;
 
@@ -535,6 +547,7 @@ fn create_gcs_table_provider(
     Ok(Arc::new(GcsStoreAccess {
         bucket,
         service_account_key,
+        opts: HashMap::new(),
     }))
 }
 
@@ -553,16 +566,14 @@ fn create_s3_store_access(
 
     // S3 requires a region parameter.
     const REGION_KEY: &str = "region";
-    let region = opts
-        .remove(REGION_KEY)
-        .ok_or(ExtensionError::MissingNamedArgument(REGION_KEY))?
-        .try_into()?;
+    let region: Option<String> = opts.remove(REGION_KEY).map(TryInto::try_into).transpose()?;
 
     Ok(Arc::new(S3StoreAccess {
-        region,
         bucket,
+        region,
         access_key_id,
         secret_access_key,
+        opts: HashMap::new(),
     }))
 }
 
@@ -574,15 +585,15 @@ fn create_azure_store_access(
     let account = account.ok_or(ExtensionError::MissingNamedArgument("account_name"))?;
     let access_key = access_key.ok_or(ExtensionError::MissingNamedArgument("access_key"))?;
 
-    let mut opts = StorageOptions::default();
-    opts.inner
-        .insert(AzureConfigKey::AccountName.as_ref().to_owned(), account);
-    opts.inner
-        .insert(AzureConfigKey::AccessKey.as_ref().to_owned(), access_key);
+    let container = source_url.host().ok_or_else(|| {
+        ExtensionError::String("missing container name in source URL".to_string())
+    })?;
 
-    Ok(Arc::new(GenericStoreAccess {
-        base_url: ObjectStoreUrl::try_from(source_url)?,
-        storage_options: opts,
+    Ok(Arc::new(AzureStoreAccess {
+        container: container.to_string(),
+        account_name: Some(account),
+        access_key: Some(access_key),
+        opts: HashMap::new(),
     }))
 }
 
@@ -630,6 +641,7 @@ impl TableFunc for CloudUpload {
             return Err(ExtensionError::InvalidNumArgs);
         }
 
+        // The function should only run in remote contexts, through PG or RPC.
         if !ctx.get_session_vars().is_cloud_instance() {
             return Err(ExtensionError::String(
                 format!(
@@ -655,31 +667,8 @@ impl TableFunc for CloudUpload {
                     .to_string(),
                 )
             })?;
-        let store = storage.store.clone(); // Cheap to clone
 
         let file_name: String = args.into_iter().next().unwrap().try_into()?;
-        let ext = Path::new(&file_name)
-            .extension()
-            .ok_or_else(|| {
-                ExtensionError::String(
-                    "missing file extension, supported: [.csv, .json, .parquet]".to_string(),
-                )
-            })?
-            .to_str()
-            .ok_or_else(|| {
-                ExtensionError::String(format!("unsupported file extension: {file_name}"))
-            })?
-            .to_lowercase();
-        let file_format: Arc<dyn FileFormat> = match ext.as_str() {
-            "csv" => Arc::new(CsvFormat::default().with_schema_infer_max_rec(Some(20480))),
-            "json" => Arc::new(JsonFormat::default()),
-            "parquet" => Arc::new(ParquetFormat::default()),
-            ext => {
-                return Err(ExtensionError::String(format!(
-                    "unsupported file extension: {ext}"
-                )))
-            }
-        };
 
         // Path is required to read the object_store meta, but we unfortunately
         // also need the base_url below for ObjStoreTableProvider impl.
@@ -689,32 +678,97 @@ impl TableFunc for CloudUpload {
             storage.db_id(),
             file_name
         ));
-        let base_url = storage.root_url.to_string();
-        let base_url = ObjectStoreUrl::parse(base_url)?;
 
         // No globbing: just retrieve meta for the requested file
-        let meta: ObjectMeta = match store.head(&path).await {
+        let meta: ObjectMeta = match storage.store.head(&path).await {
             Ok(meta) => meta,
             Err(_) => {
                 return Err(ExtensionError::String(format!(
                     "file not found: {}",
-                    file_name
+                    file_name,
                 )))
             }
         };
-        let objects: Vec<ObjectMeta> = vec![meta]; // needed for ObjStoreTableProvider impl
 
-        let session_state = ctx.get_session_state();
-        let arrow_schema = file_format
-            .infer_schema(&session_state, &store.inner, &objects)
-            .await?;
+        let ext = Path::new(&file_name)
+            .extension()
+            .ok_or_else(|| {
+                ExtensionError::String(
+                    "missing file extension, supported: [.csv, .ndjson, .jsonl, .json, .parquet, .bson, .xlsx]".to_string(),
+                )
+            })?
+            .to_str()
+            .ok_or_else(|| {
+                ExtensionError::String(format!("unsupported file extension: {file_name}"))
+            })?
+            .to_lowercase();
 
-        return Ok(Arc::new(ObjStoreTableProvider::new(
-            store.inner.clone(),
-            arrow_schema,
-            base_url,
-            objects,
-            file_format,
-        )));
+        match ext.as_str() {
+            "csv" => {
+                let file_format =
+                    Arc::new(CsvFormat::default().with_schema_infer_max_rec(Some(20480)));
+                object_store_table_from_file_format(ctx, file_format, &storage, meta).await
+            }
+            "ndjson" | "jsonl" => {
+                let file_format = Arc::new(JsonFormat::default());
+                object_store_table_from_file_format(ctx, file_format, &storage, meta).await
+            }
+            "parquet" => {
+                let file_format = Arc::new(ParquetFormat::default());
+                object_store_table_from_file_format(ctx, file_format, &storage, meta).await
+            }
+            "json" => {
+                Ok(json_streaming_table_from_object(storage.store.inner.clone(), meta).await?)
+            }
+            "bson" => {
+                Ok(bson_streaming_table_from_object(storage.store.inner.clone(), meta).await?)
+            }
+            "xlsx" => {
+                let table = excel_table_from_object(
+                    storage.store.inner.as_ref(),
+                    meta,
+                    /* sheet_name = */ None,
+                    /* has_header = */ true,
+                )
+                .await?;
+                let table = ExcelTableProvider::try_new(table).await?;
+                Ok(Arc::new(table))
+            }
+            ext => {
+                return Err(ExtensionError::String(format!(
+                    "unsupported file extension: {ext}"
+                )))
+            }
+        }
     }
+}
+
+async fn object_store_table_from_file_format(
+    ctx: &dyn TableFuncContextProvider,
+    file_format: Arc<dyn FileFormat>,
+    storage: &NativeTableStorage,
+    meta: ObjectMeta,
+) -> Result<Arc<dyn TableProvider>> {
+    let store = &storage.store;
+
+    let base_url = storage.root_url.to_string();
+    let base_url = match storage.root_url.scheme() {
+        "file" => ObjectStoreUrl::local_filesystem(),
+        _ => ObjectStoreUrl::parse(base_url)?,
+    };
+
+    let objects = vec![meta]; // needed for ObjStoreTableProvider impl
+
+    let session_state = ctx.get_session_state();
+    let arrow_schema = file_format
+        .infer_schema(&session_state, &store.inner, &objects)
+        .await?;
+
+    Ok(Arc::new(ObjStoreTableProvider::new(
+        store.inner.clone(),
+        arrow_schema,
+        base_url,
+        objects,
+        file_format,
+    )))
 }

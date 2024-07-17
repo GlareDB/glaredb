@@ -57,3 +57,102 @@ select "HEADING" from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xl
 # negatives are not allowed for infer_rows
 statement error
 select * from read_excel('file://${PWD}/testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', infer_rows => -1);
+
+
+# create external table
+statement ok
+create external table multi_report from excel options(location='./testdata/xlsx/multiple_sheets.xlsx', file_type = 'xlsx', sheet_name = 'other', has_header = false);
+
+statement ok
+create external table quarter_projection from excel options(location='./testdata/xlsx/multiple_sheets.xlsx', sheet_name='cost_projection', has_header='true');
+
+statement ok
+create external table arrow_options from excel options(location=>'./testdata/xlsx/multiple_sheets.xlsx', sheet_name='cost_projection', has_header='true');
+
+statement ok
+create external table basic_report from excel options(location='./testdata/xlsx/userdata1.xlsx', has_header='false');
+
+statement ok
+create external table basic_report_two from excel options(location='./testdata/xlsx/userdata1.xlsx', has_header='true');
+
+query
+select count(*) from basic_report;
+----
+1001
+
+query
+select count(*) from basic_report_two;
+----
+1000
+
+query
+select "HEADING" from multi_report;
+----
+1
+2
+3
+
+query
+select "Resources", "Cost", "Revenue" from quarter_projection;
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
+
+query
+select "Resources", "Cost", "Revenue" from arrow_options;
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
+
+statement ok
+drop table basic_report;
+
+statement error
+create external table bad_report from excel options(location='./invalid_path/random.abc');
+
+# should default to has_header=true and the first sheet of the file, if not specified
+statement ok
+create external table http_table from excel options(location='https://github.com/GlareDB/glaredb/raw/main/testdata/xlsx/multiple_sheets.xlsx');
+
+query
+select "Resources", "Cost", "Revenue" from http_table;
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
+
+# should default to has_header=true and the first sheet of the file, if not specified
+query
+select "Resources", "Cost", "Revenue" from read_excel('./testdata/xlsx/multiple_sheets.xlsx');
+----
+1 10 100
+2 20 200
+3 30 300
+4 40 400
+5 50 500
+
+query T
+select * from read_excel('./testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'other', has_header => false);
+----
+HEADING
+1
+2
+3
+
+query
+select * from read_excel('./testdata/xlsx/multiple_sheets.xlsx', sheet_name => 'multiple_data_types', has_header => true);
+----
+1 1 foo foo
+2 2 bar bar
+3 3 baz baz
+foo 4.0 4 4.0
+5 5.0 5 5.0
+bar (empty) (empty) (empty)

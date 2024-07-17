@@ -12,30 +12,24 @@ use crate::bson::errors::{BsonError, Result};
 const RECURSION_LIMIT: usize = 100;
 
 pub fn schema_from_document(doc: &RawDocumentBuf) -> Result<Schema> {
-    Ok(Schema::new(fields_from_document(
-        0,
-        doc.iter().map(|item| item.map_err(|e| e.into())),
-    )?))
+    Ok(Schema::new(fields_from_document(0, doc)?))
 }
 
-fn fields_from_document<'a>(
-    depth: usize,
-    doc_iter: impl Iterator<Item = Result<(&'a str, RawBsonRef<'a>)>>,
-) -> Result<Vec<Field>> {
+fn fields_from_document(depth: usize, doc: &RawDocumentBuf) -> Result<Vec<Field>> {
     if depth >= RECURSION_LIMIT {
         return Err(BsonError::RecursionLimitExceeded(RECURSION_LIMIT));
     }
 
-    // let doc_iter = doc.iter();
-    let (_, size) = doc_iter.size_hint();
+    let iter = doc.iter_elements();
+    let (_, size) = iter.size_hint();
     let mut fields = Vec::with_capacity(size.unwrap_or_default());
 
-    for item in doc_iter {
-        let (key, val) = item?;
-        let arrow_typ = bson_to_arrow_type(depth, val)?;
+    for item in iter {
+        let elem = item?;
+        let arrow_typ = bson_to_arrow_type(depth, elem.value()?)?;
 
         // Assume everything is nullable.
-        fields.push(Field::new(key, arrow_typ, true));
+        fields.push(Field::new(elem.key(), arrow_typ, true));
     }
 
     Ok(fields)
@@ -56,13 +50,9 @@ fn bson_to_arrow_type(depth: usize, bson: RawBsonRef) -> Result<DataType> {
             )?,
             true,
         ),
-        RawBsonRef::Document(nested) => DataType::Struct(
-            fields_from_document(
-                depth + 1,
-                nested.into_iter().map(|item| item.map_err(|e| e.into())),
-            )?
-            .into(),
-        ),
+        RawBsonRef::Document(nested) => {
+            DataType::Struct(fields_from_document(depth + 1, &nested.to_raw_document_buf())?.into())
+        }
         RawBsonRef::String(_) => DataType::Utf8,
         RawBsonRef::Double(_) => DataType::Float64,
         RawBsonRef::Boolean(_) => DataType::Boolean,

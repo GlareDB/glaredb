@@ -10,4 +10,14 @@ CREATE EXTERNAL TABLE large_table
 		table_id = 'bikeshare_trips'
 	);
 
+statement ok
+CREATE EXTERNAL TABLE large_table_arrow_options
+	FROM bigquery
+	OPTIONS (
+		service_account_key => '${GCP_SERVICE_ACCOUNT_KEY}',
+		project_id => '${GCP_PROJECT_ID}',
+		dataset_id => '${BIGQUERY_DATASET_ID}',
+		table_id => 'bikeshare_trips'
+	);
+
 include ${PWD}/testdata/sqllogictests_datasources_common/include/large_table.slti

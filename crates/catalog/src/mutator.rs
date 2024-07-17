@@ -19,6 +19,9 @@ impl CatalogMutator {
         CatalogMutator { client: None }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.client.is_none()
+    }
     pub fn new(client: Option<MetastoreClientHandle>) -> Self {
         CatalogMutator { client }
     }
@@ -27,12 +30,34 @@ impl CatalogMutator {
         self.client.as_ref()
     }
 
+    /// Commit the catalog state.
+    /// This persists the state to the metastore.
+    /// The `current_catalog_version` is the version of the catalog prior to the state being committed.
+    /// the 'state.version' should always be greater than 'current_catalog_version'.
+    /// If not, the commit will not succeed.
+    pub async fn commit_state(
+        &self,
+        current_catalog_version: u64,
+        state: CatalogState,
+    ) -> Result<Arc<CatalogState>> {
+        let client = match &self.client {
+            Some(client) => client,
+            None => return Err(CatalogError::new("metastore client not configured")),
+        };
+
+        client
+            .commit_state(current_catalog_version, state.clone())
+            .await
+    }
+
     /// Mutate the catalog if possible.
+    /// This returns the catalog state with the mutations reflected.
+    /// IMPORTANT: these changes are not yet persisted and must be 'committed' manually via `commit_state`.
+    /// If you wish to mutate and immediately commit, use `mutate_and_commit`
     ///
     /// Errors if the metastore client isn't configured.
     ///
-    /// This will retry mutations if we were working with an out of date
-    /// catalog.
+    /// This will retry mutations if we were working with an out of date catalog.
     pub async fn mutate(
         &self,
         catalog_version: u64,
@@ -70,6 +95,22 @@ impl CatalogMutator {
         };
 
         Ok(state)
+    }
+
+    /// Mutate the catalog if possible and immediately commit the changes.
+    ///
+    /// Errors if the metastore client isn't configured.
+    ///
+    /// This will retry mutations if we were working with an out of date
+    /// catalog.
+    pub async fn mutate_and_commit(
+        &self,
+        catalog_version: u64,
+        mutations: impl IntoIterator<Item = Mutation>,
+    ) -> Result<Arc<CatalogState>> {
+        let state = self.mutate(catalog_version, mutations).await?;
+        self.commit_state(catalog_version, state.as_ref().clone())
+            .await
     }
 }
 

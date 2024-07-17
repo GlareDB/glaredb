@@ -11,7 +11,8 @@ use tokio::time::{sleep as tokio_sleep, Instant};
 use tokio_postgres::{Client, Config};
 use tracing::{error, info, warn};
 
-use super::test::{Hook, TestClient};
+use super::test::Hook;
+use crate::clients::TestClient;
 
 /// This [`Hook`] is used to set some local variables that might change for
 /// each test.
@@ -281,6 +282,41 @@ impl Hook for SqliteTestsHook {
             Err(e) => return Err(anyhow!("{e}")),
         };
         vars.insert("SQLITE_DB_LOCATION".to_string(), db_location);
+        Ok(true)
+    }
+}
+
+pub struct IcebergFormatVersionHook(pub usize);
+
+#[async_trait]
+impl Hook for IcebergFormatVersionHook {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: TestClient,
+        vars: &mut HashMap<String, String>,
+    ) -> Result<bool> {
+        let Self(v) = self;
+        vars.insert("ICEBERG_FORMAT_VERSION".to_string(), v.to_string());
+        Ok(true)
+    }
+}
+
+pub struct DeltaWriteResetHook;
+
+#[async_trait]
+impl Hook for DeltaWriteResetHook {
+    async fn pre(
+        &self,
+        _config: &Config,
+        _client: TestClient,
+        _vars: &mut HashMap<String, String>,
+    ) -> Result<bool> {
+        Command::new("git")
+            .args(["clean", "-f", "-x", "testdata/delta/table1"])
+            .output()
+            .await?;
+
         Ok(true)
     }
 }

@@ -8,6 +8,7 @@ option go_package = "github.com/glaredb/cloud/pkg/protogen/metastore";
 
 import "metastore/catalog.proto";
 import "metastore/options.proto";
+import "common/arrow.proto";
 
 message FetchCatalogRequest {
   // ID of the database catalog to fetch.
@@ -38,8 +39,9 @@ message Mutation {
     CreateCredentials create_credentials = 15;
     DropCredentials drop_credentials = 16;
     UpdateDeploymentStorage update_deployment_storage = 17;
+    CreateFunction create_function = 18;
   }
-  // next: 17
+  // next: 19
 }
 
 message DropDatabase {
@@ -80,14 +82,22 @@ message CreateTable {
   bool or_replace = 5;
 }
 
+message CreateFunction {
+  string name = 1;
+  repeated string aliases = 2;
+  catalog.Signature signature = 3;
+  catalog.FunctionType type = 4;
+}
+
 message CreateExternalTable {
   string schema = 1;
   string name = 2;
-  options.TableOptions options = 3;
+  options.TableOptionsV0 options = 3;
   bool if_not_exists = 4;
   optional string tunnel = 5;
   bool or_replace = 6;
-  // next: 7
+  repeated options.InternalColumnDefinition columns = 7;
+  // next: 8
 }
 
 message CreateExternalDatabase {
@@ -190,6 +200,21 @@ message MutateRequest {
   // next: 4
 }
 
+message CommitRequest {
+  // Mutate the catalog for this database.
+  bytes db_id = 1;
+
+  // Catalog version we're trying to execution mutations against. Mutations will
+  // be rejected if this version doesn't match Metastore's version of the
+  // catalog.
+  uint64 catalog_version = 2;
+
+  // The catalog state that we're trying to commit.
+  catalog.CatalogState catalog = 3;
+  
+  // next: 4
+}
+
 message MutateResponse {
   enum Status {
     UNKNOWN = 0;
@@ -208,8 +233,28 @@ message MutateResponse {
   // the mutation was rejected, this catalog will not have that mutation
   // applied. In either case, this catalog should replace any stale catalog.
   catalog.CatalogState catalog = 2;
-
   // next: 3
+}
+
+message CommitResponse {
+    enum Status {
+        UNKNOWN = 0;
+        // Commit applied.
+        APPLIED = 1;
+        // Commit rejected.
+        REJECTED = 2;
+    }
+    
+    // Status of the commit.
+    Status status = 1;
+    
+    // The current state of the catalog as witnessed by metastore.
+    //
+    // If tcommit mutation was accepted, this catalog will included that mutation. If
+    // the mutation was rejected, this catalog will not have that mutation
+    // applied. In either case, this catalog should replace any stale catalog.
+    catalog.CatalogState catalog = 2;
+    // next: 3
 }
 
 service MetastoreService {
@@ -223,4 +268,5 @@ service MetastoreService {
 
   // Mutate a database's catalog.
   rpc MutateCatalog(MutateRequest) returns (MutateResponse);
+  rpc CommitCatalog(CommitRequest) returns (CommitResponse);
 }

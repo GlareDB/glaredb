@@ -6,6 +6,10 @@ edition = {workspace = true}
 [lints]
 workspace = true
 
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
 [dependencies]
 thiserror.workspace = true
 datafusion = {workspace = true}
@@ -14,9 +18,9 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 repr = { path = "../repr" }
 decimal = { path = "../decimal" }
-num-traits = "0.2.18"
+num-traits = "0.2.19"
 dtoa = "1.0.9"
 chrono-tz = "0.8.6"
-bytes = "1.4.0"
+bytes = { workspace = true }
 const_format = "0.2.32"
 once_cell = "1.19.0"

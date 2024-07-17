@@ -1,7 +1,7 @@
 //! AST visitors for preprocessing queries before planning.
 use std::ops::ControlFlow;
 
-use datafusion::sql::sqlparser::ast::{self, VisitMut, VisitorMut};
+use parser::sqlparser::ast::{self, VisitMut, VisitorMut};
 use sqlbuiltins::builtins::DEFAULT_CATALOG;
 
 use crate::context::local::LocalSessionContext;
@@ -13,6 +13,9 @@ pub enum PreprocessError {
 
     #[error("Casting expressions to regclass unsupported")]
     ExprUnsupportedRegclassCast,
+
+    #[error("Casting expressions to oid unsupported")]
+    ExprUnsupportedOIDCast,
 }
 
 pub fn preprocess<V>(statement: &mut ast::Statement, visitor: &mut V) -> Result<(), PreprocessError>
@@ -25,13 +28,13 @@ where
     }
 }
 
-/// Replace `CAST('table_name' as REGCLASS)` expressions with the oid of the
+/// Replace `CAST('table_name' as [REGCLASS | OID])` expressions with the oid of the
 /// table.
-pub struct CastRegclassReplacer<'a> {
+pub struct CastOIDReplacer<'a> {
     pub ctx: &'a LocalSessionContext,
 }
 
-impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
+impl<'a> ast::VisitorMut for CastOIDReplacer<'a> {
     type Break = PreprocessError;
 
     fn post_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
@@ -50,9 +53,14 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
         let replace_expr = match expr {
             ast::Expr::Cast {
                 expr: inner_expr,
-                data_type: ast::DataType::Regclass,
+                data_type,
                 format: _,
             } => {
+                match data_type {
+                    ast::DataType::Regclass => {}
+                    ast::DataType::Custom(name, _) if name.to_string().to_lowercase() == "oid" => {}
+                    _ => return ControlFlow::Continue(()), // Nothing to do.
+                }
                 if let ast::Expr::Value(ast::Value::SingleQuotedString(relation)) = &**inner_expr {
                     match find_oid(self.ctx, relation) {
                         Some(oid) => ast::Expr::Value(ast::Value::Number(oid.to_string(), false)),
@@ -63,8 +71,13 @@ impl<'a> ast::VisitorMut for CastRegclassReplacer<'a> {
                         }
                     }
                 } else {
-                    // We don't currently support any other casts to regclass.
-                    return ControlFlow::Break(PreprocessError::ExprUnsupportedRegclassCast);
+                    // We don't currently support any other casts to regclass or oid.
+                    let e = match data_type {
+                        ast::DataType::Regclass => PreprocessError::ExprUnsupportedRegclassCast,
+                        ast::DataType::Custom(_, _) => PreprocessError::ExprUnsupportedOIDCast,
+                        _ => unreachable!(),
+                    };
+                    return ControlFlow::Break(e);
                 }
             }
             _ => return ControlFlow::Continue(()), // Nothing to do.

@@ -14,7 +14,10 @@ mod mysql;
 mod object_store;
 mod parquet_metadata;
 mod postgres;
+mod read_blob;
+mod read_text;
 mod snowflake;
+
 mod sqlite;
 mod sqlserver;
 pub mod system;
@@ -51,6 +54,8 @@ use self::mysql::ReadMysql;
 use self::object_store::{CloudUpload, READ_CSV, READ_JSON, READ_PARQUET};
 use self::parquet_metadata::ParquetMetadataFunc;
 use self::postgres::ReadPostgres;
+use self::read_blob::READ_BLOB;
+use self::read_text::READ_TEXT;
 use self::snowflake::ReadSnowflake;
 use self::sqlite::ReadSqlite;
 use self::sqlserver::ReadSqlServer;
@@ -100,6 +105,8 @@ impl BuiltinTableFuncs {
             Arc::new(ReadSqlServer),
             Arc::new(ReadCassandra),
             // Object store
+            Arc::new(READ_BLOB),
+            Arc::new(READ_TEXT),
             Arc::new(READ_PARQUET),
             Arc::new(READ_CSV),
             Arc::new(READ_JSON),
@@ -184,6 +191,7 @@ pub fn table_location_and_opts(
     let mut storage_options = StorageOptions::default();
     match (source_url.datasource_url_type(), maybe_cred_opts) {
         (DatasourceUrlType::File, None) => {} // no options fine in this case
+        (DatasourceUrlType::Http, None) => {} // no options fine in this case
         (DatasourceUrlType::File, _) => {
             return Err(ExtensionError::String(
                 "Credentials incorrectly provided when accessing local delta table".to_string(),
@@ -223,11 +231,6 @@ pub fn table_location_and_opts(
                 AzureConfigKey::AccessKey.as_ref().to_string(),
                 creds.access_key,
             );
-        }
-        (DatasourceUrlType::Http, _) => {
-            return Err(ExtensionError::String(
-                "Accessing delta tables over http not supported".to_string(),
-            ))
         }
         (datasource, creds) => {
             return Err(ExtensionError::String(format!(

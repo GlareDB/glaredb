@@ -6,9 +6,13 @@ edition = { workspace = true }
 [lints]
 workspace = true
 
+[[bin]]
+name = "bench_runner"
+test = false
+
 [dependencies]
 logutil = {path = "../logutil"}
-glaredb = {path = "../glaredb"}
+cli = {path = "../cli"}
 pgsrv = {path = "../pgsrv"}
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -17,4 +21,4 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tokio-postgres = "0.7.8"
 glob = "0.3.1"
-regex = "1.10.3"
+regex = "1.10.5"

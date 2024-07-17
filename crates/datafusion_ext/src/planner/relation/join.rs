@@ -20,7 +20,7 @@ use std::collections::HashSet;
 use datafusion::common::{Column, DataFusionError, Result};
 use datafusion::logical_expr::{JoinType, LogicalPlan, LogicalPlanBuilder};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::{Join, JoinConstraint, JoinOperator, TableWithJoins};
+use parser::sqlparser::ast::{Join, JoinConstraint, JoinOperator, TableWithJoins};
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

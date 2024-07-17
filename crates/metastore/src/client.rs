@@ -54,10 +54,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use catalog::client::{ClientRequest, MetastoreClientHandle};
+use catalog::client::{ClientRequest, MetastoreClientConfig, MetastoreClientHandle};
 use catalog::errors::CatalogError;
 use protogen::gen::metastore::service::metastore_service_client::MetastoreServiceClient;
-use protogen::gen::metastore::service::{FetchCatalogRequest, MutateRequest};
+use protogen::gen::metastore::service::{CommitRequest, FetchCatalogRequest, MutateRequest};
 use protogen::metastore::types::catalog::CatalogState;
 use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
@@ -69,15 +69,6 @@ use crate::errors::Result;
 
 /// Number of outstanding requests per database.
 const PER_DATABASE_BUFFER: usize = 128;
-
-/// Configuration values used when starting up a worker.
-#[derive(Debug, Clone, Copy)]
-pub struct MetastoreClientConfig {
-    /// How often to fetch the latest catalog from Metastore.
-    fetch_tick_dur: Duration,
-    /// Number of ticks with no session references before the worker exits.
-    max_ticks_before_exit: usize,
-}
 
 pub const DEFAULT_METASTORE_CLIENT_CONFIG: MetastoreClientConfig = MetastoreClientConfig {
     fetch_tick_dur: Duration::from_secs(60 * 5),
@@ -103,7 +94,7 @@ impl MetastoreClientSupervisor {
     /// Create a new worker supervisor.
     pub fn new(
         client: MetastoreServiceClient<Channel>,
-        worker_conf: MetastoreClientConfig,
+        worker_conf: catalog::client::MetastoreClientConfig,
     ) -> MetastoreClientSupervisor {
         MetastoreClientSupervisor {
             workers: RwLock::new(HashMap::new()),
@@ -332,6 +323,36 @@ impl StatefulWorker {
                     error!("failed to respond to ping");
                 }
             }
+            ClientRequest::Commit {
+                version: current_catalog_version,
+                state,
+                response,
+            } => {
+                let state: CatalogState = state.as_ref().clone();
+                if state.version <= current_catalog_version {
+                    let e =  Err(CatalogError::new(format!(
+                        "cannot commit outdated state: state version: {}, current catalog version: {}",
+                        state.version, current_catalog_version
+                    )));
+                    return response.send(e).unwrap();
+                }
+
+                let commit_request = tonic::Request::new(CommitRequest {
+                    db_id: self.db_id.into_bytes().to_vec(),
+                    catalog_version: current_catalog_version,
+                    catalog: Some(state.try_into().unwrap()),
+                });
+
+                let result = self.client.commit_catalog(commit_request).await.unwrap();
+                let result = result.into_inner();
+                let state: CatalogState = result.catalog.unwrap().try_into().unwrap();
+                self.set_cached_state(state);
+                let res = Ok(self.cached_state.clone());
+
+                if response.send(res).is_err() {
+                    error!("failed to respond to commit");
+                }
+            }
             ClientRequest::GetCachedState { response, .. } => {
                 if response.send(Ok(self.cached_state.clone())).is_err() {
                     error!("failed to send cached state");
@@ -359,20 +380,19 @@ impl StatefulWorker {
                         .map_err(CatalogError::from),
                     Err(e) => Err(CatalogError::new(e.to_string())),
                 };
-
                 let result = match result {
                     Ok(resp) => {
                         let resp = resp.into_inner();
                         // TODO: Properly check if we updated.
                         match resp.catalog {
                             Some(catalog) => {
-                                // Update this worker's cache.
                                 let state: CatalogState = catalog.try_into().unwrap(); // TODO
-                                self.set_cached_state(state);
+                                Ok(Arc::new(state))
                             }
-                            _ => error!("missing catalog state"),
+                            _ => {
+                                panic!("missing catalog state")
+                            }
                         }
-                        Ok(self.cached_state.clone())
                     }
                     Err(e) => Err(e),
                 };
@@ -460,7 +480,7 @@ mod tests {
 
         let state = client.get_cached_state().await.unwrap();
         let new_state = client
-            .try_mutate(
+            .try_mutate_and_commit(
                 state.version,
                 vec![Mutation::CreateView(CreateView {
                     schema: "public".to_string(),
@@ -481,7 +501,6 @@ mod tests {
         let client = new_local_metastore().await;
 
         let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
-
         let db_id = Uuid::nil();
 
         let c1 = supervisor.init_client(db_id).await.unwrap();
@@ -494,7 +513,7 @@ mod tests {
 
         // Client 1 mutates.
         let _ = c1
-            .try_mutate(
+            .try_mutate_and_commit(
                 s1.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "wario".to_string(),
@@ -505,7 +524,7 @@ mod tests {
             .unwrap();
 
         // Client 2 fails to mutate because its out of date.
-        c2.try_mutate(
+        c2.try_mutate_and_commit(
             s2.version,
             vec![Mutation::CreateSchema(CreateSchema {
                 name: "yoshi".to_string(),
@@ -524,7 +543,7 @@ mod tests {
 
         // Mutation should go through now.
         let _ = c2
-            .try_mutate(
+            .try_mutate_and_commit(
                 s2.version,
                 vec![Mutation::CreateSchema(CreateSchema {
                     name: "yoshi".to_string(),
@@ -591,5 +610,226 @@ mod tests {
         // We should be able to init a new client without issue.
         let client = supervisor.init_client(db_id).await.unwrap();
         client.ping().await.unwrap();
+    }
+    #[tokio::test]
+    async fn mutate_no_commit() {
+        // Test to ensure uncommitted states aren't accessible.
+
+        let client = new_local_metastore().await;
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
+
+        let db_id = Uuid::nil();
+        let c1 = supervisor.init_client(db_id).await.unwrap();
+        let c2 = supervisor.init_client(db_id).await.unwrap();
+
+        // Both clients have the same state.
+        let s1 = c1.get_cached_state().await.unwrap();
+        let s2 = c2.get_cached_state().await.unwrap();
+        assert_eq!(s1.version, s2.version);
+
+        // Client 1 mutates, no commit.
+        let _ = c1
+            .try_mutate(
+                s1.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+
+        // Client 2 should still get latest committed version.
+        c2.refresh_cached_state().await.unwrap();
+        let refreshed2 = c2.get_cached_state().await.unwrap();
+        assert_eq!(s2.version, refreshed2.version);
+
+        // Client 1 should also get the latest committed version, not the
+        // uncommitted version.
+        c1.refresh_cached_state().await.unwrap();
+        let refreshed1 = c1.get_cached_state().await.unwrap();
+        assert_eq!(s1.version, refreshed1.version);
+    }
+
+    #[tokio::test]
+    async fn double_mutate() {
+        // Test to ensure a client can mutate twice without having the
+        // intermediate mutate affect anything.
+        //
+        // This represents the "rollback" case for when a query fails and
+        // doesn't commit.
+
+        let client = new_local_metastore().await;
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
+
+        let db_id = Uuid::nil();
+        let c = supervisor.init_client(db_id).await.unwrap();
+        let state = c.get_cached_state().await.unwrap();
+
+        // First mutation. This one doesn't get committed.
+        let _ = c
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Second mutation, this one gets committed.
+        let new_state = c
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "mario".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        let _ = c
+            .commit_state(state.version, new_state.as_ref().clone())
+            .await
+            .unwrap();
+
+
+        // Client should now have the new committed state.
+        c.refresh_cached_state().await.unwrap();
+        let refreshed = c.get_cached_state().await.unwrap();
+        assert_eq!(new_state.version, refreshed.version);
+
+        // New state version should not be the same as the original version.
+        assert_ne!(state.version, refreshed.version);
+    }
+
+    #[tokio::test]
+    async fn commit_arbitrary_state_version() {
+        // Test trying to commit to an arbitrary version.
+
+        let client = new_local_metastore().await;
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
+
+        let db_id = Uuid::nil();
+        let c = supervisor.init_client(db_id).await.unwrap();
+        let state = c.get_cached_state().await.unwrap();
+
+        // Mutate...
+        let new_state = c
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Then commit with arbitrary version.
+        let _ = c
+            .commit_state(9999, new_state.as_ref().clone())
+            .await
+            .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn concurrent_commits() {
+        // Test to ensure two clients committing at the same errors as
+        // appropriate.
+
+        let client = new_local_metastore().await;
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
+
+        let db_id = Uuid::nil();
+        let c1 = supervisor.init_client(db_id).await.unwrap();
+        let c2 = supervisor.init_client(db_id).await.unwrap();
+
+        // Both clients have the same state.
+        let s1 = c1.get_cached_state().await.unwrap();
+        let s2 = c2.get_cached_state().await.unwrap();
+        assert_eq!(s1.version, s2.version);
+
+        // Client 1 mutation...
+        let new_state1 = c1
+            .try_mutate(
+                s1.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario1".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Client 2 mutation...
+        let new_state2 = c2
+            .try_mutate(
+                s2.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario2".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Client 1 commit should succeed.
+        let _ = c1
+            .commit_state(s1.version, new_state1.as_ref().clone())
+            .await
+            .unwrap();
+
+        // Client 2 commit should error.
+        let _ = c2
+            .commit_state(s2.version, new_state2.as_ref().clone())
+            .await
+            .unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn error_on_commit_to_committed_catalog() {
+        // Test to ensure we error when trying to commit an already committed
+        // catalog.
+        //
+        // Once committed, a catalog version shouldn't be committed to again.
+        // Other wise we could end up in a scenario where two nodes commit the
+        // same version, with one overwriting the other's version.
+
+        let client = new_local_metastore().await;
+        let supervisor = MetastoreClientSupervisor::new(client, DEFAULT_METASTORE_CLIENT_CONFIG);
+
+        let db_id = Uuid::nil();
+        let c = supervisor.init_client(db_id).await.unwrap();
+        let state = c.get_cached_state().await.unwrap();
+
+        // Mutate...
+        let new_state = c
+            .try_mutate(
+                state.version,
+                vec![Mutation::CreateSchema(CreateSchema {
+                    name: "wario1".to_string(),
+                    if_not_exists: false,
+                })],
+            )
+            .await
+            .unwrap();
+
+        // Commit as normal.
+        let _ = c
+            .commit_state(state.version, new_state.as_ref().clone())
+            .await
+            .unwrap();
+
+        // Try to commit again.
+        c.refresh_cached_state().await.unwrap();
+        let refreshed = c.get_cached_state().await.unwrap();
+        let _ = c
+            .commit_state(refreshed.version, new_state.as_ref().clone())
+            .await
+            .unwrap_err();
     }
 }

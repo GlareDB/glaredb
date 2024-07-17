@@ -1,11 +1,11 @@
 {
   "name": "@glaredb/glaredb",
-  "version": "0.9.0",
+  "version": "0.9.4",
   "main": "glaredb.js",
   "types": "index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GlareDB/glaredb.git",
+    "url": "git+https://github.com/GlareDB/glaredb.git",
     "directory": "bindings/nodejs"
   },
   "files": [
@@ -47,7 +47,7 @@
     "artifacts": "napi artifacts",
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "prepublishOnly": "napi prepublish -t npm",
+    "prepublishOnly": "napi prepublish --skip-gh-release -t npm",
     "test": "ava",
     "universal": "napi universal",
     "version": "napi version"

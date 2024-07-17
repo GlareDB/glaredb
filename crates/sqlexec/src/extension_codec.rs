@@ -307,6 +307,10 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_not_exists: ext.if_not_exists,
                     table_options: table_options.try_into()?,
                     tunnel: ext.tunnel,
+                    table_schema: ext
+                        .table_schema
+                        .map(|ref schema| schema.try_into())
+                        .transpose()?,
                 })
             }
             proto::ExecutionPlanExtensionType::CreateTunnelExec(ext) => {
@@ -633,6 +637,11 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     if_not_exists: exec.if_not_exists,
                     table_options: Some(exec.table_options.clone().try_into()?),
                     tunnel: exec.tunnel.clone(),
+                    table_schema: exec
+                        .table_schema
+                        .as_ref()
+                        .map(|schema| schema.try_into())
+                        .transpose()?,
                 },
             )
         } else if let Some(exec) = node.as_any().downcast_ref::<CreateTunnelExec>() {
@@ -652,7 +661,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DescribeTableExec>() {
             proto::ExecutionPlanExtensionType::DescribeTable(proto::DescribeTableExec {
-                entry: Some(exec.entry.clone().try_into()?),
+                entry: Some(exec.entry.clone().into()),
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DropCredentialsExec>() {
             proto::ExecutionPlanExtensionType::DropCredentialsExec(proto::DropCredentialsExec {
@@ -673,9 +682,8 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
                     .tbl_entries
                     .clone()
                     .into_iter()
-                    .map(|r| r.try_into())
-                    .collect::<Result<_, _>>()
-                    .expect("failed to encode table entries"),
+                    .map(|r| r.into())
+                    .collect(),
                 if_exists: exec.if_exists,
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<SetVarExec>() {
@@ -697,7 +705,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             }
 
             proto::ExecutionPlanExtensionType::UpdateExec(proto::UpdateExec {
-                table: Some(exec.table.clone().try_into()?),
+                table: Some(exec.table.clone().into()),
                 updates,
                 where_expr: exec
                     .where_expr
@@ -720,7 +728,7 @@ impl<'a> PhysicalExtensionCodec for GlareDBExtensionCodec<'a> {
             })
         } else if let Some(exec) = node.as_any().downcast_ref::<DeleteExec>() {
             proto::ExecutionPlanExtensionType::DeleteExec(proto::DeleteExec {
-                table: Some(exec.table.clone().try_into()?),
+                table: Some(exec.table.clone().into()),
                 where_expr: exec
                     .where_expr
                     .as_ref()

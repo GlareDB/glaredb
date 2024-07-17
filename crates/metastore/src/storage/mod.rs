@@ -49,6 +49,9 @@ pub enum StorageError {
     #[error("Lease renewer exited.")]
     LeaseRenewerExited,
 
+    #[error("Unable to write to lease object after retries: {0}")]
+    LeaseWriteError(String),
+
     #[error(transparent)]
     ProtoConv(#[from] protogen::errors::ProtoConvError),
 
@@ -70,13 +73,14 @@ pub trait StorageObject<S: AsRef<str>> {
 
     /// Get a temporary path to use for this process.
     ///
-    /// Path format: 'database/<db_id>/tmp/<proc_id>/<object_name>'
+    /// Path format: 'database/<db_id>/tmp/<proc_id>/<object_name>/<random_id>'
     fn tmp_path(&self, db_id: &Uuid, process_id: &Uuid) -> ObjectPath {
         ObjectPath::from(format!(
-            "databases/{}/tmp/{}/{}",
+            "databases/{}/tmp/{}/{}/{}",
             db_id,
             process_id,
             self.object_name().as_ref(),
+            Uuid::new_v4(), // Random suffix
         ))
     }
 

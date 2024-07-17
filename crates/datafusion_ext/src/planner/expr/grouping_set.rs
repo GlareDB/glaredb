@@ -18,7 +18,7 @@
 use datafusion::common::{DFSchema, DataFusionError, Result};
 use datafusion::logical_expr::{Expr, GroupingSet};
 use datafusion::sql::planner::PlannerContext;
-use datafusion::sql::sqlparser::ast::Expr as SQLExpr;
+use parser::sqlparser::ast::Expr as SQLExpr;
 
 use crate::planner::{AsyncContextProvider, SqlQueryPlanner};
 

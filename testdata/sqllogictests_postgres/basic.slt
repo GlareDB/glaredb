@@ -9,4 +9,13 @@ CREATE EXTERNAL TABLE basic
 		table = 'bikeshare_stations'
 	);
 
+statement ok
+CREATE EXTERNAL TABLE basic_arrow_specification
+	FROM postgres
+	OPTIONS (
+		connection_string => '${POSTGRES_CONN_STRING}',
+		schema => 'public',
+		table => 'bikeshare_stations'
+	);
+
 include ${PWD}/testdata/sqllogictests_datasources_common/include/basic.slti

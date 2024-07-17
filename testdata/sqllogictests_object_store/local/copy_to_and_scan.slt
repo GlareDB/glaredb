@@ -149,6 +149,24 @@ SELECT * FROM parquet_scan([
 3
 4
 
+# Check glob for non-df file formats (bson or json).
+
+statement ok
+COPY ( VALUES (1), (3) )
+	TO '${TMP}/non-df-glob-1.bson';
+
+statement ok
+COPY ( VALUES (2), (4) )
+	TO '${TMP}/non-df-glob-2.bson';
+
+query I rowsort
+SELECT * FROM '${TMP}/non-df-glob-*.bson';
+----
+1
+2
+3
+4
+
 # We don't work well with different schemas (column names).
 
 statement ok
@@ -160,3 +178,61 @@ COPY ( SELECT 2 AS b ) TO '${TMP}/diff-schema-b.parquet';
 # TODO: We need a better error message here.
 statement error is declared as non-nullable but contains null values
 SELECT * FROM parquet_scan('${TMP}/diff-schema-*.parquet')
+
+# Globbing ranges
+
+statement ok
+COPY ( SELECT 1 AS a ) TO '${TMP}/glob-range-1.csv';
+
+statement ok
+COPY ( SELECT 2 AS a ) TO '${TMP}/glob-range-2.csv';
+
+statement ok
+COPY ( SELECT 3 AS a ) TO '${TMP}/glob-range-3.csv';
+
+query I rowsort
+SELECT a FROM '${TMP}/glob-range-{2..3}.csv';
+----
+2
+3
+
+query I rowsort
+SELECT a FROM '${TMP}/glob-range{-1,-3}.csv';
+----
+1
+3
+
+# More complicated patterns
+
+statement ok
+COPY ( SELECT 11 AS a ) TO '${TMP}/glob-bigger-range-1.csv';
+
+query I rowsort
+SELECT a FROM '${TMP}/glob-*-{1..3}.csv';
+----
+1
+11
+2
+3
+
+# Multiple ranges
+
+statement ok
+COPY ( VALUES (1, 'a') ) TO '${TMP}/glob-multiple-range-1_a.csv';
+
+statement ok
+COPY ( VALUES (2, 'a') ) TO '${TMP}/glob-multiple-range-2_a.csv';
+
+statement ok
+COPY ( VALUES (1, 'b') ) TO '${TMP}/glob-multiple-range-1_b.csv';
+
+statement ok
+COPY ( VALUES (2, 'b') ) TO '${TMP}/glob-multiple-range-2_b.csv';
+
+query IT rowsort
+SELECT * FROM '${TMP}/glob-multiple-range-{1..2}_{a,b}.csv';
+----
+1  a
+1  b
+2  a
+2  b

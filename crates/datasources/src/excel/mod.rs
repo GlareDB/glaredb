@@ -1,89 +1,103 @@
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::io::Cursor;
 use std::sync::Arc;
 
-use calamine::{open_workbook, DataType as CalamineDataType, Range, Reader, Xlsx};
-use datafusion::arrow::array::{ArrayRef, BooleanArray, Date64Array, PrimitiveArray, StringArray};
+use calamine::{DataType as CalamineDataType, Range, Reader, Sheets};
+use datafusion::arrow::array::{
+    ArrayRef,
+    BooleanArray,
+    Date64Array,
+    NullArray,
+    PrimitiveArray,
+    StringArray,
+};
 use datafusion::arrow::datatypes::{DataType, Field, Float64Type, Int64Type, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use object_store::{ObjectMeta, ObjectStore};
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Failed to load XLSX: {msg}")]
-    Load { msg: String },
-    #[error("Failed to create record batch: {0}")]
-    CreateRecordBatch(#[from] datafusion::arrow::error::ArrowError),
-    #[error("Failed to open workbook: {0}")]
-    OpenWorkbook(#[from] calamine::XlsxError),
-}
+use crate::common::url::DatasourceUrl;
+use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 
-fn infer_value_type(v: &calamine::Data) -> Result<DataType, Error> {
-    match v {
-        calamine::Data::Int(_) => Ok(DataType::Int64),
-        calamine::Data::Float(_) => Ok(DataType::Float64),
-        calamine::Data::Bool(_) => Ok(DataType::Boolean),
-        calamine::Data::String(_) => Ok(DataType::Utf8),
-        calamine::Data::Error(e) => Err(Error::Load { msg: e.to_string() }),
-        calamine::Data::DateTime(_) => Ok(DataType::Date64),
-        calamine::Data::Empty => Ok(DataType::Null),
-        _ => Err(Error::Load {
-            msg: "Failed to parse the cell value".to_owned(),
-        }),
-    }
-}
+pub mod errors;
+pub mod stream;
+pub mod table;
 
-fn infer_schema(
-    r: &Range<calamine::Data>,
+use errors::ExcelError;
+
+pub struct ExcelTable {
+    cell_range: Range<calamine::Data>,
     has_header: bool,
-    infer_schema_length: usize,
-) -> Result<Schema, Error> {
-    let mut col_types: HashMap<&str, HashSet<DataType>> = HashMap::new();
-    let mut rows = r.rows();
-    let col_names: Vec<String> = rows
-        .next()
-        .unwrap()
-        .iter()
-        .enumerate()
-        .map(
-            |(i, c)| match (has_header, c.get_string().map(|s| s.to_string())) {
-                (true, Some(s)) => Ok(s),
-                (true, None) => Err(Error::Load {
-                    msg: "failed to parse header".to_string(),
-                }),
-                (false, _) => Ok(format!("col{}", i)),
-            },
-        )
-        .collect::<Result<_, _>>()?;
+}
 
-    for row in rows.take(infer_schema_length) {
-        for (i, col_val) in row.iter().enumerate() {
-            let col_name = col_names.get(i).unwrap();
-            let col_type = infer_value_type(col_val).unwrap();
-            if col_type == DataType::Null {
-                continue;
+impl ExcelTable {
+    pub async fn open(
+        store_access: Arc<dyn ObjStoreAccess>,
+        source_url: DatasourceUrl,
+        sheet_name: Option<String>,
+        has_header: bool,
+    ) -> Result<ExcelTable, ExcelError> {
+        match source_url {
+            DatasourceUrl::File(path) => {
+                let path = ioutil::resolve_path(&path)?;
+                let mut sheet = calamine::open_workbook_auto(path)?;
+
+                let first_sheet = sheet_name.unwrap_or_else(|| {
+                    let sheets = sheet.sheet_names();
+                    sheets.first().expect("file has a sheet").to_owned()
+                });
+
+                Ok(ExcelTable {
+                    cell_range: sheet.worksheet_range(&first_sheet)?,
+                    has_header,
+                })
             }
-            let entry = col_types.entry(col_name).or_default();
-            entry.insert(col_type);
+
+            DatasourceUrl::Url(_) => {
+                let accessor = ObjStoreAccessor::new(store_access)?;
+
+                let mut list = accessor.list_globbed(source_url.path()).await?;
+                if list.is_empty() {
+                    return Err(ExcelError::Load(
+                        "could not find .xlsx file at remote".to_string(),
+                    ));
+                } else if list.len() > 1 {
+                    return Err(ExcelError::Load(
+                        "multi-file globs are not supported for .xlsx sources".to_string(),
+                    ));
+                };
+
+                let meta = list
+                    .pop()
+                    .ok_or_else(|| ExcelError::Load("could not find first file".to_string()))?;
+
+                let store = accessor.into_object_store();
+
+                excel_table_from_object(store.as_ref(), meta, sheet_name, has_header).await
+            }
         }
     }
+}
 
-    let fields: Vec<Field> = col_names
-        .iter()
-        .map(|col_name| {
-            let set = col_types.entry(col_name).or_insert_with(|| {
-                let mut set = HashSet::new();
-                set.insert(DataType::Utf8);
-                set
-            });
+pub async fn excel_table_from_object(
+    store: &dyn ObjectStore,
+    meta: ObjectMeta,
+    sheet_name: Option<String>,
+    has_header: bool,
+) -> Result<ExcelTable, ExcelError> {
+    let bs = store.get(&meta.location).await?.bytes().await?;
 
-            let mut dt_iter = set.iter().cloned();
-            let dt = dt_iter.next().unwrap_or(DataType::Utf8);
-            Field::new(col_name.replace(' ', "_"), dt, true)
-        })
-        .collect();
+    let buffer = Cursor::new(bs);
+    let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer)?;
 
-    Ok(Schema::new(fields))
+    let first_sheet = sheet_name.unwrap_or_else(|| {
+        let sheets = sheets.sheet_names();
+        sheets.first().expect("file has a sheet").to_owned()
+    });
+
+    Ok(ExcelTable {
+        cell_range: sheets.worksheet_range(&first_sheet)?,
+        has_header,
+    })
 }
 
 // TODO: vectorize this to improve performance
@@ -92,7 +106,7 @@ fn xlsx_sheet_value_to_record_batch(
     r: Range<calamine::Data>,
     has_header: bool,
     infer_schema_length: usize,
-) -> Result<RecordBatch, Error> {
+) -> Result<RecordBatch, ExcelError> {
     let schema = infer_schema(&r, has_header, infer_schema_length)?;
     let arrays = schema
         .fields()
@@ -114,18 +128,18 @@ fn xlsx_sheet_value_to_record_batch(
                         .collect::<BooleanArray>(),
                 ) as ArrayRef,
                 DataType::Int64 => Arc::new(
-                    rows.map(|r| r.get(i).and_then(|v| v.get_int()))
+                    rows.map(|r| r.get(i).and_then(|v| v.as_i64()))
                         .collect::<PrimitiveArray<Int64Type>>(),
                 ) as ArrayRef,
                 DataType::Float64 => Arc::new(
-                    rows.map(|r| r.get(i).and_then(|v| v.get_float()))
+                    rows.map(|r| r.get(i).and_then(|v| v.as_f64()))
                         .collect::<PrimitiveArray<Float64Type>>(),
                 ) as ArrayRef,
                 DataType::Date64 => {
                     let mut arr = Date64Array::builder(rows.len());
                     for r in rows {
                         if let Some(v) = r.get(i).and_then(|v| v.as_datetime()) {
-                            let v = v.timestamp_millis();
+                            let v = v.and_utc().timestamp_millis();
                             arr.append_value(v);
                         } else {
                             arr.append_null();
@@ -133,8 +147,9 @@ fn xlsx_sheet_value_to_record_batch(
                     }
                     Arc::new(arr.finish())
                 }
+                DataType::Null => Arc::new(NullArray::new(rows.len())),
                 _ => Arc::new(
-                    rows.map(|r| r.get(i).map(|v| v.get_string().unwrap_or("null")))
+                    rows.map(|r| r.get(i).map(|v| v.as_string().unwrap_or_default()))
                         .collect::<StringArray>(),
                 ) as ArrayRef,
             }
@@ -143,27 +158,95 @@ fn xlsx_sheet_value_to_record_batch(
 
     Ok(RecordBatch::try_new(Arc::new(schema), arrays)?)
 }
-pub async fn read_excel_impl(
-    path: &PathBuf,
-    sheet_name: Option<&str>,
+
+pub fn infer_schema(
+    r: &Range<calamine::Data>,
     has_header: bool,
     infer_schema_length: usize,
-) -> Result<datafusion::datasource::MemTable, Error> {
-    let mut workbook: Xlsx<_> = open_workbook(path)?;
-    let sheet = sheet_name.map(Cow::Borrowed).unwrap_or_else(|| {
-        let sheets = workbook.sheet_names();
-        let first = sheets.first().unwrap();
-        Cow::Owned(first.clone())
-    });
-
-    if let Ok(r) = workbook.worksheet_range(&sheet) {
-        let batch = xlsx_sheet_value_to_record_batch(r, has_header, infer_schema_length)?;
-        let schema_ref = batch.schema();
-        let partitions = vec![vec![batch]];
-        Ok(datafusion::datasource::MemTable::try_new(schema_ref, partitions).unwrap())
+) -> Result<Schema, ExcelError> {
+    let mut col_types: HashMap<&str, HashSet<DataType>> = HashMap::new();
+    let mut rows = r.rows();
+    let col_names: Vec<String> = if has_header {
+        rows.next()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(
+                |(i, c)| match (has_header, c.get_string().map(|s| s.to_string())) {
+                    (true, Some(s)) => Ok(s),
+                    (true, None) => Err(ExcelError::Load("failed to parse header".to_string())),
+                    (false, _) => Ok(format!("col{}", i)),
+                },
+            )
+            .collect::<Result<_, _>>()?
     } else {
-        Err(Error::Load {
-            msg: "Failed to open .xlsx file.".to_owned(),
+        (0..r.rows().next().unwrap_or_default().len())
+            .map(|n| format!("{}", n))
+            .collect()
+    };
+
+
+    for row in rows.take(infer_schema_length) {
+        for (i, col_val) in row.iter().enumerate() {
+            let col_name = col_names.get(i).unwrap();
+            if let Ok(col_type) = infer_value_type(col_val) {
+                let entry = col_types.entry(col_name).or_default();
+                entry.insert(col_type);
+            } else {
+                continue;
+            }
+        }
+    }
+
+    let fields: Vec<Field> = col_names
+        .iter()
+        .map(|col_name| {
+            let set = col_types.entry(col_name).or_insert_with(|| {
+                let mut set = HashSet::new();
+                set.insert(DataType::Utf8);
+                set
+            });
+
+            let field_name = col_name.replace(' ', "_");
+
+            if set.len() == 1 {
+                Field::new(
+                    field_name,
+                    set.iter().next().cloned().unwrap_or(DataType::Utf8),
+                    true,
+                )
+            } else if set.contains(&DataType::Utf8) {
+                Field::new(field_name, DataType::Utf8, true)
+            } else if set.contains(&DataType::Float64) {
+                Field::new(field_name, DataType::Float64, true)
+            } else if set.contains(&DataType::Int64) {
+                Field::new(field_name, DataType::Int64, true)
+            } else if set.contains(&DataType::Boolean) {
+                Field::new(field_name, DataType::Boolean, true)
+            } else if set.contains(&DataType::Null) {
+                Field::new(field_name, DataType::Null, true)
+            } else {
+                Field::new(field_name, DataType::Utf8, true)
+            }
         })
+        .collect();
+
+    Ok(Schema::new(fields))
+}
+
+fn infer_value_type(v: &calamine::Data) -> Result<DataType, ExcelError> {
+    match v {
+        calamine::Data::Int(_) => Ok(DataType::Int64),
+        calamine::Data::Float(_) => Ok(DataType::Float64),
+        calamine::Data::Bool(_) => Ok(DataType::Boolean),
+        calamine::Data::String(_) => Ok(DataType::Utf8),
+        // TODO: parsing value errors that we get from the calamine
+        // library, could either become nulls or could be
+        // errors. right now they are errors, and this should probably
+        // be configurable, however...
+        calamine::Data::Error(e) => Err(ExcelError::Load(e.to_string())),
+        calamine::Data::DateTime(_) => Ok(DataType::Date64),
+        calamine::Data::Empty => Ok(DataType::Null),
+        _ => Err(ExcelError::Parse),
     }
 }

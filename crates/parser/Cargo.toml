@@ -1,0 +1,16 @@
+[package]
+name = "parser"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+# no doctests currently implemented in this package; skip, then
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+prql-compiler = "0.12.2"
+sqlparser = { version = "0.45.0", features = ["visitor"] }
+thiserror = { workspace = true }

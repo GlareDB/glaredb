@@ -1,12 +1,19 @@
 //! Builtin functions.
 mod aggregates;
 mod alias_map;
-mod scalars;
+pub mod scalars;
 pub mod table;
 
 use std::sync::Arc;
 
-use datafusion::logical_expr::{AggregateFunction, BuiltinScalarFunction, Expr, Signature};
+use datafusion::common::not_impl_err;
+use datafusion::logical_expr::{
+    AggregateFunction,
+    BuiltinScalarFunction,
+    Expr,
+    ScalarUDF,
+    Signature,
+};
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
@@ -33,11 +40,13 @@ use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
+use crate::functions::scalars::df_scalars::{Decode, Encode, IsNan, NullIf};
 use crate::functions::scalars::openai::OpenAIEmbed;
 use crate::functions::scalars::similarity::CosineSimilarity;
 
-/// FUNCTION_REGISTRY provides all implementations of [`BuiltinFunction`]
-pub static FUNCTION_REGISTRY: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
+/// `DEFAULT_BUILTIN_FUNCTIONS` provides all implementations of [`BuiltinFunction`]
+/// These are functions that are globally available to all sessions.
+pub static DEFAULT_BUILTIN_FUNCTIONS: Lazy<FunctionRegistry> = Lazy::new(FunctionRegistry::new);
 
 /// BuiltinFunction **MUST** be implemented by all builtin functions, including
 /// new ones. This is used to derive catalog entries for all supported functions.
@@ -131,6 +140,11 @@ pub trait BuiltinScalarUDF: BuiltinFunction {
     fn namespace(&self) -> FunctionNamespace {
         FunctionNamespace::None
     }
+
+    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
+        use datafusion::error::DataFusionError;
+        not_impl_err!("try_into_scalar_udf")
+    }
 }
 
 impl<T> BuiltinFunction for T
@@ -179,12 +193,14 @@ pub struct FunctionRegistry {
 impl FunctionRegistry {
     pub fn new() -> Self {
         use strum::IntoEnumIterator;
-        let scalars = BuiltinScalarFunction::iter().map(|f| {
+        let scalars = BuiltinScalarFunction::iter();
+        let scalars = scalars.into_iter().map(|f| {
             let key = f.to_string().to_lowercase(); // Display impl is already lowercase for scalars, but lowercase here just to be sure.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (vec![key], value)
         });
-        let aggregates = AggregateFunction::iter().map(|f| {
+        let aggregates = AggregateFunction::iter();
+        let aggregates = aggregates.into_iter().map(|f| {
             let key = f.to_string().to_lowercase(); // Display impl is uppercase for aggregates. Lowercase it to be consistent.
             let value: Arc<dyn BuiltinFunction> = Arc::new(f);
             (vec![key], value)
@@ -199,6 +215,11 @@ impl FunctionRegistry {
 
         // GlareDB specific functions
         let udfs: Vec<Arc<dyn BuiltinScalarUDF>> = vec![
+            // Datafusion functions that aren't part of BuiltinScalarFunction
+            Arc::new(IsNan),
+            Arc::new(NullIf),
+            Arc::new(Encode),
+            Arc::new(Decode),
             // Postgres functions
             Arc::new(HasSchemaPrivilege),
             Arc::new(HasDatabasePrivilege),
@@ -219,8 +240,8 @@ impl FunctionRegistry {
             Arc::new(ConnectionId),
             Arc::new(Version),
             // KDL functions
-            Arc::new(KDLMatches),
-            Arc::new(KDLSelect),
+            Arc::new(KDLMatches::new()),
+            Arc::new(KDLSelect::new()),
             // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),
@@ -228,7 +249,7 @@ impl FunctionRegistry {
             // OpenAI
             Arc::new(OpenAIEmbed),
             // Similarity
-            Arc::new(CosineSimilarity),
+            Arc::new(CosineSimilarity::new()),
         ];
         let udfs = udfs
             .into_iter()
@@ -300,15 +321,7 @@ impl FunctionRegistry {
     ///
     /// A function will only be returned once, even if it has multiple aliases.
     pub fn scalar_udfs_iter(&self) -> impl Iterator<Item = &Arc<dyn BuiltinScalarUDF>> {
-        self.udfs.values().filter(|func| {
-            // Currently we have two "array_to_string" entries, one provided by
-            // datafusion, and one "aliased" to "pg_catalog.array_to_string".
-            // However those exist in different maps, and so the current
-            // aliasing logic doesn't work well.
-            //
-            // See https://github.com/GlareDB/glaredb/issues/2371
-            func.name() != "array_to_string"
-        })
+        self.udfs.values()
     }
 
     /// Iterate over all table funcs.
@@ -348,6 +361,16 @@ impl FunctionRegistry {
             return func.sql_example();
         }
         None
+    }
+
+    pub fn register_udf(&mut self, udf: Arc<dyn BuiltinScalarUDF>) {
+        let aliases = udf
+            .aliases()
+            .iter()
+            .map(|s| s.to_string())
+            .chain(std::iter::once(udf.name().to_string()))
+            .collect::<Vec<_>>();
+        self.udfs.insert_aliases(aliases, udf);
     }
 }
 

@@ -117,7 +117,9 @@ pub fn encode_literal_to_text(
         ScalarValue::Date32(Some(v)) => {
             let epoch = Utc.timestamp_nanos(0).naive_utc().date();
             let naive = epoch
-                .checked_add_signed(Duration::days(*v as i64))
+                .checked_add_signed(Duration::try_days(*v as i64).ok_or_else(|| {
+                    DatasourceCommonError::Unsupported("timestamp conversion error")
+                })?)
                 .expect("scalar value should be a valid date");
             encode_date(buf, &naive)?;
         }
@@ -202,6 +204,7 @@ pub fn create_count_record_batch(count: u64) -> RecordBatch {
     )
     .unwrap()
 }
+
 
 #[cfg(test)]
 mod tests {

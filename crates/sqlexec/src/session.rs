@@ -33,15 +33,17 @@ use distexec::scheduler::{OutputSink, Scheduler};
 use distexec::stream::create_coalescing_adapter;
 use futures::{Stream, StreamExt};
 use once_cell::sync::Lazy;
+use parser::StatementWithExtensions;
 use pgrepr::format::Format;
 use pgrepr::notice::{Notice, NoticeSeverity, SqlState};
+use sqlbuiltins::functions::BuiltinScalarUDF;
 use telemetry::Tracker;
+use url::Url;
 use uuid::Uuid;
 
 use crate::context::local::{LocalSessionContext, Portal, PreparedStatement};
 use crate::environment::EnvironmentReader;
 use crate::errors::{ExecError, Result};
-use crate::parser::StatementWithExtensions;
 use crate::planner::logical_plan::{LogicalPlan, OperationInfo, TransactionPlan};
 use crate::planner::physical_plan::{
     get_count_from_batch,
@@ -50,7 +52,7 @@ use crate::planner::physical_plan::{
     GENERIC_OPERATION_PHYSICAL_SCHEMA,
 };
 use crate::planner::session_planner::SessionPlanner;
-use crate::remote::client::RemoteClient;
+use crate::remote::client::{RemoteClient, RemoteClientType};
 use crate::remote::planner::{DDLExtensionPlanner, RemotePhysicalPlanner};
 
 static EMPTY_EXEC_PLAN: Lazy<Arc<dyn ExecutionPlan>> =
@@ -124,7 +126,7 @@ pub struct PrepareStatementArg {
 impl<'a> TryFrom<&'a str> for PrepareStatementArg {
     type Error = ExecError;
     fn try_from(query: &'a str) -> Result<Self> {
-        let mut statements = crate::parser::parse_sql(query)?;
+        let mut statements = parser::parse_sql(query)?;
         match statements.len() {
             0 => Err(ExecError::String("No statements in query".to_string())),
             1 => Ok(PrepareStatementArg {
@@ -425,6 +427,33 @@ impl Session {
         Ok(Session { ctx })
     }
 
+    pub async fn register_function(&mut self, udf: Arc<dyn BuiltinScalarUDF>) -> Result<()> {
+        self.ctx.register_function(udf).await
+    }
+
+    pub async fn create_client_session(
+        &mut self,
+        cloud_url: Option<Url>,
+        cloud_addr: String,
+        disable_tls: bool,
+        client_type: RemoteClientType,
+        test_db_id: Option<Uuid>,
+    ) -> Result<()> {
+        let client = match cloud_url {
+            Some(url) => {
+                RemoteClient::connect_with_proxy_destination(
+                    url.try_into()?,
+                    cloud_addr,
+                    disable_tls,
+                    client_type,
+                )
+                .await?
+            }
+            None => return Ok(()),
+        };
+        self.attach_remote_session(client, test_db_id).await
+    }
+
     pub async fn attach_remote_session(
         &mut self,
         client: RemoteClient,
@@ -437,7 +466,7 @@ impl Session {
         self.ctx.get_session_catalog()
     }
 
-    pub fn register_env_reader(&mut self, env_reader: Box<dyn EnvironmentReader>) {
+    pub fn register_env_reader(&mut self, env_reader: Option<Arc<dyn EnvironmentReader>>) {
         self.ctx.register_env_reader(env_reader);
     }
 
@@ -692,8 +721,11 @@ impl Session {
                                 )),
                             }
                         }
-                        write_result @ ExecutionResult::InsertSuccess { .. }
-                        | write_result @ ExecutionResult::CopySuccess => {
+                        write_result @ ExecutionResult::CreateTable
+                        | write_result @ ExecutionResult::CopySuccess
+                        | write_result @ ExecutionResult::InsertSuccess { .. }
+                        | write_result @ ExecutionResult::UpdateSuccess { .. }
+                        | write_result @ ExecutionResult::DeleteSuccess { .. } => {
                             // Push the metrics from the plan since the stream
                             // is already processed.
                             let agg_metrics = AggregatedMetrics::new_from_plan(plan.as_ref());
@@ -727,7 +759,7 @@ impl Session {
     /// Errors if no statements or more than one statement is provided
     /// in the query.
     pub async fn prql_to_lp(&mut self, query: &str) -> Result<LogicalPlan> {
-        let stmt = crate::parser::parse_prql(query)?;
+        let stmt = parser::parse_prql(query)?;
 
         self.prepare_statements(stmt).await
     }
@@ -779,10 +811,10 @@ impl Session {
     }
 
     pub fn parse_query(&self, query: &str) -> Result<VecDeque<StatementWithExtensions>> {
-        match self.get_session_vars().dialect() {
-            datafusion_ext::vars::Dialect::Sql => crate::parser::parse_sql(query),
-            datafusion_ext::vars::Dialect::Prql => crate::parser::parse_prql(query),
-        }
+        Ok(match self.get_session_vars().dialect() {
+            datafusion_ext::vars::Dialect::Sql => parser::parse_sql(query)?,
+            datafusion_ext::vars::Dialect::Prql => parser::parse_prql(query)?,
+        })
     }
 
     /// Execute a SQL query.

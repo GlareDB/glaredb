@@ -108,9 +108,19 @@ impl<'a> EntryResolver<'a> {
                 schema,
                 table,
             } => {
-                if let Some(table) = self.catalog.get_temp_catalog().resolve_temp_table(table) {
-                    return Ok(ResolvedEntry::Entry(CatalogEntry::Table(table)));
+                // if the catalog has an alias, we need to check if the
+                // reference is to the alias and if so, resolve it to the
+                // actual catalog name.
+                if let Some(catalog_alias) = self.catalog.alias() {
+                    if catalog == catalog_alias {
+                        if let Some(ent) =
+                            self.catalog.resolve_entry(DEFAULT_CATALOG, schema, table)
+                        {
+                            return Ok(ResolvedEntry::Entry(ent.clone()));
+                        }
+                    }
                 }
+
                 // If catalog is anything but "default", we know we need to do
                 // external resolution since we don't store info about
                 // individual tables.
@@ -140,5 +150,172 @@ impl<'a> EntryResolver<'a> {
         }
 
         Err(ResolveError(format!("failed to find table: {reference}")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use catalog::session_catalog::ResolveConfig;
+    use protogen::metastore::types::catalog::{
+        CatalogState,
+        DeploymentMetadata,
+        EntryMeta,
+        EntryType,
+        SchemaEntry,
+        SourceAccessMode,
+    };
+    use protogen::metastore::types::options::TableOptionsV0;
+
+    use super::*;
+
+    fn new_test_catalog_state() -> CatalogState {
+        let entries = [
+            // Schemas
+            CatalogEntry::Schema(SchemaEntry {
+                meta: EntryMeta {
+                    entry_type: EntryType::Schema,
+                    id: 1,
+                    parent: 0,
+                    name: "my_schema1".to_string(),
+                    builtin: false,
+                    external: false,
+                    is_temp: false,
+                },
+            }),
+            CatalogEntry::Schema(SchemaEntry {
+                meta: EntryMeta {
+                    entry_type: EntryType::Schema,
+                    id: 2,
+                    parent: 0,
+                    name: "my_schema2".to_string(),
+                    builtin: false,
+                    external: false,
+                    is_temp: false,
+                },
+            }),
+            // Tables
+            CatalogEntry::Table(TableEntry {
+                meta: EntryMeta {
+                    entry_type: EntryType::Schema,
+                    id: 3,
+                    parent: 1,
+                    name: "table1".to_string(),
+                    builtin: false,
+                    external: false,
+                    is_temp: false,
+                },
+                options: TableOptionsV0::new_internal(Vec::new()),
+                tunnel_id: None,
+                access_mode: SourceAccessMode::ReadWrite,
+                columns: None,
+            }),
+            // Tables
+            CatalogEntry::Table(TableEntry {
+                meta: EntryMeta {
+                    entry_type: EntryType::Schema,
+                    id: 4,
+                    parent: 2,
+                    name: "table2".to_string(),
+                    builtin: false,
+                    external: false,
+                    is_temp: false,
+                },
+                options: TableOptionsV0::new_internal(Vec::new()),
+                tunnel_id: None,
+                access_mode: SourceAccessMode::ReadWrite,
+                columns: None,
+            }),
+        ];
+
+        let entries: HashMap<_, _> = entries
+            .into_iter()
+            .map(|ent| (ent.get_meta().id, ent))
+            .collect();
+
+        CatalogState {
+            version: 0,
+            entries,
+            deployment: DeploymentMetadata { storage_size: 0 },
+            catalog_version: 0,
+        }
+    }
+
+    #[test]
+    fn resolve_with_table_name() {
+        let session_catalog = SessionCatalog::new(
+            Arc::new(new_test_catalog_state()),
+            ResolveConfig {
+                default_schema_oid: 0,
+                session_schema_oid: 0,
+            },
+        );
+
+        let resolver = EntryResolver {
+            catalog: &session_catalog,
+            schema_search_path: vec!["my_schema1".to_string()],
+        };
+
+        let ent = resolver
+            .resolve_entry_from_reference(TableReference::Bare {
+                table: "table1".into(),
+            })
+            .unwrap();
+        let table_ent = ent.try_into_table_entry().unwrap();
+
+        assert_eq!("table1", table_ent.meta.name);
+    }
+
+    #[test]
+    fn resolve_fully_qualified_with_default() {
+        let session_catalog = SessionCatalog::new(
+            Arc::new(new_test_catalog_state()),
+            ResolveConfig {
+                default_schema_oid: 0,
+                session_schema_oid: 0,
+            },
+        );
+
+        let resolver = EntryResolver {
+            catalog: &session_catalog,
+            schema_search_path: vec!["my_schema1".to_string()],
+        };
+
+        let ent = resolver
+            .resolve_entry_from_reference(TableReference::full("default", "my_schema2", "table2"))
+            .unwrap();
+        let table_ent = ent.try_into_table_entry().unwrap();
+
+        assert_eq!("table2", table_ent.meta.name);
+    }
+
+    #[test]
+    fn resolve_fully_qualified_with_alias() {
+        let session_catalog = SessionCatalog::new_with_alias(
+            Arc::new(new_test_catalog_state()),
+            ResolveConfig {
+                default_schema_oid: 0,
+                session_schema_oid: 0,
+            },
+            "hello3/crimson_snow",
+        );
+
+        let resolver = EntryResolver {
+            catalog: &session_catalog,
+            schema_search_path: vec!["my_schema1".to_string()],
+        };
+
+        let ent = resolver
+            .resolve_entry_from_reference(TableReference::full(
+                "hello3/crimson_snow",
+                "my_schema2",
+                "table2",
+            ))
+            .unwrap();
+        let table_ent = ent.try_into_table_entry().unwrap();
+
+        assert_eq!("table2", table_ent.meta.name);
     }
 }
