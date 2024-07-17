@@ -37,6 +37,12 @@ pub enum BuiltinError {
 
     #[error("DataFusionExtension: {0}")]
     DataFusionExtension(String),
+
+    #[error("serde_json: {0}")]
+    SerdeJsonError(String),
+
+    #[error("jaq: {0}")]
+    JaqError(String),
 }
 
 pub type Result<T, E = BuiltinError> = std::result::Result<T, E>;
@@ -68,5 +74,17 @@ impl From<ExtensionError> for BuiltinError {
 impl From<ArrowError> for BuiltinError {
     fn from(e: ArrowError) -> Self {
         BuiltinError::ArrowError(e.to_string())
+    }
+}
+
+impl From<serde_json::Error> for BuiltinError {
+    fn from(e: serde_json::Error) -> Self {
+        BuiltinError::SerdeJsonError(e.to_string())
+    }
+}
+
+impl From<jaq_interpret::Error> for BuiltinError {
+    fn from(e: jaq_interpret::Error) -> Self {
+        BuiltinError::JaqError(e.to_string())
     }
 }

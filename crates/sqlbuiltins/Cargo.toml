@@ -22,15 +22,16 @@ datasources = { path = "../datasources" }
 parser = { path = "../parser" }
 decimal = { path = "../decimal" }
 async-trait = { workspace = true }
+bytes = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 object_store = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-tempfile = { workspace = true }
-tokio = { workspace = true }
 reqwest = { workspace = true }
-bytes = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 async-openai = "0.23.4"
 datafusion-functions-array = "36.0.0"
 fnv = "1.0.7"
@@ -43,3 +44,5 @@ memoize = { version = "0.4.2", features = ["full"] }
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 arrow-cast = { version = "50.0.0" } # MUST synchronize sync with the datafusion::arrow version
 lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" } # omits duckdb submodule
+jaq-interpret = "1.5.0"
+jaq-parse = "1.0.2"

@@ -18,6 +18,7 @@ use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
+use scalars::jaq::{JAQMatches, JAQSelect};
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::{
     CurrentCatalog,
@@ -242,6 +243,9 @@ impl FunctionRegistry {
             // KDL functions
             Arc::new(KDLMatches::new()),
             Arc::new(KDLSelect::new()),
+            // JAQ functions
+            Arc::new(JAQMatches::new()),
+            Arc::new(JAQSelect::new()),
             // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),
