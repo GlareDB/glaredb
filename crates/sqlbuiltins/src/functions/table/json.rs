@@ -60,7 +60,8 @@ impl TableFunc for JsonScan {
 
         let store_access = storage_options_into_store_access(&source_url, &storage_options)
             .map_err(ExtensionError::access)?;
+        let jaq_filter = opts.get("jaq_filter").map(|fpv| fpv.into()).unwrap();
 
-        Ok(json_streaming_table(store_access, source_url, None).await?)
+        Ok(json_streaming_table(store_access, source_url, None, jaq_filter).await?)
     }
 }

@@ -8,6 +8,7 @@ use datafusion::physical_plan::streaming::PartitionStream;
 use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
 
+use super::jaq::compile_jaq_query;
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
 use crate::json::stream::{ObjectStorePartition, VectorPartition};
@@ -17,6 +18,7 @@ pub async fn json_streaming_table(
     store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
     fields: Option<Vec<FieldRef>>,
+    jaq_filter: Option<String>,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
     let path = source_url.path().into_owned();
 
@@ -33,14 +35,14 @@ pub async fn json_streaming_table(
 
     let store = accessor.into_object_store();
 
-    json_streaming_table_inner(store, &path, list, fields).await
+    json_streaming_table_inner(store, &path, list, fields, jaq_filter).await
 }
 
 pub async fn json_streaming_table_from_object(
     store: Arc<dyn ObjectStore>,
     object: ObjectMeta,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
-    json_streaming_table_inner(store, "", vec![object], None).await
+    json_streaming_table_inner(store, "", vec![object], None, None).await
 }
 
 async fn json_streaming_table_inner(
@@ -48,6 +50,7 @@ async fn json_streaming_table_inner(
     original_path: &str, // Just for error
     mut list: Vec<ObjectMeta>,
     fields: Option<Vec<FieldRef>>,
+    jaq_filter: Option<String>,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
 
@@ -87,6 +90,7 @@ async fn json_streaming_table_inner(
                 }
             }
 
+
             let schema = Arc::new(Schema::new(
                 field_set
                     .into_iter()
@@ -98,6 +102,10 @@ async fn json_streaming_table_inner(
             schema
         }
     };
+    let filter = match jaq_filter {
+        Some(query) => Some(Arc::new(compile_jaq_query(query)?)),
+        None => None,
+    };
 
 
     for obj in list {
@@ -105,6 +113,7 @@ async fn json_streaming_table_inner(
             schema.clone(),
             store.clone(),
             obj,
+            filter.clone(),
         )));
     }
 

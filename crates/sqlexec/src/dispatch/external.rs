@@ -322,6 +322,7 @@ impl<'a> ExternalDispatcher<'a> {
         path: impl AsRef<str>,
         file_type: &str,
         compression: Option<&String>,
+        jaq_filter: Option<String>,
     ) -> Result<Arc<dyn TableProvider>> {
         let path = path.as_ref();
         // TODO: only parquet/ndjson/csv actually support compression,
@@ -363,7 +364,14 @@ impl<'a> ExternalDispatcher<'a> {
             )
             .await?),
             "json" => Ok(
-                json_streaming_table(access.clone(), DatasourceUrl::try_new(path)?, None).await?,
+                // TODO: add support/plumbing to get query filter into the table here.
+                json_streaming_table(
+                    access.clone(),
+                    DatasourceUrl::try_new(path)?,
+                    None,
+                    jaq_filter,
+                )
+                .await?,
             ),
             "ndjson" | "jsonl" => Ok(accessor
                 .clone()
@@ -555,6 +563,7 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 file_type,
                 compression,
+                jaq_filter,
             }) => {
                 if self.disable_local_fs_access {
                     return Err(DispatchError::InvalidDispatch(
@@ -567,6 +576,7 @@ impl<'a> ExternalDispatcher<'a> {
                     location,
                     file_type,
                     compression.as_ref(),
+                    jaq_filter.clone(),
                 )
                 .await
             }
@@ -576,6 +586,7 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 file_type,
                 compression,
+                jaq_filter,
             }) => {
                 let access = Arc::new(GcsStoreAccess {
                     service_account_key: service_account_key.clone(),
@@ -587,6 +598,7 @@ impl<'a> ExternalDispatcher<'a> {
                     location,
                     file_type,
                     compression.as_ref(),
+                    jaq_filter.clone(),
                 )
                 .await
             }
@@ -598,6 +610,7 @@ impl<'a> ExternalDispatcher<'a> {
                 location,
                 file_type,
                 compression,
+                jaq_filter,
             }) => {
                 let access = Arc::new(S3StoreAccess {
                     bucket: bucket.clone(),
@@ -611,6 +624,7 @@ impl<'a> ExternalDispatcher<'a> {
                     location,
                     file_type,
                     compression.as_ref(),
+                    jaq_filter.clone(),
                 )
                 .await
             }
@@ -619,6 +633,7 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
                 file_type,
                 compression,
+                jaq_filter,
                 ..
             }) => {
                 // File type should be known at this point since creating the
@@ -641,6 +656,7 @@ impl<'a> ExternalDispatcher<'a> {
                     DatasourceUrl::try_new(location)?.path(), // TODO: Workaround again
                     file_type,
                     compression.as_ref(),
+                    jaq_filter.clone(),
                 )
                 .await
             }

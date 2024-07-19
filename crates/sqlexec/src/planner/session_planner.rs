@@ -697,6 +697,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
+                    jaq_filter: None,
                 })
             }
             TableOptionsV0::LOCAL => {
@@ -706,10 +707,13 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
+                let jaq_filter: Option<String> = m.remove_optional("jaq_filter")?;
+
                 TableOptionsLocal {
                     location,
                     file_type: file_type.to_string().to_lowercase(),
                     compression: compression.map(|c| c.to_string()),
+                    jaq_filter,
                 }
                 .into()
             }
@@ -733,12 +737,14 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
+                let jaq_filter: Option<String> = m.remove_optional("jaq_filter")?;
                 TableOptionsGcs {
                     bucket,
                     service_account_key,
                     location,
                     file_type,
                     compression: compression.map(|c| c.to_string()),
+                    jaq_filter,
                 }
                 .into()
             }
@@ -775,6 +781,8 @@ impl<'a> SessionPlanner<'a> {
                 let (file_type, compression) =
                     validate_and_get_file_type_and_compression(access, &location, m).await?;
 
+                let jaq_filter: Option<String> = m.remove_optional("jaq_filter")?;
+
                 TableOptionsS3 {
                     region,
                     bucket,
@@ -783,6 +791,7 @@ impl<'a> SessionPlanner<'a> {
                     location,
                     file_type: file_type.to_string(),
                     compression: compression.map(|c| c.to_string()),
+                    jaq_filter,
                 }
                 .into()
             }
@@ -830,6 +839,7 @@ impl<'a> SessionPlanner<'a> {
                 opts.inner
                     .insert(AzureConfigKey::AccessKey.as_ref().to_string(), access_key);
 
+                let jaq_filter: Option<String> = m.remove_optional("jaq_filter")?;
                 TableOptionsV0::Azure(TableOptionsObjectStore {
                     name: None,
                     location: source_url,
@@ -837,6 +847,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: Some(file_type.to_string()),
                     compression: compression.map(|c| c.to_string()),
                     schema_sample_size: None,
+                    jaq_filter,
                 })
             }
             TableOptionsV0::DELTA | TableOptionsV0::ICEBERG => {
@@ -857,6 +868,7 @@ impl<'a> SessionPlanner<'a> {
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
+                        jaq_filter: None,
                     })
                 } else {
                     let url = DatasourceUrl::try_new(&location)?;
@@ -870,6 +882,7 @@ impl<'a> SessionPlanner<'a> {
                         file_type: None,
                         compression: None,
                         schema_sample_size: None,
+                        jaq_filter: None,
                     })
                 }
             }
@@ -888,6 +901,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size: None,
+                    jaq_filter: None,
                 })
             }
             TableOptionsV0::BSON => {
@@ -910,6 +924,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     schema_sample_size,
+                    jaq_filter: None,
                 })
             }
             TableOptionsV0::EXCEL => {

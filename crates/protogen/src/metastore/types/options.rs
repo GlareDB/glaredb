@@ -1198,6 +1198,7 @@ pub struct TableOptionsLocal {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+    pub jaq_filter: Option<String>,
 }
 
 impl From<TableOptionsLocal> for TableOptionsV0 {
@@ -1217,6 +1218,7 @@ impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1227,6 +1229,7 @@ impl From<TableOptionsLocal> for options::TableOptionsLocal {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         }
     }
 }
@@ -1238,6 +1241,7 @@ pub struct TableOptionsGcs {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+    pub jaq_filter: Option<String>,
 }
 
 impl From<TableOptionsGcs> for TableOptionsV0 {
@@ -1259,6 +1263,7 @@ impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1271,6 +1276,7 @@ impl From<TableOptionsGcs> for options::TableOptionsGcs {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         }
     }
 }
@@ -1284,6 +1290,7 @@ pub struct TableOptionsS3 {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+    pub jaq_filter: Option<String>,
 }
 
 impl From<TableOptionsS3> for TableOptionsV0 {
@@ -1307,6 +1314,7 @@ impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1321,6 +1329,7 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         }
     }
 }
@@ -1615,6 +1624,7 @@ pub struct TableOptionsObjectStore {
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub schema_sample_size: Option<i64>,
+    pub jaq_filter: Option<String>,
 }
 
 impl TableOptionsImpl for TableOptionsObjectStore {
@@ -1631,6 +1641,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1644,6 +1655,7 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            jaq_filter: value.jaq_filter,
         }
     }
 }

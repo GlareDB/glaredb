@@ -10,6 +10,7 @@ use datafusion::execution::TaskContext;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::{Stream, StreamExt, TryStreamExt};
+use jaq_interpret::{Ctx, Filter, FilterT, RcIter, Val};
 use json_stream::JsonStream;
 use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
@@ -51,11 +52,22 @@ pub(crate) struct ObjectStorePartition {
     schema: Arc<Schema>,
     store: Arc<dyn ObjectStore>,
     obj: ObjectMeta,
+    filter: Option<Arc<Filter>>,
 }
 
 impl ObjectStorePartition {
-    pub fn new(schema: Arc<Schema>, store: Arc<dyn ObjectStore>, obj: ObjectMeta) -> Self {
-        Self { schema, store, obj }
+    pub fn new(
+        schema: Arc<Schema>,
+        store: Arc<dyn ObjectStore>,
+        obj: ObjectMeta,
+        filter: Option<Arc<Filter>>,
+    ) -> Self {
+        Self {
+            schema,
+            store,
+            obj,
+            filter,
+        }
     }
 }
 
@@ -69,6 +81,7 @@ impl PartitionStream for ObjectStorePartition {
             self.schema.to_owned(),
             self.store.clone(),
             self.obj.clone(),
+            self.filter.clone(),
         ))
     }
 }
@@ -112,16 +125,22 @@ impl JsonHandler {
         schema: Arc<Schema>,
         store: Arc<dyn ObjectStore>,
         obj: ObjectMeta,
+        jaq_filter: Option<Arc<Filter>>,
     ) -> Self {
         let stream_schema = schema.clone();
+        let jaq_filter = jaq_filter.clone();
+
         let stream = futures::stream::once(async move {
+            let store = store.clone();
+            let filter = jaq_filter.clone();
+
             Self::convert_stream(
                 stream_schema,
                 JsonStream::<Value, _>::new(match store.get(&obj.location).await {
                     Ok(stream) => stream.into_stream().map_err(JsonError::from),
                     Err(e) => return futures::stream::once(async move { Err(e.into()) }).boxed(),
                 })
-                .flat_map(Self::unwind_json_value)
+                .flat_map(move |v| Self::unwind_json_value(v, &filter))
                 .boxed(),
             )
         })
@@ -146,34 +165,54 @@ impl JsonHandler {
             .boxed()
     }
 
-
-    fn unwind_json_value(input: Result<Value>) -> JsonObjectStream {
+    fn unwind_json_value(input: Result<Value>, filter: &Option<Arc<Filter>>) -> JsonObjectStream {
         futures::stream::iter(match input {
-            Ok(value) => match value {
-                Value::Array(vals) => {
-                    let mut out = Vec::with_capacity(vals.len());
-                    for v in vals {
-                        match v {
-                            Value::Object(doc) => out.push(Ok(doc)),
-                            Value::Null => out.push(Ok(Map::new())),
-                            _ => {
-                                out.push(Err(JsonError::UnspportedType(
-                                    "only objects and arrays of objects are supported",
-                                )));
-                                break;
-                            }
+            Ok(value) => {
+                let res = match filter {
+                    Some(jq) => {
+                        let inputs = RcIter::new(core::iter::empty());
+                        match jq
+                            .run((Ctx::new([], &inputs), Val::from(value)))
+                            .map(|res| res.map(|v| Value::from(v)))
+                            .collect::<Result<Vec<_>, _>>()
+                        {
+                            Ok(vals) => Ok(Value::from_iter(vals.into_iter())),
+                            Err(e) => Err(JsonError::from(e)),
                         }
                     }
-                    out
+                    None => Ok(value),
+                };
+
+
+                match res {
+                    Ok(value) => match value {
+                        Value::Array(vals) => {
+                            let mut out = Vec::with_capacity(vals.len());
+                            for v in vals {
+                                match v {
+                                    Value::Object(doc) => out.push(Ok(doc)),
+                                    Value::Null => out.push(Ok(Map::new())),
+                                    _ => {
+                                        out.push(Err(JsonError::UnspportedType(
+                                            "only objects and arrays of objects are supported",
+                                        )));
+                                        break;
+                                    }
+                                }
+                            }
+                            out
+                        }
+                        Value::Object(doc) => vec![Ok(doc)],
+                        Value::Null => vec![Ok(Map::new())],
+                        _ => {
+                            vec![Err(JsonError::UnspportedType(
+                                "only objects and arrays of objects are supported",
+                            ))]
+                        }
+                    },
+                    Err(e) => vec![Err(e)],
                 }
-                Value::Object(doc) => vec![Ok(doc)],
-                Value::Null => vec![Ok(Map::new())],
-                _ => {
-                    vec![Err(JsonError::UnspportedType(
-                        "only objects and arrays of objects are supported",
-                    ))]
-                }
-            },
+            }
             Err(e) => vec![Err(e)],
         })
         .boxed()
