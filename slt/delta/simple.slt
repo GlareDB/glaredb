@@ -12,3 +12,9 @@ select * from read_delta('../testdata/delta/table1');
 1  hello
 2  world
 
+query ITR rowsort
+select * from read_delta('s3://glaredb-test-copy/delta/table1', region='us-east-1', key_id='__AWS_KEY__', secret='__AWS_SECRET__');
+----
+1  hello
+2  world
+

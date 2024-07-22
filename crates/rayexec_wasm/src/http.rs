@@ -1,62 +1,77 @@
 use bytes::Bytes;
 use futures::{
-    future::{BoxFuture, FutureExt, TryFutureExt},
+    future::{BoxFuture, FutureExt},
     stream::{BoxStream, StreamExt},
     Stream,
 };
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_io::{http::ReqwestClientReader, FileSource};
+use rayexec_io::http::{HttpClient, HttpResponse};
+use reqwest::{header::HeaderMap, Request, StatusCode};
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
-use tracing::debug;
 
-#[derive(Debug)]
-pub struct WrappedReqwestClientReader {
-    pub inner: ReqwestClientReader,
+#[derive(Debug, Clone)]
+pub struct WasmHttpClient {
+    client: reqwest::Client,
 }
 
-impl FileSource for WrappedReqwestClientReader {
-    fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
-        let fut = self.inner.read_range(start, len);
-        let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
-        fut.boxed()
+impl WasmHttpClient {
+    pub fn new(client: reqwest::Client) -> Self {
+        WasmHttpClient { client }
+    }
+}
+
+impl HttpClient for WasmHttpClient {
+    type Response = WasmBoxingResponse;
+    type RequestFuture = BoxFuture<'static, Result<Self::Response>>;
+
+    fn do_request(&self, request: Request) -> Self::RequestFuture {
+        let fut = self.client.execute(request).map(|result| match result {
+            Ok(resp) => Ok(WasmBoxingResponse(resp)),
+            Err(e) => Err(RayexecError::with_source(
+                "Failed to make request",
+                Box::new(e),
+            )),
+        });
+
+        unsafe { FakeSendFuture::new(Box::pin(fut)) }.boxed()
+    }
+}
+
+#[derive(Debug)]
+pub struct WasmBoxingResponse(pub reqwest::Response);
+
+/// Same rationale as below for the fake send future/stream.
+unsafe impl Send for WasmBoxingResponse {}
+
+impl HttpResponse for WasmBoxingResponse {
+    type BytesFuture = BoxFuture<'static, Result<Bytes>>;
+    type BytesStream = BoxStream<'static, Result<Bytes>>;
+
+    fn status(&self) -> StatusCode {
+        self.0.status()
     }
 
-    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
-        debug!(url = %self.inner.url, "http streaming (local stream)");
-
-        // Similar to what we do for the "native" client, but boxes everything
-        // local. Needed since no part of the stream can be Send in wasm, it's
-        // not sufficient to just `boxed_local` the stream, the inner GET
-        // requested needs to be local too.
-        let fut =
-            self.inner
-                .client
-                .get(self.inner.url.as_str())
-                .send()
-                .map(|result| match result {
-                    Ok(resp) => Ok(resp
-                        .bytes_stream()
-                        .map(|result| result.context("failed to stream response"))
-                        .boxed_local()),
-                    Err(e) => Err(RayexecError::with_source(
-                        "Failed to send GET request",
-                        Box::new(e),
-                    )),
-                });
-
-        let stream = fut.try_flatten_stream().boxed_local();
-
-        FakeSendStream { stream }.boxed()
+    fn headers(&self) -> &HeaderMap {
+        self.0.headers()
     }
 
-    fn size(&mut self) -> BoxFuture<Result<usize>> {
-        let fut = self.inner.content_length();
-        let fut = unsafe { FakeSendFuture::new(Box::pin(fut)) };
-        fut.boxed()
+    fn bytes(self) -> Self::BytesFuture {
+        let fut = Box::pin(self.0.bytes());
+        let fut = unsafe { FakeSendFuture::new(fut) };
+        fut.map(|r| r.context("failed to get byte response"))
+            .boxed()
+    }
+
+    fn bytes_stream(self) -> Self::BytesStream {
+        let stream = Box::pin(self.0.bytes_stream());
+        let stream = unsafe { FakeSendStream::new(stream) };
+        stream
+            .map(|r| r.context("failed to get byte stream"))
+            .boxed()
     }
 }
 
@@ -81,7 +96,7 @@ impl FileSource for WrappedReqwestClientReader {
 /// the implemenation requires Send futures or not, but I (Sean) did not feel
 /// like spending the time to figure that out in the initial implemenation.
 #[derive(Debug)]
-struct FakeSendFuture<O, F: Future<Output = O> + Unpin> {
+pub struct FakeSendFuture<O, F: Future<Output = O> + Unpin> {
     fut: F,
 }
 
@@ -103,11 +118,17 @@ impl<O, F: Future<Output = O> + Unpin> Future for FakeSendFuture<O, F> {
 
 /// Similar to `FakeSendFuture`, this unsafely makes a stream send.
 #[derive(Debug)]
-struct FakeSendStream<O, S: Stream<Item = O> + Unpin> {
+pub struct FakeSendStream<O, S: Stream<Item = O> + Unpin> {
     stream: S,
 }
 
 unsafe impl<O, S: Stream<Item = O> + Unpin> Send for FakeSendStream<O, S> {}
+
+impl<O, S: Stream<Item = O> + Unpin> FakeSendStream<O, S> {
+    pub unsafe fn new(stream: S) -> Self {
+        FakeSendStream { stream }
+    }
+}
 
 impl<O, S: Stream<Item = O> + Unpin> Stream for FakeSendStream<O, S> {
     type Item = O;

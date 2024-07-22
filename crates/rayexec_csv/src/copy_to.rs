@@ -11,6 +11,7 @@ use rayexec_execution::{
     execution::operators::{PollFinalize, PollPush},
     functions::copy::{CopyToFunction, CopyToSink},
 };
+use rayexec_io::location::AccessConfig;
 use rayexec_io::{location::FileLocation, FileSink};
 
 use crate::reader::DialectOptions;
@@ -24,6 +25,7 @@ impl CopyToFunction for CsvCopyToFunction {
         "csv_copy_to"
     }
 
+    // TODO: Access config
     fn create_sinks(
         &self,
         runtime: &Arc<dyn ExecutionRuntime>,
@@ -35,7 +37,7 @@ impl CopyToFunction for CsvCopyToFunction {
 
         let mut sinks = Vec::with_capacity(num_partitions);
         for _ in 0..num_partitions {
-            let sink = provider.file_sink(location.clone())?;
+            let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
             let dialect = DialectOptions::default();
 
             sinks.push(Box::new(CsvCopyToSink {

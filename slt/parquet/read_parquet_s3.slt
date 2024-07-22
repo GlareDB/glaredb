@@ -1,0 +1,15 @@
+# Read parquet from s3
+
+query I
+select last_name
+  from read_parquet('s3://glaredb-test/userdata1.parquet', region='us-east-1', key_id='__AWS_KEY__', secret='__AWS_SECRET__')
+  order by id desc limit 8;
+----
+Meyer
+Daniels
+Morris
+Hamilton
+Harris
+Mccoy
+Williams
+Henderson

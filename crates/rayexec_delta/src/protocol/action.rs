@@ -62,8 +62,8 @@ impl ActionChangeMetadata {
 pub struct ActionAddFile {
     pub path: String,
     pub partition_values: HashMap<String, String>,
-    pub size: usize,
-    pub modification_time: usize,
+    pub size: u64,
+    pub modification_time: u64,
     pub data_change: bool,
 }
 
@@ -71,7 +71,7 @@ pub struct ActionAddFile {
 #[serde(rename_all = "camelCase")]
 pub struct ActionRemoveFile {
     pub path: String,
-    pub deletion_timestamp: Option<usize>,
+    pub deletion_timestamp: Option<u64>,
     pub data_change: bool,
 }
 
@@ -80,7 +80,7 @@ pub struct ActionRemoveFile {
 pub struct ActionAddCdcFile {
     pub path: String,
     pub partition_values: HashMap<String, String>,
-    pub size: usize,
+    pub size: u64,
     pub data_change: bool,
     pub tags: Option<HashMap<String, String>>,
 }
@@ -89,15 +89,15 @@ pub struct ActionAddCdcFile {
 #[serde(rename_all = "camelCase")]
 pub struct ActionTransaction {
     pub app_id: String,
-    pub version: usize,
-    pub last_updated: Option<usize>,
+    pub version: u64,
+    pub last_updated: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionProtocol {
-    pub min_reader_version: usize,
-    pub min_writer_version: usize,
+    pub min_reader_version: u32,
+    pub min_writer_version: u32,
     pub reader_features: Option<Vec<String>>,
     pub writer_features: Option<Vec<String>>,
 }
@@ -295,5 +295,25 @@ mod tests {
         });
 
         assert_eq!(expected, action);
+    }
+
+    #[test]
+    fn action_commit_info() {
+        // Abitrary commit info (from delta-rs). Not currently asserting the
+        // parsed values, I just want to make sure it parses without error.
+        let input = r#"
+        {
+           "commitInfo": {
+             "timestamp":1689710090691,
+             "operation":"WRITE",
+             "operationParameters":{
+               "mode":"Append"
+             },
+             "clientVersion":"delta-rs.0.13.0"
+           }
+         }"#;
+
+        let action: Action = serde_json::from_str(input).unwrap();
+        assert!(matches!(action, Action::CommitInfo(_)))
     }
 }

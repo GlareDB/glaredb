@@ -1,9 +1,13 @@
 pub mod http;
 pub mod location;
+pub mod memory;
+pub mod s3;
+
+mod util;
 
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream};
-use location::FileLocation;
+use location::{AccessConfig, FileLocation};
 use rayexec_error::Result;
 use std::fmt::Debug;
 
@@ -16,10 +20,15 @@ use std::fmt::Debug;
 // have an async stream of sources, but idk if that's good idea yet.
 pub trait FileProvider: Sync + Send + Debug {
     /// Gets a file source at some location.
-    fn file_source(&self, location: FileLocation) -> Result<Box<dyn FileSource>>;
+    fn file_source(
+        &self,
+        location: FileLocation,
+        config: &AccessConfig,
+    ) -> Result<Box<dyn FileSource>>;
 
     /// Gets a file sink at some location
-    fn file_sink(&self, location: FileLocation) -> Result<Box<dyn FileSink>>;
+    fn file_sink(&self, location: FileLocation, config: &AccessConfig)
+        -> Result<Box<dyn FileSink>>;
 
     /// Return a stream of paths relative to `prefix`.
     ///
@@ -31,7 +40,11 @@ pub trait FileProvider: Sync + Send + Debug {
     /// only paths to a file.
     ///
     /// Paths should be returned lexicographically ascending order.
-    fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>>;
+    fn list_prefix(
+        &self,
+        prefix: FileLocation,
+        config: &AccessConfig,
+    ) -> BoxStream<'static, Result<Vec<String>>>;
 }
 
 /// Asynchronous reads of some file source.

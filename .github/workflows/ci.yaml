@@ -18,18 +18,33 @@ jobs:
           submodules: 'true'
 
       - name: Tests
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test -- --skip slt_datasource_  --skip slt_tpch
 
       - name: SLTs Parquet
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt_datasource_parquet
 
       - name: SLTs CSV
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt_datasource_csv
 
       - name: SLTs Delta
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt_datasource_delta
 
       - name: SLTs Postgres
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: |
           ./scripts/create-test-postgres-db.sh
           cargo test slt_datasource_postgres

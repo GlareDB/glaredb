@@ -1,6 +1,6 @@
 use rayexec_csv::CsvDataSource;
 use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine};
-use rayexec_slt::RunConfig;
+use rayexec_slt::{ReplacementVars, RunConfig};
 use std::path::Path;
 
 pub fn main() {
@@ -14,6 +14,7 @@ pub fn main() {
             )
         },
         RunConfig {
+            vars: ReplacementVars::default(),
             create_slt_tmp: true,
         },
         "slt_datasource_csv",

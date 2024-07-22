@@ -332,6 +332,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-targets 0.52.0",
 ]
@@ -742,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.18"
+version = "0.0.19"
 
 [[package]]
 name = "fnv"
@@ -1321,7 +1322,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "logutil"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1577,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -1730,6 +1731,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4091e032efecb09d7b1f711f487b85ab925632a842627e3200fb088382cde32c"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1770,14 +1781,14 @@ dependencies = [
 
 [[package]]
 name = "rayexec_arrow_ipc"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "flatbuffers",
 ]
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "clap",
  "crossterm",
@@ -1798,7 +1809,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "backtrace-on-stack-overflow",
  "chrono",
@@ -1812,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
  "csv",
@@ -1831,7 +1842,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_delta"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -1851,14 +1862,14 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "erased-serde",
 ]
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "ahash",
  "chrono",
@@ -1888,20 +1899,26 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
+ "chrono",
  "futures",
+ "hmac",
+ "parking_lot",
+ "percent-encoding",
+ "quick-xml",
  "rayexec_error",
  "reqwest",
  "serde",
+ "sha2",
  "tracing",
  "url",
 ]
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -1919,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -1930,7 +1947,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "erased-serde",
  "futures",
@@ -1944,7 +1961,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
  "futures",
@@ -1955,6 +1972,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_io",
  "rayon",
+ "reqwest",
  "tokio",
  "tracing",
  "url",
@@ -1962,7 +1980,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "axum",
  "clap",
@@ -1983,7 +2001,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server_client"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "rayexec_error",
  "reqwest",
@@ -1994,7 +2012,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2009,7 +2027,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "async-trait",
  "env_logger",
@@ -2028,7 +2046,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -2038,11 +2056,13 @@ dependencies = [
  "parking_lot",
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "rayexec_parquet",
  "rayexec_shell",
+ "reqwest",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2578,7 +2598,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",

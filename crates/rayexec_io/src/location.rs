@@ -4,6 +4,20 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use url::Url;
 
+use crate::s3::credentials::AwsCredentials;
+
+/// Configuration for accessing various object stores.
+///
+/// The variant used determines how we should interpret the file location.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccessConfig {
+    S3 {
+        credentials: AwsCredentials,
+        region: String,
+    },
+    None,
+}
+
 /// Location for a file.
 // TODO: Glob/hive
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

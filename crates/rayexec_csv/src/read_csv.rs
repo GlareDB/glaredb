@@ -3,12 +3,13 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
-    functions::table::{
-        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
-    },
+    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
-use rayexec_io::{location::FileLocation, FileSource};
+use rayexec_io::{
+    location::{AccessConfig, FileLocation},
+    FileSource,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -49,6 +50,7 @@ impl TableFunction for ReadCsv {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ReadCsvImpl {
     location: FileLocation,
+    conf: AccessConfig,
     csv_schema: CsvSchema,
     dialect: DialectOptions,
 }
@@ -56,19 +58,13 @@ struct ReadCsvImpl {
 impl ReadCsvImpl {
     async fn initialize(
         runtime: &dyn ExecutionRuntime,
-        mut args: TableFunctionArgs,
+        args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        check_named_args_is_empty(&ReadCsv, &args)?;
-        if args.positional.len() != 1 {
-            return Err(RayexecError::new("Expected one argument"));
-        }
+        let (location, conf) = args.try_location_and_access_config()?;
 
-        // TODO: Glob, dispatch to object storage/http impls
-
-        let location = args.positional.pop().unwrap().try_into_string()?;
-        let location = FileLocation::parse(&location);
-
-        let mut source = runtime.file_provider().file_source(location.clone())?;
+        let mut source = runtime
+            .file_provider()
+            .file_source(location.clone(), &conf)?;
 
         let mut stream = source.read_stream();
         // TODO: Actually make sure this is a sufficient size to infer from.
@@ -95,6 +91,7 @@ impl ReadCsvImpl {
 
         Ok(Box::new(Self {
             location,
+            conf,
             dialect,
             csv_schema,
         }))
@@ -121,6 +118,7 @@ impl PlannedTableFunction for ReadCsvImpl {
             options: self.dialect,
             csv_schema: self.csv_schema.clone(),
             location: self.location.clone(),
+            conf: self.conf.clone(),
             runtime: runtime.clone(),
         }))
     }

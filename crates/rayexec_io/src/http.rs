@@ -1,99 +1,123 @@
 use bytes::Bytes;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use reqwest::{
-    header::{CONTENT_LENGTH, RANGE},
-    StatusCode,
-};
 use std::fmt::Debug;
 use tracing::debug;
 use url::Url;
 
+use futures::{
+    future::BoxFuture,
+    stream::{self, BoxStream},
+    Future, Stream, StreamExt, TryStreamExt,
+};
+use reqwest::{
+    header::{HeaderMap, CONTENT_LENGTH, RANGE},
+    Method, Request, StatusCode,
+};
+
 use crate::FileSource;
 
-pub trait HttpClient: Debug + Sync + Send + 'static {
-    /// Create a reader for the given url.
-    fn reader(&self, url: Url) -> Box<dyn FileSource>;
+pub trait HttpClient: Sync + Send + Debug + Clone {
+    type Response: HttpResponse + Send;
+    type RequestFuture: Future<Output = Result<Self::Response>> + Send;
+
+    fn do_request(&self, request: Request) -> Self::RequestFuture;
 }
 
-/// Shared logic for http clients implemented on top of reqwest.
-///
-/// This should not be instantiated directly, and instead client should be
-/// generated through the execution runtime.
-///
-/// This exists because reqwest has two implementations; one using tokio and
-/// another using web-sys bindings for wasm, with the implementation depending
-/// on the target triple the binary is being built for. So while it looks like
-/// we're using just "reqwest", we're actually using a tokio flavored reqwest,
-/// and a web-sys flavored request.
-///
-/// So why do we need to go through the runtime? We'll unfortunately the tokio
-/// flavored reqwest has a dependency on a tokio runtime context, and by going
-/// through the runtime, we're able to "wrap" these methods in a tokio context.
-/// The web-sys flavor doesn't require any wrapping, but it has it's own set of
-/// problems with certain wasm-bindgen things not being `Send`. So we can't
-/// really have a single abstraction here that wraps depending on if a have a
-/// tokio handle or not (since compilation will fail on the wasm-bindgen future
-/// not being send).
-#[derive(Debug, Clone, Default)]
-pub struct ReqwestClient(reqwest::Client);
+pub trait HttpResponse {
+    type BytesFuture: Future<Output = Result<Bytes>> + Send;
+    type BytesStream: Stream<Item = Result<Bytes>> + Send;
 
-impl ReqwestClient {
-    pub fn reader(&self, url: Url) -> ReqwestClientReader {
-        ReqwestClientReader {
-            client: self.0.clone(),
-            url,
-        }
+    fn status(&self) -> StatusCode;
+    fn headers(&self) -> &HeaderMap;
+    fn bytes(self) -> Self::BytesFuture;
+    fn bytes_stream(self) -> Self::BytesStream;
+}
+
+pub async fn read_text(resp: impl HttpResponse) -> Result<String> {
+    let full = resp.bytes().await?;
+    Ok(String::from_utf8_lossy(&full).to_string())
+}
+
+#[derive(Debug)]
+pub struct HttpClientReader<C: HttpClient> {
+    client: C,
+    url: Url,
+}
+
+impl<C: HttpClient> HttpClientReader<C> {
+    pub fn new(client: C, url: Url) -> Self {
+        HttpClientReader { client, url }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ReqwestClientReader {
-    pub client: reqwest::Client,
-    pub url: Url,
-}
-
-impl ReqwestClientReader {
-    pub async fn content_length(&self) -> Result<usize> {
-        debug!(url = %self.url, "http getting content length");
-
-        let send_fut = self.client.head(self.url.as_str()).send();
-        let resp = send_fut.await.context("failed to send HEAD request")?;
-
-        if !resp.status().is_success() {
-            return Err(RayexecError::new("Failed to get content-length"));
-        }
-
-        let len = match resp.headers().get(CONTENT_LENGTH) {
-            Some(header) => header
-                .to_str()
-                .context("failed to convert to string")?
-                .parse::<usize>()
-                .context("failed to parse content length")?,
-            None => return Err(RayexecError::new("Response missing content-length header")),
-        };
-
-        Ok(len)
-    }
-
-    pub async fn read_range(&mut self, start: usize, len: usize) -> Result<Bytes> {
+impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
+    fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         debug!(url = %self.url, %start, %len, "http reading range");
 
-        let range = Self::format_range_header(start, start + len - 1);
-        let send_fut = self
+        let range = format_range_header(start, start + len - 1);
+
+        let mut request = Request::new(Method::GET, self.url.clone());
+        request
+            .headers_mut()
+            .insert(RANGE, range.try_into().unwrap());
+
+        let fut = self.client.do_request(request);
+
+        Box::pin(async move {
+            let resp = fut.await?;
+
+            if resp.status() != StatusCode::PARTIAL_CONTENT {
+                return Err(RayexecError::new("Server does not support range requests"));
+            }
+
+            resp.bytes().await.context("failed to get response body")
+        })
+    }
+
+    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
+        debug!(url = %self.url, "http reading stream");
+
+        let client = self.client.clone();
+        let req = Request::new(Method::GET, self.url.clone());
+
+        let stream = stream::once(async move {
+            let resp = client.do_request(req).await?;
+
+            Ok::<_, RayexecError>(resp.bytes_stream())
+        })
+        .try_flatten();
+
+        stream.boxed()
+    }
+
+    fn size(&mut self) -> BoxFuture<Result<usize>> {
+        debug!(url = %self.url, "http getting content length");
+
+        let fut = self
             .client
-            .get(self.url.as_str())
-            .header(RANGE, range)
-            .send();
-        let resp = send_fut.await.context("failed to send GET request")?;
+            .do_request(Request::new(Method::GET, self.url.clone()));
 
-        if resp.status() != StatusCode::PARTIAL_CONTENT {
-            return Err(RayexecError::new("Server does not support range requests"));
-        }
+        Box::pin(async move {
+            let resp = fut.await?;
 
-        resp.bytes().await.context("failed to get response body")
+            if !resp.status().is_success() {
+                return Err(RayexecError::new("Failed to get content-length"));
+            }
+
+            let len = match resp.headers().get(CONTENT_LENGTH) {
+                Some(header) => header
+                    .to_str()
+                    .context("failed to convert to string")?
+                    .parse::<usize>()
+                    .context("failed to parse content length")?,
+                None => return Err(RayexecError::new("Response missing content-length header")),
+            };
+
+            Ok(len)
+        })
     }
+}
 
-    fn format_range_header(start: usize, end: usize) -> String {
-        format!("bytes={start}-{end}")
-    }
+pub(crate) fn format_range_header(start: usize, end: usize) -> String {
+    format!("bytes={start}-{end}")
 }

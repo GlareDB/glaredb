@@ -11,7 +11,10 @@ use rayexec_bullet::{
     scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use rayexec_io::{location::FileLocation, FileProvider, FileSource};
+use rayexec_io::{
+    location::{AccessConfig, FileLocation},
+    FileProvider, FileSource,
+};
 use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
 use serde_json::Deserializer;
 
@@ -32,6 +35,7 @@ pub struct Table {
     root: FileLocation,
     /// Provider for accessing files.
     provider: Arc<dyn FileProvider>,
+    conf: AccessConfig,
     /// Snapshot of the table, including what files we have available to use for
     /// reading.
     snapshot: Snapshot,
@@ -39,10 +43,14 @@ pub struct Table {
 
 impl Table {
     /// Try to load a table at the given location.
-    pub async fn load(root: FileLocation, provider: Arc<dyn FileProvider>) -> Result<Self> {
+    pub async fn load(
+        root: FileLocation,
+        provider: Arc<dyn FileProvider>,
+        conf: AccessConfig,
+    ) -> Result<Self> {
         // TODO: Look at checkpoints & compacted logs
         let log_root = root.join([DELTA_LOG_PATH])?;
-        let mut log_stream = provider.list_prefix(log_root.clone());
+        let mut log_stream = provider.list_prefix(log_root.clone(), &conf);
 
         let first_page = log_stream
             .try_next()
@@ -52,7 +60,7 @@ impl Table {
         let mut snapshot = match first_page.first() {
             Some(first) => {
                 let actions =
-                    Self::read_actions_from_log(provider.as_ref(), &log_root, first).await?;
+                    Self::read_actions_from_log(provider.as_ref(), &conf, &log_root, first).await?;
                 Snapshot::try_new_from_actions(actions)?
             }
             None => {
@@ -65,7 +73,7 @@ impl Table {
         // Apply rest of first page.
         for log_path in first_page.iter().skip(1) {
             let actions =
-                Self::read_actions_from_log(provider.as_ref(), &log_root, log_path).await?;
+                Self::read_actions_from_log(provider.as_ref(), &conf, &log_root, log_path).await?;
             snapshot.apply_actions(actions)?;
         }
 
@@ -73,7 +81,8 @@ impl Table {
         while let Some(page) = log_stream.try_next().await? {
             for log_path in page {
                 let actions =
-                    Self::read_actions_from_log(provider.as_ref(), &log_root, &log_path).await?;
+                    Self::read_actions_from_log(provider.as_ref(), &conf, &log_root, &log_path)
+                        .await?;
                 snapshot.apply_actions(actions)?;
             }
         }
@@ -81,6 +90,7 @@ impl Table {
         Ok(Table {
             root,
             provider,
+            conf,
             snapshot,
         })
     }
@@ -88,11 +98,12 @@ impl Table {
     // TODO: Maybe don't allocate new vec for every log file.
     async fn read_actions_from_log(
         provider: &dyn FileProvider,
+        conf: &AccessConfig,
         root: &FileLocation,
         path: &str,
     ) -> Result<Vec<Action>> {
         let bytes = provider
-            .file_source(root.join([path])?)? // TODO: Path segments
+            .file_source(root.join([path])?, conf)? // TODO: Path segments
             .read_stream()
             .collect::<Vec<_>>()
             .await
@@ -139,6 +150,7 @@ impl Table {
                 schema: schema.clone(),
                 paths: partition_paths,
                 provider: self.provider.clone(),
+                conf: self.conf.clone(),
                 current: None,
             })
             .collect();
@@ -156,6 +168,7 @@ pub struct TableScan {
     paths: VecDeque<String>,
     /// File provider for getting the actual file sources.
     provider: Arc<dyn FileProvider>,
+    conf: AccessConfig,
     /// Current reader, initially empty and populated on first stream.
     ///
     /// Once a reader runs out, the next file is loaded, and gets placed here.
@@ -173,8 +186,14 @@ impl TableScan {
                     };
 
                     scan.current = Some(
-                        Self::load_reader(&scan.root, path, scan.provider.as_ref(), &scan.schema)
-                            .await?,
+                        Self::load_reader(
+                            &scan.root,
+                            &scan.conf,
+                            path,
+                            scan.provider.as_ref(),
+                            &scan.schema,
+                        )
+                        .await?,
                     )
                 }
 
@@ -195,13 +214,14 @@ impl TableScan {
 
     async fn load_reader(
         root: &FileLocation,
+        conf: &AccessConfig,
         path: String,
         provider: &dyn FileProvider,
         schema: &Schema,
     ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
         // TODO: Need to split path into segments.
         let location = root.join([path])?;
-        let mut source = provider.file_source(location)?;
+        let mut source = provider.file_source(location, conf)?;
 
         let size = source.size().await?;
         let metadata = Arc::new(Metadata::load_from(source.as_mut(), size).await?);

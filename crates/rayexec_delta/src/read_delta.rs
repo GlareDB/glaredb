@@ -3,12 +3,10 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
-    functions::table::{
-        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
-    },
+    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
-use rayexec_io::location::FileLocation;
+use rayexec_io::location::{AccessConfig, FileLocation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -45,6 +43,7 @@ impl TableFunction for ReadDelta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDeltaImpl {
     location: FileLocation,
+    conf: AccessConfig,
     schema: Schema,
     #[serde(skip)]
     table: Option<Arc<Table>>, // Populate on re-init if needed.
@@ -53,23 +52,18 @@ pub struct ReadDeltaImpl {
 impl ReadDeltaImpl {
     async fn initialize(
         runtime: &dyn ExecutionRuntime,
-        mut args: TableFunctionArgs,
+        args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        check_named_args_is_empty(&ReadDelta, &args)?;
-        if args.positional.len() != 1 {
-            return Err(RayexecError::new("Expected one argument"));
-        }
-
-        let location = args.positional.pop().unwrap().try_into_string()?;
-        let location = FileLocation::parse(&location);
+        let (location, conf) = args.try_location_and_access_config()?;
 
         let provider = runtime.file_provider();
 
-        let table = Table::load(location.clone(), provider).await?;
+        let table = Table::load(location.clone(), provider, conf.clone()).await?;
         let schema = table.table_schema()?;
 
         Ok(Box::new(ReadDeltaImpl {
             location,
+            conf,
             schema,
             table: Some(Arc::new(table)),
         }))

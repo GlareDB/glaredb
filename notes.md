@@ -83,3 +83,43 @@ PARTITIONS
   each probe. Possibly inefficient.
 - Future work should extend `PollPull` to allow pulling a single batch, multiple
   batches, or even references to external batches (spill).
+
+## CORS & S3
+
+By default, any request from the browser will result in a CORS error (that isn't
+properly surfaced yet) when trying to access an S3 bucket.
+
+I copied the `glaredb-test` bucket into a new `glaredb-test-copy` bucket and
+added the following CORS rules:
+
+```
+[
+    {
+        "AllowedHeaders": [
+            "*"
+        ],
+        "AllowedMethods": [
+            "GET",
+            "HEAD"
+        ],
+        "AllowedOrigins": [
+            "*"
+        ],
+        "ExposeHeaders": [],
+        "MaxAgeSeconds": 3000
+    }
+]
+```
+
+(bucket permissions -> cors at bottom)
+
+Easy to add, just need to document. And additional headers will be needed for
+writing.
+
+Similar probably needs to happen with GCS: https://cloud.google.com/storage/docs/using-cors#console
+
+# Don't use usize for "long" in protocol messages
+
+Because wasm is 32 bit.
+
+Most likely to hit the issue with microsecond resolution timestamps.

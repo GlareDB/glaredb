@@ -3,12 +3,10 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
-    functions::table::{
-        check_named_args_is_empty, PlannedTableFunction, TableFunction, TableFunctionArgs,
-    },
+    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::ExecutionRuntime,
 };
-use rayexec_io::location::FileLocation;
+use rayexec_io::location::{AccessConfig, FileLocation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -47,6 +45,7 @@ impl TableFunction for ReadParquet {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadParquetImpl {
     location: FileLocation,
+    conf: AccessConfig,
     // TODO: Not sure what we want to do here. We could put
     // Serialize/Deserialize macros on everything, but I'm not sure how
     // deep/wide that would go.
@@ -58,19 +57,12 @@ pub struct ReadParquetImpl {
 impl ReadParquetImpl {
     async fn initialize(
         runtime: &dyn ExecutionRuntime,
-        mut args: TableFunctionArgs,
+        args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        check_named_args_is_empty(&ReadParquet, &args)?;
-        if args.positional.len() != 1 {
-            return Err(RayexecError::new("Expected one argument"));
-        }
-
-        // TODO: Glob, dispatch to object storage/http impls
-
-        let location = args.positional.pop().unwrap().try_into_string()?;
-        let location = FileLocation::parse(&location);
-
-        let mut source = runtime.file_provider().file_source(location.clone())?;
+        let (location, conf) = args.try_location_and_access_config()?;
+        let mut source = runtime
+            .file_provider()
+            .file_source(location.clone(), &conf)?;
 
         let size = source.size().await?;
 
@@ -79,6 +71,7 @@ impl ReadParquetImpl {
 
         Ok(Box::new(Self {
             location,
+            conf,
             metadata: Some(Arc::new(metadata)),
             schema,
         }))
@@ -108,6 +101,7 @@ impl PlannedTableFunction for ReadParquetImpl {
             metadata,
             schema: self.schema.clone(),
             location: self.location.clone(),
+            conf: self.conf.clone(),
             runtime: runtime.clone(),
         }))
     }

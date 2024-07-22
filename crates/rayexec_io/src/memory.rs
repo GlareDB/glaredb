@@ -6,7 +6,6 @@ use futures::{
 };
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::{FileSink, FileSource};
 use std::{
     collections::HashMap,
     path::{Component, Path},
@@ -15,21 +14,23 @@ use std::{
     task::{Context, Poll},
 };
 
-/// Memory-backed filesystem provider for wasm.
+use crate::{FileSink, FileSource};
+
+/// Memory-backed filesystem provider.
 ///
 /// This provides a flat structure where every "file" exists at the root of the
 /// filesystem.
 ///
-/// Eventually may be changed to hook into the browser filesystem api to provide
-/// persistence across refreshes, and access to the filesystem across web
-/// workers.
+/// The primary use case for this is wasm, but may be used to provide a
+/// "memory-only" local instance too. The wasm use case might change into
+/// hooking into the browser's localstorage or filesystem api.
 #[derive(Debug, Default)]
-pub struct WasmMemoryFileSystem {
+pub struct MemoryFileSystem {
     /// A simple file name -> file bytes mapping.
     files: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
-impl WasmMemoryFileSystem {
+impl MemoryFileSystem {
     pub fn register_file(&self, path: &Path, content: Bytes) -> Result<()> {
         let name = get_normalized_file_name(path)?;
         self.files.lock().insert(name.to_string(), content);
@@ -41,7 +42,7 @@ impl WasmMemoryFileSystem {
     }
 }
 
-impl WasmMemoryFileSystem {
+impl MemoryFileSystem {
     pub fn file_source(&self, path: &Path) -> Result<Box<dyn FileSource>> {
         let name = get_normalized_file_name(path)?;
         let content = self
@@ -51,7 +52,7 @@ impl WasmMemoryFileSystem {
             .cloned()
             .ok_or_else(|| RayexecError::new(format!("Missing file for '{name}'")))?;
 
-        Ok(Box::new(WasmMemoryFile { content }))
+        Ok(Box::new(MemoryFile { content }))
     }
 
     pub fn file_sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
@@ -65,11 +66,11 @@ impl WasmMemoryFileSystem {
 }
 
 #[derive(Debug)]
-pub struct WasmMemoryFile {
+pub struct MemoryFile {
     content: Bytes,
 }
 
-impl FileSource for WasmMemoryFile {
+impl FileSource for MemoryFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let result = if start + len > self.content.len() {
             Err(RayexecError::new("Byte range out of bounds"))
@@ -81,7 +82,7 @@ impl FileSource for WasmMemoryFile {
     }
 
     fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
-        WasmMemoryFileStream {
+        MemoryFileStream {
             content: self.content.clone(),
             curr: 0,
         }
@@ -115,20 +116,19 @@ impl FileSink for WasmMemoryFileSink {
 }
 
 #[derive(Debug)]
-struct WasmMemoryFileStream {
+struct MemoryFileStream {
     content: Bytes,
     curr: usize,
 }
 
-impl WasmMemoryFileStream {
+impl MemoryFileStream {
     fn read_next(&mut self) -> Result<Bytes> {
-        const WASM_STREAM_BUF_SIZE: usize = 4 * 1024;
+        const STREAM_BUF_SIZE: usize = 4 * 1024;
 
-        let buf = if self.content.len() - self.curr < WASM_STREAM_BUF_SIZE {
+        let buf = if self.content.len() - self.curr < STREAM_BUF_SIZE {
             self.content.clone()
         } else {
-            self.content
-                .slice(self.curr..(self.curr + WASM_STREAM_BUF_SIZE))
+            self.content.slice(self.curr..(self.curr + STREAM_BUF_SIZE))
         };
 
         self.curr += buf.len();
@@ -137,7 +137,7 @@ impl WasmMemoryFileStream {
     }
 }
 
-impl Stream for WasmMemoryFileStream {
+impl Stream for MemoryFileStream {
     type Item = Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

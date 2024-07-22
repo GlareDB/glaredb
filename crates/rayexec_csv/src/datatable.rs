@@ -14,7 +14,7 @@ use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
 };
-use rayexec_io::location::FileLocation;
+use rayexec_io::location::{AccessConfig, FileLocation};
 
 use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
 
@@ -30,6 +30,7 @@ pub struct SingleFileCsvDataTable {
     pub options: DialectOptions,
     pub csv_schema: CsvSchema,
     pub location: FileLocation,
+    pub conf: AccessConfig,
     pub runtime: Arc<dyn ExecutionRuntime>,
 }
 
@@ -38,7 +39,7 @@ impl DataTable for SingleFileCsvDataTable {
         let reader = self
             .runtime
             .file_provider()
-            .file_source(self.location.clone())?;
+            .file_source(self.location.clone(), &self.conf)?;
         let csv_reader = AsyncCsvReader::new(reader, self.csv_schema.clone(), self.options);
         let stream = csv_reader.into_stream().boxed();
 

@@ -14,7 +14,7 @@ use rayexec_execution::{
     execution::operators::PollPull,
     runtime::ExecutionRuntime,
 };
-use rayexec_io::location::FileLocation;
+use rayexec_io::location::{AccessConfig, FileLocation};
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
@@ -23,6 +23,7 @@ pub struct RowGroupPartitionedDataTable {
     pub metadata: Arc<Metadata>,
     pub schema: Schema,
     pub location: FileLocation,
+    pub conf: AccessConfig,
     pub runtime: Arc<dyn ExecutionRuntime>,
 }
 
@@ -41,7 +42,7 @@ impl DataTable for RowGroupPartitionedDataTable {
         let readers = partitioned_row_groups
             .into_iter()
             .map(|row_groups| {
-                let reader = file_provider.file_source(self.location.clone())?;
+                let reader = file_provider.file_source(self.location.clone(), &self.conf)?;
                 const BATCH_SIZE: usize = 2048; // TODO
                 AsyncBatchReader::try_new(
                     reader,

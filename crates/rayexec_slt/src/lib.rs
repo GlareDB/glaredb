@@ -23,6 +23,60 @@ use std::{
 };
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+#[derive(Clone)]
+pub enum VarValue {
+    /// Value is sensitive, don't print it out.
+    Sensitive(String),
+    /// Value is not sensitive, print it during debugging.
+    Plain(String),
+}
+
+impl VarValue {
+    pub fn plain_from_env(key: &str) -> VarValue {
+        match std::env::var(key) {
+            Ok(s) => VarValue::Plain(s),
+            Err(_) => {
+                println!("Missing environment variable: {key}");
+                std::process::exit(2);
+            }
+        }
+    }
+
+    pub fn sensitive_from_env(key: &str) -> VarValue {
+        match std::env::var(key) {
+            Ok(s) => VarValue::Sensitive(s),
+            Err(_) => {
+                println!("Missing environment variable: {key}");
+                std::process::exit(2);
+            }
+        }
+    }
+}
+
+impl fmt::Display for VarValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Sensitive(_) => write!(f, "***"),
+            VarValue::Plain(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl fmt::Debug for VarValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl AsRef<str> for VarValue {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Sensitive(s) => s.as_str(),
+            VarValue::Plain(s) => s.as_str(),
+        }
+    }
+}
+
 /// Variables that can be referenced in sql queries and automatically replaced
 /// with concrete values.
 ///
@@ -36,7 +90,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 /// A new instance of these variables is created for each file run.
 #[derive(Debug, Clone)]
 pub struct ReplacementVars {
-    vars: HashMap<String, String>,
+    vars: HashMap<String, VarValue>,
 }
 
 impl Default for ReplacementVars {
@@ -53,16 +107,16 @@ impl Default for ReplacementVars {
 
         // Dir (relative to test_bin) where tests can write temp files for
         // things like COPY TO.
-        vars.add_var("SLT_TMP", format!("../slt_tmp/{s}"));
+        vars.add_var("SLT_TMP", VarValue::Plain(format!("../slt_tmp/{s}")));
 
         vars
     }
 }
 
 impl ReplacementVars {
-    pub fn add_var(&mut self, key: &str, val: impl Into<String>) {
+    pub fn add_var(&mut self, key: &str, val: VarValue) {
         let key = format!("__{}__", key.to_uppercase());
-        self.vars.insert(key, val.into());
+        self.vars.insert(key, val);
     }
 
     fn replace_in_query(&self, query: impl Into<String>, conf: &RunConfig) -> Result<String> {
@@ -70,10 +124,10 @@ impl ReplacementVars {
 
         for (k, v) in &self.vars {
             if k == "__SLT_TMP__" && conf.create_slt_tmp {
-                std::fs::create_dir_all(v).context("failed to create slt tmp dir")?
+                std::fs::create_dir_all(v.as_ref()).context("failed to create slt tmp dir")?
             }
 
-            query = query.replace(k, v);
+            query = query.replace(k, v.as_ref());
         }
 
         Ok(query)
@@ -91,6 +145,12 @@ impl fmt::Display for ReplacementVars {
 
 #[derive(Debug, Clone, Default)]
 pub struct RunConfig {
+    /// Variables to replace in the query.
+    ///
+    /// Variables are shared across all runs for a single "test" (multiple
+    /// files).
+    pub vars: ReplacementVars,
+
     /// Create the slt tmp dir that the variable '__SLT_TMP__' points to.
     ///
     /// If false, the directory won't be created, but the '__SLT_TMP__' will
@@ -204,11 +264,8 @@ async fn run_test(
         let engine = engine_fn(rt.clone())?;
         let session = engine.new_session()?;
 
-        let replacement_vars = ReplacementVars::default();
-
         Ok(TestSession {
             conf: conf.clone(),
-            replacement_vars,
             session,
             engine,
         })
@@ -224,7 +281,6 @@ async fn run_test(
 #[allow(dead_code)]
 struct TestSession {
     conf: RunConfig,
-    replacement_vars: ReplacementVars,
     engine: Engine,
     session: Session,
 }
@@ -234,7 +290,7 @@ impl TestSession {
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, RayexecError> {
-        let sql = self.replacement_vars.replace_in_query(sql, &self.conf)?;
+        let sql = self.conf.vars.replace_in_query(sql, &self.conf)?;
 
         let mut rows = Vec::new();
         let mut results = self.session.simple(&sql).await?;
@@ -265,7 +321,7 @@ impl TestSession {
                     let dump = results[0].handle.dump();
                     return Err(RayexecError::new(format!(
                         "Variables\n{}\nQuery timed out\n---\n{dump}",
-                        self.replacement_vars
+                        self.conf.vars
                     )));
                 }
             }
