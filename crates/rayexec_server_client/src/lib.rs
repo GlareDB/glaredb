@@ -10,21 +10,21 @@ use reqwest::StatusCode;
 use types::MessageOwned;
 use url::Url;
 
-pub const API_VERSION: usize = 1;
+pub const API_VERSION: usize = 0;
 
 pub const ENDPOINTS: Endpoints = Endpoints {
     healthz: "/healthz",
-    rpc_hybrid_execute: "/rpc/hybrid_execute",
-    rpc_push_batch: "/rpc/push_batch",
-    rpc_pull_batch: "/rpc/pull_batch",
+    rpc_hybrid_run: "/rpc/v0/hybrid/run",
+    rpc_hybrid_push: "/rpc/v0/hybrid/push_batch",
+    rpc_hybrid_pull: "/rpc/v0/hybrid/pull_batch",
 };
 
 #[derive(Debug)]
 pub struct Endpoints {
     pub healthz: &'static str,
-    pub rpc_hybrid_execute: &'static str,
-    pub rpc_push_batch: &'static str,
-    pub rpc_pull_batch: &'static str,
+    pub rpc_hybrid_run: &'static str,
+    pub rpc_hybrid_push: &'static str,
+    pub rpc_hybrid_pull: &'static str,
 }
 
 #[derive(Debug, Clone)]
