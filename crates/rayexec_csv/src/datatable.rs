@@ -14,7 +14,7 @@ use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
     execution::operators::PollPull,
 };
-use rayexec_io::FileLocation;
+use rayexec_io::location::FileLocation;
 
 use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
 

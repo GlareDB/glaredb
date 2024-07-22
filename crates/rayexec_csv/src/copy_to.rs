@@ -11,7 +11,7 @@ use rayexec_execution::{
     execution::operators::{PollFinalize, PollPush},
     functions::copy::{CopyToFunction, CopyToSink},
 };
-use rayexec_io::{FileLocation, FileSink};
+use rayexec_io::{location::FileLocation, FileSink};
 
 use crate::reader::DialectOptions;
 use crate::writer::CsvEncoder;

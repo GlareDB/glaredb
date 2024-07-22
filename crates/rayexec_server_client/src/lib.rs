@@ -7,9 +7,25 @@ pub mod types;
 
 use rayexec_error::{RayexecError, Result, ResultExt};
 use reqwest::StatusCode;
+use types::MessageOwned;
 use url::Url;
 
 pub const API_VERSION: usize = 1;
+
+pub const ENDPOINTS: Endpoints = Endpoints {
+    healthz: "/healthz",
+    rpc_hybrid_execute: "/rpc/hybrid_execute",
+    rpc_push_batch: "/rpc/push_batch",
+    rpc_pull_batch: "/rpc/pull_batch",
+};
+
+#[derive(Debug)]
+pub struct Endpoints {
+    pub healthz: &'static str,
+    pub rpc_hybrid_execute: &'static str,
+    pub rpc_push_batch: &'static str,
+    pub rpc_pull_batch: &'static str,
+}
 
 #[derive(Debug, Clone)]
 pub struct HybridClient {
@@ -19,8 +35,16 @@ pub struct HybridClient {
     /// reading (and eventually writing) files. Adding in arbitrary requests
     /// would complicate the interface.
     ///
-    /// However this means _some_ care needs to be take to ensure this can
-    /// comple for wasm.
+    /// However some care needs to be taken with where this gets called and
+    /// ensuring it can compile for wasm.
+    ///
+    /// This _must_ be used where we would be in the context of a tokio runtime
+    /// otherwise reqwest will unfortunately panic. While tokio isn't a
+    /// requirement when compiling for wasm, the code path should be common
+    /// between both.
+    ///
+    /// Eventually Sean will write a client using just hyper allowing for
+    /// whatever async runtime we want to use.
     client: reqwest::Client,
 
     /// URL of server we're "connected" to.
@@ -38,7 +62,7 @@ impl HybridClient {
     pub async fn ping(&self) -> Result<()> {
         let url = self
             .url
-            .join("/healthz")
+            .join(ENDPOINTS.healthz)
             .context("failed to parse healthz url")?;
         let resp = self
             .client
@@ -55,5 +79,28 @@ impl HybridClient {
         }
 
         Ok(())
+    }
+
+    pub async fn do_rpc_request(&self, endpoint: &str, msg: MessageOwned) -> Result<MessageOwned> {
+        let url = self.url.join(endpoint).unwrap();
+
+        let resp = self
+            .client
+            .post(url)
+            .json(&msg)
+            .send()
+            .await
+            .context("failed to send request")?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(RayexecError::new(format!(
+                "Expected 200 from healthz, got {}",
+                resp.status().as_u16()
+            )));
+        }
+
+        let msg: MessageOwned = resp.json().await.context("failed to deserialize json")?;
+
+        Ok(msg)
     }
 }

@@ -2,7 +2,7 @@ use dyn_clone::DynClone;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
-use rayexec_io::FileLocation;
+use rayexec_io::location::FileLocation;
 use std::sync::Arc;
 use std::{fmt::Debug, task::Context};
 

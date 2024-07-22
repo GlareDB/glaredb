@@ -14,7 +14,7 @@ use rayexec_execution::{
     execution::operators::PollPull,
     runtime::ExecutionRuntime,
 };
-use rayexec_io::FileLocation;
+use rayexec_io::location::FileLocation;
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.

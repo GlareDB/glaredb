@@ -1,4 +1,4 @@
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -51,6 +51,37 @@ impl LocalFileSystemProvider {
         Ok(Box::new(LocalFileSink {
             file: BufWriter::new(file),
         }))
+    }
+
+    pub fn list_prefix(&self, dir: &Path) -> Result<Vec<String>> {
+        fn inner(dir: &Path, paths: &mut Vec<String>) -> Result<()> {
+            if dir.is_dir() {
+                for entry in fs::read_dir(dir).context("read dir")? {
+                    let entry = entry.context("entry")?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        inner(&path, paths)?;
+                    } else {
+                        let path = path
+                            .strip_prefix(dir)
+                            .context("failed to strip path prefix")?;
+                        paths.push(
+                            path.to_str()
+                                .ok_or_else(|| RayexecError::new("Path not utf8"))?
+                                .to_string(),
+                        );
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        let mut paths = Vec::new();
+        inner(dir, &mut paths)?;
+
+        paths.sort();
+
+        Ok(paths)
     }
 }
 

@@ -1,0 +1,22 @@
+[package]
+name = "rayexec_delta"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_error = { path = '../rayexec_error' }
+rayexec_io = { path = '../rayexec_io' }
+rayexec_parquet = { path = '../rayexec_parquet' }
+parquet = { path = '../parquet' }
+futures = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+url = { workspace = true }
+bytes = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+erased-serde = { workspace = true }
+
+# TODO: zstd feature for parquet?

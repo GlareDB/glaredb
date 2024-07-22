@@ -13,8 +13,11 @@ use crate::{
     },
     logical::{
         context::QueryContext,
-        operator::{LogicalOperator, ResetVar, VariableOrAll},
-        sql::{binder::Binder, planner::PlanContext},
+        operator::{LogicalOperator, VariableOrAll},
+        sql::{
+            binder::{BindMode, Binder},
+            planner::PlanContext,
+        },
     },
     optimizer::Optimizer,
     runtime::ExecutionRuntime,
@@ -148,7 +151,15 @@ impl Session {
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let tx = CatalogTx::new();
+
+        let bindmode = if self.hybrid_client.is_some() {
+            BindMode::Hybrid
+        } else {
+            BindMode::Normal
+        };
+
         let (bound_stmt, bind_data) = Binder::new(
+            bindmode,
             &tx,
             &self.context,
             self.registry.get_file_handlers(),
@@ -157,7 +168,7 @@ impl Session {
         .bind_statement(stmt)
         .await?;
 
-        if bind_data.any_unbound() && self.hybrid_client.is_some() {
+        if bind_data.any_unbound() && bindmode.is_hybrid() {
             // Hybrid
         }
 
@@ -179,6 +190,7 @@ impl Session {
 
         let query_graph = match logical.root {
             LogicalOperator::AttachDatabase(attach) => {
+                let attach = attach.into_inner();
                 // Here to avoid lifetime issues.
                 let empty = planner.create_graph(
                     LogicalOperator::Empty,
@@ -192,7 +204,7 @@ impl Session {
                 let catalog = datasource
                     .create_catalog(&self.runtime, attach.options)
                     .await?;
-                self.context.attach_catalog(attach.name, catalog)?;
+                self.context.attach_catalog(&attach.name, catalog)?;
                 empty
             }
             LogicalOperator::DetachDatabase(detach) => {
@@ -201,7 +213,7 @@ impl Session {
                     QueryContext::new(),
                     query_sink,
                 )?; // Here to avoid lifetime issues.
-                self.context.detach_catalog(&detach.name)?;
+                self.context.detach_catalog(&detach.as_ref().name)?;
                 empty
             }
             LogicalOperator::SetVar(set_var) => {
@@ -215,15 +227,16 @@ impl Session {
                 // We could have an implementation for the local session, and a
                 // separate implementation used for nodes taking part in
                 // distributed execution.
+                let set_var = set_var.into_inner();
                 let val = self
                     .vars
                     .try_cast_scalar_value(&set_var.name, set_var.value)?;
                 self.vars.set_var(&set_var.name, val)?;
                 planner.create_graph(LogicalOperator::Empty, QueryContext::new(), query_sink)?
             }
-            LogicalOperator::ResetVar(ResetVar { var }) => {
+            LogicalOperator::ResetVar(reset) => {
                 // Same TODO as above.
-                match var {
+                match &reset.as_ref().var {
                     VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
                     VariableOrAll::All => self.vars.reset_all(),
                 }
@@ -237,7 +250,7 @@ impl Session {
             .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {
-            output_schema: schema, // TODO
+            output_schema: schema,
             stream: adapter_stream,
             handle,
         })

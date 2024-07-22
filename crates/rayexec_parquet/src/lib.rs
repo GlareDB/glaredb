@@ -1,7 +1,7 @@
 pub mod array;
 pub mod functions;
+pub mod metadata;
 
-mod metadata;
 mod schema;
 
 use functions::read_parquet::ReadParquet;

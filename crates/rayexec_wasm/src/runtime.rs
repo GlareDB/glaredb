@@ -1,10 +1,11 @@
+use futures::stream::{self, BoxStream};
 use parking_lot::Mutex;
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
     runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
+use rayexec_io::{http::ReqwestClient, location::FileLocation, FileProvider, FileSink, FileSource};
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -88,6 +89,15 @@ impl FileProvider for WasmFileProvider {
         match location {
             FileLocation::Url(_url) => not_implemented!("http sink wasm"),
             FileLocation::Path(path) => self.fs.file_sink(&path),
+        }
+    }
+
+    fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>> {
+        match prefix {
+            FileLocation::Url(_) => Box::pin(stream::once(async move {
+                Err(RayexecError::new("Cannot list for http file sources"))
+            })),
+            FileLocation::Path(_) => unimplemented!(),
         }
     }
 }

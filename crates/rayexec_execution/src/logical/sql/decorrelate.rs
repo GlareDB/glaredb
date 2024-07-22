@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use crate::logical::{
     context::QueryContext,
     expr::{LogicalExpression, Subquery},
-    operator::{Aggregate, CrossJoin, EqualityJoin, Filter, JoinType, LogicalOperator, Projection},
+    operator::{CrossJoin, EqualityJoin, JoinType, LogicalNode, LogicalOperator},
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -49,13 +49,13 @@ impl SubqueryDecorrelator {
                 // down.
 
                 // TODO: NULL == NULL when available
-                *input = LogicalOperator::EqualityJoin(EqualityJoin {
-                    left: Box::new(LogicalOperator::MaterializedScan(scan)),
+                *input = LogicalOperator::EqualityJoin(LogicalNode::new(EqualityJoin {
+                    left: Box::new(LogicalOperator::MaterializedScan(LogicalNode::new(scan))),
                     right: Box::new(root),
                     join_type: JoinType::Inner,
                     left_on: vec![0],  // TODO
                     right_on: vec![0], // TODO
-                });
+                }));
 
                 println!("PLAN:\n{}", input.debug_explain(Some(context)));
 
@@ -127,23 +127,27 @@ impl DependentJoinPushDown {
         // Walk post to determine correlations in children first.
         root.walk_mut_post(&mut |plan| {
             let has_correlation = match plan {
-                LogicalOperator::Projection(Projection { exprs, input }) => {
-                    let has_correlation = self.add_any_correlated_columns(exprs)?;
-                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
+                LogicalOperator::Projection(node) => {
+                    let has_correlation =
+                        self.add_any_correlated_columns(&mut node.as_mut().exprs)?;
+                    has_correlation
+                        || self
+                            .has_correlations
+                            .get(&node.as_ref().input)
+                            .unwrap_or(false)
                 }
-                LogicalOperator::Filter(Filter { predicate, input }) => {
-                    let has_correlation = self.add_any_correlated_columns([predicate])?;
-                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
+                LogicalOperator::Filter(node) => {
+                    let filter = node.as_mut();
+                    let has_correlation =
+                        self.add_any_correlated_columns([&mut filter.predicate])?;
+                    has_correlation || self.has_correlations.get(&filter.input).unwrap_or(false)
                 }
-                LogicalOperator::Aggregate(Aggregate {
-                    aggregates,
-                    group_exprs,
-                    input,
-                    ..
-                }) => {
-                    let mut has_correlation = self.add_any_correlated_columns(aggregates)?;
-                    has_correlation |= self.add_any_correlated_columns(group_exprs)?;
-                    has_correlation || self.has_correlations.get(input).unwrap_or(false)
+                LogicalOperator::Aggregate(node) => {
+                    let agg = node.as_mut();
+                    let mut has_correlation =
+                        self.add_any_correlated_columns(&mut agg.aggregates)?;
+                    has_correlation |= self.add_any_correlated_columns(&mut agg.group_exprs)?;
+                    has_correlation || self.has_correlations.get(&agg.input).unwrap_or(false)
                 }
                 LogicalOperator::MaterializedScan(_)
                 | LogicalOperator::Empty
@@ -262,24 +266,25 @@ impl DependentJoinPushDown {
             // with the materialized outer plan.
             let scan = context.generate_scan_for_idx(materialized_idx, &[])?;
             let orig = std::mem::replace(plan, LogicalOperator::Empty);
-            *plan = LogicalOperator::CrossJoin(CrossJoin {
+            *plan = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                 left: Box::new(orig),
-                right: Box::new(LogicalOperator::MaterializedScan(scan)),
-            });
+                right: Box::new(LogicalOperator::MaterializedScan(LogicalNode::new(scan))),
+            }));
 
             return Ok(());
         }
 
         match plan {
-            LogicalOperator::Filter(Filter { predicate, input }) => {
-                self.push_down(context, materialized_idx, input)?;
+            LogicalOperator::Filter(node) => {
+                let filter = node.as_mut();
+                self.push_down(context, materialized_idx, &mut filter.input)?;
                 // Filter is simple, don't need to do anything special.
-                let _ = self.rewrite_correlated_columns([predicate])?;
+                let _ = self.rewrite_correlated_columns([&mut filter.predicate])?;
             }
-            LogicalOperator::Projection(Projection { exprs, input }) => {
-                self.push_down(context, materialized_idx, input)?;
+            LogicalOperator::Projection(node) => {
+                self.push_down(context, materialized_idx, &mut node.as_mut().input)?;
                 // yolo
-                let _ = self.rewrite_correlated_columns(exprs)?;
+                let _ = self.rewrite_correlated_columns(&mut node.as_mut().exprs)?;
             }
             other => {
                 // TODO: More operators

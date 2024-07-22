@@ -8,7 +8,7 @@ use rayexec_execution::{
     },
     runtime::ExecutionRuntime,
 };
-use rayexec_io::{FileLocation, FileSource};
+use rayexec_io::{location::FileLocation, FileSource};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

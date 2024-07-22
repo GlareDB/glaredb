@@ -31,11 +31,11 @@ pub async fn hybrid_execute_rpc(
     let sess = state.engine.new_server_session()?;
 
     // TODO: Actual types.
-    let (stmt, data): (BoundStatement, BindData) =
-        serde_json::from_slice(&body.ast_data).context("failed to deserialize ast")?;
+    // let (stmt, data): (BoundStatement, BindData) =
+    //     serde_json::from_slice(&body.ast_data).context("failed to deserialize ast")?;
 
-    let (stmt, data) = sess.complete_binding(stmt, data).await?;
-    let graph = sess.plan_hybrid_graph(stmt, data)?;
+    // let (stmt, data) = sess.complete_binding(stmt, data).await?;
+    // let graph = sess.plan_hybrid_graph(stmt, data)?;
 
     // TODO: Split graph, begin executing.
 

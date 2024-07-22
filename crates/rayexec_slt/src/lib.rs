@@ -263,7 +263,10 @@ impl TestSession {
                     results[0].handle.cancel();
 
                     let dump = results[0].handle.dump();
-                    return Err(RayexecError::new(format!("Query timed out\n---\n{dump}")));
+                    return Err(RayexecError::new(format!(
+                        "Variables\n{}\nQuery timed out\n---\n{dump}",
+                        self.replacement_vars
+                    )));
                 }
             }
         }
@@ -281,13 +284,7 @@ impl sqllogictest::AsyncDB for TestSession {
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
-        match self.run_inner(sql).await {
-            Ok(cols) => Ok(cols),
-            Err(e) => Err(RayexecError::with_source(
-                format!("Variables:\n{}", self.replacement_vars),
-                Box::new(e),
-            )),
-        }
+        self.run_inner(sql).await
     }
 
     fn engine_name(&self) -> &str {

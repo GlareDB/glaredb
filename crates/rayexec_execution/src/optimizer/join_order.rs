@@ -1,7 +1,9 @@
 use crate::{
     expr::scalar::{BinaryOperator, PlannedBinaryOperator},
-    logical::expr::LogicalExpression,
-    logical::operator::{EqualityJoin, LogicalOperator},
+    logical::{
+        expr::LogicalExpression,
+        operator::{EqualityJoin, LogicalNode, LogicalOperator},
+    },
 };
 use rayexec_error::Result;
 
@@ -26,6 +28,8 @@ impl JoinOrderRule {
         plan.walk_mut_post(&mut |plan| {
             match plan {
                 LogicalOperator::AnyJoin(join) => {
+                    let join = join.as_mut();
+
                     let mut conjunctives = Vec::with_capacity(1);
                     split_conjuctive(join.on.clone(), &mut conjunctives);
 
@@ -90,7 +94,8 @@ impl JoinOrderRule {
                     // We were able to extract all equalities. Update the plan
                     // to be an equality join.
                     if remaining.is_empty() {
-                        *plan = LogicalOperator::EqualityJoin(EqualityJoin {
+                        // TODO: Should use location from original join.
+                        *plan = LogicalOperator::EqualityJoin(LogicalNode::new(EqualityJoin {
                             left: std::mem::replace(
                                 &mut join.left,
                                 Box::new(LogicalOperator::Empty),
@@ -102,7 +107,7 @@ impl JoinOrderRule {
                             join_type: join.join_type,
                             left_on,
                             right_on,
-                        });
+                        }));
                     }
 
                     Ok(())

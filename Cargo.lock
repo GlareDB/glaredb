@@ -1785,6 +1785,7 @@ dependencies = [
  "logutil",
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",
@@ -1824,6 +1825,26 @@ dependencies = [
  "rayexec_io",
  "regex",
  "serde",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "rayexec_delta"
+version = "0.0.18"
+dependencies = [
+ "bytes",
+ "erased-serde",
+ "futures",
+ "parquet",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "rayexec_parquet",
+ "regex",
+ "serde",
+ "serde_json",
  "tracing",
  "url",
 ]
@@ -1967,6 +1988,7 @@ dependencies = [
  "rayexec_error",
  "reqwest",
  "serde",
+ "serde_bytes",
  "url",
 ]
 
@@ -2279,6 +2301,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_bytes"
+version = "0.11.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "387cc504cb06bb40a96c8e04e951fe01854cf6bc921053c954e4a606d9675c6a"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.204"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2551,6 +2582,7 @@ version = "0.0.18"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_parquet",

@@ -41,7 +41,7 @@ use crate::{
     logical::{
         context::QueryContext,
         grouping_set::GroupingSets,
-        operator::{self, LogicalOperator},
+        operator::{self, LogicalNode, LogicalOperator},
     },
     runtime::ExecutionRuntime,
 };
@@ -441,8 +441,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        copy_to: operator::CopyTo,
+        copy_to: LogicalNode<operator::CopyTo>,
     ) -> Result<()> {
+        let copy_to = copy_to.into_inner();
+
         self.walk(conf, materializations, id_gen, *copy_to.source)?;
 
         let current_partitions = self.in_progress_pipeline_mut()?.num_partitions();
@@ -475,8 +477,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        setop: operator::SetOperation,
+        setop: LogicalNode<operator::SetOperation>,
     ) -> Result<()> {
+        let setop = setop.into_inner();
+
         // Schema from the top. Used as the input to a GROUP BY if ALL is
         // omitted.
         let top_schema = setop.top.output_schema(&[])?;
@@ -556,8 +560,10 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        drop: operator::DropEntry,
+        drop: LogicalNode<operator::DropEntry>,
     ) -> Result<()> {
+        let drop = drop.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -581,8 +587,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        insert: operator::Insert,
+        insert: LogicalNode<operator::Insert>,
     ) -> Result<()> {
+        let insert = insert.into_inner();
+
         self.walk(conf, materializations, id_gen, *insert.input)?;
 
         // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
@@ -604,8 +612,10 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        table_func: operator::TableFunction,
+        table_func: LogicalNode<operator::TableFunction>,
     ) -> Result<()> {
+        let table_func = table_func.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -630,8 +640,10 @@ impl BuildState {
         &mut self,
         _conf: &BuildConfig,
         materializations: &mut Materializations,
-        scan: operator::MaterializedScan,
+        scan: LogicalNode<operator::MaterializedScan>,
     ) -> Result<()> {
+        let scan = scan.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -657,8 +669,10 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        scan: operator::Scan,
+        scan: LogicalNode<operator::Scan>,
     ) -> Result<()> {
+        let scan = scan.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -686,8 +700,10 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        create: operator::CreateSchema,
+        create: LogicalNode<operator::CreateSchema>,
     ) -> Result<()> {
+        let create = create.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -717,8 +733,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        create: operator::CreateTable,
+        create: LogicalNode<operator::CreateTable>,
     ) -> Result<()> {
+        let create = create.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -777,8 +795,10 @@ impl BuildState {
         &mut self,
         _conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        describe: operator::Describe,
+        describe: LogicalNode<operator::Describe>,
     ) -> Result<()> {
+        let describe = describe.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -811,10 +831,12 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        explain: operator::Explain,
+        explain: LogicalNode<operator::Explain>,
     ) -> Result<()> {
+        let explain = explain.into_inner();
+
         if explain.analyze {
-            unimplemented!()
+            not_implemented!("explain analyze")
         }
 
         let formatted_logical =
@@ -860,8 +882,10 @@ impl BuildState {
         &mut self,
         _conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        show: operator::ShowVar,
+        show: LogicalNode<operator::ShowVar>,
     ) -> Result<()> {
+        let show = show.into_inner();
+
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -888,8 +912,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        order: operator::Order,
+        order: LogicalNode<operator::Order>,
     ) -> Result<()> {
+        let order = order.into_inner();
+
         let input_schema = order.input.output_schema(&[])?;
         self.walk(conf, materializations, id_gen, *order.input)?;
 
@@ -960,8 +986,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        limit: operator::Limit,
+        limit: LogicalNode<operator::Limit>,
     ) -> Result<()> {
+        let limit = limit.into_inner();
+
         self.walk(conf, materializations, id_gen, *limit.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
@@ -985,8 +1013,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        agg: operator::Aggregate,
+        agg: LogicalNode<operator::Aggregate>,
     ) -> Result<()> {
+        let agg = agg.into_inner();
+
         let input_schema = agg.input.output_schema(&[])?;
         self.walk(conf, materializations, id_gen, *agg.input)?;
 
@@ -1092,9 +1122,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        project: operator::Projection,
+        project: LogicalNode<operator::Projection>,
     ) -> Result<()> {
-        let input_schema = project.input.output_schema(&[])?;
+        let input_schema = project.as_ref().input.output_schema(&[])?;
+        let project = project.into_inner();
         self.walk(conf, materializations, id_gen, *project.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
@@ -1120,9 +1151,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        filter: operator::Filter,
+        filter: LogicalNode<operator::Filter>,
     ) -> Result<()> {
-        let input_schema = filter.input.output_schema(&[])?;
+        let input_schema = filter.as_ref().input.output_schema(&[])?;
+        let filter = filter.into_inner();
         self.walk(conf, materializations, id_gen, *filter.input)?;
 
         let pipeline = self.in_progress_pipeline_mut()?;
@@ -1146,8 +1178,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: operator::EqualityJoin,
+        join: LogicalNode<operator::EqualityJoin>,
     ) -> Result<()> {
+        let join = join.into_inner();
+
         // Build up all inputs on the right (probe) side. This is going to
         // continue with the the current pipeline.
         self.walk(conf, materializations, id_gen, *join.right)?;
@@ -1211,8 +1245,10 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: operator::AnyJoin,
+        join: LogicalNode<operator::AnyJoin>,
     ) -> Result<()> {
+        let join = join.into_inner();
+
         let left_schema = join.left.output_schema(&[])?;
         let right_schema = join.right.output_schema(&[])?;
         let input_schema = left_schema.merge(right_schema);
@@ -1244,8 +1280,9 @@ impl BuildState {
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: operator::CrossJoin,
+        join: LogicalNode<operator::CrossJoin>,
     ) -> Result<()> {
+        let join = join.into_inner();
         self.push_nl_join(
             conf,
             id_gen,
@@ -1334,7 +1371,7 @@ impl BuildState {
         &mut self,
         conf: &BuildConfig,
         id_gen: &mut PipelineIdGen,
-        values: operator::ExpressionList,
+        values: LogicalNode<operator::ExpressionList>,
     ) -> Result<()> {
         // "Values" is a source of data, and so should be the thing determining
         // the initial partitioning of the pipeline.
@@ -1378,9 +1415,11 @@ impl BuildState {
     fn new_pipeline_for_values(
         pipeline_id: PipelineId,
         conf: &BuildConfig,
-        values: operator::ExpressionList,
+        values: LogicalNode<operator::ExpressionList>,
     ) -> Result<Pipeline> {
         // TODO: This could probably be simplified.
+
+        let values = values.into_inner();
 
         let mut row_arrs: Vec<Vec<Arc<Array>>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);

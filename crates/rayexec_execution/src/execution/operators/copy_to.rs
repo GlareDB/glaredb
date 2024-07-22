@@ -5,7 +5,7 @@ use crate::{
 };
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::FileLocation;
+use rayexec_io::location::FileLocation;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 

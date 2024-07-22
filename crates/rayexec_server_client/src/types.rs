@@ -1,5 +1,19 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageOwned {
+    pub api_version: usize,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Message<'a> {
+    pub api_version: usize,
+    #[serde(with = "serde_bytes")]
+    pub payload: &'a [u8],
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlanAstRpcRequest {
     // TODO: Unsure if we want to keep this opaque at this level or not. If

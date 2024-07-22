@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{
     operator::{LogicalOperator, MaterializedScan},
-    sql::{binder::BoundCteReference, scope::Scope},
+    sql::{binder::bindref::CteReference, scope::Scope},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,7 +50,7 @@ pub struct QueryContext {
     /// generate a plan, put it in `materialized`, and put the reference in this
     /// map. The next time we see the materialized CTE, we'll just create a
     /// MaterializeScan operator which will scan from the same plan.
-    pub materialized_cte_refs: HashMap<BoundCteReference, MaterializedCteReference>,
+    pub materialized_cte_refs: HashMap<CteReference, MaterializedCteReference>,
 }
 
 impl QueryContext {
@@ -81,7 +81,7 @@ impl QueryContext {
 
     pub fn push_materialized_cte(
         &mut self,
-        bound: BoundCteReference,
+        bound: CteReference,
         root: LogicalOperator,
         scope: Scope,
     ) -> usize {
@@ -96,7 +96,7 @@ impl QueryContext {
 
     pub fn get_materialized_cte_reference(
         &self,
-        bound: &BoundCteReference,
+        bound: &CteReference,
     ) -> Option<&MaterializedCteReference> {
         self.materialized_cte_refs.get(bound)
     }

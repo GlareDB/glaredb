@@ -4,6 +4,7 @@
 
 use rayexec_error::Result;
 use rayexec_parser::statement::Statement;
+use serde::{de::DeserializeSeed, Deserializer, Serialize};
 
 use crate::{
     database::DatabaseContext,
@@ -81,6 +82,28 @@ impl ServerSession {
         //
         // Probably change ExecutionRuntime to handle "state inflation" on
         // "stateless" pipelines.
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct HybridExecuteRequest {
+    pub stmt: BoundStatement,
+    pub bind_data: BindData,
+}
+
+#[derive(Debug)]
+struct HybridExecuteRequestDeserializer<'a> {
+    context: &'a DatabaseContext,
+}
+
+impl<'de, 'a> DeserializeSeed<'de> for HybridExecuteRequestDeserializer<'a> {
+    type Value = HybridExecuteRequest;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         unimplemented!()
     }
 }

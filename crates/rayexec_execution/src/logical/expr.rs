@@ -1,4 +1,4 @@
-use super::operator::{Filter, LogicalOperator, Projection};
+use super::operator::LogicalOperator;
 use super::sql::scope::ColumnRef;
 use crate::expr::scalar::VariadicOperator;
 use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};
@@ -47,13 +47,14 @@ impl Subquery {
         let mut correlated = false;
         self.get_root_mut().walk_mut_pre(&mut |plan| {
             match plan {
-                LogicalOperator::Projection(Projection { exprs, .. }) => {
-                    exprs
+                LogicalOperator::Projection(node) => {
+                    node.as_mut()
+                        .exprs
                         .iter_mut()
                         .for_each(|expr| correlated |= expr.is_correlated());
                 }
-                LogicalOperator::Filter(Filter { predicate, .. }) => {
-                    correlated = predicate.is_correlated();
+                LogicalOperator::Filter(node) => {
+                    correlated = node.as_mut().predicate.is_correlated();
                 }
                 _ => (), // TODO: The others
             }
@@ -321,19 +322,20 @@ impl LogicalExpression {
         {
             match plan {
                 LogicalOperator::Projection(p) => {
-                    LogicalExpression::walk_mut_many(&mut p.exprs, pre, post)?
+                    LogicalExpression::walk_mut_many(&mut p.as_mut().exprs, pre, post)?
                 }
-                LogicalOperator::Filter(p) => p.predicate.walk_mut(pre, post)?,
+                LogicalOperator::Filter(p) => p.as_mut().predicate.walk_mut(pre, post)?,
                 LogicalOperator::Aggregate(p) => {
-                    LogicalExpression::walk_mut_many(&mut p.aggregates, pre, post)?;
-                    LogicalExpression::walk_mut_many(&mut p.group_exprs, pre, post)?;
+                    LogicalExpression::walk_mut_many(&mut p.as_mut().aggregates, pre, post)?;
+                    LogicalExpression::walk_mut_many(&mut p.as_mut().group_exprs, pre, post)?;
                 }
                 LogicalOperator::Order(p) => {
+                    let p = p.as_mut();
                     for expr in &mut p.exprs {
                         expr.expr.walk_mut(pre, post)?;
                     }
                 }
-                LogicalOperator::AnyJoin(p) => p.on.walk_mut(pre, post)?,
+                LogicalOperator::AnyJoin(p) => p.as_mut().on.walk_mut(pre, post)?,
                 LogicalOperator::EqualityJoin(_) => (),
                 LogicalOperator::CrossJoin(_) => (),
                 LogicalOperator::DependentJoin(_) => (),
@@ -343,6 +345,7 @@ impl LogicalExpression {
                 LogicalOperator::Scan(_) => (),
                 LogicalOperator::TableFunction(_) => (),
                 LogicalOperator::ExpressionList(p) => {
+                    let p = p.as_mut();
                     for row in &mut p.rows {
                         LogicalExpression::walk_mut_many(row, pre, post)?;
                     }

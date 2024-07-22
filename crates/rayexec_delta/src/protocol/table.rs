@@ -1,0 +1,254 @@
+use std::{collections::VecDeque, sync::Arc};
+
+use futures::{
+    stream::{self, BoxStream},
+    StreamExt, TryStreamExt,
+};
+use rayexec_bullet::{
+    batch::Batch,
+    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
+    field::{Field, Schema},
+    scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_io::{location::FileLocation, FileProvider, FileSource};
+use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
+use serde_json::Deserializer;
+
+use crate::protocol::schema::{PrimitiveType, SchemaType};
+
+use super::{
+    action::Action,
+    schema::{StructField, StructType},
+    snapshot::Snapshot,
+};
+
+/// Relative path to delta log files.
+const DELTA_LOG_PATH: &str = "_delta_log";
+
+#[derive(Debug)]
+pub struct Table {
+    /// Root of the table.
+    root: FileLocation,
+    /// Provider for accessing files.
+    provider: Arc<dyn FileProvider>,
+    /// Snapshot of the table, including what files we have available to use for
+    /// reading.
+    snapshot: Snapshot,
+}
+
+impl Table {
+    /// Try to load a table at the given location.
+    pub async fn load(root: FileLocation, provider: Arc<dyn FileProvider>) -> Result<Self> {
+        // TODO: Look at checkpoints & compacted logs
+        let log_root = root.join([DELTA_LOG_PATH])?;
+        let mut log_stream = provider.list_prefix(log_root.clone());
+
+        let first_page = log_stream
+            .try_next()
+            .await?
+            .ok_or_else(|| RayexecError::new("No logs for delta table"))?;
+
+        let mut snapshot = match first_page.first() {
+            Some(first) => {
+                let actions =
+                    Self::read_actions_from_log(provider.as_ref(), &log_root, first).await?;
+                Snapshot::try_new_from_actions(actions)?
+            }
+            None => {
+                return Err(RayexecError::new(
+                    "No logs in first page returned from provider",
+                ))
+            }
+        };
+
+        // Apply rest of first page.
+        for log_path in first_page.iter().skip(1) {
+            let actions =
+                Self::read_actions_from_log(provider.as_ref(), &log_root, log_path).await?;
+            snapshot.apply_actions(actions)?;
+        }
+
+        // Apply rest of log stream.
+        while let Some(page) = log_stream.try_next().await? {
+            for log_path in page {
+                let actions =
+                    Self::read_actions_from_log(provider.as_ref(), &log_root, &log_path).await?;
+                snapshot.apply_actions(actions)?;
+            }
+        }
+
+        Ok(Table {
+            root,
+            provider,
+            snapshot,
+        })
+    }
+
+    // TODO: Maybe don't allocate new vec for every log file.
+    async fn read_actions_from_log(
+        provider: &dyn FileProvider,
+        root: &FileLocation,
+        path: &str,
+    ) -> Result<Vec<Action>> {
+        let bytes = provider
+            .file_source(root.join([path])?)? // TODO: Path segments
+            .read_stream()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
+
+        // TODO: Either move this to a utility, or avoid doing it.
+        let bytes = bytes.into_iter().fold(Vec::new(), |mut v, buf| {
+            v.extend_from_slice(buf.as_ref());
+            v
+        });
+
+        let actions = Deserializer::from_slice(&bytes)
+            .into_iter::<Action>()
+            .collect::<Result<Vec<_>, _>>()
+            .context("failed to read actions from log file")?;
+
+        Ok(actions)
+    }
+
+    pub fn table_schema(&self) -> Result<Schema> {
+        let schema = self.snapshot.schema()?;
+        schema_from_struct_type(schema)
+    }
+
+    // TODO: batch size, projection
+    // TODO: Reference partition values.
+    // TODO: Properly filter based on deletion vector.
+    pub fn scan(&self, num_partitions: usize) -> Result<Vec<TableScan>> {
+        // Each partitions gets some subset of files.
+        let mut paths: Vec<_> = (0..num_partitions).map(|_| VecDeque::new()).collect();
+
+        for (idx, file_key) in self.snapshot.add.keys().enumerate() {
+            let partition = idx % num_partitions;
+            paths[partition].push_back(file_key.path.clone());
+        }
+
+        let schema = self.table_schema()?;
+
+        let scans = paths
+            .into_iter()
+            .map(|partition_paths| TableScan {
+                root: self.root.clone(),
+                schema: schema.clone(),
+                paths: partition_paths,
+                provider: self.provider.clone(),
+                current: None,
+            })
+            .collect();
+
+        Ok(scans)
+    }
+}
+
+#[derive(Debug)]
+pub struct TableScan {
+    root: FileLocation,
+    /// Schema of the table as determined by the metadata action.
+    schema: Schema,
+    /// Paths to data files this scan should read one after another.
+    paths: VecDeque<String>,
+    /// File provider for getting the actual file sources.
+    provider: Arc<dyn FileProvider>,
+    /// Current reader, initially empty and populated on first stream.
+    ///
+    /// Once a reader runs out, the next file is loaded, and gets placed here.
+    current: Option<AsyncBatchReader<Box<dyn FileSource>>>,
+}
+
+impl TableScan {
+    pub fn into_stream(self) -> BoxStream<'static, Result<Batch>> {
+        let stream = stream::try_unfold(self, |mut scan| async move {
+            loop {
+                if scan.current.is_none() {
+                    let path = match scan.paths.pop_front() {
+                        Some(path) => path,
+                        None => return Ok(None), // We're done.
+                    };
+
+                    scan.current = Some(
+                        Self::load_reader(&scan.root, path, scan.provider.as_ref(), &scan.schema)
+                            .await?,
+                    )
+                }
+
+                match scan.current.as_mut().unwrap().read_next().await {
+                    Ok(Some(batch)) => return Ok(Some((batch, scan))),
+                    Ok(None) => {
+                        // Loads next read at beginning of loop.
+                        scan.current = None;
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        });
+
+        stream.boxed()
+    }
+
+    async fn load_reader(
+        root: &FileLocation,
+        path: String,
+        provider: &dyn FileProvider,
+        schema: &Schema,
+    ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
+        // TODO: Need to split path into segments.
+        let location = root.join([path])?;
+        let mut source = provider.file_source(location)?;
+
+        let size = source.size().await?;
+        let metadata = Arc::new(Metadata::load_from(source.as_mut(), size).await?);
+        let row_groups: VecDeque<_> = (0..metadata.parquet_metadata.row_groups().len()).collect();
+
+        const BATCH_SIZE: usize = 2048; // TODO
+        let reader = AsyncBatchReader::try_new(source, row_groups, metadata, schema, BATCH_SIZE)?;
+
+        Ok(reader)
+    }
+}
+
+/// Create a schema from a struct type representing the schema of a delta table.
+pub fn schema_from_struct_type(typ: StructType) -> Result<Schema> {
+    let fields = typ
+        .fields
+        .into_iter()
+        .map(struct_field_to_field)
+        .collect::<Result<Vec<_>>>()?;
+    Ok(Schema::new(fields))
+}
+
+fn struct_field_to_field(field: StructField) -> Result<Field> {
+    let datatype = match field.typ {
+        SchemaType::Primitive(prim) => match prim {
+            PrimitiveType::String => DataType::Utf8,
+            PrimitiveType::Long => DataType::Int64,
+            PrimitiveType::Integer => DataType::Int32,
+            PrimitiveType::Short => DataType::Int16,
+            PrimitiveType::Byte => DataType::Int8,
+            PrimitiveType::Float => DataType::Float32,
+            PrimitiveType::Double => DataType::Float64,
+            PrimitiveType::Decimal => DataType::Decimal128(DecimalTypeMeta::new(
+                Decimal128Type::MAX_PRECISION,
+                DECIMAL_DEFUALT_SCALE,
+            )),
+            PrimitiveType::Boolean => DataType::Boolean,
+            PrimitiveType::Binary => DataType::Binary,
+            PrimitiveType::Date => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Second)), // TODO: This is just year/month/day
+            PrimitiveType::Timestamp => {
+                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            }
+        },
+        SchemaType::Struct(_) => not_implemented!("delta struct"),
+        SchemaType::Array(_) => not_implemented!("delta array"),
+        SchemaType::Map(_) => not_implemented!("delta map"),
+    };
+
+    Ok(Field::new(field.name, datatype, field.nullable))
+}

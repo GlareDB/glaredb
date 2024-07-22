@@ -76,55 +76,70 @@ impl ExplainNode {
         }
     }
 
+    // TODO: Include location requirement in explain entry.
     fn walk_logical(
         context: Option<&QueryContext>,
         plan: &LogicalOperator,
         conf: ExplainConfig,
     ) -> ExplainNode {
         let children = match plan {
-            LogicalOperator::Projection(p) => vec![Self::walk_logical(context, &p.input, conf)],
-            LogicalOperator::Filter(p) => vec![Self::walk_logical(context, &p.input, conf)],
-            LogicalOperator::Aggregate(p) => vec![Self::walk_logical(context, &p.input, conf)],
-            LogicalOperator::Order(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Projection(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
+            LogicalOperator::Filter(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
+            LogicalOperator::Aggregate(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
+            LogicalOperator::Order(p) => vec![Self::walk_logical(context, &p.as_ref().input, conf)],
             LogicalOperator::AnyJoin(p) => {
                 vec![
-                    Self::walk_logical(context, &p.left, conf),
-                    Self::walk_logical(context, &p.right, conf),
+                    Self::walk_logical(context, &p.as_ref().left, conf),
+                    Self::walk_logical(context, &p.as_ref().right, conf),
                 ]
             }
             LogicalOperator::EqualityJoin(p) => {
                 vec![
-                    Self::walk_logical(context, &p.left, conf),
-                    Self::walk_logical(context, &p.right, conf),
+                    Self::walk_logical(context, &p.as_ref().left, conf),
+                    Self::walk_logical(context, &p.as_ref().right, conf),
                 ]
             }
             LogicalOperator::CrossJoin(p) => {
                 vec![
-                    Self::walk_logical(context, &p.left, conf),
-                    Self::walk_logical(context, &p.right, conf),
+                    Self::walk_logical(context, &p.as_ref().left, conf),
+                    Self::walk_logical(context, &p.as_ref().right, conf),
                 ]
             }
             LogicalOperator::DependentJoin(p) => {
                 vec![
-                    Self::walk_logical(context, &p.left, conf),
-                    Self::walk_logical(context, &p.right, conf),
+                    Self::walk_logical(context, &p.as_ref().left, conf),
+                    Self::walk_logical(context, &p.as_ref().right, conf),
                 ]
             }
             LogicalOperator::SetOperation(p) => {
                 vec![
-                    Self::walk_logical(context, &p.top, conf),
-                    Self::walk_logical(context, &p.bottom, conf),
+                    Self::walk_logical(context, &p.as_ref().top, conf),
+                    Self::walk_logical(context, &p.as_ref().bottom, conf),
                 ]
             }
 
-            LogicalOperator::Limit(p) => vec![Self::walk_logical(context, &p.input, conf)],
-            LogicalOperator::CreateTableAs(p) => vec![Self::walk_logical(context, &p.input, conf)],
-            LogicalOperator::Insert(p) => vec![Self::walk_logical(context, &p.input, conf)],
-            LogicalOperator::CopyTo(p) => vec![Self::walk_logical(context, &p.source, conf)],
-            LogicalOperator::Explain(p) => vec![Self::walk_logical(context, &p.input, conf)],
+            LogicalOperator::Limit(p) => vec![Self::walk_logical(context, &p.as_ref().input, conf)],
+            LogicalOperator::CreateTableAs(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
+            LogicalOperator::Insert(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
+            LogicalOperator::CopyTo(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().source, conf)]
+            }
+            LogicalOperator::Explain(p) => {
+                vec![Self::walk_logical(context, &p.as_ref().input, conf)]
+            }
             LogicalOperator::MaterializedScan(scan) => {
                 if let Some(inner) = context {
-                    let plan = &inner.materialized[scan.idx].root;
+                    let plan = &inner.materialized[scan.as_ref().idx].root;
                     vec![Self::walk_logical(context, plan, conf)]
                 } else {
                     Vec::new()

@@ -1,3 +1,5 @@
+use rayexec_csv::CsvDataSource;
+use rayexec_delta::DeltaDataSource;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     datasource::{DataSourceRegistry, MemoryDataSource},
@@ -14,6 +16,8 @@ fn main() -> Result<()> {
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", Box::new(PostgresDataSource))?
+        .with_datasource("csv", Box::new(CsvDataSource))?
+        .with_datasource("delta", Box::new(DeltaDataSource))?
         .with_datasource("parquet", Box::new(ParquetDataSource))?;
 
     let engine = Engine::new_with_registry(runtime.clone(), registry)?;

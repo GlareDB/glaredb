@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use futures::stream::{self, BoxStream};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::query_graph::QueryGraph,
     runtime::{ErrorSink, ExecutionRuntime, QueryHandle},
 };
-use rayexec_io::{http::ReqwestClient, FileLocation, FileProvider, FileSink, FileSource};
+use rayexec_io::{http::ReqwestClient, location::FileLocation, FileProvider, FileSink, FileSource};
 
 use crate::{
     filesystem::LocalFileSystemProvider, http::WrappedReqwestClientReader,
@@ -121,6 +122,17 @@ impl FileProvider for NativeFileProvider {
         match (location, self.handle.as_ref()) {
             (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
             (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
+        }
+    }
+
+    fn list_prefix(&self, prefix: FileLocation) -> BoxStream<'static, Result<Vec<String>>> {
+        match prefix {
+            FileLocation::Url(_) => Box::pin(stream::once(async move {
+                Err(RayexecError::new("Cannot list for http file sources"))
+            })),
+            FileLocation::Path(path) => Box::pin(stream::once(async move {
+                LocalFileSystemProvider.list_prefix(&path)
+            })),
         }
     }
 }

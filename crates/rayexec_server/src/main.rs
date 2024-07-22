@@ -20,6 +20,7 @@ use rayexec_execution::{
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_server_client::ENDPOINTS;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing::info;
@@ -64,10 +65,13 @@ async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()
     let state = Arc::new(handlers::ServerState { engine });
 
     let app = Router::new()
-        .route("/healthz", get(handlers::healthz))
-        .route("/rpc/hybrid_execute", post(handlers::hybrid_execute_rpc))
-        .route("/rpc/push_batch", post(handlers::push_batch_rpc))
-        .route("/rpc/pull_batch", post(handlers::pull_batch_rpc))
+        .route(ENDPOINTS.healthz, get(handlers::healthz))
+        .route(
+            ENDPOINTS.rpc_hybrid_execute,
+            post(handlers::hybrid_execute_rpc),
+        )
+        .route(ENDPOINTS.rpc_push_batch, post(handlers::push_batch_rpc))
+        .route(ENDPOINTS.rpc_pull_batch, post(handlers::pull_batch_rpc))
         // TODO: Limit CORS to *.glaredb.com and localhost. And maybe make
         // localhost dev build only.
         .layer(CorsLayer::permissive())

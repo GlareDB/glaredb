@@ -92,6 +92,12 @@ pub struct FileHandlers {
 }
 
 impl FileHandlers {
+    pub const fn empty() -> Self {
+        FileHandlers {
+            handlers: Vec::new(),
+        }
+    }
+
     pub fn find_match(&self, path: &str) -> Option<&FileHandler> {
         self.handlers
             .iter()
