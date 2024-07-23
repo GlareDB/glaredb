@@ -927,6 +927,34 @@ impl<'a> SessionPlanner<'a> {
                     jaq_filter: None,
                 })
             }
+            TableOptionsV0::JSON => {
+                let location: String = m.remove_required("location")?;
+                let jaq_filter: Option<String> = m.remove_optional("jaq_filter")?;
+
+                let mut storage_options = StorageOptions::try_from(m)?;
+                if let Some(creds) = creds_options {
+                    storage_options_with_credentials(&mut storage_options, creds);
+                }
+                let schema_sample_size = Some(
+                    storage_options
+                        .inner
+                        .get("schema_sample_size")
+                        .map(|strint| strint.parse())
+                        .unwrap_or(Ok(100))?,
+                );
+
+
+                TableOptionsV0::Json(TableOptionsObjectStore {
+                    location,
+                    storage_options,
+                    name: None,
+                    file_type: None,
+                    compression: None,
+                    schema_sample_size,
+                    jaq_filter,
+                })
+            }
+
             TableOptionsV0::EXCEL => {
                 let location: String = m.remove_required("location")?;
                 let mut storage_options = StorageOptions::try_from(m)?;

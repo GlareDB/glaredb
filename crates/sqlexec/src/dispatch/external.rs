@@ -363,16 +363,13 @@ impl<'a> ExternalDispatcher<'a> {
                 Some(128),
             )
             .await?),
-            "json" => Ok(
-                // TODO: add support/plumbing to get query filter into the table here.
-                json_streaming_table(
-                    access.clone(),
-                    DatasourceUrl::try_new(path)?,
-                    None,
-                    jaq_filter,
-                )
-                .await?,
-            ),
+            "json" => Ok(json_streaming_table(
+                access.clone(),
+                DatasourceUrl::try_new(path)?,
+                None,
+                jaq_filter,
+            )
+            .await?),
             "ndjson" | "jsonl" => Ok(accessor
                 .clone()
                 .into_table_provider(
@@ -725,6 +722,19 @@ impl<'a> ExternalDispatcher<'a> {
                     schema_sample_size.to_owned(),
                 )
                 .await?)
+            }
+            TableOptionsV0::Json(TableOptionsObjectStore {
+                location,
+                storage_options,
+                jaq_filter,
+                ..
+            }) => {
+                let source_url = DatasourceUrl::try_new(location)?;
+                let store_access = storage_options_into_store_access(&source_url, storage_options)?;
+                Ok(
+                    json_streaming_table(store_access, source_url, schema, jaq_filter.to_owned())
+                        .await?,
+                )
             }
             TableOptionsV0::Cassandra(TableOptionsCassandra {
                 host,

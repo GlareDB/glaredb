@@ -1,0 +1,32 @@
+# baseline
+query T
+select status from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json') where station_id = 1001;
+----
+closed
+
+# filter a rename
+query T
+select stat from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json', jaq_filter => '{"id": .station_id, "stat": .status }') where id = 1001;
+----
+closed
+
+query IT
+select * from read_json('./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json', jaq_filter => '{"id": .station_id, "stat": .status }') where id = 1001;
+----
+1001 closed
+
+statement ok
+CREATE EXTERNAL TABLE bsd_lite_for_jaq FROM json OPTIONS (
+       location => './testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json',
+       jaq_filter => '{"id": .station_id, "stat": .status }'
+);
+
+query IT
+select * from bsd_lite_for_jaq where id = 1001;
+----
+1001 closed
+
+query T
+SELECT stat FROM bsd_lite_for_jaq WHERE id = 1001;
+----
+closed

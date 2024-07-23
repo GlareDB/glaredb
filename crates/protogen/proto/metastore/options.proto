@@ -150,8 +150,9 @@ message TableOptionsV0 {
     TableOptionsCassandra cassandra = 18;
     TableOptionsExcel excel = 19;
     TableOptionsObjectStore sqlite = 20;
+    TableOptionsObjectStore json = 21;
   }
-  // next: 21
+  // next: 22
 }
 
 message TableOptionsInternal {

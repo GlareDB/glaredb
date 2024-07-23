@@ -701,6 +701,7 @@ pub enum TableOptionsV0 {
     SqlServer(TableOptionsSqlServer),
     Lance(TableOptionsObjectStore),
     Bson(TableOptionsObjectStore),
+    Json(TableOptionsObjectStore),
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
     Excel(TableOptionsExcel),
@@ -724,6 +725,7 @@ impl TableOptionsV0 {
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const LANCE: &'static str = "lance";
     pub const BSON: &'static str = "bson";
+    pub const JSON: &'static str = "json";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
     pub const EXCEL: &'static str = "excel";
@@ -751,6 +753,7 @@ impl TableOptionsV0 {
             TableOptionsV0::SqlServer(_) => Self::SQL_SERVER,
             TableOptionsV0::Lance(_) => Self::LANCE,
             TableOptionsV0::Bson(_) => Self::BSON,
+            TableOptionsV0::Json(_) => Self::JSON,
             TableOptionsV0::Clickhouse(_) => Self::CLICKHOUSE,
             TableOptionsV0::Cassandra(_) => Self::CASSANDRA,
             TableOptionsV0::Excel(_) => Self::EXCEL,
@@ -778,6 +781,7 @@ impl From<TableOptionsV0> for TableOptionsV1 {
             TableOptionsV0::SqlServer(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Lance(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Bson(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Json(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Clickhouse(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Cassandra(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Excel(opts) => TableOptionsV1::new(&opts),
@@ -802,6 +806,7 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
                     Self::AZURE => Ok(TableOptionsV0::Azure(obj_store)),
                     Self::LANCE => Ok(TableOptionsV0::Lance(obj_store)),
                     Self::BSON => Ok(TableOptionsV0::Bson(obj_store)),
+                    Self::JSON => Ok(TableOptionsV0::Json(obj_store)),
                     _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
                 }
             }
@@ -898,6 +903,7 @@ impl TryFrom<TableOptionsV0> for options::table_options_v0::Options {
             TableOptionsV0::SqlServer(v) => options::table_options_v0::Options::SqlServer(v.into()),
             TableOptionsV0::Lance(v) => options::table_options_v0::Options::Lance(v.into()),
             TableOptionsV0::Bson(v) => options::table_options_v0::Options::Bson(v.into()),
+            TableOptionsV0::Json(v) => options::table_options_v0::Options::Json(v.into()),
             TableOptionsV0::Clickhouse(v) => {
                 options::table_options_v0::Options::Clickhouse(v.into())
             }
@@ -940,6 +946,7 @@ impl TryFrom<options::table_options_v0::Options> for TableOptionsV0 {
             }
             options::table_options_v0::Options::Lance(v) => TableOptionsV0::Lance(v.try_into()?),
             options::table_options_v0::Options::Bson(v) => TableOptionsV0::Bson(v.try_into()?),
+            options::table_options_v0::Options::Json(v) => TableOptionsV0::Json(v.try_into()?),
             options::table_options_v0::Options::Clickhouse(v) => {
                 TableOptionsV0::Clickhouse(v.try_into()?)
             }

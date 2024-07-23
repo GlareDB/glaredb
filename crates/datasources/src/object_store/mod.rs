@@ -423,6 +423,11 @@ pub fn init_session_registry<'a>(
                 storage_options,
                 ..
             })
+            | TableOptionsV0::Json(TableOptionsObjectStore {
+                location,
+                storage_options,
+                ..
+            })
             | TableOptionsV0::Bson(TableOptionsObjectStore {
                 location,
                 storage_options,
