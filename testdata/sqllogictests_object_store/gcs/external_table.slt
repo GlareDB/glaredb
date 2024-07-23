@@ -89,3 +89,30 @@ query I
 select count(*) from bson_beatles;
 ----
 100
+
+statement ok
+create external table bsd_lite_goog from gcs options (
+	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
+	bucket '${GCS_BUCKET_NAME}',
+	location 'bikeshare_stations_lite.json'
+);
+
+
+statement ok
+create external table bsd_lite_goog_jq from gcs options (
+	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
+	bucket '${GCS_BUCKET_NAME}',
+	location 'bikeshare_stations_lite.json'
+       jaq_filter => '{"id": .station_id, "stat": .status }'
+);
+
+
+query I
+select count(*) from bsd_lite_goog;
+----
+9
+
+query IT
+select stat, id = 1001 from bsd_lite_goog_jaq where id = 1001;
+----
+1001 closed t
