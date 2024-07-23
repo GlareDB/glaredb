@@ -173,10 +173,10 @@ impl JsonHandler {
                         let inputs = RcIter::new(core::iter::empty());
                         match jq
                             .run((Ctx::new([], &inputs), Val::from(value)))
-                            .map(|res| res.map(|v| Value::from(v)))
+                            .map(|res| res.map(Value::from))
                             .collect::<Result<Vec<_>, _>>()
                         {
-                            Ok(vals) => Ok(Value::from_iter(vals.into_iter())),
+                            Ok(vals) => Ok(Value::from_iter(vals)),
                             Err(e) => Err(JsonError::from(e)),
                         }
                     }

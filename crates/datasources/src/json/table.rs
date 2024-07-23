@@ -134,7 +134,7 @@ fn push_unwind_json_values(
                 let inputs = RcIter::new(core::iter::empty());
                 Value::from_iter(
                     jq.run((Ctx::new([], &inputs), Val::from(val?)))
-                        .map(|res| res.map(|v| Value::from(v)))
+                        .map(|res| res.map(Value::from))
                         .collect::<Result<Vec<_>, _>>()?,
                 )
             }
