@@ -65,7 +65,7 @@ mysql_async = { version = "0.34.1", default-features = false, features = ["defau
 mysql_common = { version = "0.32.4", default-features = false, features = ["chrono"] }
 rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 ssh-key = { version = "0.6.6", features = ["ed25519", "alloc"] }
-tiberius = { version = "0.12.2", default-features = false, features = ["tds73","rustls","chrono"] }
+tiberius = { version = "0.12.3", default-features = false, features = ["tds73","rustls","chrono"] }
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
 lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
