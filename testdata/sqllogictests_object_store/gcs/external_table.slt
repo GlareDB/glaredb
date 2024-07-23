@@ -102,8 +102,8 @@ statement ok
 create external table bsd_lite_goog_jq from gcs options (
 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
 	bucket '${GCS_BUCKET_NAME}',
-	location 'bikeshare_stations_lite.json'
-       jaq_filter => '{"id": .station_id, "stat": .status }'
+	location 'bikeshare_stations_lite.json',
+        jaq_filter => '{"id": .station_id, "stat": .status }'
 );
 
 
