@@ -99,7 +99,7 @@ create external table bsd_lite_goog from gcs options (
 
 
 statement ok
-create external table bsd_lite_goog_jq from gcs options (
+create external table bsd_lite_goog_jaq from gcs options (
 	service_account_key '${GCP_SERVICE_ACCOUNT_KEY}',
 	bucket '${GCS_BUCKET_NAME}',
 	location 'bikeshare_stations_lite.json',
@@ -109,6 +109,11 @@ create external table bsd_lite_goog_jq from gcs options (
 
 query I
 select count(*) from bsd_lite_goog;
+----
+9
+
+query I
+select count(*) from bsd_lite_goog_jaq;
 ----
 9
 
