@@ -2,8 +2,6 @@ pub mod primitive;
 pub mod varlen;
 
 use bytes::{Buf, Bytes};
-use futures::stream::{self, BoxStream};
-use futures::StreamExt;
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
@@ -162,17 +160,6 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             column_chunks,
             builders,
         })
-    }
-
-    pub fn into_stream(self) -> BoxStream<'static, Result<Batch>> {
-        let stream = stream::try_unfold(self, |mut reader| async move {
-            match reader.read_next().await {
-                Ok(Some(batch)) => Ok(Some((batch, reader))),
-                Ok(None) => Ok(None),
-                Err(e) => Err(e),
-            }
-        });
-        stream.boxed()
     }
 
     pub async fn read_next(&mut self) -> Result<Option<Batch>> {

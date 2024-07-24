@@ -1,17 +1,10 @@
-use futures::stream::{BoxStream, StreamExt};
+use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use rayexec_execution::{
-    database::table::{DataTable, DataTableScan},
-    execution::operators::PollPull,
-};
+use rayexec_execution::database::table::{DataTable, DataTableScan};
 use std::sync::Arc;
-use std::{
-    fmt,
-    task::{Context, Poll},
-};
 
-use crate::protocol::table::Table;
+use crate::protocol::table::{Table, TableScan};
 
 #[derive(Debug)]
 pub struct DeltaDataTable {
@@ -23,34 +16,20 @@ impl DataTable for DeltaDataTable {
         let table_scans = self.table.scan(num_partitions)?;
         let scans: Vec<_> = table_scans
             .into_iter()
-            .map(|scan| {
-                Box::new(DeltaTableScan {
-                    stream: scan.into_stream(),
-                }) as _
-            })
+            .map(|scan| Box::new(DeltaTableScan { scan }) as _)
             .collect();
 
         Ok(scans)
     }
 }
 
+#[derive(Debug)]
 struct DeltaTableScan {
-    stream: BoxStream<'static, Result<Batch>>,
+    scan: TableScan,
 }
 
 impl DataTableScan for DeltaTableScan {
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
-        match self.stream.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(batch))) => Ok(PollPull::Batch(batch)),
-            Poll::Ready(Some(Err(e))) => Err(e),
-            Poll::Ready(None) => Ok(PollPull::Exhausted),
-            Poll::Pending => Ok(PollPull::Pending),
-        }
-    }
-}
-
-impl fmt::Debug for DeltaTableScan {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RowGroupsScan").finish_non_exhaustive()
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { self.scan.read_next().await })
     }
 }

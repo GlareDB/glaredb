@@ -10,7 +10,7 @@ use rayexec_io::location::{AccessConfig, FileLocation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{metadata::Metadata, schema::convert_schema};
+use crate::{metadata::Metadata, schema::from_parquet_schema};
 
 use super::datatable::RowGroupPartitionedDataTable;
 
@@ -67,7 +67,7 @@ impl ReadParquetImpl {
         let size = source.size().await?;
 
         let metadata = Metadata::load_from(source.as_mut(), size).await?;
-        let schema = convert_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
+        let schema = from_parquet_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(Self {
             location,

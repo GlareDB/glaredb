@@ -23,11 +23,11 @@ use crate::format as parquet;
 use crate::format::{ColumnIndex, OffsetIndex, RowGroup};
 use crate::thrift::TSerializable;
 use std::fmt::Debug;
-use std::io::{BufWriter, IoSlice, Read};
+use std::io::{self, IoSlice, Read};
 use std::{io::Write, sync::Arc};
 use thrift::protocol::TCompactOutputProtocol;
 
-use crate::column::writer::{get_typed_column_writer_mut, ColumnCloseResult, ColumnWriterImpl};
+use crate::column::writer::{get_typed_column_writer_mut, ColumnCloseResult, GenericColumnWriter};
 use crate::column::{
     page::{CompressedPage, PageWriteSpec, PageWriter},
     writer::{get_column_writer, ColumnWriter},
@@ -38,20 +38,19 @@ use crate::file::reader::ChunkReader;
 use crate::file::{metadata::*, properties::WriterPropertiesPtr, PARQUET_MAGIC};
 use crate::schema::types::{self, ColumnDescPtr, SchemaDescPtr, SchemaDescriptor, TypePtr};
 
-/// A wrapper around a [`Write`] that keeps track of the number
-/// of bytes that have been written. The given [`Write`] is wrapped
-/// with a [`BufWriter`] to optimize writing performance.
+/// A wrapper around a [`Write`] that keeps track of the number of bytes that
+/// have been written.
+#[derive(Debug)]
 pub struct TrackedWrite<W: Write> {
-    inner: BufWriter<W>,
+    inner: W,
     bytes_written: usize,
 }
 
 impl<W: Write> TrackedWrite<W> {
     /// Create a new [`TrackedWrite`] from a [`Write`]
     pub fn new(inner: W) -> Self {
-        let buf_write = BufWriter::new(inner);
         Self {
-            inner: buf_write,
+            inner,
             bytes_written: 0,
         }
     }
@@ -63,7 +62,7 @@ impl<W: Write> TrackedWrite<W> {
 
     /// Returns a reference to the underlying writer.
     pub fn inner(&self) -> &W {
-        self.inner.get_ref()
+        &self.inner
     }
 
     /// Returns a mutable reference to the underlying writer.
@@ -71,14 +70,12 @@ impl<W: Write> TrackedWrite<W> {
     /// It is inadvisable to directly write to the underlying writer, doing so
     /// will likely result in data corruption
     pub fn inner_mut(&mut self) -> &mut W {
-        self.inner.get_mut()
+        &mut self.inner
     }
 
     /// Returns the underlying writer.
-    pub fn into_inner(self) -> Result<W> {
-        self.inner.into_inner().map_err(|err| {
-            ParquetError::General(format!("fail to get inner writer: {:?}", err.to_string()))
-        })
+    pub fn into_inner(self) -> W {
+        self.inner
     }
 }
 
@@ -433,8 +430,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     pub fn into_inner(mut self) -> Result<W> {
         self.assert_previous_writer_closed()?;
         let _ = self.write_metadata()?;
-
-        self.buf.into_inner()
+        Ok(self.buf.into_inner())
     }
 
     /// Returns the number of bytes written to this instance
@@ -551,36 +547,23 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
         (self.buf, Box::new(on_close))
     }
 
-    /// Returns the next column writer, if available, using the factory function;
-    /// otherwise returns `None`.
-    pub(crate) fn next_column_with_factory<'b, F, C>(&'b mut self, factory: F) -> Result<Option<C>>
-    where
-        F: FnOnce(
-            ColumnDescPtr,
-            WriterPropertiesPtr,
-            Box<dyn PageWriter + 'b>,
-            OnCloseColumnChunk<'b>,
-        ) -> Result<C>,
-    {
+    /// Returns the next column writer, if available; otherwise returns `None`.
+    /// In case of any IO error or Thrift error, or if row group writer has already been
+    /// closed returns `Err`.
+    pub fn next_column(
+        &mut self,
+    ) -> Result<Option<SerializedColumnWriter<'_, SerializedPageWriter<W>>>> {
         self.assert_previous_writer_closed()?;
         Ok(match self.next_column_desc() {
             Some(column) => {
                 let props = self.props.clone();
                 let (buf, on_close) = self.get_on_close();
-                let page_writer = Box::new(SerializedPageWriter::new(buf));
-                Some(factory(column, props, page_writer, Box::new(on_close))?)
+                let page_writer = SerializedPageWriter::new(buf);
+
+                let column_writer = get_column_writer(column, props, page_writer);
+                Some(SerializedColumnWriter::new(column_writer, Some(on_close)))
             }
             None => None,
-        })
-    }
-
-    /// Returns the next column writer, if available; otherwise returns `None`.
-    /// In case of any IO error or Thrift error, or if row group writer has already been
-    /// closed returns `Err`.
-    pub fn next_column(&mut self) -> Result<Option<SerializedColumnWriter<'_>>> {
-        self.next_column_with_factory(|descr, props, page_writer, on_close| {
-            let column_writer = get_column_writer(descr, props, page_writer);
-            Ok(SerializedColumnWriter::new(column_writer, Some(on_close)))
         })
     }
 
@@ -697,31 +680,31 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
 }
 
 /// A wrapper around a [`ColumnWriter`] that invokes a callback on [`Self::close`]
-pub struct SerializedColumnWriter<'a> {
-    inner: ColumnWriter<'a>,
+pub struct SerializedColumnWriter<'a, P: PageWriter + 'a> {
+    inner: ColumnWriter<P>,
     on_close: Option<OnCloseColumnChunk<'a>>,
 }
 
-impl<'a> SerializedColumnWriter<'a> {
+impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
     /// Create a new [`SerializedColumnWriter`] from a [`ColumnWriter`] and an
     /// optional callback to be invoked on [`Self::close`]
-    pub fn new(inner: ColumnWriter<'a>, on_close: Option<OnCloseColumnChunk<'a>>) -> Self {
+    pub fn new(inner: ColumnWriter<P>, on_close: Option<OnCloseColumnChunk<'a>>) -> Self {
         Self { inner, on_close }
     }
 
     /// Returns a reference to an untyped [`ColumnWriter`]
-    pub fn untyped(&mut self) -> &mut ColumnWriter<'a> {
+    pub fn untyped(&mut self) -> &mut ColumnWriter<P> {
         &mut self.inner
     }
 
-    /// Returns a reference to a typed [`ColumnWriterImpl`]
-    pub fn typed<T: DataType>(&mut self) -> &mut ColumnWriterImpl<'a, T> {
+    /// Returns a reference to a typed [`GenericColumnWriter`]
+    pub fn typed<T: DataType>(&mut self) -> &mut GenericColumnWriter<T, P> {
         get_typed_column_writer_mut(&mut self.inner)
     }
 
     /// Close this [`SerializedColumnWriter`]
     pub fn close(mut self) -> Result<()> {
-        let r = self.inner.close()?;
+        let (r, _) = self.inner.close()?;
         if let Some(on_close) = self.on_close.take() {
             on_close(r)?
         }
@@ -743,37 +726,13 @@ impl<'a, W: Write> SerializedPageWriter<'a, W> {
     pub fn new(sink: &'a mut TrackedWrite<W>) -> Self {
         Self { sink }
     }
-
-    /// Serializes page header into Thrift.
-    /// Returns number of bytes that have been written into the sink.
-    #[inline]
-    fn serialize_page_header(&mut self, header: parquet::PageHeader) -> Result<usize> {
-        let start_pos = self.sink.bytes_written();
-        {
-            let mut protocol = TCompactOutputProtocol::new(&mut self.sink);
-            header.write_to_out_protocol(&mut protocol)?;
-        }
-        Ok(self.sink.bytes_written() - start_pos)
-    }
 }
 
 impl<'a, W: Write + Send> PageWriter for SerializedPageWriter<'a, W> {
     fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec> {
-        let page_type = page.page_type();
         let start_pos = self.sink.bytes_written() as u64;
-
-        let page_header = page.to_thrift_header();
-        let header_size = self.serialize_page_header(page_header)?;
-        self.sink.write_all(page.data())?;
-
-        let mut spec = PageWriteSpec::new();
-        spec.page_type = page_type;
-        spec.uncompressed_size = page.uncompressed_size() + header_size;
-        spec.compressed_size = page.compressed_size() + header_size;
+        let mut spec = write_page(page, &mut self.sink)?;
         spec.offset = start_pos;
-        spec.bytes_written = self.sink.bytes_written() as u64 - start_pos;
-        spec.num_values = page.num_values();
-
         Ok(spec)
     }
 
@@ -789,6 +748,44 @@ impl<'a, W: Write + Send> PageWriter for SerializedPageWriter<'a, W> {
         self.sink.flush()?;
         Ok(())
     }
+}
+
+/// Write a compressed page to a given writer.
+///
+/// The offset in the returned page spec will be set to 0, allowing for it to be
+/// updated to a true offset later if we're writing into a larger buffer.
+pub fn write_page(page: CompressedPage, mut writer: impl io::Write) -> Result<PageWriteSpec> {
+    let page_type = page.page_type();
+
+    let page_header = page.to_thrift_header();
+    let header_size = serialize_page_header(page_header, &mut writer)?;
+    writer.write_all(page.data())?;
+
+    let spec = PageWriteSpec {
+        page_type,
+        uncompressed_size: page.uncompressed_size() + header_size,
+        compressed_size: page.compressed_size() + header_size,
+        num_values: page.num_values(),
+        offset: 0,
+        bytes_written: (page.compressed_size() + header_size) as u64,
+    };
+
+    Ok(spec)
+}
+
+/// Serializes page header into Thrift.
+///
+/// Returns number of bytes that have been written into the writer.
+#[inline]
+fn serialize_page_header(header: parquet::PageHeader, writer: impl io::Write) -> Result<usize> {
+    let mut writer = TrackedWrite::new(writer);
+
+    let mut protocol = TCompactOutputProtocol::new(&mut writer);
+    header.write_to_out_protocol(&mut protocol)?;
+
+    let n = writer.bytes_written();
+
+    Ok(n)
 }
 
 #[cfg(test)]
@@ -1703,7 +1700,7 @@ mod tests {
             let ((buf, out), tail) = column_state_slice.split_first_mut().unwrap();
             column_state_slice = tail;
 
-            let page_writer = Box::new(SerializedPageWriter::new(buf));
+            let page_writer = SerializedPageWriter::new(buf);
             let col_writer = get_column_writer(c.clone(), props.clone(), page_writer);
             column_writers.push(SerializedColumnWriter::new(
                 col_writer,
@@ -1730,7 +1727,7 @@ mod tests {
         // Splice column data into a row group
         let mut row_group_writer = file_writer.next_row_group().unwrap();
         for (write, close) in column_state {
-            let buf = Bytes::from(write.into_inner().unwrap());
+            let buf = Bytes::from(write.into_inner());
             row_group_writer
                 .append_column(&buf, close.unwrap())
                 .unwrap();

@@ -1,9 +1,10 @@
+use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::task::Context;
 
-use crate::execution::operators::{PollFinalize, PollPull, PollPush};
+use crate::execution::operators::{PollFinalize, PollPush};
 
 pub trait DataTable: Debug + Sync + Send {
     /// Return table scanners for the table.
@@ -28,7 +29,10 @@ pub trait DataTable: Debug + Sync + Send {
 }
 
 pub trait DataTableScan: Debug + Send {
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull>;
+    /// Pull the next batch in the scan.
+    ///
+    /// Returns None if the scan is exhausted.
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>>;
 }
 
 /// Implementation of `DataTableScan` that immediately returns exhausted.
@@ -36,8 +40,8 @@ pub trait DataTableScan: Debug + Send {
 pub struct EmptyTableScan;
 
 impl DataTableScan for EmptyTableScan {
-    fn poll_pull(&mut self, _cx: &mut Context) -> Result<PollPull> {
-        Ok(PollPull::Exhausted)
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async move { Ok(None) })
     }
 }
 

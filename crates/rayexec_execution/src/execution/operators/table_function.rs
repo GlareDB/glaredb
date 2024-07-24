@@ -4,16 +4,29 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::ExecutionRuntime,
 };
+use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::Context;
+use std::{fmt, task::Poll};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    util::futures::make_static, OperatorState, PartitionState, PhysicalOperator, PollFinalize,
+    PollPull, PollPush,
+};
 
-#[derive(Debug)]
 pub struct TableFunctionPartitionState {
     scan: Box<dyn DataTableScan>,
+    /// In progress pull we're working on.
+    future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
+}
+
+impl fmt::Debug for TableFunctionPartitionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TableFunctionPartitionState")
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug)]
@@ -38,7 +51,7 @@ impl PhysicalTableFunction {
 
         let states = scans
             .into_iter()
-            .map(|scan| TableFunctionPartitionState { scan })
+            .map(|scan| TableFunctionPartitionState { scan, future: None })
             .collect();
 
         Ok(states)
@@ -73,7 +86,32 @@ impl PhysicalOperator for PhysicalTableFunction {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::TableFunction(state) => state.scan.poll_pull(cx),
+            PartitionState::TableFunction(state) => {
+                if let Some(future) = &mut state.future {
+                    match future.poll_unpin(cx) {
+                        Poll::Ready(Ok(Some(batch))) => {
+                            state.future = None; // Future complete, next pull with create a new one.
+                            return Ok(PollPull::Batch(batch));
+                        }
+                        Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
+                        Poll::Ready(Err(e)) => return Err(e),
+                        Poll::Pending => return Ok(PollPull::Pending),
+                    }
+                }
+
+                let mut future = state.scan.pull();
+                match future.poll_unpin(cx) {
+                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Batch(batch)),
+                    Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
+                    Poll::Ready(Err(e)) => Err(e),
+                    Poll::Pending => {
+                        // SAFETY: Scan lives on the partition state and
+                        // outlives this future.
+                        state.future = Some(unsafe { make_static(future) });
+                        Ok(PollPull::Pending)
+                    }
+                }
+            }
             other => panic!("invalid partition state: {other:?}"),
         }
     }

@@ -2,19 +2,20 @@ use std::{
     collections::VecDeque,
     fmt::{self, Debug},
     sync::Arc,
-    task::{Context, Poll},
 };
 
-use crate::{array::AsyncBatchReader, metadata::Metadata};
-use futures::{stream::BoxStream, StreamExt};
+use crate::{metadata::Metadata, reader::AsyncBatchReader};
+use futures::future::BoxFuture;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
-    execution::operators::PollPull,
     runtime::ExecutionRuntime,
 };
-use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::{
+    location::{AccessConfig, FileLocation},
+    FileSource,
+};
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
@@ -56,11 +57,7 @@ impl DataTable for RowGroupPartitionedDataTable {
 
         let scans: Vec<Box<dyn DataTableScan>> = readers
             .into_iter()
-            .map(|reader| {
-                Box::new(RowGroupsScan {
-                    stream: reader.into_stream(),
-                }) as _
-            })
+            .map(|reader| Box::new(RowGroupsScan { reader }) as _)
             .collect();
 
         Ok(scans)
@@ -68,17 +65,12 @@ impl DataTable for RowGroupPartitionedDataTable {
 }
 
 struct RowGroupsScan {
-    stream: BoxStream<'static, Result<Batch>>,
+    reader: AsyncBatchReader<Box<dyn FileSource>>,
 }
 
 impl DataTableScan for RowGroupsScan {
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
-        match self.stream.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(batch))) => Ok(PollPull::Batch(batch)),
-            Poll::Ready(Some(Err(e))) => Err(e),
-            Poll::Ready(None) => Ok(PollPull::Exhausted),
-            Poll::Pending => Ok(PollPull::Pending),
-        }
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { self.reader.read_next().await })
     }
 }
 

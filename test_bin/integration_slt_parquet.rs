@@ -23,7 +23,7 @@ pub fn main() {
         },
         RunConfig {
             vars,
-            create_slt_tmp: false,
+            create_slt_tmp: true,
         },
         "slt_datasource_parquet",
     )

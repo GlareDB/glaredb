@@ -16,14 +16,12 @@ use rayexec_execution::{
         table::{DataTable, DataTableScan, EmptyTableScan},
     },
     datasource::{check_options_empty, take_option, DataSource},
-    execution::operators::PollPull,
     functions::table::TableFunction,
     runtime::ExecutionRuntime,
 };
 use read_postgres::ReadPostgres;
 use std::fmt;
-use std::task::Poll;
-use std::{collections::HashMap, sync::Arc, task::Context};
+use std::{collections::HashMap, sync::Arc};
 use tokio_postgres::{
     binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream},
     types::Type as PostgresType,
@@ -194,13 +192,8 @@ pub struct PostgresDataTableScan {
 }
 
 impl DataTableScan for PostgresDataTableScan {
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
-        match self.stream.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(batch))) => Ok(PollPull::Batch(batch)),
-            Poll::Ready(Some(Err(e))) => Err(e),
-            Poll::Ready(None) => Ok(PollPull::Exhausted),
-            Poll::Pending => Ok(PollPull::Pending),
-        }
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { self.stream.next().await.transpose() })
     }
 }
 

@@ -217,6 +217,11 @@ where
         }
     }
 
+    /// Returns a tuple of (validity, offsets, data) that make up this array.
+    pub fn into_parts(self) -> (Option<Bitmap>, PrimitiveStorage<O>, PrimitiveStorage<u8>) {
+        (self.validity, self.offsets, self.data)
+    }
+
     pub fn len(&self) -> usize {
         self.offsets.as_ref().len() - 1
     }
@@ -271,8 +276,13 @@ where
     }
 
     /// Get a reference to the raw data buffer.
-    pub(crate) fn data(&self) -> &PrimitiveStorage<u8> {
+    pub fn data(&self) -> &PrimitiveStorage<u8> {
         &self.data
+    }
+
+    /// Get a reference to the array offsets.
+    pub fn offsets(&self) -> &PrimitiveStorage<O> {
+        &self.offsets
     }
 }
 

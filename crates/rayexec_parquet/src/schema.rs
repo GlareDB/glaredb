@@ -1,5 +1,9 @@
+use std::sync::Arc;
+
 use parquet::{
-    basic::{ConvertedType, LogicalType, TimeUnit as ParquetTimeUnit},
+    basic::{
+        ConvertedType, LogicalType, Repetition, TimeUnit as ParquetTimeUnit, Type as PhysicalType,
+    },
     schema::types::{BasicTypeInfo, SchemaDescriptor, Type},
 };
 use rayexec_bullet::{
@@ -7,13 +11,13 @@ use rayexec_bullet::{
     field::{Field, Schema},
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 /// Converts a parquet schema to a bullet schema.
 ///
 /// A lot of this logic was taken from the conversion to arrow in the upstream
 /// arrow-rs crate.
-pub fn convert_schema(parquet_schema: &SchemaDescriptor) -> Result<Schema> {
+pub fn from_parquet_schema(parquet_schema: &SchemaDescriptor) -> Result<Schema> {
     match parquet_schema.root_schema() {
         Type::GroupType { fields, .. } => {
             let fields = convert_types_to_fields(fields)?;
@@ -21,6 +25,111 @@ pub fn convert_schema(parquet_schema: &SchemaDescriptor) -> Result<Schema> {
         }
         Type::PrimitiveType { .. } => unreachable!("schema type is not primitive"),
     }
+}
+
+pub fn to_parquet_schema(schema: &Schema) -> Result<SchemaDescriptor> {
+    let types = schema
+        .fields
+        .iter()
+        .map(|f| Ok(Arc::new(to_parquet_type(f)?)))
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(SchemaDescriptor::new(Arc::new(
+        Type::group_type_builder("schema")
+            .with_fields(types)
+            .build()
+            .context("failed to build root group type")?,
+    )))
+}
+
+fn to_parquet_type(field: &Field) -> Result<Type> {
+    let rep = if field.nullable {
+        // TODO: CHANGE ME.
+        Repetition::REQUIRED
+    } else {
+        Repetition::REQUIRED
+    };
+
+    let result = match &field.datatype {
+        DataType::Boolean => Type::primitive_type_builder(&field.name, PhysicalType::BOOLEAN)
+            .with_repetition(rep)
+            .build(),
+        DataType::Int8 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 8,
+                is_signed: true,
+            }))
+            .build(),
+        DataType::Int16 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 16,
+                is_signed: true,
+            }))
+            .build(),
+        DataType::Int32 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 32,
+                is_signed: true,
+            }))
+            .build(),
+        DataType::Int64 => Type::primitive_type_builder(&field.name, PhysicalType::INT64)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 64,
+                is_signed: true,
+            }))
+            .build(),
+        DataType::UInt8 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 8,
+                is_signed: false,
+            }))
+            .build(),
+        DataType::UInt16 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 16,
+                is_signed: false,
+            }))
+            .build(),
+        DataType::UInt32 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 32,
+                is_signed: false,
+            }))
+            .build(),
+        DataType::UInt64 => Type::primitive_type_builder(&field.name, PhysicalType::INT64)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::Integer {
+                bit_width: 64,
+                is_signed: false,
+            }))
+            .build(),
+        DataType::Float32 => Type::primitive_type_builder(&field.name, PhysicalType::FLOAT)
+            .with_repetition(rep)
+            .build(),
+        DataType::Float64 => Type::primitive_type_builder(&field.name, PhysicalType::DOUBLE)
+            .with_repetition(rep)
+            .build(),
+        DataType::Utf8 | DataType::LargeUtf8 => {
+            Type::primitive_type_builder(&field.name, PhysicalType::BYTE_ARRAY)
+                .with_repetition(rep)
+                .with_logical_type(Some(LogicalType::String))
+                .build()
+        }
+        other => {
+            return Err(RayexecError::new(format!(
+                "Unimplemented type conversion to parquet type: {other}"
+            )))
+        }
+    };
+
+    result.context("failed to build parquet type")
 }
 
 fn convert_complex(parquet_type: &Type) -> Result<DataType> {

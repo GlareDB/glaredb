@@ -47,7 +47,7 @@ impl fmt::Display for PipelineDump {
 
         writeln!(f, "PARTITIONS")?;
         for (partition, dump) in &self.partitions {
-            write!(f, "[{partition:>2}] {:?}", dump.state)?;
+            writeln!(f, "[{partition:>2}] {:?}", dump.state)?;
         }
 
         Ok(())

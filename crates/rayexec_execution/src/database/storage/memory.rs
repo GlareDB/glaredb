@@ -16,7 +16,7 @@ use crate::database::entry::{CatalogEntry, TableEntry};
 use crate::execution::operators::PollFinalize;
 use crate::{
     database::table::{DataTable, DataTableInsert, DataTableScan},
-    execution::operators::{PollPull, PollPush},
+    execution::operators::PollPush,
 };
 
 /// Quick and dirty in-memory implementation of a catalog and related data
@@ -282,11 +282,8 @@ pub struct MemoryDataTableScan {
 }
 
 impl DataTableScan for MemoryDataTableScan {
-    fn poll_pull(&mut self, _cx: &mut Context) -> Result<PollPull> {
-        match self.data.pop() {
-            Some(batch) => Ok(PollPull::Batch(batch)),
-            None => Ok(PollPull::Exhausted),
-        }
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { Ok(self.data.pop()) })
     }
 }
 

@@ -243,26 +243,6 @@ pub struct PageWriteSpec {
     pub bytes_written: u64,
 }
 
-impl Default for PageWriteSpec {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PageWriteSpec {
-    /// Creates new spec with default page write metrics.
-    pub fn new() -> Self {
-        Self {
-            page_type: PageType::DATA_PAGE,
-            uncompressed_size: 0,
-            compressed_size: 0,
-            num_values: 0,
-            offset: 0,
-            bytes_written: 0,
-        }
-    }
-}
-
 /// Contains metadata for a page
 #[derive(Debug, Clone)]
 pub struct PageMetadata {

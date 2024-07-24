@@ -19,10 +19,7 @@
 //! inferred types from the previous step. If it differs, assume a header.
 use crate::decoder::{CompletedRecords, CsvDecoder, DecoderResult, DecoderState};
 use bytes::Bytes;
-use futures::{
-    stream::{self, BoxStream, Stream},
-    StreamExt,
-};
+use futures::{stream::BoxStream, StreamExt};
 use rayexec_bullet::{
     array::{
         Array, BooleanArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,
@@ -37,6 +34,7 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileSource;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialectOptions {
@@ -316,43 +314,40 @@ impl CsvSchema {
     }
 }
 
-#[derive(Debug)]
-pub struct AsyncCsvReader<R: FileSource> {
-    reader: R,
-    csv_schema: CsvSchema,
-    dialect: DialectOptions,
+pub struct AsyncCsvReader {
+    stream: AsyncCsvStream,
 }
 
-impl<R: FileSource> AsyncCsvReader<R> {
-    pub fn new(reader: R, csv_schema: CsvSchema, dialect: DialectOptions) -> Self {
-        AsyncCsvReader {
-            reader,
-            csv_schema,
-            dialect,
-        }
-    }
-
-    pub fn into_stream(mut self) -> impl Stream<Item = Result<Batch>> {
+impl AsyncCsvReader {
+    pub fn new(
+        mut reader: impl FileSource,
+        csv_schema: CsvSchema,
+        dialect: DialectOptions,
+    ) -> Self {
         let stream = AsyncCsvStream {
             schema: Schema {
-                fields: self.csv_schema.fields,
+                fields: csv_schema.fields,
             },
-            skip_header: self.csv_schema.has_header,
-            stream: self.reader.read_stream(),
+            skip_header: csv_schema.has_header,
+            stream: reader.read_stream(),
             decoder_state: DecoderState::default(),
-            decoder: CsvDecoder::new(self.dialect),
+            decoder: CsvDecoder::new(dialect),
             buf: None,
             buf_offset: 0,
             decoding_finished: false,
         };
 
-        stream::try_unfold(stream, |mut stream| async move {
-            match stream.next_batch().await {
-                Ok(Some(batch)) => Ok(Some((batch, stream))),
-                Ok(None) => Ok(None),
-                Err(e) => Err(e),
-            }
-        })
+        AsyncCsvReader { stream }
+    }
+
+    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+        self.stream.next_batch().await
+    }
+}
+
+impl fmt::Debug for AsyncCsvReader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AsyncCsvReader").finish_non_exhaustive()
     }
 }
 

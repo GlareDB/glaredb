@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 
 use futures::{future::BoxFuture, FutureExt};
@@ -7,20 +8,18 @@ use rayexec_error::Result;
 use rayexec_execution::functions::copy::{CopyToFunction, CopyToSink};
 use rayexec_execution::runtime::ExecutionRuntime;
 use rayexec_io::location::AccessConfig;
-use rayexec_io::{location::FileLocation, FileSink};
+use rayexec_io::location::FileLocation;
 
-use crate::reader::DialectOptions;
-use crate::writer::CsvEncoder;
+use crate::writer::AsyncBatchWriter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CsvCopyToFunction;
+pub struct ParquetCopyToFunction;
 
-impl CopyToFunction for CsvCopyToFunction {
+impl CopyToFunction for ParquetCopyToFunction {
     fn name(&self) -> &'static str {
-        "csv_copy_to"
+        "parquet_copy_to"
     }
 
-    // TODO: Access config
     fn create_sinks(
         &self,
         runtime: &Arc<dyn ExecutionRuntime>,
@@ -33,45 +32,42 @@ impl CopyToFunction for CsvCopyToFunction {
         let mut sinks = Vec::with_capacity(num_partitions);
         for _ in 0..num_partitions {
             let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
-            let dialect = DialectOptions::default();
-
-            sinks.push(Box::new(CsvCopyToSink {
-                encoder: CsvEncoder::new(schema.clone(), dialect),
-                sink,
-            }) as _)
+            let writer = AsyncBatchWriter::try_new(sink, schema.clone())?;
+            sinks.push(Box::new(ParquetCopyToSink { writer }) as _)
         }
 
         Ok(sinks)
     }
 }
 
-#[derive(Debug)]
-pub struct CsvCopyToSink {
-    encoder: CsvEncoder,
-    sink: Box<dyn FileSink>,
+pub struct ParquetCopyToSink {
+    writer: AsyncBatchWriter,
 }
 
-impl CsvCopyToSink {
+impl ParquetCopyToSink {
     async fn push_inner(&mut self, batch: Batch) -> Result<()> {
-        let mut buf = Vec::with_capacity(1024);
-        self.encoder.encode(&batch, &mut buf)?;
-        self.sink.write_all(buf.into()).await?;
-
+        self.writer.write(&batch).await?;
         Ok(())
     }
 
     async fn finalize_inner(&mut self) -> Result<()> {
-        self.sink.finish().await?;
+        self.writer.finish().await?;
         Ok(())
     }
 }
 
-impl CopyToSink for CsvCopyToSink {
+impl CopyToSink for ParquetCopyToSink {
     fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         self.push_inner(batch).boxed()
     }
 
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
         self.finalize_inner().boxed()
+    }
+}
+
+impl fmt::Debug for ParquetCopyToSink {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ParquetCopyToSink").finish_non_exhaustive()
     }
 }

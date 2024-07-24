@@ -1,9 +1,12 @@
-pub mod array;
+pub mod copy_to;
 pub mod functions;
 pub mod metadata;
+pub mod reader;
+pub mod writer;
 
 mod schema;
 
+use copy_to::ParquetCopyToFunction;
 use functions::read_parquet::ReadParquet;
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -46,7 +49,7 @@ impl DataSource for ParquetDataSource {
         vec![FileHandler {
             regex,
             table_func: Box::new(ReadParquet),
-            copy_to: None,
+            copy_to: Some(Box::new(ParquetCopyToFunction)),
         }]
     }
 }

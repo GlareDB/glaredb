@@ -1,6 +1,5 @@
 use crate::{
     database::table::{DataTable, DataTableScan, EmptyTableScan},
-    execution::operators::PollPull,
     runtime::ExecutionRuntime,
 };
 use futures::future::BoxFuture;
@@ -12,7 +11,7 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, task::Context};
+use std::sync::Arc;
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 
@@ -167,10 +166,7 @@ impl GenerateSeriesScan {
 }
 
 impl DataTableScan for GenerateSeriesScan {
-    fn poll_pull(&mut self, _cx: &mut Context) -> Result<PollPull> {
-        match self.generate_next() {
-            Some(batch) => Ok(PollPull::Batch(batch)),
-            None => Ok(PollPull::Exhausted),
-        }
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async { Ok(self.generate_next()) })
     }
 }

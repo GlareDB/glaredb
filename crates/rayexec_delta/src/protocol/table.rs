@@ -1,9 +1,6 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use futures::{
-    stream::{self, BoxStream},
-    StreamExt, TryStreamExt,
-};
+use futures::{StreamExt, TryStreamExt};
 use rayexec_bullet::{
     batch::Batch,
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
@@ -15,7 +12,7 @@ use rayexec_io::{
     location::{AccessConfig, FileLocation},
     FileProvider, FileSource,
 };
-use rayexec_parquet::{array::AsyncBatchReader, metadata::Metadata};
+use rayexec_parquet::{metadata::Metadata, reader::AsyncBatchReader};
 use serde_json::Deserializer;
 
 use crate::protocol::schema::{PrimitiveType, SchemaType};
@@ -42,6 +39,15 @@ pub struct Table {
 }
 
 impl Table {
+    pub async fn create(
+        _root: FileLocation,
+        _schema: Schema,
+        _provider: Arc<dyn FileProvider>,
+        _conf: AccessConfig,
+    ) -> Result<Self> {
+        unimplemented!()
+    }
+
     /// Try to load a table at the given location.
     pub async fn load(
         root: FileLocation,
@@ -176,40 +182,37 @@ pub struct TableScan {
 }
 
 impl TableScan {
-    pub fn into_stream(self) -> BoxStream<'static, Result<Batch>> {
-        let stream = stream::try_unfold(self, |mut scan| async move {
-            loop {
-                if scan.current.is_none() {
-                    let path = match scan.paths.pop_front() {
-                        Some(path) => path,
-                        None => return Ok(None), // We're done.
-                    };
+    /// Read the next batch.
+    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+        loop {
+            if self.current.is_none() {
+                let path = match self.paths.pop_front() {
+                    Some(path) => path,
+                    None => return Ok(None), // We're done.
+                };
 
-                    scan.current = Some(
-                        Self::load_reader(
-                            &scan.root,
-                            &scan.conf,
-                            path,
-                            scan.provider.as_ref(),
-                            &scan.schema,
-                        )
-                        .await?,
+                self.current = Some(
+                    Self::load_reader(
+                        &self.root,
+                        &self.conf,
+                        path,
+                        self.provider.as_ref(),
+                        &self.schema,
                     )
-                }
-
-                match scan.current.as_mut().unwrap().read_next().await {
-                    Ok(Some(batch)) => return Ok(Some((batch, scan))),
-                    Ok(None) => {
-                        // Loads next read at beginning of loop.
-                        scan.current = None;
-                        continue;
-                    }
-                    Err(e) => return Err(e),
-                }
+                    .await?,
+                )
             }
-        });
 
-        stream.boxed()
+            match self.current.as_mut().unwrap().read_next().await {
+                Ok(Some(batch)) => return Ok(Some(batch)),
+                Ok(None) => {
+                    // Loads next read at beginning of loop.
+                    self.current = None;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     async fn load_reader(

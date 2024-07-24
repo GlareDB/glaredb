@@ -30,18 +30,6 @@ use crate::errors::{ParquetError, Result};
 use crate::file::properties::{EnabledStatistics, WriterProperties};
 use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
 
-/// A collection of [`ParquetValueType`] encoded by a [`ColumnValueEncoder`]
-pub trait ColumnValues {
-    /// The number of values in this collection
-    fn len(&self) -> usize;
-}
-
-impl<T: ParquetValueType> ColumnValues for [T] {
-    fn len(&self) -> usize {
-        self.len()
-    }
-}
-
 /// The encoded data for a dictionary page
 pub struct DictionaryPage {
     pub buf: Bytes,
@@ -52,63 +40,14 @@ pub struct DictionaryPage {
 /// The encoded values for a data page, with optional statistics
 pub struct DataPageValues<T> {
     pub buf: Bytes,
+    #[allow(dead_code)]
     pub num_values: usize,
     pub encoding: Encoding,
     pub min_value: Option<T>,
     pub max_value: Option<T>,
 }
 
-/// A generic encoder of [`ColumnValues`] to data and dictionary pages used by
-/// [super::GenericColumnWriter`]
-pub trait ColumnValueEncoder {
-    /// The underlying value type of [`Self::Values`]
-    ///
-    /// Note: this avoids needing to fully qualify `<Self::Values as ColumnValues>::T`
-    type T: ParquetValueType;
-
-    /// The values encoded by this encoder
-    type Values: ColumnValues + ?Sized;
-
-    /// Create a new [`ColumnValueEncoder`]
-    fn try_new(descr: &ColumnDescPtr, props: &WriterProperties) -> Result<Self>
-    where
-        Self: Sized;
-
-    /// Write the corresponding values to this [`ColumnValueEncoder`]
-    fn write(&mut self, values: &Self::Values, offset: usize, len: usize) -> Result<()>;
-
-    /// Write the values at the indexes in `indices` to this [`ColumnValueEncoder`]
-    fn write_gather(&mut self, values: &Self::Values, indices: &[usize]) -> Result<()>;
-
-    /// Returns the number of buffered values
-    fn num_values(&self) -> usize;
-
-    /// Returns true if this encoder has a dictionary page
-    fn has_dictionary(&self) -> bool;
-
-    /// Returns an estimate of the dictionary page size in bytes, or `None` if no dictionary
-    fn estimated_dict_page_size(&self) -> Option<usize>;
-
-    /// Returns an estimate of the data page size in bytes
-    fn estimated_data_page_size(&self) -> usize;
-
-    /// Flush the dictionary page for this column chunk if any. Any subsequent calls to
-    /// [`Self::write`] will not be dictionary encoded
-    ///
-    /// Note: [`Self::flush_data_page`] must be called first, as this will error if there
-    /// are any pending page values
-    fn flush_dict_page(&mut self) -> Result<Option<DictionaryPage>>;
-
-    /// Flush the next data page for this column chunk
-    fn flush_data_page(&mut self) -> Result<DataPageValues<Self::T>>;
-
-    /// Flushes bloom filter if enabled and returns it, otherwise returns `None`. Subsequent writes
-    /// will *not* be tracked by the bloom filter as it is empty since. This should be called once
-    /// near the end of encoding.
-    fn flush_bloom_filter(&mut self) -> Option<Sbbf>;
-}
-
-pub struct ColumnValueEncoderImpl<T: DataType> {
+pub struct ColumnValueEncoder<T: DataType> {
     encoder: Box<dyn Encoder<T>>,
     dict_encoder: Option<DictEncoder<T>>,
     descr: ColumnDescPtr,
@@ -119,7 +58,7 @@ pub struct ColumnValueEncoderImpl<T: DataType> {
     bloom_filter: Option<Sbbf>,
 }
 
-impl<T: DataType> ColumnValueEncoderImpl<T> {
+impl<T: DataType> ColumnValueEncoder<T> {
     fn min_max(&self, values: &[T::T], value_indices: Option<&[usize]>) -> Option<(T::T, T::T)> {
         match value_indices {
             Some(indices) => get_min_max(&self.descr, indices.iter().map(|x| &values[*x])),
@@ -152,16 +91,9 @@ impl<T: DataType> ColumnValueEncoderImpl<T> {
     }
 }
 
-impl<T: DataType> ColumnValueEncoder for ColumnValueEncoderImpl<T> {
-    type T = T::T;
-
-    type Values = [T::T];
-
-    fn flush_bloom_filter(&mut self) -> Option<Sbbf> {
-        self.bloom_filter.take()
-    }
-
-    fn try_new(descr: &ColumnDescPtr, props: &WriterProperties) -> Result<Self> {
+impl<T: DataType> ColumnValueEncoder<T> {
+    /// Create a new [`ColumnValueEncoder`]
+    pub fn try_new(descr: &ColumnDescPtr, props: &WriterProperties) -> Result<Self> {
         let dict_supported = props.dictionary_enabled(descr.path())
             && has_dictionary_support(T::get_physical_type(), props);
         let dict_encoder = dict_supported.then(|| DictEncoder::new(descr.clone()));
@@ -192,7 +124,8 @@ impl<T: DataType> ColumnValueEncoder for ColumnValueEncoderImpl<T> {
         })
     }
 
-    fn write(&mut self, values: &[T::T], offset: usize, len: usize) -> Result<()> {
+    /// Write the corresponding values to this [`ColumnValueEncoder`]
+    pub fn write(&mut self, values: &[T::T], offset: usize, len: usize) -> Result<()> {
         self.num_values += len;
 
         let slice = values.get(offset..offset + len).ok_or_else(|| {
@@ -206,32 +139,42 @@ impl<T: DataType> ColumnValueEncoder for ColumnValueEncoderImpl<T> {
         self.write_slice(slice)
     }
 
-    fn write_gather(&mut self, values: &Self::Values, indices: &[usize]) -> Result<()> {
+    /// Write the values at the indexes in `indices` to this [`ColumnValueEncoder`]
+    pub fn write_gather(&mut self, values: &[T::T], indices: &[usize]) -> Result<()> {
         self.num_values += indices.len();
         let slice: Vec<_> = indices.iter().map(|idx| values[*idx].clone()).collect();
         self.write_slice(&slice)
     }
 
-    fn num_values(&self) -> usize {
+    /// Returns the number of buffered values
+    pub fn num_values(&self) -> usize {
         self.num_values
     }
 
-    fn has_dictionary(&self) -> bool {
+    /// Returns true if this encoder has a dictionary page
+    pub fn has_dictionary(&self) -> bool {
         self.dict_encoder.is_some()
     }
 
-    fn estimated_dict_page_size(&self) -> Option<usize> {
+    /// Returns an estimate of the dictionary page size in bytes, or `None` if no dictionary
+    pub fn estimated_dict_page_size(&self) -> Option<usize> {
         Some(self.dict_encoder.as_ref()?.dict_encoded_size())
     }
 
-    fn estimated_data_page_size(&self) -> usize {
+    /// Returns an estimate of the data page size in bytes
+    pub fn estimated_data_page_size(&self) -> usize {
         match &self.dict_encoder {
             Some(encoder) => encoder.estimated_data_encoded_size(),
             _ => self.encoder.estimated_data_encoded_size(),
         }
     }
 
-    fn flush_dict_page(&mut self) -> Result<Option<DictionaryPage>> {
+    /// Flush the dictionary page for this column chunk if any. Any subsequent calls to
+    /// [`Self::write`] will not be dictionary encoded
+    ///
+    /// Note: [`Self::flush_data_page`] must be called first, as this will error if there
+    /// are any pending page values
+    pub fn flush_dict_page(&mut self) -> Result<Option<DictionaryPage>> {
         match self.dict_encoder.take() {
             Some(encoder) => {
                 if self.num_values != 0 {
@@ -252,7 +195,8 @@ impl<T: DataType> ColumnValueEncoder for ColumnValueEncoderImpl<T> {
         }
     }
 
-    fn flush_data_page(&mut self) -> Result<DataPageValues<T::T>> {
+    /// Flush the next data page for this column chunk
+    pub fn flush_data_page(&mut self) -> Result<DataPageValues<T::T>> {
         let (buf, encoding) = match &mut self.dict_encoder {
             Some(encoder) => (encoder.write_indices()?, Encoding::RLE_DICTIONARY),
             _ => (self.encoder.flush_buffer()?, self.encoder.encoding()),
@@ -265,6 +209,13 @@ impl<T: DataType> ColumnValueEncoder for ColumnValueEncoderImpl<T> {
             min_value: self.min_value.take(),
             max_value: self.max_value.take(),
         })
+    }
+
+    /// Flushes bloom filter if enabled and returns it, otherwise returns `None`. Subsequent writes
+    /// will *not* be tracked by the bloom filter as it is empty since. This should be called once
+    /// near the end of encoding.
+    pub fn flush_bloom_filter(&mut self) -> Option<Sbbf> {
+        self.bloom_filter.take()
     }
 }
 

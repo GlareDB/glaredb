@@ -1,0 +1,35 @@
+# COPY TO parquet
+
+# Basic
+
+statement ok
+copy (select a, b from generate_series(1, 5) t1(a), generate_series(1, 5) t2(b))
+  to '__SLT_TMP__/copy_to.parquet';
+
+query TT
+describe '__SLT_TMP__/copy_to.parquet';
+----
+a  Int64
+b  Int64
+
+query IIII
+select min(a), max(a), min(b), max(b) from '__SLT_TMP__/copy_to.parquet';
+----
+1  5  1  5
+
+# Strings
+
+statement ok
+copy (select * from (values ('yoshi'), ('mario'), ('toad')) as t(a)) to '__SLT_TMP__/strings.parquet';
+
+query TT
+describe '__SLT_TMP__/strings.parquet'
+----
+a  Utf8
+
+query T
+select * from '__SLT_TMP__/strings.parquet' order by 1;
+----
+mario
+toad
+yoshi
