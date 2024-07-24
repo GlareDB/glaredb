@@ -118,6 +118,6 @@ select count(*) from bsd_lite_goog_jaq;
 9
 
 query IT
-select stat, id = 1001 from bsd_lite_goog_jaq where id = 1001;
+select id, stat, id = 1001 from bsd_lite_goog_jaq where id = 1001;
 ----
 1001 closed t
