@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
-use bson::{RawBsonRef, RawDocumentBuf};
+use bson::{Bson, RawBsonRef, RawDocumentBuf};
 use datafusion::arrow::array::{
     Array,
     ArrayBuilder,
@@ -357,25 +357,43 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(Date32Builder, col, (v.timestamp_millis() / 1000) as i32)
         }
 
-        // Document
-        (RawBsonRef::Document(nested), DataType::Struct(_)) => {
-            let builder = col
-                .as_any_mut()
+        // Array
+        (RawBsonRef::Document(doc), DataType::Struct(_)) => {
+            col.as_any_mut()
                 .downcast_mut::<RecordStructBuilder>()
-                .unwrap();
-            builder.project_and_append(&nested.to_raw_document_buf())?;
+                .unwrap()
+                .project_and_append(&doc.to_raw_document_buf())?;
+        }
+        (RawBsonRef::Document(doc), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, doc.as_bytes())
+        }
+        (RawBsonRef::Document(doc), DataType::Utf8) => {
+            append_scalar!(
+                StringBuilder,
+                col,
+                Bson::Document(bson::Document::from_reader(doc.as_bytes())?)
+                    .into_relaxed_extjson()
+                    .to_string()
+            )
         }
 
         // Array
+        (RawBsonRef::Array(doc), DataType::Struct(_)) => {
+            col.as_any_mut()
+                .downcast_mut::<RecordStructBuilder>()
+                .unwrap()
+                .project_and_append(&RawDocumentBuf::from_bytes(doc.as_bytes().into())?)?;
+        }
+        (RawBsonRef::Array(arr), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, arr.as_bytes())
+        }
         (RawBsonRef::Array(arr), DataType::Utf8) => {
             append_scalar!(
                 StringBuilder,
                 col,
-                serde_json::Value::from(
-                    bson::Array::try_from(arr)
-                        .map_err(|_| BsonError::FailedToReadRawBsonDocument)?
-                )
-                .to_string()
+                Bson::Array(bson::Array::try_from(arr)?)
+                    .into_relaxed_extjson()
+                    .to_string()
             )
         }
 

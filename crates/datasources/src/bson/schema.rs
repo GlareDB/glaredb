@@ -37,21 +37,15 @@ fn fields_from_document(depth: usize, doc: &RawDocumentBuf) -> Result<Vec<Field>
 
 fn bson_to_arrow_type(depth: usize, bson: RawBsonRef) -> Result<DataType> {
     Ok(match bson {
-        RawBsonRef::Array(array_doc) => DataType::new_list(
-            // TODO this should become a struct with numeric keys to
-            // allow for heterogeneous types
-            bson_to_arrow_type(
-                0,
-                array_doc
-                    .into_iter()
-                    .next()
-                    .map(|v| v.unwrap_or(RawBsonRef::Null))
-                    .unwrap(),
-            )?,
-            true,
+        RawBsonRef::Array(doc) => DataType::Struct(
+            fields_from_document(
+                depth + 1,
+                &RawDocumentBuf::from_bytes(doc.as_bytes().into())?,
+            )?
+            .into(),
         ),
-        RawBsonRef::Document(nested) => {
-            DataType::Struct(fields_from_document(depth + 1, &nested.to_raw_document_buf())?.into())
+        RawBsonRef::Document(doc) => {
+            DataType::Struct(fields_from_document(depth + 1, &doc.to_raw_document_buf())?.into())
         }
         RawBsonRef::String(_) => DataType::Utf8,
         RawBsonRef::Double(_) => DataType::Float64,
@@ -133,6 +127,7 @@ pub fn merge_schemas(schemas: impl IntoIterator<Item = Result<Schema>>) -> Resul
 fn merge_field(left: &mut Field, right: &Field) -> Result<()> {
     let dt = match (left.data_type(), right.data_type()) {
         (&DataType::Null, right) => right.clone(),
+        (&DataType::Int32, &DataType::Int64) => DataType::Int64,
         (&DataType::Int32 | &DataType::Int64 | &DataType::Float64, &DataType::Float64) => {
             DataType::Float64
         }
