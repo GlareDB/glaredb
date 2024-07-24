@@ -67,9 +67,12 @@ rust_decimal = { version = "1.35.0", features = ["db-tokio-postgres"] }
 ssh-key = { version = "0.6.6", features = ["ed25519", "alloc"] }
 tiberius = { version = "0.12.2", default-features = false, features = ["tds73","rustls","chrono"] }
 tokio-postgres = { version = "0.7.8", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
+memoize = { version = "0.4.2", features = ["full"] }
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
 lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
 json-stream = { git = "https://github.com/tychoish/json-stream", rev = "bd4990fab95f789740a75a8eea98d5dac1f0160a" }
+jaq-interpret = "1.5.0"
+jaq-parse = "1.0.2"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]

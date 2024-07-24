@@ -1,0 +1,73 @@
+# baseline
+query T
+SELECT status FROM read_json(
+        './testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json'
+)
+WHERE station_id = 1001;
+----
+closed
+
+# filter a rename
+query T
+SELECT stat
+FROM read_json(
+	'./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json',
+	jaq_filter => '{"id": .station_id, "stat": .status }'
+)
+WHERE id = 1001;
+----
+closed
+
+query IT
+SELECT *
+FROM read_json(
+	'./testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json',
+	jaq_filter => '{"id": .station_id, "stat": .status }'
+)
+WHERE id = 1001;
+----
+1001 closed
+
+statement ok
+CREATE EXTERNAL TABLE bsd_lite_jaq FROM json OPTIONS (
+       location => './testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json',
+       jaq_filter => '{"id": .station_id, "stat": .status }'
+);
+
+statement ok
+CREATE EXTERNAL TABLE bsd_lite FROM json OPTIONS (
+       location => './testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json',
+);
+
+statement ok
+SELECT station_id FROM bsd_lite;
+
+statement error
+SELECT id FROM bsd_lite;
+
+statement error
+SELECT station_id FROM bsd_lite_jaq;
+
+statement ok
+SELECT id FROM bsd_lite_jaq;
+
+query IT
+SELECT *
+FROM bsd_lite_jaq
+WHERE id = 1001;
+----
+1001 closed
+
+query T
+SELECT stat
+FROM bsd_lite_jaq
+WHERE id = 1001;
+----
+closed
+
+query IT
+SELECT id, stat, id = 1001
+FROM bsd_lite_jaq
+WHERE id = 1001;
+----
+1001 closed t
