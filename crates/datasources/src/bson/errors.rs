@@ -52,6 +52,12 @@ pub enum BsonError {
 
     #[error("no objects found {0}")]
     NotFound(String),
+
+    #[error(transparent)]
+    DateTimeParse(#[from] chrono::ParseError),
+
+    #[error("invalid value: {0}")]
+    InvalidValue(String),
 }
 
 impl From<BsonError> for DataFusionError {
