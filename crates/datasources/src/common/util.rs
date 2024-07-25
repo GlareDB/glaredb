@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
-use chrono::{Duration, TimeZone, Utc};
+use chrono::{Duration, NaiveTime, TimeZone, Utc};
 use datafusion::arrow::array::{Array, ArrayRef, UInt64Array};
 use datafusion::arrow::compute::{cast_with_options, CastOptions};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
@@ -203,6 +203,24 @@ pub fn create_count_record_batch(count: u64) -> RecordBatch {
         ))],
     )
     .unwrap()
+}
+
+pub fn try_parse_datetime(v: &str) -> Result<chrono::DateTime<chrono::Utc>, chrono::ParseError> {
+    chrono::DateTime::parse_from_rfc3339(v)
+        .or_else(|_| chrono::DateTime::parse_from_rfc2822(v))
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(v, "%Y-%m-%d %H:%M:%S%.f")
+                .map(|dt| dt.and_utc().fixed_offset())
+        })
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(v, "%Y-%m-%d %H:%M:%S")
+                .map(|dt| dt.and_utc().fixed_offset())
+        })
+        .or_else(|_| {
+            chrono::NaiveDate::parse_from_str(v, "%Y-%m-%d")
+                .map(|dt| dt.and_time(NaiveTime::default()).and_utc().fixed_offset())
+        })
+        .map(|dt| dt.to_utc())
 }
 
 

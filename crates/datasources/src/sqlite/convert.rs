@@ -314,10 +314,11 @@ impl Converter {
                                 builder.append_null();
                             }
                             ValueRef::Text(t) => {
-                                // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
-                                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
+                                // note: use this parsing order rather
+                                // than util::try_parse_datetime,
+                                // given the likely values of sqlite dates
                                 let date = NaiveDate::parse_from_str(t, "%Y-%m-%d")
                                     .or_else(|_| {
                                         NaiveDateTime::parse_from_str(t, "%Y-%m-%d %H:%M:%S%.f")
@@ -339,6 +340,9 @@ impl Converter {
                                         to: DataType::Date32,
                                         cause: Some(e.to_string()),
                                     })?;
+
+                                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+
                                 let num_days_since_epoch =
                                     date.signed_duration_since(epoch).num_days();
                                 let i = i32::try_from(num_days_since_epoch).map_err(|e| {
@@ -436,9 +440,11 @@ impl Converter {
                                 builder.append_null();
                             }
                             ValueRef::Text(t) => {
-                                // TODO: Support other str formats
                                 let t = std::str::from_utf8(t).unwrap();
-                                let epoch = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+
+                                // note: use this parsing order rather
+                                // than util::try_parse_datetime,
+                                // given the likely values of sqlite dates
                                 let time = NaiveTime::parse_from_str(t, "%H:%M:%S%.f")
                                     .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M:%S%"))
                                     .or_else(|_| {
@@ -466,7 +472,8 @@ impl Converter {
                                         cause: Some(e.to_string()),
                                     })?;
 
-                                let duration_since_midnight = time.signed_duration_since(epoch);
+                                let duration_since_midnight =
+                                    time.signed_duration_since(NaiveTime::default());
                                 let microseconds_since_midnight =
                                     duration_since_midnight.num_microseconds().unwrap();
                                 builder.append_value(microseconds_since_midnight);
