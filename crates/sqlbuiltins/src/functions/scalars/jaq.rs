@@ -14,8 +14,8 @@ use datafusion::logical_expr::{
 };
 use datafusion::prelude::Expr;
 use datafusion::scalar::ScalarValue;
-use jaq_interpret::{Ctx, Filter, FilterT, ParseCtx, RcIter, Val};
-use memoize::memoize;
+use datasources::json::jaq::compile_jaq_query;
+use jaq_interpret::{Ctx, FilterT, RcIter, Val};
 use protogen::metastore::types::catalog::FunctionType;
 use serde_json::Value;
 
@@ -50,7 +50,8 @@ impl BuiltinScalarUDF for JAQSelect {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
 
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
-            let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)?;
+            let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)
+                .map_err(|e| DataFusionError::from(BuiltinError::from(e)))?;
 
             get_nth_string_value(
                 input,
@@ -115,7 +116,8 @@ impl BuiltinScalarUDF for JAQMatches {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
 
         let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
-            let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)?;
+            let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)
+                .map_err(|e| DataFusionError::from(BuiltinError::from(e)))?;
 
             get_nth_string_value(
                 input,
@@ -155,19 +157,6 @@ impl BuiltinScalarUDF for JAQMatches {
     }
 }
 
-#[memoize(Capacity: 256)]
-fn compile_jaq_query(query: String) -> Result<Filter, BuiltinError> {
-    let (f, errs) = jaq_parse::parse(&query, jaq_parse::main());
-    if !errs.is_empty() {
-        return Err(BuiltinError::ParseError(
-            errs.into_iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<_>>()
-                .join("\n"),
-        ));
-    }
-    Ok(ParseCtx::new(Vec::new()).compile(f.unwrap()))
-}
 
 fn jaq_to_scalar_string(value: &Val) -> ScalarValue {
     match value {

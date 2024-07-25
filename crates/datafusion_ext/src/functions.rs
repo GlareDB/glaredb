@@ -262,6 +262,17 @@ impl From<FuncParamValue> for Option<String> {
     }
 }
 
+impl From<&FuncParamValue> for Option<String> {
+    fn from(value: &FuncParamValue) -> Self {
+        match value {
+            FuncParamValue::Scalar(ScalarValue::Utf8(s))
+            | FuncParamValue::Scalar(ScalarValue::LargeUtf8(s)) => s.to_owned(),
+            _ => None,
+        }
+    }
+}
+
+
 impl<T> TryFrom<FuncParamValue> for Vec<T>
 where
     T: std::convert::TryFrom<FuncParamValue>,

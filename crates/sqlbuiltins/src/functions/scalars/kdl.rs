@@ -92,14 +92,11 @@ impl BuiltinScalarUDF for KDLSelect {
             args,
         )))
     }
-
-    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
-        Ok(Self::new().into())
-    }
 }
 
 #[derive(Debug)]
 pub struct KDLMatches;
+
 impl ConstBuiltinFunction for KDLMatches {
     const NAME: &'static str = "kdl_matches";
     const DESCRIPTION: &'static str =
@@ -152,10 +149,6 @@ impl BuiltinScalarUDF for KDLMatches {
             )),
             args,
         )))
-    }
-
-    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
-        Ok(Self::new().into())
     }
 }
 
