@@ -701,6 +701,7 @@ pub enum TableOptionsV0 {
     SqlServer(TableOptionsSqlServer),
     Lance(TableOptionsObjectStore),
     Bson(TableOptionsObjectStore),
+    Json(TableOptionsObjectStore),
     Clickhouse(TableOptionsClickhouse),
     Cassandra(TableOptionsCassandra),
     Excel(TableOptionsExcel),
@@ -724,6 +725,7 @@ impl TableOptionsV0 {
     pub const SQL_SERVER: &'static str = "sql_server";
     pub const LANCE: &'static str = "lance";
     pub const BSON: &'static str = "bson";
+    pub const JSON: &'static str = "json";
     pub const CLICKHOUSE: &'static str = "clickhouse";
     pub const CASSANDRA: &'static str = "cassandra";
     pub const EXCEL: &'static str = "excel";
@@ -751,6 +753,7 @@ impl TableOptionsV0 {
             TableOptionsV0::SqlServer(_) => Self::SQL_SERVER,
             TableOptionsV0::Lance(_) => Self::LANCE,
             TableOptionsV0::Bson(_) => Self::BSON,
+            TableOptionsV0::Json(_) => Self::JSON,
             TableOptionsV0::Clickhouse(_) => Self::CLICKHOUSE,
             TableOptionsV0::Cassandra(_) => Self::CASSANDRA,
             TableOptionsV0::Excel(_) => Self::EXCEL,
@@ -778,6 +781,7 @@ impl From<TableOptionsV0> for TableOptionsV1 {
             TableOptionsV0::SqlServer(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Lance(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Bson(opts) => TableOptionsV1::new(&opts),
+            TableOptionsV0::Json(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Clickhouse(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Cassandra(opts) => TableOptionsV1::new(&opts),
             TableOptionsV0::Excel(opts) => TableOptionsV1::new(&opts),
@@ -802,6 +806,7 @@ impl TryFrom<&TableOptionsV1> for TableOptionsV0 {
                     Self::AZURE => Ok(TableOptionsV0::Azure(obj_store)),
                     Self::LANCE => Ok(TableOptionsV0::Lance(obj_store)),
                     Self::BSON => Ok(TableOptionsV0::Bson(obj_store)),
+                    Self::JSON => Ok(TableOptionsV0::Json(obj_store)),
                     _ => Err(ProtoConvError::UnknownVariant(value.name.to_string())),
                 }
             }
@@ -898,6 +903,7 @@ impl TryFrom<TableOptionsV0> for options::table_options_v0::Options {
             TableOptionsV0::SqlServer(v) => options::table_options_v0::Options::SqlServer(v.into()),
             TableOptionsV0::Lance(v) => options::table_options_v0::Options::Lance(v.into()),
             TableOptionsV0::Bson(v) => options::table_options_v0::Options::Bson(v.into()),
+            TableOptionsV0::Json(v) => options::table_options_v0::Options::Json(v.into()),
             TableOptionsV0::Clickhouse(v) => {
                 options::table_options_v0::Options::Clickhouse(v.into())
             }
@@ -940,6 +946,7 @@ impl TryFrom<options::table_options_v0::Options> for TableOptionsV0 {
             }
             options::table_options_v0::Options::Lance(v) => TableOptionsV0::Lance(v.try_into()?),
             options::table_options_v0::Options::Bson(v) => TableOptionsV0::Bson(v.try_into()?),
+            options::table_options_v0::Options::Json(v) => TableOptionsV0::Json(v.try_into()?),
             options::table_options_v0::Options::Clickhouse(v) => {
                 TableOptionsV0::Clickhouse(v.try_into()?)
             }
@@ -1198,6 +1205,7 @@ pub struct TableOptionsLocal {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+    pub jaq_filter: Option<String>,
 }
 
 impl From<TableOptionsLocal> for TableOptionsV0 {
@@ -1217,6 +1225,7 @@ impl TryFrom<options::TableOptionsLocal> for TableOptionsLocal {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1227,6 +1236,7 @@ impl From<TableOptionsLocal> for options::TableOptionsLocal {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         }
     }
 }
@@ -1238,6 +1248,7 @@ pub struct TableOptionsGcs {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+    pub jaq_filter: Option<String>,
 }
 
 impl From<TableOptionsGcs> for TableOptionsV0 {
@@ -1259,6 +1270,7 @@ impl TryFrom<options::TableOptionsGcs> for TableOptionsGcs {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1271,6 +1283,7 @@ impl From<TableOptionsGcs> for options::TableOptionsGcs {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         }
     }
 }
@@ -1284,6 +1297,7 @@ pub struct TableOptionsS3 {
     pub location: String,
     pub file_type: String,
     pub compression: Option<String>,
+    pub jaq_filter: Option<String>,
 }
 
 impl From<TableOptionsS3> for TableOptionsV0 {
@@ -1307,6 +1321,7 @@ impl TryFrom<options::TableOptionsS3> for TableOptionsS3 {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1321,6 +1336,7 @@ impl From<TableOptionsS3> for options::TableOptionsS3 {
             location: value.location,
             file_type: value.file_type,
             compression: value.compression,
+            jaq_filter: value.jaq_filter,
         }
     }
 }
@@ -1615,6 +1631,7 @@ pub struct TableOptionsObjectStore {
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub schema_sample_size: Option<i64>,
+    pub jaq_filter: Option<String>,
 }
 
 impl TableOptionsImpl for TableOptionsObjectStore {
@@ -1631,6 +1648,7 @@ impl TryFrom<options::TableOptionsObjectStore> for TableOptionsObjectStore {
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            jaq_filter: value.jaq_filter,
         })
     }
 }
@@ -1644,6 +1662,7 @@ impl From<TableOptionsObjectStore> for options::TableOptionsObjectStore {
             file_type: value.file_type,
             compression: value.compression,
             schema_sample_size: value.schema_sample_size,
+            jaq_filter: value.jaq_filter,
         }
     }
 }

@@ -1,0 +1,9 @@
+statement ok
+CREATE EXTERNAL TABLE bsd_lite_et FROM json OPTIONS (
+       location => './testdata/sqllogictests_datasources_common/data/bikeshare_stations_lite.json',
+);
+
+query I
+select count(*) from bsd_lite_et;
+----
+9
