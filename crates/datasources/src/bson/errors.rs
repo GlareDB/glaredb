@@ -24,7 +24,10 @@ pub enum BsonError {
     Raw(#[from] bson::raw::Error),
 
     #[error(transparent)]
-    Serialization(#[from] bson::de::Error),
+    Serialization(#[from] bson::ser::Error),
+
+    #[error(transparent)]
+    Deserialization(#[from] bson::de::Error),
 
     #[error(transparent)]
     ObjectStore(#[from] ObjectStoreSourceError),
