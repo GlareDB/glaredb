@@ -681,6 +681,7 @@ fn rows_to_record_batch(
         Int16Builder,
         Int32Builder,
         Int64Builder,
+        Int8Builder,
         StringBuilder,
         TimestampNanosecondBuilder,
     };
@@ -702,6 +703,17 @@ fn rows_to_record_batch(
     for (col_idx, field) in schema.fields.iter().enumerate() {
         let col: Arc<dyn Array> = match field.data_type() {
             DataType::Boolean => make_column!(BooleanBuilder, rows, col_idx),
+            DataType::Int8 => {
+                let mut arr = Int8Builder::with_capacity(rows.len());
+                for row in rows.iter() {
+                    let val: Option<Intn> = row.try_get(col_idx)?;
+                    arr.append_option(
+                        val.map(|v: Intn| -> Result<i8, SqlServerError> { Ok(v.0.try_into()?) })
+                            .map_or(Ok(None), |v| v.map(Some))?,
+                    );
+                }
+                Arc::new(arr.finish())
+            }
             DataType::Int16 => make_column!(Int16Builder, rows, col_idx),
             DataType::Int32 => make_column!(Int32Builder, rows, col_idx),
             DataType::Int64 => {
@@ -761,11 +773,7 @@ fn rows_to_record_batch(
 
             // TODO: All the others...
             // Tiberius mapping: <https://docs.rs/tiberius/latest/tiberius/trait.FromSql.html>
-            other => {
-                return Err(SqlServerError::String(format!(
-                    "unsupported data type for sql server: {other}"
-                )))
-            }
+            other => return Err(SqlServerError::UnsupportedDataType(other.to_owned())),
         };
         columns.push(col);
     }
