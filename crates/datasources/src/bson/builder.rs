@@ -29,6 +29,7 @@ use datafusion::arrow::array::{
 use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
 
 use crate::bson::errors::{BsonError, Result};
+use crate::common::util::try_parse_datetime;
 
 /// Similar to arrow's `StructBuilder`, but specific for "shredding" bson
 /// records.
@@ -293,6 +294,41 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         (RawBsonRef::String(v), DataType::Float64) => {
             append_scalar!(Float64Builder, col, v.parse().unwrap_or_default())
         }
+        (RawBsonRef::String(v), DataType::Date64) => {
+            append_scalar!(
+                Date64Builder,
+                col,
+                try_parse_datetime(v)?.timestamp_millis()
+            )
+        }
+        (RawBsonRef::String(v), DataType::Date32) => {
+            append_scalar!(
+                Date32Builder,
+                col,
+                try_parse_datetime(v)?.timestamp() as i32
+            )
+        }
+        (RawBsonRef::String(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
+            append_scalar!(
+                TimestampMillisecondBuilder,
+                col,
+                try_parse_datetime(v)?.timestamp_millis()
+            )
+        }
+        (RawBsonRef::String(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
+            append_scalar!(
+                TimestampMicrosecondBuilder,
+                col,
+                try_parse_datetime(v)?.timestamp_micros()
+            )
+        }
+        (RawBsonRef::String(v), DataType::Timestamp(TimeUnit::Second, _)) => {
+            append_scalar!(
+                TimestampSecondBuilder,
+                col,
+                try_parse_datetime(v)?.timestamp()
+            )
+        }
 
         // ObjectId
         (RawBsonRef::ObjectId(v), DataType::Binary) => {
@@ -327,6 +363,15 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                     ))?
             )
         }
+        (RawBsonRef::Timestamp(v), DataType::Utf8) => {
+            append_scalar!(
+                StringBuilder,
+                col,
+                chrono::DateTime::from_timestamp_millis(v.time as i64 * 1000)
+                    .ok_or_else(|| BsonError::InvalidValue(v.to_string()))?
+                    .to_rfc3339()
+            )
+        }
 
         // Datetime (actual timestamps that you'd actually use in an application)
         (RawBsonRef::DateTime(v), DataType::Timestamp(TimeUnit::Second, _)) => {
@@ -354,6 +399,15 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         }
         (RawBsonRef::DateTime(v), DataType::Date32) => {
             append_scalar!(Date32Builder, col, (v.timestamp_millis() / 1000) as i32)
+        }
+        (RawBsonRef::DateTime(v), DataType::Utf8) => {
+            append_scalar!(
+                StringBuilder,
+                col,
+                chrono::DateTime::from_timestamp_millis(v.timestamp_millis())
+                    .ok_or_else(|| BsonError::InvalidValue(v.to_string()))?
+                    .to_rfc3339()
+            )
         }
 
         // Array
