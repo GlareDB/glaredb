@@ -28,14 +28,14 @@ bikeshare_stations
 
 query TTT rowsort
 SELECT column_name, data_type, nullable
-	FROM list_columns(external_db, dbo, bikeshare_stations)
-	WHERE data_type = 'Int64';
+FROM list_columns(external_db, dbo, bikeshare_stations)
+WHERE data_type = 'Int32';
 ----
-city_asset_number	Int64	t
-council_district	Int64	t
-footprint_length	Int64	t
-number_of_docks		Int64	t
-station_id			Int64	t
+city_asset_number	Int32	t
+council_district	Int32	t
+footprint_length	Int32	t
+number_of_docks		Int32	t
+station_id			Int32	t
 
 # Try to query non-existent table.
 
