@@ -121,7 +121,7 @@ impl RecordStructBuilder {
         Ok(())
     }
 
-    pub fn project_and_append(&mut self, doc: &RawDocumentBuf) -> Result<()> {
+    pub fn append_value(&mut self, doc: &RawDocumentBuf) -> Result<()> {
         let mut cols_set: BitVec<u8, Lsb0> = BitVec::repeat(false, self.fields.len());
 
         for iter_result in doc.iter_elements() {
@@ -245,6 +245,11 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
 
         // Boolean
         (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
+        (RawBsonRef::Boolean(v), DataType::Int32) => append_scalar!(Int32Builder, col, v.into()),
+        (RawBsonRef::Boolean(v), DataType::Int64) => append_scalar!(Int64Builder, col, v.into()),
+        (RawBsonRef::Boolean(v), DataType::Float64) => {
+            append_scalar!(Float64Builder, col, v.into())
+        }
         (RawBsonRef::Boolean(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
@@ -289,13 +294,7 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(Float64Builder, col, v.parse().unwrap_or_default())
         }
 
-        // Binary
-        (RawBsonRef::Binary(v), DataType::Binary) => append_scalar!(BinaryBuilder, col, v.bytes),
-        (RawBsonRef::Binary(v), DataType::LargeBinary) => {
-            append_scalar!(LargeBinaryBuilder, col, v.bytes)
-        }
-
-        // Object id
+        // ObjectId
         (RawBsonRef::ObjectId(v), DataType::Binary) => {
             append_scalar!(BinaryBuilder, col, v.bytes())
         }
@@ -359,12 +358,12 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
 
         // Array
         (RawBsonRef::Document(doc), DataType::Struct(_)) => {
-            col.as_any_mut()
-                .downcast_mut::<RecordStructBuilder>()
-                .unwrap()
-                .project_and_append(&doc.to_raw_document_buf())?;
+            append_scalar!(RecordStructBuilder, col, &doc.to_raw_document_buf())?
         }
         (RawBsonRef::Document(doc), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, doc.as_bytes())
+        }
+        (RawBsonRef::Document(doc), DataType::LargeBinary) => {
             append_scalar!(BinaryBuilder, col, doc.as_bytes())
         }
         (RawBsonRef::Document(doc), DataType::Utf8) => {
@@ -376,15 +375,26 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                     .to_string()
             )
         }
+        (RawBsonRef::Document(doc), DataType::LargeUtf8) => {
+            append_scalar!(
+                LargeStringBuilder,
+                col,
+                Bson::Document(bson::Document::from_reader(doc.as_bytes())?)
+                    .into_relaxed_extjson()
+                    .to_string()
+            )
+        }
 
         // Array
-        (RawBsonRef::Array(doc), DataType::Struct(_)) => {
-            col.as_any_mut()
-                .downcast_mut::<RecordStructBuilder>()
-                .unwrap()
-                .project_and_append(&RawDocumentBuf::from_bytes(doc.as_bytes().into())?)?;
-        }
+        (RawBsonRef::Array(doc), DataType::Struct(_)) => append_scalar!(
+            RecordStructBuilder,
+            col,
+            &RawDocumentBuf::from_bytes(doc.as_bytes().into())?
+        )?,
         (RawBsonRef::Array(arr), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, arr.as_bytes())
+        }
+        (RawBsonRef::Array(arr), DataType::LargeBinary) => {
             append_scalar!(BinaryBuilder, col, arr.as_bytes())
         }
         (RawBsonRef::Array(arr), DataType::Utf8) => {
@@ -396,13 +406,45 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                     .to_string()
             )
         }
+        (RawBsonRef::Array(arr), DataType::LargeUtf8) => {
+            append_scalar!(
+                LargeStringBuilder,
+                col,
+                Bson::Array(bson::Array::try_from(arr)?)
+                    .into_relaxed_extjson()
+                    .to_string()
+            )
+        }
 
         // Decimal128
-        (RawBsonRef::Decimal128(v), DataType::Decimal128(_, _)) => col
-            .as_any_mut()
-            .downcast_mut::<Decimal128Builder>()
-            .unwrap()
-            .append_value(i128::from_le_bytes(v.bytes())),
+        (RawBsonRef::Decimal128(v), DataType::Decimal128(_, _)) => {
+            append_scalar!(Decimal128Builder, col, i128::from_le_bytes(v.bytes()))
+        }
+
+        // Binary
+        (RawBsonRef::Binary(v), DataType::Binary) => append_scalar!(BinaryBuilder, col, v.bytes),
+        (RawBsonRef::Binary(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.bytes)
+        }
+
+        (_, DataType::Binary) => append_scalar!(BinaryBuilder, col, bson::ser::to_vec(&val)?),
+        (_, DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, bson::ser::to_vec(&val)?)
+        }
+        (_, DataType::Utf8) => append_scalar!(
+            StringBuilder,
+            col,
+            bson::Bson::try_from(val)?
+                .into_relaxed_extjson()
+                .to_string()
+        ),
+        (_, DataType::LargeUtf8) => append_scalar!(
+            LargeStringBuilder,
+            col,
+            bson::Bson::try_from(val)?
+                .into_relaxed_extjson()
+                .to_string()
+        ),
 
         (bson_ref, dt) => {
             return Err(BsonError::UnhandledElementType(
@@ -619,7 +661,7 @@ mod test {
         rsb.append_record(&buf.clone())
             .expect_err("for append_record schema changes are an error");
         assert_eq!(rsb.len(), 1);
-        rsb.project_and_append(&buf.clone())
+        rsb.append_value(&buf.clone())
             .expect("project and append should filter out unrequired fields");
         assert_eq!(rsb.len(), 2);
 
@@ -634,7 +676,7 @@ mod test {
         // the first value was added successfully to another buffer to the rsb grew
         assert_eq!(rsb.len(), 3);
 
-        rsb.project_and_append(&buf.clone())
+        rsb.append_value(&buf.clone())
             .expect("project and append should filter out unrequired fields");
         assert_eq!(rsb.len(), 4);
     }

@@ -127,10 +127,12 @@ pub fn merge_schemas(schemas: impl IntoIterator<Item = Result<Schema>>) -> Resul
 fn merge_field(left: &mut Field, right: &Field) -> Result<()> {
     let dt = match (left.data_type(), right.data_type()) {
         (&DataType::Null, right) => right.clone(),
+        (
+            &DataType::Boolean,
+            &DataType::Int32 | &DataType::Int64 | &DataType::Float64 | &DataType::Utf8,
+        ) => right.data_type().clone(),
         (&DataType::Int32, &DataType::Int64) => DataType::Int64,
-        (&DataType::Int32 | &DataType::Int64 | &DataType::Float64, &DataType::Float64) => {
-            DataType::Float64
-        }
+        (&DataType::Int32 | &DataType::Int64, &DataType::Float64) => DataType::Float64,
         (_, &DataType::Utf8) => DataType::Utf8,
         _ => return Ok(()),
     };
