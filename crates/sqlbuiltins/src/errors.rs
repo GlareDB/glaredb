@@ -41,6 +41,9 @@ pub enum BuiltinError {
     #[error("serde_json: {0}")]
     SerdeJsonError(String),
 
+    #[error(transparent)]
+    BsonSer(#[from] bson::ser::Error),
+
     #[error("jaq: {0}")]
     JaqError(String),
 }

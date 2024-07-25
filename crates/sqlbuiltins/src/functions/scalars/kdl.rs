@@ -87,7 +87,7 @@ impl ScalarUDFImpl for KDLSelect {
         get_nth_string_value(
             input,
             0,
-            &|value: String| -> Result<ScalarValue, BuiltinError> {
+            &|value: &String| -> Result<ScalarValue, BuiltinError> {
                 let sdoc: kdl::KdlDocument = value.parse().map_err(BuiltinError::KdlError)?;
 
                 let out: Vec<&KdlNode> = sdoc
@@ -200,7 +200,7 @@ impl ScalarUDFImpl for KDLMatches {
         get_nth_string_value(
             input,
             0,
-            &|value: String| -> Result<ScalarValue, BuiltinError> {
+            &|value: &String| -> Result<ScalarValue, BuiltinError> {
                 let doc: kdl::KdlDocument = value.parse().map_err(BuiltinError::KdlError)?;
 
                 Ok(ScalarValue::Boolean(Some(
