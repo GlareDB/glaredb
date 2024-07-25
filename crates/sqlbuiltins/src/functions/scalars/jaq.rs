@@ -5,11 +5,9 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{
-    ColumnarValue,
     ReturnTypeFunction,
     ScalarFunctionImplementation,
     ScalarUDF,
-    ScalarUDFImpl,
     Signature,
     TypeSignature,
     Volatility,
@@ -25,10 +23,8 @@ use super::{get_nth_string_fn_arg, get_nth_string_value};
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
-#[derive(Debug)]
-pub struct JAQSelect {
-    signature: Signature,
-}
+#[derive(Default, Debug)]
+pub struct JAQSelect;
 
 impl ConstBuiltinFunction for JAQSelect {
     const NAME: &'static str = "jaq_select";
@@ -37,83 +33,47 @@ impl ConstBuiltinFunction for JAQSelect {
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
 
     fn signature(&self) -> Option<Signature> {
-        Some(self.signature.clone())
+        Some(Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
+            ],
+            Volatility::Immutable,
+        ))
     }
 }
-
-impl Default for JAQSelect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl JAQSelect {
-    pub fn new() -> Self {
-        Self {
-            signature: Signature::new(
-                // args: <FIELD>, <QUERY>
-                TypeSignature::OneOf(vec![
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
-                ]),
-                Volatility::Immutable,
-            ),
-        }
-    }
-}
-
-impl ScalarUDFImpl for JAQSelect {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn name(&self) -> &str {
-        Self::NAME
-    }
-
-    fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
-    fn return_type(&self, _: &[DataType]) -> datafusion::error::Result<DataType> {
-        Ok(DataType::Utf8)
-    }
-
-    fn invoke(&self, input: &[ColumnarValue]) -> datafusion::error::Result<ColumnarValue> {
-        let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)?;
-
-        get_nth_string_value(
-            input,
-            0,
-            &|value: &String| -> Result<ScalarValue, BuiltinError> {
-                let val: Value = serde_json::from_str(value)?;
-                let inputs = RcIter::new(core::iter::empty());
-
-                let output = filter
-                    .run((Ctx::new([], &inputs), Val::from(val)))
-                    .map(|res| res.map(|v| jaq_to_scalar_string(&v)))
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                Ok(match output.len() {
-                    0 => ScalarValue::Utf8(None),
-                    1 => output.first().unwrap().to_owned(),
-                    _ => ScalarValue::List(ScalarValue::new_list(&output, &DataType::Utf8)),
-                })
-            },
-        )
-        .map_err(DataFusionError::from)
-    }
-}
-
 
 impl BuiltinScalarUDF for JAQSelect {
     fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
 
-        let scalar_fn_impl: ScalarFunctionImplementation =
-            Arc::new(move |input| ScalarUDFImpl::invoke(&Self::new(), input));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)?;
+
+            get_nth_string_value(
+                input,
+                0,
+                &|value: &String| -> Result<ScalarValue, BuiltinError> {
+                    let val: Value = serde_json::from_str(value)?;
+                    let inputs = RcIter::new(core::iter::empty());
+
+                    let output = filter
+                        .run((Ctx::new([], &inputs), Val::from(val)))
+                        .map(|res| res.map(|v| jaq_to_scalar_string(&v)))
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    Ok(match output.len() {
+                        0 => ScalarValue::Utf8(None),
+                        1 => output.first().unwrap().to_owned(),
+                        _ => ScalarValue::List(ScalarValue::new_list(&output, &DataType::Utf8)),
+                    })
+                },
+            )
+            .map_err(DataFusionError::from)
+        });
+
 
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(ScalarUDF::new(
@@ -125,39 +85,10 @@ impl BuiltinScalarUDF for JAQSelect {
             args,
         )))
     }
-
-    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
-        Ok(Self::new().into())
-    }
 }
 
-#[derive(Debug)]
-pub struct JAQMatches {
-    signature: Signature,
-}
-
-impl Default for JAQMatches {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl JAQMatches {
-    pub fn new() -> Self {
-        Self {
-            signature: Signature::new(
-                // args: <FIELD>, <QUERY>
-                TypeSignature::OneOf(vec![
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
-                ]),
-                Volatility::Immutable,
-            ),
-        }
-    }
-}
+#[derive(Debug, Default)]
+pub struct JAQMatches;
 
 impl ConstBuiltinFunction for JAQMatches {
     const NAME: &'static str = "jaq_matches";
@@ -167,53 +98,15 @@ impl ConstBuiltinFunction for JAQMatches {
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
 
     fn signature(&self) -> Option<Signature> {
-        Some(self.signature.clone())
-    }
-}
-
-impl ScalarUDFImpl for JAQMatches {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn name(&self) -> &str {
-        Self::NAME
-    }
-
-    fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
-    fn return_type(&self, _: &[DataType]) -> datafusion::error::Result<DataType> {
-        Ok(DataType::Boolean)
-    }
-
-    fn invoke(&self, input: &[ColumnarValue]) -> datafusion::error::Result<ColumnarValue> {
-        let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)?;
-
-        get_nth_string_value(
-            input,
-            0,
-            &|value: &String| -> Result<ScalarValue, BuiltinError> {
-                let val: Value = serde_json::from_str(value)?;
-                let input = RcIter::new(core::iter::empty());
-
-                let output = filter.run((Ctx::new([], &input), Val::from(val)));
-
-                for res in output {
-                    match res? {
-                        Val::Null => continue,
-                        Val::Str(s) if s.is_empty() => continue,
-                        Val::Str(_) => return Ok(ScalarValue::Boolean(Some(true))),
-                        other if other.to_string().is_empty() => continue,
-                        _ => return Ok(ScalarValue::Boolean(Some(true))),
-                    }
-                }
-
-                Ok(ScalarValue::Boolean(Some(false)))
-            },
-        )
-        .map_err(DataFusionError::from)
+        Some(Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::Utf8, DataType::LargeUtf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::Utf8]),
+                TypeSignature::Exact(vec![DataType::LargeUtf8, DataType::LargeUtf8]),
+            ],
+            Volatility::Immutable,
+        ))
     }
 }
 
@@ -221,8 +114,34 @@ impl BuiltinScalarUDF for JAQMatches {
     fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Boolean)));
 
-        let scalar_fn_impl: ScalarFunctionImplementation =
-            Arc::new(move |input| ScalarUDFImpl::invoke(&Self::new(), input));
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |input| {
+            let filter = compile_jaq_query(get_nth_string_fn_arg(input, 1)?)?;
+
+            get_nth_string_value(
+                input,
+                0,
+                &|value: &String| -> Result<ScalarValue, BuiltinError> {
+                    let val: Value = serde_json::from_str(value)?;
+                    let input = RcIter::new(core::iter::empty());
+
+                    let output = filter.run((Ctx::new([], &input), Val::from(val)));
+
+                    for res in output {
+                        match res? {
+                            Val::Null => continue,
+                            Val::Str(s) if s.is_empty() => continue,
+                            Val::Str(_) => return Ok(ScalarValue::Boolean(Some(true))),
+                            other if other.to_string().is_empty() => continue,
+                            _ => return Ok(ScalarValue::Boolean(Some(true))),
+                        }
+                    }
+
+                    Ok(ScalarValue::Boolean(Some(false)))
+                },
+            )
+            .map_err(DataFusionError::from)
+        });
+
 
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(ScalarUDF::new(
@@ -233,10 +152,6 @@ impl BuiltinScalarUDF for JAQMatches {
             )),
             args,
         )))
-    }
-
-    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
-        Ok(Self::new().into())
     }
 }
 
