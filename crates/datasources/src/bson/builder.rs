@@ -293,35 +293,35 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(
                 Date64Builder,
                 col,
-                try_parse_datetime(v)?.and_utc().timestamp_millis()
+                try_parse_datetime(v)?.timestamp_millis()
             )
         }
         (RawBsonRef::String(v), DataType::Date32) => {
             append_scalar!(
                 Date32Builder,
                 col,
-                try_parse_datetime(v)?.and_utc().timestamp() as i32
+                try_parse_datetime(v)?.timestamp() as i32
             )
         }
         (RawBsonRef::String(v), DataType::Timestamp(TimeUnit::Millisecond, _)) => {
             append_scalar!(
                 TimestampMillisecondBuilder,
                 col,
-                try_parse_datetime(v)?.and_utc().timestamp_millis()
+                try_parse_datetime(v)?.timestamp_millis()
             )
         }
         (RawBsonRef::String(v), DataType::Timestamp(TimeUnit::Microsecond, _)) => {
             append_scalar!(
                 TimestampMicrosecondBuilder,
                 col,
-                try_parse_datetime(v)?.and_utc().timestamp_micros()
+                try_parse_datetime(v)?.timestamp_micros()
             )
         }
         (RawBsonRef::String(v), DataType::Timestamp(TimeUnit::Second, _)) => {
             append_scalar!(
                 TimestampSecondBuilder,
                 col,
-                try_parse_datetime(v)?.and_utc().timestamp()
+                try_parse_datetime(v)?.timestamp()
             )
         }
 
