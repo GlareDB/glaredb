@@ -48,7 +48,7 @@ impl Bson2Json {
         match scalar {
             ScalarValue::Binary(Some(v)) | ScalarValue::LargeBinary(Some(v)) => {
                 Ok(ScalarValue::new_utf8(
-                    bson::de::from_slice::<Bson>(&v)
+                    bson::de::from_slice::<Bson>(v)
                         .map_err(|e| DataFusionError::External(Box::new(e)))?
                         .into_relaxed_extjson()
                         .to_string(),
@@ -57,12 +57,10 @@ impl Bson2Json {
             ScalarValue::Binary(None) | ScalarValue::LargeBinary(None) => {
                 Ok(ScalarValue::Utf8(None))
             }
-            other => {
-                return Err(BuiltinError::IncorrectType(
-                    other.data_type(),
-                    DataType::Binary,
-                ))
-            }
+            other => Err(BuiltinError::IncorrectType(
+                other.data_type(),
+                DataType::Binary,
+            )),
         }
     }
 }
@@ -122,12 +120,10 @@ impl Json2Bson {
                 )?)))
             }
             ScalarValue::Utf8(None) | ScalarValue::LargeUtf8(None) => Ok(ScalarValue::Binary(None)),
-            other => {
-                return Err(BuiltinError::IncorrectType(
-                    other.data_type(),
-                    DataType::Utf8,
-                ))
-            }
+            other => Err(BuiltinError::IncorrectType(
+                other.data_type(),
+                DataType::Utf8,
+            )),
         }
     }
 }

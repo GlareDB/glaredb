@@ -71,7 +71,7 @@ fn get_nth_scalar_value(
 ) -> Result<ColumnarValue, BuiltinError> {
     match input.get(n) {
         Some(input) => match input {
-            ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(&scalar)?)),
+            ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(scalar)?)),
             ColumnarValue::Array(arr) => Ok(ColumnarValue::Array(apply_op_to_col_array(arr, op)?)),
         },
         None => Err(BuiltinError::MissingValueAtIndex(n)),
