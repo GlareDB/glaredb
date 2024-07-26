@@ -968,7 +968,7 @@ impl<'a> SessionPlanner<'a> {
 
                 let table_name = storage_options
                     .inner
-                    .get("sheet_name")
+                    .get("table_name")
                     .map(|val| val.to_owned());
 
                 let has_header = storage_options
