@@ -2,6 +2,7 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
 use datafusion_ext::errors::ExtensionError;
+use datasources::json::jaq::JaqError;
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum BuiltinError {
@@ -39,13 +40,16 @@ pub enum BuiltinError {
     DataFusionExtension(String),
 
     #[error("serde_json: {0}")]
-    SerdeJsonError(String),
+    SerdeJson(String),
 
     #[error(transparent)]
     BsonSer(#[from] bson::ser::Error),
 
-    #[error("jaq: {0}")]
-    JaqError(String),
+    #[error("jaq_internal: {0}")]
+    JaqInternal(String),
+
+    #[error(transparent)]
+    Jaq(#[from] JaqError),
 }
 
 pub type Result<T, E = BuiltinError> = std::result::Result<T, E>;
@@ -82,12 +86,12 @@ impl From<ArrowError> for BuiltinError {
 
 impl From<serde_json::Error> for BuiltinError {
     fn from(e: serde_json::Error) -> Self {
-        BuiltinError::SerdeJsonError(e.to_string())
+        BuiltinError::SerdeJson(e.to_string())
     }
 }
 
 impl From<jaq_interpret::Error> for BuiltinError {
     fn from(e: jaq_interpret::Error) -> Self {
-        BuiltinError::JaqError(e.to_string())
+        BuiltinError::JaqInternal(e.to_string())
     }
 }

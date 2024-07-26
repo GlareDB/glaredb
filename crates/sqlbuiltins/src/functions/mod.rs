@@ -243,11 +243,11 @@ impl FunctionRegistry {
             Arc::new(ConnectionId),
             Arc::new(Version),
             // KDL functions
-            Arc::new(KDLMatches::new()),
-            Arc::new(KDLSelect::new()),
+            Arc::new(KDLMatches),
+            Arc::new(KDLSelect),
             // JAQ functions
-            Arc::new(JAQMatches::new()),
-            Arc::new(JAQSelect::new()),
+            Arc::new(JAQMatches),
+            Arc::new(JAQSelect),
             // Converters
             Arc::new(Bson2Json),
             Arc::new(Json2Bson),
@@ -258,7 +258,7 @@ impl FunctionRegistry {
             // OpenAI
             Arc::new(OpenAIEmbed),
             // Similarity
-            Arc::new(CosineSimilarity::new()),
+            Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
             .into_iter()
