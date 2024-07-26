@@ -445,6 +445,7 @@ impl<'a> ExternalDispatcher<'a> {
                 storage_options,
                 has_header,
                 sheet_name,
+                table_name,
                 ..
             }) => {
                 let source_url = DatasourceUrl::try_new(location)?;
@@ -454,6 +455,7 @@ impl<'a> ExternalDispatcher<'a> {
                     store_access,
                     source_url,
                     sheet_name.to_owned(),
+                    table_name.to_owned(),
                     has_header.unwrap_or(true),
                 )
                 .await?;

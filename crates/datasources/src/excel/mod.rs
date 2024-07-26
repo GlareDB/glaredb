@@ -34,20 +34,36 @@ impl ExcelTable {
         store_access: Arc<dyn ObjStoreAccess>,
         source_url: DatasourceUrl,
         sheet_name: Option<String>,
+        table_name: Option<String>,
         has_header: bool,
     ) -> Result<ExcelTable, ExcelError> {
         match source_url {
             DatasourceUrl::File(path) => {
                 let path = ioutil::resolve_path(&path)?;
-                let mut sheet = calamine::open_workbook_auto(path)?;
+                let mut sheets = calamine::open_workbook_auto(path)?;
 
                 let first_sheet = sheet_name.unwrap_or_else(|| {
-                    let sheets = sheet.sheet_names();
-                    sheets.first().expect("file has a sheet").to_owned()
+                    let names = sheets.sheet_names();
+                    names.first().expect("file has a sheet").to_owned()
                 });
 
                 Ok(ExcelTable {
-                    cell_range: sheet.worksheet_range(&first_sheet)?,
+                    cell_range: match &table_name {
+                        Some(name) => {
+                            match sheets {
+                                calamine::Sheets::Xlsx(mut sheet) => {
+                                    sheet.load_tables()?;
+
+                                    sheet.table_by_name(name)?.data().to_owned()
+                                }
+                                _ => return Err(ExcelError::Load(
+                                    "specifying excel table is only compatible with xslx workbooks"
+                                        .to_string(),
+                                )),
+                            }
+                        }
+                        None => sheets.worksheet_range(&first_sheet)?,
+                    },
                     has_header,
                 })
             }
@@ -72,7 +88,8 @@ impl ExcelTable {
 
                 let store = accessor.into_object_store();
 
-                excel_table_from_object(store.as_ref(), meta, sheet_name, has_header).await
+                excel_table_from_object(store.as_ref(), meta, sheet_name, table_name, has_header)
+                    .await
             }
         }
     }
@@ -82,20 +99,41 @@ pub async fn excel_table_from_object(
     store: &dyn ObjectStore,
     meta: ObjectMeta,
     sheet_name: Option<String>,
+    table_name: Option<String>,
     has_header: bool,
 ) -> Result<ExcelTable, ExcelError> {
     let bs = store.get(&meta.location).await?.bytes().await?;
 
     let buffer = Cursor::new(bs);
-    let mut sheets: Sheets<_> = calamine::open_workbook_auto_from_rs(buffer)?;
+    let mut sheets: Sheets<_> = match table_name {
+        Some(_) => Sheets::Xlsx(calamine::open_workbook_from_rs::<calamine::Xlsx<_>, _>(
+            buffer,
+        )?),
+        None => calamine::open_workbook_auto_from_rs(buffer)?,
+    };
 
     let first_sheet = sheet_name.unwrap_or_else(|| {
         let sheets = sheets.sheet_names();
         sheets.first().expect("file has a sheet").to_owned()
     });
 
+
     Ok(ExcelTable {
-        cell_range: sheets.worksheet_range(&first_sheet)?,
+        cell_range: match &table_name {
+            Some(name) => match sheets {
+                calamine::Sheets::Xlsx(mut sheet) => {
+                    sheet.load_tables()?;
+
+                    sheet.table_by_name(name)?.data().to_owned()
+                }
+                _ => {
+                    return Err(ExcelError::Load(
+                        "specifying excel table is only compatible with xslx workbooks".to_string(),
+                    ))
+                }
+            },
+            None => sheets.worksheet_range(&first_sheet)?,
+        },
         has_header,
     })
 }
@@ -108,6 +146,7 @@ fn xlsx_sheet_value_to_record_batch(
     infer_schema_length: usize,
 ) -> Result<RecordBatch, ExcelError> {
     let schema = infer_schema(&r, has_header, infer_schema_length)?;
+
     let arrays = schema
         .fields()
         .iter()

@@ -223,6 +223,7 @@ message TableOptionsExcel {
   optional string compression = 4;
   optional string sheet_name = 5;
   optional bool has_header = 6;
+  optional string table_name = 7;
 }
 
 message TableOptionsSnowflake {
