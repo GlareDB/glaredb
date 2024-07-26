@@ -89,8 +89,8 @@ impl ScalarUDFImpl for JAQSelect {
         get_nth_string_value(
             input,
             0,
-            &|value: String| -> Result<ScalarValue, BuiltinError> {
-                let val: Value = serde_json::from_str(&value)?;
+            &|value: &String| -> Result<ScalarValue, BuiltinError> {
+                let val: Value = serde_json::from_str(value)?;
                 let inputs = RcIter::new(core::iter::empty());
 
                 let output = filter
@@ -197,8 +197,8 @@ impl ScalarUDFImpl for JAQMatches {
         get_nth_string_value(
             input,
             0,
-            &|value: String| -> Result<ScalarValue, BuiltinError> {
-                let val: Value = serde_json::from_str(&value)?;
+            &|value: &String| -> Result<ScalarValue, BuiltinError> {
+                let val: Value = serde_json::from_str(value)?;
                 let input = RcIter::new(core::iter::empty());
 
                 let output = filter.run((Ctx::new([], &input), Val::from(val)));

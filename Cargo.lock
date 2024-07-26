@@ -8232,6 +8232,7 @@ dependencies = [
  "arrow-cast",
  "async-openai",
  "async-trait",
+ "bson",
  "bytes",
  "catalog",
  "datafusion",
