@@ -250,6 +250,7 @@ impl Hinter for SQLHinter {
         _pos: usize,
         history: &dyn reedline::History,
         use_ansi_coloring: bool,
+        _cwd: &str,
     ) -> String {
         self.current_hint = if line.chars().count() >= self.min_chars {
             history
