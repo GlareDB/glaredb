@@ -40,7 +40,7 @@ pub enum BuiltinError {
     DataFusionExtension(String),
 
     #[error("serde_json: {0}")]
-    SerdeJsonError(String),
+    SerdeJson(String),
 
     #[error(transparent)]
     BsonSer(#[from] bson::ser::Error),
@@ -86,7 +86,7 @@ impl From<ArrowError> for BuiltinError {
 
 impl From<serde_json::Error> for BuiltinError {
     fn from(e: serde_json::Error) -> Self {
-        BuiltinError::SerdeJsonError(e.to_string())
+        BuiltinError::SerdeJson(e.to_string())
     }
 }
 

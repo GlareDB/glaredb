@@ -22,7 +22,7 @@ use super::apply_op_to_col_array;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug)]
 pub struct Bson2Json;
 
 impl ConstBuiltinFunction for Bson2Json {
