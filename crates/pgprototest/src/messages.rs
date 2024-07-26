@@ -80,7 +80,7 @@ impl TryFrom<(char, Message)> for SerializedMessage {
                 serde_json::to_string(&ErrorResponse {
                     fields: msg
                         .fields()
-                        .map(|field| Ok(field.value().to_string()))
+                        .map(|field| Ok(String::from_utf8(field.value_bytes().to_owned()).unwrap()))
                         .collect()?,
                 })?,
             ),
@@ -89,7 +89,7 @@ impl TryFrom<(char, Message)> for SerializedMessage {
                 serde_json::to_string(&ErrorResponse {
                     fields: msg
                         .fields()
-                        .map(|field| Ok(field.value().to_string()))
+                        .map(|field| Ok(String::from_utf8(field.value_bytes().to_owned()).unwrap()))
                         .collect()?,
                 })?,
             ),
