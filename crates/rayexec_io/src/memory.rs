@@ -57,7 +57,7 @@ impl MemoryFileSystem {
 
     pub fn file_sink(&self, path: &Path) -> Result<Box<dyn FileSink>> {
         let name = get_normalized_file_name(path)?;
-        Ok(Box::new(WasmMemoryFileSink {
+        Ok(Box::new(MemoryFileSink {
             name: name.to_string(),
             buf: Vec::new(),
             files: self.files.clone(),
@@ -96,13 +96,13 @@ impl FileSource for MemoryFile {
 }
 
 #[derive(Debug)]
-pub struct WasmMemoryFileSink {
+pub struct MemoryFileSink {
     name: String,
     buf: Vec<u8>,
     files: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
-impl FileSink for WasmMemoryFileSink {
+impl FileSink for MemoryFileSink {
     fn write_all(&mut self, buf: Bytes) -> BoxFuture<'static, Result<()>> {
         self.buf.extend_from_slice(buf.as_ref());
         async { Ok(()) }.boxed()

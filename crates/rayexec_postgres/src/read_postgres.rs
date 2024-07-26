@@ -4,48 +4,61 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::{PostgresClient, PostgresDataTable};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReadPostgres;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadPostgres<R: Runtime> {
+    pub(crate) runtime: R,
+}
 
-impl TableFunction for ReadPostgres {
+impl<R: Runtime> TableFunction for ReadPostgres<R> {
     fn name(&self) -> &'static str {
         "read_postgres"
     }
 
-    fn plan_and_initialize<'a>(
-        &'a self,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(ReadPostgresImpl::initialize(runtime.as_ref(), args))
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(ReadPostgresImpl::initialize(self.clone(), args))
     }
 
     fn state_deserialize(
         &self,
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        Ok(Box::new(ReadPostgresImpl::deserialize(deserializer)?))
+        let state = ReadPostgresState::deserialize(deserializer)?;
+        Ok(Box::new(ReadPostgresImpl {
+            func: self.clone(),
+            state,
+        }))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct ReadPostgresImpl {
+struct ReadPostgresState {
     conn_str: String,
     schema: String,
     table: String,
     table_schema: Schema,
 }
 
-impl ReadPostgresImpl {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReadPostgresImpl<R: Runtime> {
+    func: ReadPostgres<R>,
+    state: ReadPostgresState,
+}
+
+impl<R> ReadPostgresImpl<R>
+where
+    R: Runtime,
+{
     async fn initialize(
-        runtime: &dyn ExecutionRuntime,
+        func: ReadPostgres<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         if !args.named.is_empty() {
@@ -62,7 +75,7 @@ impl ReadPostgresImpl {
         let schema = args.positional.pop().unwrap().try_into_string()?;
         let conn_str = args.positional.pop().unwrap().try_into_string()?;
 
-        let client = PostgresClient::connect(&conn_str, runtime).await?;
+        let client = PostgresClient::connect(&conn_str, &func.runtime).await?;
 
         let fields = match client.get_fields_and_types(&schema, &table).await? {
             Some((fields, _)) => fields,
@@ -72,33 +85,39 @@ impl ReadPostgresImpl {
         let table_schema = Schema::new(fields);
 
         Ok(Box::new(ReadPostgresImpl {
-            conn_str,
-            schema,
-            table,
-            table_schema,
+            func,
+            state: ReadPostgresState {
+                conn_str,
+                schema,
+                table,
+                table_schema,
+            },
         }))
     }
 }
 
-impl PlannedTableFunction for ReadPostgresImpl {
+impl<R> PlannedTableFunction for ReadPostgresImpl<R>
+where
+    R: Runtime,
+{
     fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+        &self.state
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        &ReadPostgres
+        &self.func
     }
 
     fn schema(&self) -> Schema {
-        self.table_schema.clone()
+        self.state.table_schema.clone()
     }
 
-    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
-            runtime: runtime.clone(),
-            conn_str: self.conn_str.clone(),
-            schema: self.schema.clone(),
-            table: self.table.clone(),
+            runtime: self.func.runtime.clone(),
+            conn_str: self.state.conn_str.clone(),
+            schema: self.state.schema.clone(),
+            table: self.state.table.clone(),
         }))
     }
 }

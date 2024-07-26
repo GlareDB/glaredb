@@ -1,33 +1,34 @@
 use std::fmt;
-use std::sync::Arc;
 
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::functions::copy::{CopyToFunction, CopyToSink};
-use rayexec_execution::runtime::ExecutionRuntime;
+use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::AccessConfig;
 use rayexec_io::location::FileLocation;
+use rayexec_io::FileProvider;
 
 use crate::writer::AsyncBatchWriter;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParquetCopyToFunction;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParquetCopyToFunction<R: Runtime> {
+    pub(crate) runtime: R,
+}
 
-impl CopyToFunction for ParquetCopyToFunction {
+impl<R: Runtime> CopyToFunction for ParquetCopyToFunction<R> {
     fn name(&self) -> &'static str {
         "parquet_copy_to"
     }
 
     fn create_sinks(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn CopyToSink>>> {
-        let provider = runtime.file_provider();
+        let provider = self.runtime.file_provider();
 
         let mut sinks = Vec::with_capacity(num_partitions);
         for _ in 0..num_partitions {

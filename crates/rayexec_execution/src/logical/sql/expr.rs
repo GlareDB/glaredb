@@ -18,7 +18,7 @@ use crate::functions::CastType;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
-use super::binder::bindref::FunctionReference;
+use super::binder::bind_data::BoundFunctionReference;
 use super::query::QueryNodePlanner;
 use super::{
     binder::Bound,
@@ -109,8 +109,22 @@ impl<'a> ExpressionContext<'a> {
                 ast::Expr::Function(ast::Function { reference, .. }) => {
                     let (reference, _) =
                         self.planner.bind_data.functions.try_get_bound(*reference)?;
+                    let name = match *reference {
+                        BoundFunctionReference::Scalar(idx) => self
+                            .planner
+                            .bind_data
+                            .scalar_function_objects
+                            .get(idx)?
+                            .name(),
+                        BoundFunctionReference::Aggregate(idx) => self
+                            .planner
+                            .bind_data
+                            .aggregate_function_objects
+                            .get(idx)?
+                            .name(),
+                    };
                     vec![ExpandedSelectExpr::Expr {
-                        name: reference.name().to_string(),
+                        name: name.to_string(),
                         expr,
                         explicit_alias: false,
                     }]
@@ -285,7 +299,8 @@ impl<'a> ExpressionContext<'a> {
                 // I don't think it makes sense to try to handle different sets
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
-                    (FunctionReference::Scalar(scalar), _) => {
+                    (BoundFunctionReference::Scalar(idx), _) => {
+                        let scalar = self.planner.bind_data.scalar_function_objects.get(*idx)?;
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
@@ -294,7 +309,12 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
-                    (FunctionReference::Aggregate(agg), _) => {
+                    (BoundFunctionReference::Aggregate(idx), _) => {
+                        let agg = self
+                            .planner
+                            .bind_data
+                            .aggregate_function_objects
+                            .get(*idx)?;
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
                         let agg = agg.plan_from_expressions(&inputs, self.input)?;

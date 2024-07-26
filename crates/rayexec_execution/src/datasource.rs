@@ -4,13 +4,26 @@ use rayexec_error::{RayexecError, Result};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
-use crate::runtime::ExecutionRuntime;
+use crate::runtime::Runtime;
+
+/// Trait for constructing data sources.
+///
+/// This mostly exists to describe how runtimes get injected into data sources,
+/// and is not explicitly necessary.
+pub trait DataSourceBuilder<R: Runtime>: Sync + Send + Debug + Sized {
+    /// Initialize this data source using the provided runtime.
+    ///
+    /// This should create the data source object which gets inserted into
+    /// registry. The runtime should be cloned and stored in the object if
+    /// anything (table function, catalog) requires something that's provided by
+    /// the runtime, like a tokio handle or http client.
+    fn initialize(runtime: R) -> Box<dyn DataSource>;
+}
 
 /// An implementation of `DataSource` describes a data source type that we can
 /// read from.
@@ -36,7 +49,6 @@ pub trait DataSource: Sync + Send + Debug {
     /// Create a new catalog using the provided options.
     fn create_catalog(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>>;
 
@@ -181,7 +193,6 @@ pub struct MemoryDataSource;
 impl DataSource for MemoryDataSource {
     fn create_catalog(
         &self,
-        _runtime: &Arc<dyn ExecutionRuntime>,
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async move {

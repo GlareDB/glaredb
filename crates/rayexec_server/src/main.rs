@@ -11,15 +11,16 @@ use axum::{
 };
 use clap::Parser;
 use rayexec_csv::CsvDataSource;
+use rayexec_delta::DeltaDataSource;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::{
-    datasource::{DataSourceRegistry, MemoryDataSource},
+    datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource},
     engine::Engine,
-    runtime::ExecutionRuntime,
+    runtime::{PipelineExecutor, Runtime, TokioHandlerProvider},
 };
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
-use rayexec_rt_native::runtime::ThreadedExecutionRuntime;
+use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_server_client::ENDPOINTS;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -37,16 +38,15 @@ fn main() {
     let args = Arguments::parse();
     logutil::configure_global_logger(tracing::Level::DEBUG);
 
-    let runtime = Arc::new(
-        ThreadedExecutionRuntime::try_new()
-            .unwrap()
-            .with_default_tokio()
-            .unwrap(),
-    );
-    let tokio_handle = runtime.tokio_handle().expect("tokio to be configured");
+    let sched = ThreadedNativeExecutor::try_new().unwrap();
+    let runtime = NativeRuntime::with_default_tokio().unwrap();
+    let tokio_handle = runtime
+        .tokio_handle()
+        .handle()
+        .expect("tokio to be configured");
 
     let runtime_clone = runtime.clone();
-    let result = tokio_handle.block_on(async move { inner(args, runtime_clone).await });
+    let result = tokio_handle.block_on(async move { inner(args, sched, runtime_clone).await });
 
     if let Err(e) = result {
         println!("ERROR: {e}");
@@ -54,13 +54,18 @@ fn main() {
     }
 }
 
-async fn inner(args: Arguments, runtime: Arc<dyn ExecutionRuntime>) -> Result<()> {
+async fn inner(
+    args: Arguments,
+    sched: ThreadedNativeExecutor,
+    runtime: NativeRuntime,
+) -> Result<()> {
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
-        .with_datasource("postgres", Box::new(PostgresDataSource))?
-        .with_datasource("parquet", Box::new(ParquetDataSource))?
-        .with_datasource("csv", Box::new(CsvDataSource))?;
-    let engine = Engine::new_with_registry(runtime.clone(), registry)?;
+        .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
+        .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
+        .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
+        .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
+    let engine = Engine::new_with_registry(sched, runtime.clone(), registry)?;
 
     let state = Arc::new(handlers::ServerState { engine });
 

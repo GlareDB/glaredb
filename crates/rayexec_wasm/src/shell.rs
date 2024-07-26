@@ -1,13 +1,13 @@
-use crate::{errors::Result, runtime::WasmExecutionRuntime};
+use crate::errors::Result;
+use crate::runtime::{WasmExecutor, WasmRuntime};
 use js_sys::Function;
-use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_shell::shell::ShellSignal;
 use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
 use std::io::{self, BufWriter};
 use std::rc::Rc;
-use std::sync::Arc;
 use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -81,19 +81,19 @@ pub struct WasmShell {
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
     // used.
-    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>>>,
+    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmExecutor, WasmRuntime>>,
 }
 
 #[wasm_bindgen]
 impl WasmShell {
     /// Create a new shell that writes its output to the provided terminal.
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
-        let runtime = Arc::new(WasmExecutionRuntime::try_new()?);
+        let runtime = WasmRuntime::try_new()?;
         let registry = DataSourceRegistry::default()
             .with_datasource("memory", Box::new(MemoryDataSource))?
-            .with_datasource("parquet", Box::new(ParquetDataSource))?;
+            .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?;
 
-        let engine = SingleUserEngine::new_with_runtime(runtime, registry)?;
+        let engine = SingleUserEngine::try_new(WasmExecutor, runtime, registry)?;
 
         let terminal = TerminalWrapper::new(terminal);
         let shell = Rc::new(Shell::new(BufWriter::new(terminal)));

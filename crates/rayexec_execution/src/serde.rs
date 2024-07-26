@@ -230,8 +230,9 @@ impl Serialize for Box<dyn ScalarFunction + '_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ScalarFunctionDeserializer<'a> {
-    context: &'a DatabaseContext,
+    pub context: &'a DatabaseContext,
 }
 
 impl<'de, 'a> DeserializeSeed<'de> for ScalarFunctionDeserializer<'a> {
@@ -259,8 +260,9 @@ impl Serialize for Box<dyn PlannedScalarFunction + '_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct PlannedScalarFunctionDeserializer<'a> {
-    context: &'a DatabaseContext,
+    pub context: &'a DatabaseContext,
 }
 
 impl<'de, 'a> DeserializeSeed<'de> for PlannedScalarFunctionDeserializer<'a> {
@@ -286,8 +288,9 @@ impl Serialize for Box<dyn AggregateFunction + '_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct AggregateFunctionDeserializer<'a> {
-    context: &'a DatabaseContext,
+    pub context: &'a DatabaseContext,
 }
 
 impl<'de, 'a> DeserializeSeed<'de> for AggregateFunctionDeserializer<'a> {
@@ -315,8 +318,9 @@ impl Serialize for Box<dyn PlannedAggregateFunction + '_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct PlannedAggregateFunctionDeserializer<'a> {
-    context: &'a DatabaseContext,
+    pub context: &'a DatabaseContext,
 }
 
 impl<'de, 'a> DeserializeSeed<'de> for PlannedAggregateFunctionDeserializer<'a> {
@@ -342,8 +346,9 @@ impl Serialize for Box<dyn TableFunction + '_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct TableFunctionDeserializer<'a> {
-    context: &'a DatabaseContext,
+    pub context: &'a DatabaseContext,
 }
 
 impl<'de, 'a> DeserializeSeed<'de> for TableFunctionDeserializer<'a> {
@@ -371,8 +376,9 @@ impl Serialize for Box<dyn PlannedTableFunction + '_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct PlannedTableFunctionDeserializer<'a> {
-    context: &'a DatabaseContext,
+    pub context: &'a DatabaseContext,
 }
 
 impl<'de, 'a> DeserializeSeed<'de> for PlannedTableFunctionDeserializer<'a> {

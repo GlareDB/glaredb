@@ -1,21 +1,21 @@
-use std::sync::Arc;
-
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::functions::copy::{CopyToFunction, CopyToSink};
-use rayexec_execution::runtime::ExecutionRuntime;
+use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::AccessConfig;
-use rayexec_io::{location::FileLocation, FileSink};
+use rayexec_io::{location::FileLocation, FileProvider, FileSink};
 
 use crate::reader::DialectOptions;
 use crate::writer::CsvEncoder;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CsvCopyToFunction;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvCopyToFunction<R: Runtime> {
+    pub(crate) runtime: R,
+}
 
-impl CopyToFunction for CsvCopyToFunction {
+impl<R: Runtime> CopyToFunction for CsvCopyToFunction<R> {
     fn name(&self) -> &'static str {
         "csv_copy_to"
     }
@@ -23,12 +23,11 @@ impl CopyToFunction for CsvCopyToFunction {
     // TODO: Access config
     fn create_sinks(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn CopyToSink>>> {
-        let provider = runtime.file_provider();
+        let provider = self.runtime.file_provider();
 
         let mut sinks = Vec::with_capacity(num_partitions);
         for _ in 0..num_partitions {

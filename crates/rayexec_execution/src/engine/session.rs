@@ -3,7 +3,6 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
-use rayexec_server_client::HybridClient;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -20,7 +19,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::ExecutionRuntime,
+    runtime::{hybrid::HybridClient, PipelineExecutor, Runtime},
 };
 
 use super::{
@@ -55,7 +54,7 @@ use super::{
 /// during actual execution (pulling on the stream) as execution is completely
 /// independent of any state inside the session.
 #[derive(Debug)]
-pub struct Session {
+pub struct Session<P: PipelineExecutor, R: Runtime> {
     /// Context containg everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
@@ -66,8 +65,13 @@ pub struct Session {
     /// Reference configured data source implementations.
     registry: Arc<DataSourceRegistry>,
 
-    /// Reference to runtime for executing queries.
-    runtime: Arc<dyn ExecutionRuntime>,
+    /// Runtime for accessing external resources like the filesystem or http
+    /// clients.
+    #[allow(dead_code)] // TODO: Might just remove this field.
+    runtime: R,
+
+    /// Pipeline executor.
+    executor: P,
 
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
@@ -76,18 +80,24 @@ pub struct Session {
     portals: HashMap<String, Portal>,
 
     /// Client for hybrid execution if enabled.
-    hybrid_client: Option<HybridClient>,
+    hybrid_client: Option<Arc<dyn HybridClient>>,
 }
 
-impl Session {
+impl<P, R> Session<P, R>
+where
+    P: PipelineExecutor,
+    R: Runtime,
+{
     pub fn new(
         context: DatabaseContext,
-        runtime: Arc<dyn ExecutionRuntime>,
+        executor: P,
+        runtime: R,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
         Session {
             context,
             runtime,
+            executor,
             registry,
             vars: SessionVars::new_local(),
             prepared: HashMap::new(),
@@ -163,7 +173,6 @@ impl Session {
             &tx,
             &self.context,
             self.registry.get_file_handlers(),
-            &self.runtime,
         )
         .bind_statement(stmt)
         .await?;
@@ -182,7 +191,6 @@ impl Session {
         let mut adapter_stream = ResultAdapterStream::new();
         let planner = QueryGraphPlanner::new(
             &self.context,
-            &self.runtime,
             VarAccessor::new(&self.vars).partitions(),
             QueryGraphDebugConfig::new(&self.vars),
         );
@@ -201,9 +209,7 @@ impl Session {
                 // TODO: No clue if we want to do this here. What happens during
                 // hybrid exec?
                 let datasource = self.registry.get_datasource(&attach.datasource)?;
-                let catalog = datasource
-                    .create_catalog(&self.runtime, attach.options)
-                    .await?;
+                let catalog = datasource.create_catalog(attach.options).await?;
                 self.context.attach_catalog(&attach.name, catalog)?;
                 empty
             }
@@ -246,7 +252,7 @@ impl Session {
         };
 
         let handle = self
-            .runtime
+            .executor
             .spawn_query_graph(query_graph, Arc::new(adapter_stream.error_sink()));
 
         Ok(ExecutionResult {
@@ -256,11 +262,11 @@ impl Session {
         })
     }
 
-    pub fn attach_hybrid_client(&mut self, client: HybridClient) {
+    pub fn set_hybrid_client(&mut self, client: Arc<dyn HybridClient>) {
         self.hybrid_client = Some(client);
     }
 
-    pub fn detach_hybrid_client(&mut self) {
+    pub fn unset_hybrid_client(&mut self) {
         self.hybrid_client = None;
     }
 }

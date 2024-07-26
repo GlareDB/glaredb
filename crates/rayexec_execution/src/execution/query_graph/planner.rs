@@ -43,7 +43,6 @@ use crate::{
         grouping_set::GroupingSets,
         operator::{self, LogicalNode, LogicalOperator},
     },
-    runtime::ExecutionRuntime,
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},
@@ -103,14 +102,12 @@ pub struct QueryGraphPlanner<'a> {
 impl<'a> QueryGraphPlanner<'a> {
     pub fn new(
         db_context: &'a DatabaseContext,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
         target_partitions: usize,
         debug: QueryGraphDebugConfig,
     ) -> Self {
         QueryGraphPlanner {
             conf: BuildConfig {
                 db_context,
-                runtime,
                 target_partitions,
                 debug,
             },
@@ -191,9 +188,6 @@ impl Materializations {
 struct BuildConfig<'a> {
     /// Database context scoped to the "session" that's running this query.
     db_context: &'a DatabaseContext,
-
-    /// Reference to the engine runtime. Provied to table functions on scan.
-    runtime: &'a Arc<dyn ExecutionRuntime>,
 
     /// Target number of partitions to achieve when executing operators.
     target_partitions: usize,
@@ -458,7 +452,7 @@ impl BuildState {
         let physical = Arc::new(PhysicalCopyTo::new(copy_to.copy_to, copy_to.location));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states: Vec<_> = physical
-            .try_create_states(conf.runtime, copy_to.source_schema, 1)?
+            .try_create_states(copy_to.source_schema, 1)?
             .into_iter()
             .map(PartitionState::CopyTo)
             .collect();
@@ -623,7 +617,7 @@ impl BuildState {
         let physical = Arc::new(PhysicalTableFunction::new(table_func.function));
         let operator_state = Arc::new(OperatorState::None);
         let partition_states: Vec<_> = physical
-            .try_create_states(conf.runtime, conf.target_partitions)?
+            .try_create_states(conf.target_partitions)?
             .into_iter()
             .map(PartitionState::TableFunction)
             .collect();

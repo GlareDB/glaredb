@@ -1,5 +1,8 @@
 use rayexec_delta::DeltaDataSource;
-use rayexec_execution::{datasource::DataSourceRegistry, engine::Engine};
+use rayexec_execution::{
+    datasource::{DataSourceBuilder, DataSourceRegistry},
+    engine::Engine,
+};
 use rayexec_slt::{ReplacementVars, RunConfig, VarValue};
 use std::path::Path;
 
@@ -14,11 +17,12 @@ pub fn main() {
     let paths = rayexec_slt::find_files(Path::new("../slt/delta")).unwrap();
     rayexec_slt::run(
         paths,
-        |rt| {
+        |sched, rt| {
             Engine::new_with_registry(
-                rt,
+                sched,
+                rt.clone(),
                 DataSourceRegistry::default()
-                    .with_datasource("parquet", Box::new(DeltaDataSource))?,
+                    .with_datasource("delta", DeltaDataSource::initialize(rt))?,
             )
         },
         RunConfig {

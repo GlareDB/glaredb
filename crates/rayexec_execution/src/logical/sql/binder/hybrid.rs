@@ -1,17 +1,14 @@
-use std::sync::Arc;
-
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     logical::{operator::LocationRequirement, sql::binder::BindMode},
-    runtime::ExecutionRuntime,
 };
 use rayexec_error::Result;
 
 use super::{
-    bindref::{MaybeBound, TableFunctionReference},
+    bind_data::{BoundTableFunctionReference, MaybeBound},
     resolver::Resolver,
-    BindData, Binder, ExpressionBinder,
+    BindData, Binder,
 };
 
 /// Resolver for resolving partially bound statements.
@@ -46,11 +43,7 @@ pub struct HybridResolver<'a> {
 }
 
 impl<'a> HybridResolver<'a> {
-    pub fn new(
-        tx: &'a CatalogTx,
-        context: &'a DatabaseContext,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
-    ) -> Self {
+    pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
         // Currently just use an empty file handler, all files should have been
         // resolved appropriately on the "local" side.
         //
@@ -67,13 +60,7 @@ impl<'a> HybridResolver<'a> {
         // Note we're using bindmode normal here since everything we attempt to
         // bind in this resolver should succeed.
         HybridResolver {
-            binder: Binder::new(
-                BindMode::Normal,
-                tx,
-                context,
-                EMPTY_FILE_HANDLER_REF,
-                runtime,
-            ),
+            binder: Binder::new(BindMode::Normal, tx, context, EMPTY_FILE_HANDLER_REF),
         }
     }
 
@@ -113,18 +100,17 @@ impl<'a> HybridResolver<'a> {
                 let table_fn = Resolver::new(self.binder.tx, self.binder.context)
                     .require_resolve_table_function(&unbound.reference)?;
 
-                let args = ExpressionBinder::new(&self.binder)
-                    .bind_table_function_args(unbound.args.clone())
-                    .await?;
-
                 let name = table_fn.name().to_string();
-                let func = table_fn
-                    .plan_and_initialize(self.binder.runtime, args.clone())
-                    .await?;
+                let func = table_fn.plan_and_initialize(unbound.args.clone()).await?;
+
+                let func_idx = bind_data.table_function_objects.push(func);
 
                 // TODO: Marker indicating this needs to be executing remotely.
                 *item = MaybeBound::Bound(
-                    TableFunctionReference { name, func, args },
+                    BoundTableFunctionReference {
+                        name,
+                        idx: func_idx,
+                    },
                     LocationRequirement::Remote,
                 )
             }

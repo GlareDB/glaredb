@@ -9,9 +9,6 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
-
-use crate::runtime::ExecutionRuntime;
 
 /// Arguments provided via a COPY TO statement.
 ///
@@ -63,7 +60,6 @@ pub trait CopyToFunction: Debug + Sync + Send + DynClone {
     // TODO: Additional COPY TO args once we have them.
     fn create_sinks(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,

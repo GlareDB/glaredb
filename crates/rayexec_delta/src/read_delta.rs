@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
 use rayexec_io::location::{AccessConfig, FileLocation};
 use serde::{Deserialize, Serialize};
@@ -12,10 +12,12 @@ use std::sync::Arc;
 
 use crate::{datatable::DeltaDataTable, protocol::table::Table};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReadDelta;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadDelta<R: Runtime> {
+    pub(crate) runtime: R,
+}
 
-impl TableFunction for ReadDelta {
+impl<R: Runtime> TableFunction for ReadDelta<R> {
     fn name(&self) -> &'static str {
         "read_delta"
     }
@@ -24,24 +26,27 @@ impl TableFunction for ReadDelta {
         &["delta_scan"]
     }
 
-    fn plan_and_initialize<'a>(
-        &'a self,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { ReadDeltaImpl::initialize(runtime.as_ref(), args).await })
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(async move { ReadDeltaImpl::initialize(self.clone(), args).await })
     }
 
     fn state_deserialize(
         &self,
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        Ok(Box::new(ReadDeltaImpl::deserialize(deserializer)?))
+        let state = ReadDeltaState::deserialize(deserializer)?;
+        Ok(Box::new(ReadDeltaImpl {
+            func: self.clone(),
+            state,
+        }))
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReadDeltaImpl {
+struct ReadDeltaState {
     location: FileLocation,
     conf: AccessConfig,
     schema: Schema,
@@ -49,48 +54,57 @@ pub struct ReadDeltaImpl {
     table: Option<Arc<Table>>, // Populate on re-init if needed.
 }
 
-impl ReadDeltaImpl {
+#[derive(Debug, Clone)]
+pub struct ReadDeltaImpl<R: Runtime> {
+    func: ReadDelta<R>,
+    state: ReadDeltaState,
+}
+
+impl<R: Runtime> ReadDeltaImpl<R> {
     async fn initialize(
-        runtime: &dyn ExecutionRuntime,
+        func: ReadDelta<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
 
-        let provider = runtime.file_provider();
+        let provider = func.runtime.file_provider();
 
         let table = Table::load(location.clone(), provider, conf.clone()).await?;
         let schema = table.table_schema()?;
 
         Ok(Box::new(ReadDeltaImpl {
-            location,
-            conf,
-            schema,
-            table: Some(Arc::new(table)),
+            func,
+            state: ReadDeltaState {
+                location,
+                conf,
+                schema,
+                table: Some(Arc::new(table)),
+            },
         }))
     }
 }
 
-impl PlannedTableFunction for ReadDeltaImpl {
-    fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
+impl<R: Runtime> PlannedTableFunction for ReadDeltaImpl<R> {
+    fn reinitialize(&self) -> BoxFuture<Result<()>> {
         // TODO: Reinit table.
         // TODO: Needs mut
         unimplemented!()
     }
 
     fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+        &self.state
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        &ReadDelta
+        &self.func
     }
 
     fn schema(&self) -> Schema {
-        self.schema.clone()
+        self.state.schema.clone()
     }
 
-    fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
-        let table = match self.table.as_ref() {
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
+        let table = match self.state.table.as_ref() {
             Some(table) => table.clone(),
             None => return Err(RayexecError::new("Delta table not initialized")),
         };

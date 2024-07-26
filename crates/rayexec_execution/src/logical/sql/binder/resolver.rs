@@ -5,7 +5,7 @@ use crate::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::{bindref::TableOrCteReference, BindData};
+use super::{bind_data::BoundTableOrCteReference, BindData};
 
 // TODO: Search path
 #[derive(Debug)]
@@ -77,7 +77,7 @@ impl<'a> Resolver<'a> {
         &self,
         reference: &ast::ObjectReference,
         bind_data: &BindData,
-    ) -> Result<Option<TableOrCteReference>> {
+    ) -> Result<Option<BoundTableOrCteReference>> {
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
             1 => {
@@ -85,7 +85,7 @@ impl<'a> Resolver<'a> {
 
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(Some(TableOrCteReference::Cte(cte)));
+                    return Ok(Some(BoundTableOrCteReference::Cte(cte)));
                 }
 
                 // Otherwise continue with trying to resolve from the catalogs.
@@ -115,7 +115,7 @@ impl<'a> Resolver<'a> {
             .get_table_entry(self.tx, &schema, &table)
             .await?
         {
-            Ok(Some(TableOrCteReference::Table {
+            Ok(Some(BoundTableOrCteReference::Table {
                 catalog,
                 schema,
                 entry,
@@ -129,7 +129,7 @@ impl<'a> Resolver<'a> {
         &self,
         reference: &ast::ObjectReference,
         bind_data: &BindData,
-    ) -> Result<TableOrCteReference> {
+    ) -> Result<BoundTableOrCteReference> {
         self.resolve_table_or_cte(reference, bind_data)
             .await?
             .ok_or_else(|| {

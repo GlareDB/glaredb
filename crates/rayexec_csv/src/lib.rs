@@ -12,21 +12,28 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog::Catalog,
-    datasource::{DataSource, FileHandler},
+    datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
 use read_csv::ReadCsv;
 use regex::RegexBuilder;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CsvDataSource;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvDataSource<R: Runtime> {
+    runtime: R,
+}
 
-impl DataSource for CsvDataSource {
+impl<R: Runtime> DataSourceBuilder<R> for CsvDataSource<R> {
+    fn initialize(runtime: R) -> Box<dyn DataSource> {
+        Box::new(CsvDataSource { runtime })
+    }
+}
+
+impl<R: Runtime> DataSource for CsvDataSource<R> {
     fn create_catalog(
         &self,
-        _runtime: &Arc<dyn ExecutionRuntime>,
         _options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async {
@@ -37,7 +44,9 @@ impl DataSource for CsvDataSource {
     }
 
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
-        vec![Box::new(ReadCsv)]
+        vec![Box::new(ReadCsv {
+            runtime: self.runtime.clone(),
+        })]
     }
 
     fn file_handlers(&self) -> Vec<FileHandler> {
@@ -48,8 +57,12 @@ impl DataSource for CsvDataSource {
 
         vec![FileHandler {
             regex,
-            table_func: Box::new(ReadCsv),
-            copy_to: Some(Box::new(CsvCopyToFunction)),
+            table_func: Box::new(ReadCsv {
+                runtime: self.runtime.clone(),
+            }),
+            copy_to: Some(Box::new(CsvCopyToFunction {
+                runtime: self.runtime.clone(),
+            })),
         }]
     }
 }

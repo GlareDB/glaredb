@@ -10,25 +10,25 @@ use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
 use rayexec_execution::{
     database::table::{DataTable, DataTableScan},
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},
-    FileSource,
+    FileProvider, FileSource,
 };
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
 #[derive(Debug)]
-pub struct RowGroupPartitionedDataTable {
+pub struct RowGroupPartitionedDataTable<R: Runtime> {
     pub metadata: Arc<Metadata>,
     pub schema: Schema,
     pub location: FileLocation,
     pub conf: AccessConfig,
-    pub runtime: Arc<dyn ExecutionRuntime>,
+    pub runtime: R,
 }
 
-impl DataTable for RowGroupPartitionedDataTable {
+impl<R: Runtime> DataTable for RowGroupPartitionedDataTable<R> {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
         let file_provider = self.runtime.file_provider();
 

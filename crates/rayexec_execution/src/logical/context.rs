@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{
     operator::{LogicalOperator, MaterializedScan},
-    sql::{binder::bindref::CteReference, scope::Scope},
+    sql::{binder::bind_data::CteReference, scope::Scope},
 };
 
 #[derive(Debug, Clone, PartialEq)]

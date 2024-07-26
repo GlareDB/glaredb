@@ -12,11 +12,9 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
-use std::sync::Arc;
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::database::table::DataTable;
-use crate::runtime::ExecutionRuntime;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> =
     Lazy::new(|| vec![Box::new(GenerateSeries)]);
@@ -94,11 +92,10 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// Intialization may include opening connections a remote database, and
     /// should be used determine the schema of the table we'll be returning. Any
     /// connections should remain open through execution.
-    fn plan_and_initialize<'a>(
-        &'a self,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>>;
 
     /// Deserialize existing state into a planned table function.
     ///
@@ -139,7 +136,7 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// machines.
     ///
     /// The default implementation does nothing.
-    fn reinitialize(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> BoxFuture<Result<()>> {
+    fn reinitialize(&self) -> BoxFuture<Result<()>> {
         async move { Ok(()) }.boxed()
     }
 
@@ -164,7 +161,7 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     ///
     /// An engine runtime is provided for table funcs that return truly async
     /// data tables.
-    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>>;
+    fn datatable(&self) -> Result<Box<dyn DataTable>>;
 }
 
 impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> {

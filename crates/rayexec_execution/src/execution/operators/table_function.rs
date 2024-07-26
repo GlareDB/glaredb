@@ -2,12 +2,10 @@ use crate::{
     database::table::DataTableScan,
     functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    runtime::ExecutionRuntime,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
 use std::task::Context;
 use std::{fmt, task::Poll};
 
@@ -41,10 +39,9 @@ impl PhysicalTableFunction {
 
     pub fn try_create_states(
         &self,
-        runtime: &Arc<dyn ExecutionRuntime>,
         num_partitions: usize,
     ) -> Result<Vec<TableFunctionPartitionState>> {
-        let data_table = self.function.datatable(runtime)?;
+        let data_table = self.function.datatable()?;
 
         // TODO: Pushdown projections, filters
         let scans = data_table.scan(num_partitions)?;

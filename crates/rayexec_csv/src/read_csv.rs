@@ -4,14 +4,13 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::table::DataTable,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},
-    FileSource,
+    FileProvider, FileSource,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::{
     datatable::SingleFileCsvDataTable,
@@ -19,10 +18,12 @@ use crate::{
     reader::{CsvSchema, DialectOptions},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReadCsv;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadCsv<R: Runtime> {
+    pub(crate) runtime: R,
+}
 
-impl TableFunction for ReadCsv {
+impl<R: Runtime> TableFunction for ReadCsv<R> {
     fn name(&self) -> &'static str {
         "read_csv"
     }
@@ -31,38 +32,48 @@ impl TableFunction for ReadCsv {
         &["csv_scan"]
     }
 
-    fn plan_and_initialize<'a>(
-        &'a self,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
+    fn plan_and_initialize(
+        &self,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(ReadCsvImpl::initialize(runtime.as_ref(), args))
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
+        Box::pin(ReadCsvImpl::initialize(self.clone(), args))
     }
 
     fn state_deserialize(
         &self,
         deserializer: &mut dyn erased_serde::Deserializer,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        Ok(Box::new(ReadCsvImpl::deserialize(deserializer)?))
+        let state = ReadCsvState::deserialize(deserializer)?;
+        Ok(Box::new(ReadCsvImpl {
+            func: self.clone(),
+            state,
+        }))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct ReadCsvImpl {
+struct ReadCsvState {
     location: FileLocation,
     conf: AccessConfig,
     csv_schema: CsvSchema,
     dialect: DialectOptions,
 }
 
-impl ReadCsvImpl {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReadCsvImpl<R: Runtime> {
+    func: ReadCsv<R>,
+    state: ReadCsvState,
+}
+
+impl<R: Runtime> ReadCsvImpl<R> {
     async fn initialize(
-        runtime: &dyn ExecutionRuntime,
+        func: ReadCsv<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
 
-        let mut source = runtime
+        let mut source = func
+            .runtime
             .file_provider()
             .file_source(location.clone(), &conf)?;
 
@@ -90,36 +101,39 @@ impl ReadCsvImpl {
         let csv_schema = CsvSchema::infer_from_records(completed)?;
 
         Ok(Box::new(Self {
-            location,
-            conf,
-            dialect,
-            csv_schema,
+            func,
+            state: ReadCsvState {
+                location,
+                conf,
+                dialect,
+                csv_schema,
+            },
         }))
     }
 }
 
-impl PlannedTableFunction for ReadCsvImpl {
+impl<R: Runtime> PlannedTableFunction for ReadCsvImpl<R> {
     fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+        &self.state
     }
 
     fn table_function(&self) -> &dyn TableFunction {
-        &ReadCsv
+        &self.func
     }
 
     fn schema(&self) -> Schema {
         Schema {
-            fields: self.csv_schema.fields.clone(),
+            fields: self.state.csv_schema.fields.clone(),
         }
     }
 
-    fn datatable(&self, runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(SingleFileCsvDataTable {
-            options: self.dialect,
-            csv_schema: self.csv_schema.clone(),
-            location: self.location.clone(),
-            conf: self.conf.clone(),
-            runtime: runtime.clone(),
+            options: self.state.dialect,
+            csv_schema: self.state.csv_schema.clone(),
+            location: self.state.location.clone(),
+            conf: self.state.conf.clone(),
+            runtime: self.func.runtime.clone(),
         }))
     }
 }

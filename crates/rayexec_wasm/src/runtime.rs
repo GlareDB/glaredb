@@ -6,7 +6,9 @@ use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::{pipeline::PartitionPipeline, query_graph::QueryGraph},
-    runtime::{dump::QueryDump, ErrorSink, ExecutionRuntime, QueryHandle},
+    runtime::{
+        dump::QueryDump, ErrorSink, PipelineExecutor, QueryHandle, Runtime, TokioHandlerProvider,
+    },
 };
 use rayexec_io::{
     http::HttpClientReader,
@@ -25,26 +27,58 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WasmHttpClient;
 
-/// Execution runtime for wasm.
-///
-/// This implementation works on a single thread which each pipeline task being
-/// spawned local to the thread (using js promises under the hood).
-#[derive(Debug)]
-pub struct WasmExecutionRuntime {
+#[derive(Debug, Clone)]
+pub struct WasmRuntime {
     // TODO: Remove Arc? Arc already used internally for the memory fs.
     pub(crate) fs: Arc<MemoryFileSystem>,
 }
 
-impl WasmExecutionRuntime {
+impl WasmRuntime {
     pub fn try_new() -> Result<Self> {
-        debug!("creating wasm execution runtime");
-        Ok(WasmExecutionRuntime {
+        Ok(WasmRuntime {
             fs: Arc::new(MemoryFileSystem::default()),
         })
     }
 }
 
-impl ExecutionRuntime for WasmExecutionRuntime {
+impl Runtime for WasmRuntime {
+    type HttpClient = WasmHttpClient;
+    type FileProvider = WasmFileProvider;
+    type TokioHandle = MissingTokioHandle;
+
+    fn file_provider(&self) -> Arc<Self::FileProvider> {
+        // TODO: Could probably remove this arc.
+        Arc::new(WasmFileProvider {
+            fs: self.fs.clone(),
+        })
+    }
+
+    fn http_client(&self) -> Self::HttpClient {
+        WasmHttpClient::new(reqwest::Client::default())
+    }
+
+    fn tokio_handle(&self) -> &Self::TokioHandle {
+        &MissingTokioHandle
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MissingTokioHandle;
+
+impl TokioHandlerProvider for MissingTokioHandle {
+    fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
+        None
+    }
+}
+
+/// Execution scheduler for wasm.
+///
+/// This implementation works on a single thread which each pipeline task being
+/// spawned local to the thread (using js promises under the hood).
+#[derive(Debug, Clone)]
+pub struct WasmExecutor;
+
+impl PipelineExecutor for WasmExecutor {
     fn spawn_query_graph(
         &self,
         query_graph: QueryGraph,
@@ -67,16 +101,6 @@ impl ExecutionRuntime for WasmExecutionRuntime {
         }
 
         Box::new(WasmQueryHandle {})
-    }
-
-    fn tokio_handle(&self) -> Option<tokio::runtime::Handle> {
-        None
-    }
-
-    fn file_provider(&self) -> Arc<dyn FileProvider> {
-        Arc::new(WasmFileProvider {
-            fs: self.fs.clone(),
-        })
     }
 }
 

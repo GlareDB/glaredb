@@ -8,12 +8,12 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog::Catalog,
-    datasource::{DataSource, FileHandler},
+    datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
 use read_delta::ReadDelta;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 // TODO: How do we want to handle catalogs that provide data sources? Do we want
 // to have "Glue" and "Unity" data sources that are separate from the base
@@ -31,13 +31,20 @@ use std::{collections::HashMap, sync::Arc};
 // have iceberg, etc tables in it, and having glue as a separate data source
 // means we can dispatch to the appropriate table implementation.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeltaDataSource;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeltaDataSource<R: Runtime> {
+    runtime: R,
+}
 
-impl DataSource for DeltaDataSource {
+impl<R: Runtime> DataSourceBuilder<R> for DeltaDataSource<R> {
+    fn initialize(runtime: R) -> Box<dyn DataSource> {
+        Box::new(Self { runtime })
+    }
+}
+
+impl<R: Runtime> DataSource for DeltaDataSource<R> {
     fn create_catalog(
         &self,
-        _runtime: &Arc<dyn ExecutionRuntime>,
         _options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async {
@@ -48,7 +55,9 @@ impl DataSource for DeltaDataSource {
     }
 
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
-        vec![Box::new(ReadDelta)]
+        vec![Box::new(ReadDelta {
+            runtime: self.runtime.clone(),
+        })]
     }
 
     fn file_handlers(&self) -> Vec<FileHandler> {

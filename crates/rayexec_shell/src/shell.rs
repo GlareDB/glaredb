@@ -4,6 +4,7 @@ use std::{
 };
 
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::runtime::{PipelineExecutor, Runtime};
 use tracing::trace;
 
 use crate::{
@@ -25,18 +26,23 @@ pub enum ShellSignal {
 }
 
 #[derive(Debug)]
-pub struct Shell<W: io::Write> {
+pub struct Shell<W: io::Write, P: PipelineExecutor, R: Runtime> {
     editor: RefCell<LineEditor<W>>,
-    engine: RefCell<Option<EngineWithConfig>>,
+    engine: RefCell<Option<EngineWithConfig<P, R>>>,
 }
 
 #[derive(Debug)]
-struct EngineWithConfig {
-    engine: SingleUserEngine,
+struct EngineWithConfig<P: PipelineExecutor, R: Runtime> {
+    engine: SingleUserEngine<P, R>,
     pending: Option<String>,
 }
 
-impl<W: io::Write> Shell<W> {
+impl<W, P, R> Shell<W, P, R>
+where
+    W: io::Write,
+    P: PipelineExecutor,
+    R: Runtime,
+{
     pub fn new(writer: W) -> Self {
         let editor = LineEditor::new(writer, ">> ", 80);
         Shell {
@@ -45,7 +51,7 @@ impl<W: io::Write> Shell<W> {
         }
     }
 
-    pub fn attach(&self, engine: SingleUserEngine, shell_msg: &str) -> Result<()> {
+    pub fn attach(&self, engine: SingleUserEngine<P, R>, shell_msg: &str) -> Result<()> {
         let mut current = self.engine.borrow_mut();
         *current = Some(EngineWithConfig {
             engine,

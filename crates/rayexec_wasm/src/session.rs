@@ -1,11 +1,14 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
-use crate::{errors::Result, runtime::WasmExecutionRuntime};
+use crate::{
+    errors::Result,
+    runtime::{WasmExecutor, WasmRuntime},
+};
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::RayexecError;
-use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::session::{ResultTable, SingleUserEngine};
 use tracing::trace;
@@ -14,21 +17,21 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct WasmSession {
-    pub(crate) runtime: Arc<WasmExecutionRuntime>,
-    pub(crate) engine: SingleUserEngine,
+    pub(crate) runtime: WasmRuntime,
+    pub(crate) engine: SingleUserEngine<WasmExecutor, WasmRuntime>,
 }
 
 #[wasm_bindgen]
 impl WasmSession {
     pub fn try_new() -> Result<WasmSession> {
-        let runtime = Arc::new(WasmExecutionRuntime::try_new()?);
+        let runtime = WasmRuntime::try_new()?;
         let registry = DataSourceRegistry::default()
             .with_datasource("memory", Box::new(MemoryDataSource))?
-            .with_datasource("parquet", Box::new(ParquetDataSource))?
-            .with_datasource("csv", Box::new(CsvDataSource))?
-            .with_datasource("delta", Box::new(DeltaDataSource))?;
+            .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
+            .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
+            .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?;
 
-        let engine = SingleUserEngine::new_with_runtime(runtime.clone(), registry)?;
+        let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone(), registry)?;
 
         Ok(WasmSession { runtime, engine })
     }

@@ -118,8 +118,49 @@ writing.
 
 Similar probably needs to happen with GCS: https://cloud.google.com/storage/docs/using-cors#console
 
-# Don't use usize for "long" in protocol messages
+## Don't use usize for "long" in protocol messages
 
 Because wasm is 32 bit.
 
 Most likely to hit the issue with microsecond resolution timestamps.
+
+## Glossary
+
+Response for <https://github.com/GlareDB/rayexec/pull/146#pullrequestreview-2200437886>
+
+- **Engine**
+  - Interface for creating sessions. Holds the state required for creating a
+    session, including the runtime, scheduler, and system catalog.
+  - One per process.
+- **Session**
+  - Interface for submitting and executing queries.
+  - One per "connection". For multi user systems, it'd be one session per pg
+    connection (or rpc, etc). For the "embedded" case (wasm, python bindings),
+    there will only be a single session which lasts as long as the engine.
+  - Holds a database context (the "catalog" for a user)
+  - Holds a reference to the runtime/scheduler for query execution.
+  - Holds session variables
+  - Constructs a query graph from a sql statement and executes it.
+- **ServerSession**
+  - For hybrid execution. Scope not quite clear yet, but will be the "remote"
+    side for hybrid execution. Pared down state, just stuff that's needed to
+    complete planning of a query, and execute some pipelines.
+- **Runtime**
+  - Stuff needed for interacting with the outside world, like file system access
+    and http clients.
+  - One per process
+- **PipelineExecutor**
+  - Execute queries/pipelines (currently requires a complete query graph, but
+    an additional method will be added to execute arbitrary pipelines).
+  - The "physical" part of executor, e.g. what cores will this pipeline be
+    running on.
+  - One per process
+- **QueryGraph**
+  - Collection of pipelines make up a complete query for execution.
+- **Pipeline**
+  - Collection of partitions pipelines that make up part of query.
+  - All partition pipelines in the pipeline represent the same set of operators,
+    just distributed across partitions for parallelism.
+- **PartitionPipeline**
+  - A single set of physical operators along with state that can be executed
+    independently.

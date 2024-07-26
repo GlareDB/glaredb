@@ -13,20 +13,36 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog::Catalog,
-    datasource::{DataSource, FileHandler},
+    datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
-    runtime::ExecutionRuntime,
+    runtime::Runtime,
 };
-use regex::RegexBuilder;
-use std::{collections::HashMap, sync::Arc};
+use regex::{Regex, RegexBuilder};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParquetDataSource;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParquetDataSource<R> {
+    runtime: R,
+}
 
-impl DataSource for ParquetDataSource {
+impl<R: Runtime> DataSourceBuilder<R> for ParquetDataSource<R> {
+    fn initialize(runtime: R) -> Box<dyn DataSource> {
+        Box::new(Self { runtime })
+    }
+}
+
+impl<R> ParquetDataSource<R> {
+    fn file_regex() -> Regex {
+        RegexBuilder::new(r"^.*\.(parquet)$")
+            .case_insensitive(true)
+            .build()
+            .expect("regex to build")
+    }
+}
+
+impl<R: Runtime> DataSource for ParquetDataSource<R> {
     fn create_catalog(
         &self,
-        _runtime: &Arc<dyn ExecutionRuntime>,
         _options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<Result<Box<dyn Catalog>>> {
         Box::pin(async {
@@ -37,19 +53,20 @@ impl DataSource for ParquetDataSource {
     }
 
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
-        vec![Box::new(ReadParquet)]
+        vec![Box::new(ReadParquet {
+            runtime: self.runtime.clone(),
+        })]
     }
 
     fn file_handlers(&self) -> Vec<FileHandler> {
-        let regex = RegexBuilder::new(r"^.*\.(parquet)$")
-            .case_insensitive(true)
-            .build()
-            .expect("regex to build");
-
         vec![FileHandler {
-            regex,
-            table_func: Box::new(ReadParquet),
-            copy_to: Some(Box::new(ParquetCopyToFunction)),
+            regex: Self::file_regex(),
+            table_func: Box::new(ReadParquet {
+                runtime: self.runtime.clone(),
+            }),
+            copy_to: Some(Box::new(ParquetCopyToFunction {
+                runtime: self.runtime.clone(),
+            })),
         }]
     }
 }
@@ -60,8 +77,7 @@ mod tests {
 
     #[test]
     fn file_regex() {
-        let handlers = ParquetDataSource.file_handlers();
-        let regex = &handlers[0].regex;
+        let regex = ParquetDataSource::<()>::file_regex();
 
         assert!(regex.is_match("file.parquet"));
         assert!(regex.is_match("file.PARQUET"));

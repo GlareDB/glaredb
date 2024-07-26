@@ -6,7 +6,7 @@ pub fn main() {
     let paths = rayexec_slt::find_files(Path::new("../slt/standard")).unwrap();
     rayexec_slt::run(
         paths,
-        |rt| Engine::new(rt),
+        |sched, rt| Engine::new(sched, rt),
         RunConfig::default(),
         "slt_standard",
     )

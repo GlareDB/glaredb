@@ -1,7 +1,4 @@
-use crate::{
-    database::table::{DataTable, DataTableScan, EmptyTableScan},
-    runtime::ExecutionRuntime,
-};
+use crate::database::table::{DataTable, DataTableScan, EmptyTableScan};
 use futures::future::BoxFuture;
 use rayexec_bullet::{
     array::{Array, Int64Array},
@@ -11,7 +8,6 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 
@@ -25,7 +21,6 @@ impl TableFunction for GenerateSeries {
 
     fn plan_and_initialize(
         &self,
-        _runtime: &Arc<dyn ExecutionRuntime>,
         args: TableFunctionArgs,
     ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { Self::plan_and_initialize_inner(args) })
@@ -95,7 +90,7 @@ impl PlannedTableFunction for GenerateSeriesI64 {
         Schema::new([Field::new("generate_series", DataType::Int64, false)])
     }
 
-    fn datatable(&self, _runtime: &Arc<dyn ExecutionRuntime>) -> Result<Box<dyn DataTable>> {
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(self.clone()))
     }
 }

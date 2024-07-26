@@ -235,7 +235,7 @@ pub enum FromNodeBody<T: AstMeta> {
     BaseTable(FromBaseTable<T>),
     File(FromFilePath),
     Subquery(FromSubquery<T>),
-    TableFunction(T::TableFunctionReference),
+    TableFunction(FromTableFunction<T>),
     Join(FromJoin<T>),
 }
 
@@ -256,8 +256,8 @@ pub struct FromSubquery<T: AstMeta> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FromTableFunction<T: AstMeta> {
-    pub reference: ObjectReference,
-    pub args: Vec<FunctionArg<T>>,
+    pub reference: T::TableFunctionReference,
+    pub args: T::TableFunctionArgs,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

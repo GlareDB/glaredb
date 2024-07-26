@@ -1,15 +1,15 @@
-pub mod bindref;
+pub mod bind_data;
 pub mod hybrid;
 
 mod exprbinder;
 mod resolver;
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::fmt;
 
-use bindref::{
-    BindListIdx, CteReference, FunctionBindList, ItemReference, MaybeBound, TableBindList,
-    TableFunctionBindList, TableFunctionReference,
+use bind_data::{
+    BindData, BindDataVisitor, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference,
+    ItemReference, MaybeBound, UnboundTableFunctionReference,
 };
 use exprbinder::ExpressionBinder;
 use rayexec_bullet::{
@@ -22,19 +22,22 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::{
-    ast::{self, ColumnDef, ObjectReference, QueryNode},
+    ast::{self, ColumnDef, ObjectReference},
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
 use resolver::Resolver;
-use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
+use serde::{
+    de::{self, MapAccess, Visitor},
+    ser::SerializeMap,
+    Deserialize, Serialize, Serializer,
+};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
-    runtime::ExecutionRuntime,
 };
 
 pub type BoundStatement = Statement<Bound>;
@@ -49,6 +52,10 @@ impl AstMeta for Bound {
     type ItemReference = ItemReference;
     type TableReference = BindListIdx;
     type TableFunctionReference = BindListIdx;
+    // TODO: Having this be the actual table function args does require that we
+    // clone them, and the args that go back into the ast don't actually do
+    // anything, they're never referenced again.
+    type TableFunctionArgs = TableFunctionArgs;
     type CteReference = CteReference;
     type FunctionReference = BindListIdx;
     type ColumnReference = String;
@@ -73,19 +80,54 @@ impl Serialize for StatementWithBindData {
     where
         S: Serializer,
     {
-        let mut s = serializer.serialize_struct("StatementWithBindData", 2)?;
-        s.serialize_field("statement", &self.statement)?;
-        unimplemented!()
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("statement", &self.statement)?;
+        map.serialize_entry("bind_data", &self.bind_data)?;
+        map.end()
     }
 }
 
-impl Serialize for BindData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+pub struct StatementWithBindDataVisitor<'a> {
+    pub context: &'a DatabaseContext,
+}
+
+impl<'de, 'a> Visitor<'de> for StatementWithBindDataVisitor<'a> {
+    type Value = StatementWithBindData;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("bound statement with bind data")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<StatementWithBindData, V::Error>
     where
-        S: Serializer,
+        V: MapAccess<'de>,
     {
-        let mut _s = serializer.serialize_struct("BindData", 5)?;
-        unimplemented!()
+        let mut statement = None;
+        let mut bind_data = None;
+
+        while let Some(key) = map.next_key()? {
+            match key {
+                "statement" => {
+                    statement = Some(map.next_value()?);
+                }
+                "bind_data" => {
+                    bind_data = Some(map.next_value_seed(BindDataVisitor {
+                        context: self.context,
+                    })?);
+                }
+                _ => {
+                    let _ = map.next_value::<de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        let statement = statement.ok_or_else(|| de::Error::missing_field("statement"))?;
+        let bind_data = bind_data.ok_or_else(|| de::Error::missing_field("bind_data"))?;
+
+        Ok(StatementWithBindData {
+            statement,
+            bind_data,
+        })
     }
 }
 
@@ -95,24 +137,6 @@ pub struct BoundCopyTo {
     // TODO: Remote skip and Option when serializing is figured out.
     #[serde(skip)]
     pub func: Option<Box<dyn CopyToFunction>>,
-}
-
-// TODO: This might need some scoping information.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BoundCte {
-    /// Normalized name for the CTE.
-    pub name: String,
-
-    /// Depth this CTE was found at.
-    pub depth: usize,
-
-    /// Column aliases taken directly from the ast.
-    pub column_aliases: Option<Vec<ast::Ident>>,
-
-    /// The bound query node.
-    pub body: QueryNode<Bound>,
-
-    pub materialized: bool,
 }
 
 /// Determines the logic taken when encountering an unknown object in a query.
@@ -131,90 +155,6 @@ impl BindMode {
     }
 }
 
-/// Data that's collected during binding, including resolved tables, functions,
-/// and other database objects.
-///
-/// Planning will reference these items directly.
-#[derive(Debug, Default, PartialEq)]
-pub struct BindData {
-    pub tables: TableBindList,
-    pub functions: FunctionBindList,
-    pub table_functions: TableFunctionBindList,
-
-    /// How "deep" in the plan are we.
-    ///
-    /// Incremented everytime we dive into a subquery.
-    ///
-    /// This provides a primitive form of scoping for CTE resolution.
-    pub current_depth: usize,
-
-    /// CTEs are appended to the vec as they're encountered.
-    ///
-    /// When search for a CTE, the vec should be iterated from right to left to
-    /// try to get the "closest" CTE to the reference.
-    pub ctes: Vec<BoundCte>,
-}
-
-impl BindData {
-    /// Checks if there's any unbound references in this query's bind data.
-    pub fn any_unbound(&self) -> bool {
-        self.tables.any_unbound()
-            || self.functions.any_unbound()
-            || self.table_functions.any_unbound()
-    }
-
-    /// Try to find a CTE by its normalized name.
-    ///
-    /// This will iterate the cte vec right to left to find best cte that
-    /// matches this name.
-    ///
-    /// The current depth will be used to determine if a CTE is valid to
-    /// reference or not. What this means is as we iterate, we can go "up" in
-    /// depth, but never back down, as going back down would mean we're
-    /// attempting to resolve a cte from a "sibling" subquery.
-    // TODO: This doesn't account for CTEs defined in sibling subqueries yet
-    // that happen to have the same name and depths _and_ there's no CTEs in the
-    // parent.
-    fn find_cte(&self, name: &str) -> Option<CteReference> {
-        let mut search_depth = self.current_depth;
-
-        for (idx, cte) in self.ctes.iter().rev().enumerate() {
-            if cte.depth > search_depth {
-                // We're looking another subquery's CTEs.
-                return None;
-            }
-
-            if cte.name == name {
-                // We found a good reference.
-                return Some(CteReference {
-                    idx: (self.ctes.len() - 1) - idx, // Since we're iterating backwards.
-                });
-            }
-
-            // Otherwise keep searching, even if the cte is up a level.
-            search_depth = cte.depth;
-        }
-
-        // No CTE found.
-        None
-    }
-
-    fn inc_depth(&mut self) {
-        self.current_depth += 1
-    }
-
-    fn dec_depth(&mut self) {
-        self.current_depth -= 1;
-    }
-
-    /// Push a CTE into bind data, returning a CTE reference.
-    fn push_cte(&mut self, cte: BoundCte) -> CteReference {
-        let idx = self.ctes.len();
-        self.ctes.push(cte);
-        CteReference { idx }
-    }
-}
-
 /// Binds a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
 pub struct Binder<'a> {
@@ -222,7 +162,6 @@ pub struct Binder<'a> {
     pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
     pub file_handlers: &'a FileHandlers,
-    pub runtime: &'a Arc<dyn ExecutionRuntime>,
 }
 
 impl<'a> Binder<'a> {
@@ -231,14 +170,12 @@ impl<'a> Binder<'a> {
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
-        runtime: &'a Arc<dyn ExecutionRuntime>,
     ) -> Self {
         Binder {
             bindmode,
             tx,
             context,
             file_handlers,
-            runtime,
         }
     }
 
@@ -801,17 +738,22 @@ impl<'a> Binder<'a> {
                         };
 
                         let name = handler.table_func.name().to_string();
-                        let func = handler
-                            .table_func
-                            .plan_and_initialize(self.runtime, args.clone())
-                            .await?;
+                        let func = handler.table_func.plan_and_initialize(args.clone()).await?;
 
-                        let func_idx = bind_data.table_functions.push_bound(
-                            TableFunctionReference { name, func, args },
+                        let func_idx = bind_data.table_function_objects.push(func);
+                        let bind_idx = bind_data.table_functions.push_bound(
+                            BoundTableFunctionReference {
+                                name,
+                                idx: func_idx,
+                            },
                             LocationRequirement::Local,
                         );
 
-                        ast::FromNodeBody::TableFunction(func_idx)
+                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            reference: bind_idx,
+                            // TODO: Not needed.
+                            args,
+                        })
                     }
                     None => {
                         return Err(RayexecError::new(format!(
@@ -821,30 +763,44 @@ impl<'a> Binder<'a> {
                 }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
+                let args = ExpressionBinder::new(self)
+                    .bind_table_function_args(args)
+                    .await?;
+
                 match Resolver::new(self.tx, self.context).resolve_table_function(&reference)? {
                     Some(table_fn) => {
-                        let args = ExpressionBinder::new(self)
-                            .bind_table_function_args(args)
-                            .await?;
-
                         let name = table_fn.name().to_string();
-                        let func = table_fn
-                            .plan_and_initialize(self.runtime, args.clone())
-                            .await?;
+                        let func = table_fn.plan_and_initialize(args.clone()).await?;
 
-                        let func_idx = bind_data.table_functions.push_bound(
-                            TableFunctionReference { name, func, args },
+                        let func_idx = bind_data.table_function_objects.push(func);
+                        let bind_idx = bind_data.table_functions.push_bound(
+                            BoundTableFunctionReference {
+                                name,
+                                idx: func_idx,
+                            },
                             LocationRequirement::Local,
                         );
 
-                        ast::FromNodeBody::TableFunction(func_idx)
+                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            reference: bind_idx,
+                            // TODO: These args aren't actually needed.
+                            args,
+                        })
                     }
                     None => {
-                        let func_idx = bind_data
-                            .table_functions
-                            .push_unbound(ast::FromTableFunction { reference, args });
+                        let bind_idx =
+                            bind_data
+                                .table_functions
+                                .push_unbound(UnboundTableFunctionReference {
+                                    reference,
+                                    args: args.clone(),
+                                });
 
-                        ast::FromNodeBody::TableFunction(func_idx)
+                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            reference: bind_idx,
+                            // TODO: These args aren't actually needed.
+                            args,
+                        })
                     }
                 }
             }

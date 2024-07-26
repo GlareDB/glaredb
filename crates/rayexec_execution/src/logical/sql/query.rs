@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{
     aggregate::AggregatePlanner,
     binder::{
-        bindref::{CteReference, TableOrCteReference},
-        BindData, Bound,
+        bind_data::{BindData, BoundTableOrCteReference, CteReference},
+        Bound,
     },
     expr::{ExpandedSelectExpr, ExpressionContext},
     planner::LogicalQuery,
@@ -333,7 +333,7 @@ impl<'a> QueryNodePlanner<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.bind_data.tables.try_get_bound(reference)? {
                     (
-                        TableOrCteReference::Table {
+                        BoundTableOrCteReference::Table {
                             catalog,
                             schema,
                             entry,
@@ -362,7 +362,7 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    (TableOrCteReference::Cte(bound), _) => {
+                    (BoundTableOrCteReference::Cte(bound), _) => {
                         self.plan_cte_body(context, *bound, current_schema, current_scope)?
                     }
                 }
@@ -371,21 +371,22 @@ impl<'a> QueryNodePlanner<'a> {
                 let mut nested = self.nested(current_schema, current_scope);
                 nested.plan_query(context, query)?
             }
-            ast::FromNodeBody::TableFunction(reference) => {
-                let (table_func, _) = self.bind_data.table_functions.try_get_bound(reference)?;
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, .. }) => {
+                let (reference, _) = self.bind_data.table_functions.try_get_bound(reference)?;
                 let scope_reference = TableReference {
                     database: None,
                     schema: None,
-                    table: table_func.name.clone(),
+                    table: reference.name.clone(),
                 };
+                let func = self.bind_data.table_function_objects.get(reference.idx)?;
                 let scope = Scope::with_columns(
                     Some(scope_reference),
-                    table_func.func.schema().fields.into_iter().map(|f| f.name),
+                    func.schema().fields.into_iter().map(|f| f.name),
                 );
 
                 // TODO: Loc
                 let operator = LogicalOperator::TableFunction(LogicalNode::new(TableFunction {
-                    function: table_func.func.clone(),
+                    function: func.clone(),
                 }));
 
                 LogicalQuery {

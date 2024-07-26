@@ -1,13 +1,13 @@
 use std::fmt::{self, Debug};
-use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_execution::database::table::EmptyTableScan;
 use rayexec_execution::database::table::{DataTable, DataTableScan};
-use rayexec_execution::runtime::ExecutionRuntime;
+use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::FileProvider;
 
 use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
 
@@ -19,15 +19,15 @@ use crate::reader::{AsyncCsvReader, CsvSchema, DialectOptions};
 /// This should be extended to support multiple files once we add in glob
 /// support.
 #[derive(Debug)]
-pub struct SingleFileCsvDataTable {
+pub struct SingleFileCsvDataTable<R: Runtime> {
     pub options: DialectOptions,
     pub csv_schema: CsvSchema,
     pub location: FileLocation,
     pub conf: AccessConfig,
-    pub runtime: Arc<dyn ExecutionRuntime>,
+    pub runtime: R,
 }
 
-impl DataTable for SingleFileCsvDataTable {
+impl<R: Runtime> DataTable for SingleFileCsvDataTable<R> {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
         let reader = self
             .runtime

@@ -1,29 +1,24 @@
 pub mod dump;
+pub mod hybrid;
 
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use crate::execution::query_graph::QueryGraph;
 use dump::QueryDump;
-use rayexec_error::RayexecError;
+use rayexec_error::{RayexecError, Result};
+use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
 
-use crate::execution::query_graph::QueryGraph;
-
-/// An execution runtime handles driving execution for a query.
+/// How pipelines get executed on a single node.
 ///
-/// Implementations may make use of different strategies when executing a query.
-// TODO: Split this up. Currently contains two separate concerns: dependencies
-// required for data sources (tokio, http) and how to execute a query graph.
-//
-// This may also change to just return a reference to an "execution scheduler"
-// which would handle the spawn, instead of having the spawn directly on this
-// trait. This would allow changing out the execution part without needing to
-// also change the "dependencies" part (which would be useful for a move to
-// web-worker in wasm or distributed execution).
-//
-// See <https://github.com/GlareDB/rayexec/pull/99#discussion_r1664283835> for
-// discussion.
-pub trait ExecutionRuntime: Debug + Sync + Send {
+/// This is trait only concerns itself with the low-level execution of
+/// pipelines. Higher level concepts like hybrid and distributed execution build
+/// on top of these traits.
+///
+/// This will likely only ever have two implementations; one for when we're
+/// executing "natively" (running pipelines on a thread pool), and one for wasm.
+pub trait PipelineExecutor: Debug + Sync + Send + Clone {
     /// Spawn execution of a query graph.
     ///
     /// A query handle will be returned allowing for canceling and dumping a
@@ -39,6 +34,19 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
         query_graph: QueryGraph,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle>;
+}
+
+/// Runtime dependendencies.
+pub trait Runtime: Debug + Sync + Send + Clone + 'static {
+    type HttpClient: HttpClient;
+    type FileProvider: FileProvider;
+    type TokioHandle: TokioHandlerProvider;
+
+    /// Returns a file provider.
+    fn file_provider(&self) -> Arc<Self::FileProvider>;
+
+    /// Returns an http client. Freely cloneable.
+    fn http_client(&self) -> Self::HttpClient;
 
     /// Return a handle to a tokio runtime if this execution runtime has a tokio
     /// runtime configured.
@@ -49,11 +57,31 @@ pub trait ExecutionRuntime: Debug + Sync + Send {
     ///
     /// Data sources should error if they require tokio and if this returns
     /// None.
-    fn tokio_handle(&self) -> Option<tokio::runtime::Handle>;
+    fn tokio_handle(&self) -> &Self::TokioHandle;
+}
 
-    /// Returns a file provider that's able to construct file sources and sinks
-    /// depending a location.
-    fn file_provider(&self) -> Arc<dyn FileProvider>;
+pub trait TokioHandlerProvider {
+    fn handle_opt(&self) -> Option<tokio::runtime::Handle>;
+
+    fn handle(&self) -> Result<tokio::runtime::Handle> {
+        self.handle_opt()
+            .ok_or_else(|| RayexecError::new("Tokio runtime not configured"))
+    }
+}
+
+#[derive(Debug)]
+pub struct OptionalTokioRuntime(Option<tokio::runtime::Runtime>);
+
+impl OptionalTokioRuntime {
+    pub fn new(runtime: Option<tokio::runtime::Runtime>) -> Self {
+        OptionalTokioRuntime(runtime)
+    }
+}
+
+impl TokioHandlerProvider for OptionalTokioRuntime {
+    fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
+        self.0.as_ref().map(|t| t.handle().clone())
+    }
 }
 
 pub trait QueryHandle: Debug + Sync + Send {
