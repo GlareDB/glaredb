@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use once_cell::sync::OnceCell;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{server, sign, ServerConfig};
 use tokio::fs;
@@ -33,14 +34,31 @@ impl SslConfig {
         for key in rustls_pemfile::pkcs8_private_keys(&mut key_bs.as_slice()) {
             keys.push(key?.secret_pkcs8_der().to_vec());
         }
+
+
         let key = match keys.len() {
             0 => return Err(PgSrvError::ReadCertsAndKeys("No keys found")),
             1 => PrivateKeyDer::try_from(keys.pop().unwrap())
-                .map_err(|e| PgSrvError::InternalError(e.to_owned()))?,
+                .map_err(|e| PgSrvError::Internal(e.to_owned()))?,
             _ => return Err(PgSrvError::ReadCertsAndKeys("Expected exactly one key")),
         };
 
         let resolver = CertResolver::new(chain, &key)?;
+
+        static CRYPTO_PROVIDER: OnceCell<()> = OnceCell::new();
+        CRYPTO_PROVIDER.get_or_try_init(|| {
+            if rustls::crypto::CryptoProvider::get_default().is_none() {
+                rustls::crypto::CryptoProvider::install_default(
+                    rustls::crypto::aws_lc_rs::default_provider(),
+                )
+                .map(|r| r.to_owned())
+                .map_err(|_| {
+                    PgSrvError::Internal("unable to register CryptoProvider".to_string())
+                })?;
+            }
+
+            Ok::<(), PgSrvError>(())
+        })?;
 
         let config = ServerConfig::builder()
             .with_no_client_auth()
@@ -151,7 +169,6 @@ where
 mod tests {
     use std::io::Write;
 
-    use rustls::crypto::{aws_lc_rs, CryptoProvider};
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -192,8 +209,6 @@ MC4CAQAwBQYDK2VwBCIEIDGe13glRciPej49XvEZqqq4oZ5yUuL9HD2Pw1rSue2j
 
     #[tokio::test]
     async fn create_with_valid_cert() {
-        CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();
-
         let cert = create_file(TEST_CERT);
         let key = create_file(TEST_KEY);
 
