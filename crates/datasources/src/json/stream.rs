@@ -192,9 +192,21 @@ impl JsonHandler {
                                 match v {
                                     Value::Object(doc) => out.push(Ok(doc)),
                                     Value::Null => out.push(Ok(Map::new())),
+                                    Value::Array(_) => {
+                                        out.push(if filter.is_some() {
+                                            Err(JsonError::UnsupportedNestedArray(
+                                                "must return objects or nulls from jaq expressions",
+                                            ))
+                                        } else {
+                                            Err(JsonError::UnsupportedType(
+                                                "arrays must contain objects or nulls",
+                                            ))
+                                        });
+                                        break;
+                                    }
                                     _ => {
-                                        out.push(Err(JsonError::UnspportedType(
-                                            "only objects and arrays of objects are supported",
+                                        out.push(Err(JsonError::UnsupportedNestedArray(
+                                            "scalars are not supported",
                                         )));
                                         break;
                                     }
@@ -205,7 +217,7 @@ impl JsonHandler {
                         Value::Object(doc) => vec![Ok(doc)],
                         Value::Null => vec![Ok(Map::new())],
                         _ => {
-                            vec![Err(JsonError::UnspportedType(
+                            vec![Err(JsonError::UnsupportedType(
                                 "only objects and arrays of objects are supported",
                             ))]
                         }
