@@ -1,6 +1,8 @@
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
-use rayexec_execution::{execution::pipeline::PartitionPipeline, runtime::ErrorSink};
+use rayexec_execution::{
+    execution::executable::pipeline::ExecutablePartitionPipeline, runtime::ErrorSink,
+};
 use rayon::ThreadPool;
 use std::{
     sync::Arc,
@@ -23,7 +25,7 @@ pub(crate) struct TaskState {
 
 #[derive(Debug)]
 pub(crate) struct PipelineState {
-    pub(crate) pipeline: PartitionPipeline,
+    pub(crate) pipeline: ExecutablePartitionPipeline,
     pub(crate) query_canceled: bool,
 }
 

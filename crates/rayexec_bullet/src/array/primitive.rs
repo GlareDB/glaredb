@@ -42,7 +42,7 @@ impl<T: Default + Clone> PrimitiveArray<T> {
 }
 
 impl<T> PrimitiveArray<T> {
-    pub fn new(values: Vec<T>, validity: Option<Bitmap>) -> Self {
+    pub fn new(values: impl Into<PrimitiveStorage<T>>, validity: Option<Bitmap>) -> Self {
         PrimitiveArray {
             values: values.into(),
             validity,

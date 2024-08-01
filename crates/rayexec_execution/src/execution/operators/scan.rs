@@ -5,12 +5,12 @@ use crate::{
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::task::Context;
 use std::{fmt, task::Poll};
+use std::{sync::Arc, task::Context};
 
 use super::{
-    util::futures::make_static, OperatorState, PartitionState, PhysicalOperator, PollFinalize,
-    PollPull, PollPush,
+    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
+    PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 
 pub struct ScanPartitionState {
@@ -40,12 +40,14 @@ impl PhysicalScan {
             table,
         }
     }
+}
 
-    pub fn try_create_states(
+impl PhysicalOperator for PhysicalScan {
+    fn create_states(
         &self,
         context: &DatabaseContext,
-        num_partitions: usize,
-    ) -> Result<Vec<ScanPartitionState>> {
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
         // TODO: Placeholder for now. Transaction info should probably go on the
         // operator.
         let tx = CatalogTx::new();
@@ -56,18 +58,21 @@ impl PhysicalScan {
                 .data_table(&tx, &self.schema, &self.table)?;
 
         // TODO: Pushdown projections, filters
-        let scans = data_table.scan(num_partitions)?;
+        let scans = data_table.scan(partitions[0])?;
 
         let states = scans
             .into_iter()
-            .map(|scan| ScanPartitionState { scan, future: None })
+            .map(|scan| PartitionState::Scan(ScanPartitionState { scan, future: None }))
             .collect();
 
-        Ok(states)
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalScan {
     fn poll_push(
         &self,
         _cx: &mut Context,

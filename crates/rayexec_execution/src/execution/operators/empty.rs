@@ -1,9 +1,16 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    database::DatabaseContext,
+    execution::operators::InputOutputStates,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::task::Context;
+use std::{sync::Arc, task::Context};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    PollPush,
+};
 
 #[derive(Debug, Default)]
 pub struct EmptyPartitionState {
@@ -22,6 +29,21 @@ impl PhysicalEmpty {
 }
 
 impl PhysicalOperator for PhysicalEmpty {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: (0..partitions[0])
+                    .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
+                    .collect(),
+            },
+        })
+    }
+
     fn poll_push(
         &self,
         _cx: &mut Context,

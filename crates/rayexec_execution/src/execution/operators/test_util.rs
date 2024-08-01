@@ -10,7 +10,15 @@ use std::{
 use rayexec_bullet::array::{Array, Int32Array};
 use rayexec_bullet::batch::Batch;
 
+use crate::database::storage::system::SystemCatalog;
+use crate::database::DatabaseContext;
+use crate::datasource::DataSourceRegistry;
+
 use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+
+pub fn test_database_context() -> DatabaseContext {
+    DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()))
+}
 
 /// Test context containg a waker implementation that counts the number of times
 /// it's woken.
@@ -22,7 +30,7 @@ use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush}
 /// re-executes the pipeline once woken, but that operates on an entire
 /// Partition Pipeline.
 #[derive(Debug)]
-pub struct TestContext {
+pub struct TestWakerContext {
     waker: Waker,
     inner: Arc<TestWakerInner>,
 }
@@ -32,14 +40,14 @@ struct TestWakerInner {
     wake_count: AtomicUsize,
 }
 
-impl TestContext {
+impl TestWakerContext {
     pub fn new() -> Self {
         let inner = Arc::new(TestWakerInner {
             wake_count: 0.into(),
         });
         let waker = Waker::from(inner.clone());
 
-        TestContext { waker, inner }
+        TestWakerContext { waker, inner }
     }
 
     /// Get the number of times this waker was woken.

@@ -4,9 +4,15 @@ use crate::{
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::task::{Context, Waker};
+use std::{
+    sync::Arc,
+    task::{Context, Waker},
+};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 #[derive(Debug)]
 pub struct InsertPartitionState {
@@ -35,12 +41,16 @@ impl PhysicalInsert {
             table,
         }
     }
+}
 
-    pub fn try_create_states(
+impl PhysicalOperator for PhysicalInsert {
+    fn create_states(
         &self,
         context: &DatabaseContext,
-        num_partitions: usize,
-    ) -> Result<Vec<InsertPartitionState>> {
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let num_partitions = partitions[0];
+
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
@@ -54,18 +64,23 @@ impl PhysicalInsert {
 
         let states = inserts
             .into_iter()
-            .map(|insert| InsertPartitionState {
-                insert,
-                finished: false,
-                pull_waker: None,
+            .map(|insert| {
+                PartitionState::Insert(InsertPartitionState {
+                    insert,
+                    finished: false,
+                    pull_waker: None,
+                })
             })
             .collect();
 
-        Ok(states)
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalInsert {
     fn poll_push(
         &self,
         cx: &mut Context,

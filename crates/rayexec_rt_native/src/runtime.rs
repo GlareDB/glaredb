@@ -7,7 +7,7 @@ use futures::{
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
-    execution::query_graph::QueryGraph,
+    execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
     runtime::{
         ErrorSink, OptionalTokioRuntime, PipelineExecutor, QueryHandle, Runtime,
         TokioHandlerProvider,
@@ -32,11 +32,9 @@ pub trait Scheduler: Sync + Send + Debug + Sized + Clone {
 
     fn try_new() -> Result<Self>;
 
-    fn spawn_query_graph(
-        &self,
-        query_graph: QueryGraph,
-        errors: Arc<dyn ErrorSink>,
-    ) -> Self::Handle;
+    fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> Self::Handle
+    where
+        P: IntoIterator<Item = ExecutablePartitionPipeline>;
 }
 
 #[derive(Debug, Clone)]
@@ -49,12 +47,17 @@ impl<S: Scheduler> NativeExecutor<S> {
 }
 
 impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
-    fn spawn_query_graph(
+    fn spawn_pipelines(
         &self,
-        query_graph: QueryGraph,
+        pipelines: Vec<ExecutablePipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle> {
-        let handle = self.0.spawn_query_graph(query_graph, errors);
+        let handle = self.0.spawn_pipelines(
+            pipelines
+                .into_iter()
+                .flat_map(|pipeline| pipeline.into_partition_pipeline_iter()),
+            errors,
+        );
         Box::new(handle)
     }
 }

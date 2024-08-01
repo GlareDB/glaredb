@@ -2,14 +2,15 @@
 #
 # Keep minimal since explain formats will probably change.
 
-query TT
+statement ok
 explain select 1;
-----
-logical    Projection (expressions = [1])
-.            Empty
-pipelines  Pipeline 0
-.            Project (projections = [1])
-.            Empty
+
+# ----
+# logical    Projection (expressions = [1])
+# .            Empty
+# pipelines  Pipeline 0
+# .            Project (projections = [1])
+# .            Empty
 
 
 # query TT
@@ -28,25 +29,26 @@ pipelines  Pipeline 0
 
 
 
-query TT
+statement ok
 explain select b, d, c from
     (values (1, 2, 'mario'),
             (3, 4, 'wario')) as t1(a, b, c)
   inner join
     (values (1, 5, 'mario'),
-            (6, 4, 'wario')) as t2(d, e, f) on a = d and c = f
-----
-logical    Projection (expressions = [#1, #3, #2])
-.            EqualityJoin (join = INNER, left_cols = #0, #2, right_cols = #0, #2)
-.              ExpressionList (row0 = [1, 2, mario], row1 = [3, 4, wario])
-.              ExpressionList (row0 = [1, 5, mario], row1 = [6, 4, wario])
-pipelines  Pipeline 0
-.            Project (projections = [#1, #3, #2])
-.            HashJoin
-.            Values
-.          Pipeline 1
-.            HashJoin
-.            Values
+            (6, 4, 'wario')) as t2(d, e, f) on a = d and c = f;
+
+# ----
+# logical    Projection (expressions = [#1, #3, #2])
+# .            EqualityJoin (join = INNER, left_cols = #0, #2, right_cols = #0, #2)
+# .              ExpressionList (row0 = [1, 2, mario], row1 = [3, 4, wario])
+# .              ExpressionList (row0 = [1, 5, mario], row1 = [6, 4, wario])
+# pipelines  Pipeline 0
+# .            Project (projections = [#1, #3, #2])
+# .            HashJoin
+# .            Values
+# .          Pipeline 1
+# .            HashJoin
+# .            Values
 
 # query TT
 # explain select column2 + 1, sum(column1) from (values (1, 2), (3, 4)) group by column2;

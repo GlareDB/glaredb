@@ -113,7 +113,7 @@ impl SubqueryPlanner {
                     input: root,
                 }));
 
-                let orig_input = Box::new(std::mem::replace(input, LogicalOperator::Empty));
+                let orig_input = Box::new(input.take());
                 *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),
@@ -178,7 +178,7 @@ impl SubqueryPlanner {
                     }))),
                 }));
 
-                let orig_input = Box::new(std::mem::replace(input, LogicalOperator::Empty));
+                let orig_input = Box::new(input.take());
                 *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                     left: orig_input,
                     right: Box::new(subquery),

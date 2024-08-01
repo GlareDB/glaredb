@@ -4,7 +4,7 @@ pub mod hybrid;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::execution::query_graph::QueryGraph;
+use crate::execution::executable::pipeline::ExecutablePipeline;
 use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
@@ -19,7 +19,7 @@ use rayexec_io::FileProvider;
 /// This will likely only ever have two implementations; one for when we're
 /// executing "natively" (running pipelines on a thread pool), and one for wasm.
 pub trait PipelineExecutor: Debug + Sync + Send + Clone {
-    /// Spawn execution of a query graph.
+    /// Spawn execution of multiple pipelines for a query.
     ///
     /// A query handle will be returned allowing for canceling and dumping a
     /// query.
@@ -29,9 +29,9 @@ pub trait PipelineExecutor: Debug + Sync + Send + Clone {
     /// internally.
     ///
     /// This must not block.
-    fn spawn_query_graph(
+    fn spawn_pipelines(
         &self,
-        query_graph: QueryGraph,
+        pipelines: Vec<ExecutablePipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle>;
 }

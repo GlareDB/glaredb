@@ -5,10 +5,13 @@ use crate::{
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::fmt;
 use std::task::{Context, Poll};
+use std::{fmt, sync::Arc};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 pub struct CreateSchemaPartitionState {
     create: BoxFuture<'static, Result<()>>,
@@ -33,22 +36,36 @@ impl PhysicalCreateSchema {
             info,
         }
     }
+}
 
-    pub fn try_create_state(
+impl PhysicalOperator for PhysicalCreateSchema {
+    fn create_states(
         &self,
         context: &DatabaseContext,
-    ) -> Result<CreateSchemaPartitionState> {
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        if partitions[0] != 1 {
+            return Err(RayexecError::new(
+                "Create schema operator can only handle 1 partition",
+            ));
+        }
+
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
         let catalog = context.get_catalog(&self.catalog)?.catalog_modifier(&tx)?;
         let create = catalog.create_schema(self.info.clone());
 
-        Ok(CreateSchemaPartitionState { create })
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
+                    create,
+                })],
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalCreateSchema {
     fn poll_push(
         &self,
         _cx: &mut Context,

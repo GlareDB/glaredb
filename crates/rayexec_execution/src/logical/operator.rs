@@ -6,7 +6,7 @@ use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
 use crate::database::entry::TableEntry;
 use crate::engine::vars::SessionVar;
-use crate::execution::query_graph::explain::format_logical_plan_for_explain;
+use crate::execution::explain::format_logical_plan_for_explain;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::PlannedTableFunction;
 use rayexec_bullet::datatype::DataType;
@@ -33,8 +33,8 @@ pub trait SchemaNode {
 /// Requirement for where a node in the plan needs to be executed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LocationRequirement {
-    /// Required to be executed locally.
-    Local,
+    /// Required to be executed locally on the client.
+    ClientLocal,
     /// Required to be executed remotely.
     Remote,
     /// Can be executed either locally or remote.
@@ -57,7 +57,7 @@ pub struct LogicalNode<N> {
 
 impl<N> LogicalNode<N> {
     /// Create a new logical node without an explicit location requirement.
-    pub fn new(node: N) -> Self {
+    pub const fn new(node: N) -> Self {
         LogicalNode {
             node,
             location: LocationRequirement::Any,
@@ -102,7 +102,7 @@ pub enum LogicalOperator {
     Scan(LogicalNode<Scan>),
     TableFunction(LogicalNode<TableFunction>),
     ExpressionList(LogicalNode<ExpressionList>),
-    Empty,
+    Empty(LogicalNode<()>),
     SetVar(LogicalNode<SetVar>),
     ShowVar(LogicalNode<ShowVar>),
     ResetVar(LogicalNode<ResetVar>),
@@ -119,6 +119,8 @@ pub enum LogicalOperator {
 }
 
 impl LogicalOperator {
+    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty(LogicalNode::new(()));
+
     /// Get the output type schema of the operator.
     ///
     /// Since we're working with possibly correlated columns, this also accepts
@@ -139,7 +141,7 @@ impl LogicalOperator {
             Self::Scan(n) => n.as_ref().output_schema(outer),
             Self::TableFunction(n) => n.as_ref().output_schema(outer),
             Self::ExpressionList(n) => n.as_ref().output_schema(outer),
-            Self::Empty => Ok(TypeSchema::empty()),
+            Self::Empty(_) => Ok(TypeSchema::empty()),
             Self::SetVar(n) => n.as_ref().output_schema(outer),
             Self::ShowVar(n) => n.as_ref().output_schema(outer),
             Self::ResetVar(n) => n.as_ref().output_schema(outer),
@@ -154,6 +156,129 @@ impl LogicalOperator {
             Self::Explain(n) => n.as_ref().output_schema(outer),
             Self::Describe(n) => n.as_ref().output_schema(outer),
         }
+    }
+
+    pub fn location(&self) -> &LocationRequirement {
+        match self {
+            Self::Projection(n) => &n.location,
+            Self::Filter(n) => &n.location,
+            Self::Aggregate(n) => &n.location,
+            Self::Order(n) => &n.location,
+            Self::AnyJoin(n) => &n.location,
+            Self::EqualityJoin(n) => &n.location,
+            Self::CrossJoin(n) => &n.location,
+            Self::DependentJoin(n) => &n.location,
+            Self::Limit(n) => &n.location,
+            Self::SetOperation(n) => &n.location,
+            Self::MaterializedScan(n) => &n.location,
+            Self::Scan(n) => &n.location,
+            Self::TableFunction(n) => &n.location,
+            Self::ExpressionList(n) => &n.location,
+            Self::Empty(n) => &n.location,
+            Self::SetVar(n) => &n.location,
+            Self::ShowVar(n) => &n.location,
+            Self::ResetVar(n) => &n.location,
+            Self::CreateSchema(n) => &n.location,
+            Self::CreateTable(n) => &n.location,
+            Self::CreateTableAs(n) => &n.location,
+            Self::AttachDatabase(n) => &n.location,
+            Self::DetachDatabase(n) => &n.location,
+            Self::Drop(n) => &n.location,
+            Self::Insert(n) => &n.location,
+            Self::CopyTo(n) => &n.location,
+            Self::Explain(n) => &n.location,
+            Self::Describe(n) => &n.location,
+        }
+    }
+
+    pub fn location_mut(&mut self) -> &mut LocationRequirement {
+        match self {
+            Self::Projection(n) => &mut n.location,
+            Self::Filter(n) => &mut n.location,
+            Self::Aggregate(n) => &mut n.location,
+            Self::Order(n) => &mut n.location,
+            Self::AnyJoin(n) => &mut n.location,
+            Self::EqualityJoin(n) => &mut n.location,
+            Self::CrossJoin(n) => &mut n.location,
+            Self::DependentJoin(n) => &mut n.location,
+            Self::Limit(n) => &mut n.location,
+            Self::SetOperation(n) => &mut n.location,
+            Self::MaterializedScan(n) => &mut n.location,
+            Self::Scan(n) => &mut n.location,
+            Self::TableFunction(n) => &mut n.location,
+            Self::ExpressionList(n) => &mut n.location,
+            Self::Empty(n) => &mut n.location,
+            Self::SetVar(n) => &mut n.location,
+            Self::ShowVar(n) => &mut n.location,
+            Self::ResetVar(n) => &mut n.location,
+            Self::CreateSchema(n) => &mut n.location,
+            Self::CreateTable(n) => &mut n.location,
+            Self::CreateTableAs(n) => &mut n.location,
+            Self::AttachDatabase(n) => &mut n.location,
+            Self::DetachDatabase(n) => &mut n.location,
+            Self::Drop(n) => &mut n.location,
+            Self::Insert(n) => &mut n.location,
+            Self::CopyTo(n) => &mut n.location,
+            Self::Explain(n) => &mut n.location,
+            Self::Describe(n) => &mut n.location,
+        }
+    }
+
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Self::EMPTY)
+    }
+
+    pub fn take_boxed(self: &mut Box<Self>) -> Box<Self> {
+        std::mem::replace(self, Box::new(Self::EMPTY))
+    }
+
+    pub fn for_each_child_mut<F>(&mut self, f: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut LogicalOperator) -> Result<()>,
+    {
+        match self {
+            Self::Projection(n) => f(&mut n.as_mut().input)?,
+            Self::Filter(n) => f(&mut n.as_mut().input)?,
+            Self::Aggregate(n) => f(&mut n.as_mut().input)?,
+            Self::Order(n) => f(&mut n.as_mut().input)?,
+            Self::AnyJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::EqualityJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::CrossJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::DependentJoin(n) => {
+                f(&mut n.as_mut().left)?;
+                f(&mut n.as_mut().right)?;
+            }
+            Self::Limit(n) => f(&mut n.as_mut().input)?,
+            Self::SetOperation(_) => (),
+            Self::MaterializedScan(_) => (),
+            Self::Scan(_) => (),
+            Self::TableFunction(_) => (),
+            Self::ExpressionList(_) => (),
+            Self::Empty(_) => (),
+            Self::SetVar(_) => (),
+            Self::ShowVar(_) => (),
+            Self::ResetVar(_) => (),
+            Self::CreateSchema(_) => (),
+            Self::CreateTable(_) => (),
+            Self::CreateTableAs(n) => f(&mut n.as_mut().input)?,
+            Self::AttachDatabase(_) => (),
+            Self::DetachDatabase(_) => (),
+            Self::Drop(_) => (),
+            Self::Insert(n) => f(&mut n.as_mut().input)?,
+            Self::CopyTo(n) => f(&mut n.as_mut().source)?,
+            Self::Explain(n) => f(&mut n.as_mut().input)?,
+            Self::Describe(_) => (),
+        }
+        Ok(())
     }
 
     pub fn walk_mut_pre<F>(&mut self, pre: &mut F) -> Result<()>
@@ -272,7 +397,7 @@ impl LogicalOperator {
                 post(&mut p.as_mut().source)?;
             }
             LogicalOperator::ExpressionList(_)
-            | LogicalOperator::Empty
+            | LogicalOperator::Empty(_)
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)
             | LogicalOperator::ResetVar(_)
@@ -315,7 +440,7 @@ impl Explainable for LogicalOperator {
             Self::Scan(p) => p.as_ref().explain_entry(conf),
             Self::TableFunction(p) => p.as_ref().explain_entry(conf),
             Self::ExpressionList(p) => p.as_ref().explain_entry(conf),
-            Self::Empty => ExplainEntry::new("Empty"),
+            Self::Empty(_) => ExplainEntry::new("Empty"),
             Self::SetVar(p) => p.as_ref().explain_entry(conf),
             Self::ShowVar(p) => p.as_ref().explain_entry(conf),
             Self::ResetVar(p) => p.as_ref().explain_entry(conf),
@@ -1035,7 +1160,7 @@ mod tests {
             exprs: Vec::new(),
             input: Box::new(LogicalOperator::Filter(LogicalNode::new(Filter {
                 predicate: LogicalExpression::Literal(OwnedScalarValue::Null),
-                input: Box::new(LogicalOperator::Empty),
+                input: Box::new(LogicalOperator::Empty(LogicalNode::new(()))),
             }))),
         }));
 
@@ -1047,7 +1172,7 @@ mod tests {
                         .exprs
                         .push(LogicalExpression::Literal(OwnedScalarValue::Int8(1))),
                     LogicalOperator::Filter(_) => {}
-                    LogicalOperator::Empty => {}
+                    LogicalOperator::Empty(_) => {}
                     other => panic!("unexpected child {other:?}"),
                 }
                 Ok(())
@@ -1064,7 +1189,7 @@ mod tests {
                             .push(LogicalExpression::Literal(OwnedScalarValue::Int8(2)))
                     }
                     LogicalOperator::Filter(_) => {}
-                    LogicalOperator::Empty => {}
+                    LogicalOperator::Empty(_) => {}
                     other => panic!("unexpected child {other:?}"),
                 }
                 Ok(())

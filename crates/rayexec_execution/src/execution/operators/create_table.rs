@@ -11,10 +11,16 @@ use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::task::{Context, Poll};
 use std::{fmt, task::Waker};
+use std::{
+    sync::Arc,
+    task::{Context, Poll},
+};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 pub enum CreateTablePartitionState {
     /// State when we're creating the table.
@@ -87,12 +93,16 @@ impl PhysicalCreateTable {
             is_ctas,
         }
     }
+}
 
-    pub fn try_create_states(
+impl PhysicalOperator for PhysicalCreateTable {
+    fn create_states(
         &self,
         context: &DatabaseContext,
-        insert_partitions: usize,
-    ) -> Result<(CreateTableOperatorState, Vec<CreateTablePartitionState>)> {
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let insert_partitions = partitions[0];
+
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
@@ -125,11 +135,17 @@ impl PhysicalCreateTable {
             }),
         };
 
-        Ok((operator_state, states))
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::CreateTable(operator_state)),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states
+                    .into_iter()
+                    .map(PartitionState::CreateTable)
+                    .collect(),
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalCreateTable {
     fn poll_push(
         &self,
         cx: &mut Context,

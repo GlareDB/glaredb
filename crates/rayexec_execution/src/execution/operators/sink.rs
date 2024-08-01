@@ -1,16 +1,15 @@
 use crate::{
     database::DatabaseContext,
-    functions::copy::{CopyToFunction, CopyToSink},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::location::FileLocation;
-use std::{fmt, task::Poll};
+use std::sync::Arc;
+use std::task::{Context, Waker};
 use std::{
-    sync::Arc,
-    task::{Context, Waker},
+    fmt::{self, Debug},
+    task::Poll,
 };
 
 use super::{
@@ -18,14 +17,37 @@ use super::{
     PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 
-pub enum CopyToPartitionState {
+pub trait QuerySink: Debug + Send + Sync + Explainable {
+    /// Create an exact number of partition sinks for the query.
+    ///
+    /// This is guaranteed to only be called once during pipeline execution.
+    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>>;
+
+    fn partition_requirement(&self) -> Option<usize>;
+}
+
+pub trait PartitionSink: Debug + Send {
+    /// Push a batch to the sink.
+    ///
+    /// Batches are pushed in the order they're received in.
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>>;
+
+    /// Finalize the sink.
+    ///
+    /// Called once only after all batches have been pushed. If there's any
+    /// pending work that needs to happen (flushing), it should happen here.
+    /// Once this returns, the sink is complete.
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>>;
+}
+
+pub enum QuerySinkPartitionState {
     Writing {
-        inner: Option<CopyToInnerPartitionState>,
+        inner: Option<QuerySinkInnerPartitionState>,
         /// Future we're working on for a pending write.
         future: Option<BoxFuture<'static, Result<()>>>,
     },
     Finalizing {
-        inner: Option<CopyToInnerPartitionState>,
+        inner: Option<QuerySinkInnerPartitionState>,
         /// Future we're working on for a pending finalize. This should never be
         /// None, as if there's nothing for us to do, the state should be in
         /// `Finished`.
@@ -34,63 +56,52 @@ pub enum CopyToPartitionState {
     Finished,
 }
 
-impl fmt::Debug for CopyToPartitionState {
+impl fmt::Debug for QuerySinkPartitionState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CopyToPartitionState")
+        f.debug_struct("QuerySinkPartitionState")
             .finish_non_exhaustive()
     }
 }
 
 #[derive(Debug)]
-pub struct CopyToInnerPartitionState {
-    sink: Box<dyn CopyToSink>,
+pub struct QuerySinkInnerPartitionState {
+    sink: Box<dyn PartitionSink>,
     pull_waker: Option<Waker>,
 }
 
-// TODO: Having this use PhysicalSink since they're the same thing.
 #[derive(Debug)]
-pub struct PhysicalCopyTo {
-    copy_to: Box<dyn CopyToFunction>,
-    location: FileLocation,
-    schema: Schema,
+pub struct PhysicalQuerySink {
+    sink: Box<dyn QuerySink>,
 }
 
-impl PhysicalCopyTo {
-    pub fn new(copy_to: Box<dyn CopyToFunction>, schema: Schema, location: FileLocation) -> Self {
-        PhysicalCopyTo {
-            copy_to,
-            location,
-            schema,
-        }
+impl PhysicalQuerySink {
+    pub fn new(sink: Box<dyn QuerySink>) -> Self {
+        PhysicalQuerySink { sink }
     }
 }
 
-impl PhysicalOperator for PhysicalCopyTo {
+impl PhysicalOperator for PhysicalQuerySink {
     fn create_states(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
-        if partitions[0] != 1 {
-            return Err(RayexecError::new(
-                "CopyTo operator only supports a single partition for now",
-            ));
-        }
+        let partitions = partitions[0];
 
-        let states = self
-            .copy_to
-            .create_sinks(self.schema.clone(), self.location.clone(), partitions[0])?
+        let states: Vec<_> = self
+            .sink
+            .create_partition_sinks(partitions)
             .into_iter()
             .map(|sink| {
-                PartitionState::CopyTo(CopyToPartitionState::Writing {
-                    inner: Some(CopyToInnerPartitionState {
+                PartitionState::QuerySink(QuerySinkPartitionState::Writing {
+                    inner: Some(QuerySinkInnerPartitionState {
                         sink,
                         pull_waker: None,
                     }),
                     future: None,
                 })
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),
@@ -108,11 +119,18 @@ impl PhysicalOperator for PhysicalCopyTo {
         batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
-            PartitionState::CopyTo(state) => match state {
-                CopyToPartitionState::Writing { inner, future } => {
-                    if let Some(future) = future {
-                        match future.poll_unpin(cx) {
-                            Poll::Ready(Ok(_)) => (), // Continue on.
+            PartitionState::QuerySink(state) => match state {
+                QuerySinkPartitionState::Writing { inner, future } => {
+                    if let Some(curr_future) = future {
+                        match curr_future.poll_unpin(cx) {
+                            Poll::Ready(Ok(_)) => {
+                                // Future complete, unset and continue on.
+                                //
+                                // Unsetting is required here to avoid polling a
+                                // completed future in the case of returning
+                                // early due to a batch with 0 rows.
+                                *future = None;
+                            }
                             Poll::Ready(Err(e)) => return Err(e),
                             Poll::Pending => return Ok(PollPush::Pending(batch)),
                         }
@@ -164,12 +182,15 @@ impl PhysicalOperator for PhysicalCopyTo {
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         match partition_state {
-            PartitionState::CopyTo(state) => match state {
-                CopyToPartitionState::Writing { inner, future } => {
-                    if let Some(future) = future {
+            PartitionState::QuerySink(state) => match state {
+                QuerySinkPartitionState::Writing { inner, future } => {
+                    if let Some(curr_future) = future {
                         // Still a writing future that needs to complete.
-                        match future.poll_unpin(cx) {
-                            Poll::Ready(Ok(_)) => (), // Continue on to flipping the state.
+                        match curr_future.poll_unpin(cx) {
+                            Poll::Ready(Ok(_)) => {
+                                // Continue on to flipping the state.
+                                *future = None;
+                            }
                             Poll::Ready(Err(e)) => return Err(e),
                             Poll::Pending => return Ok(PollFinalize::Pending),
                         }
@@ -183,7 +204,7 @@ impl PhysicalOperator for PhysicalCopyTo {
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
                             }
-                            *state = CopyToPartitionState::Finished;
+                            *state = QuerySinkPartitionState::Finished;
 
                             Ok(PollFinalize::Finalized)
                         }
@@ -194,7 +215,7 @@ impl PhysicalOperator for PhysicalCopyTo {
                             // SAFETY: Lifetime of copy to sink outlives this future.
                             let future = unsafe { make_static(finalize_future) };
 
-                            *state = CopyToPartitionState::Finalizing {
+                            *state = QuerySinkPartitionState::Finalizing {
                                 inner: Some(inner),
                                 future,
                             };
@@ -203,7 +224,7 @@ impl PhysicalOperator for PhysicalCopyTo {
                         }
                     }
                 }
-                CopyToPartitionState::Finalizing { inner, future } => {
+                QuerySinkPartitionState::Finalizing { inner, future } => {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
                             // We're done.
@@ -211,7 +232,7 @@ impl PhysicalOperator for PhysicalCopyTo {
                                 waker.wake();
                             }
 
-                            *state = CopyToPartitionState::Finished;
+                            *state = QuerySinkPartitionState::Finished;
                             Ok(PollFinalize::Finalized)
                         }
                         Poll::Ready(Err(e)) => Err(e),
@@ -233,23 +254,23 @@ impl PhysicalOperator for PhysicalCopyTo {
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::CopyTo(state) => match state {
-                CopyToPartitionState::Writing { inner, .. }
-                | CopyToPartitionState::Finalizing { inner, .. } => {
+            PartitionState::QuerySink(state) => match state {
+                QuerySinkPartitionState::Writing { inner, .. }
+                | QuerySinkPartitionState::Finalizing { inner, .. } => {
                     if let Some(inner) = inner.as_mut() {
                         inner.pull_waker = Some(cx.waker().clone());
                     }
                     Ok(PollPull::Pending)
                 }
-                CopyToPartitionState::Finished => Ok(PollPull::Exhausted),
+                QuerySinkPartitionState::Finished => Ok(PollPull::Exhausted),
             },
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 }
 
-impl Explainable for PhysicalCopyTo {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CopyTo")
+impl Explainable for PhysicalQuerySink {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.sink.explain_entry(conf)
     }
 }

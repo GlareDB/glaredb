@@ -1,10 +1,19 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    database::DatabaseContext,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::task::{Context, Waker};
+use std::{
+    sync::Arc,
+    task::{Context, Waker},
+};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 #[derive(Debug)]
 pub struct UnionTopPartitionState {
@@ -48,26 +57,36 @@ struct SharedPartitionState {
 pub struct PhysicalUnion;
 
 impl PhysicalUnion {
-    pub fn create_states(
+    /// Index of the input corresponding to the top of the union.
+    pub const UNION_TOP_INPUT_INDEX: usize = 0;
+    /// Index of the input corresponding to the bottom of the union.
+    pub const UNION_BOTTOM_INPUT_INDEX: usize = 1;
+}
+
+impl PhysicalOperator for PhysicalUnion {
+    fn create_states(
         &self,
-        num_partitions: usize,
-    ) -> (
-        UnionOperatorState,
-        Vec<UnionTopPartitionState>,
-        Vec<UnionBottomPartitionState>,
-    ) {
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let num_partitions = partitions[0];
+
         let top_states = (0..num_partitions)
-            .map(|idx| UnionTopPartitionState {
-                partition_idx: idx,
-                batch: None,
-                finished: false,
-                push_waker: None,
-                pull_waker: None,
+            .map(|idx| {
+                PartitionState::UnionTop(UnionTopPartitionState {
+                    partition_idx: idx,
+                    batch: None,
+                    finished: false,
+                    push_waker: None,
+                    pull_waker: None,
+                })
             })
             .collect();
 
         let bottom_states = (0..num_partitions)
-            .map(|idx| UnionBottomPartitionState { partition_idx: idx })
+            .map(|idx| {
+                PartitionState::UnionBottom(UnionBottomPartitionState { partition_idx: idx })
+            })
             .collect();
 
         let operator_state = UnionOperatorState {
@@ -83,11 +102,15 @@ impl PhysicalUnion {
                 .collect(),
         };
 
-        (operator_state, top_states, bottom_states)
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::Union(operator_state)),
+            partition_states: InputOutputStates::NaryInputSingleOutput {
+                partition_states: vec![top_states, bottom_states],
+                pull_states: Self::UNION_TOP_INPUT_INDEX,
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalUnion {
     fn poll_push(
         &self,
         cx: &mut Context,

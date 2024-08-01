@@ -3,7 +3,9 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
-use super::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use crate::execution::operators::{
+    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::{
@@ -14,6 +16,7 @@ use std::{
 };
 use tracing::trace;
 
+// TODO: Include intermedate pipeline to track lineage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PipelineId(pub usize);
 
@@ -23,7 +26,7 @@ pub struct PipelineId(pub usize);
 /// pipelines are doing the same work across the same operators, just in a
 /// different partition.
 #[derive(Debug)]
-pub struct Pipeline {
+pub struct ExecutablePipeline {
     /// ID of this pipeline. Unique to the query graph.
     ///
     /// Informational only.
@@ -31,16 +34,16 @@ pub struct Pipeline {
     pub(crate) pipeline_id: PipelineId,
 
     /// Parition pipelines that make up this pipeline.
-    pub(crate) partitions: Vec<PartitionPipeline>,
+    pub(crate) partitions: Vec<ExecutablePartitionPipeline>,
 }
 
-impl Pipeline {
+impl ExecutablePipeline {
     pub(crate) fn new(pipeline_id: PipelineId, num_partitions: usize) -> Self {
         assert_ne!(0, num_partitions);
         let partitions = (0..num_partitions)
-            .map(|partition| PartitionPipeline::new(pipeline_id, partition))
+            .map(|partition| ExecutablePartitionPipeline::new(pipeline_id, partition))
             .collect();
-        Pipeline {
+        ExecutablePipeline {
             pipeline_id,
             partitions,
         }
@@ -60,7 +63,7 @@ impl Pipeline {
             .len()
     }
 
-    pub fn into_partition_pipeline_iter(self) -> impl Iterator<Item = PartitionPipeline> {
+    pub fn into_partition_pipeline_iter(self) -> impl Iterator<Item = ExecutablePartitionPipeline> {
         self.partitions.into_iter()
     }
 
@@ -113,7 +116,7 @@ impl Pipeline {
     }
 }
 
-impl Explainable for Pipeline {
+impl Explainable for ExecutablePipeline {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new(format!("Pipeline {}", self.pipeline_id.0))
     }
@@ -124,7 +127,7 @@ impl Explainable for Pipeline {
 ///
 /// This is the smallest unit of work as it relates to the scheduler.
 #[derive(Debug)]
-pub struct PartitionPipeline {
+pub struct ExecutablePartitionPipeline {
     /// Information about the pipeline.
     ///
     /// Should only be used for debugging/logging.
@@ -152,9 +155,9 @@ pub struct PartitionPipeline {
     timings: PartitionPipelineTimings,
 }
 
-impl PartitionPipeline {
+impl ExecutablePartitionPipeline {
     fn new(pipeline: PipelineId, partition: usize) -> Self {
-        PartitionPipeline {
+        ExecutablePartitionPipeline {
             info: PartitionPipelineInfo {
                 pipeline,
                 partition,
@@ -257,7 +260,7 @@ impl fmt::Debug for PipelinePartitionState {
     }
 }
 
-impl PartitionPipeline {
+impl ExecutablePartitionPipeline {
     /// Try to execute as much of the pipeline for this partition as possible.
     ///
     /// Loop through all operators, pushing data as far as we can until we get

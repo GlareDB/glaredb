@@ -7,8 +7,10 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
+use crate::database::DatabaseContext;
 use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
 use crate::execution::operators::{
     OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
@@ -19,7 +21,7 @@ use crate::logical::grouping_set::GroupingSets;
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 
-use super::PollFinalize;
+use super::{ExecutionStates, InputOutputStates, PollFinalize};
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
@@ -98,38 +100,53 @@ pub struct PhysicalHashAggregate {
 
     /// Union of all column indices that are inputs to the aggregate functions.
     aggregate_columns: Vec<usize>,
+
+    exprs: Vec<PhysicalAggregateExpression>,
 }
 
 impl PhysicalHashAggregate {
-    pub fn try_new(
-        num_partitions: usize,
+    pub fn new(
         group_types: Vec<DataType>,
         grouping_sets: GroupingSets,
         exprs: Vec<PhysicalAggregateExpression>,
-    ) -> Result<(
-        Self,
-        HashAggregateOperatorState,
-        Vec<HashAggregatePartitionState>,
-    )> {
-        // Collect all column indices that are part of computing the aggregate.
+    ) -> Self {
+        // Collect all unique column indices that are part of computing the
+        // aggregate.
         let mut agg_input_cols = BTreeSet::new();
         for expr in &exprs {
             agg_input_cols.extend(expr.column_indices.iter().copied());
         }
 
+        PhysicalHashAggregate {
+            group_types,
+            grouping_sets,
+            aggregate_columns: agg_input_cols.into_iter().collect(),
+            exprs,
+        }
+    }
+}
+
+impl PhysicalOperator for PhysicalHashAggregate {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let num_partitions = partitions[0];
+
         // Create column selection bitmaps for each aggregate expression. These
         // bitmaps are used to mask input columns into the operator.
-        let mut col_selections = Vec::with_capacity(exprs.len());
-        for expr in &exprs {
+        let mut col_selections = Vec::with_capacity(self.exprs.len());
+        for expr in &self.exprs {
             let col_selection = Bitmap::from_iter(
-                agg_input_cols
+                self.aggregate_columns
                     .iter()
                     .map(|idx| expr.column_indices.contains(idx)),
             );
             col_selections.push(col_selection);
         }
 
-        let operator_state = HashAggregateOperatorState {
+        let operator_state = OperatorState::HashAggregate(HashAggregateOperatorState {
             output_states: (0..num_partitions)
                 .map(|_| {
                     Mutex::new(SharedOutputPartitionState {
@@ -139,13 +156,14 @@ impl PhysicalHashAggregate {
                     })
                 })
                 .collect(),
-        };
+        });
 
         let mut partition_states = Vec::with_capacity(num_partitions);
         for idx in 0..num_partitions {
             let partition_local_tables = (0..num_partitions)
                 .map(|_| {
-                    let agg_states: Vec<_> = exprs
+                    let agg_states: Vec<_> = self
+                        .exprs
                         .iter()
                         .zip(col_selections.iter())
                         .map(|(expr, col_selection)| AggregateStates {
@@ -157,27 +175,23 @@ impl PhysicalHashAggregate {
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-            let partition_state = HashAggregatePartitionState::Aggregating {
-                partition_idx: idx,
-                output_hashtables: partition_local_tables,
-                hash_buf: Vec::new(),
-                partitions_idx_buf: Vec::new(),
-            };
+            let partition_state =
+                PartitionState::HashAggregate(HashAggregatePartitionState::Aggregating {
+                    partition_idx: idx,
+                    output_hashtables: partition_local_tables,
+                    hash_buf: Vec::new(),
+                    partitions_idx_buf: Vec::new(),
+                });
 
             partition_states.push(partition_state);
         }
 
-        let operator = PhysicalHashAggregate {
-            group_types,
-            grouping_sets,
-            aggregate_columns: agg_input_cols.into_iter().collect(),
-        };
-
-        Ok((operator, operator_state, partition_states))
+        Ok(ExecutionStates {
+            operator_state: Arc::new(operator_state),
+            partition_states: InputOutputStates::OneToOne { partition_states },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalHashAggregate {
     fn poll_push(
         &self,
         _cx: &mut Context,

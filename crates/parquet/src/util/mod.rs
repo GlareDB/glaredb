@@ -19,8 +19,8 @@
 pub mod bit_util;
 mod bit_pack;
 pub(crate) mod interner;
-#[cfg(any(test, feature = "test_common"))]
+#[cfg(test)]
 pub(crate) mod test_common;
 
-#[cfg(any(test, feature = "test_common"))]
+#[cfg(test)]
 pub use self::test_common::page_util::{DataPageBuilder, DataPageBuilderImpl};

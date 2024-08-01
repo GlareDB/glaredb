@@ -1,10 +1,19 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    database::DatabaseContext,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute;
 use rayexec_error::Result;
-use std::task::{Context, Waker};
+use std::{
+    sync::Arc,
+    task::{Context, Waker},
+};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 #[derive(Debug)]
 pub struct LimitPartitionState {
@@ -47,25 +56,35 @@ impl PhysicalLimit {
     pub fn new(limit: usize, offset: Option<usize>) -> Self {
         PhysicalLimit { limit, offset }
     }
-
-    /// Create states for this operator.
-    ///
-    /// Limit has no global states, only partition-local states.
-    pub fn create_states(&self, partitions: usize) -> Vec<LimitPartitionState> {
-        (0..partitions)
-            .map(|_| LimitPartitionState {
-                remaining_count: self.limit,
-                remaining_offset: self.offset.unwrap_or(0),
-                buffer: None,
-                pull_waker: None,
-                push_waker: None,
-                finished: false,
-            })
-            .collect()
-    }
 }
 
 impl PhysicalOperator for PhysicalLimit {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let partitions = partitions[0];
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: (0..partitions)
+                    .map(|_| {
+                        PartitionState::Limit(LimitPartitionState {
+                            remaining_count: self.limit,
+                            remaining_offset: self.offset.unwrap_or(0),
+                            buffer: None,
+                            pull_waker: None,
+                            push_waker: None,
+                            finished: false,
+                        })
+                    })
+                    .collect(),
+            },
+        })
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,
@@ -201,18 +220,20 @@ impl Explainable for PhysicalLimit {
 #[cfg(test)]
 mod tests {
     use crate::execution::operators::test_util::{
-        make_i32_batch, unwrap_poll_pull_batch, TestContext,
+        make_i32_batch, test_database_context, unwrap_poll_pull_batch, TestWakerContext,
     };
     use std::sync::Arc;
 
     use super::*;
 
     fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionState> {
-        operator
-            .create_states(partitions)
-            .into_iter()
-            .map(PartitionState::Limit)
-            .collect()
+        let context = test_database_context();
+        let states = operator.create_states(&context, vec![partitions]).unwrap();
+
+        match states.partition_states {
+            InputOutputStates::OneToOne { partition_states } => partition_states,
+            other => panic!("invalid states: {other:?}"),
+        }
     }
 
     #[test]
@@ -227,14 +248,14 @@ mod tests {
         let mut partition_states = create_states(&operator, 1);
 
         // Try to pull before we have a batch ready.
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push our first batch.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         let poll_push = push_cx
             .poll_push(
                 &operator,
@@ -294,7 +315,7 @@ mod tests {
         let mut partition_states = create_states(&operator, 1);
 
         // Push our first batch, will be part of the output.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         let poll_push = push_cx
             .poll_push(
                 &operator,
@@ -305,7 +326,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollPush::Pushed, poll_push);
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
@@ -346,7 +367,7 @@ mod tests {
 
         // Push our first batch, will be skipped. Operator will return
         // indicating it needs more input.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         let poll_push = push_cx
             .poll_push(
                 &operator,
@@ -368,7 +389,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollPush::Break, poll_push);
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
@@ -385,7 +406,7 @@ mod tests {
         let operator_state = Arc::new(OperatorState::None);
         let mut partition_states = create_states(&operator, 1);
 
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         let poll_push = push_cx
             .poll_push(
                 &operator,
@@ -396,7 +417,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollPush::Break, poll_push);
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();

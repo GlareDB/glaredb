@@ -160,7 +160,7 @@ impl<'a> QueryNodePlanner<'a> {
                 self.plan_from_node(context, from, TypeSchema::empty(), Scope::empty())?
             }
             None => LogicalQuery {
-                root: LogicalOperator::Empty,
+                root: LogicalOperator::EMPTY,
                 scope: Scope::empty(),
             },
         };

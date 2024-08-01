@@ -1,17 +1,17 @@
 use crate::{
-    database::table::DataTableScan,
+    database::{table::DataTableScan, DatabaseContext},
     functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::task::Context;
 use std::{fmt, task::Poll};
+use std::{sync::Arc, task::Context};
 
 use super::{
-    util::futures::make_static, OperatorState, PartitionState, PhysicalOperator, PollFinalize,
-    PollPull, PollPush,
+    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
+    PhysicalOperator, PollFinalize, PollPull, PollPush,
 };
 
 pub struct TableFunctionPartitionState {
@@ -56,6 +56,31 @@ impl PhysicalTableFunction {
 }
 
 impl PhysicalOperator for PhysicalTableFunction {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let data_table = self.function.datatable()?;
+
+        // TODO: Pushdown projections, filters
+        let scans = data_table.scan(partitions[0])?;
+
+        let states = scans
+            .into_iter()
+            .map(|scan| {
+                PartitionState::TableFunction(TableFunctionPartitionState { scan, future: None })
+            })
+            .collect();
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states,
+            },
+        })
+    }
+
     fn poll_push(
         &self,
         _cx: &mut Context,

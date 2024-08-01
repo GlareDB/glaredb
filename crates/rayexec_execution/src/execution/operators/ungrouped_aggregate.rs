@@ -1,3 +1,5 @@
+use crate::database::DatabaseContext;
+use crate::execution::operators::InputOutputStates;
 use crate::expr::PhysicalAggregateExpression;
 use crate::functions::aggregate::{multi_array_drain, GroupedStates};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry};
@@ -6,11 +8,15 @@ use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use crate::logical::explainable::Explainable;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    PollPush,
+};
 
 #[derive(Debug)]
 pub enum UngroupedAggregatePartitionState {
@@ -70,32 +76,6 @@ impl PhysicalUngroupedAggregate {
         PhysicalUngroupedAggregate { aggregates }
     }
 
-    pub fn create_states(
-        &self,
-        num_partitions: usize,
-    ) -> (
-        UngroupedAggregateOperatorState,
-        Vec<UngroupedAggregatePartitionState>,
-    ) {
-        let inner = OperatorStateInner {
-            remaining: num_partitions,
-            agg_states: self.create_agg_states_with_single_group(),
-            pull_wakers: (0..num_partitions).map(|_| None).collect(),
-        };
-        let operator_state = UngroupedAggregateOperatorState {
-            inner: Mutex::new(inner),
-        };
-
-        let partition_states: Vec<_> = (0..num_partitions)
-            .map(|idx| UngroupedAggregatePartitionState::Aggregating {
-                partition_idx: idx,
-                agg_states: self.create_agg_states_with_single_group(),
-            })
-            .collect();
-
-        (operator_state, partition_states)
-    }
-
     fn create_agg_states_with_single_group(&self) -> Vec<Box<dyn GroupedStates>> {
         let mut states = Vec::with_capacity(self.aggregates.len());
         for agg in &self.aggregates {
@@ -108,6 +88,37 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl PhysicalOperator for PhysicalUngroupedAggregate {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let num_partitions = partitions[0];
+
+        let inner = OperatorStateInner {
+            remaining: num_partitions,
+            agg_states: self.create_agg_states_with_single_group(),
+            pull_wakers: (0..num_partitions).map(|_| None).collect(),
+        };
+        let operator_state = UngroupedAggregateOperatorState {
+            inner: Mutex::new(inner),
+        };
+
+        let partition_states: Vec<_> = (0..num_partitions)
+            .map(|idx| {
+                PartitionState::UngroupedAggregate(UngroupedAggregatePartitionState::Aggregating {
+                    partition_idx: idx,
+                    agg_states: self.create_agg_states_with_single_group(),
+                })
+            })
+            .collect();
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::UngroupedAggregate(operator_state)),
+            partition_states: InputOutputStates::OneToOne { partition_states },
+        })
+    }
+
     fn poll_push(
         &self,
         _cx: &mut Context,

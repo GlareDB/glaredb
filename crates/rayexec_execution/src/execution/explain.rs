@@ -1,5 +1,5 @@
 use crate::{
-    execution::pipeline::Pipeline,
+    execution::executable::pipeline::ExecutablePipeline,
     logical::{
         context::QueryContext,
         explainable::{ExplainConfig, ExplainEntry, Explainable},
@@ -26,7 +26,7 @@ pub fn format_logical_plan_for_explain(
 
 /// Formats pipelines into explain output.
 pub fn format_pipelines_for_explain<'a>(
-    pipelines: impl Iterator<Item = &'a Pipeline>,
+    pipelines: impl Iterator<Item = &'a ExecutablePipeline>,
     format: ExplainFormat,
     verbose: bool,
 ) -> Result<String> {
@@ -57,7 +57,7 @@ struct ExplainNode {
 }
 
 impl ExplainNode {
-    fn walk_pipeline(pipeline: &Pipeline, conf: ExplainConfig) -> ExplainNode {
+    fn walk_pipeline(pipeline: &ExecutablePipeline, conf: ExplainConfig) -> ExplainNode {
         let mut children: Vec<_> = pipeline
             .iter_operators()
             .map(|op| ExplainNode {
@@ -145,7 +145,7 @@ impl ExplainNode {
                     Vec::new()
                 }
             }
-            LogicalOperator::Empty
+            LogicalOperator::Empty(_)
             | LogicalOperator::ExpressionList(_)
             | LogicalOperator::SetVar(_)
             | LogicalOperator::ShowVar(_)

@@ -29,9 +29,9 @@ impl Subquery {
     /// operator.
     pub fn take_root(&mut self) -> Box<LogicalOperator> {
         match self {
-            Self::Scalar { root } => std::mem::replace(root, Box::new(LogicalOperator::Empty)),
-            Self::Exists { root, .. } => std::mem::replace(root, Box::new(LogicalOperator::Empty)),
-            Self::Any { root } => std::mem::replace(root, Box::new(LogicalOperator::Empty)),
+            Self::Scalar { root } => root.take_boxed(),
+            Self::Exists { root, .. } => root.take_boxed(),
+            Self::Any { root } => root.take_boxed(),
         }
     }
 
@@ -362,7 +362,7 @@ impl LogicalExpression {
                 LogicalOperator::DetachDatabase(_) => (),
                 LogicalOperator::Explain(_) => (),
                 LogicalOperator::Drop(_) => (),
-                LogicalOperator::Empty => (),
+                LogicalOperator::Empty(_) => (),
                 LogicalOperator::Describe(_) => (),
             }
             Ok(())

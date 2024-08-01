@@ -8,14 +8,15 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod insert;
+pub mod ipc;
 pub mod join;
 pub mod limit;
 pub mod materialize;
 pub mod project;
-pub mod query_sink;
 pub mod round_robin;
 pub mod scan;
 pub mod simple;
+pub mod sink;
 pub mod sort;
 pub mod table_function;
 pub mod ungrouped_aggregate;
@@ -38,12 +39,15 @@ use materialize::{
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use scan::ScanPartitionState;
+use sink::QuerySinkPartitionState;
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::task::Context;
 use table_function::TableFunctionPartitionState;
 use ungrouped_aggregate::{UngroupedAggregateOperatorState, UngroupedAggregatePartitionState};
 use union::{UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
 
+use crate::database::DatabaseContext;
 use crate::logical::explainable::Explainable;
 
 use self::empty::EmptyPartitionState;
@@ -56,7 +60,6 @@ use self::join::nl_join::{
     NestedLoopJoinProbePartitionState,
 };
 use self::limit::LimitPartitionState;
-use self::query_sink::QuerySinkPartitionState;
 use self::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
@@ -165,7 +168,97 @@ pub enum PollFinalize {
     Pending,
 }
 
+/// Describes the relationships of partition states for operators.
+#[derive(Debug)]
+pub enum InputOutputStates {
+    /// Input and output partition states have a one-to-one mapping.
+    ///
+    /// The states used for pushing to an operator are the same states used to
+    /// pull from the operator.
+    ///
+    /// This variant should also be used for pure source and pure sink operators
+    /// where states are only ever used for pushing or pulling.
+    OneToOne {
+        /// Per-partition operators states.
+        ///
+        /// Length of vec determines the partitioning (parallelism) of the
+        /// operator.
+        partition_states: Vec<PartitionState>,
+    },
+
+    /// Operators accepts multiple inputs, and a single output.
+    ///
+    /// A single set of input states are used during pull.
+    NaryInputSingleOutput {
+        /// Per-input, per-partition operators states.
+        ///
+        /// The outer vec matches the number of inputs to an operator (e.g. a
+        /// join should have two).
+        partition_states: Vec<Vec<PartitionState>>,
+
+        /// Index into the above vec to determine which set of states are used
+        /// for pulling.
+        ///
+        /// For joins, the partition states for probes are the ones used for
+        /// pulling.
+        ///
+        /// The chosen set of states indicates the output partitioning for the
+        /// operator.
+        pull_states: usize,
+    },
+
+    /// Partition states for an operator that accepts a single input, and
+    /// produce 'n' outputs.
+    SingleInputNaryOutput {
+        /// States for the single input during push.
+        push_states: Vec<PartitionState>,
+
+        /// States for the n outputs.
+        pull_states: Vec<Vec<PartitionState>>,
+    },
+
+    /// Partition states between the push side and pull side are separate.
+    ///
+    /// This provides a way for operators to output a different number of
+    /// partitions than it receives.
+    ///
+    /// Operators that need this will introduce a pipeline split where the push
+    /// states are used for pipeline's sink, while the pull states are used for
+    /// the source of a separate pipeline.
+    SeparateInputOutput {
+        /// States used during push.
+        push_states: Vec<PartitionState>,
+
+        /// States used during pull.
+        pull_states: Vec<PartitionState>,
+    },
+}
+
+/// States generates from an operator to use during execution.
+#[derive(Debug)]
+pub struct ExecutionStates {
+    /// Global operator state.
+    pub operator_state: Arc<OperatorState>,
+
+    /// Partition states for the operator.
+    pub partition_states: InputOutputStates,
+}
+
 pub trait PhysicalOperator: Sync + Send + Debug + Explainable {
+    /// Create execution states for this operator.
+    ///
+    /// `input_partitions` is the partitioning for each input that will be
+    /// pushing batches through this operator.
+    ///
+    /// Joins are assumed to have two inputs.
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        _partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        unimplemented!("{self:?}")
+    }
+
     /// Try to push a batch for this partition.
     fn poll_push(
         &self,

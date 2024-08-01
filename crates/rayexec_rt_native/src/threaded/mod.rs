@@ -4,7 +4,7 @@ mod task;
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::execution::query_graph::QueryGraph;
+use rayexec_execution::execution::executable::pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::runtime::ErrorSink;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::fmt;
@@ -48,15 +48,14 @@ impl Scheduler for ThreadedScheduler {
     ///
     /// Each partition pipeline in the query graph will be independently
     /// executed.
-    fn spawn_query_graph(
-        &self,
-        query_graph: QueryGraph,
-        errors: Arc<dyn ErrorSink>,
-    ) -> ThreadedQueryHandle {
+    fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> ThreadedQueryHandle
+    where
+        P: IntoIterator<Item = ExecutablePartitionPipeline>,
+    {
         debug!("spawning execution of query graph");
 
-        let task_states: Vec<_> = query_graph
-            .into_partition_pipeline_iter()
+        let task_states: Vec<_> = pipelines
+            .into_iter()
             .map(|pipeline| {
                 Arc::new(TaskState {
                     pipeline: Mutex::new(PipelineState {

@@ -21,6 +21,7 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[derive(Clone)]
@@ -308,6 +309,8 @@ where
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, RayexecError> {
+        info!(%sql, "query");
+
         let sql = self.conf.vars.replace_in_query(sql, &self.conf)?;
 
         let mut rows = Vec::new();

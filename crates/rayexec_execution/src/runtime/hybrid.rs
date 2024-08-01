@@ -4,7 +4,10 @@ use rayexec_error::Result;
 use std::fmt::Debug;
 use url::Url;
 
-use crate::{execution::pipeline::PartitionPipeline, logical::sql::binder::StatementWithBindData};
+use crate::{
+    execution::executable::pipeline::ExecutablePartitionPipeline,
+    logical::sql::binder::StatementWithBindData,
+};
 
 pub const API_VERSION: usize = 0;
 
@@ -34,7 +37,7 @@ pub trait HybridClient: Debug + Sync + Send {
     fn remote_bind(
         &self,
         statement: StatementWithBindData,
-    ) -> BoxFuture<'_, Result<Vec<PartitionPipeline>>>;
+    ) -> BoxFuture<'_, Result<Vec<ExecutablePartitionPipeline>>>;
 
     // TODO: batch enum (more?, done?), query id
     fn pull(&self) -> BoxFuture<'_, Result<Option<Batch>>>;

@@ -5,9 +5,11 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
+use crate::database::DatabaseContext;
 use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush,
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::operator::JoinType;
@@ -129,6 +131,9 @@ pub struct PhysicalHashJoin {
 }
 
 impl PhysicalHashJoin {
+    pub const BUILD_SIDE_INPUT_INDEX: usize = 0;
+    pub const PROBE_SIDE_INPUT_INDEX: usize = 1;
+
     pub fn new(join_type: JoinType, left_on: Vec<usize>, right_on: Vec<usize>) -> Self {
         PhysicalHashJoin {
             join_type,
@@ -136,39 +141,39 @@ impl PhysicalHashJoin {
             right_on,
         }
     }
+}
 
-    /// Create states for this operator.
-    ///
-    /// The number of partition inputs on the build side may be different than
-    /// the number of partitions on the probe side.
-    ///
-    /// Output partitions equals the number of probe side input partitions.
-    pub fn create_states(
+impl PhysicalOperator for PhysicalHashJoin {
+    fn create_states(
         &self,
-        build_partitions: usize,
-        probe_partitions: usize,
-    ) -> (
-        HashJoinOperatorState,
-        Vec<HashJoinBuildPartitionState>,
-        Vec<HashJoinProbePartitionState>,
-    ) {
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        // TODO: Determine if this is what we want.
+        let build_partitions = partitions[0];
+        let probe_partitions = partitions[0];
+
         let operator_state = HashJoinOperatorState {
             inner: Mutex::new(SharedOutputState::new(build_partitions, probe_partitions)),
         };
 
         let build_states: Vec<_> = (0..build_partitions)
-            .map(|_| HashJoinBuildPartitionState::new())
+            .map(|_| PartitionState::HashJoinBuild(HashJoinBuildPartitionState::new()))
             .collect();
 
         let probe_states: Vec<_> = (0..probe_partitions)
-            .map(HashJoinProbePartitionState::new)
+            .map(|idx| PartitionState::HashJoinProbe(HashJoinProbePartitionState::new(idx)))
             .collect();
 
-        (operator_state, build_states, probe_states)
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::HashJoin(operator_state)),
+            partition_states: InputOutputStates::NaryInputSingleOutput {
+                partition_states: vec![build_states, probe_states],
+                pull_states: Self::PROBE_SIDE_INPUT_INDEX,
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalHashJoin {
     fn poll_push(
         &self,
         cx: &mut Context,

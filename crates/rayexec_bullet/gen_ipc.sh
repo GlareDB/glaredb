@@ -8,9 +8,9 @@ set -eux -o pipefail
 
 pushd "$(git rev-parse --show-toplevel)"
 
-flatc --filename-suffix "" --rust -o crates/rayexec_arrow_ipc/src/ submodules/arrow/format/*.fbs
+flatc --filename-suffix "" --rust -o crates/rayexec_bullet/src/ipc/gen/ submodules/arrow/format/*.fbs
 
-pushd crates/rayexec_arrow_ipc/src/
+pushd crates/rayexec_bullet/src/ipc/gen/
 
 # Common prefix content for all generated files.
 PREFIX=$(cat <<'HEREDOC'
@@ -20,15 +20,15 @@ use flatbuffers::EndianScalar;
 HEREDOC
 )
 
-SCHEMA_IMPORT="use crate::Schema::*;"
-SPARSE_TENSOR_IMPORT="use crate::SparseTensor::*;"
-TENSOR_IMPORT="use crate::Tensor::*;"
+SCHEMA_IMPORT="use crate::ipc::gen::Schema::*;"
+SPARSE_TENSOR_IMPORT="use crate::ipc::gen::SparseTensor::*;"
+TENSOR_IMPORT="use crate::ipc::gen::Tensor::*;"
 
 # For flatbuffer(1.12.0+), remove: use crate::${name}::\*;
 names=("File" "Message" "Schema" "SparseTensor" "Tensor")
 
 for file in *.rs; do
-    if [ "$file" == "lib.rs" ]; then
+    if [ "$file" == "mod.rs" ]; then
         continue
     fi
 

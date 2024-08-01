@@ -11,3 +11,5 @@ pub mod ipc;
 pub mod row;
 pub mod scalar;
 pub mod storage;
+
+mod bitutil;

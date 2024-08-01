@@ -1,9 +1,0 @@
-[package]
-name = "rayexec_arrow_ipc"
-version.workspace = true
-edition.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-flatbuffers = "24.3.25"

@@ -1,9 +1,15 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    database::DatabaseContext,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::task::Context;
+use std::{sync::Arc, task::Context};
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
@@ -19,8 +25,16 @@ impl PhysicalValues {
     pub fn new(batches: Vec<Batch>) -> Self {
         PhysicalValues { batches }
     }
+}
 
-    pub fn create_states(&self, num_partitions: usize) -> Vec<ValuesPartitionState> {
+impl PhysicalOperator for PhysicalValues {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let num_partitions = partitions[0];
+
         let mut states: Vec<_> = (0..num_partitions)
             .map(|_| ValuesPartitionState {
                 batches: Vec::new(),
@@ -31,11 +45,14 @@ impl PhysicalValues {
             states[idx % num_partitions].batches.push(batch.clone());
         }
 
-        states
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: states.into_iter().map(PartitionState::Values).collect(),
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalValues {
     fn poll_push(
         &self,
         _cx: &mut Context,

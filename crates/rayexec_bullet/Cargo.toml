@@ -7,12 +7,9 @@ edition.workspace = true
 
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
-rayexec_arrow_ipc = { path = "../rayexec_arrow_ipc" }
 num = "0.4.3"
 csv-core = { version = "0.1.11", default-features = false } # Default features has libc dependency.
 chrono = "0.4.38"
 textwrap = { version = "0.16.1", default-features = false, features = ["unicode-width"] }
 serde = { workspace = true }
-
-[dev-dependencies]
-backtrace-on-stack-overflow = "0.3.0"
+flatbuffers = "24.3.25"

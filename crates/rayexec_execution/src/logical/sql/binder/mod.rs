@@ -290,7 +290,7 @@ impl<'a> Binder<'a> {
                         let table = Resolver::new(self.tx, self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
-                        MaybeBound::Bound(table, LocationRequirement::Local)
+                        MaybeBound::Bound(table, LocationRequirement::ClientLocal)
                     }
                     BindMode::Hybrid => {
                         let table = Resolver::new(self.tx, self.context)
@@ -298,7 +298,9 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         match table {
-                            Some(table) => MaybeBound::Bound(table, LocationRequirement::Local),
+                            Some(table) => {
+                                MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                            }
                             None => MaybeBound::Unbound(reference),
                         }
                     }
@@ -429,7 +431,7 @@ impl<'a> Binder<'a> {
                 let table = Resolver::new(self.tx, self.context)
                     .require_resolve_table_or_cte(&insert.table, bind_data)
                     .await?;
-                MaybeBound::Bound(table, LocationRequirement::Local)
+                MaybeBound::Bound(table, LocationRequirement::ClientLocal)
             }
             BindMode::Hybrid => {
                 let table = Resolver::new(self.tx, self.context)
@@ -437,7 +439,7 @@ impl<'a> Binder<'a> {
                     .await?;
 
                 match table {
-                    Some(table) => MaybeBound::Bound(table, LocationRequirement::Local),
+                    Some(table) => MaybeBound::Bound(table, LocationRequirement::ClientLocal),
                     None => MaybeBound::Unbound(insert.table),
                 }
             }
@@ -707,7 +709,7 @@ impl<'a> Binder<'a> {
                         let table = Resolver::new(self.tx, self.context)
                             .require_resolve_table_or_cte(&reference, bind_data)
                             .await?;
-                        MaybeBound::Bound(table, LocationRequirement::Local)
+                        MaybeBound::Bound(table, LocationRequirement::ClientLocal)
                     }
                     BindMode::Hybrid => {
                         let table = Resolver::new(self.tx, self.context)
@@ -715,7 +717,9 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         match table {
-                            Some(table) => MaybeBound::Bound(table, LocationRequirement::Local),
+                            Some(table) => {
+                                MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                            }
                             None => MaybeBound::Unbound(reference),
                         }
                     }
@@ -746,7 +750,7 @@ impl<'a> Binder<'a> {
                                 name,
                                 idx: func_idx,
                             },
-                            LocationRequirement::Local,
+                            LocationRequirement::ClientLocal,
                         );
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
@@ -778,7 +782,7 @@ impl<'a> Binder<'a> {
                                 name,
                                 idx: func_idx,
                             },
-                            LocationRequirement::Local,
+                            LocationRequirement::ClientLocal,
                         );
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {

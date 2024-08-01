@@ -1,13 +1,20 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    database::DatabaseContext,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::{
     collections::VecDeque,
+    sync::Arc,
     task::{Context, Waker},
 };
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 #[derive(Debug)]
 pub struct MaterializePushPartitionState {}
@@ -46,31 +53,29 @@ struct SharedPipelineOutputState {
 ///
 /// Single input pipeline, some number of output pipelines.
 #[derive(Debug)]
-pub struct PhysicalMaterialize;
+pub struct PhysicalMaterialize {
+    num_outputs: usize,
+}
 
 impl PhysicalMaterialize {
-    /// Create states for this operator.
-    ///
-    /// The len of `output_pipline_partitions` indicates the number of pipelines
-    /// that will be pulling from the operator.
-    ///
-    /// Each usize in `output_pipeline_partitions` corresponds to the number of
-    /// partitions for that pipeline.
-    pub fn create_states(
+    pub fn new(num_outputs: usize) -> Self {
+        PhysicalMaterialize { num_outputs }
+    }
+}
+
+impl PhysicalOperator for PhysicalMaterialize {
+    fn create_states(
         &self,
-        input_partitions: usize,
-        output_pipeline_partitions: Vec<usize>,
-    ) -> (
-        MaterializeOperatorState,
-        Vec<MaterializePushPartitionState>,
-        Vec<Vec<MaterializePullPartitionState>>,
-    ) {
-        let shared_states: Vec<_> = output_pipeline_partitions
-            .iter()
-            .map(|num_partitions| SharedPipelineOutputState {
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let partitions = partitions[0];
+
+        let shared_states: Vec<_> = (0..self.num_outputs)
+            .map(|_| SharedPipelineOutputState {
                 batches: VecDeque::new(),
                 finished: false,
-                pull_wakers: vec![None; *num_partitions],
+                pull_wakers: vec![None; partitions],
             })
             .collect();
 
@@ -78,28 +83,32 @@ impl PhysicalMaterialize {
             output_states: shared_states.into_iter().map(Mutex::new).collect(),
         };
 
-        let mut pull_pipeline_states = Vec::with_capacity(output_pipeline_partitions.len());
-        for (pipeline_state_idx, num_partitions) in
-            output_pipeline_partitions.into_iter().enumerate()
-        {
-            let states: Vec<_> = (0..num_partitions)
-                .map(|partition_idx| MaterializePullPartitionState {
-                    partition_idx,
-                    pipeline_state_idx,
+        let mut pull_pipeline_states = Vec::with_capacity(self.num_outputs);
+        for pipeline_state_idx in 0..self.num_outputs {
+            let states: Vec<_> = (0..partitions)
+                .map(|partition_idx| {
+                    PartitionState::MaterializePull(MaterializePullPartitionState {
+                        partition_idx,
+                        pipeline_state_idx,
+                    })
                 })
                 .collect();
             pull_pipeline_states.push(states)
         }
 
-        let push_states = (0..input_partitions)
-            .map(|_| MaterializePushPartitionState {})
+        let push_states = (0..partitions)
+            .map(|_| PartitionState::MaterializePush(MaterializePushPartitionState {}))
             .collect();
 
-        (operator_state, push_states, pull_pipeline_states)
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::Materialize(operator_state)),
+            partition_states: InputOutputStates::SingleInputNaryOutput {
+                push_states,
+                pull_states: pull_pipeline_states,
+            },
+        })
     }
-}
 
-impl PhysicalOperator for PhysicalMaterialize {
     fn poll_push(
         &self,
         _cx: &mut Context,

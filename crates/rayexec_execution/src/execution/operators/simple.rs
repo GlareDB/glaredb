@@ -1,12 +1,17 @@
+use crate::database::DatabaseContext;
+use crate::logical::explainable::{ExplainConfig, ExplainEntry};
 use rayexec_bullet::batch::Batch;
-use crate::logical::explainable::{ ExplainConfig,  ExplainEntry};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use crate::logical::explainable::Explainable;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    PollFinalize, PollPull, PollPush,
+};
 
 #[derive(Debug)]
 pub struct SimplePartitionState {
@@ -67,6 +72,21 @@ impl<S: StatelessOperation> SimpleOperator<S> {
 }
 
 impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::None),
+            partition_states: InputOutputStates::OneToOne {
+                partition_states: (0..partitions[0])
+                    .map(|_| PartitionState::Simple(SimplePartitionState::new()))
+                    .collect(),
+            },
+        })
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,

@@ -96,14 +96,8 @@ impl JoinOrderRule {
                     if remaining.is_empty() {
                         // TODO: Should use location from original join.
                         *plan = LogicalOperator::EqualityJoin(LogicalNode::new(EqualityJoin {
-                            left: std::mem::replace(
-                                &mut join.left,
-                                Box::new(LogicalOperator::Empty),
-                            ),
-                            right: std::mem::replace(
-                                &mut join.right,
-                                Box::new(LogicalOperator::Empty),
-                            ),
+                            left: join.left.take_boxed(),
+                            right: join.right.take_boxed(),
                             join_type: join.join_type,
                             left_on,
                             right_on,

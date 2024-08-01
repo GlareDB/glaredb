@@ -4,175 +4,197 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use futures::Stream;
+use futures::{future::BoxFuture, Future, Stream};
 use parking_lot::Mutex;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
+use tracing::warn;
 
 use crate::{
-    execution::{
-        operators::{PollFinalize, PollPush},
-        query_graph::sink::PartitionSink,
-    },
+    execution::operators::sink::{PartitionSink, QuerySink},
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::{ErrorSink, QueryHandle},
 };
+
+/// Create sinks and streams for sending query output to a client.
+pub fn new_results_sinks() -> (ResultStream, ResultSink, ResultErrorSink) {
+    let inner = Arc::new(Mutex::new(InnerState {
+        batch: None,
+        error: None,
+        finished: false,
+        push_waker: None,
+        pull_waker: None,
+    }));
+
+    (
+        ResultStream {
+            inner: inner.clone(),
+        },
+        ResultSink {
+            inner: inner.clone(),
+        },
+        ResultErrorSink { inner },
+    )
+}
 
 #[derive(Debug)]
 pub struct ExecutionResult {
     pub output_schema: Schema,
-    pub stream: ResultAdapterStream,
+    pub stream: ResultStream,
     pub handle: Box<dyn QueryHandle>,
 }
 
 #[derive(Debug)]
-pub struct ResultAdapterStream {
-    state: Arc<Mutex<AdapterState>>,
-    batch_sink_count: usize,
+pub struct ResultStream {
+    inner: Arc<Mutex<InnerState>>,
 }
 
-#[derive(Debug)]
-struct AdapterState {
-    /// If we've ever errored, the stream is done.
-    did_error: bool,
-
-    /// If push side is finished.
-    finished: bool,
-
-    /// Buffered error.
-    ///
-    /// Currently this just stores the first error encountered.
-    error: Option<RayexecError>,
-
-    /// Buffered batch.
-    batch: Option<Batch>,
-
-    /// Push side waker.
-    push_waker: Option<Waker>,
-
-    /// Pull side waker.
-    pull_waker: Option<Waker>,
-}
-
-impl ResultAdapterStream {
-    pub fn new() -> Self {
-        ResultAdapterStream {
-            state: Arc::new(Mutex::new(AdapterState {
-                did_error: false,
-                finished: false,
-                error: None,
-                batch: None,
-                push_waker: None,
-                pull_waker: None,
-            })),
-            batch_sink_count: 0,
-        }
-    }
-
-    pub fn error_sink(&self) -> AdapterErrorSink {
-        AdapterErrorSink {
-            state: self.state.clone(),
-        }
-    }
-
-    pub fn partition_sink(&mut self) -> ResultAdapterSink {
-        assert_eq!(
-            0, self.batch_sink_count,
-            "only one query sink should exist for adapter stream"
-        );
-        self.batch_sink_count += 1;
-        ResultAdapterSink {
-            state: self.state.clone(),
-        }
-    }
-}
-
-impl Default for ResultAdapterStream {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Stream for ResultAdapterStream {
+impl Stream for ResultStream {
     type Item = Result<Batch>;
-
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut state = self.state.lock();
+        let mut inner = self.inner.lock();
 
-        if let Some(error) = state.error.take() {
+        if let Some(error) = inner.error.take() {
             return Poll::Ready(Some(Err(error)));
         }
 
-        if state.did_error {
+        if let Some(batch) = inner.batch.take() {
+            return Poll::Ready(Some(Ok(batch)));
+        }
+
+        if inner.finished {
             return Poll::Ready(None);
         }
 
-        let poll = match state.batch.take() {
-            Some(batch) => Poll::Ready(Some(Ok(batch))),
-            None => {
-                if state.finished {
-                    return Poll::Ready(None);
-                }
+        inner.pull_waker = Some(cx.waker().clone());
 
-                state.pull_waker = Some(cx.waker().clone());
-                Poll::Pending
-            }
-        };
-
-        if let Some(waker) = state.push_waker.take() {
-            waker.wake();
+        if let Some(push_waker) = inner.push_waker.take() {
+            push_waker.wake();
         }
 
-        poll
+        Poll::Pending
     }
 }
 
 #[derive(Debug)]
-pub struct ResultAdapterSink {
-    state: Arc<Mutex<AdapterState>>,
+pub struct ResultSink {
+    inner: Arc<Mutex<InnerState>>,
 }
 
-impl PartitionSink for ResultAdapterSink {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
-        let mut state = self.state.lock();
-
-        if state.batch.is_some() {
-            state.push_waker = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
-        }
-
-        state.batch = Some(batch);
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
-
-        Ok(PollPush::Pushed)
+impl QuerySink for ResultSink {
+    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
+        (0..num_sinks)
+            .map(|_| {
+                Box::new(ResultPartitionSink {
+                    inner: self.inner.clone(),
+                }) as _
+            })
+            .collect()
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
-        let mut state = self.state.lock();
-        state.finished = true;
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
-
-        Ok(PollFinalize::Finalized)
+    fn partition_requirement(&self) -> Option<usize> {
+        Some(1)
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AdapterErrorSink {
-    state: Arc<Mutex<AdapterState>>,
+impl Explainable for ResultSink {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("ResultSink")
+    }
 }
 
-impl ErrorSink for AdapterErrorSink {
+#[derive(Debug)]
+pub struct ResultPartitionSink {
+    inner: Arc<Mutex<InnerState>>,
+}
+
+impl PartitionSink for ResultPartitionSink {
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+        Box::pin(PushFuture {
+            batch: Some(batch),
+            inner: self.inner.clone(),
+        })
+    }
+
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(FinalizeFuture {
+            inner: self.inner.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct ResultErrorSink {
+    inner: Arc<Mutex<InnerState>>,
+}
+
+impl ErrorSink for ResultErrorSink {
     fn push_error(&self, error: RayexecError) {
-        let mut state = self.state.lock();
-        state.did_error = true;
-        if state.error.is_none() {
-            state.error = Some(error);
+        warn!(%error, "query error");
+
+        // First error wins.
+        let mut inner = self.inner.lock();
+        if inner.error.is_none() {
+            inner.error = Some(error);
         }
-        if let Some(waker) = state.pull_waker.take() {
+
+        if let Some(waker) = inner.pull_waker.take() {
             waker.wake();
         }
+    }
+}
+
+/// State shared between the result stream/sink and error sink.
+///
+/// This lets us inject an error into the stream that arises outside of stream.
+#[derive(Debug)]
+struct InnerState {
+    batch: Option<Batch>,
+    error: Option<RayexecError>,
+    finished: bool,
+    push_waker: Option<Waker>,
+    pull_waker: Option<Waker>,
+}
+
+struct PushFuture {
+    batch: Option<Batch>,
+    inner: Arc<Mutex<InnerState>>,
+}
+
+impl Future for PushFuture {
+    type Output = Result<()>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = &mut *self;
+        let mut inner = this.inner.lock();
+        if inner.batch.is_some() {
+            inner.push_waker = Some(cx.waker().clone());
+            return Poll::Pending;
+        }
+
+        inner.batch = this.batch.take();
+
+        if let Some(pull_waker) = inner.pull_waker.take() {
+            pull_waker.wake();
+        }
+
+        Poll::Ready(Ok(()))
+    }
+}
+
+struct FinalizeFuture {
+    inner: Arc<Mutex<InnerState>>,
+}
+
+impl Future for FinalizeFuture {
+    type Output = Result<()>;
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut inner = self.inner.lock();
+        inner.finished = true;
+
+        if let Some(pull_waker) = inner.pull_waker.take() {
+            pull_waker.wake();
+        }
+
+        Poll::Ready(Ok(()))
     }
 }

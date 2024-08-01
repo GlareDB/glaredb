@@ -1,4 +1,5 @@
-use crate::execution::operators::PollFinalize;
+use crate::database::DatabaseContext;
+use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
@@ -10,6 +11,7 @@ use crate::{
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
+use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use super::util::{
@@ -17,6 +19,14 @@ use super::util::{
     sort_keys::SortKeysExtractor,
     sorted_batch::{PhysicallySortedBatch, SortedKeysIter},
 };
+
+pub enum MergeSortedPartitionState {
+    Pushing {
+        partition_idx: usize,
+        extractor: SortKeysExtractor,
+    },
+    Pulling {},
+}
 
 /// Partition state on the push side.
 #[derive(Debug)]
@@ -177,6 +187,53 @@ impl PhysicalMergeSortedInputs {
 }
 
 impl PhysicalOperator for PhysicalMergeSortedInputs {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        let input_partitions = partitions[0];
+
+        let operator_state = OperatorState::MergeSorted(MergeSortedOperatorState {
+            shared: Mutex::new(SharedGlobalState::new(input_partitions)),
+        });
+
+        let extractor = SortKeysExtractor::new(&self.exprs);
+
+        let push_states: Vec<_> = (0..input_partitions)
+            .map(|idx| {
+                PartitionState::MergeSortedPush(MergeSortedPushPartitionState {
+                    partition_idx: idx,
+                    extractor: extractor.clone(),
+                })
+            })
+            .collect();
+
+        // Note vec with a single element representing a single output
+        // partition.
+        //
+        // I'm not sure if we care to support multiple output partitions, but
+        // extending this a little could provide an interesting repartitioning
+        // scheme where we repartition based on the sort key.
+        let pull_states = vec![PartitionState::MergeSortedPull(
+            MergeSortedPullPartitionState {
+                input_buffers: InputBuffers {
+                    buffered: (0..input_partitions).map(|_| None).collect(),
+                    finished: (0..input_partitions).map(|_| false).collect(),
+                },
+                merge_state: PullMergeState::Initializing,
+            },
+        )];
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(operator_state),
+            partition_states: InputOutputStates::SeparateInputOutput {
+                push_states,
+                pull_states,
+            },
+        })
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,
@@ -536,7 +593,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::execution::operators::test_util::{
-        make_i32_batch, unwrap_poll_pull_batch, TestContext,
+        make_i32_batch, unwrap_poll_pull_batch, TestWakerContext,
     };
 
     use super::*;
@@ -568,14 +625,14 @@ mod tests {
             .collect();
 
         // Try to pull first. Nothing available yet.
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push our first batch.
-        let push_cx = TestContext::new();
+        let push_cx = TestWakerContext::new();
         let poll_push = push_cx
             .poll_push(
                 &operator,
@@ -662,14 +719,14 @@ mod tests {
             .collect();
 
         // Pull first, get pending
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push batch for partition 0.
-        let p0_push_cx = TestContext::new();
+        let p0_push_cx = TestWakerContext::new();
         let poll_push = p0_push_cx
             .poll_push(
                 &operator,
@@ -683,14 +740,14 @@ mod tests {
         // Triggers pull wake up.
         assert_eq!(1, pull_cx.wake_count());
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Pending, poll_pull);
 
         // Push batch for partition 1.
-        let p1_push_cx = TestContext::new();
+        let p1_push_cx = TestWakerContext::new();
         let poll_push = p1_push_cx
             .poll_push(
                 &operator,
@@ -704,7 +761,7 @@ mod tests {
         // Also triggers wake up.
         assert_eq!(1, pull_cx.wake_count());
 
-        let pull_cx = TestContext::new();
+        let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();

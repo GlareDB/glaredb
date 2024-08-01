@@ -445,10 +445,10 @@ impl<W: Write + Send> SerializedFileWriter<W> {
 ///
 /// All columns should be written sequentially; the main workflow is:
 /// - Request the next column using `next_column` method - this will return `None` if no
-/// more columns are available to write.
+///   more columns are available to write.
 /// - Once done writing a column, close column writer with `close`
 /// - Once all columns have been written, close row group writer with `close` method -
-/// it will return row group metadata and is no-op on already closed row group.
+///   it will return row group metadata and is no-op on already closed row group.
 pub struct SerializedRowGroupWriter<'a, W: Write> {
     descr: SchemaDescPtr,
     props: WriterPropertiesPtr,
@@ -754,11 +754,11 @@ impl<'a, W: Write + Send> PageWriter for SerializedPageWriter<'a, W> {
 ///
 /// The offset in the returned page spec will be set to 0, allowing for it to be
 /// updated to a true offset later if we're writing into a larger buffer.
-pub fn write_page(page: CompressedPage, mut writer: impl io::Write) -> Result<PageWriteSpec> {
+pub fn write_page(page: CompressedPage, writer: &mut impl io::Write) -> Result<PageWriteSpec> {
     let page_type = page.page_type();
 
     let page_header = page.to_thrift_header();
-    let header_size = serialize_page_header(page_header, &mut writer)?;
+    let header_size = serialize_page_header(page_header, writer)?;
     writer.write_all(page.data())?;
 
     let spec = PageWriteSpec {
@@ -777,7 +777,10 @@ pub fn write_page(page: CompressedPage, mut writer: impl io::Write) -> Result<Pa
 ///
 /// Returns number of bytes that have been written into the writer.
 #[inline]
-fn serialize_page_header(header: parquet::PageHeader, writer: impl io::Write) -> Result<usize> {
+fn serialize_page_header(
+    header: parquet::PageHeader,
+    writer: &mut impl io::Write,
+) -> Result<usize> {
     let mut writer = TrackedWrite::new(writer);
 
     let mut protocol = TCompactOutputProtocol::new(&mut writer);

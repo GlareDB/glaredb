@@ -29,7 +29,7 @@ impl SubqueryDecorrelator {
                 // Materialize the original input. It'll be fed into the pushed
                 // down dependent join, as well as the output of subquery.
                 // TODO: Eliminate duplicates in original
-                let orig = std::mem::replace(input, LogicalOperator::Empty);
+                let orig = input.take();
                 let idx = context.push_plan_for_materialization(orig);
                 let scan = context.generate_scan_for_idx(idx, &[])?; // wtf goes in outer?
 
@@ -150,7 +150,7 @@ impl DependentJoinPushDown {
                     has_correlation || self.has_correlations.get(&agg.input).unwrap_or(false)
                 }
                 LogicalOperator::MaterializedScan(_)
-                | LogicalOperator::Empty
+                | LogicalOperator::Empty(_)
                 | LogicalOperator::Scan(_)
                 | LogicalOperator::TableFunction(_) => false,
                 _ => true, // TODO: More
@@ -265,7 +265,7 @@ impl DependentJoinPushDown {
             // Operator (and children) don't have correlations. Cross join it
             // with the materialized outer plan.
             let scan = context.generate_scan_for_idx(materialized_idx, &[])?;
-            let orig = std::mem::replace(plan, LogicalOperator::Empty);
+            let orig = plan.take();
             *plan = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
                 left: Box::new(orig),
                 right: Box::new(LogicalOperator::MaterializedScan(LogicalNode::new(scan))),

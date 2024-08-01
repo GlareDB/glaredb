@@ -124,3 +124,17 @@ impl<T, E: Error + Send + Sync + 'static> ResultExt<T, E> for std::result::Resul
         }
     }
 }
+
+pub trait OptionExt<T> {
+    /// Return an error with the given message if the the Option is None.
+    fn required(self, msg: &'static str) -> Result<T>;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    fn required(self, msg: &'static str) -> Result<T> {
+        match self {
+            Self::Some(v) => Ok(v),
+            None => Err(RayexecError::new(msg)),
+        }
+    }
+}
