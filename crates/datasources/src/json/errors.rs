@@ -4,7 +4,10 @@ use datafusion_ext::errors::ExtensionError;
 #[derive(Debug, thiserror::Error)]
 pub enum JsonError {
     #[error("Unsupported json type: {0}")]
-    UnspportedType(&'static str),
+    UnsupportedType(&'static str),
+
+    #[error("Unsupported json type: cannot unwind nested arrays: {0}")]
+    UnsupportedNestedArray(&'static str),
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),

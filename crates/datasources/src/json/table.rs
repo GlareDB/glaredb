@@ -148,9 +148,20 @@ fn push_unwind_json_values(
                     match v {
                         Value::Object(doc) => data.push(doc),
                         Value::Null => data.push(Map::new()),
+                        Value::Array(_) => {
+                            if filter.is_some() {
+                                return Err(JsonError::UnsupportedNestedArray(
+                                    "must return objects from jaq expressions",
+                                ));
+                            } else {
+                                return Err(JsonError::UnsupportedType(
+                                    "arrays must contain objects or nulls",
+                                ));
+                            }
+                        }
                         _ => {
-                            return Err(JsonError::UnspportedType(
-                                "only objects and arrays of objects are supported",
+                            return Err(JsonError::UnsupportedNestedArray(
+                                "scalars in arrays are not supported",
                             ))
                         }
                     }
@@ -158,11 +169,7 @@ fn push_unwind_json_values(
             }
             Value::Object(doc) => data.push(doc),
             Value::Null => data.push(Map::new()),
-            _ => {
-                return Err(JsonError::UnspportedType(
-                    "only objects and arrays of objects are supported",
-                ))
-            }
+            _ => return Err(JsonError::UnsupportedType("scalars cannot be rows")),
         };
     }
     Ok(())
