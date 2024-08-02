@@ -20,4 +20,4 @@ futures = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = "0.20.0"
-indexmap = "2.2.6"
+indexmap = "2.3.0"
