@@ -72,7 +72,7 @@ bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch
 lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
 json-stream = { git = "https://github.com/tychoish/json-stream", rev = "bd4990fab95f789740a75a8eea98d5dac1f0160a" }
 jaq-interpret = "1.5.0"
-jaq-parse = "1.0.2"
+jaq-parse = "1.0.3"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
