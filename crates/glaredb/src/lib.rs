@@ -251,8 +251,7 @@ impl Connection {
 
     /// Creates a query that is parsed when the Operation is invoked;
     /// however, the query is only executed when the results are
-    /// iterated _unless_ the operation is a write operation or a DDL
-    /// operation, which are executed when the operation is invoked.
+    /// iterated. DDL and DML queries are not permitted.
     pub fn sql(&self, query: impl Into<String>) -> Operation {
         Operation {
             op: OperationType::Sql,
@@ -263,10 +262,9 @@ impl Connection {
         }
     }
 
-    /// PRQL queries have the same semantics as SQL queries; however,
-    /// because PRQL does not include syntax for DML or DDL
-    /// operations, these queries only run when the result stream are
-    /// invoked.
+    /// PRQL queries have the same semantics as SQL queries, and do
+    /// not contain support for DDL or DML operations. These queries
+    /// only run when the result stream are invoked.
     pub fn prql(&self, query: impl Into<String>) -> Operation {
         Operation {
             op: OperationType::Prql,
@@ -423,9 +421,9 @@ impl RecordStream {
 
 #[derive(Debug, Clone)]
 enum OperationType {
-    /// SQL operations create a operation that runs DDL/DML operations
-    /// directly, and executes other queries lazily when the results
-    /// are iterated.
+    /// SQL operations create a operation that runs queries lazily
+    /// when the results are iterated.  DDL/DML operations are not
+    /// permitted.
     Sql,
     /// PRQL, which does not support DDL/DML in our implementation,
     /// creates a lazy query object that only runs when the results
@@ -459,11 +457,8 @@ impl Operation {
         self.schema.clone()
     }
 
-    /// Evaluate constructs a plan for the query, and in the case of
-    /// all `OperationType::Execute` operations and
-    /// `OperationType::Sql` operations that write data, the operation
-    /// run immediately. All other operations run when `.resolve()` is
-    /// called.
+    /// Evaluate constructs a plan for the query that runs run when
+    /// `.resolve()` is called.
     pub async fn evaluate(&mut self) -> Result<Self, DatabaseError> {
         match self.op {
             OperationType::Sql => {
@@ -474,26 +469,26 @@ impl Operation {
                 self.schema
                     .replace(Arc::new(plan.output_schema().unwrap_or_else(Schema::empty)));
 
-                match plan.to_owned().try_into_datafusion_plan()? {
-                    LogicalPlan::Dml(_)
-                    | LogicalPlan::Ddl(_)
-                    | LogicalPlan::Copy(_)
-                    | LogicalPlan::Extension(_) => {
-                        RecordStream::from(Self::process_result(
-                            ses.execute_logical_plan(
-                                plan,
-                                &OperationInfo::new().with_query_text(self.query.clone()),
-                            )
-                            .await?
-                            .1,
-                        ))
-                        .check()
-                        .await?;
+                match &plan {
+                    sqlexec::LogicalPlan::Datafusion(dfplan) => match dfplan {
+                        LogicalPlan::Dml(_)
+                            | LogicalPlan::Ddl(_)
+                            | LogicalPlan::Copy(_)
+                            | LogicalPlan::Extension(_)
+                            | LogicalPlan::Prepare(_) => {
+				return Err(DatabaseError::new(
+                                    ".sql() is lazily evaluated use .execute() for this operation",
+				))
+                            },
+                        _ => {},
+                    },
+                    sqlexec::LogicalPlan::Transaction(_) => {
+                        return Err(DatabaseError::new(".sql(), which is evaluated lazily cannot support multi-statement transactions"))
                     }
-                    _ => {
-                        self.plan.replace(plan);
-                    }
+                    sqlexec::LogicalPlan::Noop => {}
                 };
+
+                self.plan.replace(plan);
 
                 Ok(self.clone())
             }
@@ -549,13 +544,33 @@ impl Operation {
     pub async fn resolve(&mut self) -> Result<SendableRecordBatchStream, DatabaseError> {
         match self.op {
             OperationType::Sql => {
-                let mut ses = self.conn.session.lock().await;
-
                 let plan = if self.plan.is_some() {
                     self.plan.take().unwrap()
                 } else {
                     self.schema = None;
-                    ses.create_logical_plan(&self.query).await?
+                    {
+                        let mut ses = self.conn.session.lock().await;
+                        ses.create_logical_plan(&self.query).await?
+                    }
+                };
+
+                match &plan {
+                    sqlexec::LogicalPlan::Datafusion(dfplan) => match dfplan {
+                        LogicalPlan::Dml(_)
+                            | LogicalPlan::Ddl(_)
+                            | LogicalPlan::Copy(_)
+                            | LogicalPlan::Extension(_)
+                            | LogicalPlan::Prepare(_) => {
+				return Err(DatabaseError::new(
+                                    ".sql() is lazily evaluated use .execute() for this operation",
+				))
+                            },
+                        _ => {},
+                    },
+                    sqlexec::LogicalPlan::Transaction(_) => {
+                        return Err(DatabaseError::new(".sql(), which is evaluated lazily cannot support multi-statement transactions"))
+                    }
+                    sqlexec::LogicalPlan::Noop => {}
                 };
 
                 let schema = if self.schema.is_some() {
@@ -568,40 +583,32 @@ impl Operation {
                 self.schema.replace(schema.clone());
 
                 let op = OperationInfo::new().with_query_text(self.query.clone());
-                match plan.to_owned().try_into_datafusion_plan()? {
-                    LogicalPlan::Dml(_)
-                    | LogicalPlan::Ddl(_)
-                    | LogicalPlan::Copy(_)
-                    | LogicalPlan::Extension(_) => Ok(Self::process_result(
-                        ses.execute_logical_plan(plan, &op).await?.1,
-                    )),
-                    _ => {
-                        let ses_clone = self.conn.session.clone();
 
-                        Ok(Self::process_result(ExecutionResult::Query {
-                            stream: Box::pin(RecordBatchStreamAdapter::new(
-                                schema.clone(),
-                                futures::stream::once(async move {
-                                    let mut ses = ses_clone.lock().await;
-                                    match ses.execute_logical_plan(plan, &op).await {
-                                        Ok((_, res)) => Self::process_result(res),
-                                        Err(e) => Self::handle_error(e),
-                                    }
-                                })
-                                .flatten(),
-                            )),
-                        }))
-                    }
-                }
+                let ses_clone = self.conn.session.clone();
+
+                Ok(Self::process_result(ExecutionResult::Query {
+                    stream: Box::pin(RecordBatchStreamAdapter::new(
+                        schema.clone(),
+                        futures::stream::once(async move {
+                            let mut ses = ses_clone.lock().await;
+                            match ses.execute_logical_plan(plan, &op).await {
+                                Ok((_, res)) => Self::process_result(res),
+                                Err(e) => Self::handle_error(e),
+                            }
+                        })
+                        .flatten(),
+                    )),
+                }))
             }
             OperationType::Prql => {
-                let mut ses = self.conn.session.lock().await;
-
                 let plan = if self.plan.is_some() {
                     self.plan.take().unwrap()
                 } else {
                     self.schema = None;
-                    ses.prql_to_lp(&self.query).await?
+                    {
+                        let mut ses = self.conn.session.lock().await;
+                        ses.prql_to_lp(&self.query).await?
+                    }
                 };
 
                 let schema = if self.schema.is_some() {
