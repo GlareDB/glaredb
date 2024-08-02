@@ -57,7 +57,7 @@ impl BsonStream {
         let mut builder = RecordStructBuilder::new_with_capacity(schema.fields().clone(), 100)?;
 
         for result in results {
-            builder.project_and_append(&result?)?;
+            builder.append_value(&result?)?;
         }
 
         let mut builders = builder.into_builders();

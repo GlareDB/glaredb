@@ -16,8 +16,10 @@ use datafusion::logical_expr::{
 };
 use once_cell::sync::Lazy;
 use protogen::metastore::types::catalog::FunctionType;
+use scalars::bson2json::Bson2Json;
 use scalars::df_scalars::ArrowCastFunction;
 use scalars::hashing::{FnvHash, PartitionResults, SipHash};
+use scalars::jaq::{JAQMatches, JAQSelect};
 use scalars::kdl::{KDLMatches, KDLSelect};
 use scalars::postgres::{
     CurrentCatalog,
@@ -40,6 +42,7 @@ use scalars::{ConnectionId, Version};
 use table::{BuiltinTableFuncs, TableFunc};
 
 use self::alias_map::AliasMap;
+use crate::functions::scalars::bson2json::Json2Bson;
 use crate::functions::scalars::df_scalars::{Decode, Encode, IsNan, NullIf};
 use crate::functions::scalars::openai::OpenAIEmbed;
 use crate::functions::scalars::similarity::CosineSimilarity;
@@ -240,8 +243,14 @@ impl FunctionRegistry {
             Arc::new(ConnectionId),
             Arc::new(Version),
             // KDL functions
-            Arc::new(KDLMatches::new()),
-            Arc::new(KDLSelect::new()),
+            Arc::new(KDLMatches),
+            Arc::new(KDLSelect),
+            // JAQ functions
+            Arc::new(JAQMatches),
+            Arc::new(JAQSelect),
+            // Converters
+            Arc::new(Bson2Json),
+            Arc::new(Json2Bson),
             // Hashing/Partitioning
             Arc::new(SipHash),
             Arc::new(FnvHash),
@@ -249,7 +258,7 @@ impl FunctionRegistry {
             // OpenAI
             Arc::new(OpenAIEmbed),
             // Similarity
-            Arc::new(CosineSimilarity::new()),
+            Arc::new(CosineSimilarity),
         ];
         let udfs = udfs
             .into_iter()

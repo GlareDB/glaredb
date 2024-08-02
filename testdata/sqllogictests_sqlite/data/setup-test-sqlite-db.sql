@@ -6,10 +6,10 @@ CREATE TABLE IF NOT EXISTS datatypes (
 
     -- Dates and times
     c3 DATE,
-    c4 TIME,    
+    c4 TIME,
     c5 DATETIME,
     c6 TIMESTAMP,
-    
+
     -- Integers
     c7 INT,
     c8 BIGINT,
@@ -68,7 +68,7 @@ INSERT INTO datatypes (c1) VALUES (NULL);
 -- Create bikeshare_stations table
 CREATE TABLE IF NOT EXISTS bikeshare_stations (
     station_id        INT,
-    name              TEXT, 
+    name              TEXT,
     status            TEXT,
     address           TEXT,
     alternate_name    TEXT,
@@ -110,5 +110,38 @@ CREATE TABLE IF NOT EXISTS bikeshare_trips (
     duration_minutes   INT
 );
 
+DROP TABLE IF EXISTS orders;
+CREATE TABLE orders (
+    order_id TEXT,
+    customer_id TEXT,
+    employee_id INT,
+    order_date TIMESTAMP,
+    required_date DATE,
+    shipped_date TIME,
+    ship_via INT,
+    freight REAL,
+    ship_name TEXT,
+    ship_address TEXT,
+    ship_city TEXT,
+    ship_region TEXT,
+    ship_postal_code TEXT,
+    ship_country TEXT
+);
+
 .mode csv
 .import --skip 1 testdata/sqllogictests_datasources_common/data/gcs-artifacts/bikeshare_trips.csv bikeshare_trips
+.import --skip 1 testdata/sqllogictests_datasources_common/data/orders.csv orders
+
+CREATE TABLE IF NOT EXISTS date_test(
+    id INT,
+    datetime_value DATETIME,
+    time_value TIME,
+    text_value TEXT
+);
+
+INSERT INTO date_test (id, datetime_value, time_value, text_value) VALUES
+(0, '2016-07-04', '13:46:17', '2012-12-26 04:58:22'),
+(1, '2022-02-09','23:37:27', '2016-07-11' ),
+(2, '2022-02-09 08:20:12','2022-02-09 23:37:27', '2016-07-11' ),
+(3, '2016-07-05 13:46:17', '2016-07-04', '2012-12-26 04:58:22'),
+(4, '2022-02-10','2016-07-04 23:37:27', '2016-07-11' );

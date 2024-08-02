@@ -16,7 +16,14 @@ use datafusion::arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion::arrow::error::ArrowError;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::expr::ScalarFunction;
-use datafusion::logical_expr::{Expr, ScalarUDF, ScalarUDFImpl, Signature, Volatility};
+use datafusion::logical_expr::{
+    Expr,
+    ReturnTypeFunction,
+    ScalarFunctionImplementation,
+    ScalarUDF,
+    Signature,
+    Volatility,
+};
 use datafusion::physical_plan::ColumnarValue;
 use datafusion::scalar::ScalarValue;
 use protogen::metastore::types::catalog::FunctionType;
@@ -24,25 +31,7 @@ use protogen::metastore::types::catalog::FunctionType;
 use crate::functions::{BuiltinScalarUDF, ConstBuiltinFunction};
 
 #[derive(Debug, Clone)]
-pub struct CosineSimilarity {
-    signature: Signature,
-}
-
-impl Default for CosineSimilarity {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl CosineSimilarity {
-    pub fn new() -> Self {
-        Self {
-            // TODO: see https://github.com/apache/arrow-datafusion/issues/9139.
-            // This should be ( FixedSizeList | List) [DataType::Float64 | DataType::Float16 | DataType::Float32]
-            signature: Signature::any(2, Volatility::Immutable),
-        }
-    }
-}
+pub struct CosineSimilarity;
 
 impl ConstBuiltinFunction for CosineSimilarity {
     const NAME: &'static str = "cosine_similarity";
@@ -50,10 +39,12 @@ impl ConstBuiltinFunction for CosineSimilarity {
         "Returns the cosine similarity between two floating point vectors";
     const EXAMPLE: &'static str = "cosine_similarity([1.0, 2.0, 3.0], [4.0, 5.0, 6.0])";
     const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+
     fn signature(&self) -> Option<Signature> {
-        Some(self.signature.clone())
+        Some(Signature::any(2, Volatility::Immutable))
     }
 }
+
 fn arr_to_query_vec(
     arr: &dyn Array,
     to_type: &DataType,
@@ -154,87 +145,71 @@ fn arr_to_target_vec(arr: &dyn Array) -> datafusion::error::Result<Cow<FixedSize
     })
 }
 
-impl ScalarUDFImpl for CosineSimilarity {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn name(&self) -> &str {
-        Self::NAME
-    }
-
-    fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
-    fn return_type(&self, _: &[DataType]) -> datafusion::error::Result<DataType> {
-        Ok(DataType::Float32)
-    }
-
-    fn invoke(&self, args: &[ColumnarValue]) -> datafusion::error::Result<ColumnarValue> {
-        let target_vec = match &args[1] {
-            ColumnarValue::Array(arr) => arr_to_target_vec(arr),
-            ColumnarValue::Scalar(ScalarValue::List(arr)) => arr_to_target_vec(arr.as_ref()),
-            ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
-                arr_to_target_vec(arr.as_ref())
-            }
-            _ => {
-                return Err(DataFusionError::Execution(
-                    "Invalid argument type".to_string(),
-                ))
-            }
-        }?;
-
-        let v0 = target_vec.value(0);
-        let to_type = v0.data_type();
-
-        let query_vec = match &args[0] {
-            ColumnarValue::Array(arr) => arr_to_query_vec(arr, to_type),
-            ColumnarValue::Scalar(ScalarValue::List(arr)) => {
-                arr_to_query_vec(arr.as_ref(), to_type)
-            }
-            ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
-                arr_to_query_vec(arr.as_ref(), to_type)
-            }
-            _ => {
-                return Err(DataFusionError::Execution(
-                    "Invalid argument type".to_string(),
-                ))
-            }
-        }?;
-
-        let dimension = target_vec.value_length() as usize;
-        if query_vec.len() != dimension {
-            return Err(DataFusionError::Execution(
-                "Query vector and target vector must have the same length".to_string(),
-            ));
-        }
-
-        let result: Arc<dyn Array> =
-            lance_linalg::distance::cosine_distance_arrow_batch(query_vec.as_ref(), &target_vec)
-                .map_err(|e| DataFusionError::Execution(e.to_string()))?;
-
-        Ok(ColumnarValue::Array(result))
-    }
-}
-
 impl BuiltinScalarUDF for CosineSimilarity {
     fn try_as_expr(
         &self,
         _: &catalog::session_catalog::SessionCatalog,
         args: Vec<Expr>,
     ) -> datafusion::error::Result<Expr> {
-        let udf = ScalarUDF::new_from_impl(Self::new());
+        let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float32)));
+
+        let scalar_fn_impl: ScalarFunctionImplementation = Arc::new(move |args| {
+            let target_vec = match &args[1] {
+                ColumnarValue::Array(arr) => arr_to_target_vec(arr),
+                ColumnarValue::Scalar(ScalarValue::List(arr)) => arr_to_target_vec(arr.as_ref()),
+                ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
+                    arr_to_target_vec(arr.as_ref())
+                }
+                _ => {
+                    return Err(DataFusionError::Execution(
+                        "Invalid argument type".to_string(),
+                    ))
+                }
+            }?;
+
+            let v0 = target_vec.value(0);
+            let to_type = v0.data_type();
+
+            let query_vec = match &args[0] {
+                ColumnarValue::Array(arr) => arr_to_query_vec(arr, to_type),
+                ColumnarValue::Scalar(ScalarValue::List(arr)) => {
+                    arr_to_query_vec(arr.as_ref(), to_type)
+                }
+                ColumnarValue::Scalar(ScalarValue::FixedSizeList(arr)) => {
+                    arr_to_query_vec(arr.as_ref(), to_type)
+                }
+                _ => {
+                    return Err(DataFusionError::Execution(
+                        "Invalid argument type".to_string(),
+                    ))
+                }
+            }?;
+
+            let dimension = target_vec.value_length() as usize;
+            if query_vec.len() != dimension {
+                return Err(DataFusionError::Execution(
+                    "Query vector and target vector must have the same length".to_string(),
+                ));
+            }
+
+            let result: Arc<dyn Array> = lance_linalg::distance::cosine_distance_arrow_batch(
+                query_vec.as_ref(),
+                &target_vec,
+            )
+            .map_err(|e| DataFusionError::Execution(e.to_string()))?;
+
+            Ok(ColumnarValue::Array(result))
+        });
 
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
-            Arc::new(udf),
+            Arc::new(ScalarUDF::new(
+                Self::NAME,
+                &ConstBuiltinFunction::signature(self).unwrap(),
+                &return_type_fn,
+                &scalar_fn_impl,
+            )),
             args,
         )))
-    }
-
-    fn try_into_scalar_udf(self: Arc<Self>) -> datafusion::error::Result<ScalarUDF> {
-        let udf = ScalarUDF::new_from_impl(Self::new());
-        Ok(udf)
     }
 }
 

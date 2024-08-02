@@ -150,8 +150,9 @@ message TableOptionsV0 {
     TableOptionsCassandra cassandra = 18;
     TableOptionsExcel excel = 19;
     TableOptionsObjectStore sqlite = 20;
+    TableOptionsObjectStore json = 21;
   }
-  // next: 21
+  // next: 22
 }
 
 message TableOptionsInternal {
@@ -186,6 +187,7 @@ message TableOptionsLocal {
   string location = 1;
   string file_type = 2;
   optional string compression = 3;
+  optional string jaq_filter = 4;
 }
 
 message TableOptionsGcs {
@@ -194,6 +196,7 @@ message TableOptionsGcs {
   string location = 3;
   string file_type = 4;
   optional string compression = 5;
+  optional string jaq_filter = 6;
 }
 
 message TableOptionsS3 {
@@ -204,6 +207,7 @@ message TableOptionsS3 {
   string location = 5;
   string file_type = 6;
   optional string compression = 7;
+  optional string jaq_filter = 8;
 }
 
 message TableOptionsMongo {
@@ -252,6 +256,8 @@ message TableOptionsObjectStore {
   reserved 6;
 
   optional string name = 7;
+
+  optional string jaq_filter = 8;
 }
 
 message TableOptionsSqlServer {

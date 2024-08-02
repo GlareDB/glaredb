@@ -45,12 +45,12 @@ terminal_util = { path = "../terminal_util" }
 
 num_cpus = "1.16.0"
 colored = "2.1.0"
-reedline = "0.32.0"
-nu-ansi-term = "0.50.0"
+nu-ansi-term = "0.50.1"
+reedline = "0.33.0"
 atty = "0.2.14"
 console-subscriber = "0.3.0"
-tokio-postgres = "0.7.8"
-uuid = { version = "1.9.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+tokio-postgres = "0.7.11"
+uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 glob = "0.3.1"
 
 lzma-sys = { version = "*", features = ["static"] } # Prevent dynamic linking of lzma, which comes from datafusion

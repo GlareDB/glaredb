@@ -263,7 +263,7 @@ impl<'a> FieldDescriptionBuilder<'a> {
     }
 
     pub fn build(self) -> Result<FieldDescription> {
-        let pg_type = self.pg_type.ok_or(PgSrvError::InternalError(
+        let pg_type = self.pg_type.ok_or(PgSrvError::Internal(
             "type cannot be `None` in field description".to_string(),
         ))?;
 

@@ -47,7 +47,7 @@ pub enum PgSrvError {
     CloudResponse(String),
 
     #[error("internal error: {0}")]
-    InternalError(String),
+    Internal(String),
 
     /// We've received an unexpected message identifier from the frontend.
     /// Includes the char representation to allow for easy cross referencing
@@ -71,7 +71,7 @@ pub enum PgSrvError {
     SqlExec(#[from] sqlexec::errors::ExecError),
 
     #[error(transparent)]
-    Datafusion(#[from] datafusion::error::DataFusionError),
+    DataFusion(#[from] datafusion::error::DataFusionError),
 
     #[error(transparent)]
     Arrow(#[from] datafusion::arrow::error::ArrowError),

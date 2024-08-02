@@ -80,7 +80,8 @@ impl AsyncDB for PgTestClient {
                     output.push(row_output);
                 }
                 SimpleQueryMessage::CommandComplete(_) => {}
-                _ => unreachable!(),
+                SimpleQueryMessage::RowDescription(_) => {}
+                msg => unreachable!("message: '{msg:?}'"),
             }
         }
         if output.is_empty() && num_columns == 0 {

@@ -1,0 +1,101 @@
+OrderID,CustomerID,EmployeeID,OrderDate,RequiredDate,ShippedDate,ShipVia,Freight,ShipName,ShipAddress,ShipCity,ShipRegion,ShipPostalCode,ShipCountry
+10248,VINET,5,2016-07-04,2016-08-01,2016-07-16,3,16.75,Vins et alcools Chevalier,59 rue de l-Abbaye,Reims,Western Europe,51100,France
+10249,TOMSP,6,2016-07-05,2016-08-16,2016-07-10,1,22.25,Toms Spezialitäten,Luisenstr. 48,Münster,Western Europe,44087,Germany
+10250,HANAR,4,2016-07-08,2016-08-05,2016-07-12,2,25.0,Hanari Carnes,"Rua do Paço, 67",Rio de Janeiro,South America,05454-876,Brazil
+10251,VICTE,3,2016-07-08,2016-08-05,2016-07-15,1,20.25,Victuailles en stock,"2, rue du Commerce",Lyon,Western Europe,69004,France
+10252,SUPRD,4,2016-07-09,2016-08-06,2016-07-11,2,36.25,Suprêmes délices,"Boulevard Tirou, 255",Charleroi,Western Europe,B-6000,Belgium
+10253,HANAR,3,2016-07-10,2016-07-24,2016-07-16,2,35.5,Hanari Carnes,"Rua do Paço, 67",Rio de Janeiro,South America,05454-876,Brazil
+10254,CHOPS,5,2016-07-11,2016-08-08,2016-07-23,2,24.25,Chop-suey Chinese,Hauptstr. 31,Bern,Western Europe,3012,Switzerland
+10255,RICSU,9,2016-07-12,2016-08-09,2016-07-15,3,37.5,Richter Supermarkt,Starenweg 5,Genève,Western Europe,1204,Switzerland
+10256,WELLI,3,2016-07-15,2016-08-12,2016-07-17,2,16.75,Wellington Importadora,"Rua do Mercado, 12",Resende,South America,08737-363,Brazil
+10257,HILAA,4,2016-07-16,2016-08-13,2016-07-22,3,21.5,HILARION-Abastos,Carrera 22 con Ave. Carlos Soublette #8-35,San Cristóbal,South America,5022,Venezuela
+10258,ERNSH,1,2016-07-17,2016-08-14,2016-07-23,1,40.25,Ernst Handel,Kirchgasse 6,Graz,Western Europe,8010,Austria
+10259,CENTC,4,2016-07-18,2016-08-15,2016-07-25,3,12.75,Centro comercial Moctezuma,Sierras de Granada 9993,México D.F.,Central America,5022,Mexico
+10260,OTTIK,4,2016-07-19,2016-08-16,2016-07-29,1,35.5,Ottilies Käseladen,Mehrheimerstr. 369,Köln,Western Europe,50739,Germany
+10261,QUEDE,4,2016-07-19,2016-08-16,2016-07-30,2,20.0,Que Delícia,"Rua da Panificadora, 12",Rio de Janeiro,South America,02389-673,Brazil
+10262,RATTC,8,2016-07-22,2016-08-19,2016-07-25,3,17.25,Rattlesnake Canyon Grocery,2817 Milton Dr.,Albuquerque,North America,87110,USA
+10263,ERNSH,9,2016-07-23,2016-08-20,2016-07-31,3,56.0,Ernst Handel,Kirchgasse 6,Graz,Western Europe,8010,Austria
+10264,FOLKO,6,2016-07-24,2016-08-21,2016-08-23,3,25.0,Folk och fä HB,Åkergatan 24,Bräcke,Northern Europe,S-844 67,Sweden
+10265,BLONP,2,2016-07-25,2016-08-22,2016-08-12,1,22.5,Blondel père et fils,"24, place Kléber",Strasbourg,Western Europe,67000,France
+10266,WARTH,3,2016-07-26,2016-09-06,2016-07-31,3,13.0,Wartian Herkku,Torikatu 38,Oulu,Scandinavia,90110,Finland
+10267,FRANK,4,2016-07-29,2016-08-26,2016-08-06,1,43.75,Frankenversand,Berliner Platz 43,München,Western Europe,80805,Germany
+10268,GROSR,8,2016-07-30,2016-08-27,2016-08-02,3,13.5,GROSELLA-Restaurante,5ª Ave. Los Palos Grandes,Caracas,South America,1081,Venezuela
+10269,WHITC,5,2016-07-31,2016-08-14,2016-08-09,1,30.0,White Clover Markets,1029 - 12th Ave. S.,Seattle,North America,98124,USA
+10270,WARTH,1,2016-08-01,2016-08-29,2016-08-02,1,23.75,Wartian Herkku,Torikatu 38,Oulu,Scandinavia,90110,Finland
+10271,SPLIR,6,2016-08-01,2016-08-29,2016-08-30,2,16.0,Split Rail Beer & Ale,P.O. Box 555,Lander,North America,82520,USA
+10272,RATTC,6,2016-08-02,2016-08-30,2016-08-06,2,27.5,Rattlesnake Canyon Grocery,2817 Milton Dr.,Albuquerque,North America,87110,USA
+10273,QUICK,3,2016-08-05,2016-09-02,2016-08-12,3,48.0,QUICK-Stop,Taucherstraße 10,Cunewalde,Western Europe,1307,Germany
+10274,VINET,6,2016-08-06,2016-09-03,2016-08-16,1,16.75,Vins et alcools Chevalier,59 rue de l-Abbaye,Reims,Western Europe,51100,France
+10275,MAGAA,1,2016-08-07,2016-09-04,2016-08-09,1,14.5,Magazzini Alimentari Riuniti,Via Ludovico il Moro 22,Bergamo,Southern Europe,24100,Italy
+10276,TORTU,8,2016-08-08,2016-08-22,2016-08-14,3,16.25,Tortuga Restaurante,Avda. Azteca 123,México D.F.,Central America,5033,Mexico
+10277,MORGK,2,2016-08-09,2016-09-06,2016-08-13,3,18.0,Morgenstern Gesundkost,Heerstr. 22,Leipzig,Western Europe,4179,Germany
+10278,BERGS,8,2016-08-12,2016-09-09,2016-08-16,2,26.0,Berglunds snabbköp,Berguvsvägen  8,Luleå,Northern Europe,S-958 22,Sweden
+10279,LEHMS,8,2016-08-13,2016-09-10,2016-08-16,2,13.75,Lehmanns Marktstand,Magazinweg 7,Frankfurt a.M.,Western Europe,60528,Germany
+10280,BERGS,2,2016-08-14,2016-09-11,2016-09-12,1,25.5,Berglunds snabbköp,Berguvsvägen  8,Luleå,Northern Europe,S-958 22,Sweden
+10281,ROMEY,4,2016-08-14,2016-08-28,2016-08-21,1,12.75,Romero y tomillo,"Gran Vía, 1",Madrid,Southern Europe,28001,Spain
+10282,ROMEY,4,2016-08-15,2016-09-12,2016-08-21,1,12.0,Romero y tomillo,"Gran Vía, 1",Madrid,Southern Europe,28001,Spain
+10283,LILAS,3,2016-08-16,2016-09-13,2016-08-23,3,29.0,LILA-Supermercado,Carrera 52 con Ave. Bolívar #65-98 Llano Largo,Barquisimeto,South America,3508,Venezuela
+10284,LEHMS,4,2016-08-19,2016-09-16,2016-08-27,1,25.25,Lehmanns Marktstand,Magazinweg 7,Frankfurt a.M.,Western Europe,60528,Germany
+10285,QUICK,1,2016-08-20,2016-09-17,2016-08-26,2,40.25,QUICK-Stop,Taucherstraße 10,Cunewalde,Western Europe,1307,Germany
+10286,QUICK,8,2016-08-21,2016-09-18,2016-08-30,3,45.0,QUICK-Stop,Taucherstraße 10,Cunewalde,Western Europe,1307,Germany
+10287,RICAR,8,2016-08-22,2016-09-19,2016-08-28,3,28.75,Ricardo Adocicados,"Av. Copacabana, 267",Rio de Janeiro,South America,02389-890,Brazil
+10288,REGGC,4,2016-08-23,2016-09-20,2016-09-03,1,13.25,Reggiani Caseifici,Strada Provinciale 124,Reggio Emilia,Southern Europe,42100,Italy
+10289,BSBEV,7,2016-08-26,2016-09-23,2016-08-28,3,19.75,B-s Beverages,Fauntleroy Circus,London,British Isles,EC2 5NT,UK
+10290,COMMI,8,2016-08-27,2016-09-24,2016-09-03,1,25.0,Comércio Mineiro,"Av. dos Lusíadas, 23",Sao Paulo,South America,05432-043,Brazil
+10291,QUEDE,6,2016-08-27,2016-09-24,2016-09-04,2,21.5,Que Delícia,"Rua da Panificadora, 12",Rio de Janeiro,South America,02389-673,Brazil
+10292,TRADH,1,2016-08-28,2016-09-25,2016-09-02,2,15.0,Tradiçao Hipermercados,"Av. Inês de Castro, 414",Sao Paulo,South America,05634-030,Brazil
+10293,TORTU,1,2016-08-29,2016-09-26,2016-09-11,3,18.25,Tortuga Restaurante,Avda. Azteca 123,México D.F.,Central America,5033,Mexico
+10294,RATTC,4,2016-08-30,2016-09-27,2016-09-05,2,28.75,Rattlesnake Canyon Grocery,2817 Milton Dr.,Albuquerque,North America,87110,USA
+10295,VINET,2,2016-09-02,2016-09-30,2016-09-10,2,11.0,Vins et alcools Chevalier,59 rue de l-Abbaye,Reims,Western Europe,51100,France
+10296,LILAS,6,2016-09-03,2016-10-01,2016-09-11,1,24.25,LILA-Supermercado,Carrera 52 con Ave. Bolívar #65-98 Llano Largo,Barquisimeto,South America,3508,Venezuela
+10297,BLONP,5,2016-09-04,2016-10-16,2016-09-10,2,30.0,Blondel père et fils,"24, place Kléber",Strasbourg,Western Europe,67000,France
+10298,HUNGO,6,2016-09-05,2016-10-03,2016-09-11,2,41.25,Hungry Owl All-Night Grocers,8 Johnstown Road,Cork,British Isles,,Ireland
+10299,RICAR,4,2016-09-06,2016-10-04,2016-09-13,2,18.75,Ricardo Adocicados,"Av. Copacabana, 267",Rio de Janeiro,South America,02389-890,Brazil
+10300,MAGAA,2,2016-09-09,2016-10-07,2016-09-18,2,22.5,Magazzini Alimentari Riuniti,Via Ludovico il Moro 22,Bergamo,Southern Europe,24100,Italy
+10301,WANDK,8,2016-09-09,2016-10-07,2016-09-17,2,17.5,Die Wandernde Kuh,Adenauerallee 900,Stuttgart,Western Europe,70563,Germany
+10302,SUPRD,4,2016-09-10,2016-10-08,2016-10-09,2,30.0,Suprêmes délices,"Boulevard Tirou, 255",Charleroi,Western Europe,B-6000,Belgium
+10303,GODOS,7,2016-09-11,2016-10-09,2016-09-18,2,31.25,Godos Cocina Típica,"C/ Romero, 33",Sevilla,Southern Europe,41101,Spain
+10304,TORTU,1,2016-09-12,2016-10-10,2016-09-17,2,20.5,Tortuga Restaurante,Avda. Azteca 123,México D.F.,Central America,5033,Mexico
+10305,OLDWO,8,2016-09-13,2016-10-11,2016-10-09,3,30.0,Old World Delicatessen,2743 Bering St.,Anchorage,North America,99508,USA
+10306,ROMEY,1,2016-09-16,2016-10-14,2016-09-23,3,16.25,Romero y tomillo,"Gran Vía, 1",Madrid,Southern Europe,28001,Spain
+10307,LONEP,2,2016-09-17,2016-10-15,2016-09-25,2,13.25,Lonesome Pine Restaurant,89 Chiaroscuro Rd.,Portland,North America,97219,USA
+10308,ANATR,7,2016-09-18,2016-10-16,2016-09-24,3,11.5,Ana Trujillo Emparedados y helados,Avda. de la Constitución 2222,México D.F.,Central America,5021,Mexico
+10309,HUNGO,3,2016-09-19,2016-10-17,2016-10-23,1,28.75,Hungry Owl All-Night Grocers,8 Johnstown Road,Cork,British Isles,,Ireland
+10310,THEBI,8,2016-09-20,2016-10-18,2016-09-27,2,13.75,The Big Cheese,89 Jefferson Way Suite 2,Portland,North America,97201,USA
+10311,DUMON,1,2016-09-20,2016-10-04,2016-09-26,3,13.25,Du monde entier,"67, rue des Cinquante Otages",Nantes,Western Europe,44000,France
+10312,WANDK,2,2016-09-23,2016-10-21,2016-10-03,2,24.5,Die Wandernde Kuh,Adenauerallee 900,Stuttgart,Western Europe,70563,Germany
+10313,QUICK,2,2016-09-24,2016-10-22,2016-10-04,2,13.0,QUICK-Stop,Taucherstraße 10,Cunewalde,Western Europe,1307,Germany
+10314,RATTC,1,2016-09-25,2016-10-23,2016-10-04,2,33.75,Rattlesnake Canyon Grocery,2817 Milton Dr.,Albuquerque,North America,87110,USA
+10315,ISLAT,4,2016-09-26,2016-10-24,2016-10-03,2,21.0,Island Trading,Garden House Crowther Way,Cowes,British Isles,PO31 7PJ,UK
+10316,RATTC,1,2016-09-27,2016-10-25,2016-10-08,3,30.0,Rattlesnake Canyon Grocery,2817 Milton Dr.,Albuquerque,North America,87110,USA
+10317,LONEP,6,2016-09-30,2016-10-28,2016-10-10,1,15.0,Lonesome Pine Restaurant,89 Chiaroscuro Rd.,Portland,North America,97219,USA
+10318,ISLAT,8,2016-10-01,2016-10-29,2016-10-04,2,16.5,Island Trading,Garden House Crowther Way,Cowes,British Isles,PO31 7PJ,UK
+10319,TORTU,7,2016-10-02,2016-10-30,2016-10-11,3,23.0,Tortuga Restaurante,Avda. Azteca 123,México D.F.,Central America,5033,Mexico
+10320,WARTH,5,2016-10-03,2016-10-17,2016-10-18,3,17.5,Wartian Herkku,Torikatu 38,Oulu,Scandinavia,90110,Finland
+10321,ISLAT,3,2016-10-03,2016-10-31,2016-10-11,2,12.5,Island Trading,Garden House Crowther Way,Cowes,British Isles,PO31 7PJ,UK
+10322,PERIC,7,2016-10-04,2016-11-01,2016-10-23,3,15.0,Pericles Comidas clásicas,Calle Dr. Jorge Cash 321,México D.F.,Central America,5033,Mexico
+10323,KOENE,4,2016-10-07,2016-11-04,2016-10-14,1,13.25,Königlich Essen,Maubelstr. 90,Brandenburg,Western Europe,14776,Germany
+10324,SAVEA,9,2016-10-08,2016-11-05,2016-10-10,1,70.25,Save-a-lot Markets,187 Suffolk Ln.,Boise,North America,83720,USA
+10325,KOENE,1,2016-10-09,2016-10-23,2016-10-14,3,27.75,Königlich Essen,Maubelstr. 90,Brandenburg,Western Europe,14776,Germany
+10326,BOLID,4,2016-10-10,2016-11-07,2016-10-14,2,32.5,Bólido Comidas preparadas,"C/ Araquil, 67",Madrid,Southern Europe,28023,Spain
+10327,FOLKO,2,2016-10-11,2016-11-08,2016-10-14,1,45.0,Folk och fä HB,Åkergatan 24,Bräcke,Northern Europe,S-844 67,Sweden
+10328,FURIB,4,2016-10-14,2016-11-11,2016-10-17,3,24.75,Furia Bacalhau e Frutos do Mar,Jardim das rosas n. 32,Lisboa,Southern Europe,1675,Portugal
+10329,SPLIR,4,2016-10-15,2016-11-26,2016-10-23,2,22.5,Split Rail Beer & Ale,P.O. Box 555,Lander,North America,82520,USA
+10330,LILAS,3,2016-10-16,2016-11-13,2016-10-28,1,28.75,LILA-Supermercado,Carrera 52 con Ave. Bolívar #65-98 Llano Largo,Barquisimeto,South America,3508,Venezuela
+10331,BONAP,9,2016-10-16,2016-11-27,2016-10-21,1,13.75,Bon app-,"12, rue des Bouchers",Marseille,Western Europe,13008,France
+10332,MEREP,3,2016-10-17,2016-11-28,2016-10-21,2,26.5,Mère Paillarde,43 rue St. Laurent,Montréal,North America,H1J 1C3,Canada
+10333,WARTH,5,2016-10-18,2016-11-15,2016-10-25,3,25.0,Wartian Herkku,Torikatu 38,Oulu,Scandinavia,90110,Finland
+10334,VICTE,8,2016-10-21,2016-11-18,2016-10-28,2,14.5,Victuailles en stock,"2, rue du Commerce",Lyon,Western Europe,69004,France
+10335,HUNGO,7,2016-10-22,2016-11-19,2016-10-24,2,31.5,Hungry Owl All-Night Grocers,8 Johnstown Road,Cork,British Isles,,Ireland
+10336,PRINI,7,2016-10-23,2016-11-20,2016-10-25,2,14.5,Princesa Isabel Vinhos,Estrada da saúde n. 58,Lisboa,Southern Europe,1756,Portugal
+10337,FRANK,4,2016-10-24,2016-11-21,2016-10-29,3,44.25,Frankenversand,Berliner Platz 43,München,Western Europe,80805,Germany
+10338,OLDWO,4,2016-10-25,2016-11-22,2016-10-29,3,18.75,Old World Delicatessen,2743 Bering St.,Anchorage,North America,99508,USA
+10339,MEREP,2,2016-10-28,2016-11-25,2016-11-04,2,37.0,Mère Paillarde,43 rue St. Laurent,Montréal,North America,H1J 1C3,Canada
+10340,BONAP,1,2016-10-29,2016-11-26,2016-11-08,3,28.0,Bon app-,"12, rue des Bouchers",Marseille,Western Europe,13008,France
+10341,SIMOB,7,2016-10-29,2016-11-26,2016-11-05,3,14.25,Simons bistro,Vinbæltet 34,Kobenhavn,Northern Europe,1734,Denmark
+10342,FRANK,4,2016-10-30,2016-11-13,2016-11-04,2,50.0,Frankenversand,Berliner Platz 43,München,Western Europe,80805,Germany
+10343,LEHMS,4,2016-10-31,2016-11-28,2016-11-06,1,27.25,Lehmanns Marktstand,Magazinweg 7,Frankfurt a.M.,Western Europe,60528,Germany
+10344,WHITC,4,2016-11-01,2016-11-29,2016-11-05,2,36.25,White Clover Markets,1029 - 12th Ave. S.,Seattle,North America,98124,USA
+10345,QUICK,2,2016-11-04,2016-12-02,2016-11-11,2,49.75,QUICK-Stop,Taucherstraße 10,Cunewalde,Western Europe,1307,Germany
+10346,RATTC,3,2016-11-05,2016-12-17,2016-11-08,3,24.0,Rattlesnake Canyon Grocery,2817 Milton Dr.,Albuquerque,North America,87110,USA
+10347,FAMIA,4,2016-11-06,2016-12-04,2016-11-08,3,27.5,Familia Arquibaldo,"Rua Orós, 92",Sao Paulo,South America,05442-030,Brazil

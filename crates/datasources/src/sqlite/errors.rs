@@ -25,10 +25,12 @@ pub enum SqliteError {
     #[error("Missing data for column {0}")]
     MissingDataForColumn(usize),
 
-    #[error("Cannot convert {from:?} to {to}")]
+    #[error("Cannot convert field {field} value {from:?} to {to} [{cause:?}]")]
     InvalidConversion {
+        field: String,
         from: async_sqlite::rusqlite::types::Value,
         to: datafusion::arrow::datatypes::DataType,
+        cause: Option<String>,
     },
 
     #[error("found {num} objects matching specification '{url}'")]

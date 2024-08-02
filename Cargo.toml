@@ -17,7 +17,7 @@ strip = true
 wildcard_imports = "deny"
 
 [workspace.dependencies]
-clap = { version = "4.5.7", features = ["derive"] }
+clap = { version = "4.5.11", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "36.0.0" }
@@ -29,20 +29,20 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.86"
-async-trait = "0.1.80"
+async-trait = "0.1.81"
 chrono = "0.4.38"
 futures = "0.3.30"
 object_store = "0.9"
 prost = "0.12"
 prost-build = "0.12"
 prost-types = "0.12"
-rustls = "0.23.10"
-serde_json = "1.0.118"
+rustls = "0.23.12"
+serde_json = "1.0.120"
 tempfile = "3.10.1"
 thiserror = "1.0"
 tracing = "0.1"
 url = "2.5.2"
-bytes = "1.6.0"
+bytes = "1.6.1"
 
 [workspace.dependencies.deltalake]
 git = "https://github.com/GlareDB/delta-rs.git"

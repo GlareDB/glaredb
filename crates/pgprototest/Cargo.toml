@@ -18,6 +18,6 @@ serde_json = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 datadriven = "0.6.0"
-postgres-protocol = "0.6.5"
+postgres-protocol = "0.6.7"
 bytes = { workspace = true }
 fallible-iterator = "0.2.0"
