@@ -26,6 +26,12 @@ def test_eager_ddl():
     two.execute()
     assert con.sql("select * from tblsqlhelper;").to_arrow().num_rows == 3
 
+    three = con.sql("insert into tblsqlhelper values (5, 6);").to_pandas()
+    assert con.sql("select * from tblsqlhelper;").to_arrow().num_rows == 4
+
+    four = con.sql("insert into tblsqlhelper values (7, 8);").show()
+    assert con.sql("select * from tblsqlhelper;").to_arrow().num_rows == 5
+
 
 def test_execute_is_eager():
     con = glaredb.connect()
