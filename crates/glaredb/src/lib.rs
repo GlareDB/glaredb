@@ -562,7 +562,7 @@ impl Operation {
 
         match self.op {
             OperationType::Sql => {
-                match &plan {
+                match plan.clone() {
                     sqlexec::LogicalPlan::Datafusion(dfplan) => match dfplan {
                         LogicalPlan::Dml(_)
                         | LogicalPlan::Ddl(_)
@@ -572,8 +572,9 @@ impl Operation {
                             Some(batches) => {
                                 return Ok(Box::pin(RecordBatchStreamAdapter::new(
                                     self.schema().clone().unwrap(),
+                                    #[allow(clippy::unnecessary_to_owned)]
                                     stream::iter(batches.to_owned().into_iter().map(Ok)).boxed(),
-                                )))
+                                )));
                             }
                             None => return Err(DatabaseError::UnsupportedLazyEvaluation),
                         },
@@ -624,8 +625,9 @@ impl Operation {
                 Some(batches) => {
                     return Ok(Box::pin(RecordBatchStreamAdapter::new(
                         self.schema().clone().unwrap(),
+                        #[allow(clippy::unnecessary_to_owned)]
                         stream::iter(batches.to_owned().into_iter().map(Ok)).boxed(),
-                    )))
+                    )));
                 }
                 None => {
                     let mut ses = self.conn.session.lock().await;
