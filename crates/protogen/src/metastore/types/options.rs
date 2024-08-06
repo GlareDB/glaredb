@@ -1385,6 +1385,7 @@ pub struct TableOptionsExcel {
     pub file_type: Option<String>,
     pub compression: Option<String>,
     pub sheet_name: Option<String>,
+    pub table_name: Option<String>,
     pub has_header: Option<bool>,
 }
 
@@ -1408,6 +1409,7 @@ impl TryFrom<options::TableOptionsExcel> for TableOptionsExcel {
             compression: value.compression,
             sheet_name: value.sheet_name,
             has_header: value.has_header,
+            table_name: value.table_name,
         })
     }
 }
@@ -1421,6 +1423,7 @@ impl From<TableOptionsExcel> for options::TableOptionsExcel {
             compression: value.compression,
             sheet_name: value.sheet_name,
             has_header: value.has_header,
+            table_name: value.table_name,
         }
     }
 }
