@@ -72,7 +72,7 @@ jobs:
         run: wasm-pack build crates/rayexec_wasm/ --scope glaredb
 
   docker:
-    name: Build and push docker image
+    name: Build, push, and deploy docker image
     runs-on: ubuntu-latest
 
     steps:
@@ -94,3 +94,12 @@ jobs:
         run: |
           docker build . -t gcr.io/glaredb-artifacts/rayexec-dev
           docker push gcr.io/glaredb-artifacts/rayexec-dev
+
+      - name: GKE Credentials
+        uses: 'google-github-actions/get-gke-credentials@v2'
+        with:
+          cluster_name: 'glaredb-gke-public'
+          location: 'us-central1'
+
+      - name: Rollout
+        run: kubectl rollout restart deployment/rayexec-dev-deployment

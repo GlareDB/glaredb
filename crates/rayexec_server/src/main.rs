@@ -32,7 +32,7 @@ struct Arguments {
 
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger(tracing::Level::DEBUG);
+    logutil::configure_global_logger(tracing::Level::DEBUG, logutil::LogFormat::Json);
 
     let sched = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();

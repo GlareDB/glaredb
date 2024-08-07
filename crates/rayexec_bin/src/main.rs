@@ -27,7 +27,7 @@ struct Arguments {
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger(tracing::Level::ERROR);
+    logutil::configure_global_logger(tracing::Level::ERROR, logutil::LogFormat::HumanReadable);
 
     let executor = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
