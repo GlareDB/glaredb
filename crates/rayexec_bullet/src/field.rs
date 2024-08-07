@@ -1,9 +1,11 @@
+use rayexec_error::{OptionExt, Result};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::datatype::DataType;
 
 /// A named field.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Field {
     pub name: String,
     pub datatype: DataType,
@@ -17,6 +19,26 @@ impl Field {
             datatype,
             nullable,
         }
+    }
+}
+
+impl ProtoConv for Field {
+    type ProtoType = rayexec_proto::generated::schema::Field;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            name: self.name.clone(),
+            datatype: Some(self.datatype.to_proto()?),
+            nullable: self.nullable,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            name: proto.name,
+            datatype: DataType::from_proto(proto.datatype.required("datatype")?)?,
+            nullable: proto.nullable,
+        })
     }
 }
 
@@ -73,6 +95,28 @@ impl Schema {
     }
 }
 
+impl ProtoConv for Schema {
+    type ProtoType = rayexec_proto::generated::schema::Schema;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        let fields = self
+            .fields
+            .iter()
+            .map(|f| f.to_proto())
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self::ProtoType { fields })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let fields = proto
+            .fields
+            .into_iter()
+            .map(Field::from_proto)
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self { fields })
+    }
+}
+
 /// Represents the output types of a batch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema {
@@ -95,5 +139,27 @@ impl TypeSchema {
         TypeSchema {
             types: self.types.into_iter().chain(other.types).collect(),
         }
+    }
+}
+
+impl ProtoConv for TypeSchema {
+    type ProtoType = rayexec_proto::generated::schema::TypeSchema;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        let types = self
+            .types
+            .iter()
+            .map(|t| t.to_proto())
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self::ProtoType { types })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let types = proto
+            .types
+            .into_iter()
+            .map(DataType::from_proto)
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self { types })
     }
 }

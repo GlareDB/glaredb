@@ -1,5 +1,4 @@
 pub mod dump;
-pub mod hybrid;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -9,6 +8,7 @@ use dump::QueryDump;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
+use tracing::error;
 
 /// How pipelines get executed on a single node.
 ///
@@ -95,4 +95,14 @@ pub trait QueryHandle: Debug + Sync + Send {
 pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
     fn push_error(&self, error: RayexecError);
+}
+
+// Temp
+#[derive(Debug)]
+pub struct NopErrorSink;
+
+impl ErrorSink for NopErrorSink {
+    fn push_error(&self, error: RayexecError) {
+        error!(%error, "execution error (nop sink)")
+    }
 }

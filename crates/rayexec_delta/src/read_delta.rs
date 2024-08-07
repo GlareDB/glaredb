@@ -7,6 +7,8 @@ use rayexec_execution::{
     runtime::Runtime,
 };
 use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -33,14 +35,10 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
         Box::pin(async move { ReadDeltaImpl::initialize(self.clone(), args).await })
     }
 
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        let state = ReadDeltaState::deserialize(deserializer)?;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
         Ok(Box::new(ReadDeltaImpl {
             func: self.clone(),
-            state,
+            state: ReadDeltaState::decode(state)?,
         }))
     }
 }
@@ -52,6 +50,29 @@ struct ReadDeltaState {
     schema: Schema,
     #[serde(skip)]
     table: Option<Arc<Table>>, // Populate on re-init if needed.
+}
+
+impl ReadDeltaState {
+    fn encode(&self, buf: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(buf);
+        packed.encode_next(&self.location.to_proto()?)?;
+        packed.encode_next(&self.conf.to_proto()?)?;
+        packed.encode_next(&self.schema.to_proto()?)?;
+        Ok(())
+    }
+
+    fn decode(buf: &[u8]) -> Result<Self> {
+        let mut packed = PackedDecoder::new(buf);
+        let location = FileLocation::from_proto(packed.decode_next()?)?;
+        let conf = AccessConfig::from_proto(packed.decode_next()?)?;
+        let schema = Schema::from_proto(packed.decode_next()?)?;
+        Ok(ReadDeltaState {
+            location,
+            conf,
+            schema,
+            table: None,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -91,12 +112,12 @@ impl<R: Runtime> PlannedTableFunction for ReadDeltaImpl<R> {
         unimplemented!()
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        &self.state
-    }
-
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
+    }
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        self.state.encode(state)
     }
 
     fn schema(&self) -> Schema {

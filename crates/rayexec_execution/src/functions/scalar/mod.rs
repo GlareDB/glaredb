@@ -70,11 +70,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
 ///
 /// Generic scalar functions must be cheaply cloneable.
 pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    /// Deserializes into a planned scalar function from some existing state.
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>>;
 
     /// Plan a scalar function based on datatype inputs.
     ///
@@ -133,11 +129,7 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// function.
     fn scalar_function(&self) -> &dyn ScalarFunction;
 
-    /// Return an reference to some serializable state.
-    ///
-    /// Typically this just returns `self` with Self implementing Serialize via
-    /// a derive macro.
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize;
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()>;
 
     /// Return type of the function.
     fn return_type(&self) -> DataType;

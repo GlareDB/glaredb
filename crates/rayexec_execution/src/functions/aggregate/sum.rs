@@ -7,7 +7,8 @@ use rayexec_bullet::{
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::AddAssign, vec};
 
@@ -46,11 +47,31 @@ impl FunctionInfo for Sum {
 }
 
 impl AggregateFunction for Sum {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(SumImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+        let mut packed = PackedDecoder::new(state);
+        let variant: String = packed.decode_next()?;
+        match variant.as_str() {
+            "decimal_64" => {
+                let precision: i32 = packed.decode_next()?;
+                let scale: i32 = packed.decode_next()?;
+                Ok(Box::new(SumImpl::Decimal64(SumDecimal64Impl {
+                    precision: precision as u8,
+                    scale: scale as i8,
+                })))
+            }
+            "decimal_128" => {
+                let precision: i32 = packed.decode_next()?;
+                let scale: i32 = packed.decode_next()?;
+                Ok(Box::new(SumImpl::Decimal128(SumDecimal128Impl {
+                    precision: precision as u8,
+                    scale: scale as i8,
+                })))
+            }
+            "float_64" => Ok(Box::new(SumImpl::Float64(SumFloat64Impl))),
+            "int_64" => Ok(Box::new(SumImpl::Int64(SumInt64Impl))),
+
+            other => Err(RayexecError::new(format!("Invalid avg variant: {other}"))),
+        }
     }
 
     fn plan_from_datatypes(
@@ -87,8 +108,27 @@ impl PlannedAggregateFunction for SumImpl {
         &Sum
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(state);
+        match self {
+            Self::Decimal64(v) => {
+                packed.encode_next(&"decimal_64".to_string())?;
+                packed.encode_next(&(v.precision as i32))?;
+                packed.encode_next(&(v.scale as i32))?;
+            }
+            Self::Decimal128(v) => {
+                packed.encode_next(&"decimal_128".to_string())?;
+                packed.encode_next(&(v.precision as i32))?;
+                packed.encode_next(&(v.scale as i32))?;
+            }
+            Self::Float64(_) => {
+                packed.encode_next(&"float_64".to_string())?;
+            }
+            Self::Int64(_) => {
+                packed.encode_next(&"int_64".to_string())?;
+            }
+        }
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

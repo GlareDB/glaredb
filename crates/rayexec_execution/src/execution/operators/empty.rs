@@ -2,13 +2,14 @@ use crate::{
     database::DatabaseContext,
     execution::operators::InputOutputStates,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::{sync::Arc, task::Context};
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
 
@@ -28,7 +29,7 @@ impl PhysicalEmpty {
     }
 }
 
-impl PhysicalOperator for PhysicalEmpty {
+impl ExecutableOperator for PhysicalEmpty {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -86,5 +87,17 @@ impl PhysicalOperator for PhysicalEmpty {
 impl Explainable for PhysicalEmpty {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Empty")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalEmpty {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalEmpty;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {})
+    }
+
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self)
     }
 }

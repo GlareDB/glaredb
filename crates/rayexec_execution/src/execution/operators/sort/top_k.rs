@@ -2,8 +2,10 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::task::Context;
 
+use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
+    PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -16,16 +18,15 @@ pub struct TopKOperatorState {}
 #[derive(Debug)]
 pub struct PhysicalTopK {}
 
-impl PhysicalTopK {
-    pub fn create_states(
+impl ExecutableOperator for PhysicalTopK {
+    fn create_states(
         &self,
-        _input_partitions: usize,
-    ) -> (TopKOperatorState, Vec<TopKPartitionState>) {
+        _context: &DatabaseContext,
+        _partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
         unimplemented!()
     }
-}
 
-impl PhysicalOperator for PhysicalTopK {
     fn poll_push(
         &self,
         _cx: &mut Context,

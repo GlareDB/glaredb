@@ -17,6 +17,7 @@ pub use query::*;
 pub mod modifiers;
 pub use modifiers::*;
 pub mod select;
+use rayexec_proto::ProtoConv;
 pub use select::*;
 pub mod explain;
 pub use explain::*;
@@ -122,6 +123,24 @@ impl From<Word> for Ident {
     }
 }
 
+impl ProtoConv for Ident {
+    type ProtoType = rayexec_proto::generated::ast::raw::Ident;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            value: self.value.clone(),
+            quoted: self.quoted,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            value: proto.value,
+            quoted: proto.quoted,
+        })
+    }
+}
+
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
@@ -179,6 +198,30 @@ impl AstParseable for ObjectReference {
         }
 
         Ok(ObjectReference(idents))
+    }
+}
+
+impl ProtoConv for ObjectReference {
+    type ProtoType = rayexec_proto::generated::ast::raw::ObjectReference;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            idents: self
+                .0
+                .iter()
+                .map(|i| i.to_proto())
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self(
+            proto
+                .idents
+                .into_iter()
+                .map(Ident::from_proto)
+                .collect::<Result<Vec<_>>>()?,
+        ))
     }
 }
 

@@ -136,7 +136,7 @@ impl<T: AstMeta> Default for Wildcard<T> {
 /// A wildcard, qualified wildcard, or an expression.
 ///
 /// Parsed from the select list.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WildcardExpr<T: AstMeta> {
     Wildcard,
     QualifiedWildcard(ObjectReference),

@@ -5,11 +5,12 @@ use rayexec_bullet::{
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
 };
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
 use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::vec;
 use std::{fmt::Debug, ops::AddAssign};
 
@@ -48,11 +49,31 @@ impl FunctionInfo for Avg {
 }
 
 impl AggregateFunction for Avg {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(AvgImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+        let mut packed = PackedDecoder::new(state);
+        let variant: String = packed.decode_next()?;
+        match variant.as_str() {
+            "decimal_64" => {
+                let precision: i32 = packed.decode_next()?;
+                let scale: i32 = packed.decode_next()?;
+                Ok(Box::new(AvgImpl::Decimal64(AvgDecimal64Impl {
+                    precision: precision as u8,
+                    scale: scale as i8,
+                })))
+            }
+            "decimal_128" => {
+                let precision: i32 = packed.decode_next()?;
+                let scale: i32 = packed.decode_next()?;
+                Ok(Box::new(AvgImpl::Decimal128(AvgDecimal128Impl {
+                    precision: precision as u8,
+                    scale: scale as i8,
+                })))
+            }
+            "float_64" => Ok(Box::new(AvgImpl::Float64(AvgFloat64Impl))),
+            "int_64" => Ok(Box::new(AvgImpl::Int64(AvgInt64Impl))),
+
+            other => Err(RayexecError::new(format!("Invalid avg variant: {other}"))),
+        }
     }
 
     fn plan_from_datatypes(
@@ -89,8 +110,27 @@ impl PlannedAggregateFunction for AvgImpl {
         &Avg
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(state);
+        match self {
+            Self::Decimal64(v) => {
+                packed.encode_next(&"decimal_64".to_string())?;
+                packed.encode_next(&(v.precision as i32))?;
+                packed.encode_next(&(v.scale as i32))?;
+            }
+            Self::Decimal128(v) => {
+                packed.encode_next(&"decimal_128".to_string())?;
+                packed.encode_next(&(v.precision as i32))?;
+                packed.encode_next(&(v.scale as i32))?;
+            }
+            Self::Float64(_) => {
+                packed.encode_next(&"float_64".to_string())?;
+            }
+            Self::Int64(_) => {
+                packed.encode_next(&"int_64".to_string())?;
+            }
+        }
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

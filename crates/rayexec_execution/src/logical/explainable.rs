@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// An entry in an output for explaining a query.
 // TODO: Maybe allow serializing this with serde to enable json output of
 // explain queries.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExplainEntry {
     /// Name of the node.
     pub name: String,
@@ -61,7 +63,7 @@ impl fmt::Display for ExplainEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExplainValue {
     Value(String),
     Values(Vec<String>),

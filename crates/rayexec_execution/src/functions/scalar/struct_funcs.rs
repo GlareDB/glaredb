@@ -26,10 +26,7 @@ impl FunctionInfo for StructPack {
 }
 
 impl ScalarFunction for StructPack {
-    fn state_deserialize(
-        &self,
-        _deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
         unimplemented!()
     }
 
@@ -51,7 +48,7 @@ impl PlannedScalarFunction for StructPackDynamic {
         &StructPack
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
         unimplemented!()
     }
 
@@ -100,10 +97,7 @@ impl FunctionInfo for StructExtract {
 }
 
 impl ScalarFunction for StructExtract {
-    fn state_deserialize(
-        &self,
-        _deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
         unimplemented!()
     }
 

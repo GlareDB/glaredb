@@ -13,8 +13,8 @@ use std::{
 };
 
 use super::{
-    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PhysicalOperator, PollFinalize, PollPull, PollPush,
+    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
+    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
 pub trait QuerySink: Debug + Send + Sync + Explainable {
@@ -80,7 +80,7 @@ impl PhysicalQuerySink {
     }
 }
 
-impl PhysicalOperator for PhysicalQuerySink {
+impl ExecutableOperator for PhysicalQuerySink {
     fn create_states(
         &self,
         _context: &DatabaseContext,

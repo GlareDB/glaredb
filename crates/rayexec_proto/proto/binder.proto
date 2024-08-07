@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package rayexec.binder;
+
+import "expr.proto";
+import "logical.proto";
+import "ast/raw.proto";
+import "execution.proto"; // TODO: Probably move catalog stuff out of this.
+
+message BoundFunctionReference {
+    oneof value {
+        expr.ScalarFunction    scalar    = 1;
+        expr.AggregateFunction aggregate = 2;
+    }
+}
+
+message BoundTableFunctionReference {
+    string                    name = 1;
+    expr.PlannedTableFunction func = 2;
+}
+
+message UnboundTableFunctionReference {
+    ast.raw.ObjectReference reference = 1;
+    expr.TableFunctionArgs  args      = 2;
+}
+
+message BoundCteReference {
+    uint32 idx = 1;
+}
+
+message BoundTableReference {
+    string               catalog = 1;
+    string               schema  = 2;
+    execution.TableEntry table   = 3;
+}
+
+message BoundTableOrCteReference {
+    oneof value {
+        BoundTableReference table = 1;
+        BoundCteReference   cte   = 2;
+    }
+}
+
+message ItemReference {
+    repeated string idents = 1;
+}
+
+message BoundTableOrCteReferenceWithLocation {
+    BoundTableOrCteReference    bound    = 1;
+    logical.LocationRequirement location = 2;
+}
+
+message BoundFunctionReferenceWithLocation {
+    BoundFunctionReference      bound    = 1;
+    logical.LocationRequirement location = 2;
+}
+
+message BoundTableFunctionReferenceWithLocation {
+    BoundTableFunctionReference bound    = 1;
+    logical.LocationRequirement location = 2;
+}
+
+message MaybeBoundTable {
+    oneof value {
+        BoundTableOrCteReferenceWithLocation bound   = 1;
+        ast.raw.ObjectReference              unbound = 2;
+    }
+}
+
+message MaybeBoundFunction {
+    oneof value {
+        BoundFunctionReferenceWithLocation bound   = 1;
+        ast.raw.ObjectReference            unbound = 2;
+    }
+}
+
+message MaybeBoundTableFunction {
+    oneof value {
+        BoundTableFunctionReferenceWithLocation bound   = 1;
+        UnboundTableFunctionReference           unbound = 2;
+    }
+}
+
+message BindListIdx {
+    uint32 idx = 1;
+}
+
+message TablesBindList {
+    repeated MaybeBoundTable tables = 1;
+}
+
+message FunctionsBindList {
+    repeated MaybeBoundFunction functions = 1;
+}
+
+message TableFunctionsBindList {
+    repeated MaybeBoundTableFunction functions = 1;
+}
+
+message BindData {
+    TablesBindList         tables          = 1;
+    FunctionsBindList      functions       = 2;
+    TableFunctionsBindList table_functions = 3;
+    uint32                 current_depth   = 4;
+    // TODO: CTEs
+}

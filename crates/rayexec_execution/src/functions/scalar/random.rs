@@ -25,11 +25,8 @@ impl FunctionInfo for Random {
 }
 
 impl ScalarFunction for Random {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(RandomImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(RandomImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -46,8 +43,8 @@ impl PlannedScalarFunction for RandomImpl {
         &Random
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

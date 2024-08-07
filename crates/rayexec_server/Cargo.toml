@@ -6,9 +6,9 @@ edition.workspace = true
 [dependencies]
 logutil = { path = '../logutil' }
 rayexec_error = { path = '../rayexec_error' }
+rayexec_proto = { path = '../rayexec_proto' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
-rayexec_server_client = { path = '../rayexec_server_client' }
 rayexec_postgres = { path = '../rayexec_postgres' }
 rayexec_parquet = { path = '../rayexec_parquet', features = ["zstd"] }
 rayexec_csv = { path = '../rayexec_csv' }
@@ -20,4 +20,4 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 axum = "0.7.5"
 clap = { version = "4.5.9", features = ["derive"] }
-tower-http = { version = "0.5.2", default-features = false, features = ["cors"] }
+tower-http = { version = "0.5.2", default-features = false, features = ["cors", "trace"] }

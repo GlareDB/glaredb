@@ -224,7 +224,7 @@ impl CandidateType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CsvSchema {
     /// All fields in the the csv input.
-    pub fields: Vec<Field>,
+    pub schema: Schema,
 
     /// Whether or not the input has a header line.
     pub has_header: bool,
@@ -233,18 +233,14 @@ pub struct CsvSchema {
 impl CsvSchema {
     /// Create a new schema using gnerated names.
     pub fn new_with_generated_names(types: Vec<DataType>) -> Self {
-        let fields = types
-            .into_iter()
-            .enumerate()
-            .map(|(idx, typ)| Field {
-                name: format!("column{idx}"),
-                datatype: typ,
-                nullable: true,
-            })
-            .collect();
+        let schema = Schema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
+            name: format!("column{idx}"),
+            datatype: typ,
+            nullable: true,
+        }));
 
         CsvSchema {
-            fields,
+            schema,
             has_header: false,
         }
     }
@@ -310,7 +306,10 @@ impl CsvSchema {
                 .collect()
         };
 
-        Ok(CsvSchema { fields, has_header })
+        Ok(CsvSchema {
+            schema: Schema::new(fields),
+            has_header,
+        })
     }
 }
 
@@ -325,9 +324,7 @@ impl AsyncCsvReader {
         dialect: DialectOptions,
     ) -> Self {
         let stream = AsyncCsvStream {
-            schema: Schema {
-                fields: csv_schema.fields,
-            },
+            schema: csv_schema.schema,
             skip_header: csv_schema.has_header,
             stream: reader.read_stream(),
             decoder_state: DecoderState::default(),

@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package rayexec.expr;
+
+import "schema.proto";
+
+message EmptyScalar {}
+
+message Decimal64Scalar {
+    int32 precision = 1;
+    int32 scale     = 2;
+    int64 value     = 3;
+}
+
+message Decimal128Scalar {
+    int32 precision = 1;
+    int32 scale     = 2;
+    bytes value     = 3;
+}
+
+message TimestampScalar {
+    schema.TimeUnit unit  = 1;
+    int64           value = 2;
+}
+
+message IntervalScalar {
+    int32 months = 1;
+    int32 days   = 2;
+    int64 nanos  = 3;
+}
+
+message StructScalar {
+    repeated OwnedScalarValue values = 1;
+}
+
+message ListScalar {
+    repeated OwnedScalarValue values = 1;
+}
+
+message OwnedScalarValue {
+    oneof value {
+        EmptyScalar      scalar_null         = 2;
+        bool             scalar_boolean      = 3;
+        int32            scalar_int8         = 4;
+        int32            scalar_int16        = 5;
+        int32            scalar_int32        = 6;
+        int64            scalar_int64        = 7;
+        bytes            scalar_int128       = 8;
+        uint32           scalar_uint8        = 9;
+        uint32           scalar_uint16       = 10;
+        uint32           scalar_uint32       = 11;
+        uint64           scalar_uint64       = 12;
+        bytes            scalar_uint128      = 13;
+        float            scalar_float32      = 14;
+        double           scalar_float64      = 15;
+        Decimal64Scalar  scalar_decimal64    = 16;
+        Decimal128Scalar scalar_decimal128   = 17;
+        TimestampScalar  scalar_timestamp    = 18;
+        int32            scalar_date32       = 19;
+        int64            scalar_date64       = 20;
+        IntervalScalar   scalar_interval     = 21;
+        string           scalar_utf8         = 22;
+        string           scalar_large_utf8   = 23;
+        bytes            scalar_binary       = 24;
+        bytes            scalar_large_binary = 25;
+        StructScalar     scalar_struct       = 26;
+        ListScalar       scalar_list         = 27;
+    }
+}
+
+message ScalarFunction {
+    string name = 1;  // Name of the function in the catalog.
+}
+
+message PlannedScalarFunction {
+    string name  = 1;  // Name of the function in the catalog.
+    bytes  state = 2;  // Opaque state, function implementation handles this.
+}
+
+message AggregateFunction {
+    string name = 1;
+}
+
+message PlannedAggregateFunction {
+    string name  = 1;
+    bytes  state = 2;
+}
+
+message TableFunction {
+    string name = 1;
+}
+
+message PlannedTableFunction {
+    string name  = 1;
+    bytes  state = 2;
+}
+
+message TableFunctionArgs {
+    map<string, expr.OwnedScalarValue> named  = 1;
+    repeated expr.OwnedScalarValue positional = 2;
+}
+
+message CopyToFunction {
+    string name = 1;
+}
+
+message PhysicalCastExpression {
+    schema.DataType          cast_to = 1;
+    PhysicalScalarExpression expr    = 2;
+}
+
+message PhysicalScalarFunction {
+    PlannedScalarFunction             function = 1;
+    repeated PhysicalScalarExpression inputs   = 2;
+}
+
+message PhysicalScalarExpression {
+    oneof value {
+        uint32                 column          = 1;
+        OwnedScalarValue       literal         = 2;
+        PhysicalCastExpression cast            = 3;
+        PhysicalScalarFunction scalar_function = 4;
+        // TODO: Case
+    }
+}
+
+message PhysicalAggregateExpression {
+    PlannedAggregateFunction function       = 1;
+    repeated uint64          column_indices = 2;
+    schema.DataType          output_type    = 3;
+}
+
+message PhysicalSortExpression {
+    uint64 column      = 1;
+    bool   desc        = 2;
+    bool   nulls_first = 3;
+}

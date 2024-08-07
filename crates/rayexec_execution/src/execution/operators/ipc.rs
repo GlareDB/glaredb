@@ -1,14 +1,28 @@
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    database::DatabaseContext,
+    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::task::Context;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull, PollPush};
+use super::{
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
+    PollPush,
+};
 
 #[derive(Debug)]
 pub struct PhysicalIpcSink {}
 
-impl PhysicalOperator for PhysicalIpcSink {
+impl ExecutableOperator for PhysicalIpcSink {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        _partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
+
     fn poll_push(
         &self,
         _cx: &mut Context,
@@ -47,7 +61,15 @@ impl Explainable for PhysicalIpcSink {
 #[derive(Debug)]
 pub struct PhysicalIpcSource {}
 
-impl PhysicalOperator for PhysicalIpcSource {
+impl ExecutableOperator for PhysicalIpcSource {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        _partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
+
     fn poll_push(
         &self,
         _cx: &mut Context,

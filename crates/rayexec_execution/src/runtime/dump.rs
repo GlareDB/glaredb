@@ -1,7 +1,7 @@
 use crate::execution::executable::pipeline::PartitionPipelineTimings;
 use crate::execution::executable::pipeline::PipelineId;
 use crate::execution::executable::pipeline::PipelinePartitionState;
-use crate::execution::operators::PhysicalOperator;
+use crate::execution::operators::ExecutableOperator;
 use crate::logical::explainable::ExplainConfig;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -24,7 +24,7 @@ impl fmt::Display for QueryDump {
 
 #[derive(Debug)]
 pub struct PipelineDump {
-    pub operators: Vec<Arc<dyn PhysicalOperator>>,
+    pub operators: Vec<Arc<dyn ExecutableOperator>>,
     pub partitions: BTreeMap<usize, PartitionPipelineDump>,
 }
 

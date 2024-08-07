@@ -125,11 +125,8 @@ impl FunctionInfo for Eq {
 }
 
 impl ScalarFunction for Eq {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(EqImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(EqImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -168,8 +165,8 @@ impl PlannedScalarFunction for EqImpl {
         &Eq
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -278,11 +275,8 @@ impl FunctionInfo for Neq {
 }
 
 impl ScalarFunction for Neq {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(NeqImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(NeqImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -321,8 +315,8 @@ impl PlannedScalarFunction for NeqImpl {
         &Neq
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -427,11 +421,8 @@ impl FunctionInfo for Lt {
 }
 
 impl ScalarFunction for Lt {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(LtImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(LtImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -470,8 +461,8 @@ impl PlannedScalarFunction for LtImpl {
         &Lt
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -576,11 +567,8 @@ impl FunctionInfo for LtEq {
 }
 
 impl ScalarFunction for LtEq {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(LtEqImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(LtEqImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -619,8 +607,8 @@ impl PlannedScalarFunction for LtEqImpl {
         &LtEq
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -725,11 +713,8 @@ impl FunctionInfo for Gt {
 }
 
 impl ScalarFunction for Gt {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(GtImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(GtImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -768,8 +753,8 @@ impl PlannedScalarFunction for GtImpl {
         &Gt
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -874,11 +859,8 @@ impl FunctionInfo for GtEq {
 }
 
 impl ScalarFunction for GtEq {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(GtEqImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(GtEqImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -917,8 +899,8 @@ impl PlannedScalarFunction for GtEqImpl {
         &GtEq
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

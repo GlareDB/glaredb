@@ -14,8 +14,8 @@ use std::{
 };
 
 use super::{
-    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PhysicalOperator, PollFinalize, PollPull, PollPush,
+    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
+    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
 pub enum CopyToPartitionState {
@@ -65,7 +65,7 @@ impl PhysicalCopyTo {
     }
 }
 
-impl PhysicalOperator for PhysicalCopyTo {
+impl ExecutableOperator for PhysicalCopyTo {
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -3,7 +3,7 @@ use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinali
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     execution::operators::{
-        sort::util::merger::IterState, OperatorState, PartitionState, PhysicalOperator, PollPull,
+        sort::util::merger::IterState, ExecutableOperator, OperatorState, PartitionState, PollPull,
         PollPush,
     },
     expr::PhysicalSortExpression,
@@ -147,7 +147,7 @@ impl PhysicalMergeSortedInputs {
         PhysicalMergeSortedInputs { exprs }
     }
 
-    pub fn create_states(
+    pub fn create_states_orig(
         &self,
         input_partitions: usize,
     ) -> (
@@ -186,7 +186,7 @@ impl PhysicalMergeSortedInputs {
     }
 }
 
-impl PhysicalOperator for PhysicalMergeSortedInputs {
+impl ExecutableOperator for PhysicalMergeSortedInputs {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -613,7 +613,7 @@ mod tests {
                 nulls_first: true,
             },
         ]));
-        let (operator_state, push_states, pull_states) = operator.create_states(1);
+        let (operator_state, push_states, pull_states) = operator.create_states_orig(1);
         let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
         let mut push_states: Vec<_> = push_states
             .into_iter()
@@ -707,7 +707,7 @@ mod tests {
                 nulls_first: true,
             },
         ]));
-        let (operator_state, push_states, pull_states) = operator.create_states(2);
+        let (operator_state, push_states, pull_states) = operator.create_states_orig(2);
         let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
         let mut push_states: Vec<_> = push_states
             .into_iter()

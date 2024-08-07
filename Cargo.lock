@@ -131,6 +131,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.86"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
+
+[[package]]
 name = "async-trait"
 version = "0.1.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -575,6 +581,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "6.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "804c8821570c3f8b70230c2ba75ffa5c0f9a4189b9a432b6656c536712acae28"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -670,6 +690,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "equivalent"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
+
+[[package]]
 name = "erased-serde"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -711,6 +737,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 
 [[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
+
+[[package]]
 name = "flatbuffers"
 version = "24.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -732,7 +764,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.22"
+version = "0.0.23"
 
 [[package]]
 name = "fnv"
@@ -1187,6 +1219,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexmap"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de3fc2e30ba82dd1b3911c8de1ffc143c74a914a14e99514d7637e3099df5ea0"
+dependencies = [
+ "equivalent",
+ "hashbrown",
+]
+
+[[package]]
 name = "integer-encoding"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1311,7 +1353,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "logutil"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1383,6 +1425,12 @@ dependencies = [
  "wasi",
  "windows-sys 0.48.0",
 ]
+
+[[package]]
+name = "multimap"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "nu-ansi-term"
@@ -1545,7 +1593,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -1586,6 +1634,16 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
+
+[[package]]
+name = "petgraph"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
+]
 
 [[package]]
 name = "phf"
@@ -1689,12 +1747,75 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d3928fb5db768cb86f891ff014f0144589297e3c6a1aba6ed7cecfdace270c7"
+dependencies = [
+ "proc-macro2",
+ "syn",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2422ad645d89c99f8f3e6b88a9fdeca7fabeac836b1002371c4367c8f984aae"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "prost"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e13db3d3fde688c61e2446b4d843bc27a7e8af269a69440c0308021dc92333cc"
+dependencies = [
+ "bytes",
+ "prost-derive",
+]
+
+[[package]]
+name = "prost-build"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bb182580f71dd070f88d01ce3de9f4da5021db7115d2e1c3605a754153b77c1"
+dependencies = [
+ "bytes",
+ "heck",
+ "itertools 0.13.0",
+ "log",
+ "multimap",
+ "once_cell",
+ "petgraph",
+ "prettyplease",
+ "prost",
+ "prost-types",
+ "regex",
+ "syn",
+ "tempfile",
+]
+
+[[package]]
+name = "prost-derive"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18bec9b0adc4eba778b33684b7ba3e7137789434769ee3ce3930463ef904cfca"
+dependencies = [
+ "anyhow",
+ "itertools 0.13.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cee5168b05f49d4b0ca581206eb14a7b22fafd963efe729ac48eb03266e25cc2"
+dependencies = [
+ "prost",
 ]
 
 [[package]]
@@ -1748,7 +1869,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "clap",
  "crossterm",
@@ -1769,20 +1890,21 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "chrono",
  "csv-core",
  "flatbuffers",
  "num",
  "rayexec_error",
+ "rayexec_proto",
  "serde",
  "textwrap",
 ]
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "bytes",
  "csv",
@@ -1793,6 +1915,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
+ "rayexec_proto",
  "regex",
  "serde",
  "tracing",
@@ -1801,7 +1924,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_delta"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -1812,6 +1935,7 @@ dependencies = [
  "rayexec_execution",
  "rayexec_io",
  "rayexec_parquet",
+ "rayexec_proto",
  "regex",
  "serde",
  "serde_json",
@@ -1821,17 +1945,19 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "erased-serde",
+ "serde",
 ]
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "ahash",
  "chrono",
+ "dashmap",
  "dyn-clone",
  "erased-serde",
  "fmtutil",
@@ -1847,20 +1973,22 @@ dependencies = [
  "rayexec_error",
  "rayexec_io",
  "rayexec_parser",
- "rayexec_server_client",
+ "rayexec_proto",
  "rayon",
  "regex",
  "serde",
+ "serde_bytes",
  "serde_json",
  "smallvec",
  "tokio",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "bytes",
  "chrono",
@@ -1870,6 +1998,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "rayexec_error",
+ "rayexec_proto",
  "reqwest",
  "serde",
  "sha2",
@@ -1879,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -1889,6 +2018,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
+ "rayexec_proto",
  "regex",
  "serde",
  "tracing",
@@ -1897,10 +2027,11 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
+ "rayexec_proto",
  "serde",
  "tracing",
  "unicase",
@@ -1908,21 +2039,32 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "erased-serde",
  "futures",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_proto",
  "serde",
  "tokio-postgres",
  "tracing",
 ]
 
 [[package]]
+name = "rayexec_proto"
+version = "0.0.23"
+dependencies = [
+ "prost",
+ "prost-build",
+ "rayexec_error",
+ "uuid",
+]
+
+[[package]]
 name = "rayexec_rt_native"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "bytes",
  "futures",
@@ -1941,7 +2083,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "axum",
  "clap",
@@ -1952,8 +2094,8 @@ dependencies = [
  "rayexec_execution",
  "rayexec_parquet",
  "rayexec_postgres",
+ "rayexec_proto",
  "rayexec_rt_native",
- "rayexec_server_client",
  "serde",
  "serde_json",
  "tokio",
@@ -1962,26 +2104,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_server_client"
-version = "0.0.22"
-dependencies = [
- "rayexec_error",
- "reqwest",
- "serde",
- "serde_bytes",
- "url",
-]
-
-[[package]]
 name = "rayexec_shell"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "futures",
  "parking_lot",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
- "rayexec_server_client",
  "tokio",
  "tracing",
  "url",
@@ -1989,7 +2119,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "async-trait",
  "env_logger",
@@ -2008,7 +2138,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -2560,7 +2690,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.22"
+version = "0.0.23"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
@@ -2786,6 +2916,7 @@ dependencies = [
  "pin-project-lite",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -2980,6 +3111,15 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
+
+[[package]]
+name = "uuid"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
+dependencies = [
+ "getrandom",
+]
 
 [[package]]
 name = "valuable"

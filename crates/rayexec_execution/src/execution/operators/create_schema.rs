@@ -1,15 +1,17 @@
 use crate::{
     database::{catalog::CatalogTx, create::CreateSchemaInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use std::task::{Context, Poll};
 use std::{fmt, sync::Arc};
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -25,8 +27,8 @@ impl fmt::Debug for CreateSchemaPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalCreateSchema {
-    catalog: String,
-    info: CreateSchemaInfo,
+    pub(crate) catalog: String,
+    pub(crate) info: CreateSchemaInfo,
 }
 
 impl PhysicalCreateSchema {
@@ -38,7 +40,7 @@ impl PhysicalCreateSchema {
     }
 }
 
-impl PhysicalOperator for PhysicalCreateSchema {
+impl ExecutableOperator for PhysicalCreateSchema {
     fn create_states(
         &self,
         context: &DatabaseContext,
@@ -105,5 +107,23 @@ impl PhysicalOperator for PhysicalCreateSchema {
 impl Explainable for PhysicalCreateSchema {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateSchema").with_value("schema", &self.info.name)
+    }
+}
+
+impl DatabaseProtoConv for PhysicalCreateSchema {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalCreateSchema;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            info: Some(self.info.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            catalog: proto.catalog,
+            info: CreateSchemaInfo::from_proto(proto.info.required("info")?)?,
+        })
     }
 }

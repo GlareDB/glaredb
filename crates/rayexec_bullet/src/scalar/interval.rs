@@ -1,5 +1,7 @@
 use std::fmt;
 
+use rayexec_error::Result;
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::compute::cast::format::{Formatter, IntervalFormatter};
@@ -84,5 +86,25 @@ impl Interval {
 impl fmt::Display for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         IntervalFormatter.write(self, f)
+    }
+}
+
+impl ProtoConv for Interval {
+    type ProtoType = rayexec_proto::generated::expr::IntervalScalar;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            months: self.months,
+            days: self.days,
+            nanos: self.nanos,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            months: proto.months,
+            days: proto.days,
+            nanos: proto.nanos,
+        })
     }
 }

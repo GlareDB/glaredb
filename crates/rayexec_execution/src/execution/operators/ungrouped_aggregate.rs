@@ -3,6 +3,7 @@ use crate::execution::operators::InputOutputStates;
 use crate::expr::PhysicalAggregateExpression;
 use crate::functions::aggregate::{multi_array_drain, GroupedStates};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry};
+use crate::proto::DatabaseProtoConv;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
@@ -14,7 +15,7 @@ use std::task::{Context, Waker};
 use crate::logical::explainable::Explainable;
 
 use super::{
-    ExecutionStates, OperatorState, PartitionState, PhysicalOperator, PollFinalize, PollPull,
+    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
 
@@ -87,7 +88,7 @@ impl PhysicalUngroupedAggregate {
     }
 }
 
-impl PhysicalOperator for PhysicalUngroupedAggregate {
+impl ExecutableOperator for PhysicalUngroupedAggregate {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -268,5 +269,29 @@ impl PhysicalOperator for PhysicalUngroupedAggregate {
 impl Explainable for PhysicalUngroupedAggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("PhysicalUngroupedAggregate").with_values("aggregates", &self.aggregates)
+    }
+}
+
+impl DatabaseProtoConv for PhysicalUngroupedAggregate {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalUngroupedAggregate;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            aggregates: self
+                .aggregates
+                .iter()
+                .map(|a| a.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            aggregates: proto
+                .aggregates
+                .into_iter()
+                .map(|a| PhysicalAggregateExpression::from_proto_ctx(a, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 }

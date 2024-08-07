@@ -16,6 +16,8 @@ use reqwest::{
 
 use crate::FileSource;
 
+pub use reqwest;
+
 pub trait HttpClient: Sync + Send + Debug + Clone {
     type Response: HttpResponse + Send;
     type RequestFuture: Future<Output = Result<Self::Response>> + Send;

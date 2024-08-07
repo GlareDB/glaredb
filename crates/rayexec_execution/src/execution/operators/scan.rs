@@ -1,16 +1,18 @@
 use crate::{
     database::{catalog::CatalogTx, entry::TableEntry, table::DataTableScan, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 
 use super::{
-    util::futures::make_static, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PhysicalOperator, PollFinalize, PollPull, PollPush,
+    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
+    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
 pub struct ScanPartitionState {
@@ -42,7 +44,7 @@ impl PhysicalScan {
     }
 }
 
-impl PhysicalOperator for PhysicalScan {
+impl ExecutableOperator for PhysicalScan {
     fn create_states(
         &self,
         context: &DatabaseContext,
@@ -134,5 +136,25 @@ impl PhysicalOperator for PhysicalScan {
 impl Explainable for PhysicalScan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Scan").with_value("table", &self.table.name)
+    }
+}
+
+impl DatabaseProtoConv for PhysicalScan {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalScan;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            schema: self.schema.clone(),
+            table: Some(self.table.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            catalog: proto.catalog,
+            schema: proto.schema,
+            table: TableEntry::from_proto(proto.table.required("table")?)?,
+        })
     }
 }

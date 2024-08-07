@@ -7,6 +7,7 @@ use rayexec_bullet::{
     field::{Field, Schema},
 };
 use rayexec_error::{RayexecError, Result};
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
@@ -26,11 +27,12 @@ impl TableFunction for GenerateSeries {
         Box::pin(async move { Self::plan_and_initialize_inner(args) })
     }
 
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        Ok(Box::new(GenerateSeriesI64::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+        let mut packed = PackedDecoder::new(state);
+        let start = packed.decode_next()?;
+        let stop = packed.decode_next()?;
+        let step = packed.decode_next()?;
+        Ok(Box::new(GenerateSeriesI64 { start, stop, step }))
     }
 }
 
@@ -78,8 +80,12 @@ pub struct GenerateSeriesI64 {
 }
 
 impl PlannedTableFunction for GenerateSeriesI64 {
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(state);
+        packed.encode_next(&self.start)?;
+        packed.encode_next(&self.stop)?;
+        packed.encode_next(&self.step)?;
+        Ok(())
     }
 
     fn table_function(&self) -> &dyn TableFunction {

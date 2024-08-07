@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+package rayexec.execution;
+
+import "schema.proto";
+import "foreign.proto";
+import "expr.proto";
+import "array.proto";
+
+message TableEntry {
+    string   name                 = 1;
+    repeated schema.Field columns = 2;
+}
+
+enum OnConflict {
+    INVALID_ON_CONFLICT = 0;
+    IGNORE              = 1;
+    REPLACE             = 2;
+    ERROR               = 3;
+}
+
+message CreateTableInfo {
+    string   name                     = 1;
+    repeated schema.Field columns     = 2;
+    OnConflict            on_conflict = 3;
+}
+
+message CreateSchemaInfo {
+    string     name        = 1;
+    OnConflict on_conflict = 2;
+}
+
+message EmptyDropObject {}
+
+message DropObject {
+    oneof value {
+        string          index    = 1;
+        string          function = 2;
+        string          table    = 3;
+        string          view     = 4;
+        EmptyDropObject schema   = 5;  // Schema name already contained in drop info.
+    }
+}
+
+message DropInfo {
+    string     catalog   = 1;
+    string     schema    = 2;
+    DropObject object    = 3;
+    bool       cascade   = 4;
+    bool       if_exists = 5;
+}
+
+message PhysicalCreateSchema {
+    string           catalog = 1;
+    CreateSchemaInfo info    = 2;
+}
+
+message PhysicalCreateTable {
+    string          catalog = 1;
+    string          schema  = 2;
+    CreateTableInfo info    = 3;
+    bool            is_ctas = 4;
+}
+
+message PhysicalDrop {
+    DropInfo info = 1;
+}
+
+message PhysicalEmpty {}
+
+message PhysicalFilter {
+    expr.PhysicalScalarExpression predicate = 1;
+}
+
+message PhysicalProject {
+    repeated expr.PhysicalScalarExpression exprs = 1;
+}
+
+message PhysicalInsert {
+    string     catalog = 1;
+    string     schema  = 2;
+    TableEntry table   = 3;
+}
+
+message PhysicalLimit {
+    uint64          limit  = 1;
+    optional uint64 offset = 2;
+}
+
+message PhysicalMaterialize {
+    uint64 num_outputs = 1;
+}
+
+message PhysicalScan {
+    string     catalog = 1;
+    string     schema  = 2;
+    TableEntry table   = 3;
+}
+
+message PhysicalUngroupedAggregate {
+    repeated expr.PhysicalAggregateExpression aggregates = 1;
+}
+
+message PhysicalUnion {}
+
+message PhysicalValues {
+    array.IpcStreamBatch batches = 1;
+}
+
+message PhysicalTableFunction {
+    expr.PlannedTableFunction function = 1;
+}
+
+message PhysicalNestedLoopJoin {
+    optional expr.PhysicalScalarExpression filter = 1;
+}
+
+message PhysicalOperator {
+    oneof value {
+        PhysicalCreateSchema       create_schema       = 1;
+        PhysicalCreateTable        create_table        = 2;
+        PhysicalDrop               drop                = 3;
+        PhysicalEmpty              empty               = 4;
+        PhysicalFilter             filter              = 5;
+        PhysicalProject            project             = 6;
+        PhysicalInsert             insert              = 7;
+        PhysicalLimit              limit               = 8;
+        PhysicalMaterialize        materialize         = 9;
+        PhysicalScan               scan                = 10;
+        PhysicalUngroupedAggregate ungrouped_aggregate = 11;
+        PhysicalUnion union                            = 12;
+        PhysicalValues         values                  = 13;
+        PhysicalTableFunction  table_function          = 14;
+        PhysicalNestedLoopJoin nl_join                 = 15;
+    }
+}
+
+message StreamId {
+    foreign.Uuid query_id  = 1;
+    foreign.Uuid stream_id = 2;
+}
+
+message IntermediatePipelineId {
+    uint32 id = 1;
+}
+
+message PipelineSinkQueryOutput {}
+
+message PipelineSinkInPipeline {}
+
+message PipelineSinkInGroup {
+    IntermediatePipelineId id           = 1;
+    uint32                 operator_idx = 2;
+    uint32                 input_idx    = 3;
+}
+
+message PipelineSinkOtherGroup {
+    StreamId stream_id  = 1;
+    uint32   partitions = 2;
+}
+
+message PipelineSink {
+    oneof value {
+        PipelineSinkQueryOutput query_output = 1;
+        PipelineSinkInPipeline  in_pipeline  = 2;
+        PipelineSinkInGroup     in_group     = 3;
+        PipelineSinkOtherGroup  other_group  = 4;
+    }
+}
+
+message PipelineSourceInPipeline {}
+
+message PipelineSourceOtherPipeline {
+    IntermediatePipelineId id = 1;
+}
+
+message PipelineSourceOtherGroup {
+    StreamId stream_id  = 1;
+    uint32   partitions = 2;
+}
+
+message PipelineSource {
+    oneof value {
+        PipelineSourceInPipeline    in_pipeline    = 1;
+        PipelineSourceOtherPipeline other_pipeline = 2;
+        PipelineSourceOtherGroup    other_group    = 3;
+    }
+}
+
+message IntermediateOperator {
+    PhysicalOperator operator = 1;
+    optional uint32 partitioning_requirement = 2;
+}
+
+message IntermediatePipeline {
+    IntermediatePipelineId        id        = 1;
+    PipelineSink                  sink      = 2;
+    PipelineSource                source    = 3;
+    repeated IntermediateOperator operators = 4;
+}
+
+message IntermediatePipelineGroup {
+    repeated IntermediatePipeline pipelines = 1;
+}

@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package rayexec.access;
+
+message FileLocation {
+    oneof value {
+        string url  = 1;
+        string path = 2;
+    }
+}
+
+message AwsCredentials {
+    string key_id = 1;
+    string secret = 2;
+}
+
+message S3AccessConfig {
+    AwsCredentials credentials = 1;
+    string         region      = 2;
+}
+
+message EmptyAccessConfig {}
+
+message AccessConfig {
+    oneof value {
+        EmptyAccessConfig none = 1;
+        S3AccessConfig    s3   = 2;
+    }
+}

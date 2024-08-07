@@ -3,6 +3,7 @@ FROM rust AS builder
 WORKDIR /usr/src/rayexec
 COPY . .
 
+RUN ./scripts/install_protoc_linux.sh
 RUN cargo build --release --bin rayexec_server
 
 FROM debian:bookworm-slim

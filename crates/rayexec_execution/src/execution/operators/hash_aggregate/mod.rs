@@ -13,7 +13,7 @@ use std::task::{Context, Waker};
 use crate::database::DatabaseContext;
 use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
 use crate::expr::PhysicalAggregateExpression;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -126,7 +126,7 @@ impl PhysicalHashAggregate {
     }
 }
 
-impl PhysicalOperator for PhysicalHashAggregate {
+impl ExecutableOperator for PhysicalHashAggregate {
     fn create_states(
         &self,
         _context: &DatabaseContext,

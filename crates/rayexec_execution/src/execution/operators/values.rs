@@ -1,13 +1,21 @@
 use crate::{
     database::DatabaseContext,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
-use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
-use std::{sync::Arc, task::Context};
+use rayexec_bullet::{
+    batch::Batch,
+    field::{Field, Schema},
+    ipc::{
+        stream::{StreamReader, StreamWriter},
+        IpcConfig,
+    },
+};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use std::{io::Cursor, sync::Arc, task::Context};
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -27,7 +35,7 @@ impl PhysicalValues {
     }
 }
 
-impl PhysicalOperator for PhysicalValues {
+impl ExecutableOperator for PhysicalValues {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -91,5 +99,54 @@ impl PhysicalOperator for PhysicalValues {
 impl Explainable for PhysicalValues {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Values")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalValues {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalValues;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::array::IpcStreamBatch;
+
+        // TODO: Should empty values even be allowed? Is it allowed?
+        let schema = match self.batches.first() {
+            Some(batch) => Schema::new(
+                batch
+                    .columns()
+                    .iter()
+                    .map(|c| Field::new("", c.datatype(), true)),
+            ),
+            None => {
+                return Ok(Self::ProtoType {
+                    batches: Some(IpcStreamBatch { ipc: Vec::new() }),
+                })
+            }
+        };
+
+        let buf = Vec::new();
+        let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
+
+        for batch in &self.batches {
+            writer.write_batch(batch)?
+        }
+
+        let buf = writer.into_writer();
+
+        Ok(Self::ProtoType {
+            batches: Some(IpcStreamBatch { ipc: buf }),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        let ipc = proto.batches.required("batches")?.ipc;
+
+        let mut reader = StreamReader::try_new(Cursor::new(ipc), IpcConfig {})?;
+
+        let mut batches = Vec::new();
+        while let Some(batch) = reader.try_next_batch()? {
+            batches.push(batch);
+        }
+
+        Ok(Self { batches })
     }
 }

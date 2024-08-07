@@ -1,5 +1,6 @@
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::functions::{
@@ -32,6 +33,32 @@ impl From<FunctionEntry> for CatalogEntry {
 pub struct TableEntry {
     pub name: String,
     pub columns: Vec<Field>,
+}
+
+impl ProtoConv for TableEntry {
+    type ProtoType = rayexec_proto::generated::execution::TableEntry;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            name: self.name.clone(),
+            columns: self
+                .columns
+                .iter()
+                .map(|c| c.to_proto())
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            name: proto.name,
+            columns: proto
+                .columns
+                .into_iter()
+                .map(Field::from_proto)
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]

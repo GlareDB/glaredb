@@ -5,3 +5,4 @@ edition = { workspace = true }
 
 [dependencies]
 erased-serde = { workspace = true }
+serde = { workspace = true }

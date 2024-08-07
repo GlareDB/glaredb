@@ -8,6 +8,8 @@ use rayexec_bullet::{
     scalar::interval::Interval,
 };
 use rayexec_error::Result;
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, vec};
 
@@ -29,11 +31,10 @@ impl FunctionInfo for Min {
 }
 
 impl AggregateFunction for Min {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(MinImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(MinImpl {
+            datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
+        }))
     }
 
     fn plan_from_datatypes(
@@ -80,11 +81,10 @@ impl FunctionInfo for Max {
 }
 
 impl AggregateFunction for Max {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(MaxImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(MinImpl {
+            datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
+        }))
     }
 
     fn plan_from_datatypes(
@@ -199,8 +199,8 @@ impl PlannedAggregateFunction for MinImpl {
         &Min
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {
@@ -247,8 +247,8 @@ impl PlannedAggregateFunction for MaxImpl {
         &Max
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {

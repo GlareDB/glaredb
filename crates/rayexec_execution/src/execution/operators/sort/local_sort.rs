@@ -2,7 +2,7 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
-    execution::operators::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush},
+    execution::operators::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush},
     expr::PhysicalSortExpression,
 };
 use rayexec_bullet::batch::Batch;
@@ -52,7 +52,7 @@ impl PhysicalLocalSort {
     }
 }
 
-impl PhysicalOperator for PhysicalLocalSort {
+impl ExecutableOperator for PhysicalLocalSort {
     fn create_states(
         &self,
         _context: &DatabaseContext,

@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package rayexec.schema;
+
+enum DataTypeId {
+    INVALID_DATATYPE_ID = 0;
+    ANY                 = 1;
+    NULL                = 2;
+    BOOLEAN             = 3;
+    INT8                = 4;
+    INT16               = 5;
+    INT32               = 6;
+    INT64               = 7;
+    INT128              = 8;
+    UINT8               = 9;
+    UINT16              = 10;
+    UINT32              = 11;
+    UINT64              = 12;
+    UINT128             = 13;
+    FLOAT32             = 14;
+    FLOAT64             = 15;
+    DECIMAL64           = 16;
+    DECIMAL128          = 17;
+    TIMESTAMP           = 18;
+    DATE32              = 19;
+    DATE64              = 20;
+    INTERVAL            = 21;
+    UTF8                = 22;
+    LARGE_UTF8          = 23;
+    BINARY              = 24;
+    LARGE_BINARY        = 25;
+    STRUCT              = 26;
+    LIST                = 27;
+}
+
+enum TimeUnit {
+    INVALID_TIME_UNIT = 0;
+    SECOND            = 1;
+    MILLISECOND       = 2;
+    MICROSECOND       = 3;
+    NANOSECOND        = 4;
+}
+
+message DecimalTypeMeta {
+    int32 precision = 1;
+    int32 scale     = 2;
+}
+
+message TimestampTypeMeta {
+    TimeUnit unit = 1;
+}
+
+message StructTypeMeta {
+    repeated Field fields = 1;
+}
+
+message ListTypeMeta {
+    DataType datatype = 1;
+}
+
+message EmptyMeta {}
+
+message DataType {
+    oneof value {
+        EmptyMeta         type_null         = 2;
+        EmptyMeta         type_boolean      = 3;
+        EmptyMeta         type_int8         = 4;
+        EmptyMeta         type_int16        = 5;
+        EmptyMeta         type_int32        = 6;
+        EmptyMeta         type_int64        = 7;
+        EmptyMeta         type_int128       = 8;
+        EmptyMeta         type_uint8        = 9;
+        EmptyMeta         type_uint16       = 10;
+        EmptyMeta         type_uint32       = 11;
+        EmptyMeta         type_uint64       = 12;
+        EmptyMeta         type_uint128      = 13;
+        EmptyMeta         type_float32      = 14;
+        EmptyMeta         type_float64      = 15;
+        DecimalTypeMeta   type_decimal64    = 16;
+        DecimalTypeMeta   type_decimal128   = 17;
+        TimestampTypeMeta type_timestamp    = 18;
+        EmptyMeta         type_date32       = 19;
+        EmptyMeta         type_date64       = 20;
+        EmptyMeta         type_interval     = 21;
+        EmptyMeta         type_utf8         = 22;
+        EmptyMeta         type_large_utf8   = 23;
+        EmptyMeta         type_binary       = 24;
+        EmptyMeta         type_large_binary = 25;
+        StructTypeMeta    type_struct       = 26;
+        ListTypeMeta      type_list         = 27;
+    }
+}
+
+message Field {
+    string   name     = 1;
+    DataType datatype = 2;
+    bool     nullable = 3;
+}
+
+message Schema {
+    repeated Field fields = 1;
+}
+
+message TypeSchema {
+    repeated DataType types = 1;
+}

@@ -172,13 +172,13 @@ pub enum Expr<T: AstMeta> {
     },
     /// Unary expression.
     UnaryExpr {
-        op: UnaryOperator,
+        op: T::UnaryOperator,
         expr: Box<Expr<T>>,
     },
     /// A binary expression.
     BinaryExpr {
         left: Box<Expr<T>>,
-        op: BinaryOperator,
+        op: T::BinaryOperator,
         right: Box<Expr<T>>,
     },
     /// A function call.
@@ -221,10 +221,10 @@ pub enum Expr<T: AstMeta> {
     /// LIKE/NOT LIKE
     /// ILIKE/NOT ILIKE
     Like {
-        not_like: bool,
-        case_insensitive: bool,
         expr: Box<Expr<T>>,
         pattern: Box<Expr<T>>,
+        not_like: bool,
+        case_insensitive: bool,
     },
     /// Interval
     ///

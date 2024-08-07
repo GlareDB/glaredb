@@ -8,7 +8,7 @@ use std::{sync::Arc, task::Waker};
 use crate::database::DatabaseContext;
 use crate::execution::operators::util::hash::hash_arrays;
 use crate::execution::operators::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -143,7 +143,7 @@ impl PhysicalHashJoin {
     }
 }
 
-impl PhysicalOperator for PhysicalHashJoin {
+impl ExecutableOperator for PhysicalHashJoin {
     fn create_states(
         &self,
         _context: &DatabaseContext,

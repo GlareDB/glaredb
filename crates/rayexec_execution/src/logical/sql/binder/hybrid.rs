@@ -103,14 +103,9 @@ impl<'a> HybridResolver<'a> {
                 let name = table_fn.name().to_string();
                 let func = table_fn.plan_and_initialize(unbound.args.clone()).await?;
 
-                let func_idx = bind_data.table_function_objects.push(func);
-
                 // TODO: Marker indicating this needs to be executing remotely.
                 *item = MaybeBound::Bound(
-                    BoundTableFunctionReference {
-                        name,
-                        idx: func_idx,
-                    },
+                    BoundTableFunctionReference { name, func },
                     LocationRequirement::Remote,
                 )
             }

@@ -8,9 +8,7 @@ use rayexec_bullet::{field::TypeSchema, scalar::OwnedScalarValue};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::expr::scalar::{
-    BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator, UnaryOperator,
-};
+use crate::expr::scalar::{BinaryOperator, PlannedBinaryOperator, PlannedUnaryOperator};
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::list::{ListExtract, ListValues};
 use crate::functions::scalar::{like, ScalarFunction};
@@ -19,11 +17,9 @@ use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
 use super::binder::bind_data::BoundFunctionReference;
+use super::binder::Bound;
 use super::query::QueryNodePlanner;
-use super::{
-    binder::Bound,
-    scope::{Scope, TableReference},
-};
+use super::scope::{Scope, TableReference};
 
 /// An expanded select expression.
 #[derive(Debug, Clone, PartialEq)]
@@ -109,22 +105,8 @@ impl<'a> ExpressionContext<'a> {
                 ast::Expr::Function(ast::Function { reference, .. }) => {
                     let (reference, _) =
                         self.planner.bind_data.functions.try_get_bound(*reference)?;
-                    let name = match *reference {
-                        BoundFunctionReference::Scalar(idx) => self
-                            .planner
-                            .bind_data
-                            .scalar_function_objects
-                            .get(idx)?
-                            .name(),
-                        BoundFunctionReference::Aggregate(idx) => self
-                            .planner
-                            .bind_data
-                            .aggregate_function_objects
-                            .get(idx)?
-                            .name(),
-                    };
                     vec![ExpandedSelectExpr::Expr {
-                        name: name.to_string(),
+                        name: reference.name().to_string(),
                         expr,
                         explicit_alias: false,
                     }]
@@ -231,12 +213,6 @@ impl<'a> ExpressionContext<'a> {
             }
             ast::Expr::UnaryExpr { op, expr } => {
                 let expr = self.plan_expression(context, *expr)?;
-                let op = match op {
-                    ast::UnaryOperator::Plus => return Ok(expr), // Nothing to do.
-                    ast::UnaryOperator::Minus => UnaryOperator::Negate,
-                    ast::UnaryOperator::Not => unimplemented!(),
-                };
-
                 let scalar = op
                     .scalar_function()
                     .plan_from_expressions(&[&expr], self.input)?;
@@ -247,7 +223,6 @@ impl<'a> ExpressionContext<'a> {
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
-                let op = BinaryOperator::try_from(op)?;
                 let left = self.plan_expression(context, *left)?;
                 let right = self.plan_expression(context, *right)?;
 
@@ -299,8 +274,7 @@ impl<'a> ExpressionContext<'a> {
                 // I don't think it makes sense to try to handle different sets
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
-                    (BoundFunctionReference::Scalar(idx), _) => {
-                        let scalar = self.planner.bind_data.scalar_function_objects.get(*idx)?;
+                    (BoundFunctionReference::Scalar(scalar), _) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
@@ -309,12 +283,7 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
-                    (BoundFunctionReference::Aggregate(idx), _) => {
-                        let agg = self
-                            .planner
-                            .bind_data
-                            .aggregate_function_objects
-                            .get(*idx)?;
+                    (BoundFunctionReference::Aggregate(agg), _) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
                         let agg = agg.plan_from_expressions(&inputs, self.input)?;

@@ -8,6 +8,10 @@ use rayexec_execution::{
 };
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;
+use rayexec_proto::{
+    packed::{PackedDecoder, PackedEncoder},
+    ProtoConv,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -36,14 +40,10 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
         Box::pin(ReadParquetImpl::initialize(self.clone(), args))
     }
 
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        let state = ReadParquetState::deserialize(deserializer)?;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
         Ok(Box::new(ReadParquetImpl {
             func: self.clone(),
-            state,
+            state: ReadParquetState::decode(state)?,
         }))
     }
 }
@@ -55,9 +55,35 @@ struct ReadParquetState {
     // TODO: Not sure what we want to do here. We could put
     // Serialize/Deserialize macros on everything, but I'm not sure how
     // deep/wide that would go.
+    //
+    // Could also just keep the bytes around and put those directly in the
+    // encoded state.
     #[serde(skip)]
     metadata: Option<Arc<Metadata>>,
     schema: Schema,
+}
+
+impl ReadParquetState {
+    fn encode(&self, buf: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(buf);
+        packed.encode_next(&self.location.to_proto()?)?;
+        packed.encode_next(&self.conf.to_proto()?)?;
+        packed.encode_next(&self.schema.to_proto()?)?;
+        Ok(())
+    }
+
+    fn decode(buf: &[u8]) -> Result<Self> {
+        let mut packed = PackedDecoder::new(buf);
+        let location = FileLocation::from_proto(packed.decode_next()?)?;
+        let conf = AccessConfig::from_proto(packed.decode_next()?)?;
+        let schema = Schema::from_proto(packed.decode_next()?)?;
+        Ok(ReadParquetState {
+            location,
+            conf,
+            schema,
+            metadata: None,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -95,16 +121,16 @@ impl<R: Runtime> ReadParquetImpl<R> {
 }
 
 impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        &self.state
-    }
-
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
     }
 
     fn schema(&self) -> Schema {
         self.state.schema.clone()
+    }
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        self.state.encode(state)
     }
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {

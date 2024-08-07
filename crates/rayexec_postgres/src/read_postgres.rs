@@ -6,6 +6,8 @@ use rayexec_execution::{
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::Runtime,
 };
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::{PostgresClient, PostgresDataTable};
@@ -27,14 +29,10 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
         Box::pin(ReadPostgresImpl::initialize(self.clone(), args))
     }
 
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        let state = ReadPostgresState::deserialize(deserializer)?;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
         Ok(Box::new(ReadPostgresImpl {
             func: self.clone(),
-            state,
+            state: ReadPostgresState::decode(state)?,
         }))
     }
 }
@@ -45,6 +43,27 @@ struct ReadPostgresState {
     schema: String,
     table: String,
     table_schema: Schema,
+}
+
+impl ReadPostgresState {
+    fn encode(&self, buf: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(buf);
+        packed.encode_next(&self.conn_str)?;
+        packed.encode_next(&self.schema)?;
+        packed.encode_next(&self.table)?;
+        packed.encode_next(&self.table_schema.to_proto()?)?;
+        Ok(())
+    }
+
+    fn decode(buf: &[u8]) -> Result<Self> {
+        let mut packed = PackedDecoder::new(buf);
+        Ok(ReadPostgresState {
+            conn_str: packed.decode_next()?,
+            schema: packed.decode_next()?,
+            table: packed.decode_next()?,
+            table_schema: Schema::from_proto(packed.decode_next()?)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,16 +119,16 @@ impl<R> PlannedTableFunction for ReadPostgresImpl<R>
 where
     R: Runtime,
 {
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        &self.state
-    }
-
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
     }
 
     fn schema(&self) -> Schema {
         self.state.table_schema.clone()
+    }
+
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        self.state.encode(state)
     }
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {

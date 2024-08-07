@@ -19,12 +19,12 @@ use crate::{
             project::ProjectOperation,
             scan::PhysicalScan,
             simple::SimpleOperator,
-            sink::{PhysicalQuerySink, QuerySink},
             sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             union::PhysicalUnion,
             values::PhysicalValues,
+            PhysicalOperator,
         },
     },
     expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
@@ -42,14 +42,15 @@ use rayexec_bullet::{
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
+use uuid::Uuid;
 
 use super::{
     IntermediateOperator, IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId,
-    PipelineSource,
+    PipelineSource, StreamId,
 };
 
 /// Configuration used during intermediate pipeline planning.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IntermediateConfig {
     /// Trigger an error if we attempt to plan a nested loop join.
     pub error_on_nested_loop_join: bool,
@@ -93,18 +94,14 @@ impl IntermediatePipelinePlanner {
         &self,
         root: operator::LogicalOperator,
         context: QueryContext,
-        sink: Box<dyn QuerySink>,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new(&self.config);
-        let mut id_gen = PipelineIdGen {
-            gen: IntermediatePipelineId(0),
-        };
+        let mut id_gen = PipelineIdGen::new(Uuid::new_v4());
 
         let mut materializations = state.plan_materializations(context, &mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;
 
-        // Finish with query sink.
-        state.push_query_sink(&mut id_gen, sink)?;
+        state.finish(&mut id_gen)?;
 
         debug_assert!(state.in_progress.is_none());
 
@@ -118,14 +115,29 @@ impl IntermediatePipelinePlanner {
 /// Used for ensuring every pipeline in a query has a unique id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PipelineIdGen {
-    gen: IntermediatePipelineId,
+    query_id: Uuid,
+    pipeline_gen: IntermediatePipelineId,
 }
 
 impl PipelineIdGen {
-    fn next(&mut self) -> IntermediatePipelineId {
-        let id = self.gen;
-        self.gen.0 += 1;
+    fn new(query_id: Uuid) -> Self {
+        PipelineIdGen {
+            query_id,
+            pipeline_gen: IntermediatePipelineId(0),
+        }
+    }
+
+    fn next_pipeline_id(&mut self) -> IntermediatePipelineId {
+        let id = self.pipeline_gen;
+        self.pipeline_gen.0 += 1;
         id
+    }
+
+    fn new_stream_id(&self) -> StreamId {
+        StreamId {
+            query_id: self.query_id,
+            stream_id: Uuid::new_v4(),
+        }
     }
 }
 
@@ -228,7 +240,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             // Finish off the pipeline with a PhysicalMaterialize as the sink.
             let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalMaterialize::new(materialized.num_scans)),
+                operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
+                    materialized.num_scans,
+                ))),
                 partitioning_requirement: None,
             };
 
@@ -428,23 +442,29 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let in_progress = self.in_progress_pipeline_mut()?;
             in_progress.operators.push(operator);
         } else {
-            println!("DIFFERENT, CURRENT: {current_location:?}, LOC: {location:?}");
-
             // Different locations, finalize in-progress and start a new one.
             let in_progress = self.take_in_progress_pipeline()?;
 
+            let stream_id = id_gen.new_stream_id();
+
             let new_in_progress = InProgressPipeline {
-                id: id_gen.next(),
+                id: id_gen.next_pipeline_id(),
                 operators: vec![operator],
                 location,
                 // TODO: partitions? include other pipeline id
-                source: PipelineSource::OtherGroup { partitions: 1 },
+                source: PipelineSource::OtherGroup {
+                    stream_id,
+                    partitions: 1,
+                },
             };
 
             let finalized = IntermediatePipeline {
                 id: in_progress.id,
                 // TODO: partitions? include other pipeline id
-                sink: PipelineSink::OtherGroup { partitions: 1 },
+                sink: PipelineSink::OtherGroup {
+                    stream_id,
+                    partitions: 1,
+                },
                 source: in_progress.source,
                 operators: in_progress.operators,
             };
@@ -467,32 +487,49 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    /// Push a query sink onto the current pipeline. This marks the current
-    /// pipeline as completed.
-    ///
-    /// This is the last step when building up pipelines for a query graph.
-    fn push_query_sink(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        sink: Box<dyn QuerySink>,
-    ) -> Result<()> {
-        let operator = IntermediateOperator {
-            partitioning_requirement: sink.partition_requirement(),
-            operator: Arc::new(PhysicalQuerySink::new(sink)),
-        };
+    fn finish(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
+        let mut in_progress = self.take_in_progress_pipeline()?;
+        if in_progress.location == LocationRequirement::Any {
+            in_progress.location = LocationRequirement::ClientLocal;
+        }
 
-        // Query sink is always local so that the client can get the results.
-        self.push_intermediate_operator(operator, LocationRequirement::ClientLocal, id_gen)?;
+        if in_progress.location != LocationRequirement::ClientLocal {
+            let stream_id = id_gen.new_stream_id();
 
-        let in_progress = self.take_in_progress_pipeline()?;
-        let pipeline = IntermediatePipeline {
-            id: in_progress.id,
-            sink: PipelineSink::InPipeline,
-            source: in_progress.source,
-            operators: in_progress.operators,
-        };
+            let final_pipeline = IntermediatePipeline {
+                id: id_gen.next_pipeline_id(),
+                sink: PipelineSink::QueryOutput,
+                source: PipelineSource::OtherGroup {
+                    stream_id,
+                    partitions: 1,
+                },
+                operators: Vec::new(),
+            };
 
-        self.local_group.pipelines.insert(pipeline.id, pipeline);
+            let pipeline = IntermediatePipeline {
+                id: in_progress.id,
+                sink: PipelineSink::OtherGroup {
+                    stream_id,
+                    partitions: 1,
+                },
+                source: in_progress.source,
+                operators: in_progress.operators,
+            };
+
+            self.remote_group.pipelines.insert(pipeline.id, pipeline);
+            self.local_group
+                .pipelines
+                .insert(final_pipeline.id, final_pipeline);
+        } else {
+            let pipeline = IntermediatePipeline {
+                id: in_progress.id,
+                sink: PipelineSink::QueryOutput,
+                source: in_progress.source,
+                operators: in_progress.operators,
+            };
+
+            self.local_group.pipelines.insert(pipeline.id, pipeline);
+        }
 
         Ok(())
     }
@@ -509,11 +546,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         self.walk(materializations, id_gen, *copy_to.source)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCopyTo::new(
+            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalCopyTo::new(
                 copy_to.copy_to,
                 copy_to.source_schema,
                 copy_to.location,
-            )),
+            ))),
             // This should be temporary until there's a better understanding of
             // how we want to handle parallel writes.
             partitioning_requirement: Some(1),
@@ -553,7 +590,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match setop.kind {
             operator::SetOpKind::Union => {
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalUnion),
+                    operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
                     partitioning_requirement: None,
                 };
 
@@ -572,14 +609,13 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
             let group_types = top_schema.types;
 
-            let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalHashAggregate::new(
-                    group_types,
-                    grouping_sets,
-                    Vec::new(),
-                )),
-                partitioning_requirement: None,
-            };
+            let operator =
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::HashAggregate(
+                        PhysicalHashAggregate::new(group_types, grouping_sets, Vec::new()),
+                    )),
+                    partitioning_requirement: None,
+                };
 
             self.push_intermediate_operator(operator, location, id_gen)?;
         }
@@ -600,12 +636,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalDrop::new(drop.info)),
+            operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(drop.info))),
             partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -627,7 +663,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalInsert::new("temp", "temp", insert.table)),
+            operator: Arc::new(PhysicalOperator::Insert(PhysicalInsert::new(
+                "temp",
+                "temp",
+                insert.table,
+            ))),
             partitioning_requirement: None,
         };
 
@@ -649,12 +689,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalTableFunction::new(table_func.function)),
+            operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
+                table_func.function,
+            ))),
             partitioning_requirement: None,
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -696,7 +738,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: Vec::new(),
             location,
             source: PipelineSource::OtherPipeline {
@@ -720,12 +762,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalScan::new(scan.catalog, scan.schema, scan.source)),
+            operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
+                scan.catalog,
+                scan.schema,
+                scan.source,
+            ))),
             partitioning_requirement: None,
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -747,18 +793,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCreateSchema::new(
+            operator: Arc::new(PhysicalOperator::CreateSchema(PhysicalCreateSchema::new(
                 create.catalog,
                 CreateSchemaInfo {
                     name: create.name,
                     on_conflict: create.on_conflict,
                 },
-            )),
+            ))),
             partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -789,12 +835,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             None => {
                 // No input, just have an empty operator as the source.
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalEmpty),
+                    operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
                     partitioning_requirement: Some(1),
                 };
 
                 self.in_progress = Some(InProgressPipeline {
-                    id: id_gen.next(),
+                    id: id_gen.next_pipeline_id(),
                     operators: vec![operator],
                     location,
                     source: PipelineSource::InPipeline,
@@ -803,7 +849,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalCreateTable::new(
+            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalCreateTable::new(
                 create.catalog,
                 create.schema,
                 CreateTableInfo {
@@ -812,7 +858,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                     on_conflict: create.on_conflict,
                 },
                 is_ctas,
-            )),
+            ))),
             partitioning_requirement: None,
         };
 
@@ -842,12 +888,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let batch = Batch::try_new(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalValues::new(vec![batch])),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
             partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -874,10 +920,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // TODO: Executable, intermediate (w/ location)
 
-        let physical = Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
-            Array::Utf8(Utf8Array::from_iter(["logical"])),
-            Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
-        ])?]));
+        let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+            Batch::try_new(vec![
+                Array::Utf8(Utf8Array::from_iter(["logical"])),
+                Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+            ])?,
+        ])));
 
         let operator = IntermediateOperator {
             operator: physical,
@@ -885,7 +933,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -907,14 +955,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalValues::new(vec![Batch::try_new(vec![
-                Array::Utf8(Utf8Array::from_iter([show.var.value.to_string().as_str()])),
-            ])?])),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+                Batch::try_new(vec![Array::Utf8(Utf8Array::from_iter([show
+                    .var
+                    .value
+                    .to_string()
+                    .as_str()]))])?,
+            ]))),
             partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,
@@ -940,7 +992,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &input_schema))
             .collect::<Result<Vec<_>>>()?;
         let operator = IntermediateOperator {
-            operator: Arc::new(SimpleOperator::new(ProjectOperation::new(projections))),
+            operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
+                ProjectOperation::new(projections),
+            ))),
             partitioning_requirement: None,
         };
 
@@ -963,7 +1017,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let predicate =
             PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
         let operator = IntermediateOperator {
-            operator: Arc::new(SimpleOperator::new(FilterOperation::new(predicate))),
+            operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
+                FilterOperation::new(predicate),
+            ))),
             partitioning_requirement: None,
         };
 
@@ -999,14 +1055,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalLocalSort::new(exprs.clone())),
+            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalLocalSort::new(
+                exprs.clone(),
+            ))),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         // Global sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalMergeSortedInputs::new(exprs)),
+            operator: Arc::new(PhysicalOperator::MergeSorted(
+                PhysicalMergeSortedInputs::new(exprs),
+            )),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1018,7 +1078,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let in_progress = self.take_in_progress_pipeline()?;
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: Vec::new(),
             location,
             // TODO:
@@ -1063,7 +1123,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // TODO: Who sets partitioning? How was that working before?
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalLimit::new(limit.limit, limit.offset)),
+            operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
+                limit.limit,
+                limit.offset,
+            ))),
             partitioning_requirement: None,
         };
 
@@ -1102,10 +1165,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                     .collect();
 
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalHashAggregate::new(
-                        group_types,
-                        grouping_sets,
-                        agg_exprs,
+                    operator: Arc::new(PhysicalOperator::HashAggregate(
+                        PhysicalHashAggregate::new(group_types, grouping_sets, agg_exprs),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1115,7 +1176,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 // Otherwise push an ungrouped aggregate operator.
 
                 let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalUngroupedAggregate::new(agg_exprs)),
+                    operator: Arc::new(PhysicalOperator::UngroupedAggregate(
+                        PhysicalUngroupedAggregate::new(agg_exprs),
+                    )),
                     partitioning_requirement: None,
                 };
                 self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1145,12 +1208,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // drive output of a query that contains no FROM (typically just a
         // simple projection).
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalEmpty),
+            operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
             partitioning_requirement: Some(1),
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location: empty.location,
             source: PipelineSource::InPipeline,
@@ -1191,11 +1254,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         })?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalHashJoin::new(
+            operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
                 join.join_type,
                 join.left_on,
                 join.right_on,
-            )),
+            ))),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1300,7 +1363,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         })?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalNestedLoopJoin::new(filter)),
+            operator: Arc::new(PhysicalOperator::NestedLoopJoin(
+                PhysicalNestedLoopJoin::new(filter),
+            )),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1370,12 +1435,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let batch = Batch::try_new(cols)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalValues::new(vec![batch])),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
             partitioning_requirement: None,
         };
 
         self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next(),
+            id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
             source: PipelineSource::InPipeline,

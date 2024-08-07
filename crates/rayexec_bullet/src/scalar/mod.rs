@@ -18,7 +18,8 @@ use crate::compute::cast::format::{
 use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt;
@@ -432,5 +433,104 @@ impl<'a, T: Into<ScalarValue<'a>>> From<Option<T>> for ScalarValue<'a> {
             Some(value) => value.into(),
             None => ScalarValue::Null,
         }
+    }
+}
+
+impl ProtoConv for OwnedScalarValue {
+    type ProtoType = rayexec_proto::generated::expr::OwnedScalarValue;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::expr::{
+            owned_scalar_value::Value, EmptyScalar, ListScalar, StructScalar,
+        };
+
+        let value = match self {
+            Self::Null => Value::ScalarNull(EmptyScalar {}),
+            Self::Boolean(v) => Value::ScalarBoolean(*v),
+            Self::Int8(v) => Value::ScalarInt8(*v as i32),
+            Self::Int16(v) => Value::ScalarInt16(*v as i32),
+            Self::Int32(v) => Value::ScalarInt32(*v),
+            Self::Int64(v) => Value::ScalarInt64(*v),
+            Self::Int128(v) => Value::ScalarInt128(v.to_le_bytes().to_vec()),
+            Self::UInt8(v) => Value::ScalarUint8(*v as u32),
+            Self::UInt16(v) => Value::ScalarUint16(*v as u32),
+            Self::UInt32(v) => Value::ScalarUint32(*v),
+            Self::UInt64(v) => Value::ScalarUint64(*v),
+            Self::UInt128(v) => Value::ScalarUint128(v.to_le_bytes().to_vec()),
+            Self::Float32(v) => Value::ScalarFloat32(*v),
+            Self::Float64(v) => Value::ScalarFloat64(*v),
+            Self::Decimal64(v) => Value::ScalarDecimal64(v.to_proto()?),
+            Self::Decimal128(v) => Value::ScalarDecimal128(v.to_proto()?),
+            Self::Timestamp(v) => Value::ScalarTimestamp(v.to_proto()?),
+            Self::Date32(v) => Value::ScalarDate32(*v),
+            Self::Date64(v) => Value::ScalarDate64(*v),
+            Self::Interval(v) => Value::ScalarInterval(v.to_proto()?),
+            Self::Utf8(v) => Value::ScalarUtf8(v.clone().into()),
+            Self::LargeUtf8(v) => Value::ScalarLargeUtf8(v.clone().into()),
+            Self::Binary(v) => Value::ScalarBinary(v.clone().into()),
+            Self::LargeBinary(v) => Value::ScalarLargeBinary(v.clone().into()),
+            Self::Struct(v) => {
+                let values = v.iter().map(|v| v.to_proto()).collect::<Result<Vec<_>>>()?;
+                Value::ScalarStruct(StructScalar { values })
+            }
+            Self::List(v) => {
+                let values = v.iter().map(|v| v.to_proto()).collect::<Result<Vec<_>>>()?;
+                Value::ScalarList(ListScalar { values })
+            }
+        };
+        Ok(Self::ProtoType { value: Some(value) })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::expr::owned_scalar_value::Value;
+
+        Ok(match proto.value.required("owned scalar value enum")? {
+            Value::ScalarNull(_) => Self::Null,
+            Value::ScalarBoolean(v) => Self::Boolean(v),
+            Value::ScalarInt8(v) => Self::Int8(v.try_into()?),
+            Value::ScalarInt16(v) => Self::Int16(v.try_into()?),
+            Value::ScalarInt32(v) => Self::Int32(v),
+            Value::ScalarInt64(v) => Self::Int64(v),
+            Value::ScalarInt128(v) => Self::Int128(i128::from_le_bytes(
+                v.try_into()
+                    .map_err(|_| RayexecError::new("byte buffer not 16 bytes"))?,
+            )),
+            Value::ScalarUint8(v) => Self::UInt8(v.try_into()?),
+            Value::ScalarUint16(v) => Self::UInt16(v.try_into()?),
+            Value::ScalarUint32(v) => Self::UInt32(v),
+            Value::ScalarUint64(v) => Self::UInt64(v),
+            Value::ScalarUint128(v) => Self::UInt128(u128::from_le_bytes(
+                v.try_into()
+                    .map_err(|_| RayexecError::new("byte buffer not 16 bytes"))?,
+            )),
+            Value::ScalarFloat32(v) => Self::Float32(v),
+            Value::ScalarFloat64(v) => Self::Float64(v),
+            Value::ScalarDecimal64(v) => Self::Decimal64(Decimal64Scalar::from_proto(v)?),
+            Value::ScalarDecimal128(v) => Self::Decimal128(Decimal128Scalar::from_proto(v)?),
+            Value::ScalarTimestamp(v) => Self::Timestamp(TimestampScalar::from_proto(v)?),
+            Value::ScalarDate32(v) => Self::Date32(v),
+            Value::ScalarDate64(v) => Self::Date64(v),
+            Value::ScalarInterval(v) => Self::Interval(Interval::from_proto(v)?),
+            Value::ScalarUtf8(v) => Self::Utf8(v.into()),
+            Value::ScalarLargeUtf8(v) => Self::LargeUtf8(v.into()),
+            Value::ScalarBinary(v) => Self::Binary(v.into()),
+            Value::ScalarLargeBinary(v) => Self::LargeBinary(v.into()),
+            Value::ScalarStruct(v) => {
+                let values = v
+                    .values
+                    .into_iter()
+                    .map(OwnedScalarValue::from_proto)
+                    .collect::<Result<Vec<_>>>()?;
+                Self::Struct(values)
+            }
+            Value::ScalarList(v) => {
+                let values = v
+                    .values
+                    .into_iter()
+                    .map(OwnedScalarValue::from_proto)
+                    .collect::<Result<Vec<_>>>()?;
+                Self::List(values)
+            }
+        })
     }
 }

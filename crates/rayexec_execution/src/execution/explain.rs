@@ -7,6 +7,9 @@ use crate::{
     },
 };
 use rayexec_error::{Result, ResultExt};
+use serde::{Deserialize, Serialize};
+
+use super::intermediate::IntermediatePipeline;
 
 /// Formats a logical plan into explain output.
 pub fn format_logical_plan_for_explain(
@@ -16,12 +19,19 @@ pub fn format_logical_plan_for_explain(
     verbose: bool,
 ) -> Result<String> {
     let conf = ExplainConfig { verbose };
+    let node = ExplainNode::walk_logical(context, plan, conf);
     match format {
-        ExplainFormat::Text => {
-            ExplainNode::walk_logical(context, plan, conf).format_text(0, String::new())
-        }
-        ExplainFormat::Json => unimplemented!(),
+        ExplainFormat::Text => node.format_text(0, String::new()),
+        ExplainFormat::Json => node.format_json(),
     }
+}
+
+pub fn format_intermediate_pipelines_for_explain<'a>(
+    _pipelines: impl Iterator<Item = &'a IntermediatePipeline>,
+    _format: ExplainFormat,
+    _verbose: bool,
+) -> Result<String> {
+    unimplemented!()
 }
 
 /// Formats pipelines into explain output.
@@ -33,7 +43,7 @@ pub fn format_pipelines_for_explain<'a>(
     let conf = ExplainConfig { verbose };
 
     let mut nodes: Vec<_> = pipelines
-        .map(|p| ExplainNode::walk_pipeline(p, conf))
+        .map(|p| ExplainNode::walk_executable_pipeline(p, conf))
         .collect();
     // Flip so that the "output" pipeline is at the top of the explain.
     nodes.reverse();
@@ -46,18 +56,28 @@ pub fn format_pipelines_for_explain<'a>(
             }
             Ok(buf)
         }
-        ExplainFormat::Json => unimplemented!(),
+        ExplainFormat::Json => {
+            unimplemented!()
+        }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ExplainNode {
     entry: ExplainEntry,
     children: Vec<ExplainNode>,
 }
 
 impl ExplainNode {
-    fn walk_pipeline(pipeline: &ExecutablePipeline, conf: ExplainConfig) -> ExplainNode {
+    #[allow(dead_code)]
+    fn walk_intermediate_pipeline(
+        _intermediate: &IntermediatePipeline,
+        _conf: ExplainConfig,
+    ) -> ExplainNode {
+        unimplemented!()
+    }
+
+    fn walk_executable_pipeline(pipeline: &ExecutablePipeline, conf: ExplainConfig) -> ExplainNode {
         let mut children: Vec<_> = pipeline
             .iter_operators()
             .map(|op| ExplainNode {
@@ -164,6 +184,11 @@ impl ExplainNode {
             entry: plan.explain_entry(conf),
             children,
         }
+    }
+
+    fn format_json(&self) -> Result<String> {
+        let s = serde_json::to_string(self).context("failed to serialize to json")?;
+        Ok(s)
     }
 
     fn format_text(&self, indent: usize, mut buf: String) -> Result<String> {

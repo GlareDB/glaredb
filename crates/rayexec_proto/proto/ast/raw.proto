@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package rayexec.ast.raw;
+
+message Ident {
+    string value  = 1;
+    bool   quoted = 2;
+}
+
+message ObjectReference {
+    repeated Ident idents = 1;
+}
+
+enum UnaryOperator {
+    INVALID_UNARY_OPERATOR = 0;
+    UNARY_PLUS             = 1;
+    UNARY_MINUS            = 2;
+    UNARY_NOT              = 3;
+}
+
+enum BinaryOperator {
+    INVALID_BINARY_OPERATOR   = 0;
+    BINARY_PLUS               = 1;
+    BINARY_MINUS              = 2;
+    BINARY_MULTIPLY           = 3;
+    BINARY_DIVIDE             = 4;
+    BINARY_INTDIV             = 5;
+    BINARY_MODULO             = 6;
+    BINARY_STRING_CONCAT      = 7;
+    BINARY_STRING_STARTS_WITH = 8;
+    BINARY_GT                 = 9;
+    BINARY_LT                 = 10;
+    BINARY_GT_EQ              = 11;
+    BINARY_LT_EQ              = 12;
+    BINARY_SPACESHIP          = 13;
+    BINARY_EQ                 = 14;
+    BINARY_NOT_EQ             = 15;
+    BINARY_AND                = 16;
+    BINARY_OR                 = 17;
+    BINARY_XOR                = 18;
+    BINARY_BITWISE_OR         = 19;
+    BINARY_BITWISE_AND        = 20;
+    BINARY_BITWISE_XOR        = 21;
+}
+
+enum JoinType {
+    INVALID_JOIN_TYPE = 0;
+    CROSS             = 1;
+    INNER             = 2;
+    LEFT              = 3;
+    RIGHT             = 4;
+    OUTER             = 5;
+    LEFT_ANTI         = 6;
+    LEFT_SEMI         = 7;
+    RIGHT_ANTI        = 8;
+    RIGHT_SEMI        = 9;
+}
+
+enum IntervalUnit {
+    INVALID_INTERVAL_UNIT = 0;
+    INTERVAL_MILLENIUM    = 1;
+    INTERVAL_CENTURY      = 2;
+    INTERVAL_DECADE       = 3;
+    INTERVAL_YEAR         = 4;
+    INTERVAL_MONTH        = 5;
+    INTERVAL_WEEK         = 6;
+    INTERVAL_DAY          = 7;
+    INTERVAL_HOUR         = 8;
+    INTERVAL_MINUTE       = 9;
+    INTERVAL_SECOND       = 10;
+    INTERVAL_MILLISECOND  = 11;
+    INTERVAL_MICROSECOND  = 12;
+    INTERVAL_NANOSECOND   = 13;
+}

@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package rayexec.array;
+
+// IPC-encoded batches using the stream format.
+message IpcStreamBatch {
+    bytes ipc = 1;
+}

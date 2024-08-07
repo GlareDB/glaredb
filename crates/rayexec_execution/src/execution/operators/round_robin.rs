@@ -7,12 +7,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
+use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::PollFinalize;
+use super::{ExecutionStates, PollFinalize};
 
 /// Create the appropriate states for the round robin repartition operator.
 pub fn round_robin_states(
@@ -105,7 +106,15 @@ pub struct RoundRobinOperatorState {
 #[derive(Debug)]
 pub struct PhysicalRoundRobinRepartition;
 
-impl PhysicalOperator for PhysicalRoundRobinRepartition {
+impl ExecutableOperator for PhysicalRoundRobinRepartition {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        _partitions: Vec<usize>,
+    ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
+
     fn poll_push(
         &self,
         cx: &mut Context,

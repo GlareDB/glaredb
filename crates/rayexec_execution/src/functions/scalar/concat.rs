@@ -5,7 +5,7 @@ use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
     executor::scalar::UniformExecutor,
 };
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
@@ -33,13 +33,8 @@ impl FunctionInfo for Concat {
 }
 
 impl ScalarFunction for Concat {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(
-            StringConcatImpl::deserialize(deserializer).context("failed to deserialize concat")?,
-        ))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(StringConcatImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -61,8 +56,8 @@ impl PlannedScalarFunction for StringConcatImpl {
         &Concat
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

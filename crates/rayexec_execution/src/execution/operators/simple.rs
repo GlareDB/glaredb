@@ -9,7 +9,7 @@ use std::task::{Context, Waker};
 use crate::logical::explainable::Explainable;
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -62,7 +62,7 @@ pub trait StatelessOperation: Sync + Send + Debug + Explainable {
 /// Filter and Project are both examples that use this.
 #[derive(Debug)]
 pub struct SimpleOperator<S> {
-    operation: S,
+    pub(crate) operation: S,
 }
 
 impl<S: StatelessOperation> SimpleOperator<S> {
@@ -71,7 +71,7 @@ impl<S: StatelessOperation> SimpleOperator<S> {
     }
 }
 
-impl<S: StatelessOperation> PhysicalOperator for SimpleOperator<S> {
+impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
     fn create_states(
         &self,
         _context: &DatabaseContext,

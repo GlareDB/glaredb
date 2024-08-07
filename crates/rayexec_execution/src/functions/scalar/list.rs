@@ -10,6 +10,8 @@ use rayexec_bullet::{
     field::TypeSchema,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -37,15 +39,18 @@ impl FunctionInfo for ListExtract {
 }
 
 impl ScalarFunction for ListExtract {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(ListExtractImpl::deserialize(deserializer)?))
-    }
-
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unreachable!("plan_from_expressions implemented")
+    }
+
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let mut packed = PackedDecoder::new(state);
+        let datatype = DataType::from_proto(packed.decode_next()?)?;
+        let index: u64 = packed.decode_next()?;
+        Ok(Box::new(ListExtractImpl {
+            datatype,
+            index: index as usize,
+        }))
     }
 
     fn plan_from_expressions(
@@ -97,8 +102,11 @@ impl PlannedScalarFunction for ListExtractImpl {
         &ListExtract
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(state);
+        packed.encode_next(&self.datatype.to_proto()?)?;
+        packed.encode_next(&(self.index as u64))?;
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -242,11 +250,10 @@ impl FunctionInfo for ListValues {
 }
 
 impl ScalarFunction for ListValues {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(ListValuesImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(ListValuesImpl {
+            datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
+        }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -285,8 +292,8 @@ impl PlannedScalarFunction for ListValuesImpl {
         &ListValues
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
     }
 
     fn return_type(&self) -> DataType {

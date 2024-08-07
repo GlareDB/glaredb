@@ -1,5 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
+use rayexec_proto::ProtoConv;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::functions::scalar::{
@@ -12,7 +14,7 @@ pub struct PlannedUnaryOperator {
     pub scalar: Box<dyn PlannedScalarFunction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum UnaryOperator {
     IsTrue,
     IsFalse,
@@ -42,13 +44,38 @@ impl fmt::Display for UnaryOperator {
     }
 }
 
+impl ProtoConv for UnaryOperator {
+    type ProtoType = rayexec_proto::generated::logical::UnaryOperator;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(match self {
+            Self::IsTrue => Self::ProtoType::UnaryIsTrue,
+            Self::IsFalse => Self::ProtoType::UnaryIsFalse,
+            Self::IsNull => Self::ProtoType::UnaryIsNull,
+            Self::IsNotNull => Self::ProtoType::UnaryIsNotNull,
+            Self::Negate => Self::ProtoType::UnaryNegate,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(match proto {
+            Self::ProtoType::InvalidUnaryOperator => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::UnaryIsTrue => Self::IsTrue,
+            Self::ProtoType::UnaryIsFalse => Self::IsFalse,
+            Self::ProtoType::UnaryIsNull => Self::IsNull,
+            Self::ProtoType::UnaryIsNotNull => Self::IsNotNull,
+            Self::ProtoType::UnaryNegate => Self::Negate,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlannedBinaryOperator {
     pub op: BinaryOperator,
     pub scalar: Box<dyn PlannedScalarFunction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BinaryOperator {
     Eq,
     NotEq,

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package rayexec.logical;
+
+enum LocationRequirement {
+    INVALID_LOCATION_REQUIREMENT = 0;
+    CLIENT_LOCAL                 = 1;
+    REMOTE                       = 2;
+    ANY                          = 3;
+}
+
+enum UnaryOperator {
+    INVALID_UNARY_OPERATOR = 0;
+    UNARY_IS_TRUE          = 1;
+    UNARY_IS_FALSE         = 2;
+    UNARY_IS_NULL          = 3;
+    UNARY_IS_NOT_NULL      = 4;
+    UNARY_NEGATE           = 5;
+}
+
+enum BinaryOperator {
+    INVALID_BINARY_OPERATOR   = 0;
+    BINARY_EQ                 = 1;
+    BINARY_NOT_EQ             = 2;
+    BINARY_LT                 = 3;
+    BINARY_LT_EQ              = 4;
+    BINARY_GT                 = 5;
+    BINARY_GT_EQ              = 6;
+    BINARY_PLUS               = 7;
+    BINARY_MINUS              = 8;
+    BINARY_MULTIPLY           = 9;
+    BINARY_DIVIDE             = 10;
+    BINARY_MODULO             = 11;
+    BINARY_AND                = 12;
+    BINARY_OR                 = 13;
+    BINARY_STRING_CONCAT      = 14;
+    BINARY_STRING_STARTS_WITH = 15;
+}

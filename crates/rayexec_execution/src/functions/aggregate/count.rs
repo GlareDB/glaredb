@@ -30,11 +30,8 @@ impl FunctionInfo for Count {
 }
 
 impl AggregateFunction for Count {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(CountNonNullImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+        Ok(Box::new(CountNonNullImpl))
     }
 
     fn plan_from_datatypes(
@@ -75,8 +72,8 @@ impl PlannedAggregateFunction for CountNonNullImpl {
         &Count
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

@@ -1,17 +1,16 @@
 pub mod bind_data;
 pub mod hybrid;
 
-mod exprbinder;
+mod expr_binder;
 mod resolver;
 
 use std::collections::HashMap;
-use std::fmt;
 
 use bind_data::{
-    BindData, BindDataVisitor, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference,
-    ItemReference, MaybeBound, UnboundTableFunctionReference,
+    BindData, BindListIdx, BoundCte, BoundTableFunctionReference, CteReference, ItemReference,
+    MaybeBound, UnboundTableFunctionReference,
 };
-use exprbinder::ExpressionBinder;
+use expr_binder::ExpressionBinder;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
@@ -27,19 +26,17 @@ use rayexec_parser::{
     statement::{RawStatement, Statement},
 };
 use resolver::Resolver;
-use serde::{
-    de::{self, MapAccess, Visitor},
-    ser::SerializeMap,
-    Deserialize, Serialize, Serializer,
-};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
+    expr::scalar::{BinaryOperator, UnaryOperator},
     functions::{copy::CopyToFunction, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
 };
 
+/// An AST statement with references bound to data inside of the `bind_data`.
 pub type BoundStatement = Statement<Bound>;
 
 /// Implementation of `AstMeta` which annotates the AST query with
@@ -60,77 +57,12 @@ impl AstMeta for Bound {
     type FunctionReference = BindListIdx;
     type ColumnReference = String;
     type DataType = DataType;
-    type CopyToDestination = BoundCopyTo;
+    type CopyToDestination = BoundCopyTo; // TODO: Move this here.
+    type BinaryOperator = BinaryOperator;
+    type UnaryOperator = UnaryOperator;
 }
 
-/// Simple wrapper around a bound statement and its bind data.
-///
-/// This also requires custom (de)serializations logic due to the stateful
-/// nature of deserializing functions. While the manual serialization
-/// implementation isn't needed, having it makes it easier to determine the
-/// correct deserialization logic.
-#[derive(Debug, PartialEq)]
-pub struct StatementWithBindData {
-    pub statement: BoundStatement,
-    pub bind_data: BindData,
-}
-
-impl Serialize for StatementWithBindData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(2))?;
-        map.serialize_entry("statement", &self.statement)?;
-        map.serialize_entry("bind_data", &self.bind_data)?;
-        map.end()
-    }
-}
-
-pub struct StatementWithBindDataVisitor<'a> {
-    pub context: &'a DatabaseContext,
-}
-
-impl<'de, 'a> Visitor<'de> for StatementWithBindDataVisitor<'a> {
-    type Value = StatementWithBindData;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("bound statement with bind data")
-    }
-
-    fn visit_map<V>(self, mut map: V) -> Result<StatementWithBindData, V::Error>
-    where
-        V: MapAccess<'de>,
-    {
-        let mut statement = None;
-        let mut bind_data = None;
-
-        while let Some(key) = map.next_key()? {
-            match key {
-                "statement" => {
-                    statement = Some(map.next_value()?);
-                }
-                "bind_data" => {
-                    bind_data = Some(map.next_value_seed(BindDataVisitor {
-                        context: self.context,
-                    })?);
-                }
-                _ => {
-                    let _ = map.next_value::<de::IgnoredAny>()?;
-                }
-            }
-        }
-
-        let statement = statement.ok_or_else(|| de::Error::missing_field("statement"))?;
-        let bind_data = bind_data.ok_or_else(|| de::Error::missing_field("bind_data"))?;
-
-        Ok(StatementWithBindData {
-            statement,
-            bind_data,
-        })
-    }
-}
-
+// TODO: Move func to bind data
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundCopyTo {
     pub location: FileLocation,
@@ -744,12 +676,8 @@ impl<'a> Binder<'a> {
                         let name = handler.table_func.name().to_string();
                         let func = handler.table_func.plan_and_initialize(args.clone()).await?;
 
-                        let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference {
-                                name,
-                                idx: func_idx,
-                            },
+                            BoundTableFunctionReference { name, func },
                             LocationRequirement::ClientLocal,
                         );
 
@@ -776,12 +704,8 @@ impl<'a> Binder<'a> {
                         let name = table_fn.name().to_string();
                         let func = table_fn.plan_and_initialize(args.clone()).await?;
 
-                        let func_idx = bind_data.table_function_objects.push(func);
                         let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference {
-                                name,
-                                idx: func_idx,
-                            },
+                            BoundTableFunctionReference { name, func },
                             LocationRequirement::ClientLocal,
                         );
 

@@ -6,6 +6,10 @@ use rayexec_bullet::{
     field::TypeSchema,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_proto::{
+    packed::{PackedDecoder, PackedEncoder},
+    util_types,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,15 +49,36 @@ impl FunctionInfo for Like {
 }
 
 impl ScalarFunction for Like {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(LikeImpl::deserialize(deserializer)?))
-    }
-
     fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         unreachable!("plan_from_expressions implemented")
+    }
+
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let mut packed = PackedDecoder::new(state);
+        let variant: String = packed.decode_next()?;
+        match variant.as_str() {
+            "starts_with" => {
+                let constant: util_types::OptionalString = packed.decode_next()?;
+                Ok(Box::new(StartsWithImpl {
+                    constant: constant.value,
+                }))
+            }
+            "ends_with" => {
+                let constant: util_types::OptionalString = packed.decode_next()?;
+                Ok(Box::new(EndsWithImpl {
+                    constant: constant.value,
+                }))
+            }
+            "contains" => {
+                let constant: util_types::OptionalString = packed.decode_next()?;
+                Ok(Box::new(ContainsImpl {
+                    constant: constant.value,
+                }))
+            }
+            other => Err(RayexecError::new(format!(
+                "Unknown variant for like: {other}"
+            ))),
+        }
     }
 
     fn plan_from_expressions(
@@ -146,8 +171,33 @@ impl PlannedScalarFunction for LikeImpl {
         &Like
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        let mut packed = PackedEncoder::new(state);
+        match self {
+            Self::StartsWith(v) => {
+                packed.encode_next(&"starts_with".to_string())?;
+                packed.encode_next(&util_types::OptionalString {
+                    value: v.constant.clone(),
+                })?
+            }
+            Self::EndsWith(v) => {
+                packed.encode_next(&"ends_with".to_string())?;
+                packed.encode_next(&util_types::OptionalString {
+                    value: v.constant.clone(),
+                })?
+            }
+            Self::Contains(v) => {
+                packed.encode_next(&"contains".to_string())?;
+                packed.encode_next(&util_types::OptionalString {
+                    value: v.constant.clone(),
+                })?
+            }
+            Self::Regex() => {
+                not_implemented!("regex")
+            }
+        }
+
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -189,11 +239,11 @@ impl FunctionInfo for StartsWith {
 }
 
 impl ScalarFunction for StartsWith {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(StartsWithImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
+        Ok(Box::new(StartsWithImpl {
+            constant: constant.value,
+        }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -216,8 +266,10 @@ impl PlannedScalarFunction for StartsWithImpl {
         &StartsWith
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
+            value: self.constant.clone(),
+        })
     }
 
     fn return_type(&self) -> DataType {
@@ -273,11 +325,11 @@ impl FunctionInfo for EndsWith {
 }
 
 impl ScalarFunction for EndsWith {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(EndsWithImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
+        Ok(Box::new(EndsWithImpl {
+            constant: constant.value,
+        }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -300,8 +352,10 @@ impl PlannedScalarFunction for EndsWithImpl {
         &EndsWith
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
+            value: self.constant.clone(),
+        })
     }
 
     fn return_type(&self) -> DataType {
@@ -357,11 +411,11 @@ impl FunctionInfo for Contains {
 }
 
 impl ScalarFunction for Contains {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(ContainsImpl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
+        Ok(Box::new(ContainsImpl {
+            constant: constant.value,
+        }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -384,8 +438,10 @@ impl PlannedScalarFunction for ContainsImpl {
         &Contains
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
+            value: self.constant.clone(),
+        })
     }
 
     fn return_type(&self) -> DataType {
@@ -413,5 +469,23 @@ impl PlannedScalarFunction for ContainsImpl {
                 _ => return Err(RayexecError::new("invalid types")),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_decode_contains() {
+        let contains = ContainsImpl {
+            constant: Some("const".to_string()),
+        };
+
+        let mut buf = Vec::new();
+        contains.encode_state(&mut buf).unwrap();
+
+        let got = Contains.decode_state(&buf).unwrap();
+        assert_eq!("contains", got.scalar_function().name());
     }
 }

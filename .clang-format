@@ -1,0 +1,8 @@
+Language: "Proto"
+BasedOnStyle: Google
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
+AlignOperands: true
+AlignTrailingComments: true
+ColumnLimit: 0
+IndentWidth: 4

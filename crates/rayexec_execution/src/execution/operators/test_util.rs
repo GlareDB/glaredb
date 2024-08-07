@@ -14,7 +14,7 @@ use crate::database::storage::system::SystemCatalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
 
-use super::{OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush};
+use super::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush};
 
 pub fn test_database_context() -> DatabaseContext {
     DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()))
@@ -60,7 +60,7 @@ impl TestWakerContext {
         Context::from_waker(&self.waker)
     }
 
-    pub fn poll_push<Operator: PhysicalOperator>(
+    pub fn poll_push<Operator: ExecutableOperator>(
         &self,
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
@@ -72,7 +72,7 @@ impl TestWakerContext {
             .poll_push(&mut self.context(), partition_state, operator_state, batch)
     }
 
-    pub fn poll_pull<Operator: PhysicalOperator>(
+    pub fn poll_pull<Operator: ExecutableOperator>(
         &self,
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,

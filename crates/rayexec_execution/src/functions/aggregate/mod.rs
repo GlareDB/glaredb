@@ -36,10 +36,7 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
 pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedAggregateFunction>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>>;
 
     /// Plans an aggregate function from input data types.
     ///
@@ -89,8 +86,7 @@ pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
     /// The aggregate function that produce this instance.
     fn aggregate_function(&self) -> &dyn AggregateFunction;
 
-    /// Serializable state for the function
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize;
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()>;
 
     /// Return type of the aggregate.
     fn return_type(&self) -> DataType;

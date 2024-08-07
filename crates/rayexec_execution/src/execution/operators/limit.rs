@@ -1,6 +1,7 @@
 use crate::{
     database::DatabaseContext,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute;
@@ -11,7 +12,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -58,7 +59,7 @@ impl PhysicalLimit {
     }
 }
 
-impl PhysicalOperator for PhysicalLimit {
+impl ExecutableOperator for PhysicalLimit {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -214,6 +215,24 @@ impl Explainable for PhysicalLimit {
             ent = ent.with_value("offset", offset);
         }
         ent
+    }
+}
+
+impl DatabaseProtoConv for PhysicalLimit {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalLimit;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            limit: self.limit as u64,
+            offset: self.offset.map(|o| o as u64),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            limit: proto.limit as usize,
+            offset: proto.offset.map(|o| o as usize),
+        })
     }
 }
 

@@ -27,11 +27,8 @@ impl FunctionInfo for And {
 }
 
 impl ScalarFunction for And {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(AndImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(AndImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -51,8 +48,8 @@ impl PlannedScalarFunction for AndImpl {
         &And
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {
@@ -91,11 +88,8 @@ impl FunctionInfo for Or {
 }
 
 impl ScalarFunction for Or {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(OrImpl::deserialize(deserializer)?))
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(OrImpl))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -115,8 +109,8 @@ impl PlannedScalarFunction for OrImpl {
         &Or
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     fn return_type(&self) -> DataType {

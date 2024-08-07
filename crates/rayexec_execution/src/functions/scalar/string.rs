@@ -5,6 +5,7 @@ use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -34,11 +35,10 @@ impl FunctionInfo for Repeat {
 }
 
 impl ScalarFunction for Repeat {
-    fn state_deserialize(
-        &self,
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        Ok(Box::new(RepeatUtf8Impl::deserialize(deserializer)?))
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(RepeatUtf8Impl {
+            large: PackedDecoder::new(state).decode_next()?,
+        }))
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
@@ -61,8 +61,8 @@ impl PlannedScalarFunction for RepeatUtf8Impl {
         &Repeat
     }
 
-    fn serializable_state(&self) -> &dyn erased_serde::Serialize {
-        self
+    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
+        PackedEncoder::new(state).encode_next(&self.large)
     }
 
     fn return_type(&self) -> DataType {

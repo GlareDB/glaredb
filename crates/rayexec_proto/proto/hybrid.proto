@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package rayexec.hybrid;
+
+import "binder.proto";
+import "foreign.proto";
+import "execution.proto";
+import "schema.proto";
+import "array.proto";
+
+message PlanRequest {
+    bytes           bound_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
+    binder.BindData bind_data            = 2;
+}
+
+message PlanResponse {
+    foreign.Uuid                        query_id  = 1;
+    execution.IntermediatePipelineGroup pipelines = 2;
+    schema.Schema                       schema    = 3;  // Schema
+}
+
+message ExecuteRequest {
+    foreign.Uuid query_id = 1;
+}
+
+message ExecuteResponse {}
+
+message PushRequest {
+    execution.StreamId   stream_id = 1;
+    uint32               partition = 2;
+    array.IpcStreamBatch batch     = 3;
+}
+
+message PushResponse {}
+
+message FinalizeRequest {
+    execution.StreamId stream_id = 1;
+    uint32             partition = 2;
+}
+
+message FinalizeResponse {}
+
+message PullRequest {
+    execution.StreamId stream_id = 1;
+    uint32             partition = 2;
+}
+
+message PullResponse {
+    PullStatus status = 1;
+}
+
+message PullStatusBatch {
+    array.IpcStreamBatch batch = 1;
+}
+
+message PullStatusPending {}
+
+message PullStatusFinished {}
+
+message PullStatus {
+    oneof value {
+        PullStatusBatch    batch    = 1;
+        PullStatusPending  pending  = 2;
+        PullStatusFinished finished = 3;
+    }
+}

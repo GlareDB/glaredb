@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
+    expr::scalar::UnaryOperator,
     functions::table::TableFunctionArgs,
     logical::{operator::LocationRequirement, sql::expr::ExpressionContext},
 };
@@ -245,18 +246,29 @@ impl<'a> ExpressionBinder<'a> {
                     subscript: Box::new(subscript),
                 })
             }
-            ast::Expr::UnaryExpr { op, expr } => match (op, *expr) {
-                (ast::UnaryOperator::Minus, ast::Expr::Literal(ast::Literal::Number(n))) => {
-                    Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+            ast::Expr::UnaryExpr { op, expr } => {
+                match op {
+                    ast::UnaryOperator::Plus => {
+                        // Nothing to do, just bind and return the inner expression.
+                        Box::pin(self.bind_expression(*expr, bind_data)).await
+                    }
+                    ast::UnaryOperator::Minus => match *expr {
+                        ast::Expr::Literal(ast::Literal::Number(n)) => {
+                            Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+                        }
+                        expr => Ok(ast::Expr::UnaryExpr {
+                            op: UnaryOperator::Negate,
+                            expr: Box::new(Box::pin(self.bind_expression(expr, bind_data)).await?),
+                        }),
+                    },
+                    ast::UnaryOperator::Not => {
+                        not_implemented!("bind not")
+                    }
                 }
-                (_, expr) => Ok(ast::Expr::UnaryExpr {
-                    op,
-                    expr: Box::new(Box::pin(self.bind_expression(expr, bind_data)).await?),
-                }),
-            },
+            }
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.bind_expression(*left, bind_data)).await?),
-                op,
+                op: op.try_into()?,
                 right: Box::new(Box::pin(self.bind_expression(*right, bind_data)).await?),
             }),
             ast::Expr::Function(func) => {
@@ -320,9 +332,8 @@ impl<'a> ExpressionBinder<'a> {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let scalar_idx = bind_data.scalar_function_objects.push(scalar);
                     let bind_idx = bind_data.functions.push_bound(
-                        BoundFunctionReference::Scalar(scalar_idx),
+                        BoundFunctionReference::Scalar(scalar),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {
@@ -340,9 +351,8 @@ impl<'a> ExpressionBinder<'a> {
                     .get_aggregate_fn(self.binder.tx, schema, func_name)?
                 {
                     // TODO: Allow unbound aggregates?
-                    let agg_idx = bind_data.aggregate_function_objects.push(aggregate);
                     let bind_idx = bind_data.functions.push_bound(
-                        BoundFunctionReference::Aggregate(agg_idx),
+                        BoundFunctionReference::Aggregate(aggregate),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {

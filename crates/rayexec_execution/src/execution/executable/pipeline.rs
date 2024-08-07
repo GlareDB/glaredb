@@ -4,7 +4,7 @@ use crate::{
 };
 
 use crate::execution::operators::{
-    OperatorState, PartitionState, PhysicalOperator, PollPull, PollPush,
+    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
@@ -76,7 +76,7 @@ impl ExecutablePipeline {
     /// the number of partitions in this pipeline.
     pub(crate) fn push_operator(
         &mut self,
-        physical: Arc<dyn PhysicalOperator>,
+        physical: Arc<dyn ExecutableOperator>,
         operator_state: Arc<OperatorState>,
         partition_states: Vec<PartitionState>,
     ) -> Result<()> {
@@ -107,7 +107,7 @@ impl ExecutablePipeline {
     ///
     /// Operators are ordered from the the "source" operator (operator at index
     /// 0) to the "sink" operator (operator at the last index).
-    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &dyn PhysicalOperator> {
+    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &dyn ExecutableOperator> {
         let p0 = self
             .partitions
             .first()
@@ -190,7 +190,7 @@ impl ExecutablePartitionPipeline {
 
     /// Return an iterator over all the physcial operators in this partition
     /// pipeline.
-    pub fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn PhysicalOperator>> {
+    pub fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn ExecutableOperator>> {
         self.operators.iter().map(|op| &op.physical)
     }
 }
@@ -216,7 +216,7 @@ pub struct PartitionPipelineTimings {
 #[derive(Debug)]
 pub(crate) struct OperatorWithState {
     /// The underlying physical operator.
-    physical: Arc<dyn PhysicalOperator>,
+    physical: Arc<dyn ExecutableOperator>,
 
     /// The state that's shared across all partitions for this operator.
     operator_state: Arc<OperatorState>,

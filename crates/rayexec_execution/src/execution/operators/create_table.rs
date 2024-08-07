@@ -6,11 +6,13 @@ use crate::{
         DatabaseContext,
     },
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
+use rayexec_proto::ProtoConv;
 use std::{fmt, task::Waker};
 use std::{
     sync::Arc,
@@ -18,7 +20,7 @@ use std::{
 };
 
 use super::{
-    ExecutionStates, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
 };
 
@@ -95,7 +97,7 @@ impl PhysicalCreateTable {
     }
 }
 
-impl PhysicalOperator for PhysicalCreateTable {
+impl ExecutableOperator for PhysicalCreateTable {
     fn create_states(
         &self,
         context: &DatabaseContext,
@@ -292,5 +294,27 @@ impl PhysicalOperator for PhysicalCreateTable {
 impl Explainable for PhysicalCreateTable {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTable").with_value("table", &self.info.name)
+    }
+}
+
+impl DatabaseProtoConv for PhysicalCreateTable {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalCreateTable;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            schema: self.schema.clone(),
+            info: Some(self.info.to_proto()?),
+            is_ctas: self.is_ctas,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            catalog: proto.catalog,
+            schema: proto.schema,
+            info: CreateTableInfo::from_proto(proto.info.required("info")?)?,
+            is_ctas: proto.is_ctas,
+        })
     }
 }

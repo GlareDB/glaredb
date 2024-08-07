@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_io::http::HttpClient;
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
@@ -11,9 +12,17 @@ use crate::{
         },
         operators::{
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
-            InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
+            sink::{PhysicalQuerySink, QuerySink},
+            source::PhysicalQuerySource,
+            ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
     },
+    hybrid::{
+        buffer::ServerStreamBuffers,
+        client::HybridClient,
+        stream::{ClientToServerStream, ServerToClientStream},
+    },
+    runtime::Runtime,
 };
 
 use super::pipeline::{ExecutablePipeline, PipelineId};
@@ -34,7 +43,7 @@ impl PipelineIdGen {
 
 #[derive(Debug)]
 struct PendingOperatorWithState {
-    operator: Arc<dyn PhysicalOperator>,
+    operator: Arc<PhysicalOperator>,
     operator_state: Arc<OperatorState>,
     input_states: Vec<Option<Vec<PartitionState>>>,
     pull_states: VecDeque<Vec<PartitionState>>,
@@ -59,18 +68,49 @@ pub struct ExecutionConfig {
 }
 
 #[derive(Debug)]
-pub struct ExecutablePipelinePlanner<'a> {
+pub enum PlanLocationState<'a, C: HttpClient> {
+    /// State when planning on the server.
+    Server {
+        /// Stream buffers used for buffering incoming and outgoing batches for
+        /// distributed execution.
+        stream_buffers: &'a ServerStreamBuffers,
+    },
+    /// State when planning on the client side.
+    Client {
+        /// Output sink for a query.
+        ///
+        /// Should only be used once per query. The option helps us enforce that
+        /// (and also allows us to avoid needing to wrap in an Arc).
+        output_sink: Option<Box<dyn QuerySink>>,
+        /// Optional hybrid client if we're executing in hybrid mode.
+        ///
+        /// When providing, appropriate query sinks and sources will be inserted
+        /// to the plan which will work to move batches between the client an
+        /// server.
+        hybrid_client: Option<&'a Arc<HybridClient<C>>>,
+    },
+}
+
+#[derive(Debug)]
+pub struct ExecutablePipelinePlanner<'a, R: Runtime> {
     context: &'a DatabaseContext,
     config: ExecutionConfig,
     id_gen: PipelineIdGen,
+    /// Location specific state used during planning.
+    loc_state: PlanLocationState<'a, R::HttpClient>,
 }
 
-impl<'a> ExecutablePipelinePlanner<'a> {
-    pub fn new(context: &'a DatabaseContext, config: ExecutionConfig) -> Self {
+impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
+    pub fn new(
+        context: &'a DatabaseContext,
+        config: ExecutionConfig,
+        loc_state: PlanLocationState<'a, R::HttpClient>,
+    ) -> Self {
         ExecutablePipelinePlanner {
             context,
             config,
             id_gen: PipelineIdGen { gen: PipelineId(0) },
+            loc_state,
         }
     }
 
@@ -154,9 +194,44 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
                 pipeline
             }
-            PipelineSource::OtherGroup { .. } => {
-                // Need to insert a remote ipc source.
-                unimplemented!()
+            PipelineSource::OtherGroup {
+                stream_id,
+                partitions,
+            } => {
+                // Source is pipeline that's executing somewhere else.
+                let operator = match &self.loc_state {
+                    PlanLocationState::Server { stream_buffers } => {
+                        let source = stream_buffers.create_incoming_stream(stream_id);
+                        PhysicalQuerySource::new(Box::new(source))
+                    }
+                    PlanLocationState::Client { hybrid_client, .. } => {
+                        // Missing hybrid client shouldn't happen.
+                        let hybrid_client = hybrid_client.ok_or_else(|| {
+                            RayexecError::new("Hybrid client missing, cannot create sink pipeline")
+                        })?;
+                        let source = ServerToClientStream::new(stream_id, hybrid_client.clone());
+                        PhysicalQuerySource::new(Box::new(source))
+                    }
+                };
+
+                let states = operator.create_states(self.context, vec![partitions])?;
+                let partition_states = match states.partition_states {
+                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    _ => {
+                        return Err(RayexecError::new(
+                            "Invalid partition states for query source",
+                        ))
+                    }
+                };
+
+                let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), partitions);
+                pipeline.push_operator(
+                    Arc::new(operator),
+                    states.operator_state,
+                    partition_states,
+                )?;
+
+                pipeline
             }
         };
 
@@ -180,6 +255,35 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 
         // Wire up sink.
         match pending.sink {
+            PipelineSink::QueryOutput => {
+                let sink = match &mut self.loc_state {
+                    PlanLocationState::Client { output_sink, .. } => match output_sink.take() {
+                        Some(sink) => sink,
+                        None => return Err(RayexecError::new("Missing output sink")),
+                    },
+                    PlanLocationState::Server { .. } => {
+                        return Err(RayexecError::new("Query output needs to happen on client"))
+                    }
+                };
+
+                let partitions = match sink.partition_requirement() {
+                    Some(n) => n,
+                    None => pipeline.num_partitions(),
+                };
+
+                if partitions != pipeline.num_partitions() {
+                    pipeline = self.push_repartition(pipeline, partitions, executables)?;
+                }
+
+                let operator = Arc::new(PhysicalOperator::QuerySink(PhysicalQuerySink::new(sink)));
+                let states = operator.create_states(self.context, vec![partitions])?;
+                let partition_states = match states.partition_states {
+                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    _ => return Err(RayexecError::new("invalid partition states for query sink")),
+                };
+
+                pipeline.push_operator(operator, states.operator_state, partition_states)?;
+            }
             PipelineSink::InPipeline => {
                 // The pipeline's final operator is the query sink. A requisite
                 // states have already been created from above, so nothing for
@@ -207,9 +311,44 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     partition_states,
                 )?;
             }
-            PipelineSink::OtherGroup { .. } => {
-                // Sink is a remote pipeline, push ipc sink.
-                unimplemented!()
+            PipelineSink::OtherGroup {
+                partitions,
+                stream_id,
+            } => {
+                // Sink is pipeline executing somewhere else.
+                let operator = match &self.loc_state {
+                    PlanLocationState::Server { stream_buffers } => {
+                        let sink = stream_buffers.create_outgoing_stream(stream_id);
+                        PhysicalQuerySink::new(Box::new(sink))
+                    }
+                    PlanLocationState::Client { hybrid_client, .. } => {
+                        // Missing hybrid client shouldn't happen. Means we've
+                        // incorrectly planned a hybrid query when we shouldn't
+                        // have.
+                        let hybrid_client = hybrid_client.ok_or_else(|| {
+                            RayexecError::new("Hybrid client missing, cannot create sink pipeline")
+                        })?;
+                        let sink = ClientToServerStream::new(stream_id, hybrid_client.clone());
+                        PhysicalQuerySink::new(Box::new(sink))
+                    }
+                };
+
+                let states = operator.create_states(self.context, vec![partitions])?;
+                let partition_states = match states.partition_states {
+                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    _ => return Err(RayexecError::new("invalid partition states")),
+                };
+
+                if partition_states.len() != pipeline.num_partitions() {
+                    pipeline =
+                        self.push_repartition(pipeline, partition_states.len(), executables)?;
+                }
+
+                pipeline.push_operator(
+                    Arc::new(operator),
+                    states.operator_state,
+                    partition_states,
+                )?;
             }
         }
 

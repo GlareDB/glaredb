@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     execution::{
-        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig},
+        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
     },
+    hybrid::client::HybridClient,
     logical::{
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},
@@ -19,7 +20,7 @@ use crate::{
         },
     },
     optimizer::Optimizer,
-    runtime::{hybrid::HybridClient, PipelineExecutor, Runtime},
+    runtime::{PipelineExecutor, Runtime},
 };
 
 use super::{
@@ -80,7 +81,7 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     portals: HashMap<String, Portal>,
 
     /// Client for hybrid execution if enabled.
-    hybrid_client: Option<Arc<dyn HybridClient>>,
+    hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
 }
 
 impl<P, R> Session<P, R>
@@ -177,113 +178,121 @@ where
         .bind_statement(stmt)
         .await?;
 
-        if bind_data.any_unbound() && bindmode.is_hybrid() {
-            // Hybrid
-        }
-
-        let (mut logical, context) =
-            PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
-
-        let optimizer = Optimizer::new();
-        logical.root = optimizer.optimize(logical.root)?;
-        let schema = logical.schema()?;
-
         let (stream, sink, errors) = new_results_sinks();
-        let planner =
-            IntermediatePipelinePlanner::new(IntermediateConfig::from_session_vars(&self.vars));
 
-        let pipelines = match logical.root {
-            LogicalOperator::AttachDatabase(attach) => {
-                let attach = attach.into_inner();
-                // Here to avoid lifetime issues.
-                let empty = planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?;
+        let (pipelines, output_schema) = match bindmode {
+            BindMode::Hybrid if bind_data.any_unbound() => {
+                // Hybrid planning, send to remote to complete planning.
 
-                // TODO: No clue if we want to do this here. What happens during
-                // hybrid exec?
-                let datasource = self.registry.get_datasource(&attach.datasource)?;
-                let catalog = datasource.create_catalog(attach.options).await?;
-                self.context.attach_catalog(&attach.name, catalog)?;
-                empty
+                let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
+                let resp = hybrid_client
+                    .remote_plan(bound_stmt, bind_data, &self.context)
+                    .await?;
+
+                // Begin executing remote side.
+                hybrid_client.remote_execute(resp.query_id).await?;
+
+                (resp.pipelines, resp.schema)
             }
-            LogicalOperator::DetachDatabase(detach) => {
-                let empty = planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?; // Here to avoid lifetime issues.
-                self.context.detach_catalog(&detach.as_ref().name)?;
-                empty
-            }
-            LogicalOperator::SetVar(set_var) => {
-                // TODO: Do we want this logic to exist here?
-                //
-                // SET seems fine, but what happens with things like wanting to
-                // update the catalog? Possibly an "external resources context"
-                // that has clients/etc for everything that the session can look
-                // at to update its local state?
-                //
-                // We could have an implementation for the local session, and a
-                // separate implementation used for nodes taking part in
-                // distributed execution.
-                let set_var = set_var.into_inner();
-                let val = self
-                    .vars
-                    .try_cast_scalar_value(&set_var.name, set_var.value)?;
-                self.vars.set_var(&set_var.name, val)?;
-                planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?
-            }
-            LogicalOperator::ResetVar(reset) => {
-                // Same TODO as above.
-                match &reset.as_ref().var {
-                    VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
-                    VariableOrAll::All => self.vars.reset_all(),
+            _ => {
+                // Normal all-local planning.
+
+                let (mut logical, context) =
+                    PlanContext::new(&self.vars, &bind_data).plan_statement(bound_stmt)?;
+
+                let optimizer = Optimizer::new();
+                logical.root = optimizer.optimize(logical.root)?;
+                let schema = logical.schema()?;
+
+                let planner = IntermediatePipelinePlanner::new(
+                    IntermediateConfig::from_session_vars(&self.vars),
+                );
+
+                let pipelines = match logical.root {
+                    LogicalOperator::AttachDatabase(attach) => {
+                        let attach = attach.into_inner();
+                        // Here to avoid lifetime issues.
+                        let empty =
+                            planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?;
+
+                        // TODO: No clue if we want to do this here. What happens during
+                        // hybrid exec?
+                        let datasource = self.registry.get_datasource(&attach.datasource)?;
+                        let catalog = datasource.create_catalog(attach.options).await?;
+                        self.context.attach_catalog(&attach.name, catalog)?;
+                        empty
+                    }
+                    LogicalOperator::DetachDatabase(detach) => {
+                        let empty =
+                            planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?; // Here to avoid lifetime issues.
+                        self.context.detach_catalog(&detach.as_ref().name)?;
+                        empty
+                    }
+                    LogicalOperator::SetVar(set_var) => {
+                        // TODO: Do we want this logic to exist here?
+                        //
+                        // SET seems fine, but what happens with things like wanting to
+                        // update the catalog? Possibly an "external resources context"
+                        // that has clients/etc for everything that the session can look
+                        // at to update its local state?
+                        //
+                        // We could have an implementation for the local session, and a
+                        // separate implementation used for nodes taking part in
+                        // distributed execution.
+                        let set_var = set_var.into_inner();
+                        let val = self
+                            .vars
+                            .try_cast_scalar_value(&set_var.name, set_var.value)?;
+                        self.vars.set_var(&set_var.name, val)?;
+                        planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
+                    }
+                    LogicalOperator::ResetVar(reset) => {
+                        // Same TODO as above.
+                        match &reset.as_ref().var {
+                            VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
+                            VariableOrAll::All => self.vars.reset_all(),
+                        }
+                        planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
+                    }
+                    root => planner.plan_pipelines(root, context)?,
+                };
+
+                if !pipelines.remote.is_empty() {
+                    return Err(RayexecError::new(
+                        "Remote pipelines should not have been planned",
+                    ));
                 }
-                planner.plan_pipelines(
-                    LogicalOperator::EMPTY,
-                    QueryContext::new(),
-                    Box::new(sink),
-                )?
+
+                (pipelines.local, schema)
             }
-            root => planner.plan_pipelines(root, context, Box::new(sink))?,
         };
 
-        if !pipelines.remote.is_empty() {
-            return Err(RayexecError::new(
-                "Remote pipelines should not have been planned",
-            ));
-        }
-
-        let mut planner = ExecutablePipelinePlanner::new(
+        let mut planner = ExecutablePipelinePlanner::<R>::new(
             &self.context,
             ExecutionConfig {
                 target_partitions: VarAccessor::new(&self.vars).partitions(),
             },
+            PlanLocationState::Client {
+                output_sink: Some(Box::new(sink)),
+                hybrid_client: self.hybrid_client.as_ref(),
+            },
         );
 
-        let pipelines = planner.plan_from_intermediate(pipelines.local)?;
-
+        let pipelines = planner.plan_from_intermediate(pipelines)?;
         let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
 
         Ok(ExecutionResult {
-            output_schema: schema,
+            output_schema,
             stream,
             handle,
         })
     }
 
-    pub fn set_hybrid_client(&mut self, client: Arc<dyn HybridClient>) {
-        self.hybrid_client = Some(client);
+    pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {
+        self.hybrid_client = Some(Arc::new(client));
     }
 
-    pub fn unset_hybrid_client(&mut self) {
+    pub fn unset_hybrid(&mut self) {
         self.hybrid_client = None;
     }
 }
