@@ -419,6 +419,22 @@ mod tests {
     }
 
     #[test]
+    fn table_func_no_args() {
+        let node: FromNode<_> = parse_ast("my_table_func()").unwrap();
+        let expected = FromNode {
+            alias: None,
+            body: FromNodeBody::TableFunction(FromTableFunction {
+                reference: ObjectReference(vec![Ident {
+                    value: "my_table_func".into(),
+                    quoted: false,
+                }]),
+                args: Vec::new(),
+            }),
+        };
+        assert_eq!(expected, node)
+    }
+
+    #[test]
     fn table_func() {
         let node: FromNode<_> = parse_ast("my_table_func('arg1', kw = 'arg2')").unwrap();
         let expected = FromNode {

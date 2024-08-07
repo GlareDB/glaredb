@@ -3,4 +3,5 @@
 statement error Missing table or view for reference 'table_does_not_exist'
 select * from table_does_not_exist
 
-
+statement error Missing table function for reference 'function_does_not_exist'
+select * from function_does_not_exist('my_arg');

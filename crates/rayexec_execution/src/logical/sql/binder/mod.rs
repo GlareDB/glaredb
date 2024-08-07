@@ -699,38 +699,49 @@ impl<'a> Binder<'a> {
                     .bind_table_function_args(args)
                     .await?;
 
-                match Resolver::new(self.tx, self.context).resolve_table_function(&reference)? {
-                    Some(table_fn) => {
-                        let name = table_fn.name().to_string();
-                        let func = table_fn.plan_and_initialize(args.clone()).await?;
+                let function = match self.bindmode {
+                    BindMode::Normal => {
+                        let function = Resolver::new(self.tx, self.context)
+                            .require_resolve_table_function(&reference)?;
+                        let function = function.plan_and_initialize(args.clone()).await?;
 
-                        let bind_idx = bind_data.table_functions.push_bound(
-                            BoundTableFunctionReference { name, func },
+                        MaybeBound::Bound(
+                            BoundTableFunctionReference {
+                                name: function.table_function().name().to_string(),
+                                func: function,
+                            },
                             LocationRequirement::ClientLocal,
-                        );
-
-                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            reference: bind_idx,
-                            // TODO: These args aren't actually needed.
-                            args,
-                        })
+                        )
                     }
-                    None => {
-                        let bind_idx =
-                            bind_data
-                                .table_functions
-                                .push_unbound(UnboundTableFunctionReference {
-                                    reference,
-                                    args: args.clone(),
-                                });
-
-                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            reference: bind_idx,
-                            // TODO: These args aren't actually needed.
-                            args,
-                        })
+                    BindMode::Hybrid => {
+                        match Resolver::new(self.tx, self.context)
+                            .resolve_table_function(&reference)?
+                        {
+                            Some(function) => {
+                                let function = function.plan_and_initialize(args.clone()).await?;
+                                MaybeBound::Bound(
+                                    BoundTableFunctionReference {
+                                        name: function.table_function().name().to_string(),
+                                        func: function,
+                                    },
+                                    LocationRequirement::ClientLocal,
+                                )
+                            }
+                            None => MaybeBound::Unbound(UnboundTableFunctionReference {
+                                reference,
+                                args: args.clone(),
+                            }),
+                        }
                     }
-                }
+                };
+
+                let bind_idx = bind_data.table_functions.push_maybe_bound(function);
+                ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                    reference: bind_idx,
+                    // TODO: These args aren't actually needed when bound. Not
+                    // sure completely sure what we want to do here.
+                    args,
+                })
             }
             ast::FromNodeBody::Join(ast::FromJoin {
                 left,

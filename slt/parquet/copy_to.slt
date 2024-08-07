@@ -33,3 +33,31 @@ select * from '__SLT_TMP__/strings.parquet' order by 1;
 mario
 toad
 yoshi
+
+# User data round trip (https://github.com/GlareDB/rayexec/issues/160)
+
+statement ok
+copy (select * from '../testdata/parquet/userdata0.parquet') TO '__SLT_TMP__/other_data.parquet';
+
+query TT
+describe '__SLT_TMP__/other_data.parquet';
+----
+registration_dttm  Timestamp(ns)
+id                 Int32
+first_name         Utf8
+last_name          Utf8
+email              Utf8
+gender             Utf8
+ip_address         Utf8
+cc                 Utf8
+country            Utf8
+birthdate          Utf8
+salary             Float64
+title              Utf8
+comments           Utf8
+
+query I
+select last_name from '__SLT_TMP__/other_data.parquet' order by id desc limit 2;
+----
+Meyer
+Daniels

@@ -4,6 +4,7 @@ use parquet::{
     basic::{
         ConvertedType, LogicalType, Repetition, TimeUnit as ParquetTimeUnit, Type as PhysicalType,
     },
+    format::{MicroSeconds, MilliSeconds, NanoSeconds},
     schema::types::{BasicTypeInfo, SchemaDescriptor, Type},
 };
 use rayexec_bullet::{
@@ -116,6 +117,28 @@ fn to_parquet_type(field: &Field) -> Result<Type> {
         DataType::Float64 => Type::primitive_type_builder(&field.name, PhysicalType::DOUBLE)
             .with_repetition(rep)
             .build(),
+        DataType::Timestamp(meta) => {
+            let logical_type = match meta.unit {
+                TimeUnit::Second => None,
+                TimeUnit::Millisecond => Some(LogicalType::Timestamp {
+                    is_adjusted_to_u_t_c: false,
+                    unit: ParquetTimeUnit::MILLIS(MilliSeconds::new()),
+                }),
+                TimeUnit::Microsecond => Some(LogicalType::Timestamp {
+                    is_adjusted_to_u_t_c: false,
+                    unit: ParquetTimeUnit::MICROS(MicroSeconds::new()),
+                }),
+                TimeUnit::Nanosecond => Some(LogicalType::Timestamp {
+                    is_adjusted_to_u_t_c: false,
+                    unit: ParquetTimeUnit::NANOS(NanoSeconds::new()),
+                }),
+            };
+
+            Type::primitive_type_builder(&field.name, PhysicalType::INT64)
+                .with_repetition(rep)
+                .with_logical_type(logical_type)
+                .build()
+        }
         DataType::Utf8 | DataType::LargeUtf8 => {
             Type::primitive_type_builder(&field.name, PhysicalType::BYTE_ARRAY)
                 .with_repetition(rep)

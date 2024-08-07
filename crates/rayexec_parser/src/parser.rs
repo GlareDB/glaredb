@@ -8,7 +8,7 @@ use crate::{
     statement::{RawStatement, Statement},
     tokens::{Token, TokenWithLocation, Tokenizer},
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use tracing::trace;
 
 /// Parse a sql query into statements.
@@ -127,7 +127,7 @@ impl Parser {
             self.idx = start;
             Ok(RawStatement::CreateSchema(CreateSchema::parse(self)?))
         } else {
-            unimplemented!()
+            not_implemented!("create");
         }
     }
 
@@ -211,13 +211,16 @@ impl Parser {
         Ok(values)
     }
 
-    /// Parse a comma separated list of one or more items surrounded by
+    /// Parse a comma separated list of zero or more items surrounded by
     /// parentheses.
     pub(crate) fn parse_parenthesized_comma_separated<T>(
         &mut self,
         f: impl FnMut(&mut Parser) -> Result<T>,
     ) -> Result<Vec<T>> {
         self.expect_token(&Token::LeftParen)?;
+        if self.consume_token(&Token::RightParen) {
+            return Ok(Vec::new());
+        }
         let vals = self.parse_comma_separated(f)?;
         self.expect_token(&Token::RightParen)?;
         Ok(vals)

@@ -154,6 +154,7 @@ impl RowGroupWriter {
                 | DataType::UInt64
                 | DataType::Float32
                 | DataType::Float64
+                | DataType::Timestamp(_)
                 | DataType::Decimal64(_)
                 | DataType::Decimal128(_)
                 | DataType::Utf8
@@ -249,6 +250,15 @@ fn write_array<P: PageWriter>(
             }
             other => Err(array_type_err(other)),
         },
+        ColumnWriter::Int32ColumnWriter(writer) => match array {
+            Array::Int32(arr) => {
+                writer
+                    .write_batch(arr.values().as_ref(), None, None)
+                    .context("failed to write int32s")?;
+                Ok(())
+            }
+            other => Err(array_type_err(other)),
+        },
         ColumnWriter::Int64ColumnWriter(writer) => match array {
             Array::Int64(arr) => {
                 writer
@@ -269,6 +279,12 @@ fn write_array<P: PageWriter>(
                 writer
                     .write_batch(arr.get_primitive().values().as_ref(), None, None)
                     .context("failed to write decimal64s")?;
+                Ok(())
+            }
+            Array::Timestamp(arr) => {
+                writer
+                    .write_batch(arr.get_primitive().values().as_ref(), None, None)
+                    .context("failed to write timestamps")?;
                 Ok(())
             }
             other => Err(array_type_err(other)),
@@ -316,6 +332,9 @@ fn write_array<P: PageWriter>(
             }
             other => Err(array_type_err(other)),
         },
-        _other => not_implemented!("writer not implemented"),
+        ColumnWriter::Int96ColumnWriter(_) => not_implemented!("int96 writer"),
+        ColumnWriter::FixedLenByteArrayColumnWriter(_) => {
+            not_implemented!("fixed byte array writer")
+        }
     }
 }
