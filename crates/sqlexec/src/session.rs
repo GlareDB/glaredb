@@ -585,7 +585,6 @@ impl Session {
         self.ctx.push_notice(notice)
     }
 
-
     /// Bind the parameters of a prepared statement to the given values.
     ///
     /// If successful, the bound statement will create a portal which can be
