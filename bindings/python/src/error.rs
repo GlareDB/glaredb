@@ -34,6 +34,10 @@ impl From<PyDatabaseError> for PyErr {
                 glaredb::DatabaseError::ConfigurationBuilder(err) => {
                     ConfigurationException::new_err(err.to_string())
                 }
+                glaredb::DatabaseError::CannotResolveUnevaluatedOperation
+                | glaredb::DatabaseError::UnsupportedLazyEvaluation => {
+                    PyRuntimeError::new_err(gerr.to_string())
+                }
             },
         }
     }
