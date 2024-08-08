@@ -2,7 +2,6 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use arrow_util::pretty;
 use async_trait::async_trait;
 use futures::StreamExt;
 use glaredb::ext::datafusion::arrow::datatypes::{Schema, SchemaRef};
@@ -102,10 +101,10 @@ impl PyExecutionOutput {
     pub fn show(&mut self, py: Python) -> PyResult<()> {
         let (schema, batches) = self.resolve_operation(py)?;
 
-        let disp = pretty::pretty_format_batches(
+        let disp = glaredb::ext::tools::pretty_format_batches(
             &schema,
             &batches,
-            Some(terminal_util::term_width()),
+            Some(glaredb::ext::tools::term_width()),
             None,
         )
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;

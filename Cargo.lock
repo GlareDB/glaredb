@@ -3943,12 +3943,14 @@ name = "glaredb"
 version = "0.9.4"
 dependencies = [
  "anyhow",
+ "arrow_util",
  "datafusion",
  "derive_builder",
  "futures",
  "indexmap 2.3.0",
  "metastore",
  "sqlexec",
+ "terminal_util",
  "thiserror",
  "url",
 ]
@@ -4589,7 +4591,6 @@ dependencies = [
 name = "js-glaredb"
 version = "0.0.0"
 dependencies = [
- "arrow_util",
  "async-once-cell",
  "futures",
  "glaredb",
@@ -4598,7 +4599,6 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "once_cell",
- "terminal_util",
  "thiserror",
  "url",
 ]

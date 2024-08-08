@@ -10,9 +10,7 @@ crate-type = ["cdylib"]
 workspace = true
 
 [dependencies]
-arrow_util = { path = "../../crates/arrow_util" }
 glaredb = { path = "../../crates/glaredb" }
-terminal_util = { path = "../../crates/terminal_util" }
 futures = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }

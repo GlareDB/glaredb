@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use arrow_util::pretty;
 use futures::stream::StreamExt;
 use glaredb::ext::datafusion::arrow::ipc::writer::FileWriter;
 use glaredb::ext::SendableRecordBatchStream;
@@ -97,9 +96,13 @@ async fn print_record_batches(stream: SendableRecordBatchStream) -> Result<(), J
     let mut stream: RecordStream = stream.into();
     let batches = stream.to_vec().await?;
 
-    let disp =
-        pretty::pretty_format_batches(&schema, &batches, Some(terminal_util::term_width()), None)
-            .map_err(DatabaseError::from)?;
+    let disp = glaredb::ext::tools::pretty_format_batches(
+        &schema,
+        &batches,
+        Some(glaredb::ext::tools::term_width()),
+        None,
+    )
+    .map_err(DatabaseError::from)?;
 
     println!("{}", disp);
     Ok(())

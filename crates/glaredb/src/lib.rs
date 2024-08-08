@@ -43,6 +43,13 @@ pub mod ext {
     pub use datafusion::physical_plan::SendableRecordBatchStream;
     pub use datafusion::scalar::ScalarValue;
     pub use sqlexec::environment::EnvironmentReader;
+
+    // public exports for some quasi-internal tools used by external and
+    // downstream dependencies to reduce friction/dependencies.
+    pub mod tools {
+        pub use arrow_util::pretty::pretty_format_batches;
+        pub use terminal_util::term_width;
+    }
 }
 
 use crate::ext::{EnvironmentReader, RecordBatch, ScalarValue, SendableRecordBatchStream};

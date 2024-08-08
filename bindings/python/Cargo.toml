@@ -26,5 +26,3 @@ datafusion = { workspace = true, features = ["pyarrow"] } # override workspace f
 lzma-sys = { version = "*", features = ["static"] } # prevent dynamic linking of lzma, which comes from datafusion
 pyo3 = { version = "0.20.3", features = ["abi3-py37", "extension-module"] }
 once_cell = "1.19.0"
-
-
