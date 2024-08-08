@@ -572,8 +572,7 @@ impl Operation {
                             Some(batches) => {
                                 return Ok(Box::pin(RecordBatchStreamAdapter::new(
                                     self.schema().clone().unwrap(),
-                                    #[allow(clippy::unnecessary_to_owned)]
-                                    stream::iter(batches.to_owned().into_iter().map(Ok)).boxed(),
+                                    stream::iter(batches.clone().into_iter().map(Ok)).boxed(),
                                 )));
                             }
                             None => return Err(DatabaseError::UnsupportedLazyEvaluation),
@@ -625,8 +624,7 @@ impl Operation {
                 Some(batches) => {
                     return Ok(Box::pin(RecordBatchStreamAdapter::new(
                         self.schema().clone().unwrap(),
-                        #[allow(clippy::unnecessary_to_owned)]
-                        stream::iter(batches.to_owned().into_iter().map(Ok)).boxed(),
+                        stream::iter(batches.clone().into_iter().map(Ok)).boxed(),
                     )));
                 }
                 None => {
