@@ -14,6 +14,8 @@ test = false
 [dependencies]
 sqlexec = { path = "../sqlexec" }
 metastore = { path = "../metastore" }
+arrow_util = { path = "../arrow_util" }
+terminal_util = { path = "../terminal_util" }
 url = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
