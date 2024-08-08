@@ -17,7 +17,6 @@ telemetry = { path = "../../crates/telemetry" }
 arrow_util = { path = "../../crates/arrow_util" }
 terminal_util = { path = "../../crates/terminal_util" }
 glaredb = { path = "../../crates/glaredb" }
-datafusion = { workspace = true, features = ["pyarrow"] }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
