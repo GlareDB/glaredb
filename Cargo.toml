@@ -16,6 +16,10 @@ strip = true
 [workspace.lints.clippy]
 wildcard_imports = "deny"
 
+[workspace.target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+ar = "aarch64-linux-gnu-ar"
+
 [workspace.dependencies]
 clap = { version = "4.5.13", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }

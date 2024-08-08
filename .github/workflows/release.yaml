@@ -53,6 +53,8 @@ jobs:
             target: x86_64-pc-windows-msvc
           - os: ubuntu-2004-8-cores
             target: x86_64-unknown-linux-gnu
+          - os: ubuntu-2204-8-cores
+            target: aarch64-unknown-linux-gnu
           - os: macos-12-large
             target: x86_64-apple-darwin
           - os: macos-13-xlarge
@@ -63,14 +65,19 @@ jobs:
     env:
       DIST_TARGET_TRIPLE: ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: install aarch64 dependencies
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        run: sudo apt-get install build-essential gcc-aarch64-linux-gnu libc6-dev-arm64-cross g++-aarch64-linux-gnu librust-addr2line-dev
       - uses: ilammy/setup-nasm@v1
         if: matrix.target == 'x86_64-pc-windows-msvc'
       - uses: egor-tensin/setup-gcc@v1
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         with:
           version: 11
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@1.75.0
         with:
           targets: ${{ matrix.target }}
       - uses: extractions/setup-just@v2
@@ -133,6 +140,10 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: dist-x86_64-unknown-linux-gnu.zip
+          path: dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist-aarch64-unknown-linux-gnu
           path: dist
       - uses: actions/download-artifact@v3
         with:
