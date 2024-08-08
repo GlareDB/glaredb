@@ -243,6 +243,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "arrow-string",
+ "pyo3",
 ]
 
 [[package]]
@@ -2708,6 +2709,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
+ "pyo3",
  "sqlparser 0.43.1",
 ]
 
@@ -6810,6 +6812,7 @@ version = "0.9.4"
 dependencies = [
  "arrow_util",
  "async-trait",
+ "datafusion",
  "futures",
  "glaredb",
  "lzma-sys",
