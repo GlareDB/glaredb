@@ -13,4 +13,4 @@ doctest = false
 [dependencies]
 thiserror.workspace = true
 num-traits = "0.2.19"
-regex = "1.10.5"
+regex = "1.10.6"
