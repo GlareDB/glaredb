@@ -28,7 +28,7 @@ pgrepr = { path = "../pgrepr" }
 proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
 once_cell = "1.19.0"
-rustls-pemfile = "2.1.2"
+rustls-pemfile = "2.1.3"
 tokio-postgres = "0.7.11"
 tokio-rustls = "0.26.0"
 tokio-util = { version = "0.7.11", features = ["codec"] }
