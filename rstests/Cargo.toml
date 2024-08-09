@@ -8,6 +8,6 @@ doctest = false
 
 [dev-dependencies]
 tempfile = { workspace = true }
-assert_cmd = "2.0.15"
+assert_cmd = "2.0.16"
 predicates = "3.1.2"
 tokio-postgres = "0.7.11"
