@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::{bitmap::Bitmap, datatype::DataType, scalar::ScalarValue};
+use crate::{bitmap::Bitmap, datatype::DataType, field::Field, scalar::ScalarValue};
 
 use super::Array;
 use std::sync::Arc;
@@ -12,6 +12,19 @@ pub struct StructArray {
 }
 
 impl StructArray {
+    pub fn new_nulls(fields: &[Field], len: usize) -> Self {
+        let validity = Bitmap::all_false(len);
+        let arrays = fields
+            .iter()
+            .map(|f| (f.name.clone(), Arc::new(Array::new_nulls(&f.datatype, len))))
+            .collect();
+
+        StructArray {
+            validity: Some(validity),
+            arrays,
+        }
+    }
+
     pub fn try_new(keys: Vec<String>, values: Vec<Arc<Array>>) -> Result<Self> {
         if keys.len() != values.len() {
             return Err(RayexecError::new(format!(

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     expr::scalar::UnaryOperator,
     functions::table::TableFunctionArgs,
-    logical::{operator::LocationRequirement, sql::expr::ExpressionContext},
+    logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::{
@@ -11,7 +11,7 @@ use rayexec_parser::{
     meta::Raw,
 };
 
-use super::{bind_data::BoundFunctionReference, BindData, Binder, Bound};
+use super::{bound_function::BoundFunction, BindData, Binder, Bound};
 
 pub struct ExpressionBinder<'a> {
     binder: &'a Binder<'a>,
@@ -332,10 +332,9 @@ impl<'a> ExpressionBinder<'a> {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let bind_idx = bind_data.functions.push_bound(
-                        BoundFunctionReference::Scalar(scalar),
-                        LocationRequirement::Any,
-                    );
+                    let bind_idx = bind_data
+                        .functions
+                        .push_bound(BoundFunction::Scalar(scalar), LocationRequirement::Any);
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: bind_idx,
                         args,
@@ -352,7 +351,7 @@ impl<'a> ExpressionBinder<'a> {
                 {
                     // TODO: Allow unbound aggregates?
                     let bind_idx = bind_data.functions.push_bound(
-                        BoundFunctionReference::Aggregate(aggregate),
+                        BoundFunction::Aggregate(aggregate),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {

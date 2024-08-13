@@ -201,7 +201,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                 // Source is pipeline that's executing somewhere else.
                 let operator = match &self.loc_state {
                     PlanLocationState::Server { stream_buffers } => {
-                        let source = stream_buffers.create_incoming_stream(stream_id);
+                        let source = stream_buffers.create_incoming_stream(stream_id)?;
                         PhysicalQuerySource::new(Box::new(source))
                     }
                     PlanLocationState::Client { hybrid_client, .. } => {
@@ -318,7 +318,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                 // Sink is pipeline executing somewhere else.
                 let operator = match &self.loc_state {
                     PlanLocationState::Server { stream_buffers } => {
-                        let sink = stream_buffers.create_outgoing_stream(stream_id);
+                        let sink = stream_buffers.create_outgoing_stream(stream_id)?;
                         PhysicalQuerySink::new(Box::new(sink))
                     }
                     PlanLocationState::Client { hybrid_client, .. } => {

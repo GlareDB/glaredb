@@ -82,11 +82,12 @@ pub struct PlannedPipelineGroups {
 #[derive(Debug)]
 pub struct IntermediatePipelinePlanner {
     config: IntermediateConfig,
+    query_id: Uuid,
 }
 
 impl IntermediatePipelinePlanner {
-    pub fn new(config: IntermediateConfig) -> Self {
-        IntermediatePipelinePlanner { config }
+    pub fn new(config: IntermediateConfig, query_id: Uuid) -> Self {
+        IntermediatePipelinePlanner { config, query_id }
     }
 
     /// Plan the intermediate pipelines.
@@ -96,7 +97,7 @@ impl IntermediatePipelinePlanner {
         context: QueryContext,
     ) -> Result<PlannedPipelineGroups> {
         let mut state = IntermediatePipelineBuildState::new(&self.config);
-        let mut id_gen = PipelineIdGen::new(Uuid::new_v4());
+        let mut id_gen = PipelineIdGen::new(self.query_id);
 
         let mut materializations = state.plan_materializations(context, &mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;
@@ -1232,6 +1233,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = join.location;
         let join = join.into_inner();
 
+        let left_types = join.left.output_schema(&[])?;
+        let right_types = join.right.output_schema(&[])?;
+
         // Build up all inputs on the right (probe) side. This is going to
         // continue with the the current pipeline.
         self.walk(materializations, id_gen, *join.right)?;
@@ -1258,6 +1262,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 join.join_type,
                 join.left_on,
                 join.right_on,
+                left_types,
+                right_types,
             ))),
             partitioning_requirement: None,
         };

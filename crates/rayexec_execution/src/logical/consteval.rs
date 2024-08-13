@@ -21,6 +21,13 @@ impl FoldedExpression {
             FoldedExpression::Constant(c) => Ok(c),
         }
     }
+
+    pub fn into_expr(self) -> LogicalExpression {
+        match self {
+            Self::Expression(expr) => expr,
+            Self::Constant(constant) => LogicalExpression::Literal(constant),
+        }
+    }
 }
 
 /// Evaluate constant expressions.

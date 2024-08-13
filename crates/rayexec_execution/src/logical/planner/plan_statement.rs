@@ -1,13 +1,6 @@
 use std::collections::HashMap;
 
-use super::{
-    binder::{
-        bind_data::{BindData, BoundTableOrCteReference},
-        Bound,
-    },
-    expr::ExpressionContext,
-    scope::Scope,
-};
+use super::scope::Scope;
 use crate::{
     database::{
         create::OnConflict,
@@ -15,6 +8,7 @@ use crate::{
     },
     engine::vars::SessionVars,
     logical::{
+        binder::{bind_data::BindData, bound_table::BoundTableOrCteReference, Bound},
         context::QueryContext,
         expr::LogicalExpression,
         operator::{
@@ -22,7 +16,7 @@ use crate::{
             Explain, ExplainFormat, Insert, LogicalNode, LogicalOperator, Projection, ResetVar,
             Scan, SetVar, ShowVar, VariableOrAll,
         },
-        sql::query::QueryNodePlanner,
+        planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
     },
 };
 use rayexec_bullet::field::{Field, Schema, TypeSchema};
@@ -268,7 +262,7 @@ impl<'a> PlanContext<'a> {
                         },
                         _,
                     ) => (catalog, schema, entry),
-                    (BoundTableOrCteReference::Cte(_), _) => {
+                    (BoundTableOrCteReference::Cte { .. }, _) => {
                         // Shouldn't be possible.
                         return Err(RayexecError::new("Cannot COPY from CTE"));
                     }
@@ -311,7 +305,7 @@ impl<'a> PlanContext<'a> {
 
         let entry = match self.bind_data.tables.try_get_bound(insert.table)? {
             (BoundTableOrCteReference::Table { entry, .. }, _) => entry,
-            (BoundTableOrCteReference::Cte(_), _) => {
+            (BoundTableOrCteReference::Cte { .. }, _) => {
                 return Err(RayexecError::new("Cannot insert into CTE"))
             } // Shouldn't be possible.
         };

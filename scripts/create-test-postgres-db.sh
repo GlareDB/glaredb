@@ -49,7 +49,7 @@ done
 #
 # The psql command does not error if there is an error while running the SQL.
 # Conveniently though, it does output it to stderr. So capture it and error.
-SETUP_OUTPUT=$(psql "${CONN_STRING}" -c "create table t1 as (select 23 a, 45 b);" 2>&1 > /dev/null)
+SETUP_OUTPUT=$(psql "${CONN_STRING}" -c "create table t1 as (select 23 a, 45 b, 'test' c);" 2>&1 > /dev/null)
 
 if [[ -n "$SETUP_OUTPUT" ]]; then
   echo "$SETUP_OUTPUT"

@@ -1,12 +1,13 @@
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use std::task::Context;
 use std::{sync::Arc, task::Waker};
 
 use crate::database::DatabaseContext;
-use crate::execution::operators::util::hash::hash_arrays;
+use crate::execution::operators::util::hash::{AhashHasher, ArrayHasher};
 use crate::execution::operators::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
     PollFinalize, PollPull, PollPush,
@@ -14,7 +15,7 @@ use crate::execution::operators::{
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::operator::JoinType;
 
-use super::join_hash_table::PartitionJoinHashTable;
+use super::join_hash_table::{LeftBatchVisitBitmaps, PartitionJoinHashTable};
 
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {
@@ -23,15 +24,6 @@ pub struct HashJoinBuildPartitionState {
 
     /// Reusable hashes buffer.
     hash_buf: Vec<u64>,
-}
-
-impl HashJoinBuildPartitionState {
-    fn new() -> Self {
-        HashJoinBuildPartitionState {
-            local_hashtable: PartitionJoinHashTable::new(),
-            hash_buf: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -57,6 +49,23 @@ pub struct HashJoinProbePartitionState {
 
     /// If the input for this partiton is complete.
     input_finished: bool,
+
+    partition_left_visits: Option<LeftBatchVisitBitmaps>,
+
+    /// State for tracking rows on the left side that we still need to emit.
+    ///
+    /// This is currently populated for one partition at the end of probing.
+    left_visit_state: Option<LeftVisitState>,
+}
+
+#[derive(Debug)]
+struct LeftVisitState {
+    /// Bitmaps for rows visited on the left side.
+    bitmaps: LeftBatchVisitBitmaps,
+
+    /// Current batch index we're checking for producing unvisited rows from the
+    /// left side.
+    current_idx: usize,
 }
 
 impl HashJoinProbePartitionState {
@@ -68,7 +77,9 @@ impl HashJoinProbePartitionState {
             buffered_output: None,
             push_waker: None,
             pull_waker: None,
+            partition_left_visits: None,
             input_finished: false,
+            left_visit_state: None,
         }
     }
 }
@@ -90,12 +101,16 @@ struct SharedOutputState {
     /// Number of build inputs remaining.
     ///
     /// Initially set to number of build partitions.
-    remaining: usize,
+    build_inputs_remaining: usize,
+
+    probe_inputs_remaining: usize,
 
     /// The shared global hash table once it's been fully built.
     ///
     /// This is None if there's still inputs still building.
     shared_global: Option<Arc<PartitionJoinHashTable>>,
+
+    global_left_visits: Option<LeftBatchVisitBitmaps>,
 
     /// Pending wakers for thread that attempted to probe the table prior to it
     /// being built.
@@ -105,17 +120,6 @@ struct SharedOutputState {
     /// Woken once the global hash table has been completed (moved into
     /// `shared_global`).
     probe_push_wakers: Vec<Option<Waker>>,
-}
-
-impl SharedOutputState {
-    fn new(build_partitions: usize, probe_partitions: usize) -> Self {
-        SharedOutputState {
-            partial: PartitionJoinHashTable::new(),
-            remaining: build_partitions,
-            shared_global: None,
-            probe_push_wakers: vec![None; probe_partitions],
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -128,17 +132,28 @@ pub struct PhysicalHashJoin {
 
     /// Column indices on the right (probe) side we're joining on.
     right_on: Vec<usize>,
+
+    left_types: TypeSchema,
+    right_types: TypeSchema,
 }
 
 impl PhysicalHashJoin {
     pub const BUILD_SIDE_INPUT_INDEX: usize = 0;
     pub const PROBE_SIDE_INPUT_INDEX: usize = 1;
 
-    pub fn new(join_type: JoinType, left_on: Vec<usize>, right_on: Vec<usize>) -> Self {
+    pub fn new(
+        join_type: JoinType,
+        left_on: Vec<usize>,
+        right_on: Vec<usize>,
+        left_types: TypeSchema,
+        right_types: TypeSchema,
+    ) -> Self {
         PhysicalHashJoin {
             join_type,
             left_on,
             right_on,
+            left_types,
+            right_types,
         }
     }
 }
@@ -153,12 +168,29 @@ impl ExecutableOperator for PhysicalHashJoin {
         let build_partitions = partitions[0];
         let probe_partitions = partitions[0];
 
+        let shared_output_state = SharedOutputState {
+            partial: PartitionJoinHashTable::new(self.left_types.clone(), self.right_types.clone()),
+            build_inputs_remaining: build_partitions,
+            probe_inputs_remaining: probe_partitions,
+            shared_global: None,
+            global_left_visits: None,
+            probe_push_wakers: vec![None; probe_partitions],
+        };
+
         let operator_state = HashJoinOperatorState {
-            inner: Mutex::new(SharedOutputState::new(build_partitions, probe_partitions)),
+            inner: Mutex::new(shared_output_state),
         };
 
         let build_states: Vec<_> = (0..build_partitions)
-            .map(|_| PartitionState::HashJoinBuild(HashJoinBuildPartitionState::new()))
+            .map(|_| {
+                PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
+                    local_hashtable: PartitionJoinHashTable::new(
+                        self.left_types.clone(),
+                        self.right_types.clone(),
+                    ),
+                    hash_buf: Vec::new(),
+                })
+            })
             .collect();
 
         let probe_states: Vec<_> = (0..probe_partitions)
@@ -196,7 +228,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // Compute hashes on input batch
                 state.hash_buf.clear();
                 state.hash_buf.resize(batch.num_rows(), 0);
-                let hashes = hash_arrays(&left_columns, &mut state.hash_buf)?;
+                let hashes = AhashHasher::hash_arrays(&left_columns, &mut state.hash_buf)?;
 
                 state.local_hashtable.insert_batch(
                     &batch,
@@ -226,7 +258,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                     // If there's still some inputs building, just store our
                     // waker to come back later.
-                    if shared.remaining != 0 {
+                    if shared.build_inputs_remaining != 0 {
                         shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
                         return Ok(PollPush::Pending(batch));
                     }
@@ -241,6 +273,13 @@ impl ExecutableOperator for PhysicalHashJoin {
                     // Final hash table built, store in our partition local
                     // state.
                     state.global = Some(shared_global);
+
+                    // Create initial visit bitmaps that will be tracked by this
+                    // partition.
+                    if self.join_type == JoinType::Left {
+                        state.partition_left_visits =
+                            Some(state.global.as_ref().unwrap().new_left_visit_bitmaps());
+                    }
                 }
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
@@ -259,7 +298,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 state.hash_buf.clear();
                 state.hash_buf.resize(batch.num_rows(), 0);
-                let hashes = hash_arrays(&right_input_cols, &mut state.hash_buf)?;
+                let hashes = AhashHasher::hash_arrays(&right_input_cols, &mut state.hash_buf)?;
 
                 // TODO: Handle everything else.
                 //
@@ -285,7 +324,20 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // - Inverse of left/right
                 match self.join_type {
                     JoinType::Inner => {
-                        let joined = hashtable.probe(&batch, hashes, &self.right_on)?;
+                        let joined =
+                            hashtable.probe(&batch, None, hashes, &self.right_on, false)?;
+                        state.buffered_output = Some(joined);
+                        Ok(PollPush::Pushed)
+                    }
+                    JoinType::Right => {
+                        let joined = hashtable.probe(&batch, None, hashes, &self.right_on, true)?;
+                        state.buffered_output = Some(joined);
+                        Ok(PollPush::Pushed)
+                    }
+                    JoinType::Left => {
+                        let bitmaps = state.partition_left_visits.as_mut();
+                        let joined =
+                            hashtable.probe(&batch, bitmaps, hashes, &self.right_on, false)?;
                         state.buffered_output = Some(joined);
                         Ok(PollPush::Pushed)
                     }
@@ -302,30 +354,36 @@ impl ExecutableOperator for PhysicalHashJoin {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
+        let mut shared = match operator_state {
+            OperatorState::HashJoin(state) => state.inner.lock(),
+            other => panic!("invalid operator state: {other:?}"),
+        };
+
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                let operator_state = match operator_state {
-                    OperatorState::HashJoin(state) => state,
-                    other => panic!("invalid operator state: {other:?}"),
-                };
-
                 // Merge local table into the global table.
-                let local_table =
-                    std::mem::replace(&mut state.local_hashtable, PartitionJoinHashTable::new());
+                let local_table = std::mem::replace(
+                    &mut state.local_hashtable,
+                    PartitionJoinHashTable::new(self.left_types.clone(), self.right_types.clone()),
+                );
 
-                let mut shared = operator_state.inner.lock();
                 shared.partial.merge(local_table)?;
 
-                shared.remaining -= 1;
+                shared.build_inputs_remaining -= 1;
 
                 // If we're the last remaining, go ahead and move the 'partial'
                 // table to 'global', and wake up any pending probers.
                 //
                 // Probers will then clone the global hash table (behind an Arc)
                 // into their local states to avoid needing to synchronize.
-                if shared.remaining == 0 {
-                    let global_table =
-                        std::mem::replace(&mut shared.partial, PartitionJoinHashTable::new());
+                if shared.build_inputs_remaining == 0 {
+                    let global_table = std::mem::replace(
+                        &mut shared.partial,
+                        PartitionJoinHashTable::new(
+                            self.left_types.clone(),
+                            self.right_types.clone(),
+                        ),
+                    );
                     shared.shared_global = Some(Arc::new(global_table));
 
                     for waker in shared.probe_push_wakers.iter_mut() {
@@ -339,6 +397,35 @@ impl ExecutableOperator for PhysicalHashJoin {
             }
             PartitionState::HashJoinProbe(state) => {
                 state.input_finished = true;
+
+                // Merge local left visit bitmaps into global if we have it.
+                match (
+                    shared.global_left_visits.as_mut(),
+                    state.partition_left_visits.as_ref(),
+                ) {
+                    (Some(global), Some(local)) => global.merge_from(local),
+                    (None, Some(local)) => shared.global_left_visits = Some(local.clone()),
+                    (Some(_), None) => {
+                        return Err(RayexecError::new(
+                            "Missing partition-local left visit bitmaps",
+                        ))
+                    }
+                    (None, None) => (),
+                }
+
+                shared.probe_inputs_remaining -= 1;
+
+                // If we're the last probe partition, set up state to drain all
+                // unvisited rows from left.
+                //
+                // TODO: Allow multiple partitions to drain.
+                if let Some(global) = shared.global_left_visits.clone() {
+                    state.left_visit_state = Some(LeftVisitState {
+                        bitmaps: global,
+                        current_idx: 0,
+                    })
+                }
+
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
@@ -376,6 +463,23 @@ impl ExecutableOperator for PhysicalHashJoin {
             }
             None => {
                 if state.input_finished {
+                    // Check if we're still draining unvisited left rows.
+                    if let Some(visit_state) = state.left_visit_state.as_mut() {
+                        if visit_state.current_idx < visit_state.bitmaps.num_batches() {
+                            let batch = state
+                                .global
+                                .as_ref()
+                                .expect("global hash table to exist")
+                                .drain_left_using_bitmap(
+                                    &visit_state.bitmaps,
+                                    visit_state.current_idx,
+                                )?;
+                            visit_state.current_idx += 1;
+
+                            return Ok(PollPull::Batch(batch));
+                        }
+                    }
+
                     // We're done.
                     return Ok(PollPull::Exhausted);
                 }

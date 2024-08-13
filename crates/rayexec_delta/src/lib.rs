@@ -13,7 +13,7 @@ use rayexec_execution::{
     runtime::Runtime,
 };
 use read_delta::ReadDelta;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 // TODO: How do we want to handle catalogs that provide data sources? Do we want
 // to have "Glue" and "Unity" data sources that are separate from the base
@@ -46,7 +46,7 @@ impl<R: Runtime> DataSource for DeltaDataSource<R> {
     fn create_catalog(
         &self,
         _options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
         Box::pin(async {
             Err(RayexecError::new(
                 "Delta data source cannot be used to create a catalog",

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_parser::{parser, statement::RawStatement};
+use uuid::Uuid;
 
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
@@ -12,12 +13,10 @@ use crate::{
     },
     hybrid::client::HybridClient,
     logical::{
+        binder::{BindMode, Binder},
         context::QueryContext,
         operator::{LogicalOperator, VariableOrAll},
-        sql::{
-            binder::{BindMode, Binder},
-            planner::PlanContext,
-        },
+        planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},
@@ -204,8 +203,10 @@ where
                 logical.root = optimizer.optimize(logical.root)?;
                 let schema = logical.schema()?;
 
+                let query_id = Uuid::new_v4();
                 let planner = IntermediatePipelinePlanner::new(
                     IntermediateConfig::from_session_vars(&self.vars),
+                    query_id,
                 );
 
                 let pipelines = match logical.root {

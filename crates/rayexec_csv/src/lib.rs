@@ -18,7 +18,7 @@ use rayexec_execution::{
 };
 use read_csv::ReadCsv;
 use regex::RegexBuilder;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvDataSource<R: Runtime> {
@@ -35,7 +35,7 @@ impl<R: Runtime> DataSource for CsvDataSource<R> {
     fn create_catalog(
         &self,
         _options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
         Box::pin(async {
             Err(RayexecError::new(
                 "CSV data source cannot be used to create a catalog",

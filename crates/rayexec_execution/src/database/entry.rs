@@ -11,7 +11,6 @@ use crate::functions::{
 pub enum CatalogEntry {
     Table(TableEntry),
     Function(FunctionEntry),
-    External(()),
 }
 
 impl CatalogEntry {

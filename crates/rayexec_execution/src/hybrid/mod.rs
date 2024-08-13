@@ -1,5 +1,6 @@
 //! Types for hybrid execution.
 
-pub mod buffer;
 pub mod client;
-pub mod stream;
+
+pub(crate) mod buffer;
+pub(crate) mod stream;

@@ -55,6 +55,12 @@ where
         }
     }
 
+    pub fn new_nulls(len: usize) -> Self {
+        let mut arr = Self::new_empty_with_n_rows(len);
+        arr.validity = Some(Bitmap::all_false(len));
+        arr
+    }
+
     /// Produce a list array containing `n` rows with each row being an empty
     /// list.
     pub fn new_empty_with_n_rows(n: usize) -> Self {

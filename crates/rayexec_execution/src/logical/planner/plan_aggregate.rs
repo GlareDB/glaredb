@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::logical::{
+    binder::Bound,
     context::QueryContext,
     expr::LogicalExpression,
     grouping_set::GroupingSets,
@@ -9,7 +10,7 @@ use crate::logical::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::{binder::Bound, expr::ExpressionContext};
+use super::plan_expr::ExpressionContext;
 
 /// Logic for planning aggregates and group bys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

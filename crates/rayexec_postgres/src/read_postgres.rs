@@ -2,7 +2,7 @@ use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::table::DataTable,
+    database::{table::DataTable, DatabaseContext},
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::Runtime,
 };
@@ -24,6 +24,7 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
 
     fn plan_and_initialize(
         &self,
+        _context: &DatabaseContext,
         args: TableFunctionArgs,
     ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadPostgresImpl::initialize(self.clone(), args))

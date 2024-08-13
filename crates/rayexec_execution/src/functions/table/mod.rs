@@ -1,4 +1,5 @@
 pub mod series;
+pub mod system;
 
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
@@ -13,11 +14,19 @@ use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
 use std::{collections::HashMap, fmt::Debug};
+use system::{ListCatalogs, ListTables};
 
 use crate::database::table::DataTable;
+use crate::database::DatabaseContext;
 
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> =
-    Lazy::new(|| vec![Box::new(GenerateSeries)]);
+pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::new(|| {
+    vec![
+        Box::new(GenerateSeries),
+        // Various list system object functions.
+        Box::new(ListCatalogs),
+        Box::new(ListTables),
+    ]
+});
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableFunctionArgs {
@@ -94,6 +103,7 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// connections should remain open through execution.
     fn plan_and_initialize(
         &self,
+        context: &DatabaseContext,
         args: TableFunctionArgs,
     ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>>;
 

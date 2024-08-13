@@ -1,10 +1,16 @@
 pub mod read_postgres;
 
+mod decimal;
+
+use decimal::PostgresDecimal;
 use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
-    array::{Array, BooleanArray, Int16Array, Int32Array, Int64Array, Int8Array},
+    array::{
+        Array, BooleanArray, Decimal128Array, Int128Array, Int16Array, Int32Array, Int64Array,
+        Int8Array, Utf8Array,
+    },
     batch::Batch,
-    datatype::DataType,
+    datatype::{DataType, DecimalTypeMeta},
     field::Field,
     scalar::OwnedScalarValue,
 };
@@ -44,7 +50,7 @@ impl<R: Runtime> DataSource for PostgresDataSource<R> {
     fn create_catalog(
         &self,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
         Box::pin(self.create_catalog_inner(options))
     }
 
@@ -59,7 +65,7 @@ impl<R: Runtime> PostgresDataSource<R> {
     async fn create_catalog_inner(
         &self,
         mut options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Box<dyn Catalog>> {
+    ) -> Result<Arc<dyn Catalog>> {
         let conn_str = take_option("connection_string", &mut options)?.try_into_string()?;
         check_options_empty(&options)?;
 
@@ -72,7 +78,7 @@ impl<R: Runtime> PostgresDataSource<R> {
             .await
             .context("Failed to send test query")?;
 
-        Ok(Box::new(PostgresCatalog {
+        Ok(Arc::new(PostgresCatalog {
             runtime: self.runtime.clone(),
             conn_str,
         }))
@@ -341,6 +347,10 @@ impl PostgresClient {
                 | &PostgresType::JSON
                 | &PostgresType::UUID => DataType::Utf8,
                 &PostgresType::BYTEA => DataType::Binary,
+                // While postgres numerics are "unconstrained" by default, we need
+                // to specify the precision and scale for the column. Setting these
+                // same as bigquery.
+                &PostgresType::NUMERIC => DataType::Decimal128(DecimalTypeMeta::new(38, 9)),
 
                 other => {
                     return Err(RayexecError::new(format!(
@@ -373,9 +383,22 @@ impl PostgresClient {
                 DataType::Int16 => Array::Int16(Int16Array::from_iter(row_iter::<i16>(&rows, idx))),
                 DataType::Int32 => Array::Int32(Int32Array::from_iter(row_iter::<i32>(&rows, idx))),
                 DataType::Int64 => Array::Int64(Int64Array::from_iter(row_iter::<i64>(&rows, idx))),
+                DataType::Decimal128(m) => {
+                    let primitives = Int128Array::from_iter(rows.iter().map(|row| {
+                        let decimal = row.try_get::<PostgresDecimal>(idx).ok();
+                        // TODO: Rescale
+                        decimal.map(|d| d.0.value)
+                    }));
+                    Array::Decimal128(Decimal128Array::new(m.precision, m.scale, primitives))
+                }
+
+                DataType::Utf8 => Array::Utf8(Utf8Array::from_iter(
+                    rows.iter()
+                        .map(|row| -> Option<&str> { row.try_get(idx).ok() }),
+                )),
                 other => {
                     return Err(RayexecError::new(format!(
-                        "Unimplemented data type conversion: {other:?}"
+                        "Unimplemented data type conversion: {other:?} (postgres)"
                     )))
                 }
             };

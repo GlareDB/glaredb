@@ -1,7 +1,8 @@
 use crate::{
     array::{
-        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, OffsetIndex, PrimitiveArray,
-        TimestampArray, ValuesBuffer, VarlenArray, VarlenType, VarlenValuesBuffer,
+        Array, ArrayAccessor, BooleanArray, BooleanValuesBuffer, Decimal128Array, Decimal64Array,
+        OffsetIndex, PrimitiveArray, TimestampArray, ValuesBuffer, VarlenArray, VarlenType,
+        VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -23,10 +24,24 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
         Array::Int16(arr) => Array::Int16(slice_primitive(arr, start, count)?),
         Array::Int32(arr) => Array::Int32(slice_primitive(arr, start, count)?),
         Array::Int64(arr) => Array::Int64(slice_primitive(arr, start, count)?),
+        Array::Int128(arr) => Array::Int128(slice_primitive(arr, start, count)?),
         Array::UInt8(arr) => Array::UInt8(slice_primitive(arr, start, count)?),
         Array::UInt16(arr) => Array::UInt16(slice_primitive(arr, start, count)?),
         Array::UInt32(arr) => Array::UInt32(slice_primitive(arr, start, count)?),
         Array::UInt64(arr) => Array::UInt64(slice_primitive(arr, start, count)?),
+        Array::UInt128(arr) => Array::UInt128(slice_primitive(arr, start, count)?),
+        Array::Decimal64(arr) => {
+            let primitive = slice_primitive(arr.get_primitive(), start, count)?;
+            Array::Decimal64(Decimal64Array::new(arr.precision(), arr.scale(), primitive))
+        }
+        Array::Decimal128(arr) => {
+            let primitive = slice_primitive(arr.get_primitive(), start, count)?;
+            Array::Decimal128(Decimal128Array::new(
+                arr.precision(),
+                arr.scale(),
+                primitive,
+            ))
+        }
         Array::Timestamp(arr) => {
             let sliced = slice_primitive(arr.get_primitive(), start, count)?;
             Array::Timestamp(TimestampArray::new(arr.unit(), sliced))

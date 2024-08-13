@@ -1,0 +1,39 @@
+# RIGHT OUTER join
+
+statement ok
+create temp table t1 (a int, b int);
+
+statement ok
+insert into t1 values (1, 2), (2, 3), (3, 4);
+
+statement ok
+create temp table t2 (a int, b int);
+
+statement ok
+insert into t2 values (1, 10), (2, 20);
+
+query IIII rowsort
+select * from t2 right outer join t1 on t1.a = t2.a
+----
+1     10    1  2
+2     20    2  3
+NULL  NULL  3  4
+
+# Same thing, different syntax (omit OUTER)
+query IIII rowsort
+select * from t2 right join t1 on t1.a = t2.a
+----
+1     10    1  2
+2     20    2  3
+NULL  NULL  3  4
+
+query TT
+explain select * from t2 right join t1 on t1.a = 1;
+----
+logical Projection (expressions = [#0, #1, #2, #3])
+.         AnyJoin (join = RIGHT, on = CAST(#2, Int64)=#4)
+.           Scan (column_types = [Int32, Int32], source = t2)
+.           Projection (expressions = [#0, #1, 1])
+.             Scan (column_types = [Int32, Int32], source = t1)
+
+

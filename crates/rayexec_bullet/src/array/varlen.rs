@@ -96,7 +96,7 @@ impl<'a, T: VarlenType + ?Sized> AsVarlenType for &'a T {
     }
 }
 
-pub trait OffsetIndex: Clone + Copy {
+pub trait OffsetIndex: Clone + Copy + Default {
     fn as_usize(&self) -> usize;
     fn from_usize(u: usize) -> Self;
 }
@@ -215,6 +215,23 @@ where
             data: values.data.into(),
             varlen_type: PhantomData,
         }
+    }
+
+    pub(crate) fn try_from_buffers(
+        data: PrimitiveStorage<u8>,
+        offsets: PrimitiveStorage<O>,
+        validity: Option<Bitmap>,
+    ) -> Result<Self> {
+        if offsets.as_ref().is_empty() {
+            return Err(RayexecError::new("invalid offsets buffer (empty)"));
+        }
+
+        Ok(VarlenArray {
+            validity,
+            offsets,
+            data,
+            varlen_type: PhantomData,
+        })
     }
 
     /// Returns a tuple of (validity, offsets, data) that make up this array.

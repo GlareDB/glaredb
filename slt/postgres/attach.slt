@@ -22,7 +22,7 @@ attach postgres database as my_pg
 query II
 select * from my_pg.public.t1;
 ----
-23  45
+23  45  test
 
 query I
 select a from my_pg.public.t1;

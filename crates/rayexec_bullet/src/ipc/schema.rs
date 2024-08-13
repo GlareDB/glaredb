@@ -5,12 +5,13 @@ use super::{
     },
     IpcConfig,
 };
+use crate::datatype::DecimalTypeMeta;
 use crate::{
     datatype::DataType,
     field::{Field, Schema},
     ipc::gen::schema::{
-        BoolBuilder, FieldBuilder, IntBuilder, LargeUtf8Builder, NullBuilder, SchemaBuilder,
-        Utf8Builder,
+        BoolBuilder, DecimalBuilder, FieldBuilder, IntBuilder, LargeUtf8Builder, NullBuilder,
+        SchemaBuilder, Utf8Builder,
     },
 };
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
@@ -63,6 +64,23 @@ pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
                     other => {
                         return Err(RayexecError::new(format!("Unsupported int size: {other}")))
                     }
+                }
+            }
+        }
+        IpcType::Decimal => {
+            let dec_type = field.type__as_decimal().unwrap();
+            let meta = DecimalTypeMeta {
+                precision: dec_type.precision() as u8,
+                scale: dec_type.scale() as i8,
+            };
+
+            match dec_type.bitWidth() {
+                64 => DataType::Decimal64(meta),
+                128 => DataType::Decimal128(meta),
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Unsupported decimal size: {other}"
+                    )))
                 }
             }
         }
@@ -167,6 +185,21 @@ pub fn field_to_ipc<'a>(
                 empty_children.clone(),
             )
         }
+        DataType::Decimal64(m) | DataType::Decimal128(m) => {
+            let mut dec_builder = DecimalBuilder::new(builder);
+            dec_builder.add_scale(m.scale as i32);
+            dec_builder.add_precision(m.precision as i32);
+            match &field.datatype {
+                DataType::Decimal64(_) => dec_builder.add_bitWidth(64),
+                DataType::Decimal128(_) => dec_builder.add_bitWidth(128),
+                _ => unreachable!(),
+            }
+            (
+                IpcType::Decimal,
+                dec_builder.finish().as_union_value(),
+                empty_children.clone(),
+            )
+        }
         DataType::Utf8 => (
             IpcType::Utf8,
             Utf8Builder::new(builder).finish().as_union_value(),
@@ -195,18 +228,12 @@ pub fn field_to_ipc<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::ipc::gen::schema::root_as_schema;
+    use crate::{datatype::DecimalTypeMeta, ipc::gen::schema::root_as_schema};
 
     use super::*;
 
-    #[test]
-    fn simple_schema_roundtrip() {
+    fn roundtrip(schema: Schema) {
         let mut builder = FlatBufferBuilder::new();
-
-        let schema = Schema::new([
-            Field::new("f1", DataType::Int32, true),
-            Field::new("f2", DataType::Utf8, true),
-        ]);
 
         let ipc = schema_to_ipc(&schema, &mut builder).unwrap();
         builder.finish(ipc, None);
@@ -216,5 +243,29 @@ mod tests {
         let got = ipc_to_schema(ipc, &IpcConfig::default()).unwrap();
 
         assert_eq!(schema, got);
+    }
+
+    #[test]
+    fn simple_schema_roundtrip() {
+        let schema = Schema::new([
+            Field::new("f1", DataType::Int32, true),
+            Field::new("f2", DataType::Utf8, true),
+        ]);
+
+        roundtrip(schema);
+    }
+
+    #[test]
+    fn decimal_roundtrip() {
+        let schema = Schema::new([Field::new(
+            "f1",
+            DataType::Decimal64(DecimalTypeMeta {
+                precision: 4,
+                scale: 2,
+            }),
+            true,
+        )]);
+
+        roundtrip(schema);
     }
 }

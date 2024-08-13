@@ -18,7 +18,7 @@ use rayexec_execution::{
     runtime::Runtime,
 };
 use regex::{Regex, RegexBuilder};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetDataSource<R> {
@@ -44,7 +44,7 @@ impl<R: Runtime> DataSource for ParquetDataSource<R> {
     fn create_catalog(
         &self,
         _options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
         Box::pin(async {
             Err(RayexecError::new(
                 "Parquet data source cannot be used to create a catalog",

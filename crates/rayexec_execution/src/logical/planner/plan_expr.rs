@@ -13,12 +13,12 @@ use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::list::{ListExtract, ListValues};
 use crate::functions::scalar::{like, ScalarFunction};
 use crate::functions::CastType;
+use crate::logical::binder::bound_function::BoundFunction;
+use crate::logical::binder::Bound;
 use crate::logical::context::QueryContext;
 use crate::logical::expr::{LogicalExpression, Subquery};
 
-use super::binder::bind_data::BoundFunctionReference;
-use super::binder::Bound;
-use super::query::QueryNodePlanner;
+use super::plan_query::QueryNodePlanner;
 use super::scope::{Scope, TableReference};
 
 /// An expanded select expression.
@@ -274,7 +274,7 @@ impl<'a> ExpressionContext<'a> {
                 // I don't think it makes sense to try to handle different sets
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
-                    (BoundFunctionReference::Scalar(scalar), _) => {
+                    (BoundFunction::Scalar(scalar), _) => {
                         let inputs =
                             self.apply_casts_for_scalar_function(scalar.as_ref(), inputs)?;
 
@@ -283,7 +283,7 @@ impl<'a> ExpressionContext<'a> {
 
                         Ok(LogicalExpression::ScalarFunction { function, inputs })
                     }
-                    (BoundFunctionReference::Aggregate(agg), _) => {
+                    (BoundFunction::Aggregate(agg), _) => {
                         let inputs =
                             self.apply_casts_for_aggregate_function(agg.as_ref(), inputs)?;
                         let agg = agg.plan_from_expressions(&inputs, self.input)?;

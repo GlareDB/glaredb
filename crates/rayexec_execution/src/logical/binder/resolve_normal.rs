@@ -5,7 +5,7 @@ use crate::{
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::{bind_data::BoundTableOrCteReference, BindData};
+use super::{bound_table::BoundTableOrCteReference, BindData};
 
 // TODO: Search path
 #[derive(Debug)]
@@ -85,7 +85,7 @@ impl<'a> Resolver<'a> {
 
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(Some(BoundTableOrCteReference::Cte(cte)));
+                    return Ok(Some(BoundTableOrCteReference::Cte { cte_idx: cte }));
                 }
 
                 // Otherwise continue with trying to resolve from the catalogs.

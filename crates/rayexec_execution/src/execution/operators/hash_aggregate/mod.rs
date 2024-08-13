@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use crate::database::DatabaseContext;
-use crate::execution::operators::util::hash::{hash_arrays, partition_for_hash};
+use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
@@ -21,6 +21,7 @@ use crate::logical::grouping_set::GroupingSets;
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 
+use super::util::hash::{AhashHasher, ArrayHasher};
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
 
 #[derive(Debug)]
@@ -260,7 +261,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     }
 
                     // Compute hashes on the group by values.
-                    let hashes = hash_arrays(&masked_grouping_columns, hash_buf)?;
+                    let hashes = AhashHasher::hash_arrays(&masked_grouping_columns, hash_buf)?;
 
                     // Compute _output_ partitions based on the hash values.
                     let num_partitions = output_hashtables.len();

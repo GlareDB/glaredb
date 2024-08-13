@@ -144,6 +144,37 @@ impl WasmResultTable {
         (0, 0)
     }
 
+    pub fn column_as_strings(&self, column: &str) -> Result<Vec<String>> {
+        const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+
+        let col_idx = self
+            .table
+            .schema
+            .fields
+            .iter()
+            .position(|f| f.name == column)
+            .ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Unable to find column with name '{column}' in results table"
+                ))
+            })?;
+
+        let mut strings = Vec::with_capacity(self.num_rows());
+
+        for batch in &self.table.batches {
+            for row_idx in 0..batch.num_rows() {
+                strings.push(
+                    FORMATTER
+                        .format_array_value(batch.column(col_idx).unwrap(), row_idx)
+                        .unwrap()
+                        .to_string(),
+                );
+            }
+        }
+
+        Ok(strings)
+    }
+
     pub fn format_cell(&self, col: usize, row: usize) -> Result<String> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
 

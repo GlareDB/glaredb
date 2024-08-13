@@ -4,8 +4,9 @@ use rayexec_bullet::field::TypeSchema;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
+    binder::bound_table::CteIndex,
     operator::{LogicalOperator, MaterializedScan},
-    sql::{binder::bind_data::CteReference, scope::Scope},
+    planner::scope::Scope,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,7 +51,7 @@ pub struct QueryContext {
     /// generate a plan, put it in `materialized`, and put the reference in this
     /// map. The next time we see the materialized CTE, we'll just create a
     /// MaterializeScan operator which will scan from the same plan.
-    pub materialized_cte_refs: HashMap<CteReference, MaterializedCteReference>,
+    pub materialized_cte_refs: HashMap<CteIndex, MaterializedCteReference>,
 }
 
 impl QueryContext {
@@ -81,7 +82,7 @@ impl QueryContext {
 
     pub fn push_materialized_cte(
         &mut self,
-        bound: CteReference,
+        bound: CteIndex,
         root: LogicalOperator,
         scope: Scope,
     ) -> usize {
@@ -96,9 +97,9 @@ impl QueryContext {
 
     pub fn get_materialized_cte_reference(
         &self,
-        bound: &CteReference,
+        bound: CteIndex,
     ) -> Option<&MaterializedCteReference> {
-        self.materialized_cte_refs.get(bound)
+        self.materialized_cte_refs.get(&bound)
     }
 
     /// Generates a logical materialized scan for a plan at the given index.

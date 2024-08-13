@@ -1,6 +1,6 @@
 use crate::{
     execution::intermediate::{IntermediatePipelineGroup, StreamId},
-    logical::sql::binder::bind_data::BindData,
+    logical::binder::bind_data::BindData,
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::{
@@ -13,11 +13,10 @@ use rayexec_bullet::{
 };
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
-    reqwest::{
+    read_text, reqwest::{
         header::{HeaderValue, CONTENT_TYPE},
         Method, Request, StatusCode,
-    },
-    HttpClient, HttpResponse,
+    }, HttpClient, HttpResponse
 };
 use rayexec_proto::prost::Message;
 use rayexec_proto::ProtoConv;
@@ -27,7 +26,7 @@ use std::io::Cursor;
 use url::{Host, Url};
 use uuid::Uuid;
 
-use crate::{database::DatabaseContext, logical::sql::binder::BoundStatement};
+use crate::{database::DatabaseContext, logical::binder::BoundStatement};
 
 pub const API_VERSION: usize = 0;
 
@@ -455,10 +454,8 @@ impl<C: HttpClient> HybridClient<C> {
             .context("failed to send request")?;
 
         if resp.status() != StatusCode::OK {
-            return Err(RayexecError::new(format!(
-                "Expected 200, got {}",
-                resp.status().as_u16()
-            )));
+            let text = read_text(resp).await?;
+            return Err(RayexecError::new(text));
         }
 
         let resp: ResponseEnvelope = serde_json::from_slice(resp.bytes().await?.as_ref())
@@ -553,10 +550,9 @@ impl<C: HttpClient> HybridClient<C> {
             .context("failed to send request")?;
 
         if resp.status() != StatusCode::OK {
-            return Err(RayexecError::new(format!(
-                "Expected 200, got {}",
-                resp.status().as_u16()
-            )));
+            // TODO: Structured return error.
+            let text = read_text(resp).await?;
+            return Err(RayexecError::new(text));
         }
 
         let resp: ResponseEnvelope = serde_json::from_slice(resp.bytes().await?.as_ref())

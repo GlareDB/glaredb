@@ -1,4 +1,7 @@
-use crate::database::table::{DataTable, DataTableScan, EmptyTableScan};
+use crate::database::{
+    table::{DataTable, DataTableScan, EmptyTableScan},
+    DatabaseContext,
+};
 use futures::future::BoxFuture;
 use rayexec_bullet::{
     array::{Array, Int64Array},
@@ -22,6 +25,7 @@ impl TableFunction for GenerateSeries {
 
     fn plan_and_initialize(
         &self,
+        _context: &DatabaseContext,
         args: TableFunctionArgs,
     ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { Self::plan_and_initialize_inner(args) })

@@ -17,56 +17,77 @@ pub const fn partition_for_hash(hash: u64, partitions: usize) -> usize {
     hash as usize % partitions
 }
 
-/// Hash every row in the provided arrays, writing the values to `hashes`.
-///
-/// All arrays provided must be of the same length, and the provided hash buffer
-/// must equal that length.
-pub fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a mut [u64]> {
-    for (idx, array) in arrays.iter().enumerate() {
-        let combine_hash = idx > 0;
+pub trait ArrayHasher {
+    /// Hash every row in the provided arrays, writing the values to `hashes`.
+    ///
+    /// All arrays provided must be of the same length, and the provided hash
+    /// buffer must equal that length.
+    fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a mut [u64]>;
+}
 
-        match array {
-            Array::Null(_) => hash_null(hashes, combine_hash),
-            Array::Boolean(arr) => hash_bool(arr, hashes, combine_hash),
-            Array::Float32(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Float64(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Int8(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Int16(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Int32(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Int64(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Int128(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::UInt8(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::UInt16(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::UInt32(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::UInt64(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::UInt128(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Decimal64(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
-            Array::Decimal128(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
-            Array::Date32(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Date64(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Timestamp(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
-            Array::Interval(arr) => hash_primitive(arr, hashes, combine_hash),
-            Array::Utf8(arr) => hash_varlen(arr, hashes, combine_hash),
-            Array::LargeUtf8(arr) => hash_varlen(arr, hashes, combine_hash),
-            Array::Binary(arr) => hash_varlen(arr, hashes, combine_hash),
-            Array::LargeBinary(arr) => hash_varlen(arr, hashes, combine_hash),
-            Array::Struct(_) => {
-                // Yet
-                return Err(RayexecError::new("hashing struct arrays not supported"));
-            }
-            Array::List(_) => {
-                // Yet
-                return Err(RayexecError::new("hashing list arrays not supported"));
+#[derive(Debug, Clone, Copy)]
+pub struct ForcedCollisionHasher;
+
+impl ArrayHasher for ForcedCollisionHasher {
+    fn hash_arrays<'a>(_arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a mut [u64]> {
+        for hash in hashes.iter_mut() {
+            *hash = 0;
+        }
+        Ok(hashes)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AhashHasher;
+
+impl ArrayHasher for AhashHasher {
+    fn hash_arrays<'a>(arrays: &[&Array], hashes: &'a mut [u64]) -> Result<&'a mut [u64]> {
+        for (idx, array) in arrays.iter().enumerate() {
+            let combine_hash = idx > 0;
+
+            match array {
+                Array::Null(_) => hash_null(hashes, combine_hash),
+                Array::Boolean(arr) => hash_bool(arr, hashes, combine_hash),
+                Array::Float32(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Float64(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Int8(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Int16(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Int32(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Int64(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Int128(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::UInt8(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::UInt16(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::UInt32(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::UInt64(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::UInt128(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Decimal64(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
+                Array::Decimal128(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
+                Array::Date32(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Date64(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Timestamp(arr) => hash_primitive(arr.get_primitive(), hashes, combine_hash),
+                Array::Interval(arr) => hash_primitive(arr, hashes, combine_hash),
+                Array::Utf8(arr) => hash_varlen(arr, hashes, combine_hash),
+                Array::LargeUtf8(arr) => hash_varlen(arr, hashes, combine_hash),
+                Array::Binary(arr) => hash_varlen(arr, hashes, combine_hash),
+                Array::LargeBinary(arr) => hash_varlen(arr, hashes, combine_hash),
+                Array::Struct(_) => {
+                    // Yet
+                    return Err(RayexecError::new("hashing struct arrays not supported"));
+                }
+                Array::List(_) => {
+                    // Yet
+                    return Err(RayexecError::new("hashing list arrays not supported"));
+                }
             }
         }
-    }
 
-    Ok(hashes)
+        Ok(hashes)
+    }
 }
 
 /// Hash a row.
 #[allow(dead_code)]
-pub fn hash_row(row: &ScalarRow) -> Result<u64> {
+fn hash_row(row: &ScalarRow) -> Result<u64> {
     let mut result = 0;
     for (idx, scalar) in row.iter().enumerate() {
         let combine_hash = idx > 0;
@@ -334,7 +355,7 @@ mod tests {
         let mut hashes = vec![0; 3];
 
         // Hash the arrays.
-        hash_arrays(&arrays, &mut hashes).unwrap();
+        AhashHasher::hash_arrays(&arrays, &mut hashes).unwrap();
 
         // Sanity check just to make sure we're hashing.
         assert_ne!(vec![0; 3], hashes);
@@ -353,11 +374,11 @@ mod tests {
     fn nulls_produce_different_values() {
         let arr1 = Array::Utf8(Utf8Array::from_iter([Some("a"), Some("b"), Some("c")]));
         let mut hashes1 = vec![0; 3];
-        hash_arrays(&[&arr1], &mut hashes1).unwrap();
+        AhashHasher::hash_arrays(&[&arr1], &mut hashes1).unwrap();
 
         let arr2 = Array::Utf8(Utf8Array::from_iter([Some("a"), None, Some("c")]));
         let mut hashes2 = vec![0; 3];
-        hash_arrays(&[&arr2], &mut hashes2).unwrap();
+        AhashHasher::hash_arrays(&[&arr2], &mut hashes2).unwrap();
 
         assert_ne!(hashes1, hashes2);
     }

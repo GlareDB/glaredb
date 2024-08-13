@@ -7,6 +7,7 @@ use crate::{
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 
+// TODO: Probably make this just accept an iterator.
 pub fn filter(arr: &Array, selection: &BooleanArray) -> Result<Array> {
     Ok(match arr {
         Array::Null(_) => Array::Null(NullArray::new(selection.true_count())),

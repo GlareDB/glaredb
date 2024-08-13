@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Engine<P: PipelineExecutor, R: Runtime> {
     registry: Arc<DataSourceRegistry>,
-    system_catalog: SystemCatalog,
+    system_catalog: Arc<SystemCatalog>,
     executor: P,
     runtime: R,
 }
@@ -38,7 +38,7 @@ where
         runtime: R,
         registry: DataSourceRegistry,
     ) -> Result<Self> {
-        let system_catalog = SystemCatalog::new(&registry);
+        let system_catalog = Arc::new(SystemCatalog::new(&registry));
 
         Ok(Engine {
             registry: Arc::new(registry),

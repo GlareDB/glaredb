@@ -41,6 +41,7 @@ pub struct MemoryCatalog {
 
 #[derive(Debug)]
 struct MemorySchemas {
+    entries: Vec<CatalogEntry>,
     schemas: HashMap<String, MemorySchema>,
 }
 
@@ -48,7 +49,7 @@ struct MemorySchemas {
 struct MemorySchema {
     // TODO: OIDs
     // TODO: Seperate maps for funcs/tables
-    entries: HashMap<String, CatalogEntry>,
+    entries: HashMap<String, usize>,
     tables: HashMap<String, MemoryDataTable>,
 }
 
@@ -59,7 +60,10 @@ impl MemoryCatalog {
         schemas.insert(schema.to_string(), MemorySchema::default());
 
         MemoryCatalog {
-            inner: Arc::new(RwLock::new(MemorySchemas { schemas })),
+            inner: Arc::new(RwLock::new(MemorySchemas {
+                entries: Vec::new(),
+                schemas,
+            })),
         }
     }
 
@@ -75,7 +79,12 @@ impl MemoryCatalog {
             .get(schema)
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
-        match schema.entries.get(name) {
+        let idx = match schema.entries.get(name) {
+            Some(idx) => idx,
+            None => return Ok(None),
+        };
+
+        match inner.entries.get(*idx) {
             Some(CatalogEntry::Table(ent)) => Ok(Some(ent.clone())),
             Some(_) => Err(RayexecError::new("Entry not a table")),
             None => Ok(None),
@@ -119,6 +128,11 @@ impl Catalog for MemoryCatalog {
             inner: self.inner.clone(),
         }))
     }
+
+    fn entries(&self) -> Option<Vec<CatalogEntry>> {
+        let inner = self.inner.read();
+        Some(inner.entries.clone())
+    }
 }
 
 #[derive(Debug)]
@@ -160,6 +174,8 @@ impl CatalogModifier for MemoryCatalogModifier {
         let schema = schema.to_string();
         Box::pin(async move {
             let mut inner = inner.write();
+            let idx = inner.entries.len();
+
             let schema = match inner.schemas.get_mut(&schema) {
                 Some(schema) => schema,
                 None => return Err(RayexecError::new(format!("Missing schema: {}", &schema))),
@@ -177,16 +193,15 @@ impl CatalogModifier for MemoryCatalogModifier {
                 }
             }
 
-            schema.entries.insert(
-                info.name.clone(),
-                CatalogEntry::Table(TableEntry {
-                    name: info.name.clone(),
-                    columns: info.columns,
-                }),
-            );
+            schema.entries.insert(info.name.clone(), idx);
 
             let table = MemoryDataTable::default();
-            schema.tables.insert(info.name, table.clone());
+            schema.tables.insert(info.name.clone(), table.clone());
+
+            inner.entries.push(CatalogEntry::Table(TableEntry {
+                name: info.name,
+                columns: info.columns,
+            }));
 
             Ok(Box::new(table) as _)
         })

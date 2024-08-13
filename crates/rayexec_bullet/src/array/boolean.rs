@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use super::{ArrayAccessor, ValuesBuffer};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct BooleanValuesBuffer {
     pub bitmap: Bitmap,
 }

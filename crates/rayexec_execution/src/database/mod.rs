@@ -10,13 +10,14 @@ use catalog::Catalog;
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 use storage::memory::MemoryCatalog;
 use storage::system::SystemCatalog;
 
 /// Root of all accessible catalogs.
 #[derive(Debug)]
 pub struct DatabaseContext {
-    catalogs: HashMap<String, Box<dyn Catalog>>,
+    catalogs: HashMap<String, Arc<dyn Catalog>>,
 }
 
 impl DatabaseContext {
@@ -25,12 +26,12 @@ impl DatabaseContext {
     ///
     /// By itself, this context cannot be used to persist data. Additional
     /// catalogs need to be attached via `attach_catalog`.
-    pub fn new(system_catalog: SystemCatalog) -> Self {
+    pub fn new(system_catalog: Arc<SystemCatalog>) -> Self {
         let catalogs = [
-            ("system".to_string(), Box::new(system_catalog) as _),
+            ("system".to_string(), system_catalog as _),
             (
                 "temp".to_string(),
-                Box::new(MemoryCatalog::new_with_schema("temp")) as _,
+                Arc::new(MemoryCatalog::new_with_schema("temp")) as _,
             ),
         ]
         .into_iter()
@@ -49,7 +50,7 @@ impl DatabaseContext {
     pub fn attach_catalog(
         &mut self,
         name: impl Into<String>,
-        catalog: Box<dyn Catalog>,
+        catalog: Arc<dyn Catalog>,
     ) -> Result<()> {
         let name = name.into();
         if self.catalogs.contains_key(&name) {
@@ -80,5 +81,9 @@ impl DatabaseContext {
             .get(name)
             .map(|c| c.as_ref())
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
+    }
+
+    pub(crate) fn iter_catalogs(&self) -> impl Iterator<Item = (&String, &Arc<dyn Catalog>)> {
+        self.catalogs.iter()
     }
 }

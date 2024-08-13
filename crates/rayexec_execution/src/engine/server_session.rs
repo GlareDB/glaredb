@@ -18,12 +18,12 @@ use crate::{
         buffer::ServerStreamBuffers,
         client::{HybridPlanResponse, PullStatus},
     },
-    logical::sql::{
-        binder::{bind_data::BindData, hybrid::HybridResolver, BoundStatement},
-        planner::PlanContext,
+    logical::{
+        binder::{bind_data::BindData, resolve_hybrid::HybridResolver, BoundStatement},
+        planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
-    runtime::{NopErrorSink, PipelineExecutor, QueryHandle, Runtime},
+    runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
 
@@ -105,10 +105,10 @@ where
         logical.root = optimizer.optimize(logical.root)?;
         let schema = logical.schema()?;
 
-        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default());
-        let pipelines = planner.plan_pipelines(logical.root, context)?;
-
         let query_id = Uuid::new_v4();
+
+        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default(), query_id);
+        let pipelines = planner.plan_pipelines(logical.root, context)?;
 
         self.pending_pipelines.insert(query_id, pipelines.remote);
 
@@ -134,10 +134,12 @@ where
             },
         );
 
+        // TODO: Spooky action, this needs to happen before the planning so that
+        // planning can get the appropriate error sink when creating streams.
+        let error_sink = self.buffers.create_error_sink(query_id)?;
+
         let pipelines = planner.plan_from_intermediate(group)?;
-        let handle = self
-            .executor
-            .spawn_pipelines(pipelines, Arc::new(NopErrorSink));
+        let handle = self.executor.spawn_pipelines(pipelines, error_sink);
 
         self.executing_pipelines.insert(query_id, handle);
 

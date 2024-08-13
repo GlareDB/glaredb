@@ -1,14 +1,13 @@
 use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
-    logical::{operator::LocationRequirement, sql::binder::BindMode},
+    logical::{binder::BindMode, operator::LocationRequirement},
 };
 use rayexec_error::Result;
 
 use super::{
-    bind_data::{BoundTableFunctionReference, MaybeBound},
-    resolver::Resolver,
-    BindData, Binder,
+    bind_data::MaybeBound, bound_table_function::BoundTableFunctionReference,
+    resolve_normal::Resolver, BindData, Binder,
 };
 
 /// Resolver for resolving partially bound statements.
@@ -101,7 +100,9 @@ impl<'a> HybridResolver<'a> {
                     .require_resolve_table_function(&unbound.reference)?;
 
                 let name = table_fn.name().to_string();
-                let func = table_fn.plan_and_initialize(unbound.args.clone()).await?;
+                let func = table_fn
+                    .plan_and_initialize(self.binder.context, unbound.args.clone())
+                    .await?;
 
                 // TODO: Marker indicating this needs to be executing remotely.
                 *item = MaybeBound::Bound(

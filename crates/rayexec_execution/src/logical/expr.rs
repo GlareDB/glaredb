@@ -1,5 +1,5 @@
 use super::operator::LogicalOperator;
-use super::sql::scope::ColumnRef;
+use super::planner::scope::ColumnRef;
 use crate::expr::scalar::VariadicOperator;
 use crate::expr::scalar::{PlannedBinaryOperator, PlannedUnaryOperator};
 use crate::functions::aggregate::PlannedAggregateFunction;

@@ -4,6 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::database::catalog::Catalog;
 use crate::database::storage::memory::MemoryCatalog;
@@ -50,7 +51,7 @@ pub trait DataSource: Sync + Send + Debug {
     fn create_catalog(
         &self,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>>;
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>>;
 
     /// Initialize a list of table functions that this data source provides.
     ///
@@ -194,13 +195,13 @@ impl DataSource for MemoryDataSource {
     fn create_catalog(
         &self,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Box<dyn Catalog>>> {
+    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
         Box::pin(async move {
             if !options.is_empty() {
                 return Err(RayexecError::new("Memory data source takes no options"));
             }
 
-            Ok(Box::new(MemoryCatalog::new_with_schema("public")) as _)
+            Ok(Arc::new(MemoryCatalog::new_with_schema("public")) as _)
         })
     }
 

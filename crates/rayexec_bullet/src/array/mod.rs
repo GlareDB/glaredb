@@ -55,6 +55,47 @@ pub enum Array {
 }
 
 impl Array {
+    pub fn new_nulls(datatype: &DataType, len: usize) -> Self {
+        match datatype {
+            DataType::Null => Array::Null(NullArray::new(len)),
+            DataType::Boolean => Array::Boolean(BooleanArray::new_nulls(len)),
+            DataType::Int8 => Array::Int8(PrimitiveArray::new_nulls(len)),
+            DataType::Int16 => Array::Int16(PrimitiveArray::new_nulls(len)),
+            DataType::Int32 => Array::Int32(PrimitiveArray::new_nulls(len)),
+            DataType::Int64 => Array::Int64(PrimitiveArray::new_nulls(len)),
+            DataType::Int128 => Array::Int128(PrimitiveArray::new_nulls(len)),
+            DataType::UInt8 => Array::UInt8(PrimitiveArray::new_nulls(len)),
+            DataType::UInt16 => Array::UInt16(PrimitiveArray::new_nulls(len)),
+            DataType::UInt32 => Array::UInt32(PrimitiveArray::new_nulls(len)),
+            DataType::UInt64 => Array::UInt64(PrimitiveArray::new_nulls(len)),
+            DataType::UInt128 => Array::UInt128(PrimitiveArray::new_nulls(len)),
+            DataType::Float32 => Array::Float32(PrimitiveArray::new_nulls(len)),
+            DataType::Float64 => Array::Float64(PrimitiveArray::new_nulls(len)),
+            DataType::Decimal64(m) => Array::Decimal64(DecimalArray::new(
+                m.precision,
+                m.scale,
+                PrimitiveArray::new_nulls(len),
+            )),
+            DataType::Decimal128(m) => Array::Decimal128(DecimalArray::new(
+                m.precision,
+                m.scale,
+                PrimitiveArray::new_nulls(len),
+            )),
+            DataType::Date32 => Array::Date32(PrimitiveArray::new_nulls(len)),
+            DataType::Date64 => Array::Date64(PrimitiveArray::new_nulls(len)),
+            DataType::Timestamp(m) => {
+                Array::Timestamp(TimestampArray::new(m.unit, PrimitiveArray::new_nulls(len)))
+            }
+            DataType::Interval => Array::Interval(PrimitiveArray::new_nulls(len)),
+            DataType::Utf8 => Array::Utf8(VarlenArray::new_nulls(len)),
+            DataType::LargeUtf8 => Array::LargeUtf8(VarlenArray::new_nulls(len)),
+            DataType::Binary => Array::Binary(VarlenArray::new_nulls(len)),
+            DataType::LargeBinary => Array::LargeBinary(VarlenArray::new_nulls(len)),
+            DataType::Struct(m) => Array::Struct(StructArray::new_nulls(&m.fields, len)),
+            DataType::List(_m) => Array::List(ListArray::new_nulls(len)),
+        }
+    }
+
     pub fn datatype(&self) -> DataType {
         match self {
             Array::Null(_) => DataType::Null,

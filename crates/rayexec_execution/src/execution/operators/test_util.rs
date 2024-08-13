@@ -17,7 +17,7 @@ use crate::datasource::DataSourceRegistry;
 use super::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush};
 
 pub fn test_database_context() -> DatabaseContext {
-    DatabaseContext::new(SystemCatalog::new(&DataSourceRegistry::default()))
+    DatabaseContext::new(Arc::new(SystemCatalog::new(&DataSourceRegistry::default())))
 }
 
 /// Test context containg a waker implementation that counts the number of times

@@ -1,21 +1,19 @@
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
-use rayexec_parser::ast::{self, QueryNode};
+use rayexec_parser::ast::{self};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::{
-    database::{entry::TableEntry, DatabaseContext},
-    functions::{
-        aggregate::AggregateFunction,
-        scalar::ScalarFunction,
-        table::{PlannedTableFunction, TableFunctionArgs},
-    },
-    logical::operator::LocationRequirement,
-    proto::DatabaseProtoConv,
+    database::DatabaseContext, logical::operator::LocationRequirement, proto::DatabaseProtoConv,
 };
 
-use super::Bound;
+use super::{
+    bound_cte::BoundCte,
+    bound_function::BoundFunction,
+    bound_table::{BoundTableOrCteReference, CteIndex},
+    bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference},
+};
 
 /// Data that's collected during binding, including resolved tables, functions,
 /// and other database objects.
@@ -29,7 +27,7 @@ pub struct BindData {
     pub tables: BindList<BoundTableOrCteReference, ast::ObjectReference>,
 
     /// Bound scalar or aggregate functions.
-    pub functions: BindList<BoundFunctionReference, ast::ObjectReference>,
+    pub functions: BindList<BoundFunction, ast::ObjectReference>,
 
     /// Bound (and planned) table functions. Unbound table functions include the
     /// table function arguments to allow for quick planning on the remote side.
@@ -69,7 +67,7 @@ impl BindData {
     // TODO: This doesn't account for CTEs defined in sibling subqueries yet
     // that happen to have the same name and depths _and_ there's no CTEs in the
     // parent.
-    pub fn find_cte(&self, name: &str) -> Option<CteReference> {
+    pub fn find_cte(&self, name: &str) -> Option<CteIndex> {
         let mut search_depth = self.current_depth;
 
         for (idx, cte) in self.ctes.iter().rev().enumerate() {
@@ -80,9 +78,7 @@ impl BindData {
 
             if cte.name == name {
                 // We found a good reference.
-                return Some(CteReference {
-                    idx: (self.ctes.len() - 1) - idx, // Since we're iterating backwards.
-                });
+                return Some(CteIndex(self.ctes.len() - 1 - idx)); // Since we're iterating backwards.
             }
 
             // Otherwise keep searching, even if the cte is up a level.
@@ -102,10 +98,10 @@ impl BindData {
     }
 
     /// Push a CTE into bind data, returning a CTE reference.
-    pub fn push_cte(&mut self, cte: BoundCte) -> CteReference {
+    pub fn push_cte(&mut self, cte: BoundCte) -> CteIndex {
         let idx = self.ctes.len();
         self.ctes.push(cte);
-        CteReference { idx }
+        CteIndex(idx)
     }
 }
 
@@ -136,110 +132,6 @@ impl DatabaseProtoConv for BindData {
             )?,
             current_depth: proto.current_depth as usize,
             ctes: Vec::new(),
-        })
-    }
-}
-
-/// A bound aggregate or scalar function.
-#[derive(Debug, Clone, PartialEq)]
-pub enum BoundFunctionReference {
-    Scalar(Box<dyn ScalarFunction>),
-    Aggregate(Box<dyn AggregateFunction>),
-}
-
-impl BoundFunctionReference {
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Scalar(f) => f.name(),
-            Self::Aggregate(f) => f.name(),
-        }
-    }
-}
-
-impl DatabaseProtoConv for BoundFunctionReference {
-    type ProtoType = rayexec_proto::generated::binder::BoundFunctionReference;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::bound_function_reference::Value;
-
-        let value = match self {
-            Self::Scalar(scalar) => Value::Scalar(scalar.to_proto_ctx(context)?),
-            Self::Aggregate(agg) => Value::Aggregate(agg.to_proto_ctx(context)?),
-        };
-
-        Ok(Self::ProtoType { value: Some(value) })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::binder::bound_function_reference::Value;
-
-        Ok(match proto.value.required("value")? {
-            Value::Scalar(scalar) => {
-                Self::Scalar(DatabaseProtoConv::from_proto_ctx(scalar, context)?)
-            }
-            Value::Aggregate(agg) => {
-                Self::Aggregate(DatabaseProtoConv::from_proto_ctx(agg, context)?)
-            }
-        })
-    }
-}
-
-/// A bound table function reference.
-#[derive(Debug, Clone, PartialEq)]
-pub struct BoundTableFunctionReference {
-    /// Name of the original function.
-    ///
-    /// This is used to allow the user to reference the output of the function
-    /// if not provided an alias.
-    pub name: String,
-    /// The function.
-    pub func: Box<dyn PlannedTableFunction>,
-    // TODO: Maybe keep args here?
-}
-
-impl DatabaseProtoConv for BoundTableFunctionReference {
-    type ProtoType = rayexec_proto::generated::binder::BoundTableFunctionReference;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            name: self.name.clone(),
-            func: Some(self.func.to_proto_ctx(context)?),
-        })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            name: proto.name,
-            func: DatabaseProtoConv::from_proto_ctx(proto.func.required("func")?, context)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct UnboundTableFunctionReference {
-    /// Original reference in the ast.
-    pub reference: ast::ObjectReference,
-    /// Arguments to the function.
-    ///
-    /// Note that these are required to be constant and so we don't need to
-    /// delay binding.
-    pub args: TableFunctionArgs,
-}
-
-impl ProtoConv for UnboundTableFunctionReference {
-    type ProtoType = rayexec_proto::generated::binder::UnboundTableFunctionReference;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            reference: Some(self.reference.to_proto()?),
-            args: Some(self.args.to_proto()?),
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            reference: ast::ObjectReference::from_proto(proto.reference.required("reference")?)?,
-            args: TableFunctionArgs::from_proto(proto.args.required("args")?)?,
         })
     }
 }
@@ -362,7 +254,7 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, ast::ObjectReferen
     }
 }
 
-impl DatabaseProtoConv for BindList<BoundFunctionReference, ast::ObjectReference> {
+impl DatabaseProtoConv for BindList<BoundFunction, ast::ObjectReference> {
     type ProtoType = rayexec_proto::generated::binder::FunctionsBindList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -398,10 +290,8 @@ impl DatabaseProtoConv for BindList<BoundFunctionReference, ast::ObjectReference
             .map(|f| match f.value.required("value")? {
                 Value::Bound(bound) => {
                     let location = LocationRequirement::from_proto(bound.location())?;
-                    let bound = BoundFunctionReference::from_proto_ctx(
-                        bound.bound.required("bound")?,
-                        context,
-                    )?;
+                    let bound =
+                        BoundFunction::from_proto_ctx(bound.bound.required("bound")?, context)?;
                     Ok(MaybeBound::Bound(bound, location))
                 }
                 Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
@@ -464,83 +354,6 @@ impl DatabaseProtoConv for BindList<BoundTableFunctionReference, UnboundTableFun
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Self { inner: funcs })
-    }
-}
-
-/// Table or CTE found in the FROM clause.
-#[derive(Debug, Clone, PartialEq)]
-pub enum BoundTableOrCteReference {
-    /// Resolved table.
-    Table {
-        catalog: String,
-        schema: String,
-        entry: TableEntry,
-    },
-    /// Resolved CTE.
-    Cte(CteReference),
-}
-
-impl ProtoConv for BoundTableOrCteReference {
-    type ProtoType = rayexec_proto::generated::binder::BoundTableOrCteReference;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::binder::{
-            bound_table_or_cte_reference::Value, BoundTableReference,
-        };
-
-        let value = match self {
-            Self::Table {
-                catalog,
-                schema,
-                entry,
-            } => Value::Table(BoundTableReference {
-                catalog: catalog.clone(),
-                schema: schema.clone(),
-                table: Some(entry.to_proto()?),
-            }),
-            Self::Cte(cte) => Value::Cte(cte.to_proto()?),
-        };
-
-        Ok(Self::ProtoType { value: Some(value) })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::binder::bound_table_or_cte_reference::Value;
-
-        Ok(match proto.value.required("value")? {
-            Value::Table(table) => Self::Table {
-                catalog: table.catalog,
-                schema: table.schema,
-                entry: TableEntry::from_proto(table.table.required("table")?)?,
-            },
-            Value::Cte(cte) => Self::Cte(CteReference::from_proto(cte)?),
-        })
-    }
-}
-
-/// References a CTE that can be found in `BindData`.
-///
-/// Note that this doesn't hold the CTE itself since it may be referenced more
-/// than once in a query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CteReference {
-    /// Index into the CTE map.
-    pub idx: usize,
-}
-
-impl ProtoConv for CteReference {
-    type ProtoType = rayexec_proto::generated::binder::BoundCteReference;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            idx: self.idx as u32,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            idx: proto.idx as usize,
-        })
     }
 }
 
@@ -610,19 +423,4 @@ impl ProtoConv for ItemReference {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(Self(proto.idents))
     }
-}
-
-// TODO: This might need some scoping information.
-#[derive(Debug, Clone, PartialEq)]
-pub struct BoundCte {
-    /// Normalized name for the CTE.
-    pub name: String,
-    /// Depth this CTE was found at.
-    pub depth: usize,
-    /// Column aliases taken directly from the ast.
-    pub column_aliases: Option<Vec<ast::Ident>>,
-    /// The bound query node.
-    pub body: QueryNode<Bound>,
-    /// If this CTE should be materialized.
-    pub materialized: bool,
 }

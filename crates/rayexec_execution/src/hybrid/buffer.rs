@@ -8,9 +8,11 @@ use std::{
 
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use tracing::debug;
+use uuid::Uuid;
 
 use crate::{
     execution::{
@@ -21,6 +23,7 @@ use crate::{
         },
     },
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    runtime::ErrorSink,
 };
 
 use super::client::{IpcBatch, PullStatus};
@@ -29,6 +32,8 @@ use super::client::{IpcBatch, PullStatus};
 // TODO: Remove old streams.
 #[derive(Debug, Default)]
 pub struct ServerStreamBuffers {
+    /// Error sinks keyed by query id.
+    error_sinks: DashMap<Uuid, Arc<SharedErrorSink>>,
     /// Streams that are sending batches to the server.
     incoming: DashMap<StreamId, IncomingStream>,
     /// Streams that are sending batches to the client.
@@ -36,7 +41,9 @@ pub struct ServerStreamBuffers {
 }
 
 impl ServerStreamBuffers {
-    pub fn create_incoming_stream(&self, stream_id: StreamId) -> IncomingStream {
+    pub fn create_incoming_stream(&self, stream_id: StreamId) -> Result<IncomingStream> {
+        debug!(?stream_id, "creating incoming stream");
+
         let stream = IncomingStream {
             state: Arc::new(Mutex::new(IncomingStreamState {
                 finished: false,
@@ -47,21 +54,53 @@ impl ServerStreamBuffers {
 
         self.incoming.insert(stream_id, stream.clone());
 
-        stream
+        Ok(stream)
     }
 
-    pub fn create_outgoing_stream(&self, stream_id: StreamId) -> OutgoingStream {
+    pub fn create_outgoing_stream(&self, stream_id: StreamId) -> Result<OutgoingStream> {
+        debug!(?stream_id, "creating outgoing stream");
+
+        let error_sink = self.get_sink_for_query(&stream_id.query_id)?;
+
         let stream = OutgoingStream {
             state: Arc::new(Mutex::new(OutgoingStreamState {
                 finished: false,
                 batch: None,
                 push_waker: None,
+                error_sink,
             })),
         };
 
         self.outgoing.insert(stream_id, stream.clone());
 
-        stream
+        Ok(stream)
+    }
+
+    /// Creates an stores an error sink for a query.
+    pub fn create_error_sink(&self, query_id: Uuid) -> Result<Arc<SharedErrorSink>> {
+        debug!(%query_id, "create error sink for query");
+
+        match self.error_sinks.entry(query_id) {
+            dashmap::Entry::Occupied(_ent) => Err(RayexecError::new(format!(
+                "Error sink already exists for query {query_id}"
+            ))),
+            dashmap::Entry::Vacant(ent) => {
+                let error_sink = Arc::new(SharedErrorSink::default());
+                ent.insert(error_sink.clone());
+                Ok(error_sink)
+            }
+        }
+    }
+
+    pub fn get_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
+        debug!(%query_id, "retrieving error sink for query");
+
+        let error_sink = self
+            .error_sinks
+            .get(query_id)
+            .ok_or_else(|| RayexecError::new(format!("Missing error sink for query {query_id}")))?;
+
+        Ok(error_sink.value().clone())
     }
 
     pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
@@ -100,6 +139,18 @@ impl ServerStreamBuffers {
         })?;
 
         let mut state = outgoing.state.lock();
+
+        // Check if the query errored before doing anything with the batch. This
+        // is how we get the error back to the client.
+        //
+        // This may race between the read/write of the lock, but I don't think
+        // that actually matters. The error is getting back to the client
+        // somehow, either via this stream or some other stream.
+        if state.error_sink.inner.read().is_some() {
+            let error = state.error_sink.inner.write().take();
+            return Err(error.unwrap_or_else(|| RayexecError::new("Error already pulled")));
+        }
+
         let status = match state.batch.take() {
             Some(batch) => PullStatus::Batch(IpcBatch(batch)),
             None if state.finished => PullStatus::Finished,
@@ -164,6 +215,7 @@ struct OutgoingStreamState {
     finished: bool,
     batch: Option<Batch>,
     push_waker: Option<Waker>,
+    error_sink: Arc<SharedErrorSink>,
 }
 
 struct OutgoingPushFuture {
@@ -266,5 +318,23 @@ impl Future for IncomingPullFuture {
                 Poll::Pending
             }
         }
+    }
+}
+
+/// Error sink shared across all stream buffers for a particular query.
+#[derive(Debug, Default)]
+pub struct SharedErrorSink {
+    inner: RwLock<Option<RayexecError>>,
+}
+
+impl ErrorSink for SharedErrorSink {
+    fn push_error(&self, error: RayexecError) {
+        let mut inner = self.inner.write();
+        if inner.is_some() {
+            // Prefer the existing error.
+            return;
+        }
+
+        *inner = Some(error);
     }
 }

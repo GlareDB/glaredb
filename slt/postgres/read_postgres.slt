@@ -3,7 +3,7 @@
 query II
 select * from read_postgres('postgres://glaredb:password@localhost:5433/glaredb_test', 'public', 't1');
 ----
-23  45
+23  45  test
 
 query II
 select b from read_postgres('postgres://glaredb:password@localhost:5433/glaredb_test', 'public', 't1');
