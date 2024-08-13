@@ -11,7 +11,7 @@ export interface ConnectOptions {
   storageOptions?: Record<string, string>
 }
 /** Connect to a GlareDB database. */
-export function connect(dataDirOrCloudUrl?: string | undefined | null, options?: ConnectOptions | undefined | null): Promise<Connection>
+export declare function connect(dataDirOrCloudUrl?: string | undefined | null, options?: ConnectOptions | undefined | null): Promise<Connection>
 /** A connected session to a GlareDB database. */
 export class Connection {
   /**

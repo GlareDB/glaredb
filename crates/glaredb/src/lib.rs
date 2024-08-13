@@ -19,26 +19,40 @@ use std::task::{Context, Poll};
 use datafusion::arrow::array::{StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::error::ArrowError;
-// public re-export so downstream users of this package don't have to
-// directly depend on DF (and our version no-less) to use our interfaces.
-pub use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::LogicalPlan;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-pub use datafusion::physical_plan::SendableRecordBatchStream;
-pub use datafusion::scalar::ScalarValue;
 use derive_builder::Builder;
 use futures::lock::Mutex;
 use futures::stream::{self, Stream, StreamExt};
 use futures::TryStreamExt;
 use metastore::errors::MetastoreError;
 use sqlexec::engine::{Engine, EngineStorage, TrackedSession};
-pub use sqlexec::environment::EnvironmentReader;
 use sqlexec::errors::ExecError;
 use sqlexec::remote::client::RemoteClientType;
 use sqlexec::session::ExecutionResult;
 use sqlexec::OperationInfo;
 use url::Url;
+
+// public re-export so downstream users of this package don't have to
+// directly depend on DF (and our version no-less) to use our interfaces.
+pub mod ext {
+    pub use datafusion;
+    pub use datafusion::arrow;
+    pub use datafusion::arrow::record_batch::RecordBatch;
+    pub use datafusion::physical_plan::SendableRecordBatchStream;
+    pub use datafusion::scalar::ScalarValue;
+    pub use sqlexec::environment::EnvironmentReader;
+
+    // public exports for some quasi-internal tools used by external and
+    // downstream dependencies to reduce friction/dependencies.
+    pub mod tools {
+        pub use arrow_util::pretty::pretty_format_batches;
+        pub use terminal_util::term_width;
+    }
+}
+
+use crate::ext::{EnvironmentReader, RecordBatch, ScalarValue, SendableRecordBatchStream};
 
 /// ConnectOptions are the set of options to configure a GlareDB
 /// instance, and are an analogue to the commandline arguments to
