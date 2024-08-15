@@ -4,7 +4,22 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::task::Context;
 
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::{
+    database::catalog_entry::CatalogEntry,
+    execution::operators::{PollFinalize, PollPush},
+};
+
+pub trait TableStorage: Debug + Sync + Send {
+    fn data_table(&self, schema: &str, ent: &CatalogEntry) -> Result<Box<dyn DataTable>>;
+
+    fn create_physical_table(
+        &self,
+        schema: &str,
+        ent: &CatalogEntry,
+    ) -> BoxFuture<'_, Result<Box<dyn DataTable>>>;
+
+    fn drop_physical_table(&self, schema: &str, ent: &CatalogEntry) -> BoxFuture<'_, Result<()>>;
+}
 
 pub trait DataTable: Debug + Sync + Send {
     /// Return table scanners for the table.

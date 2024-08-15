@@ -1,6 +1,6 @@
-use crate::database::{
-    table::{DataTable, DataTableScan, EmptyTableScan},
-    DatabaseContext,
+use crate::{
+    database::DatabaseContext,
+    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{

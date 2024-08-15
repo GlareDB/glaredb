@@ -268,7 +268,13 @@ impl<'a> PlanContext<'a> {
                     }
                 };
 
-                let scope = Scope::with_columns(None, ent.columns.iter().map(|f| f.name.clone()));
+                let scope = Scope::with_columns(
+                    None,
+                    ent.try_as_table_entry()?
+                        .columns
+                        .iter()
+                        .map(|f| f.name.clone()),
+                );
 
                 // TODO: Loc
                 LogicalQuery {
@@ -310,7 +316,13 @@ impl<'a> PlanContext<'a> {
             } // Shouldn't be possible.
         };
 
-        let table_type_schema = TypeSchema::new(entry.columns.iter().map(|c| c.datatype.clone()));
+        let table_type_schema = TypeSchema::new(
+            entry
+                .try_as_table_entry()?
+                .columns
+                .iter()
+                .map(|c| c.datatype.clone()),
+        );
         let source_schema = source.root.output_schema(&planner.outer_schemas)?;
 
         let input = Self::apply_cast_for_insert(&table_type_schema, &source_schema, source.root)?;
@@ -336,8 +348,8 @@ impl<'a> PlanContext<'a> {
                 let deps = drop.deps.unwrap_or(ast::DropDependents::Restrict);
 
                 let plan = LogicalOperator::Drop(LogicalNode::new(DropEntry {
+                    catalog,
                     info: DropInfo {
-                        catalog,
                         schema,
                         object: DropObject::Schema,
                         cascade: ast::DropDependents::Cascade == deps,

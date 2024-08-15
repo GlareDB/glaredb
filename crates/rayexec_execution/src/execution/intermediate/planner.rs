@@ -637,7 +637,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(drop.info))),
+            operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(
+                drop.catalog,
+                drop.info,
+            ))),
             partitioning_requirement: Some(1),
         };
 

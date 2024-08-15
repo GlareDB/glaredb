@@ -203,7 +203,12 @@ where
     O: OffsetIndex,
 {
     pub fn new_nulls(len: usize) -> Self {
-        let values = VarlenValuesBuffer::default();
+        let mut values = VarlenValuesBuffer::default();
+
+        for _i in 0..len {
+            values.push_value(T::NULL);
+        }
+
         let validity = Bitmap::all_false(len);
         Self::new(values, Some(validity))
     }
@@ -431,5 +436,16 @@ where
 
     fn validity(&self) -> Option<&Bitmap> {
         self.validity.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn varlen_new_nulls_len() {
+        let arr = Utf8Array::new_nulls(3);
+        assert_eq!(3, arr.len());
     }
 }

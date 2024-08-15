@@ -1,0 +1,73 @@
+# Correct results when joining on empty inputs.
+
+statement ok
+create temp table t1 (a int);
+
+statement ok
+create temp table t2 (a int);
+
+query TT
+describe select * from t1 inner join t2 on t1.a = t2.a;
+----
+a  Int32
+a  Int32
+
+query TT
+describe select * from t1 left join t2 on t1.a = t2.a;
+----
+a  Int32
+a  Int32
+
+query TT
+describe select * from t1 right join t2 on t1.a = t2.a;
+----
+a  Int32
+a  Int32
+
+# Both empty
+
+query II
+select * from t1 inner join t2 on t1.a = t2.a;
+----
+
+query II
+select * from t1 left join t2 on t1.a = t2.a;
+----
+
+query II
+select * from t1 right join t2 on t1.a = t2.a;
+----
+
+# Left input has rows
+
+statement ok
+insert into t1 values (2)
+
+query II
+select * from t1 inner join t2 on t1.a = t2.a;
+----
+
+query II
+select * from t1 left join t2 on t1.a = t2.a;
+----
+2  NULL
+
+query II
+select * from t1 right join t2 on t1.a = t2.a;
+----
+
+# Right input has rows (t1 and t2 flipped)
+
+query II
+select * from t2 inner join t1 on t2.a = t1.a;
+----
+
+query II
+select * from t2 left join t1 on t2.a = t1.a;
+----
+
+query II
+select * from t2 right join t1 on t2.a = t1.a;
+----
+NULL  2
+

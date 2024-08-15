@@ -55,8 +55,14 @@ impl ExecutableOperator for PhysicalCreateSchema {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let catalog = context.get_catalog(&self.catalog)?.catalog_modifier(&tx)?;
-        let create = catalog.create_schema(self.info.clone());
+        let catalog = context.get_database(&self.catalog)?.catalog.clone();
+        let info = self.info.clone();
+        let create = Box::pin(async move {
+            catalog.create_schema(&tx, &info)?;
+            // TODO: And persist some how (write to log, flush on commit)
+            // TODO: Probably doesn't even need to be async...
+            Ok(())
+        });
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::None),

@@ -1,17 +1,13 @@
 use crate::{
-    database::{
-        catalog::CatalogTx,
-        create::CreateTableInfo,
-        table::{DataTable, DataTableInsert},
-        DatabaseContext,
-    },
+    database::{catalog::CatalogTx, create::CreateTableInfo, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
+    storage::table_storage::{DataTable, DataTableInsert},
 };
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use std::{fmt, task::Waker};
 use std::{
@@ -108,8 +104,34 @@ impl ExecutableOperator for PhysicalCreateTable {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
 
-        let catalog = context.get_catalog(&self.catalog)?.catalog_modifier(&tx)?;
-        let create = catalog.create_table(&self.schema, self.info.clone());
+        let database = context.get_database(&self.catalog)?;
+        let table_storage = database
+            .table_storage
+            .as_ref()
+            .ok_or_else(|| {
+                RayexecError::new(
+                    "Missing table storage, cannot create a table inside this database",
+                )
+            })?
+            .clone();
+
+        let schema_ent = database
+            .catalog
+            .get_schema(&tx, &self.schema)?
+            .ok_or_else(|| {
+                RayexecError::new(format!("Missing schema for table create: {}", self.schema))
+            })?;
+
+        let info = self.info.clone();
+
+        let create = Box::pin(async move {
+            let table_ent = schema_ent.create_table(&tx, &info)?;
+            let datatable = table_storage
+                .create_physical_table(&schema_ent.entry().name, &table_ent)
+                .await?;
+
+            Ok(datatable)
+        });
 
         // First partition will be responsible for the create.
         let mut states = vec![CreateTablePartitionState::Creating {

@@ -1,11 +1,11 @@
 use crate::{
-    database::{catalog::CatalogTx, entry::TableEntry, table::DataTableInsert, DatabaseContext},
+    database::{catalog::CatalogTx, catalog_entry::CatalogEntry, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
+    storage::table_storage::DataTableInsert,
 };
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, Result};
-use rayexec_proto::ProtoConv;
+use rayexec_error::{RayexecError, Result};
 use std::{
     sync::Arc,
     task::{Context, Waker},
@@ -32,11 +32,15 @@ pub struct InsertPartitionState {
 pub struct PhysicalInsert {
     catalog: String,
     schema: String,
-    table: TableEntry,
+    table: Arc<CatalogEntry>,
 }
 
 impl PhysicalInsert {
-    pub fn new(catalog: impl Into<String>, schema: impl Into<String>, table: TableEntry) -> Self {
+    pub fn new(
+        catalog: impl Into<String>,
+        schema: impl Into<String>,
+        table: Arc<CatalogEntry>,
+    ) -> Self {
         PhysicalInsert {
             catalog: catalog.into(),
             schema: schema.into(),
@@ -54,12 +58,14 @@ impl ExecutableOperator for PhysicalInsert {
         let num_partitions = partitions[0];
 
         // TODO: Placeholder.
-        let tx = CatalogTx::new();
+        let _tx = CatalogTx::new();
 
-        let data_table =
-            context
-                .get_catalog(&self.catalog)?
-                .data_table(&tx, &self.schema, &self.table)?;
+        let database = context.get_database(&self.catalog)?;
+        let data_table = database
+            .table_storage
+            .as_ref()
+            .ok_or_else(|| RayexecError::new("Missing table storage"))?
+            .data_table(&self.schema, &self.table)?;
 
         // TODO: Pass constraints, on conflict
         let inserts = data_table.insert(num_partitions)?;
@@ -157,18 +163,20 @@ impl DatabaseProtoConv for PhysicalInsert {
     type ProtoType = rayexec_proto::generated::execution::PhysicalInsert;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            catalog: self.catalog.clone(),
-            schema: self.schema.clone(),
-            table: Some(self.table.to_proto()?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     catalog: self.catalog.clone(),
+        //     schema: self.schema.clone(),
+        //     table: Some(self.table.to_proto()?),
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            catalog: proto.catalog,
-            schema: proto.schema,
-            table: TableEntry::from_proto(proto.table.required("table")?)?,
-        })
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // Ok(Self {
+        //     catalog: proto.catalog,
+        //     schema: proto.schema,
+        //     table: TableEntry::from_proto(proto.table.required("table")?)?,
+        // })
     }
 }

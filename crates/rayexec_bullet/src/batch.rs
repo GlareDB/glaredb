@@ -41,10 +41,10 @@ impl Batch {
             None => return Ok(Self::empty()),
         };
 
-        for col in &cols {
+        for (idx, col) in cols.iter().enumerate() {
             if col.len() != len {
                 return Err(RayexecError::new(format!(
-                    "Expected column length to be {len}, got {}",
+                    "Expected column length to be {len}, got {}. Column idx: {idx}",
                     col.len()
                 )));
             }

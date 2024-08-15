@@ -6,7 +6,9 @@ use rayexec_parser::{parser, statement::RawStatement};
 use uuid::Uuid;
 
 use crate::{
-    database::{catalog::CatalogTx, DatabaseContext},
+    database::{
+        catalog::CatalogTx, memory_catalog::MemoryCatalog, AttachInfo, Database, DatabaseContext,
+    },
     execution::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
         intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
@@ -218,15 +220,34 @@ where
 
                         // TODO: No clue if we want to do this here. What happens during
                         // hybrid exec?
+
+                        // Move out, if hybrid and we don't have the data source
+                        // locally, do remote attach.
+
                         let datasource = self.registry.get_datasource(&attach.datasource)?;
-                        let catalog = datasource.create_catalog(attach.options).await?;
-                        self.context.attach_catalog(&attach.name, catalog)?;
+                        let connection = datasource.connect(attach.options.clone()).await?;
+                        let catalog = Arc::new(MemoryCatalog::default());
+                        if let Some(catalog_storage) = connection.catalog_storage.as_ref() {
+                            catalog_storage.initial_load(&catalog).await?;
+                        }
+
+                        let database = Database {
+                            catalog,
+                            catalog_storage: connection.catalog_storage,
+                            table_storage: Some(connection.table_storage),
+                            attach_info: Some(AttachInfo {
+                                datasource: attach.datasource.clone(),
+                                options: attach.options,
+                            }),
+                        };
+
+                        self.context.attach_database(&attach.name, database)?;
                         empty
                     }
                     LogicalOperator::DetachDatabase(detach) => {
                         let empty =
                             planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?; // Here to avoid lifetime issues.
-                        self.context.detach_catalog(&detach.as_ref().name)?;
+                        self.context.detach_database(&detach.as_ref().name)?;
                         empty
                     }
                     LogicalOperator::SetVar(set_var) => {

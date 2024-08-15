@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use rayexec_execution::database::table::{DataTable, DataTableScan};
+use rayexec_execution::storage::table_storage::{DataTable, DataTableScan};
 use std::sync::Arc;
 
 use crate::protocol::table::{Table, TableScan};

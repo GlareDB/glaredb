@@ -2,9 +2,9 @@ use super::context::QueryContext;
 use super::explainable::{ColumnIndexes, ExplainConfig, ExplainEntry, Explainable};
 use super::expr::LogicalExpression;
 use super::grouping_set::GroupingSets;
+use crate::database::catalog_entry::CatalogEntry;
 use crate::database::create::OnConflict;
 use crate::database::drop::DropInfo;
-use crate::database::entry::TableEntry;
 use crate::engine::vars::SessionVar;
 use crate::execution::explain::format_logical_plan_for_explain;
 use crate::functions::copy::CopyToFunction;
@@ -17,6 +17,7 @@ use rayexec_io::location::FileLocation;
 use rayexec_proto::ProtoConv;
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 pub trait SchemaNode {
     /// Get the output type schema of the operator.
@@ -812,7 +813,7 @@ impl Explainable for CopyTo {
 pub struct Scan {
     pub catalog: String,
     pub schema: String,
-    pub source: TableEntry,
+    pub source: Arc<CatalogEntry>,
     // pub projection: Option<Vec<usize>>,
     // pub input: BindIdx,
     // TODO: Pushdowns
@@ -820,14 +821,26 @@ pub struct Scan {
 
 impl SchemaNode for Scan {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
-        let schema = TypeSchema::new(self.source.columns.iter().map(|f| f.datatype.clone()));
+        let schema = TypeSchema::new(
+            self.source
+                .try_as_table_entry()?
+                .columns
+                .iter()
+                .map(|f| f.datatype.clone()),
+        );
         Ok(schema)
     }
 }
 
 impl Explainable for Scan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let column_types = self.source.columns.iter().map(|c| c.datatype.clone());
+        let column_types = self
+            .source
+            .try_as_table_entry()
+            .expect("entry to be a table entry")
+            .columns
+            .iter()
+            .map(|c| c.datatype.clone());
         ExplainEntry::new("Scan")
             .with_value("source", &self.source.name)
             .with_values("column_types", column_types)
@@ -1033,6 +1046,7 @@ impl Explainable for DetachDatabase {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DropEntry {
+    pub catalog: String,
     pub info: DropInfo,
 }
 
@@ -1050,7 +1064,7 @@ impl Explainable for DropEntry {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Insert {
-    pub table: TableEntry,
+    pub table: Arc<CatalogEntry>,
     pub input: Box<LogicalOperator>,
 }
 

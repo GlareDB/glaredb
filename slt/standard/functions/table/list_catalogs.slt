@@ -1,6 +1,0 @@
-# list_catalogs system function
-
-query TB
-select * from list_catalogs() where catalog_name = 'temp';
-----
-temp  false

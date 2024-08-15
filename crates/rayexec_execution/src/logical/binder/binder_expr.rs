@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
+    database::catalog_entry::CatalogEntryType,
     expr::scalar::UnaryOperator,
     functions::table::TableFunctionArgs,
     logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
@@ -11,7 +12,10 @@ use rayexec_parser::{
     meta::Raw,
 };
 
-use super::{bound_function::BoundFunction, BindData, Binder, Bound};
+use super::{
+    bound_function::BoundFunction, resolve_normal::create_user_facing_resolve_err, BindData,
+    Binder, Bound,
+};
 
 pub struct ExpressionBinder<'a> {
     binder: &'a Binder<'a>,
@@ -323,35 +327,23 @@ impl<'a> ExpressionBinder<'a> {
                     args.push(func_arg);
                 }
 
+                let schema_ent = self
+                    .binder
+                    .context
+                    .get_database(catalog)?
+                    .catalog
+                    .get_schema(self.binder.tx, schema)?
+                    .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+
                 // Check scalars first.
-                if let Some(scalar) = self.binder.context.get_catalog(catalog)?.get_scalar_fn(
-                    self.binder.tx,
-                    schema,
-                    func_name,
-                )? {
+                if let Some(scalar) = schema_ent.get_scalar_function(self.binder.tx, func_name)? {
                     // TODO: Allow unbound scalars?
                     // TODO: This also assumes scalars (and aggs) are the same everywhere, which
                     // they probably should be for now.
-                    let bind_idx = bind_data
-                        .functions
-                        .push_bound(BoundFunction::Scalar(scalar), LocationRequirement::Any);
-                    return Ok(ast::Expr::Function(ast::Function {
-                        reference: bind_idx,
-                        args,
-                        filter,
-                    }));
-                }
-
-                // Now check aggregates.
-                if let Some(aggregate) = self
-                    .binder
-                    .context
-                    .get_catalog(catalog)?
-                    .get_aggregate_fn(self.binder.tx, schema, func_name)?
-                {
-                    // TODO: Allow unbound aggregates?
                     let bind_idx = bind_data.functions.push_bound(
-                        BoundFunction::Aggregate(aggregate),
+                        BoundFunction::Scalar(
+                            scalar.try_as_scalar_function_entry()?.function.clone(),
+                        ),
                         LocationRequirement::Any,
                     );
                     return Ok(ast::Expr::Function(ast::Function {
@@ -361,10 +353,36 @@ impl<'a> ExpressionBinder<'a> {
                     }));
                 }
 
-                Err(RayexecError::new(format!(
-                    "Cannot resolve function with name {}",
-                    func.reference
-                )))
+                // Now check aggregates.
+                if let Some(aggregate) =
+                    schema_ent.get_aggregate_function(self.binder.tx, func_name)?
+                {
+                    // TODO: Allow unbound aggregates?
+                    let bind_idx = bind_data.functions.push_bound(
+                        BoundFunction::Aggregate(
+                            aggregate
+                                .try_as_aggregate_function_entry()?
+                                .function
+                                .clone(),
+                        ),
+                        LocationRequirement::Any,
+                    );
+                    return Ok(ast::Expr::Function(ast::Function {
+                        reference: bind_idx,
+                        args,
+                        filter,
+                    }));
+                }
+
+                Err(create_user_facing_resolve_err(
+                    self.binder.tx,
+                    Some(&schema_ent),
+                    &[
+                        CatalogEntryType::ScalarFunction,
+                        CatalogEntryType::AggregateFunction,
+                    ],
+                    func_name,
+                ))
             }
             ast::Expr::Subquery(subquery) => {
                 let bound = Box::pin(self.binder.bind_query(*subquery, bind_data)).await?;

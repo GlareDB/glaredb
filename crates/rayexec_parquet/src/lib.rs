@@ -8,17 +8,12 @@ mod schema;
 
 use copy_to::ParquetCopyToFunction;
 use functions::read_parquet::ReadParquet;
-use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::catalog::Catalog,
     datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
     runtime::Runtime,
 };
 use regex::{Regex, RegexBuilder};
-use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetDataSource<R> {
@@ -41,17 +36,6 @@ impl<R> ParquetDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for ParquetDataSource<R> {
-    fn create_catalog(
-        &self,
-        _options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
-        Box::pin(async {
-            Err(RayexecError::new(
-                "Parquet data source cannot be used to create a catalog",
-            ))
-        })
-    }
-
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadParquet {
             runtime: self.runtime.clone(),

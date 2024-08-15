@@ -317,7 +317,18 @@ impl PartitionJoinHashTable {
 
         let num_cols = match batches.first() {
             Some(batch) => batch.columns().len(),
-            None => return Ok(Batch::empty()),
+            None => {
+                // No batches joined. We still want to return a batch with all
+                // the correct columns but zero rows.
+                let left_cols = self.left_types.types.iter().map(|t| Array::new_nulls(t, 0));
+                let right_cols = self
+                    .right_types
+                    .types
+                    .iter()
+                    .map(|t| Array::new_nulls(t, 0));
+
+                return Batch::try_new(left_cols.chain(right_cols));
+            }
         };
 
         let mut output_cols = Vec::with_capacity(num_cols);

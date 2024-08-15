@@ -1,10 +1,13 @@
-use std::{path::PathBuf, rc::Rc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
     errors::Result,
     runtime::{WasmExecutor, WasmRuntime},
 };
-use rayexec_bullet::format::{FormatOptions, Formatter};
+use rayexec_bullet::{
+    array::Array,
+    format::{FormatOptions, Formatter},
+};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::RayexecError;
@@ -144,9 +147,7 @@ impl WasmResultTable {
         (0, 0)
     }
 
-    pub fn column_as_strings(&self, column: &str) -> Result<Vec<String>> {
-        const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
-
+    pub fn column(&self, column: &str) -> Result<WasmArray> {
         let col_idx = self
             .table
             .schema
@@ -159,20 +160,14 @@ impl WasmResultTable {
                 ))
             })?;
 
-        let mut strings = Vec::with_capacity(self.num_rows());
+        let arrays = self
+            .table
+            .batches
+            .iter()
+            .map(|b| b.column(col_idx).expect("column to exist").clone())
+            .collect();
 
-        for batch in &self.table.batches {
-            for row_idx in 0..batch.num_rows() {
-                strings.push(
-                    FORMATTER
-                        .format_array_value(batch.column(col_idx).unwrap(), row_idx)
-                        .unwrap()
-                        .to_string(),
-                );
-            }
-        }
-
-        Ok(strings)
+        Ok(WasmArray { arrays })
     }
 
     pub fn format_cell(&self, col: usize, row: usize) -> Result<String> {
@@ -189,6 +184,50 @@ impl WasmResultTable {
             .ok_or_else(|| RayexecError::new(format!("Row index {row} out of range")))?;
 
         Ok(v.to_string())
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmArray {
+    arrays: Vec<Arc<Array>>,
+}
+
+#[wasm_bindgen]
+impl WasmArray {
+    pub fn len(&self) -> usize {
+        self.arrays.iter().map(|a| a.len()).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn find_array_for_row(&self, mut row: usize) -> Result<(&Array, usize)> {
+        for array in self.arrays.iter() {
+            if row < array.len() {
+                return Ok((array, row));
+            }
+            row -= array.len();
+        }
+        Err(RayexecError::new(format!("Row index {row} out of bounds")).into())
+    }
+
+    pub fn value_as_string(&self, row_idx: usize) -> Result<Option<String>> {
+        const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+
+        let (arr, row_idx) = self.find_array_for_row(row_idx)?;
+        let valid = arr.is_valid(row_idx).expect("row in bounds");
+
+        if valid {
+            Ok(Some(
+                FORMATTER
+                    .format_array_value(arr, row_idx)
+                    .unwrap()
+                    .to_string(),
+            ))
+        } else {
+            Ok(None)
+        }
     }
 }
 

@@ -353,7 +353,11 @@ impl<'a> QueryNodePlanner<'a> {
                         };
                         let scope = Scope::with_columns(
                             Some(scope_reference),
-                            entry.columns.iter().map(|f| f.name.clone()),
+                            entry
+                                .try_as_table_entry()?
+                                .columns
+                                .iter()
+                                .map(|f| f.name.clone()),
                         );
                         LogicalQuery {
                             root: LogicalOperator::Scan(LogicalNode::new(Scan {

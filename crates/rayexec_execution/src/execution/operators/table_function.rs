@@ -1,8 +1,9 @@
 use crate::{
-    database::{table::DataTableScan, DatabaseContext},
+    database::DatabaseContext,
     functions::table::PlannedTableFunction,
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
+    storage::table_storage::DataTableScan,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;

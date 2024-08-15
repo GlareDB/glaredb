@@ -9,8 +9,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
 use rayexec_execution::{
-    database::table::{DataTable, DataTableScan},
     runtime::Runtime,
+    storage::table_storage::{DataTable, DataTableScan},
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},

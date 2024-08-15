@@ -27,12 +27,15 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction> {
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         let tx = &CatalogTx {};
-        let scalar = context
+        let ent = context
             .system_catalog()?
-            .get_scalar_fn(tx, LOOKUP_CATALOG, &proto.name)?
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_scalar_function(tx, &proto.name)?
             .required("scalar function")?;
+        let ent = ent.try_as_scalar_function_entry()?;
 
-        Ok(scalar)
+        Ok(ent.function.clone())
     }
 }
 
@@ -51,12 +54,15 @@ impl DatabaseProtoConv for Box<dyn PlannedScalarFunction> {
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         let tx = &CatalogTx {};
-        let scalar = context
+        let ent = context
             .system_catalog()?
-            .get_scalar_fn(tx, LOOKUP_CATALOG, &proto.name)?
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_scalar_function(tx, &proto.name)?
             .required("scalar function")?;
+        let ent = ent.try_as_scalar_function_entry()?;
 
-        let planned = scalar.decode_state(&proto.state)?;
+        let planned = ent.function.decode_state(&proto.state)?;
 
         Ok(planned)
     }
@@ -73,12 +79,15 @@ impl DatabaseProtoConv for Box<dyn AggregateFunction> {
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         let tx = &CatalogTx {};
-        let agg = context
+        let ent = context
             .system_catalog()?
-            .get_aggregate_fn(tx, LOOKUP_CATALOG, &proto.name)?
-            .required("aggregate function")?;
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_aggregate_function(tx, &proto.name)?
+            .required("agg function")?;
+        let ent = ent.try_as_aggregate_function_entry()?;
 
-        Ok(agg)
+        Ok(ent.function.clone())
     }
 }
 
@@ -97,12 +106,15 @@ impl DatabaseProtoConv for Box<dyn PlannedAggregateFunction> {
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         let tx = &CatalogTx {};
-        let agg = context
+        let ent = context
             .system_catalog()?
-            .get_aggregate_fn(tx, LOOKUP_CATALOG, &proto.name)?
-            .required("aggregate function")?;
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_aggregate_function(tx, &proto.name)?
+            .required("agg function")?;
+        let ent = ent.try_as_aggregate_function_entry()?;
 
-        let planned = agg.decode_state(&proto.state)?;
+        let planned = ent.function.decode_state(&proto.state)?;
 
         Ok(planned)
     }
@@ -119,12 +131,15 @@ impl DatabaseProtoConv for Box<dyn TableFunction> {
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         let tx = &CatalogTx {};
-        let table = context
+        let ent = context
             .system_catalog()?
-            .get_table_fn(tx, LOOKUP_CATALOG, &proto.name)?
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_table_function(tx, &proto.name)?
             .required("table function")?;
+        let ent = ent.try_as_table_function_entry()?;
 
-        Ok(table)
+        Ok(ent.function.clone())
     }
 }
 
@@ -143,12 +158,15 @@ impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         let tx = &CatalogTx {};
-        let table = context
+        let ent = context
             .system_catalog()?
-            .get_table_fn(tx, LOOKUP_CATALOG, &proto.name)?
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_table_function(tx, &proto.name)?
             .required("table function")?;
+        let ent = ent.try_as_table_function_entry()?;
 
-        let planned = table.decode_state(&proto.state)?;
+        let planned = ent.function.decode_state(&proto.state)?;
 
         Ok(planned)
     }

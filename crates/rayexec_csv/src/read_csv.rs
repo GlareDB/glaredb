@@ -2,9 +2,10 @@ use futures::{future::BoxFuture, StreamExt};
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::{table::DataTable, DatabaseContext},
+    database::DatabaseContext,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::Runtime,
+    storage::table_storage::DataTable,
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},

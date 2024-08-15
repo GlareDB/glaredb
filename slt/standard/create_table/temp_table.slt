@@ -36,7 +36,7 @@ select * from t1;
 3  peach
 4  yoshi
 
-statement error Duplicate table name: t1
+statement error Duplicate entry: t1
 create temp table t1 (a int, b text);
 
 # statement ok

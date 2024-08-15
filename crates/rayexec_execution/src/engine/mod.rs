@@ -9,7 +9,7 @@ use session::Session;
 use std::sync::Arc;
 
 use crate::{
-    database::{storage::system::SystemCatalog, DatabaseContext},
+    database::{memory_catalog::MemoryCatalog, system::new_system_catalog, DatabaseContext},
     datasource::{DataSourceRegistry, MemoryDataSource},
     runtime::{PipelineExecutor, Runtime},
 };
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Engine<P: PipelineExecutor, R: Runtime> {
     registry: Arc<DataSourceRegistry>,
-    system_catalog: Arc<SystemCatalog>,
+    system_catalog: Arc<MemoryCatalog>,
     executor: P,
     runtime: R,
 }
@@ -38,7 +38,7 @@ where
         runtime: R,
         registry: DataSourceRegistry,
     ) -> Result<Self> {
-        let system_catalog = Arc::new(SystemCatalog::new(&registry));
+        let system_catalog = Arc::new(new_system_catalog(&registry)?);
 
         Ok(Engine {
             registry: Arc::new(registry),
@@ -49,7 +49,7 @@ where
     }
 
     pub fn new_session(&self) -> Result<Session<P, R>> {
-        let context = DatabaseContext::new(self.system_catalog.clone());
+        let context = DatabaseContext::new(self.system_catalog.clone())?;
         Ok(Session::new(
             context,
             self.executor.clone(),
@@ -59,7 +59,7 @@ where
     }
 
     pub fn new_server_session(&self) -> Result<ServerSession<P, R>> {
-        let context = DatabaseContext::new(self.system_catalog.clone());
+        let context = DatabaseContext::new(self.system_catalog.clone())?;
         Ok(ServerSession::new(
             context,
             self.executor.clone(),

@@ -17,13 +17,18 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::{
     database::{
-        catalog::{Catalog, CatalogTx},
-        entry::TableEntry,
-        table::{DataTable, DataTableScan, EmptyTableScan},
+        catalog_entry::{CatalogEntry, TableEntry},
+        memory_catalog::MemoryCatalog,
     },
-    datasource::{check_options_empty, take_option, DataSource, DataSourceBuilder},
+    datasource::{
+        check_options_empty, take_option, DataSource, DataSourceBuilder, DataSourceConnection,
+    },
     functions::table::TableFunction,
     runtime::{Runtime, TokioHandlerProvider},
+    storage::{
+        catalog_storage::CatalogStorage,
+        table_storage::{DataTable, DataTableScan, EmptyTableScan, TableStorage},
+    },
 };
 use read_postgres::ReadPostgres;
 use std::fmt;
@@ -47,11 +52,19 @@ impl<R: Runtime> DataSourceBuilder<R> for PostgresDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for PostgresDataSource<R> {
-    fn create_catalog(
+    fn connect(
         &self,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
-        Box::pin(self.create_catalog_inner(options))
+    ) -> BoxFuture<'_, Result<DataSourceConnection>> {
+        let runtime = self.runtime.clone();
+        Box::pin(async move {
+            let connection = Arc::new(PostgresConnection::connect(runtime, options).await?);
+
+            Ok(DataSourceConnection {
+                catalog_storage: Some(connection.clone()),
+                table_storage: connection,
+            })
+        })
     }
 
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
@@ -61,16 +74,19 @@ impl<R: Runtime> DataSource for PostgresDataSource<R> {
     }
 }
 
-impl<R: Runtime> PostgresDataSource<R> {
-    async fn create_catalog_inner(
-        &self,
-        mut options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Arc<dyn Catalog>> {
+#[derive(Debug, Clone)]
+pub struct PostgresConnection<R: Runtime> {
+    _runtime: R,
+    client: PostgresClient,
+}
+
+impl<R: Runtime> PostgresConnection<R> {
+    async fn connect(runtime: R, mut options: HashMap<String, OwnedScalarValue>) -> Result<Self> {
         let conn_str = take_option("connection_string", &mut options)?.try_into_string()?;
         check_options_empty(&options)?;
 
         // Check we can connect.
-        let client = PostgresClient::connect(&conn_str, &self.runtime).await?;
+        let client = PostgresClient::connect(&conn_str, &runtime).await?;
 
         let _ = client
             .client
@@ -78,83 +94,83 @@ impl<R: Runtime> PostgresDataSource<R> {
             .await
             .context("Failed to send test query")?;
 
-        Ok(Arc::new(PostgresCatalog {
-            runtime: self.runtime.clone(),
-            conn_str,
-        }))
+        Ok(Self {
+            _runtime: runtime,
+            client,
+        })
     }
 }
 
-#[derive(Debug)]
-pub struct PostgresCatalog<R: Runtime> {
-    runtime: R,
-    // TODO: Connection pooling.
-    conn_str: String,
-}
+impl<R: Runtime> CatalogStorage for PostgresConnection<R> {
+    fn initial_load(&self, _catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move { Ok(()) })
+    }
 
-impl<R> Catalog for PostgresCatalog<R>
-where
-    R: Runtime,
-{
-    fn get_table_entry(
-        &self,
-        _tx: &CatalogTx,
-        schema: &str,
-        name: &str,
-    ) -> BoxFuture<Result<Option<TableEntry>>> {
-        let client = PostgresClient::connect(&self.conn_str, &self.runtime);
+    fn persist(&self, _catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move { Ok(()) })
+    }
+
+    fn load_table(&self, schema: &str, name: &str) -> BoxFuture<'_, Result<Option<TableEntry>>> {
+        // TODO: We can avoid this, need to change lifetimes on trait.
         let schema = schema.to_string();
         let name = name.to_string();
+
         Box::pin(async move {
-            let client = client.await?;
-            let fields = match client.get_fields_and_types(&schema, &name).await? {
+            let fields = match self.client.get_fields_and_types(&schema, &name).await? {
                 Some((fields, _)) => fields,
                 None => return Ok(None),
             };
 
-            Ok(Some(TableEntry {
-                name: name.to_string(),
-                columns: fields,
-            }))
+            Ok(Some(TableEntry { columns: fields }))
         })
     }
+}
 
-    fn data_table(
-        &self,
-        _tx: &CatalogTx,
-        schema: &str,
-        ent: &TableEntry,
-    ) -> Result<Box<dyn DataTable>> {
+impl<R: Runtime> TableStorage for PostgresConnection<R> {
+    fn data_table(&self, schema: &str, ent: &CatalogEntry) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
-            runtime: self.runtime.clone(),
-            conn_str: self.conn_str.clone(),
+            client: self.client.clone(),
             schema: schema.to_string(),
             table: ent.name.clone(),
         }))
     }
+
+    fn create_physical_table(
+        &self,
+        _schema: &str,
+        _ent: &CatalogEntry,
+    ) -> BoxFuture<'_, Result<Box<dyn DataTable>>> {
+        Box::pin(async {
+            Err(RayexecError::new(
+                "Create physical table unsupported (postgres)",
+            ))
+        })
+    }
+
+    fn drop_physical_table(&self, _schema: &str, _ent: &CatalogEntry) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            Err(RayexecError::new(
+                "Drop physical table unsupported (postgres)",
+            ))
+        })
+    }
 }
 
 #[derive(Debug)]
-pub struct PostgresDataTable<R: Runtime> {
-    pub(crate) runtime: R,
-    pub(crate) conn_str: String,
+pub struct PostgresDataTable {
+    pub(crate) client: PostgresClient,
     pub(crate) schema: String,
     pub(crate) table: String,
 }
 
-impl<R> DataTable for PostgresDataTable<R>
-where
-    R: Runtime,
-{
+impl DataTable for PostgresDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let runtime = self.runtime.clone();
-        let conn_str = self.conn_str.clone();
         let schema = self.schema.clone();
         let table = self.table.clone();
 
-        let binary_copy_open = async move {
-            let client = PostgresClient::connect(&conn_str, &runtime).await?;
+        let client = self.client.clone();
 
+        let binary_copy_open = async move {
             // TODO: Remove this, we should already have the types.
             let (fields, typs) = match client.get_fields_and_types(&schema, &table).await? {
                 Some((fields, typs)) => (fields, typs),

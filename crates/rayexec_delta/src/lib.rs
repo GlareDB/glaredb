@@ -3,17 +3,12 @@ pub mod protocol;
 mod datatable;
 mod read_delta;
 
-use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::catalog::Catalog,
     datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
     runtime::Runtime,
 };
 use read_delta::ReadDelta;
-use std::{collections::HashMap, sync::Arc};
 
 // TODO: How do we want to handle catalogs that provide data sources? Do we want
 // to have "Glue" and "Unity" data sources that are separate from the base
@@ -43,17 +38,6 @@ impl<R: Runtime> DataSourceBuilder<R> for DeltaDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for DeltaDataSource<R> {
-    fn create_catalog(
-        &self,
-        _options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
-        Box::pin(async {
-            Err(RayexecError::new(
-                "Delta data source cannot be used to create a catalog",
-            ))
-        })
-    }
-
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadDelta {
             runtime: self.runtime.clone(),

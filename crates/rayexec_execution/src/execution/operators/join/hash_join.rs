@@ -133,7 +133,12 @@ pub struct PhysicalHashJoin {
     /// Column indices on the right (probe) side we're joining on.
     right_on: Vec<usize>,
 
+    /// Types for the batches we'll be receiving from the left side. Used during
+    /// RIGHT joins to produce null columns on the left side.
     left_types: TypeSchema,
+
+    /// Types for the batches we'll be receiving from the right side. Used
+    /// during LEFT joins to produce null columns on the right side.
     right_types: TypeSchema,
 }
 
@@ -350,7 +355,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
     fn poll_finalize_push(
         &self,
-        _cx: &mut Context,
+        cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
@@ -396,6 +401,17 @@ impl ExecutableOperator for PhysicalHashJoin {
                 Ok(PollFinalize::Finalized)
             }
             PartitionState::HashJoinProbe(state) => {
+                // Ensure we've finished building the left side before
+                // continuing with the finalize.
+                //
+                // This is important for left joins since we need to flush out
+                // unvisited rows which we can only do once we have the complete
+                // left side.
+                if shared.build_inputs_remaining != 0 {
+                    shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
+                    return Ok(PollFinalize::Pending);
+                }
+
                 state.input_finished = true;
 
                 // Merge local left visit bitmaps into global if we have it.
@@ -406,11 +422,17 @@ impl ExecutableOperator for PhysicalHashJoin {
                     (Some(global), Some(local)) => global.merge_from(local),
                     (None, Some(local)) => shared.global_left_visits = Some(local.clone()),
                     (Some(_), None) => {
-                        return Err(RayexecError::new(
-                            "Missing partition-local left visit bitmaps",
-                        ))
+                        // This can happen if we've pushed nothing for the right. We wouldn't have
+                        // initialized the bitmaps before finalizing in that case.
+                        //
+                        // This is valid.
                     }
-                    (None, None) => (),
+                    (None, None) => {
+                        // May happen if:
+                        //
+                        // - Not a left join
+                        // - Is a left join but no right partitions have finalized yet.
+                    }
                 }
 
                 shared.probe_inputs_remaining -= 1;
@@ -419,11 +441,39 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // unvisited rows from left.
                 //
                 // TODO: Allow multiple partitions to drain.
-                if let Some(global) = shared.global_left_visits.clone() {
-                    state.left_visit_state = Some(LeftVisitState {
-                        bitmaps: global,
-                        current_idx: 0,
-                    })
+                if shared.probe_inputs_remaining == 0 {
+                    match shared.global_left_visits.as_ref() {
+                        Some(global) => {
+                            state.left_visit_state = Some(LeftVisitState {
+                                bitmaps: global.clone(),
+                                current_idx: 0,
+                            })
+                        }
+                        None if self.join_type == JoinType::Left => {
+                            // Global left bitmaps will be None if we've
+                            // received no batches from the right.
+                            //
+                            // In this case, we'll be draining _all_ batches
+                            // from the left.
+                            state.left_visit_state = Some(LeftVisitState {
+                                bitmaps: shared
+                                    .shared_global
+                                    .as_ref()
+                                    .expect("hash table to have been built")
+                                    .new_left_visit_bitmaps(),
+                                current_idx: 0,
+                            });
+
+                            // Ensure we have a reference to the global hash
+                            // table as well. This would have only been set
+                            // during a push on the right. But if we're here, we
+                            // never pushed a batch on the right.
+                            state.global = shared.shared_global.clone();
+                        }
+                        None => {
+                            // Nothing to do.
+                        }
+                    }
                 }
 
                 if let Some(waker) = state.pull_waker.take() {

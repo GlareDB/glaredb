@@ -1,10 +1,11 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_execution::{
-    database::{table::DataTable, DatabaseContext},
+    database::DatabaseContext,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
     runtime::Runtime,
+    storage::table_storage::DataTable,
 };
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
@@ -34,6 +35,7 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
         Ok(Box::new(ReadPostgresImpl {
             func: self.clone(),
             state: ReadPostgresState::decode(state)?,
+            client: None,
         }))
     }
 }
@@ -67,10 +69,11 @@ impl ReadPostgresState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct ReadPostgresImpl<R: Runtime> {
     func: ReadPostgres<R>,
     state: ReadPostgresState,
+    client: Option<PostgresClient>,
 }
 
 impl<R> ReadPostgresImpl<R>
@@ -112,6 +115,7 @@ where
                 table,
                 table_schema,
             },
+            client: Some(client),
         }))
     }
 }
@@ -134,8 +138,7 @@ where
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {
         Ok(Box::new(PostgresDataTable {
-            runtime: self.func.runtime.clone(),
-            conn_str: self.state.conn_str.clone(),
+            client: self.client.as_ref().required("postgres client")?.clone(),
             schema: self.state.schema.clone(),
             table: self.state.table.clone(),
         }))

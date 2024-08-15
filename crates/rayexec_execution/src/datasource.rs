@@ -6,11 +6,12 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::database::catalog::Catalog;
-use crate::database::storage::memory::MemoryCatalog;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
 use crate::runtime::Runtime;
+use crate::storage::catalog_storage::CatalogStorage;
+use crate::storage::memory::MemoryTableStorage;
+use crate::storage::table_storage::TableStorage;
 
 /// Trait for constructing data sources.
 ///
@@ -24,6 +25,12 @@ pub trait DataSourceBuilder<R: Runtime>: Sync + Send + Debug + Sized {
     /// anything (table function, catalog) requires something that's provided by
     /// the runtime, like a tokio handle or http client.
     fn initialize(runtime: R) -> Box<dyn DataSource>;
+}
+
+#[derive(Debug)]
+pub struct DataSourceConnection {
+    pub catalog_storage: Option<Arc<dyn CatalogStorage>>,
+    pub table_storage: Arc<dyn TableStorage>,
 }
 
 /// An implementation of `DataSource` describes a data source type that we can
@@ -47,11 +54,16 @@ pub trait DataSourceBuilder<R: Runtime>: Sync + Send + Debug + Sized {
 ///   runtime, but them move the actual streaming of data to the
 ///   ComputeScheduler.
 pub trait DataSource: Sync + Send + Debug {
-    /// Create a new catalog using the provided options.
-    fn create_catalog(
+    fn connect(
         &self,
-        options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>>;
+        _options: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'_, Result<DataSourceConnection>> {
+        Box::pin(async {
+            Err(RayexecError::new(
+                "Connect not implemented for this data source",
+            ))
+        })
+    }
 
     /// Initialize a list of table functions that this data source provides.
     ///
@@ -192,16 +204,19 @@ pub fn check_options_empty(options: &HashMap<String, OwnedScalarValue>) -> Resul
 pub struct MemoryDataSource;
 
 impl DataSource for MemoryDataSource {
-    fn create_catalog(
+    fn connect(
         &self,
         options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
+    ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async move {
             if !options.is_empty() {
                 return Err(RayexecError::new("Memory data source takes no options"));
             }
 
-            Ok(Arc::new(MemoryCatalog::new_with_schema("public")) as _)
+            Ok(DataSourceConnection {
+                catalog_storage: None,
+                table_storage: Arc::new(MemoryTableStorage::default()),
+            })
         })
     }
 

@@ -7,18 +7,13 @@ mod decoder;
 mod read_csv;
 
 use copy_to::CsvCopyToFunction;
-use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
-    database::catalog::Catalog,
     datasource::{DataSource, DataSourceBuilder, FileHandler},
     functions::table::TableFunction,
     runtime::Runtime,
 };
 use read_csv::ReadCsv;
 use regex::RegexBuilder;
-use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvDataSource<R: Runtime> {
@@ -32,17 +27,6 @@ impl<R: Runtime> DataSourceBuilder<R> for CsvDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for CsvDataSource<R> {
-    fn create_catalog(
-        &self,
-        _options: HashMap<String, OwnedScalarValue>,
-    ) -> BoxFuture<Result<Arc<dyn Catalog>>> {
-        Box::pin(async {
-            Err(RayexecError::new(
-                "CSV data source cannot be used to create a catalog",
-            ))
-        })
-    }
-
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadCsv {
             runtime: self.runtime.clone(),

@@ -92,6 +92,8 @@ impl Array {
             DataType::Binary => Array::Binary(VarlenArray::new_nulls(len)),
             DataType::LargeBinary => Array::LargeBinary(VarlenArray::new_nulls(len)),
             DataType::Struct(m) => Array::Struct(StructArray::new_nulls(&m.fields, len)),
+            // TODO: Revisit this to ensure the list actually doesn't need any
+            // type info.
             DataType::List(_m) => Array::List(ListArray::new_nulls(len)),
         }
     }
@@ -570,4 +572,57 @@ impl Iterator for UnitIterator {
 /// Panics if index is out of bounds.
 fn is_valid(validity: Option<&Bitmap>, idx: usize) -> bool {
     validity.map(|bm| bm.value(idx)).unwrap_or(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::datatype::TimeUnit;
+
+    use super::*;
+
+    fn datatypes() -> Vec<DataType> {
+        vec![
+            DataType::Null,
+            DataType::Boolean,
+            DataType::Int8,
+            DataType::Int16,
+            DataType::Int32,
+            DataType::Int64,
+            DataType::Int128,
+            DataType::UInt8,
+            DataType::UInt16,
+            DataType::UInt32,
+            DataType::UInt64,
+            DataType::UInt128,
+            DataType::Float32,
+            DataType::Float64,
+            DataType::Decimal64(DecimalTypeMeta::new(18, 9)),
+            DataType::Decimal128(DecimalTypeMeta::new(38, 9)),
+            DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Millisecond)),
+            DataType::Date32,
+            DataType::Date64,
+            DataType::Interval,
+            DataType::Utf8,
+            DataType::LargeUtf8,
+            DataType::Binary,
+            DataType::LargeBinary,
+            // TODO: Struct, list
+        ]
+    }
+
+    #[test]
+    fn new_nulls_empty() {
+        for datatype in datatypes() {
+            let arr = Array::new_nulls(&datatype, 0);
+            assert_eq!(0, arr.len(), "datatype: {datatype}");
+        }
+    }
+
+    #[test]
+    fn new_nulls_not_empty() {
+        for datatype in datatypes() {
+            let arr = Array::new_nulls(&datatype, 3);
+            assert_eq!(3, arr.len(), "datatype: {datatype}");
+        }
+    }
 }

@@ -43,11 +43,10 @@ message DropObject {
 }
 
 message DropInfo {
-    string     catalog   = 1;
-    string     schema    = 2;
-    DropObject object    = 3;
-    bool       cascade   = 4;
-    bool       if_exists = 5;
+    string     schema    = 1;
+    DropObject object    = 2;
+    bool       cascade   = 3;
+    bool       if_exists = 4;
 }
 
 message PhysicalCreateSchema {
@@ -63,7 +62,8 @@ message PhysicalCreateTable {
 }
 
 message PhysicalDrop {
-    DropInfo info = 1;
+    string   catalog = 1;
+    DropInfo info    = 2;
 }
 
 message PhysicalEmpty {}

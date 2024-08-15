@@ -1,212 +1,249 @@
-use std::{collections::VecDeque, fmt::Debug, future::Future, sync::Arc};
+use std::{collections::VecDeque, fmt::Debug, marker::PhantomData, sync::Arc};
 
-use crate::database::{
-    catalog::Catalog,
-    entry::CatalogEntry,
-    table::{DataTable, DataTableScan, EmptyTableScan},
-    DatabaseContext,
+use crate::{
+    database::{
+        catalog::CatalogTx, catalog_entry::CatalogEntryType, memory_catalog::MemoryCatalog,
+        AttachInfo, DatabaseContext,
+    },
+    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
 };
-use futures::{future::BoxFuture, FutureExt};
+use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::{
-    array::{
-        Array, BooleanArray, BooleanValuesBuffer, Utf8Array, ValuesBuffer, VarlenValuesBuffer,
-    },
+    array::{Array, Utf8Array, ValuesBuffer, VarlenValuesBuffer},
     batch::Batch,
     datatype::DataType,
     field::{Field, Schema},
 };
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 
-trait SystemFunctionScan: Debug + Sync + Send {
-    fn next_batch(&mut self) -> impl Future<Output = Result<Option<Batch>>> + Send + '_;
+pub trait SystemFunctionImpl: Debug + Sync + Send + Copy + 'static {
+    const NAME: &'static str;
+    fn schema() -> Schema;
+    fn new_batch(
+        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    ) -> Result<Batch>;
 }
+
+pub type ListDatabases = SystemFunction<ListDatabasesImpl>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ListCatalogs;
+pub struct ListDatabasesImpl;
 
-impl TableFunction for ListCatalogs {
-    fn name(&self) -> &'static str {
-        "list_catalogs"
-    }
+impl SystemFunctionImpl for ListDatabasesImpl {
+    const NAME: &'static str = "list_databases";
 
-    fn plan_and_initialize(
-        &self,
-        context: &DatabaseContext,
-        _args: TableFunctionArgs,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        let func = ListCatalogsImpl {
-            catalogs: context
-                .iter_catalogs()
-                .map(|(n, c)| (n.clone(), c.clone()))
-                .collect(),
-        };
-        Box::pin(async move { Ok(Box::new(func) as _) })
-    }
-
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
-        not_implemented!("decoding system table functions")
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ListCatalogsImpl {
-    catalogs: VecDeque<(String, Arc<dyn Catalog>)>,
-}
-
-impl PlannedTableFunction for ListCatalogsImpl {
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        not_implemented!("encoding system table functions")
-    }
-
-    fn table_function(&self) -> &dyn TableFunction {
-        &ListCatalogs
-    }
-
-    fn schema(&self) -> Schema {
+    fn schema() -> Schema {
         Schema::new([
-            Field::new("catalog_name", DataType::Utf8, false),
-            Field::new("builtin", DataType::Boolean, false),
+            Field::new("database_name", DataType::Utf8, false),
+            Field::new("datasource", DataType::Utf8, false),
         ])
     }
 
-    fn datatable(&self) -> Result<Box<dyn DataTable>> {
-        Ok(Box::new(SystemDataTable::new(self.clone())))
+    fn new_batch(
+        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    ) -> Result<Batch> {
+        let mut database_names = VarlenValuesBuffer::default();
+        let mut datasources = VarlenValuesBuffer::default();
+
+        for (name, _catalog, info) in databases.drain(..) {
+            database_names.push_value(name);
+            datasources.push_value(info.map(|i| i.datasource).unwrap_or("default".to_string()));
+        }
+
+        Batch::try_new([
+            Array::Utf8(Utf8Array::new(database_names, None)),
+            Array::Utf8(Utf8Array::new(datasources, None)),
+        ])
     }
 }
 
-impl SystemFunctionScan for ListCatalogsImpl {
-    async fn next_batch(&mut self) -> Result<Option<Batch>> {
-        if self.catalogs.is_empty() {
-            return Ok(None);
-        }
-
-        let mut catalog_names = VarlenValuesBuffer::default();
-        let mut builtin = BooleanValuesBuffer::default();
-
-        while let Some((name, _catalog)) = self.catalogs.pop_front() {
-            catalog_names.push_value(name);
-            builtin.push_value(false);
-        }
-
-        let batch = Batch::try_new([
-            Array::Utf8(Utf8Array::new(catalog_names, None)),
-            Array::Boolean(BooleanArray::new(builtin, None)),
-        ])?;
-
-        Ok(Some(batch))
-    }
-}
+pub type ListTables = SystemFunction<ListTablesImpl>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ListTables;
+pub struct ListTablesImpl;
 
-impl TableFunction for ListTables {
-    fn name(&self) -> &'static str {
-        "list_tables"
-    }
+impl SystemFunctionImpl for ListTablesImpl {
+    const NAME: &'static str = "list_tables";
 
-    fn plan_and_initialize(
-        &self,
-        context: &DatabaseContext,
-        _args: TableFunctionArgs,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
-        let func = ListTablesImpl {
-            catalogs: context
-                .iter_catalogs()
-                .map(|(n, c)| (n.clone(), c.clone()))
-                .collect(),
-        };
-        Box::pin(async move { Ok(Box::new(func) as _) })
-    }
-
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
-        not_implemented!("decoding system table functions")
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ListTablesImpl {
-    catalogs: VecDeque<(String, Arc<dyn Catalog>)>,
-}
-
-impl PlannedTableFunction for ListTablesImpl {
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        not_implemented!("encoding system table functions")
-    }
-
-    fn table_function(&self) -> &dyn TableFunction {
-        &ListTables
-    }
-
-    fn schema(&self) -> Schema {
+    fn schema() -> Schema {
         Schema::new([
-            Field::new("catalog_name", DataType::Utf8, false),
+            Field::new("database_name", DataType::Utf8, false),
+            Field::new("schema_name", DataType::Utf8, false),
             Field::new("table_name", DataType::Utf8, false),
         ])
     }
 
-    fn datatable(&self) -> Result<Box<dyn DataTable>> {
-        Ok(Box::new(SystemDataTable::new(self.clone())))
+    fn new_batch(
+        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    ) -> Result<Batch> {
+        let mut database_names = VarlenValuesBuffer::default();
+        let mut schema_names = VarlenValuesBuffer::default();
+        let mut table_names = VarlenValuesBuffer::default();
+
+        let database = databases.pop_front().required("database")?;
+
+        let tx = &CatalogTx {};
+
+        database.1.for_each_schema(tx, &mut |schema_name, schema| {
+            schema.for_each_entry(tx, &mut |_, entry| {
+                if entry.entry_type() != CatalogEntryType::Table {
+                    return Ok(());
+                }
+
+                database_names.push_value(&database.0);
+                schema_names.push_value(schema_name);
+                table_names.push_value(&entry.name);
+
+                Ok(())
+            })?;
+            Ok(())
+        })?;
+
+        Batch::try_new([
+            Array::Utf8(Utf8Array::new(database_names, None)),
+            Array::Utf8(Utf8Array::new(schema_names, None)),
+            Array::Utf8(Utf8Array::new(table_names, None)),
+        ])
     }
 }
 
-impl SystemFunctionScan for ListTablesImpl {
-    async fn next_batch(&mut self) -> Result<Option<Batch>> {
-        let (catalog_name, catalog) = match self.catalogs.pop_front() {
-            Some(v) => v,
-            None => return Ok(None),
-        };
+pub type ListSchemas = SystemFunction<ListSchemasImpl>;
 
-        let mut catalog_names = VarlenValuesBuffer::default();
-        let mut table_names = VarlenValuesBuffer::default();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListSchemasImpl;
 
-        let entries = match catalog.entries() {
-            Some(entries) => entries,
-            None => return Ok(None), // TODO: This will be removed. `entries` will be returning something better.
-        };
+impl SystemFunctionImpl for ListSchemasImpl {
+    const NAME: &'static str = "list_schemas";
 
-        for entry in entries {
-            if let CatalogEntry::Table(ent) = entry {
-                catalog_names.push_value(&catalog_name);
-                table_names.push_value(ent.name);
-            }
-        }
+    fn schema() -> Schema {
+        Schema::new([
+            Field::new("database_name", DataType::Utf8, false),
+            Field::new("schema_name", DataType::Utf8, false),
+        ])
+    }
 
-        let batch = Batch::try_new([
-            Array::Utf8(Utf8Array::new(catalog_names, None)),
-            Array::Utf8(Utf8Array::new(table_names, None)),
-        ])?;
+    fn new_batch(
+        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    ) -> Result<Batch> {
+        let mut database_names = VarlenValuesBuffer::default();
+        let mut schema_names = VarlenValuesBuffer::default();
 
-        Ok(Some(batch))
+        let database = databases.pop_front().required("database")?;
+
+        let tx = &CatalogTx {};
+
+        database.1.for_each_schema(tx, &mut |schema_name, _| {
+            database_names.push_value(&database.0);
+            schema_names.push_value(schema_name);
+            Ok(())
+        })?;
+
+        Batch::try_new([
+            Array::Utf8(Utf8Array::new(database_names, None)),
+            Array::Utf8(Utf8Array::new(schema_names, None)),
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+pub struct SystemFunction<F: SystemFunctionImpl> {
+    _ty: PhantomData<F>,
+}
+
+impl<F: SystemFunctionImpl> SystemFunction<F> {
+    pub const fn new() -> Self {
+        SystemFunction { _ty: PhantomData }
+    }
+}
+
+impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
+    fn name(&self) -> &'static str {
+        F::NAME
+    }
+
+    fn plan_and_initialize(
+        &self,
+        context: &DatabaseContext,
+        _args: TableFunctionArgs,
+    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
+        // TODO: Method on args returning an error if not empty.
+
+        let databases = context
+            .iter_databases()
+            .map(|(name, database)| {
+                (
+                    name.clone(),
+                    database.catalog.clone(),
+                    database.attach_info.clone(),
+                )
+            })
+            .collect();
+
+        Box::pin(async move {
+            Ok(Box::new(PlannedSystemFunction {
+                databases,
+                function: *self,
+            }) as _)
+        })
+    }
+
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+        Ok(Box::new(PlannedSystemFunction {
+            databases: Vec::new(),
+            function: *self,
+        }))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PlannedSystemFunction<F: SystemFunctionImpl> {
+    databases: Vec<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    function: SystemFunction<F>,
+}
+
+impl<F: SystemFunctionImpl> PlannedTableFunction for PlannedSystemFunction<F> {
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
+    fn table_function(&self) -> &dyn TableFunction {
+        &self.function
+    }
+
+    fn schema(&self) -> Schema {
+        F::schema()
+    }
+
+    fn datatable(&self) -> Result<Box<dyn DataTable>> {
+        Ok(Box::new(SystemDataTable {
+            databases: Mutex::new(Some(self.databases.clone().into_iter().collect())),
+            function: self.function,
+        }))
     }
 }
 
 #[derive(Debug)]
-struct SystemDataTable<S: SystemFunctionScan + 'static> {
-    scan: Mutex<Option<S>>,
+struct SystemDataTable<F: SystemFunctionImpl> {
+    #[allow(clippy::type_complexity)] // Temp
+    databases: Mutex<Option<VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>>>,
+    function: SystemFunction<F>,
 }
 
-impl<S: SystemFunctionScan + 'static> SystemDataTable<S> {
-    fn new(scan: S) -> Self {
-        SystemDataTable {
-            scan: Mutex::new(Some(scan)),
-        }
-    }
-}
-
-impl<S: SystemFunctionScan + 'static> DataTable for SystemDataTable<S> {
+impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let scan = self
-            .scan
+        let databases = self
+            .databases
             .lock()
             .take()
             .ok_or_else(|| RayexecError::new("Scan called multiple times"))?;
 
-        let mut scans: Vec<Box<dyn DataTableScan>> =
-            vec![Box::new(SystemDataTableScan { scan }) as _];
+        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(SystemDataTableScan {
+            databases,
+            _function: self.function,
+        }) as _];
 
         scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
 
@@ -215,12 +252,21 @@ impl<S: SystemFunctionScan + 'static> DataTable for SystemDataTable<S> {
 }
 
 #[derive(Debug)]
-struct SystemDataTableScan<S: SystemFunctionScan> {
-    scan: S,
+struct SystemDataTableScan<F: SystemFunctionImpl> {
+    databases: VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    _function: SystemFunction<F>,
 }
 
-impl<S: SystemFunctionScan> DataTableScan for SystemDataTableScan<S> {
+impl<F: SystemFunctionImpl> DataTableScan for SystemDataTableScan<F> {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        self.scan.next_batch().boxed()
+        Box::pin(async {
+            if self.databases.is_empty() {
+                return Ok(None);
+            }
+
+            let batch = F::new_batch(&mut self.databases)?;
+
+            Ok(Some(batch))
+        })
     }
 }

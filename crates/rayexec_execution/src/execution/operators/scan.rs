@@ -1,12 +1,12 @@
 use crate::{
-    database::{catalog::CatalogTx, entry::TableEntry, table::DataTableScan, DatabaseContext},
+    database::{catalog::CatalogTx, catalog_entry::CatalogEntry, DatabaseContext},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
+    storage::table_storage::DataTableScan,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, RayexecError, Result};
-use rayexec_proto::ProtoConv;
+use rayexec_error::{RayexecError, Result};
 use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 
@@ -31,11 +31,15 @@ impl fmt::Debug for ScanPartitionState {
 pub struct PhysicalScan {
     catalog: String,
     schema: String,
-    table: TableEntry,
+    table: Arc<CatalogEntry>,
 }
 
 impl PhysicalScan {
-    pub fn new(catalog: impl Into<String>, schema: impl Into<String>, table: TableEntry) -> Self {
+    pub fn new(
+        catalog: impl Into<String>,
+        schema: impl Into<String>,
+        table: Arc<CatalogEntry>,
+    ) -> Self {
         PhysicalScan {
             catalog: catalog.into(),
             schema: schema.into(),
@@ -52,12 +56,14 @@ impl ExecutableOperator for PhysicalScan {
     ) -> Result<ExecutionStates> {
         // TODO: Placeholder for now. Transaction info should probably go on the
         // operator.
-        let tx = CatalogTx::new();
+        let _tx = CatalogTx::new();
 
-        let data_table =
-            context
-                .get_catalog(&self.catalog)?
-                .data_table(&tx, &self.schema, &self.table)?;
+        let database = context.get_database(&self.catalog)?;
+        let data_table = database
+            .table_storage
+            .as_ref()
+            .ok_or_else(|| RayexecError::new("Missing table storage"))?
+            .data_table(&self.schema, &self.table)?;
 
         // TODO: Pushdown projections, filters
         let scans = data_table.scan(partitions[0])?;
@@ -143,18 +149,20 @@ impl DatabaseProtoConv for PhysicalScan {
     type ProtoType = rayexec_proto::generated::execution::PhysicalScan;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            catalog: self.catalog.clone(),
-            schema: self.schema.clone(),
-            table: Some(self.table.to_proto()?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     catalog: self.catalog.clone(),
+        //     schema: self.schema.clone(),
+        //     table: Some(self.table.to_proto()?),
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            catalog: proto.catalog,
-            schema: proto.schema,
-            table: TableEntry::from_proto(proto.table.required("table")?)?,
-        })
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // Ok(Self {
+        //     catalog: proto.catalog,
+        //     schema: proto.schema,
+        //     table: TableEntry::from_proto(proto.table.required("table")?)?,
+        // })
     }
 }

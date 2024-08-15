@@ -1,0 +1,8 @@
+# Join system functions
+#
+# Queries used in the dashboard
+
+query I
+SELECT count(*) FROM list_databases() d LEFT JOIN list_tables() t ON d.database_name = t.database_name;
+----
+2

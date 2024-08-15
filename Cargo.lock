@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.29"
+version = "0.0.31"
 
 [[package]]
 name = "fnv"
@@ -1382,7 +1382,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "logutil"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1622,7 +1622,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -1898,7 +1898,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "clap",
  "crossterm",
@@ -1919,7 +1919,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "chrono",
  "csv-core",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "bytes",
  "csv",
@@ -1953,7 +1953,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_delta"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -1974,7 +1974,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "erased-serde",
  "serde",
@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "ahash",
  "chrono",
@@ -2005,11 +2005,13 @@ dependencies = [
  "rayexec_proto",
  "rayon",
  "regex",
+ "scc",
  "serde",
  "serde_bytes",
  "serde_json",
  "similar-asserts",
  "smallvec",
+ "strsim",
  "tokio",
  "tracing",
  "url",
@@ -2018,7 +2020,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "bytes",
  "chrono",
@@ -2038,7 +2040,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -2057,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -2069,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "erased-serde",
  "futures",
@@ -2084,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_proto"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "prost",
  "prost-build",
@@ -2094,7 +2096,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "bytes",
  "futures",
@@ -2113,7 +2115,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "axum",
  "clap",
@@ -2135,7 +2137,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2149,7 +2151,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "async-trait",
  "env_logger",
@@ -2168,7 +2170,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -2416,10 +2418,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "scc"
+version = "2.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a744401cf50c4fe0c428808d76f6fffd75ff6b041c8226210397522b4dde7da"
+dependencies = [
+ "sdd",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "sdd"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0495e4577c672de8254beb68d01a9b62d0e8a13c099edecdbedccce3223cd29f"
 
 [[package]]
 name = "semver"
@@ -2657,9 +2674,9 @@ dependencies = [
 
 [[package]]
 name = "strsim"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ee073c9e4cd00e28217186dbe12796d692868f432bf2e97ee73bed0c56dfa01"
+checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subst"
@@ -2734,7 +2751,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.29"
+version = "0.0.31"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",

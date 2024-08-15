@@ -62,8 +62,10 @@ impl OptimizeRule for LocationRule {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
-        database::entry::TableEntry,
+        database::catalog_entry::{CatalogEntry, CatalogEntryInner, TableEntry},
         logical::operator::{LogicalNode, Projection, Scan},
     };
 
@@ -71,16 +73,22 @@ mod tests {
 
     #[test]
     fn simple_all_local() {
+        let table = Arc::new(CatalogEntry {
+            oid: 0,
+            name: "table".to_string(),
+            entry: CatalogEntryInner::Table(TableEntry {
+                columns: Vec::new(),
+            }),
+            child: None,
+        });
+
         let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
             input: Box::new(LogicalOperator::Scan(LogicalNode::with_location(
                 Scan {
                     catalog: "catalog".to_string(),
                     schema: "schema".to_string(),
-                    source: TableEntry {
-                        name: "table".to_string(),
-                        columns: Vec::new(),
-                    },
+                    source: table,
                 },
                 LocationRequirement::ClientLocal,
             ))),
@@ -92,16 +100,22 @@ mod tests {
 
     #[test]
     fn simple_all_remote() {
+        let table = Arc::new(CatalogEntry {
+            oid: 0,
+            name: "table".to_string(),
+            entry: CatalogEntryInner::Table(TableEntry {
+                columns: Vec::new(),
+            }),
+            child: None,
+        });
+
         let plan = LogicalOperator::Projection(LogicalNode::new(Projection {
             exprs: Vec::new(),
             input: Box::new(LogicalOperator::Scan(LogicalNode::with_location(
                 Scan {
                     catalog: "catalog".to_string(),
                     schema: "schema".to_string(),
-                    source: TableEntry {
-                        name: "table".to_string(),
-                        columns: Vec::new(),
-                    },
+                    source: table,
                 },
                 LocationRequirement::Remote,
             ))),

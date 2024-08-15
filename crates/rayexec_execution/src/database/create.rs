@@ -1,5 +1,7 @@
 //! Various create messages/structs.
-use crate::functions::{aggregate::AggregateFunction, scalar::ScalarFunction};
+use crate::functions::{
+    aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
+};
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
@@ -114,5 +116,12 @@ pub struct CreateScalarFunctionInfo {
 pub struct CreateAggregateFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn AggregateFunction>,
+    pub on_conflict: OnConflict,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CreateTableFunctionInfo {
+    pub name: String,
+    pub implementation: Box<dyn TableFunction>,
     pub on_conflict: OnConflict,
 }

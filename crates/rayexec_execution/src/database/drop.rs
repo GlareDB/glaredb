@@ -49,7 +49,6 @@ impl ProtoConv for DropObject {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DropInfo {
-    pub catalog: String,
     pub schema: String,
     pub object: DropObject,
     pub cascade: bool,
@@ -61,7 +60,6 @@ impl ProtoConv for DropInfo {
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
-            catalog: self.catalog.clone(),
             schema: self.schema.clone(),
             object: Some(self.object.to_proto()?),
             cascade: self.cascade,
@@ -71,7 +69,6 @@ impl ProtoConv for DropInfo {
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {
-            catalog: proto.catalog,
             schema: proto.schema,
             object: DropObject::from_proto(proto.object.required("object")?)?,
             cascade: proto.cascade,
