@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use datafusion::arrow::array::RecordBatch;
-use datafusion::arrow::pyarrow::PyArrowType;
-use datafusion::datasource::{MemTable, TableProvider};
-use glaredb::EnvironmentReader;
+use glaredb::ext::datafusion::arrow::pyarrow::PyArrowType;
+use glaredb::ext::datafusion::datasource::{MemTable, TableProvider};
+use glaredb::ext::{EnvironmentReader, RecordBatch};
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyTuple, PyType};
 

@@ -1,5 +1,7 @@
+pub mod bson2json;
 pub mod df_scalars;
 pub mod hashing;
+pub mod jaq;
 pub mod kdl;
 pub mod openai;
 pub mod postgres;
@@ -17,7 +19,6 @@ use protogen::metastore::types::catalog::FunctionType;
 use crate::document;
 use crate::errors::BuiltinError;
 use crate::functions::{BuiltinFunction, BuiltinScalarUDF, ConstBuiltinFunction};
-
 
 pub struct ConnectionId;
 
@@ -66,11 +67,11 @@ impl BuiltinScalarUDF for Version {
 fn get_nth_scalar_value(
     input: &[ColumnarValue],
     n: usize,
-    op: &dyn Fn(ScalarValue) -> Result<ScalarValue, BuiltinError>,
+    op: &dyn Fn(&ScalarValue) -> Result<ScalarValue, BuiltinError>,
 ) -> Result<ColumnarValue, BuiltinError> {
     match input.get(n) {
         Some(input) => match input {
-            ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(scalar.clone())?)),
+            ColumnarValue::Scalar(scalar) => Ok(ColumnarValue::Scalar(op(scalar)?)),
             ColumnarValue::Array(arr) => Ok(ColumnarValue::Array(apply_op_to_col_array(arr, op)?)),
         },
         None => Err(BuiltinError::MissingValueAtIndex(n)),
@@ -79,7 +80,7 @@ fn get_nth_scalar_value(
 
 fn apply_op_to_col_array(
     arr: &dyn Array,
-    op: &dyn Fn(ScalarValue) -> Result<ScalarValue, BuiltinError>,
+    op: &dyn Fn(&ScalarValue) -> Result<ScalarValue, BuiltinError>,
 ) -> Result<Arc<dyn Array>, BuiltinError> {
     let mut check_err: Result<(), BuiltinError> = Ok(());
 
@@ -103,7 +104,7 @@ fn apply_op_to_col_array(
     let iter = (0..arr.len()).filter_map(|idx| {
         let scalar_res = ScalarValue::try_from_array(arr, idx).map_err(BuiltinError::from);
         let scalar = filter_fn(&mut check_err, scalar_res)?;
-        filter_fn(&mut check_err, op(scalar))
+        filter_fn(&mut check_err, op(&scalar))
     });
 
     // NB: ScalarValue::iter_to_array accepts an iterator over
@@ -206,7 +207,7 @@ fn get_nth_string_fn_arg(input: &[ColumnarValue], idx: usize) -> Result<String, 
 fn get_nth_string_value(
     input: &[ColumnarValue],
     n: usize,
-    op: &dyn Fn(String) -> Result<ScalarValue, BuiltinError>,
+    op: &dyn Fn(&String) -> Result<ScalarValue, BuiltinError>,
 ) -> Result<ColumnarValue, BuiltinError> {
     get_nth_scalar_value(input, n, &|scalar| -> Result<ScalarValue, BuiltinError> {
         match scalar {

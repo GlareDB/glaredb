@@ -117,6 +117,14 @@ impl Notice {
             message: msg.into(),
         }
     }
+
+    pub fn warning(msg: impl Into<String>) -> Notice {
+        Notice {
+            severity: NoticeSeverity::Warning,
+            code: SqlState::Warning,
+            message: msg.into(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -10,17 +10,13 @@ crate-type = ["cdylib"]
 workspace = true
 
 [dependencies]
-arrow_util = { path = "../../crates/arrow_util" }
 glaredb = { path = "../../crates/glaredb" }
-terminal_util = { path = "../../crates/terminal_util" }
 futures = { workspace = true }
-datafusion = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
-async-trait = { workspace = true }
 lzma-sys = { version = "*", features = ["static"] } # Prevent dynamic linking of lzma, which comes from datafusion
-napi = { version = "2.16.6", default-features = false, features = ["full"] }
-napi-derive = "2.16.5"
+napi = { version = "2.16.8", default-features = false, features = ["full"] }
+napi-derive = "2.16.10"
 once_cell = "1.19.0"
 async-once-cell = "0.5.3"
 

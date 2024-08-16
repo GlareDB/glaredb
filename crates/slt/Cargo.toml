@@ -9,7 +9,7 @@ workspace = true
 [lib]
 # no tests currently implemented in this package; skip, then
 doctest = false
-test = false 
+test = false
 
 [dependencies]
 clap = { workspace = true }
@@ -21,7 +21,7 @@ tempfile = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tonic = { workspace = true }
-datafusion = { workspace = true } 
+datafusion = { workspace = true }
 arrow-flight = { workspace = true }
 datafusion_ext = { path = "../datafusion_ext" }
 ioutil = { path = "../ioutil" }
@@ -32,10 +32,10 @@ pgsrv = { path = "../pgsrv" }
 rpcsrv = { path = "../rpcsrv" }
 sqlexec = { path = "../sqlexec" }
 telemetry = { path = "../telemetry" }
-tokio-postgres = "0.7.8"
+uuid = { version = "1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
 glob = "0.3.1"
-regex = "1.10.5"
-sqllogictest = "0.20.4"
-uuid = { version = "1.8", features = ["v4", "fast-rng", "macro-diagnostics"] }
-walkdir = "2.5.0"
 once_cell = "1.19.0"
+regex = "1.10.6"
+sqllogictest = "0.21.0"
+tokio-postgres = "0.7.11"
+walkdir = "2.5.0"

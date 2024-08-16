@@ -24,7 +24,10 @@ pub enum BsonError {
     Raw(#[from] bson::raw::Error),
 
     #[error(transparent)]
-    Serialization(#[from] bson::de::Error),
+    Serialization(#[from] bson::ser::Error),
+
+    #[error(transparent)]
+    Deserialization(#[from] bson::de::Error),
 
     #[error(transparent)]
     ObjectStore(#[from] ObjectStoreSourceError),
@@ -52,6 +55,12 @@ pub enum BsonError {
 
     #[error("no objects found {0}")]
     NotFound(String),
+
+    #[error(transparent)]
+    DateTimeParse(#[from] chrono::ParseError),
+
+    #[error("invalid value: {0}")]
+    InvalidValue(String),
 }
 
 impl From<BsonError> for DataFusionError {

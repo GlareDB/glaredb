@@ -11,6 +11,8 @@ use crate::object_store::errors::ObjectStoreSourceError;
 pub enum ExcelError {
     #[error("Failed to load XLSX: {0}")]
     Load(String),
+    #[error("Cannot parse cell value")]
+    Parse,
     #[error("Failed to create record batch: {0}")]
     CreateRecordBatch(#[from] ArrowError),
     #[error(transparent)]

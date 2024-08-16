@@ -1,13 +1,15 @@
 use std::sync::Arc;
 use std::vec::Vec;
 
-use datafusion::arrow::datatypes::{DataType, Field, FieldRef, Schema};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::TableProvider;
 use datafusion::physical_plan::streaming::PartitionStream;
+use jaq_interpret::{Ctx, Filter, FilterT, RcIter, Val};
 use object_store::{ObjectMeta, ObjectStore};
 use serde_json::{Map, Value};
 
+use super::jaq::compile_jaq_query;
 use crate::common::url::DatasourceUrl;
 use crate::json::errors::JsonError;
 use crate::json::stream::{ObjectStorePartition, VectorPartition};
@@ -16,7 +18,8 @@ use crate::object_store::{ObjStoreAccess, ObjStoreAccessor};
 pub async fn json_streaming_table(
     store_access: Arc<dyn ObjStoreAccess>,
     source_url: DatasourceUrl,
-    fields: Option<Vec<FieldRef>>,
+    fields: Option<Schema>,
+    jaq_filter: Option<String>,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
     let path = source_url.path().into_owned();
 
@@ -33,26 +36,32 @@ pub async fn json_streaming_table(
 
     let store = accessor.into_object_store();
 
-    json_streaming_table_inner(store, &path, list, fields).await
+    json_streaming_table_inner(store, &path, list, fields, jaq_filter).await
 }
 
 pub async fn json_streaming_table_from_object(
     store: Arc<dyn ObjectStore>,
     object: ObjectMeta,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
-    json_streaming_table_inner(store, "", vec![object], None).await
+    json_streaming_table_inner(store, "", vec![object], None, None).await
 }
 
 async fn json_streaming_table_inner(
     store: Arc<dyn ObjectStore>,
     original_path: &str, // Just for error
     mut list: Vec<ObjectMeta>,
-    fields: Option<Vec<FieldRef>>,
+    schema: Option<Schema>,
+    jaq_filter: Option<String>,
 ) -> Result<Arc<dyn TableProvider>, JsonError> {
+    let filter = match jaq_filter {
+        Some(query) => Some(Arc::new(compile_jaq_query(query)?)),
+        None => None,
+    };
+
     let mut streams = Vec::<Arc<dyn PartitionStream>>::with_capacity(list.len());
 
-    let schema = match fields {
-        Some(fields) => Arc::new(Schema::new(fields)),
+    let schema = match schema {
+        Some(fields) => Arc::new(fields),
         None => {
             let mut data = Vec::new();
             {
@@ -70,6 +79,7 @@ async fn json_streaming_table_inner(
                 push_unwind_json_values(
                     &mut data,
                     serde_json::Deserializer::from_slice(&blob).into_iter(),
+                    &filter,
                 )?;
             }
 
@@ -87,6 +97,7 @@ async fn json_streaming_table_inner(
                 }
             }
 
+
             let schema = Arc::new(Schema::new(
                 field_set
                     .into_iter()
@@ -99,12 +110,12 @@ async fn json_streaming_table_inner(
         }
     };
 
-
     for obj in list {
         streams.push(Arc::new(ObjectStorePartition::new(
             schema.clone(),
             store.clone(),
             obj,
+            filter.clone(),
         )));
     }
 
@@ -115,17 +126,42 @@ async fn json_streaming_table_inner(
 fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
     vals: impl Iterator<Item = Result<Value, serde_json::Error>>,
+    filter: &Option<Arc<Filter>>,
 ) -> Result<(), JsonError> {
     for val in vals {
-        match val? {
+        let value = match filter {
+            Some(jq) => {
+                let inputs = RcIter::new(core::iter::empty());
+                Value::from_iter(
+                    jq.run((Ctx::new([], &inputs), Val::from(val?)))
+                        .map(|res| res.map(Value::from))
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            }
+            None => val?,
+        };
+
+
+        match value {
             Value::Array(vals) => {
                 for v in vals {
                     match v {
                         Value::Object(doc) => data.push(doc),
                         Value::Null => data.push(Map::new()),
+                        Value::Array(_) => {
+                            if filter.is_some() {
+                                return Err(JsonError::UnsupportedNestedArray(
+                                    "must return objects from jaq expressions",
+                                ));
+                            } else {
+                                return Err(JsonError::UnsupportedType(
+                                    "arrays must contain objects or nulls",
+                                ));
+                            }
+                        }
                         _ => {
-                            return Err(JsonError::UnspportedType(
-                                "only objects and arrays of objects are supported",
+                            return Err(JsonError::UnsupportedNestedArray(
+                                "scalars in arrays are not supported",
                             ))
                         }
                     }
@@ -133,11 +169,7 @@ fn push_unwind_json_values(
             }
             Value::Object(doc) => data.push(doc),
             Value::Null => data.push(Map::new()),
-            _ => {
-                return Err(JsonError::UnspportedType(
-                    "only objects and arrays of objects are supported",
-                ))
-            }
+            _ => return Err(JsonError::UnsupportedType("scalars cannot be rows")),
         };
     }
     Ok(())

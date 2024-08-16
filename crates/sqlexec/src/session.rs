@@ -581,6 +581,10 @@ impl Session {
         self.ctx.take_notices()
     }
 
+    pub fn push_notice(&mut self, notice: Notice) {
+        self.ctx.push_notice(notice)
+    }
+
     /// Bind the parameters of a prepared statement to the given values.
     ///
     /// If successful, the bound statement will create a portal which can be

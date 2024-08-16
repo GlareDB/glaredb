@@ -1,0 +1,43 @@
+statement ok
+CREATE TEMP TABLE bson_conversions (id int, json text, bson bytea);
+
+statement ok
+INSERT INTO bson_conversions
+VALUES
+   (0, '{"a":1}', json2bson('{"a":1}')),
+   (1, '{"b":2}', json2bson('{"b":2}'));
+
+query
+SELECT jaq_select(json, '.a')
+FROM bson_conversions
+WHERE id = 0;
+----
+1
+
+query
+SELECT jaq_select(bson2json(bson), '.a')
+FROM bson_conversions
+WHERE id = 0;
+----
+1
+
+query
+SELECT jaq_select(bson2json(bson), '.a')
+FROM bson_conversions
+WHERE id = 1;
+----
+NULL
+
+query
+SELECT bson2json(bson) = json
+FROM bson_conversions
+WHERE id = 0
+----
+t
+
+query
+SELECT json2bson(json) = bson
+FROM bson_conversions
+WHERE id = 0
+----
+t

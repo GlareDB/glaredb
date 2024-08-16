@@ -7,11 +7,11 @@ mod insert;
 
 use std::any::Any;
 use std::fmt::{Display, Write};
+use std::future::IntoFuture;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use bson::RawBson;
 use datafusion::arrow::datatypes::{
     FieldRef,
     Fields,
@@ -27,7 +27,7 @@ use datafusion::scalar::ScalarValue;
 use datafusion_ext::errors::ExtensionError;
 use datafusion_ext::functions::VirtualLister;
 use mongodb::bson::spec::BinarySubtype;
-use mongodb::bson::{bson, Binary, Bson, Document, RawDocumentBuf};
+use mongodb::bson::{bson, doc, Binary, Bson, Document, RawBson, RawDocumentBuf};
 use mongodb::options::{ClientOptions, FindOptions};
 use mongodb::{Client, Collection};
 use parser::errors::ParserError;
@@ -156,14 +156,15 @@ impl MongoDbAccessor {
     }
 
     pub async fn validate_external_database(connection_string: &str) -> Result<()> {
-        let accessor = Self::connect(connection_string).await?;
-        let mut filter = Document::new();
-        filter.insert("name".to_string(), Bson::String("glaredb".to_string()));
-        let _ = accessor
+        Self::connect(connection_string)
+            .await?
             .client
-            .list_database_names(Some(filter), None)
-            .await?;
-        Ok(())
+            .database("test")
+            .run_command(doc! {"ping": 1})
+            .into_future()
+            .await
+            .map_err(MongoDbError::from)
+            .map(|_| ())
     }
 
     pub fn into_table_accessor(self, info: MongoDbTableAccessInfo) -> MongoDbTableAccessor {
@@ -177,27 +178,18 @@ impl MongoDbAccessor {
 #[async_trait]
 impl VirtualLister for MongoDbAccessor {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
-        use ExtensionError::ListingErrBoxed;
-
-        let databases = self
-            .client
-            .list_database_names(/* filter: */ None, /* options: */ None)
+        self.client
+            .list_database_names()
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
-
-        Ok(databases)
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))
     }
 
     async fn list_tables(&self, database: &str) -> Result<Vec<String>, ExtensionError> {
-        use ExtensionError::ListingErrBoxed;
-
-        let database = self.client.database(database);
-        let collections = database
-            .list_collection_names(/* filter: */ None)
+        self.client
+            .database(database)
+            .list_collection_names()
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
-
-        Ok(collections)
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))
     }
 
     async fn list_columns(
@@ -205,20 +197,17 @@ impl VirtualLister for MongoDbAccessor {
         database: &str,
         collection: &str,
     ) -> Result<Fields, ExtensionError> {
-        use ExtensionError::ListingErrBoxed;
-
         let collection = self.client.database(database).collection(collection);
-        let sampler = TableSampler::new(&collection);
 
         let count = collection
-            .estimated_document_count(None)
+            .estimated_document_count()
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))?;
 
-        let schema = sampler
+        let schema = TableSampler::new(&collection)
             .infer_schema_from_sample(count)
             .await
-            .map_err(|e| ListingErrBoxed(Box::new(e)))?;
+            .map_err(|e| ExtensionError::ListingErrBoxed(Box::new(e)))?;
 
         Ok(schema.fields)
     }
@@ -244,7 +233,7 @@ impl MongoDbTableAccessor {
             .client
             .database(&self.info.database)
             .collection::<Document>(&self.info.collection)
-            .estimated_document_count(None)
+            .estimated_document_count()
             .await?;
 
         Ok(())
@@ -265,7 +254,7 @@ impl MongoDbTableAccessor {
         };
 
         Ok(MongoDbTableProvider {
-            estimated_count: collection.estimated_document_count(None).await?,
+            estimated_count: collection.estimated_document_count().await?,
             schema: Arc::new(schema),
             collection: self
                 .client
@@ -306,7 +295,7 @@ impl TableProvider for MongoDbTableProvider {
         &self,
         _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
+        filters: &[Expr],
         limit: Option<usize>,
     ) -> DatafusionResult<Arc<dyn ExecutionPlan>> {
         // Projection.
@@ -334,11 +323,7 @@ impl TableProvider for MongoDbTableProvider {
             proj_doc.insert(ID_FIELD_NAME, 0);
         }
 
-        let mut find_opts = FindOptions::default();
-        find_opts.limit = limit.map(|v| v as i64);
-        find_opts.projection = Some(proj_doc);
-
-        let filter = match exprs_to_mdb_query(_filters) {
+        let filter = match exprs_to_mdb_query(filters) {
             Ok(query) => query,
             Err(err) => {
                 debug!("mdb pushdown query err: {}", err.to_string());
@@ -347,7 +332,13 @@ impl TableProvider for MongoDbTableProvider {
         };
         let cursor = Mutex::new(Some(
             self.collection
-                .find(Some(filter), Some(find_opts))
+                .find(filter)
+                .with_options(Some(
+                    FindOptions::builder()
+                        .limit(limit.map(|v| v as i64))
+                        .projection(proj_doc)
+                        .build(),
+                ))
                 .await
                 .map_err(|e| DataFusionError::External(Box::new(e)))?,
         ));

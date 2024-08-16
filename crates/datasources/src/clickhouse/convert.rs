@@ -552,16 +552,8 @@ pub fn clickhouse_type_to_arrow_type(
                     )));
                 }
             }
-            "Enum8" => {
-                return Err(KlickhouseError::TypeParseError(
-                    "unsupported Enum8 type".to_string(),
-                ));
-            }
-            "Enum16" => {
-                return Err(KlickhouseError::TypeParseError(
-                    "unsupported Enum16 type".to_string(),
-                ));
-            }
+            "Enum8" => DataType::Int8.into(),
+            "Enum16" => DataType::Int16.into(),
             "LowCardinality" => {
                 if args.len() != 1 {
                     return Err(KlickhouseError::TypeParseError(format!(

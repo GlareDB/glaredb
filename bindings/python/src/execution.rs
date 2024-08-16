@@ -2,21 +2,21 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
-use arrow_util::pretty;
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{Schema, SchemaRef};
-use datafusion::arrow::pyarrow::ToPyArrow;
-use datafusion::datasource::TableProvider;
-use datafusion::error::DataFusionError;
-use datafusion::execution::context::SessionState;
-use datafusion::execution::TaskContext;
-use datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::physical_plan::streaming::{PartitionStream, StreamingTableExec};
-use datafusion::physical_plan::ExecutionPlan;
-use datafusion::prelude::Expr;
 use futures::StreamExt;
-use glaredb::{DatabaseError, Operation, RecordBatch, SendableRecordBatchStream};
+use glaredb::ext::datafusion::arrow::datatypes::{Schema, SchemaRef};
+use glaredb::ext::datafusion::arrow::pyarrow::ToPyArrow;
+use glaredb::ext::datafusion::datasource::TableProvider;
+use glaredb::ext::datafusion::error::DataFusionError;
+use glaredb::ext::datafusion::execution::context::SessionState;
+use glaredb::ext::datafusion::execution::TaskContext;
+use glaredb::ext::datafusion::logical_expr::{TableProviderFilterPushDown, TableType};
+use glaredb::ext::datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use glaredb::ext::datafusion::physical_plan::streaming::{PartitionStream, StreamingTableExec};
+use glaredb::ext::datafusion::physical_plan::ExecutionPlan;
+use glaredb::ext::datafusion::prelude::Expr;
+use glaredb::ext::{RecordBatch, SendableRecordBatchStream};
+use glaredb::{DatabaseError, Operation};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -101,10 +101,10 @@ impl PyExecutionOutput {
     pub fn show(&mut self, py: Python) -> PyResult<()> {
         let (schema, batches) = self.resolve_operation(py)?;
 
-        let disp = pretty::pretty_format_batches(
+        let disp = glaredb::ext::tools::pretty_format_batches(
             &schema,
             &batches,
-            Some(terminal_util::term_width()),
+            Some(glaredb::ext::tools::term_width()),
             None,
         )
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;

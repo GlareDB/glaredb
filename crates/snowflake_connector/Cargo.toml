@@ -18,12 +18,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
-uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 datafusion = { workspace = true }
 hex = "0.4.3"
 base64 = "0.22.1"
-bytes = "1.6.0"
-flate2 = "1.0.30"
+bytes = "1.7.1"
+flate2 = "1.0.31"
 decimal = { path = "../decimal" }
 
 [dev-dependencies]

@@ -22,4 +22,4 @@ tokio = { workspace = true }
 tempfile = "3"
 bytes = { workspace = true }
 moka = { version = "0.12.5", features = ["future"] }
-uuid = { version = "1.8.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
