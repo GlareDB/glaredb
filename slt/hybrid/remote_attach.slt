@@ -1,0 +1,38 @@
+# Remote attach memory data source
+
+# TODO: Add debug tables to actually verify we're hitting the remote side.
+
+statement ok
+ATTACH remote_debug1 DATABASE AS remote1;
+
+query T
+select database_name from list_databases() order by 1;
+----
+remote1
+system
+temp
+
+statement error Missing table or view for reference 'remote1.schema.table'
+select * from remote1.schema.table;
+
+query TT
+describe remote1.schema1.table1;
+----
+c1  Int64
+c2  Utf8
+
+
+statement ok
+ATTACH remote_debug1 DATABASE AS remote2;
+
+query T
+select database_name from list_databases() order by 1;
+----
+remote1
+remote2
+system
+temp
+
+# TODO: Remote attach verify
+# statement error
+# ATTACH remote_memory_missing DATABASE AS remote3;

@@ -8,6 +8,7 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../crates/rayexec_error' }
 rayexec_execution = { path = '../crates/rayexec_execution' }
+rayexec_server = { path = '../crates/rayexec_server' }
 rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_slt = { path = '../crates/rayexec_slt' }
 rayexec_bullet = { path = '../crates/rayexec_bullet' }
@@ -15,11 +16,17 @@ rayexec_postgres = { path = '../crates/rayexec_postgres' }
 rayexec_parquet = { path = '../crates/rayexec_parquet' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
+rayexec_debug = { path = '../crates/rayexec_debug' }
 
 [[test]]
 harness = false
 name = "integration_register_all_datasources"
 path = "integration_register_all_datasources.rs"
+
+[[test]]
+harness = false
+name = "integration_slt_hybrid"
+path = "integration_slt_hybrid.rs"
 
 [[test]]
 harness = false

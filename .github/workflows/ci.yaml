@@ -21,14 +21,14 @@ jobs:
           ssh-key: ${{ secrets.SSH_KEY }}
           submodules: 'true'
 
-      - name: Install Protoc
+      - name: Install protoc
         uses: arduino/setup-protoc@v3
 
-      - name: Tests
-        env:
-          AWS_KEY: ${{ secrets.AWS_KEY }}
-          AWS_SECRET: ${{ secrets.AWS_SECRET }}
-        run: cargo test -- --skip slt_datasource_  --skip slt_tpch
+      - name: Standard tests
+        run: cargo test -- --skip slt_datasource_  --skip slt_tpch --skip slt_hybrid
+
+      - name: SLTs Hybrid
+        run: cargo test slt_hybrid
 
       - name: SLTs Parquet
         env:
@@ -49,9 +49,6 @@ jobs:
         run: cargo test slt_datasource_delta
 
       - name: SLTs Postgres
-        env:
-          AWS_KEY: ${{ secrets.AWS_KEY }}
-          AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: |
           ./scripts/create-test-postgres-db.sh
           cargo test slt_datasource_postgres
@@ -66,7 +63,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Protoc
+      - name: Install protoc
         uses: arduino/setup-protoc@v3
 
       - name: Install wasm-pack

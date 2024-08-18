@@ -35,9 +35,9 @@ impl TableStorage for MemoryTableStorage {
         };
 
         let table = self.tables.get(&key).ok_or_else(|| {
-            RayexecError::new(
+            RayexecError::new(format!(
                 "Missing physical memory table for entry: {ent:?}. Cannot get data table",
-            )
+            ))
         })?;
 
         Ok(Box::new(table.get().clone()))
@@ -55,9 +55,10 @@ impl TableStorage for MemoryTableStorage {
 
         Box::pin(async {
             match self.tables.entry(key) {
-                scc::hash_index::Entry::Occupied(_) => Err(RayexecError::new(
-                    "Duplicate physical table for entry: {ent:?}",
-                )),
+                scc::hash_index::Entry::Occupied(ent) => Err(RayexecError::new(format!(
+                    "Duplicate physical table for entry: {:?}",
+                    ent.key(),
+                ))),
                 scc::hash_index::Entry::Vacant(hash_ent) => {
                     let table = MemoryDataTable::default();
                     hash_ent.insert_entry(table.clone());
@@ -75,9 +76,9 @@ impl TableStorage for MemoryTableStorage {
 
         Box::pin(async move {
             if !self.tables.remove(&key) {
-                return Err(RayexecError::new(
-                    "Missing physical memory table for entry: {ent:?}. Cannot drop table.",
-                ));
+                return Err(RayexecError::new(format!(
+                    "Missing physical memory table for entry: {key:?}. Cannot drop table.",
+                )));
             }
             Ok(())
         })
