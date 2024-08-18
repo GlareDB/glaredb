@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::{
+    bound_copy_to::BoundCopyTo,
     bound_cte::BoundCte,
     bound_function::BoundFunction,
     bound_table::{BoundTableOrCteReference, CteIndex, UnboundTableReference},
@@ -32,6 +33,15 @@ pub struct BindData {
     /// Bound (and planned) table functions. Unbound table functions include the
     /// table function arguments to allow for quick planning on the remote side.
     pub table_functions: BindList<BoundTableFunctionReference, UnboundTableFunctionReference>,
+
+    /// An optional COPY TO for the query.
+    ///
+    /// Currently this only supports a local COPY TO (the result needs to be
+    /// local, the inner query can be local or remote). Extending this to
+    /// support remote COPY TO should be straightforward, we just have to figure
+    /// out what the "unbound" variant should be since it's not directly
+    /// referenced by the user (maybe file format?).
+    pub copy_to: Option<BoundCopyTo>,
 
     /// How "deep" in the plan are we.
     ///
@@ -118,6 +128,11 @@ impl DatabaseProtoConv for BindData {
             tables: Some(self.tables.to_proto_ctx(context)?),
             functions: Some(self.functions.to_proto_ctx(context)?),
             table_functions: Some(self.table_functions.to_proto_ctx(context)?),
+            copy_to: self
+                .copy_to
+                .as_ref()
+                .map(|c| c.to_proto_ctx(context))
+                .transpose()?,
             current_depth: self.current_depth as u32,
         })
     }
@@ -130,6 +145,10 @@ impl DatabaseProtoConv for BindData {
                 proto.table_functions.required("table_functions")?,
                 context,
             )?,
+            copy_to: proto
+                .copy_to
+                .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
+                .transpose()?,
             current_depth: proto.current_depth as usize,
             ctes: Vec::new(),
         })

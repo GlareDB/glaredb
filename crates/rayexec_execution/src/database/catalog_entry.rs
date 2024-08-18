@@ -6,7 +6,10 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use crate::{
-    functions::{aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction},
+    functions::{
+        aggregate::AggregateFunction, copy::CopyToFunction, scalar::ScalarFunction,
+        table::TableFunction,
+    },
     proto::DatabaseProtoConv,
 };
 
@@ -19,6 +22,7 @@ pub enum CatalogEntryType {
     ScalarFunction,
     AggregateFunction,
     TableFunction,
+    CopyToFunction,
 }
 
 impl fmt::Display for CatalogEntryType {
@@ -29,6 +33,7 @@ impl fmt::Display for CatalogEntryType {
             Self::ScalarFunction => write!(f, "scalar function"),
             Self::AggregateFunction => write!(f, "aggregate function"),
             Self::TableFunction => write!(f, "table function"),
+            Self::CopyToFunction => write!(f, "copy to function"),
         }
     }
 }
@@ -43,6 +48,7 @@ impl ProtoConv for CatalogEntryType {
             Self::ScalarFunction => Self::ProtoType::ScalarFunction,
             Self::AggregateFunction => Self::ProtoType::AggregateFunction,
             Self::TableFunction => Self::ProtoType::TableFunction,
+            Self::CopyToFunction => Self::ProtoType::CopyToFunction,
         })
     }
 
@@ -54,6 +60,7 @@ impl ProtoConv for CatalogEntryType {
             Self::ProtoType::ScalarFunction => Self::ScalarFunction,
             Self::ProtoType::AggregateFunction => Self::AggregateFunction,
             Self::ProtoType::TableFunction => Self::TableFunction,
+            Self::ProtoType::CopyToFunction => Self::CopyToFunction,
         })
     }
 }
@@ -106,7 +113,7 @@ pub enum CatalogEntryInner {
     ScalarFunction(ScalarFunctionEntry),
     AggregateFunction(AggregateFunctionEntry),
     TableFunction(TableFunctionEntry),
-    // TODO: COPY TO function
+    CopyToFunction(CopyToFunctionEntry),
 }
 
 impl DatabaseProtoConv for CatalogEntryInner {
@@ -121,6 +128,7 @@ impl DatabaseProtoConv for CatalogEntryInner {
             Self::ScalarFunction(ent) => Value::ScalarFunction(ent.to_proto_ctx(context)?),
             Self::AggregateFunction(ent) => Value::AggregateFunction(ent.to_proto_ctx(context)?),
             Self::TableFunction(ent) => Value::TableFunction(ent.to_proto_ctx(context)?),
+            Self::CopyToFunction(ent) => Value::CopyToFunction(ent.to_proto_ctx(context)?),
         };
 
         Ok(Self::ProtoType { value: Some(value) })
@@ -140,6 +148,9 @@ impl DatabaseProtoConv for CatalogEntryInner {
             }
             Value::TableFunction(ent) => {
                 Self::TableFunction(DatabaseProtoConv::from_proto_ctx(ent, context)?)
+            }
+            Value::CopyToFunction(ent) => {
+                Self::CopyToFunction(DatabaseProtoConv::from_proto_ctx(ent, context)?)
             }
         })
     }
@@ -217,6 +228,30 @@ impl DatabaseProtoConv for TableFunctionEntry {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct CopyToFunctionEntry {
+    pub function: Box<dyn CopyToFunction>,
+}
+
+impl DatabaseProtoConv for CopyToFunctionEntry {
+    type ProtoType = rayexec_proto::generated::catalog::CopyToFunctionEntry;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            function: Some(self.function.to_proto_ctx(context)?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            function: DatabaseProtoConv::from_proto_ctx(
+                proto.function.required("function")?,
+                context,
+            )?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TableEntry {
     pub columns: Vec<Field>,
@@ -269,6 +304,7 @@ impl CatalogEntry {
             CatalogEntryInner::ScalarFunction(_) => CatalogEntryType::ScalarFunction,
             CatalogEntryInner::AggregateFunction(_) => CatalogEntryType::AggregateFunction,
             CatalogEntryInner::TableFunction(_) => CatalogEntryType::TableFunction,
+            CatalogEntryInner::CopyToFunction(_) => CatalogEntryType::CopyToFunction,
         }
     }
 
@@ -304,6 +340,13 @@ impl CatalogEntry {
         match &self.entry {
             CatalogEntryInner::TableFunction(ent) => Ok(ent),
             _ => Err(RayexecError::new("Entry not a table function")),
+        }
+    }
+
+    pub fn try_as_copy_to_function_entry(&self) -> Result<&CopyToFunctionEntry> {
+        match &self.entry {
+            CatalogEntryInner::CopyToFunction(ent) => Ok(ent),
+            _ => Err(RayexecError::new("Entry not a copy to function")),
         }
     }
 }

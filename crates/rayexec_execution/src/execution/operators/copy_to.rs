@@ -2,11 +2,13 @@ use crate::{
     database::DatabaseContext,
     functions::copy::{CopyToFunction, CopyToSink},
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::{batch::Batch, field::Schema};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
+use rayexec_proto::ProtoConv;
 use std::{fmt, task::Poll};
 use std::{
     sync::Arc,
@@ -251,5 +253,28 @@ impl ExecutableOperator for PhysicalCopyTo {
 impl Explainable for PhysicalCopyTo {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CopyTo")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalCopyTo {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalCopyTo;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            copy_to: Some(self.copy_to.to_proto_ctx(context)?),
+            location: Some(self.location.to_proto()?),
+            schema: Some(self.schema.to_proto()?),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            copy_to: DatabaseProtoConv::from_proto_ctx(
+                proto.copy_to.required("copy_to")?,
+                context,
+            )?,
+            location: ProtoConv::from_proto(proto.location.required("location")?)?,
+            schema: ProtoConv::from_proto(proto.schema.required("schema")?)?,
+        })
     }
 }

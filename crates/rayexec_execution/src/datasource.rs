@@ -13,6 +13,13 @@ use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::memory::MemoryTableStorage;
 use crate::storage::table_storage::TableStorage;
 
+// TODO: COPY TO function registration:
+//
+// - Return functions with a FORMAT specifier to allow users to be explicit
+//   instead of relying on implicit inferrence.
+//
+//   `COPY (SELECT ...) TO 'my_path' (FORMAT parquet)`
+
 /// Trait for constructing data sources.
 ///
 /// This mostly exists to describe how runtimes get injected into data sources,
@@ -69,7 +76,17 @@ pub trait DataSource: Sync + Send + Debug {
     ///
     /// Note that these functions should be stateless, as they are registered
     /// into the system catalog at startup.
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>>;
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+        Vec::new()
+    }
+
+    /// Initialize a list of COPY TO functions for this data source.
+    ///
+    /// Similar to table functions, these should be stateless, and get
+    /// registered into the system catalog on startup.
+    fn initialize_copy_to_functions(&self) -> Vec<Box<dyn CopyToFunction>> {
+        Vec::new()
+    }
 
     /// Return file handlers that this data souce can handle.
     ///

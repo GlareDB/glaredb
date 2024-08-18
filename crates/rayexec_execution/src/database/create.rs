@@ -1,6 +1,7 @@
 //! Various create messages/structs.
 use crate::functions::{
-    aggregate::AggregateFunction, scalar::ScalarFunction, table::TableFunction,
+    aggregate::AggregateFunction, copy::CopyToFunction, scalar::ScalarFunction,
+    table::TableFunction,
 };
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
@@ -123,5 +124,12 @@ pub struct CreateAggregateFunctionInfo {
 pub struct CreateTableFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn TableFunction>,
+    pub on_conflict: OnConflict,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CreateCopyToFunctionInfo {
+    pub name: String,
+    pub implementation: Box<dyn CopyToFunction>,
     pub on_conflict: OnConflict,
 }

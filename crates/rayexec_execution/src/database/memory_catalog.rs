@@ -6,12 +6,12 @@ use super::{
     catalog::CatalogTx,
     catalog_entry::{
         AggregateFunctionEntry, CatalogEntry, CatalogEntryInner, CatalogEntryType,
-        ScalarFunctionEntry, SchemaEntry, TableEntry, TableFunctionEntry,
+        CopyToFunctionEntry, ScalarFunctionEntry, SchemaEntry, TableEntry, TableFunctionEntry,
     },
     catalog_map::CatalogMap,
     create::{
-        CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
-        CreateTableFunctionInfo, CreateTableInfo,
+        CreateAggregateFunctionInfo, CreateCopyToFunctionInfo, CreateScalarFunctionInfo,
+        CreateSchemaInfo, CreateTableFunctionInfo, CreateTableInfo,
     },
     drop::{DropInfo, DropObject},
 };
@@ -74,6 +74,7 @@ impl MemoryCatalog {
             tables: CatalogMap::default(),
             table_functions: CatalogMap::default(),
             functions: CatalogMap::default(),
+            copy_to_functions: CatalogMap::default(),
         });
 
         use scc::hash_index::Entry;
@@ -148,6 +149,8 @@ pub struct MemorySchema {
     table_functions: CatalogMap,
     /// All scalar and aggregate functions in the schema.
     functions: CatalogMap,
+    /// All functions implementing COPY TO for a fomat in the schema.
+    copy_to_functions: CatalogMap,
 }
 
 impl MemorySchema {
@@ -221,6 +224,23 @@ impl MemorySchema {
         };
 
         Self::create_entry(tx, &self.table_functions, ent, create.on_conflict)
+    }
+
+    pub fn create_copy_to_function(
+        &self,
+        tx: &CatalogTx,
+        create: &CreateCopyToFunctionInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        let ent = CatalogEntry {
+            oid: 0,
+            name: create.name.clone(),
+            entry: CatalogEntryInner::CopyToFunction(CopyToFunctionEntry {
+                function: create.implementation.clone(),
+            }),
+            child: None,
+        };
+
+        Self::create_entry(tx, &self.copy_to_functions, ent, create.on_conflict)
     }
 
     /// Internal helper for inserting entries into the schema while obeying
@@ -299,6 +319,20 @@ impl MemorySchema {
         let ent = self.functions.get_entry(tx, name)?;
         let ent = ent.and_then(|ent| match &ent.entry {
             CatalogEntryInner::AggregateFunction(_) => Some(ent),
+            _ => None,
+        });
+
+        Ok(ent)
+    }
+
+    pub fn get_copy_to_function(
+        &self,
+        tx: &CatalogTx,
+        name: &str,
+    ) -> Result<Option<Arc<CatalogEntry>>> {
+        let ent = self.copy_to_functions.get_entry(tx, name)?;
+        let ent = ent.and_then(|ent| match &ent.entry {
+            CatalogEntryInner::CopyToFunction(_) => Some(ent),
             _ => None,
         });
 

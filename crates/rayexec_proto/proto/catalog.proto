@@ -12,6 +12,7 @@ enum CatalogEntryType {
     CATALOG_ENTRY_TYPE_SCALAR_FUNCTION    = 3;
     CATALOG_ENTRY_TYPE_AGGREGATE_FUNCTION = 4;
     CATALOG_ENTRY_TYPE_TABLE_FUNCTION     = 5;
+    CATALOG_ENTRY_TYPE_COPY_TO_FUNCTION   = 6;
 }
 
 message AttachInfo {
@@ -38,6 +39,10 @@ message TableFunctionEntry {
     expr.TableFunction function = 1;
 }
 
+message CopyToFunctionEntry {
+    expr.CopyToFunction function = 1;
+}
+
 message TableEntry {
     repeated schema.Field columns = 1;
 }
@@ -51,5 +56,6 @@ message CatalogEntryInner {
         ScalarFunctionEntry    scalar_function    = 3;
         AggregateFunctionEntry aggregate_function = 4;
         TableFunctionEntry     table_function     = 5;
+        CopyToFunctionEntry    copy_to_function   = 6;
     }
 }

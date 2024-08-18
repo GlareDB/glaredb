@@ -10,6 +10,7 @@ use rayexec_proto::ProtoConv;
 
 use super::{
     aggregate::{AggregateFunction, PlannedAggregateFunction},
+    copy::{CopyToArgs, CopyToFunction},
     scalar::{PlannedScalarFunction, ScalarFunction},
     table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
 };
@@ -205,5 +206,50 @@ impl ProtoConv for TableFunctionArgs {
                 .map(OwnedScalarValue::from_proto)
                 .collect::<Result<Vec<_>>>()?,
         })
+    }
+}
+
+impl DatabaseProtoConv for Box<dyn CopyToFunction> {
+    type ProtoType = rayexec_proto::generated::expr::CopyToFunction;
+
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            name: self.name().to_string(),
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        let tx = &CatalogTx {};
+        let ent = context
+            .system_catalog()?
+            .get_schema(tx, LOOKUP_CATALOG)?
+            .required("lookup schema")?
+            .get_copy_to_function(tx, &proto.name)?
+            .required("table function")?;
+        let ent = ent.try_as_copy_to_function_entry()?;
+
+        Ok(ent.function.clone())
+    }
+}
+
+impl ProtoConv for CopyToArgs {
+    type ProtoType = rayexec_proto::generated::expr::CopyToFunctionArgs;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        let mut named = HashMap::new();
+        for (key, val) in &self.named {
+            named.insert(key.clone(), val.to_proto()?);
+        }
+
+        Ok(Self::ProtoType { named })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let mut named = HashMap::new();
+        for (key, val) in proto.named {
+            named.insert(key, OwnedScalarValue::from_proto(val)?);
+        }
+
+        Ok(Self { named })
     }
 }

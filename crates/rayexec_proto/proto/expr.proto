@@ -104,6 +104,10 @@ message CopyToFunction {
     string name = 1;
 }
 
+message CopyToFunctionArgs {
+    map<string, expr.OwnedScalarValue> named = 1;
+}
+
 message PhysicalCastExpression {
     schema.DataType          cast_to = 1;
     PhysicalScalarExpression expr    = 2;

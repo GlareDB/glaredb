@@ -10,7 +10,7 @@ use copy_to::ParquetCopyToFunction;
 use functions::read_parquet::ReadParquet;
 use rayexec_execution::{
     datasource::{DataSource, DataSourceBuilder, FileHandler},
-    functions::table::TableFunction,
+    functions::{copy::CopyToFunction, table::TableFunction},
     runtime::Runtime,
 };
 use regex::{Regex, RegexBuilder};
@@ -38,6 +38,12 @@ impl<R> ParquetDataSource<R> {
 impl<R: Runtime> DataSource for ParquetDataSource<R> {
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
         vec![Box::new(ReadParquet {
+            runtime: self.runtime.clone(),
+        })]
+    }
+
+    fn initialize_copy_to_functions(&self) -> Vec<Box<dyn CopyToFunction>> {
+        vec![Box::new(ParquetCopyToFunction {
             runtime: self.runtime.clone(),
         })]
     }

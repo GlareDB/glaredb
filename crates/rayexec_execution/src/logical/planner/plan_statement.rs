@@ -13,8 +13,8 @@ use crate::{
         expr::LogicalExpression,
         operator::{
             AttachDatabase, CopyTo, CreateSchema, CreateTable, Describe, DetachDatabase, DropEntry,
-            Explain, ExplainFormat, Insert, LogicalNode, LogicalOperator, Projection, ResetVar,
-            Scan, SetVar, ShowVar, VariableOrAll,
+            Explain, ExplainFormat, Insert, LocationRequirement, LogicalNode, LogicalOperator,
+            Projection, ResetVar, Scan, SetVar, ShowVar, VariableOrAll,
         },
         planner::{plan_expr::ExpressionContext, plan_query::QueryNodePlanner},
     },
@@ -289,14 +289,23 @@ impl<'a> PlanContext<'a> {
         };
 
         let source_schema = source.schema()?;
+        let bound_copy_to = self
+            .bind_data
+            .copy_to
+            .as_ref()
+            .ok_or_else(|| RayexecError::new("Missing COPY TO function"))?
+            .clone();
 
         Ok(LogicalQuery {
-            root: LogicalOperator::CopyTo(LogicalNode::new(CopyTo {
-                source: Box::new(source.root),
-                source_schema,
-                location: copy_to.target.location,
-                copy_to: copy_to.target.func.unwrap(), // TODO, remove unwrap when serialization works
-            })),
+            root: LogicalOperator::CopyTo(LogicalNode::with_location(
+                CopyTo {
+                    source: Box::new(source.root),
+                    source_schema,
+                    location: copy_to.target,
+                    copy_to: bound_copy_to.func,
+                },
+                LocationRequirement::ClientLocal,
+            )),
             scope: Scope::empty(),
         })
     }

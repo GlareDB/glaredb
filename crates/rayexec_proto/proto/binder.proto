@@ -66,6 +66,10 @@ message BoundTableFunctionReferenceWithLocation {
     logical.LocationRequirement location = 2;
 }
 
+message BoundCopyTo {
+    expr.CopyToFunction func = 1;
+}
+
 message MaybeBoundTable {
     oneof value {
         BoundTableOrCteReferenceWithLocation bound   = 1;
@@ -107,6 +111,7 @@ message BindData {
     TablesBindList         tables          = 1;
     FunctionsBindList      functions       = 2;
     TableFunctionsBindList table_functions = 3;
-    uint32                 current_depth   = 4;
+    optional BoundCopyTo   copy_to         = 4;
+    uint32                 current_depth   = 5;
     // TODO: CTEs
 }

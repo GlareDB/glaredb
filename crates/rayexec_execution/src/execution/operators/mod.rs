@@ -46,7 +46,7 @@ use materialize::{
 };
 use project::{PhysicalProject, ProjectOperation};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
@@ -517,7 +517,8 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
             Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
             Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
-            other => unimplemented!("{other:?}"),
+            Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
+            other => not_implemented!("to proto: {other:?}"),
         };
 
         Ok(Self::ProtoType { value: Some(value) })
@@ -568,6 +569,9 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
                 PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
             ),
+            Value::CopyTo(op) => {
+                PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
+            }
         })
     }
 }
