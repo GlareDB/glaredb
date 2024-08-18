@@ -28,7 +28,7 @@ use rayexec_parser::{
     meta::{AstMeta, Raw},
     statement::{RawStatement, Statement},
 };
-use resolve_normal::Resolver;
+use resolve_normal::{MaybeResolvedTable, Resolver};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -233,10 +233,18 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         match table {
-                            Some(table) => {
+                            MaybeResolvedTable::Resolved(table) => {
                                 MaybeBound::Bound(table, LocationRequirement::ClientLocal)
                             }
-                            None => MaybeBound::Unbound(reference),
+                            MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
+                                MaybeBound::Unbound(unbound)
+                            }
+                            MaybeResolvedTable::Unresolved => {
+                                return Err(RayexecError::new(format!(
+                                    "Missing table or view for reference '{}'",
+                                    reference
+                                )))
+                            }
                         }
                     }
                 };
@@ -374,8 +382,18 @@ impl<'a> Binder<'a> {
                     .await?;
 
                 match table {
-                    Some(table) => MaybeBound::Bound(table, LocationRequirement::ClientLocal),
-                    None => MaybeBound::Unbound(insert.table),
+                    MaybeResolvedTable::Resolved(table) => {
+                        MaybeBound::Bound(table, LocationRequirement::ClientLocal)
+                    }
+                    MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
+                        MaybeBound::Unbound(unbound)
+                    }
+                    MaybeResolvedTable::Unresolved => {
+                        return Err(RayexecError::new(format!(
+                            "Missing table or view for reference '{}'",
+                            insert.table
+                        )))
+                    }
                 }
             }
         };
@@ -652,10 +670,18 @@ impl<'a> Binder<'a> {
                             .await?;
 
                         match table {
-                            Some(table) => {
+                            MaybeResolvedTable::Resolved(table) => {
                                 MaybeBound::Bound(table, LocationRequirement::ClientLocal)
                             }
-                            None => MaybeBound::Unbound(reference),
+                            MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
+                                MaybeBound::Unbound(unbound)
+                            }
+                            MaybeResolvedTable::Unresolved => {
+                                return Err(RayexecError::new(format!(
+                                    "Missing table or view for reference '{}'",
+                                    reference
+                                )))
+                            }
                         }
                     }
                 };

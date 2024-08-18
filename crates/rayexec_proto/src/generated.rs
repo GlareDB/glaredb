@@ -41,3 +41,7 @@ pub mod foreign {
 pub mod hybrid {
     include!(concat!(env!("OUT_DIR"), "/rayexec.hybrid.rs"));
 }
+
+pub mod catalog {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.catalog.rs"));
+}

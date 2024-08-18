@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::{Result, ResultExt};
@@ -28,11 +28,28 @@ struct Arguments {
     /// Port to start the server on.
     #[clap(short, long, default_value_t = 8080)]
     port: u16,
+
+    /// Log format.
+    #[arg(value_enum, long, value_parser, default_value_t = LogFormat::Json)]
+    log_format: LogFormat,
+}
+
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+enum LogFormat {
+    #[default]
+    Json,
+    Pretty,
 }
 
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger(tracing::Level::DEBUG, logutil::LogFormat::Json);
+    logutil::configure_global_logger(
+        tracing::Level::DEBUG,
+        match args.log_format {
+            LogFormat::Json => logutil::LogFormat::Json,
+            LogFormat::Pretty => logutil::LogFormat::HumanReadable,
+        },
+    );
 
     let sched = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
@@ -62,11 +79,11 @@ async fn inner(
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
         .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
     let engine = Engine::new_with_registry(sched.clone(), runtime.clone(), registry)?;
-    let session = engine.new_server_session()?;
+    let server_state = engine.new_server_state()?;
 
-    let state = Arc::new(handlers::ServerState {
-        _engine: engine,
-        session,
+    let state = Arc::new(handlers::HandlerState {
+        engine,
+        server_state,
     });
 
     let app = Router::new()

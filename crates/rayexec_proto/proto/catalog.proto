@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package rayexec.catalog;
+
+import "expr.proto";
+import "schema.proto";
+
+enum CatalogEntryType {
+    CATALOG_ENTRY_TYPE_INVALID            = 0;
+    CATALOG_ENTRY_TYPE_TABLE              = 1;
+    CATALOG_ENTRY_TYPE_SCHEMA             = 2;
+    CATALOG_ENTRY_TYPE_SCALAR_FUNCTION    = 3;
+    CATALOG_ENTRY_TYPE_AGGREGATE_FUNCTION = 4;
+    CATALOG_ENTRY_TYPE_TABLE_FUNCTION     = 5;
+}
+
+message AttachInfo {
+    string                             datasource = 1;
+    map<string, expr.OwnedScalarValue> options    = 2;
+}
+
+message CatalogEntry {
+    uint32                oid   = 1;
+    string                name  = 2;
+    CatalogEntryInner     entry = 3;
+    optional CatalogEntry child = 4;
+}
+
+message ScalarFunctionEntry {
+    expr.ScalarFunction function = 1;
+}
+
+message AggregateFunctionEntry {
+    expr.AggregateFunction function = 1;
+}
+
+message TableFunctionEntry {
+    expr.TableFunction function = 1;
+}
+
+message TableEntry {
+    repeated schema.Field columns = 1;
+}
+
+message SchemaEntry {}
+
+message CatalogEntryInner {
+    oneof value {
+        TableEntry             table              = 1;
+        SchemaEntry            schema             = 2;
+        ScalarFunctionEntry    scalar_function    = 3;
+        AggregateFunctionEntry aggregate_function = 4;
+        TableFunctionEntry     table_function     = 5;
+    }
+}

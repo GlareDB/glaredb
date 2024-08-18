@@ -1,14 +1,89 @@
+use std::sync::Arc;
+
 use crate::{
-    database::{catalog::CatalogTx, DatabaseContext},
-    datasource::FileHandlers,
+    database::{catalog::CatalogTx, memory_catalog::MemoryCatalog, Database, DatabaseContext},
+    datasource::{DataSourceRegistry, FileHandlers},
     logical::{binder::BindMode, operator::LocationRequirement},
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
+use tracing::debug;
 
 use super::{
     bind_data::MaybeBound, bound_table_function::BoundTableFunctionReference,
     resolve_normal::Resolver, BindData, Binder,
 };
+
+/// Extends a context by attaching additional databases using information
+/// provided by partially bound objects supplied by the client.
+///
+/// This allows us to selectively attach databases that are needed for a query.
+#[derive(Debug)]
+pub struct HybridContextExtender<'a> {
+    pub context: &'a mut DatabaseContext,
+    pub registry: &'a DataSourceRegistry,
+}
+
+impl<'a> HybridContextExtender<'a> {
+    pub fn new(context: &'a mut DatabaseContext, registry: &'a DataSourceRegistry) -> Self {
+        HybridContextExtender { context, registry }
+    }
+
+    /// Iterates the provided bind data and attaches databases to the context as
+    /// necessary.
+    pub async fn attach_unknown_databases(&mut self, bind_data: &BindData) -> Result<()> {
+        for item in bind_data.tables.inner.iter() {
+            if let MaybeBound::Unbound(unbound) = item {
+                // We might have already attached a database. E.g. by already
+                // iterating over a table that comes from the same catalog.
+                if self.context.database_exists(&unbound.catalog) {
+                    // TODO: Probably need to check more than just the name.
+                    continue;
+                }
+
+                match &unbound.attach_info {
+                    Some(info) => {
+                        // TODO: Some of this repeated with session.
+
+                        let datasource = self
+                            .registry
+                            .get_datasource(&info.datasource)
+                            .ok_or_else(|| {
+                                RayexecError::new(format!(
+                                    "Unknown data source: '{}'",
+                                    info.datasource
+                                ))
+                            })?;
+
+                        let connection = datasource.connect(info.options.clone()).await?;
+                        let catalog = Arc::new(MemoryCatalog::default());
+                        if let Some(catalog_storage) = connection.catalog_storage.as_ref() {
+                            // TODO: Not sure if we actaully want to do this
+                            // here, especially if the context is query-scoped.
+                            catalog_storage.initial_load(&catalog).await?;
+                        }
+
+                        let database = Database {
+                            catalog,
+                            catalog_storage: connection.catalog_storage,
+                            table_storage: Some(connection.table_storage),
+                            attach_info: Some(info.clone()),
+                        };
+
+                        self.context.attach_database(&unbound.catalog, database)?;
+                    }
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "Unable to attach database for '{}', missing attach info",
+                            unbound.catalog
+                        )))
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
 
 /// Resolver for resolving partially bound statements.
 ///
@@ -78,13 +153,17 @@ impl<'a> HybridResolver<'a> {
     async fn resolve_unbound_tables(&self, bind_data: &mut BindData) -> Result<()> {
         for item in bind_data.tables.inner.iter_mut() {
             if let MaybeBound::Unbound(unbound) = item {
+                debug!(%unbound.reference, "(hybrid) resolving unbound table");
+
                 // Pass in empty bind data to resolver since it's only used for
                 // CTE lookup, which shouldn't be possible here.
                 let empty = BindData::default();
 
                 let table = Resolver::new(self.binder.tx, self.binder.context)
-                    .require_resolve_table_or_cte(unbound, &empty)
+                    .require_resolve_table_or_cte(&unbound.reference, &empty)
                     .await?;
+
+                debug!(%unbound.reference, "(hybrid) resolved unbound table");
 
                 *item = MaybeBound::Bound(table, LocationRequirement::Remote)
             }

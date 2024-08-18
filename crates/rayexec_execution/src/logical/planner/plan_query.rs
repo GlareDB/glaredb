@@ -340,7 +340,7 @@ impl<'a> QueryNodePlanner<'a> {
                             schema,
                             entry,
                         },
-                        _,
+                        location,
                     ) => {
                         // Scope reference for base tables is always fully
                         // qualified. This query is valid:
@@ -360,11 +360,14 @@ impl<'a> QueryNodePlanner<'a> {
                                 .map(|f| f.name.clone()),
                         );
                         LogicalQuery {
-                            root: LogicalOperator::Scan(LogicalNode::new(Scan {
-                                catalog: catalog.clone(),
-                                schema: schema.clone(),
-                                source: entry.clone(),
-                            })),
+                            root: LogicalOperator::Scan(LogicalNode::with_location(
+                                Scan {
+                                    catalog: catalog.clone(),
+                                    schema: schema.clone(),
+                                    source: entry.clone(),
+                                },
+                                location,
+                            )),
                             scope,
                         }
                     }
@@ -378,7 +381,8 @@ impl<'a> QueryNodePlanner<'a> {
                 nested.plan_query(context, query)?
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, .. }) => {
-                let (reference, loc) = self.bind_data.table_functions.try_get_bound(reference)?;
+                let (reference, location) =
+                    self.bind_data.table_functions.try_get_bound(reference)?;
                 let scope_reference = TableReference {
                     database: None,
                     schema: None,
@@ -392,7 +396,7 @@ impl<'a> QueryNodePlanner<'a> {
 
                 let operator = LogicalOperator::TableFunction(LogicalNode::with_location(
                     TableFunction { function: func },
-                    loc,
+                    location,
                 ));
 
                 LogicalQuery {

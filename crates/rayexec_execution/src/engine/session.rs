@@ -17,7 +17,7 @@ use crate::{
     logical::{
         binder::{BindMode, Binder},
         context::QueryContext,
-        operator::{LogicalOperator, VariableOrAll},
+        operator::{AttachDatabase, LogicalNode, LogicalOperator, VariableOrAll},
         planner::plan_statement::PlanContext,
     },
     optimizer::Optimizer,
@@ -213,36 +213,8 @@ where
 
                 let pipelines = match logical.root {
                     LogicalOperator::AttachDatabase(attach) => {
-                        let attach = attach.into_inner();
-                        // Here to avoid lifetime issues.
-                        let empty =
-                            planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?;
-
-                        // TODO: No clue if we want to do this here. What happens during
-                        // hybrid exec?
-
-                        // Move out, if hybrid and we don't have the data source
-                        // locally, do remote attach.
-
-                        let datasource = self.registry.get_datasource(&attach.datasource)?;
-                        let connection = datasource.connect(attach.options.clone()).await?;
-                        let catalog = Arc::new(MemoryCatalog::default());
-                        if let Some(catalog_storage) = connection.catalog_storage.as_ref() {
-                            catalog_storage.initial_load(&catalog).await?;
-                        }
-
-                        let database = Database {
-                            catalog,
-                            catalog_storage: connection.catalog_storage,
-                            table_storage: Some(connection.table_storage),
-                            attach_info: Some(AttachInfo {
-                                datasource: attach.datasource.clone(),
-                                options: attach.options,
-                            }),
-                        };
-
-                        self.context.attach_database(&attach.name, database)?;
-                        empty
+                        self.handle_attach_database(attach).await?;
+                        planner.plan_pipelines(LogicalOperator::EMPTY, QueryContext::new())?
                     }
                     LogicalOperator::DetachDatabase(detach) => {
                         let empty =
@@ -308,6 +280,64 @@ where
             stream,
             handle,
         })
+    }
+
+    async fn handle_attach_database(&mut self, attach: LogicalNode<AttachDatabase>) -> Result<()> {
+        // TODO: This should always be client local. Is there a case where we
+        // want to have that not be the cases? What would the behavior be.
+        let attach = attach.into_inner();
+
+        let database = match self.registry.get_datasource(&attach.datasource) {
+            Some(datasource) => {
+                // We have data source implementation on the client. Try to
+                // connect locally.
+                let connection = datasource.connect(attach.options.clone()).await?;
+                let catalog = Arc::new(MemoryCatalog::default());
+                if let Some(catalog_storage) = connection.catalog_storage.as_ref() {
+                    catalog_storage.initial_load(&catalog).await?;
+                }
+
+                Database {
+                    catalog,
+                    catalog_storage: connection.catalog_storage,
+                    table_storage: Some(connection.table_storage),
+                    attach_info: Some(AttachInfo {
+                        datasource: attach.datasource.clone(),
+                        options: attach.options,
+                    }),
+                }
+            }
+            None => {
+                // We don't have a data source implementation on the client.
+                let _client = match &self.hybrid_client {
+                    Some(client) => client,
+                    None => {
+                        return Err(RayexecError::new(format!(
+                        "Hybrid execution not enabled. Cannot verify attaching a '{}' data source",
+                        attach.datasource,
+                    )))
+                    }
+                };
+
+                // TODO: Verify connection options using hybrid client.
+
+                // Having no catalog storage will result in resolving always
+                // kicking out to hybrid execution.
+                Database {
+                    catalog: Arc::new(MemoryCatalog::default()),
+                    catalog_storage: None,
+                    table_storage: None,
+                    attach_info: Some(AttachInfo {
+                        datasource: attach.datasource.clone(),
+                        options: attach.options,
+                    }),
+                }
+            }
+        };
+
+        self.context.attach_database(&attach.name, database)?;
+
+        Ok(())
     }
 
     pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {

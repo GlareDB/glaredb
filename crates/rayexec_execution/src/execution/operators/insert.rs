@@ -64,7 +64,7 @@ impl ExecutableOperator for PhysicalInsert {
         let data_table = database
             .table_storage
             .as_ref()
-            .ok_or_else(|| RayexecError::new("Missing table storage"))?
+            .ok_or_else(|| RayexecError::new("Missing table storage for insert"))?
             .data_table(&self.schema, &self.table)?;
 
         // TODO: Pass constraints, on conflict

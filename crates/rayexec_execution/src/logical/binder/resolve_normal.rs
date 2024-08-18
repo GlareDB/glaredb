@@ -14,7 +14,10 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use tracing::error;
 
-use super::{bound_table::BoundTableOrCteReference, BindData};
+use super::{
+    bound_table::{BoundTableOrCteReference, UnboundTableReference},
+    BindData,
+};
 
 pub fn create_user_facing_resolve_err(
     tx: &CatalogTx,
@@ -53,6 +56,17 @@ pub fn create_user_facing_resolve_err(
             formatted_object_types, name
         )),
     }
+}
+
+#[derive(Debug)]
+pub enum MaybeResolvedTable {
+    /// We have the table, and know everything about the table.
+    Resolved(BoundTableOrCteReference),
+    /// We have a catalog that might contain the table, but additional
+    /// resolution needs to happen to ensure that's the case (hybrid).
+    UnresolvedWithCatalog(UnboundTableReference),
+    /// Table has no candidate catalogs it could be in.
+    Unresolved,
 }
 
 // TODO: Search path
@@ -131,7 +145,7 @@ impl<'a> Resolver<'a> {
         &self,
         reference: &ast::ObjectReference,
         bind_data: &BindData,
-    ) -> Result<Option<BoundTableOrCteReference>> {
+    ) -> Result<MaybeResolvedTable> {
         // TODO: Seach path.
         let [catalog, schema, table] = match reference.0.len() {
             1 => {
@@ -139,7 +153,9 @@ impl<'a> Resolver<'a> {
 
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(Some(BoundTableOrCteReference::Cte { cte_idx: cte }));
+                    return Ok(MaybeResolvedTable::Resolved(
+                        BoundTableOrCteReference::Cte { cte_idx: cte },
+                    ));
                 }
 
                 // Otherwise continue with trying to resolve from the catalogs.
@@ -167,11 +183,13 @@ impl<'a> Resolver<'a> {
 
         // Try reading from in-memory catalog first.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
-            return Ok(Some(BoundTableOrCteReference::Table {
-                catalog,
-                schema,
-                entry,
-            }));
+            return Ok(MaybeResolvedTable::Resolved(
+                BoundTableOrCteReference::Table {
+                    catalog,
+                    schema,
+                    entry,
+                },
+            ));
         }
 
         // If we don't have it, try loading from external catalog.
@@ -179,7 +197,15 @@ impl<'a> Resolver<'a> {
             Some(storage) => {
                 let ent = match storage.load_table(&schema, &table).await? {
                     Some(ent) => ent,
-                    None => return Ok(None),
+                    None => {
+                        return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
+                            UnboundTableReference {
+                                catalog: catalog.to_string(),
+                                reference: reference.clone(),
+                                attach_info: database.attach_info.clone(),
+                            },
+                        ))
+                    }
                 };
 
                 // We may need to create a schema in memory as well if we've
@@ -208,19 +234,33 @@ impl<'a> Resolver<'a> {
                 // Nothing to load from. Return None instead of an error to the
                 // remote side in hybrid execution to potentially load from
                 // external source.
-                return Ok(None);
+                return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
+                    UnboundTableReference {
+                        catalog: catalog.to_string(),
+                        reference: reference.clone(),
+                        attach_info: database.attach_info.clone(),
+                    },
+                ));
             }
         }
 
         // Read from catalog again.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
-            Ok(Some(BoundTableOrCteReference::Table {
-                catalog,
-                schema,
-                entry,
-            }))
+            Ok(MaybeResolvedTable::Resolved(
+                BoundTableOrCteReference::Table {
+                    catalog,
+                    schema,
+                    entry,
+                },
+            ))
         } else {
-            Ok(None)
+            Ok(MaybeResolvedTable::UnresolvedWithCatalog(
+                UnboundTableReference {
+                    catalog: catalog.to_string(),
+                    reference: reference.clone(),
+                    attach_info: database.attach_info.clone(),
+                },
+            ))
         }
     }
 
@@ -243,13 +283,12 @@ impl<'a> Resolver<'a> {
         reference: &ast::ObjectReference,
         bind_data: &BindData,
     ) -> Result<BoundTableOrCteReference> {
-        self.resolve_table_or_cte(reference, bind_data)
-            .await?
-            .ok_or_else(|| {
-                RayexecError::new(format!(
-                    "Missing table or view for reference '{}'",
-                    reference
-                ))
-            })
+        match self.resolve_table_or_cte(reference, bind_data).await? {
+            MaybeResolvedTable::Resolved(table) => Ok(table),
+            _ => Err(RayexecError::new(format!(
+                "Missing table or view for reference '{}'",
+                reference
+            ))),
+        }
     }
 }

@@ -11,7 +11,7 @@ use crate::{
 use super::{
     bound_cte::BoundCte,
     bound_function::BoundFunction,
-    bound_table::{BoundTableOrCteReference, CteIndex},
+    bound_table::{BoundTableOrCteReference, CteIndex, UnboundTableReference},
     bound_table_function::{BoundTableFunctionReference, UnboundTableFunctionReference},
 };
 
@@ -24,7 +24,7 @@ use super::{
 pub struct BindData {
     /// A bound table may reference either an actual table, or a CTE. An unbound
     /// reference may only reference a table.
-    pub tables: BindList<BoundTableOrCteReference, ast::ObjectReference>,
+    pub tables: BindList<BoundTableOrCteReference, UnboundTableReference>,
 
     /// Bound scalar or aggregate functions.
     pub functions: BindList<BoundFunction, ast::ObjectReference>,
@@ -204,10 +204,10 @@ impl<B, U> Default for BindList<B, U> {
     }
 }
 
-impl DatabaseProtoConv for BindList<BoundTableOrCteReference, ast::ObjectReference> {
+impl DatabaseProtoConv for BindList<BoundTableOrCteReference, UnboundTableReference> {
     type ProtoType = rayexec_proto::generated::binder::TablesBindList;
 
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         use rayexec_proto::generated::binder::{
             maybe_bound_table::Value, BoundTableOrCteReferenceWithLocation, MaybeBoundTable,
         };
@@ -217,7 +217,7 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, ast::ObjectReferen
             let table = match table {
                 MaybeBound::Bound(bound, loc) => MaybeBoundTable {
                     value: Some(Value::Bound(BoundTableOrCteReferenceWithLocation {
-                        bound: Some(bound.to_proto()?),
+                        bound: Some(bound.to_proto_ctx(context)?),
                         location: loc.to_proto()? as i32,
                     })),
                 },
@@ -231,7 +231,7 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, ast::ObjectReferen
         Ok(Self::ProtoType { tables })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         use rayexec_proto::generated::binder::maybe_bound_table::Value;
 
         let tables = proto
@@ -240,13 +240,13 @@ impl DatabaseProtoConv for BindList<BoundTableOrCteReference, ast::ObjectReferen
             .map(|t| match t.value.required("value")? {
                 Value::Bound(bound) => {
                     let location = LocationRequirement::from_proto(bound.location())?;
-                    let bound =
-                        BoundTableOrCteReference::from_proto(bound.bound.required("bound")?)?;
+                    let bound = BoundTableOrCteReference::from_proto_ctx(
+                        bound.bound.required("bound")?,
+                        context,
+                    )?;
                     Ok(MaybeBound::Bound(bound, location))
                 }
-                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(
-                    ast::ObjectReference::from_proto(unbound)?,
-                )),
+                Value::Unbound(unbound) => Ok(MaybeBound::Unbound(ProtoConv::from_proto(unbound)?)),
             })
             .collect::<Result<Vec<_>>>()?;
 

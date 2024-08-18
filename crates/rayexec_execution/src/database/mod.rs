@@ -12,6 +12,7 @@ use create::{CreateSchemaInfo, OnConflict};
 use memory_catalog::MemoryCatalog;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
+use rayexec_proto::ProtoConv;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -29,6 +30,32 @@ pub struct AttachInfo {
     /// This includes things like connection strings, and other possibly
     /// sensitive info.
     pub options: HashMap<String, OwnedScalarValue>,
+}
+
+impl ProtoConv for AttachInfo {
+    type ProtoType = rayexec_proto::generated::catalog::AttachInfo;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            datasource: self.datasource.clone(),
+            options: self
+                .options
+                .iter()
+                .map(|(k, v)| Ok((k.clone(), v.to_proto()?)))
+                .collect::<Result<_>>()?,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(Self {
+            datasource: proto.datasource,
+            options: proto
+                .options
+                .into_iter()
+                .map(|(k, v)| Ok((k, ProtoConv::from_proto(v)?)))
+                .collect::<Result<_>>()?,
+        })
+    }
 }
 
 /// An attached database.
@@ -49,6 +76,9 @@ pub struct Database {
 }
 
 /// Root of all accessible catalogs.
+///
+/// Attaching external databases falls outside the normal catalog flow, and so
+/// will not follow the same transactional semantics.
 #[derive(Debug)]
 pub struct DatabaseContext {
     databases: HashMap<String, Database>,

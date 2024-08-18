@@ -11,6 +11,7 @@ fn main() {
             "proto/logical.proto",
             "proto/foreign.proto",
             "proto/hybrid.proto",
+            "proto/catalog.proto",
         ],
         &["proto"],
     ) {

@@ -4,6 +4,7 @@ package rayexec.execution;
 
 import "schema.proto";
 import "foreign.proto";
+import "catalog.proto";
 import "expr.proto";
 import "array.proto";
 
@@ -92,9 +93,9 @@ message PhysicalMaterialize {
 }
 
 message PhysicalScan {
-    string     catalog = 1;
-    string     schema  = 2;
-    TableEntry table   = 3;
+    string               catalog = 1;
+    string               schema  = 2;
+    catalog.CatalogEntry table   = 3;
 }
 
 message PhysicalUngroupedAggregate {

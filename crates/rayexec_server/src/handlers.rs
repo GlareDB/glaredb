@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::State, Json};
 use rayexec_error::{RayexecError, ResultExt};
 use rayexec_execution::{
-    engine::{server_session::ServerSession, Engine},
+    engine::{server_state::ServerState, Engine},
     hybrid::client::{
         HybridExecuteRequest, HybridExecuteResponse, HybridFinalizeRequest, HybridFinalizeResponse,
         HybridPlanRequest, HybridPullRequest, HybridPullResponse, HybridPushRequest,
@@ -18,50 +18,65 @@ use crate::errors::ServerResult;
 
 /// State that's passed to all handlers.
 #[derive(Debug)]
-pub struct ServerState {
+pub struct HandlerState {
     /// Engine responsible for planning and executing queries.
-    pub _engine: Engine<ThreadedNativeExecutor, NativeRuntime>,
-
-    // TODO: Don't have just one.
-    // TODO: Why not?
-    pub session: ServerSession<ThreadedNativeExecutor, NativeRuntime>,
+    pub engine: Engine<ThreadedNativeExecutor, NativeRuntime>,
+    /// Holds query and execution states for everything on the server.
+    pub server_state: ServerState<ThreadedNativeExecutor, NativeRuntime>,
 }
 
-pub async fn healthz(State(_): State<Arc<ServerState>>) -> &'static str {
+pub async fn healthz(State(_): State<Arc<HandlerState>>) -> &'static str {
     "OK"
 }
 
 pub async fn remote_plan_rpc(
-    State(state): State<Arc<ServerState>>,
+    State(state): State<Arc<HandlerState>>,
     Json(body): Json<RequestEnvelope>,
 ) -> ServerResult<Json<ResponseEnvelope>> {
-    let context = state.session.context();
+    // TODO: The flow here can possibly be confusing. We're create a context
+    // here to allow us to properly decode the plan request (since it may
+    // include functions).
+    //
+    // After we decode, we then extend the context based on what the query needs
+    // by adding databases to the context based on what's provided in the bind
+    // data.
+    //
+    // However, this means that if we want to properly support functions that
+    // aren't included in the system catalog, there will need to be an extra
+    // step to get the from the client somehow.
+    let context = state.engine.new_base_database_context()?;
+
     let msg = HybridPlanRequest::from_proto_ctx(
         Message::decode(body.encoded_msg.as_slice()).context("failed to decode message")?,
-        context,
+        &context,
     )?;
 
     let resp = state
-        .session
-        .plan_partially_bound(msg.statement, msg.bind_data)
+        .server_state
+        .plan_partially_bound(context, msg.statement, msg.bind_data)
         .await?;
 
+    // TODO: Weird. Needed since we're encoding an intermediate plan which may
+    // contain function references. As above, it we plan support functions
+    // outside the system catalog, we'll need to use a real context.
+    let stub_context = state.engine.new_base_database_context()?;
+
     let resp = ResponseEnvelope {
-        encoded_msg: resp.to_proto_ctx(context)?.encode_to_vec(),
+        encoded_msg: resp.to_proto_ctx(&stub_context)?.encode_to_vec(),
     };
 
     Ok(Json(resp))
 }
 
 pub async fn remote_execute_rpc(
-    State(state): State<Arc<ServerState>>,
+    State(state): State<Arc<HandlerState>>,
     Json(body): Json<RequestEnvelope>,
 ) -> ServerResult<Json<ResponseEnvelope>> {
     let msg = HybridExecuteRequest::from_proto(
         Message::decode(body.encoded_msg.as_slice()).context("failed to decode message")?,
     )?;
 
-    state.session.execute_pending(msg.query_id)?;
+    state.server_state.execute_pending(msg.query_id)?;
 
     Ok(Json(ResponseEnvelope {
         encoded_msg: HybridExecuteResponse {}.to_proto()?.encode_to_vec(),
@@ -69,7 +84,7 @@ pub async fn remote_execute_rpc(
 }
 
 pub async fn push_batch_rpc(
-    State(state): State<Arc<ServerState>>,
+    State(state): State<Arc<HandlerState>>,
     Json(body): Json<RequestEnvelope>,
 ) -> ServerResult<Json<ResponseEnvelope>> {
     let msg = HybridPushRequest::from_proto(
@@ -80,7 +95,7 @@ pub async fn push_batch_rpc(
     }
 
     state
-        .session
+        .server_state
         .push_batch_for_stream(msg.stream_id, msg.batch.0)?;
 
     Ok(Json(ResponseEnvelope {
@@ -89,7 +104,7 @@ pub async fn push_batch_rpc(
 }
 
 pub async fn finalize_rpc(
-    State(state): State<Arc<ServerState>>,
+    State(state): State<Arc<HandlerState>>,
     Json(body): Json<RequestEnvelope>,
 ) -> ServerResult<Json<ResponseEnvelope>> {
     let msg = HybridFinalizeRequest::from_proto(
@@ -99,7 +114,7 @@ pub async fn finalize_rpc(
         return Err(RayexecError::new(format!("Invalid partition: {}", msg.partition)).into());
     }
 
-    state.session.finalize_stream(msg.stream_id)?;
+    state.server_state.finalize_stream(msg.stream_id)?;
 
     Ok(Json(ResponseEnvelope {
         encoded_msg: HybridFinalizeResponse {}.to_proto()?.encode_to_vec(),
@@ -107,7 +122,7 @@ pub async fn finalize_rpc(
 }
 
 pub async fn pull_batch_rpc(
-    State(state): State<Arc<ServerState>>,
+    State(state): State<Arc<HandlerState>>,
     Json(body): Json<RequestEnvelope>,
 ) -> ServerResult<Json<ResponseEnvelope>> {
     let msg = HybridPullRequest::from_proto(
@@ -117,7 +132,7 @@ pub async fn pull_batch_rpc(
         return Err(RayexecError::new(format!("Invalid partition: {}", msg.partition)).into());
     }
 
-    let status = state.session.pull_batch_for_stream(msg.stream_id)?;
+    let status = state.server_state.pull_batch_for_stream(msg.stream_id)?;
 
     Ok(Json(ResponseEnvelope {
         encoded_msg: HybridPullResponse { status }.to_proto()?.encode_to_vec(),

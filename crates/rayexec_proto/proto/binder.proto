@@ -5,7 +5,7 @@ package rayexec.binder;
 import "expr.proto";
 import "logical.proto";
 import "ast/raw.proto";
-import "execution.proto"; // TODO: Probably move catalog stuff out of this.
+import "catalog.proto";
 
 message BoundFunctionReference {
     oneof value {
@@ -31,7 +31,7 @@ message BoundCteReference {
 message BoundTableReference {
     string               catalog = 1;
     string               schema  = 2;
-    execution.TableEntry table   = 3;
+    catalog.CatalogEntry entry   = 3;
 }
 
 message BoundTableOrCteReference {
@@ -39,6 +39,12 @@ message BoundTableOrCteReference {
         BoundTableReference table = 1;
         BoundCteReference   cte   = 2;
     }
+}
+
+message UnboundTableReference {
+    ast.raw.ObjectReference reference       = 1;
+    string                  catalog         = 2;
+    optional catalog.AttachInfo attach_info = 3;
 }
 
 message ItemReference {
@@ -63,7 +69,7 @@ message BoundTableFunctionReferenceWithLocation {
 message MaybeBoundTable {
     oneof value {
         BoundTableOrCteReferenceWithLocation bound   = 1;
-        ast.raw.ObjectReference              unbound = 2;
+        UnboundTableReference                unbound = 2;
     }
 }
 

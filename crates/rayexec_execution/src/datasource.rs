@@ -157,11 +157,8 @@ impl DataSourceRegistry {
         Ok(self)
     }
 
-    pub fn get_datasource(&self, name: &str) -> Result<&dyn DataSource> {
-        self.datasources
-            .get(name)
-            .map(|d| d.as_ref())
-            .ok_or_else(|| RayexecError::new(format!("Missing data source: {name}")))
+    pub fn get_datasource(&self, name: &str) -> Option<&dyn DataSource> {
+        self.datasources.get(name).map(|d| d.as_ref())
     }
 
     pub fn get_file_handlers(&self) -> &FileHandlers {
