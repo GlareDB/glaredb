@@ -6022,9 +6022,9 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "openssh"
-version = "0.10.4"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "432f4a7e4d194272876710557e6b712fc304e7b4711e2063655df1e446b4b8e3"
+checksum = "0f27389e5da64700a3efb7f925e442f824f6e3d4b1c27f75e115a92ad3aecbb1"
 dependencies = [
  "libc",
  "once_cell",
@@ -6032,7 +6032,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tokio-pipe",
 ]
 
 [[package]]
@@ -9000,16 +8999,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.58",
-]
-
-[[package]]
-name = "tokio-pipe"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f213a84bffbd61b8fa0ba8a044b4bbe35d471d0b518867181e82bd5c15542784"
-dependencies = [
- "libc",
- "tokio",
 ]
 
 [[package]]

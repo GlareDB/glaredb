@@ -76,4 +76,4 @@ jaq-parse = "1.0.3"
 
 # SSH tunnels
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-openssh = "0.10.4"
+openssh = "0.11.0"
