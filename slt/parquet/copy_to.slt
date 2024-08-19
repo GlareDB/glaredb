@@ -2,9 +2,11 @@
 
 # Basic
 
-statement ok
+query I
 copy (select a, b from generate_series(1, 5) t1(a), generate_series(1, 5) t2(b))
   to '__SLT_TMP__/copy_to.parquet';
+----
+25
 
 query TT
 describe '__SLT_TMP__/copy_to.parquet';

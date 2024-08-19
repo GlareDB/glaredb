@@ -306,7 +306,7 @@ impl<'a> PlanContext<'a> {
                 },
                 LocationRequirement::ClientLocal,
             )),
-            scope: Scope::empty(),
+            scope: Scope::with_columns(None, ["rows_copied"]),
         })
     }
 

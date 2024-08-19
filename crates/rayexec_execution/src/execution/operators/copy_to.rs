@@ -5,7 +5,11 @@ use crate::{
     proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::{
+    array::{Array, PrimitiveArray},
+    batch::Batch,
+    field::Schema,
+};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_proto::ProtoConv;
@@ -33,7 +37,10 @@ pub enum CopyToPartitionState {
         /// `Finished`.
         future: BoxFuture<'static, Result<()>>,
     },
-    Finished,
+    Finished {
+        row_count: usize,
+        row_count_returned: bool,
+    },
 }
 
 impl fmt::Debug for CopyToPartitionState {
@@ -47,6 +54,7 @@ impl fmt::Debug for CopyToPartitionState {
 pub struct CopyToInnerPartitionState {
     sink: Box<dyn CopyToSink>,
     pull_waker: Option<Waker>,
+    row_count: usize,
 }
 
 // TODO: Having this use PhysicalSink since they're the same thing.
@@ -88,6 +96,7 @@ impl ExecutableOperator for PhysicalCopyTo {
                     inner: Some(CopyToInnerPartitionState {
                         sink,
                         pull_waker: None,
+                        row_count: 0,
                     }),
                     future: None,
                 })
@@ -127,7 +136,10 @@ impl ExecutableOperator for PhysicalCopyTo {
                         return Ok(PollPush::NeedsMore);
                     }
 
-                    let mut push_future = inner.as_mut().unwrap().sink.push(batch);
+                    let inner = inner.as_mut().unwrap();
+                    inner.row_count += batch.num_rows();
+
+                    let mut push_future = inner.sink.push(batch);
                     match push_future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
                             // Future completed, need more batches.
@@ -185,7 +197,10 @@ impl ExecutableOperator for PhysicalCopyTo {
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
                             }
-                            *state = CopyToPartitionState::Finished;
+                            *state = CopyToPartitionState::Finished {
+                                row_count: inner.row_count,
+                                row_count_returned: false,
+                            };
 
                             Ok(PollFinalize::Finalized)
                         }
@@ -213,7 +228,11 @@ impl ExecutableOperator for PhysicalCopyTo {
                                 waker.wake();
                             }
 
-                            *state = CopyToPartitionState::Finished;
+                            *state = CopyToPartitionState::Finished {
+                                row_count: inner.as_ref().unwrap().row_count,
+                                row_count_returned: false,
+                            };
+
                             Ok(PollFinalize::Finalized)
                         }
                         Poll::Ready(Err(e)) => Err(e),
@@ -243,7 +262,22 @@ impl ExecutableOperator for PhysicalCopyTo {
                     }
                     Ok(PollPull::Pending)
                 }
-                CopyToPartitionState::Finished => Ok(PollPull::Exhausted),
+                CopyToPartitionState::Finished {
+                    row_count,
+                    row_count_returned,
+                } => {
+                    if *row_count_returned {
+                        Ok(PollPull::Exhausted)
+                    } else {
+                        let row_count_batch =
+                            Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
+                                *row_count as u64,
+                            ]))])?;
+                        *row_count_returned = true;
+
+                        Ok(PollPull::Batch(row_count_batch))
+                    }
+                }
             },
             other => panic!("invalid partition state: {other:?}"),
         }

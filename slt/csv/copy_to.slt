@@ -1,7 +1,9 @@
 # Basic COPY TO statements
 
-statement ok
+query I
 COPY (select 1 as a, 2 as b) TO '__SLT_TMP__/myfile.csv'
+----
+1
 
 query TT
 describe '__SLT_TMP__/myfile.csv'

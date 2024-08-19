@@ -799,7 +799,8 @@ pub struct CopyTo {
 
 impl SchemaNode for CopyTo {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
-        Ok(TypeSchema::empty())
+        // Number of rows returned
+        Ok(TypeSchema::new([DataType::UInt64]))
     }
 }
 
