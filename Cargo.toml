@@ -16,6 +16,9 @@ strip = true
 [workspace.lints.clippy]
 wildcard_imports = "deny"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(release)'] }
+
 [workspace.dependencies]
 clap = { version = "4.5.16", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }

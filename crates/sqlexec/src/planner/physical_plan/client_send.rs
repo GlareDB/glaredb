@@ -32,6 +32,7 @@ use crate::remote::client::RemoteSessionClient;
 /// Execution plan for sending batches to a remote node.
 #[derive(Debug)]
 pub struct ClientExchangeSendExec {
+    #[allow(dead_code)] // concerning...
     pub database_id: Uuid,
     pub work_id: Uuid,
     pub client: RemoteSessionClient,

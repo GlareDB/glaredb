@@ -33,6 +33,7 @@ impl Token {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Session {
     pub token: Token,

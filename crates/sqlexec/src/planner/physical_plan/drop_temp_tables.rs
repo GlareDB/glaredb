@@ -24,8 +24,11 @@ use crate::planner::logical_plan::OwnedFullObjectReference;
 
 #[derive(Debug, Clone)]
 pub struct DropTempTablesExec {
+    #[allow(dead_code)]
     pub catalog_version: u64,
     pub tbl_references: Vec<OwnedFullObjectReference>,
+
+    #[allow(dead_code)]
     pub if_exists: bool,
 }
 
