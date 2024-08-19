@@ -7,7 +7,7 @@ use crate::{
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, Expr, ObjectReference, QueryNode};
+use super::{AstParseable, Expr, Ident, ObjectReference, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToSource<T: AstMeta> {
@@ -22,10 +22,25 @@ pub enum CopyToTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CopyOption<T: AstMeta> {
+    pub key: Ident,
+    pub val: Expr<T>,
+}
+
+impl AstParseable for CopyOption<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        Ok(CopyOption {
+            key: Ident::parse(parser)?,
+            val: Expr::parse(parser)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CopyTo<T: AstMeta> {
     pub source: CopyToSource<T>,
     pub target: T::CopyToDestination,
-    // TODO: Options
+    pub options: T::CopyToOptions,
 }
 
 impl AstParseable for CopyTo<Raw> {
@@ -46,9 +61,19 @@ impl AstParseable for CopyTo<Raw> {
 
         let target = CopyToTarget::File(Expr::parse_string_literal(parser)?);
 
-        // TODO: Options
+        let options = if parser.consume_token(&Token::LeftParen) {
+            let options = parser.parse_comma_separated(CopyOption::parse)?;
+            parser.expect_token(&Token::RightParen)?;
+            options
+        } else {
+            Vec::new()
+        };
 
-        Ok(CopyTo { source, target })
+        Ok(CopyTo {
+            source,
+            target,
+            options,
+        })
     }
 }
 
@@ -66,6 +91,22 @@ mod tests {
         let expected = CopyTo {
             source: CopyToSource::Table(ObjectReference::from_strings(["my_schema", "my_table"])),
             target: CopyToTarget::File("myfile.csv".to_string()),
+            options: Vec::new(),
+        };
+        assert_eq!(expected, node);
+    }
+
+    #[test]
+    fn copy_to_from_table_with_single_option() {
+        let node: CopyTo<_> =
+            parse_ast("COPY my_schema.my_table TO 'myfile' (FORMAT parquet)").unwrap();
+        let expected = CopyTo {
+            source: CopyToSource::Table(ObjectReference::from_strings(["my_schema", "my_table"])),
+            target: CopyToTarget::File("myfile".to_string()),
+            options: vec![CopyOption {
+                key: Ident::from_string("FORMAT"),
+                val: Expr::Ident(Ident::from_string("parquet")),
+            }],
         };
         assert_eq!(expected, node);
     }
@@ -93,6 +134,7 @@ mod tests {
                 },
             }),
             target: CopyToTarget::File("myfile.csv".to_string()),
+            options: Vec::new(),
         };
         assert_eq!(expected, node);
     }

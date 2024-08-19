@@ -7,12 +7,16 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+pub const FORMAT_OPT_KEY: &str = "format";
 
 /// Arguments provided via a COPY TO statement.
 ///
 /// Only named arguments are supported.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CopyToArgs {
     pub named: HashMap<String, OwnedScalarValue>,
 }
@@ -43,6 +47,16 @@ impl CopyToArgs {
         };
 
         Ok(conf)
+    }
+
+    /// Try to remove the value corresponding to the FORMAT option in a COPY TO
+    /// statement, returning it.
+    ///
+    /// We remove from the map so that function implemenations can more easily
+    /// ensure that it can handle all args, and not have to worry about a left
+    /// over FORMAT option.
+    pub fn try_remove_format(&mut self) -> Option<OwnedScalarValue> {
+        self.named.remove(FORMAT_OPT_KEY)
     }
 
     pub fn try_get_named(&self, name: &str) -> Result<&OwnedScalarValue> {

@@ -84,7 +84,7 @@ pub trait DataSource: Sync + Send + Debug {
     ///
     /// Similar to table functions, these should be stateless, and get
     /// registered into the system catalog on startup.
-    fn initialize_copy_to_functions(&self) -> Vec<Box<dyn CopyToFunction>> {
+    fn initialize_copy_to_functions(&self) -> Vec<DataSourceCopyTo> {
         Vec::new()
     }
 
@@ -113,6 +113,21 @@ pub trait DataSource: Sync + Send + Debug {
     fn file_handlers(&self) -> Vec<FileHandler> {
         Vec::new()
     }
+}
+
+// TODO: This, the file handlers, and table functions returned from a data
+// source can probably be cleaned up. Currently some duplication.
+#[derive(Debug)]
+pub struct DataSourceCopyTo {
+    /// Format this COPY TO function is for.
+    ///
+    /// Corresponds to the FORMAT option in:
+    ///
+    /// COPY <source> TO <dest> (FORMAT <format>)
+    pub format: String,
+
+    /// The COPY TO function.
+    pub copy_to: Box<dyn CopyToFunction>,
 }
 
 #[derive(Debug)]

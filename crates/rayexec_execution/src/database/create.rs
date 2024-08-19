@@ -130,6 +130,7 @@ pub struct CreateTableFunctionInfo {
 #[derive(Debug, PartialEq)]
 pub struct CreateCopyToFunctionInfo {
     pub name: String,
+    pub format: String,
     pub implementation: Box<dyn CopyToFunction>,
     pub on_conflict: OnConflict,
 }

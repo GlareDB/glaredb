@@ -150,8 +150,9 @@ pub fn new_system_catalog(registry: &DataSourceRegistry) -> Result<MemoryCatalog
             builtin.create_copy_to_function(
                 tx,
                 &CreateCopyToFunctionInfo {
-                    name: func.name().to_string(),
-                    implementation: func,
+                    name: func.copy_to.name().to_string(),
+                    format: func.format,
+                    implementation: func.copy_to,
                     on_conflict: OnConflict::Error,
                 },
             )?;

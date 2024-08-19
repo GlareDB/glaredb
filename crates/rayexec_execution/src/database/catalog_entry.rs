@@ -230,7 +230,14 @@ impl DatabaseProtoConv for TableFunctionEntry {
 
 #[derive(Debug, PartialEq)]
 pub struct CopyToFunctionEntry {
+    /// COPY TO function implemenation.
     pub function: Box<dyn CopyToFunction>,
+    /// The format this COPY TO is for.
+    ///
+    /// For example, this should be 'parquet' for the parquet COPY TO. This is
+    /// looked at when the user includes a `(FORMAT <format>)` option in the
+    /// statement.
+    pub format: String,
 }
 
 impl DatabaseProtoConv for CopyToFunctionEntry {
@@ -239,6 +246,7 @@ impl DatabaseProtoConv for CopyToFunctionEntry {
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
             function: Some(self.function.to_proto_ctx(context)?),
+            format: self.format.clone(),
         })
     }
 
@@ -248,6 +256,7 @@ impl DatabaseProtoConv for CopyToFunctionEntry {
                 proto.function.required("function")?,
                 context,
             )?,
+            format: proto.format,
         })
     }
 }

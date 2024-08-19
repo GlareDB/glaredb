@@ -63,3 +63,14 @@ select last_name from '__SLT_TMP__/other_data.parquet' order by id desc limit 2;
 ----
 Meyer
 Daniels
+
+# FORMAT specifier
+
+statement ok
+COPY (SELECT 4) TO '__SLT_TMP__/myfile' (FORMAT parquet);
+
+query I
+select * from read_parquet('__SLT_TMP__/myfile');
+----
+4
+

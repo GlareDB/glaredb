@@ -236,6 +236,7 @@ impl MemorySchema {
             name: create.name.clone(),
             entry: CatalogEntryInner::CopyToFunction(CopyToFunctionEntry {
                 function: create.implementation.clone(),
+                format: create.format.clone(),
             }),
             child: None,
         };
@@ -337,6 +338,26 @@ impl MemorySchema {
         });
 
         Ok(ent)
+    }
+
+    pub fn get_copy_to_function_for_format(
+        &self,
+        tx: &CatalogTx,
+        format: &str,
+    ) -> Result<Option<Arc<CatalogEntry>>> {
+        let mut copy_to_ent = None;
+        self.copy_to_functions
+            .for_each_entry(tx, &mut |_, ent| match &ent.entry {
+                CatalogEntryInner::CopyToFunction(copy) => {
+                    if copy.format == format {
+                        copy_to_ent = Some(ent.clone());
+                    }
+                    Ok(())
+                }
+                _ => unreachable!("copy_to_functions only contains copy to function entries"),
+            })?;
+
+        Ok(copy_to_ent)
     }
 
     pub fn drop_entry(&self, tx: &CatalogTx, drop: &DropInfo) -> Result<()> {

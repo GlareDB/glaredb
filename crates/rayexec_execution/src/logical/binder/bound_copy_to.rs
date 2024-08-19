@@ -4,7 +4,6 @@ use rayexec_error::{OptionExt, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundCopyTo {
     pub func: Box<dyn CopyToFunction>,
-    // TODO: Args go here. I think.
 }
 
 impl DatabaseProtoConv for BoundCopyTo {

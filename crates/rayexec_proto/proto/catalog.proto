@@ -41,6 +41,7 @@ message TableFunctionEntry {
 
 message CopyToFunctionEntry {
     expr.CopyToFunction function = 1;
+    string              format   = 2;
 }
 
 message TableEntry {

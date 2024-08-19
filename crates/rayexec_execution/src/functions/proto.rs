@@ -15,7 +15,7 @@ use super::{
     table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
 };
 
-const LOOKUP_CATALOG: &str = "glare_catalog";
+pub const FUNCTION_LOOKUP_CATALOG: &str = "glare_catalog";
 
 impl DatabaseProtoConv for Box<dyn ScalarFunction> {
     type ProtoType = rayexec_proto::generated::expr::ScalarFunction;
@@ -30,7 +30,7 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_scalar_function(tx, &proto.name)?
             .required("scalar function")?;
@@ -57,7 +57,7 @@ impl DatabaseProtoConv for Box<dyn PlannedScalarFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_scalar_function(tx, &proto.name)?
             .required("scalar function")?;
@@ -82,7 +82,7 @@ impl DatabaseProtoConv for Box<dyn AggregateFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_aggregate_function(tx, &proto.name)?
             .required("agg function")?;
@@ -109,7 +109,7 @@ impl DatabaseProtoConv for Box<dyn PlannedAggregateFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_aggregate_function(tx, &proto.name)?
             .required("agg function")?;
@@ -134,7 +134,7 @@ impl DatabaseProtoConv for Box<dyn TableFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_table_function(tx, &proto.name)?
             .required("table function")?;
@@ -161,7 +161,7 @@ impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_table_function(tx, &proto.name)?
             .required("table function")?;
@@ -222,7 +222,7 @@ impl DatabaseProtoConv for Box<dyn CopyToFunction> {
         let tx = &CatalogTx {};
         let ent = context
             .system_catalog()?
-            .get_schema(tx, LOOKUP_CATALOG)?
+            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
             .required("lookup schema")?
             .get_copy_to_function(tx, &proto.name)?
             .required("table function")?;

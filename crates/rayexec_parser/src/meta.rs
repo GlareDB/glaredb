@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::ast::{
-    BinaryOperator, CommonTableExpr, CopyToTarget, DataType, FunctionArg, Ident, ObjectReference,
-    UnaryOperator,
+    BinaryOperator, CommonTableExpr, CopyOption, CopyToTarget, DataType, FunctionArg, Ident,
+    ObjectReference, UnaryOperator,
 };
 
 /// Metadata associated with sql statements.
@@ -43,7 +43,11 @@ pub trait AstMeta: Clone {
     /// A data type.
     type DataType: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
+    /// Destination for a COPY TO statement.
     type CopyToDestination: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+
+    /// Options provided in a COPY TO statement.
+    type CopyToOptions: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
     type BinaryOperator: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
     type UnaryOperator: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
@@ -64,6 +68,7 @@ impl AstMeta for Raw {
     type ColumnReference = Ident;
     type DataType = DataType;
     type CopyToDestination = CopyToTarget;
+    type CopyToOptions = Vec<CopyOption<Raw>>;
     type BinaryOperator = BinaryOperator;
     type UnaryOperator = UnaryOperator;
 }

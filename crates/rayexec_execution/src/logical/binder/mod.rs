@@ -20,10 +20,10 @@ use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
         decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
-        OwnedScalarValue,
+        OwnedScalarValue, ScalarValue,
     },
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::{
     ast::{self, ColumnDef, ObjectReference},
@@ -37,8 +37,8 @@ use crate::{
     database::{catalog::CatalogTx, DatabaseContext},
     datasource::FileHandlers,
     expr::scalar::{BinaryOperator, UnaryOperator},
-    functions::table::TableFunctionArgs,
-    logical::operator::LocationRequirement,
+    functions::{copy::CopyToArgs, proto::FUNCTION_LOOKUP_CATALOG, table::TableFunctionArgs},
+    logical::{operator::LocationRequirement, planner::plan_expr::ExpressionContext},
 };
 
 /// An AST statement with references bound to data inside of the `bind_data`.
@@ -67,6 +67,7 @@ impl AstMeta for Bound {
     type ColumnReference = String;
     type DataType = DataType;
     type CopyToDestination = FileLocation;
+    type CopyToOptions = CopyToArgs;
     type BinaryOperator = BinaryOperator;
     type UnaryOperator = UnaryOperator;
 }
@@ -251,16 +252,74 @@ impl<'a> Binder<'a> {
             }
         };
 
+        let mut options = HashMap::with_capacity(copy_to.options.len());
+        for opt in copy_to.options {
+            let key = opt.key.into_normalized_string();
+            let expr = ExpressionBinder::new(self)
+                .bind_expression(opt.val, bind_data)
+                .await?;
+
+            let val = match expr {
+                ast::Expr::Literal(lit) => {
+                    ExpressionContext::plan_literal(lit)?.try_into_scalar()?
+                }
+                // Ident allows for example `(FORMAT parquet)`, the user doesn't need to quote parquet.
+                ast::Expr::Ident(ident) => {
+                    OwnedScalarValue::Utf8(ident.into_normalized_string().into())
+                }
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "COPY TO options must be constant, got: {other:?}"
+                    )))
+                }
+            };
+
+            options.insert(key, val);
+        }
+
+        let mut options = CopyToArgs { named: options };
+
         let target = match copy_to.target {
             ast::CopyToTarget::File(file_name) => {
-                let handler = self.file_handlers.find_match(&file_name).ok_or_else(|| {
-                    RayexecError::new(format!("No registered file handler for file '{file_name}'"))
-                })?;
-                let func = handler
-                    .copy_to
-                    .as_ref()
-                    .ok_or_else(|| RayexecError::new("No registered COPY TO function"))?
-                    .clone();
+                let func = match options.try_remove_format() {
+                    Some(ScalarValue::Utf8(format)) => {
+                        // User specified a format, lookup in system catalog.
+                        let ent = self
+                            .context
+                            .system_catalog()?
+                            .get_schema(self.tx, FUNCTION_LOOKUP_CATALOG)?
+                            .required("function lookup schema")?
+                            .get_copy_to_function_for_format(self.tx, &format)?;
+
+                        match ent {
+                            Some(ent) => ent.try_as_copy_to_function_entry()?.function.clone(),
+                            None => {
+                                return Err(RayexecError::new(format!(
+                                    "No registered COPY TO function for format '{format}'"
+                                )))
+                            }
+                        }
+                    }
+                    Some(other) => {
+                        return Err(RayexecError::new(format!(
+                            "Invalid format expression: {other}"
+                        )))
+                    }
+                    None => {
+                        // Infer from file name.
+                        let handler =
+                            self.file_handlers.find_match(&file_name).ok_or_else(|| {
+                                RayexecError::new(format!(
+                                    "No registered file handler for file '{file_name}'"
+                                ))
+                            })?;
+                        handler
+                            .copy_to
+                            .as_ref()
+                            .ok_or_else(|| RayexecError::new("No registered COPY TO function"))?
+                            .clone()
+                    }
+                };
 
                 bind_data.copy_to = Some(BoundCopyTo { func });
 
@@ -268,7 +327,11 @@ impl<'a> Binder<'a> {
             }
         };
 
-        Ok(ast::CopyTo { source, target })
+        Ok(ast::CopyTo {
+            source,
+            target,
+            options,
+        })
     }
 
     async fn bind_drop(&self, drop: ast::DropStatement<Raw>) -> Result<ast::DropStatement<Bound>> {
