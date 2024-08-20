@@ -13,6 +13,7 @@ use crate::lake::iceberg::spec::PartitionSpec;
 /// Manifest lists include summary medata for the table alongside the path the
 /// actual manifest.
 #[serde_as]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ManifestListEntry {
     pub manifest_path: String,
@@ -93,6 +94,7 @@ impl ManifestList {
 }
 
 #[serde_as]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct FieldSummary {
     pub contains_null: bool,

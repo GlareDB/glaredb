@@ -1,4 +1,4 @@
-FROM rust:1.75-bookworm AS builder
+FROM rust:1.80-bookworm AS builder
 
 # Get cmake for zlib-ng
 #

@@ -96,6 +96,7 @@ impl FromStr for EmbeddingModel {
     }
 }
 
+#[allow(clippy::to_string_trait_impl)]
 impl ToString for EmbeddingModel {
     fn to_string(&self) -> String {
         match self {

@@ -127,10 +127,7 @@ impl ConnectOptionsBuilder {
         key: impl Into<String>,
         value: impl Into<String>,
     ) -> &mut Self {
-        let mut opts = match self.storage_options.to_owned() {
-            Some(opts) => opts,
-            None => HashMap::new(),
-        };
+        let mut opts = self.storage_options.to_owned().unwrap_or_default();
         opts.insert(key.into(), value.into());
         self.storage_options(opts)
     }
@@ -462,6 +459,8 @@ pub struct Operation {
     results: Option<Vec<RecordBatch>>,
 }
 
+// TODO: implement Display instead.
+#[allow(clippy::to_string_trait_impl)]
 impl ToString for Operation {
     fn to_string(&self) -> String {
         self.query.clone()
@@ -577,12 +576,12 @@ impl Operation {
         match self.op {
             OperationType::Sql => {
                 match plan.clone() {
-                    sqlexec::LogicalPlan::Datafusion(dfplan) => match dfplan {
-                        LogicalPlan::Dml(_)
-                        | LogicalPlan::Ddl(_)
-                        | LogicalPlan::Copy(_)
-                        | LogicalPlan::Extension(_)
-                        | LogicalPlan::Prepare(_) => match &self.results {
+                    sqlexec::LogicalPlan::Datafusion(LogicalPlan::Dml(_))
+                    | sqlexec::LogicalPlan::Datafusion(LogicalPlan::Ddl(_))
+                    | sqlexec::LogicalPlan::Datafusion(LogicalPlan::Copy(_))
+                    | sqlexec::LogicalPlan::Datafusion(LogicalPlan::Extension(_))
+                    | sqlexec::LogicalPlan::Datafusion(LogicalPlan::Prepare(_)) => {
+                        match &self.results {
                             Some(batches) => {
                                 return Ok(Box::pin(RecordBatchStreamAdapter::new(
                                     self.schema().clone().unwrap(),
@@ -590,9 +589,8 @@ impl Operation {
                                 )));
                             }
                             None => return Err(DatabaseError::UnsupportedLazyEvaluation),
-                        },
-                        _ => {}
-                    },
+                        }
+                    }
                     sqlexec::LogicalPlan::Transaction(_) => {
                         return Err(DatabaseError::UnsupportedLazyEvaluation)
                     }

@@ -141,7 +141,9 @@ pub struct ClosePortal {
 
 #[derive(Deserialize)]
 pub struct Describe {
+    #[allow(dead_code)]
     pub variant: Option<String>,
+    #[allow(dead_code)]
     pub name: Option<String>,
 }
 

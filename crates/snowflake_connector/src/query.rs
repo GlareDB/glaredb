@@ -124,6 +124,7 @@ impl QueryResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryChunkInfo {
     pub url: String,

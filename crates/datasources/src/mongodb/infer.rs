@@ -54,16 +54,8 @@ impl<'a> TableSampler<'a> {
     }
 
     fn sample_size(doc_count: usize) -> usize {
-        let mut sample_count = (doc_count as f32 * SAMPLE_PCT) as usize;
-        if sample_count > MAX_SAMPLE_SIZE {
-            sample_count = MAX_SAMPLE_SIZE;
-        }
+        let sample_count = (doc_count as f32 * SAMPLE_PCT) as usize;
 
-        // Very small table.
-        if sample_count < MIN_SAMPLE_SIZE {
-            sample_count = MIN_SAMPLE_SIZE;
-        }
-
-        sample_count
+        sample_count.clamp(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE)
     }
 }
