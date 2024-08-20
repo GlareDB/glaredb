@@ -24,9 +24,12 @@ pandas = [
 ]
 pandasai = [
   "pandasai",
+  "pandas",
+  "pyarrow",
 ]
 polars = [
   "polars",
+  "pyarrow",
 ]
 pyarrow = [
   "pyarrow",
