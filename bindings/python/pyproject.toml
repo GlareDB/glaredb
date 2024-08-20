@@ -13,7 +13,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
-
 [project.optional-dependencies]
 great-expectations = [
   "great_expectations",
@@ -21,6 +20,9 @@ great-expectations = [
 ]
 pandas = [
   "pandas",
+  "pyarrow",
+]
+pandasai = [
   "pandasai",
 ]
 polars = [
