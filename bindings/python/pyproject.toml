@@ -20,16 +20,15 @@ great-expectations = [
 ]
 pandas = [
   "pandas",
-  "pyarrow",
+  "glaredb[pyarrow]",
 ]
 pandasai = [
   "pandasai",
-  "pandas",
-  "pyarrow",
+  "glaredb[pandas]"
 ]
 polars = [
   "polars",
-  "pyarrow",
+  "glaredb[pyarrow]",
 ]
 pyarrow = [
   "pyarrow",
