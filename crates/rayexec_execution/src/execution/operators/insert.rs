@@ -5,7 +5,7 @@ use crate::{
     storage::table_storage::DataTableInsert,
 };
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use std::{
     sync::Arc,
     task::{Context, Waker},
@@ -162,21 +162,22 @@ impl Explainable for PhysicalInsert {
 impl DatabaseProtoConv for PhysicalInsert {
     type ProtoType = rayexec_proto::generated::execution::PhysicalInsert;
 
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     catalog: self.catalog.clone(),
-        //     schema: self.schema.clone(),
-        //     table: Some(self.table.to_proto()?),
-        // })
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            catalog: self.catalog.clone(),
+            schema: self.schema.clone(),
+            table: Some(self.table.to_proto_ctx(context)?),
+        })
     }
 
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     catalog: proto.catalog,
-        //     schema: proto.schema,
-        //     table: TableEntry::from_proto(proto.table.required("table")?)?,
-        // })
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            catalog: proto.catalog,
+            schema: proto.schema,
+            table: Arc::new(DatabaseProtoConv::from_proto_ctx(
+                proto.table.required("table")?,
+                context,
+            )?),
+        })
     }
 }

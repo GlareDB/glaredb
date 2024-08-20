@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, task::Context};
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -6,8 +6,17 @@ use rayexec_bullet::{batch::Batch, field::Field};
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog_entry::CatalogEntry,
-    storage::table_storage::{DataTable, DataTableScan, TableStorage},
+    execution::operators::{PollFinalize, PollPush},
+    storage::table_storage::{DataTable, DataTableInsert, DataTableScan, TableStorage},
 };
+
+// Much of the debug table implementation was copied from the memory table
+// implemenation in the execution crate. I opted to copy it in since the memory
+// table stuff might end up getting more complex to support additional table
+// features like conflicts and updates.
+//
+// The debug data source only needs the simple implementation (for now, may
+// change).
 
 #[derive(Debug)]
 pub struct TablePreload {
@@ -59,7 +68,7 @@ impl TableStorage for DebugTableStorage {
 
         let table = self.tables.get(&key).ok_or_else(|| {
             RayexecError::new(format!(
-                "Missing physical memory table for entry: {ent:?}. Cannot get data table",
+                "Missing physical debug table for entry: {ent:?}. Cannot get data table",
             ))
         })?;
 
@@ -79,7 +88,7 @@ impl TableStorage for DebugTableStorage {
         Box::pin(async {
             match self.tables.entry(key) {
                 scc::hash_index::Entry::Occupied(ent) => Err(RayexecError::new(format!(
-                    "Duplicate physical table for entry: {:?}",
+                    "Duplicate physical debug table for entry: {:?}",
                     ent.key(),
                 ))),
                 scc::hash_index::Entry::Vacant(hash_ent) => {
@@ -100,7 +109,7 @@ impl TableStorage for DebugTableStorage {
         Box::pin(async move {
             if !self.tables.remove(&key) {
                 return Err(RayexecError::new(format!(
-                    "Missing physical memory table for entry: {key:?}. Cannot drop table.",
+                    "Missing physical debug for entry: {key:?}. Cannot drop table.",
                 )));
             }
             Ok(())
@@ -116,7 +125,7 @@ pub struct DebugDataTable {
 impl DataTable for DebugDataTable {
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
         let mut scans: Vec<_> = (0..num_partitions)
-            .map(|_| MemoryDataTableScan { data: Vec::new() })
+            .map(|_| DebugDataTableScan { data: Vec::new() })
             .collect();
 
         let data = {
@@ -133,15 +142,47 @@ impl DataTable for DebugDataTable {
             .map(|scan| Box::new(scan) as Box<_>)
             .collect())
     }
+
+    fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn DataTableInsert>>> {
+        let inserts: Vec<_> = (0..input_partitions)
+            .map(|_| {
+                Box::new(DebugDataTableInsert {
+                    collected: Vec::new(),
+                    data: self.data.clone(),
+                }) as _
+            })
+            .collect();
+
+        Ok(inserts)
+    }
 }
 
 #[derive(Debug)]
-pub struct MemoryDataTableScan {
+pub struct DebugDataTableScan {
     data: Vec<Batch>,
 }
 
-impl DataTableScan for MemoryDataTableScan {
+impl DataTableScan for DebugDataTableScan {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
         Box::pin(async { Ok(self.data.pop()) })
+    }
+}
+
+#[derive(Debug)]
+pub struct DebugDataTableInsert {
+    collected: Vec<Batch>,
+    data: Arc<Mutex<Vec<Batch>>>,
+}
+
+impl DataTableInsert for DebugDataTableInsert {
+    fn poll_push(&mut self, _cx: &mut Context, batch: Batch) -> Result<PollPush> {
+        self.collected.push(batch);
+        Ok(PollPush::NeedsMore)
+    }
+
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+        let mut data = self.data.lock();
+        data.append(&mut self.collected);
+        Ok(PollFinalize::Finalized)
     }
 }

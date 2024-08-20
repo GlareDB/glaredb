@@ -665,11 +665,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         self.walk(materializations, id_gen, *insert.input)?;
 
-        // TODO: Need a "resolved" type on the logical operator that gets us the catalog/schema.
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Insert(PhysicalInsert::new(
-                "temp",
-                "temp",
+                insert.catalog,
+                insert.schema,
                 insert.table,
             ))),
             partitioning_requirement: None,

@@ -16,16 +16,16 @@ pub struct CteIndex(pub usize);
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundTableOrCteReference {
     /// Resolved table.
-    Table {
-        catalog: String,
-        schema: String,
-        entry: Arc<CatalogEntry>,
-    },
-    /// Resolved CTE.
-    Cte {
-        /// Index of the cte in the bind data.
-        cte_idx: CteIndex,
-    },
+    Table(BoundTableReference),
+    /// Resolved CTE, index of the CTE in bind data.
+    Cte(CteIndex),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundTableReference {
+    pub catalog: String,
+    pub schema: String,
+    pub entry: Arc<CatalogEntry>,
 }
 
 impl DatabaseProtoConv for BoundTableOrCteReference {
@@ -33,20 +33,21 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         use rayexec_proto::generated::binder::{
-            bound_table_or_cte_reference::Value, BoundCteReference, BoundTableReference,
+            bound_table_or_cte_reference::Value, BoundCteReference,
+            BoundTableReference as ProtoBoundTableReference,
         };
 
         let value = match self {
-            Self::Table {
+            Self::Table(BoundTableReference {
                 catalog,
                 schema,
                 entry,
-            } => Value::Table(BoundTableReference {
+            }) => Value::Table(ProtoBoundTableReference {
                 catalog: catalog.clone(),
                 schema: schema.clone(),
                 entry: Some(entry.to_proto_ctx(context)?),
             }),
-            Self::Cte { cte_idx } => Value::Cte(BoundCteReference {
+            Self::Cte(cte_idx) => Value::Cte(BoundCteReference {
                 idx: cte_idx.0 as u32,
             }),
         };
@@ -58,17 +59,15 @@ impl DatabaseProtoConv for BoundTableOrCteReference {
         use rayexec_proto::generated::binder::bound_table_or_cte_reference::Value;
 
         Ok(match proto.value.required("value")? {
-            Value::Table(table) => Self::Table {
+            Value::Table(table) => Self::Table(BoundTableReference {
                 catalog: table.catalog,
                 schema: table.schema,
                 entry: Arc::new(CatalogEntry::from_proto_ctx(
                     table.entry.required("entry")?,
                     context,
                 )?),
-            },
-            Value::Cte(cte) => Self::Cte {
-                cte_idx: CteIndex(cte.idx as usize),
-            },
+            }),
+            Value::Cte(cte) => Self::Cte(CteIndex(cte.idx as usize)),
         })
     }
 }

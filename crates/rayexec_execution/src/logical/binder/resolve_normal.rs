@@ -15,7 +15,7 @@ use rayexec_parser::ast;
 use tracing::error;
 
 use super::{
-    bound_table::{BoundTableOrCteReference, UnboundTableReference},
+    bound_table::{BoundTableOrCteReference, BoundTableReference, UnboundTableReference},
     BindData,
 };
 
@@ -153,9 +153,9 @@ impl<'a> Resolver<'a> {
 
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = bind_data.find_cte(&name) {
-                    return Ok(MaybeResolvedTable::Resolved(
-                        BoundTableOrCteReference::Cte { cte_idx: cte },
-                    ));
+                    return Ok(MaybeResolvedTable::Resolved(BoundTableOrCteReference::Cte(
+                        cte,
+                    )));
                 }
 
                 // Otherwise continue with trying to resolve from the catalogs.
@@ -184,11 +184,11 @@ impl<'a> Resolver<'a> {
         // Try reading from in-memory catalog first.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
             return Ok(MaybeResolvedTable::Resolved(
-                BoundTableOrCteReference::Table {
+                BoundTableOrCteReference::Table(BoundTableReference {
                     catalog,
                     schema,
                     entry,
-                },
+                }),
             ));
         }
 
@@ -247,11 +247,11 @@ impl<'a> Resolver<'a> {
         // Read from catalog again.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
             Ok(MaybeResolvedTable::Resolved(
-                BoundTableOrCteReference::Table {
+                BoundTableOrCteReference::Table(BoundTableReference {
                     catalog,
                     schema,
                     entry,
-                },
+                }),
             ))
         } else {
             Ok(MaybeResolvedTable::UnresolvedWithCatalog(

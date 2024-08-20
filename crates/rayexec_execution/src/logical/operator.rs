@@ -1065,6 +1065,8 @@ impl Explainable for DropEntry {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Insert {
+    pub catalog: String,
+    pub schema: String,
     pub table: Arc<CatalogEntry>,
     pub input: Box<LogicalOperator>,
 }

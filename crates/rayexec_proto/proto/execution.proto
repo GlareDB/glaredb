@@ -79,9 +79,9 @@ message PhysicalProject {
 }
 
 message PhysicalInsert {
-    string     catalog = 1;
-    string     schema  = 2;
-    TableEntry table   = 3;
+    string               catalog = 1;
+    string               schema  = 2;
+    catalog.CatalogEntry table   = 3;
 }
 
 message PhysicalLimit {

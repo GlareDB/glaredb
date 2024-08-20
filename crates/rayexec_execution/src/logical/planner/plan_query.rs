@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::logical::{
     binder::{
         bind_data::BindData,
-        bound_table::{BoundTableOrCteReference, CteIndex},
+        bound_table::{BoundTableOrCteReference, BoundTableReference, CteIndex},
         Bound,
     },
     context::QueryContext,
@@ -335,11 +335,11 @@ impl<'a> QueryNodePlanner<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.bind_data.tables.try_get_bound(reference)? {
                     (
-                        BoundTableOrCteReference::Table {
+                        BoundTableOrCteReference::Table(BoundTableReference {
                             catalog,
                             schema,
                             entry,
-                        },
+                        }),
                         location,
                     ) => {
                         // Scope reference for base tables is always fully
@@ -371,7 +371,7 @@ impl<'a> QueryNodePlanner<'a> {
                             scope,
                         }
                     }
-                    (BoundTableOrCteReference::Cte { cte_idx }, _) => {
+                    (BoundTableOrCteReference::Cte(cte_idx), _) => {
                         self.plan_cte_body(context, *cte_idx, current_schema, current_scope)?
                     }
                 }

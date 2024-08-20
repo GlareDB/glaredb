@@ -28,18 +28,34 @@ pub fn main() -> Result<()> {
         // TODO: Debug data source with configurable tables, table functions,
         // errors, etc.
         let opts = DebugDataSourceOptions {
-            preloads: vec![TablePreload {
-                schema: "schema1".to_string(),
-                name: "table1".to_string(),
-                columns: vec![
-                    Field::new("c1", DataType::Int64, false),
-                    Field::new("c2", DataType::Utf8, false),
-                ],
-                data: Batch::try_new([
-                    Array::Int64(PrimitiveArray::from_iter([1, 2])),
-                    Array::Utf8(VarlenArray::from_iter(["a", "b"])),
-                ])?,
-            }],
+            preloads: vec![
+                TablePreload {
+                    schema: "schema1".to_string(),
+                    name: "table1".to_string(),
+                    columns: vec![
+                        Field::new("c1", DataType::Int64, false),
+                        Field::new("c2", DataType::Utf8, false),
+                    ],
+                    data: Batch::try_new([
+                        Array::Int64(PrimitiveArray::from_iter([1, 2])),
+                        Array::Utf8(VarlenArray::from_iter(["a", "b"])),
+                    ])?,
+                },
+                // Table specific to insert into. Don't rely on this outside of
+                // the 'insert_into.slt' since it's global to the engine.
+                TablePreload {
+                    schema: "schema1".to_string(),
+                    name: "insert_into1".to_string(),
+                    columns: vec![
+                        Field::new("c1", DataType::Int64, false),
+                        Field::new("c2", DataType::Utf8, false),
+                    ],
+                    data: Batch::try_new([
+                        Array::Int64(PrimitiveArray::from_iter([1, 2])),
+                        Array::Utf8(VarlenArray::from_iter(["a", "b"])),
+                    ])?,
+                },
+            ],
             expected_options: HashMap::new(),
             discard_format: "discard_remote".to_string(),
         };

@@ -253,25 +253,19 @@ impl<'a> PlanContext<'a> {
                 planner.plan_query(context, query)?
             }
             ast::CopyToSource::Table(table) => {
-                let (catalog, schema, ent, location) =
-                    match self.bind_data.tables.try_get_bound(table)? {
-                        (
-                            BoundTableOrCteReference::Table {
-                                catalog,
-                                schema,
-                                entry,
-                            },
-                            location,
-                        ) => (catalog, schema, entry, location),
-                        (BoundTableOrCteReference::Cte { .. }, _) => {
-                            // Shouldn't be possible.
-                            return Err(RayexecError::new("Cannot COPY from CTE"));
-                        }
-                    };
+                let (reference, location) = match self.bind_data.tables.try_get_bound(table)? {
+                    (BoundTableOrCteReference::Table(reference), location) => (reference, location),
+                    (BoundTableOrCteReference::Cte { .. }, _) => {
+                        // Shouldn't be possible.
+                        return Err(RayexecError::new("Cannot COPY from CTE"));
+                    }
+                };
 
                 let scope = Scope::with_columns(
                     None,
-                    ent.try_as_table_entry()?
+                    reference
+                        .entry
+                        .try_as_table_entry()?
                         .columns
                         .iter()
                         .map(|f| f.name.clone()),
@@ -280,9 +274,9 @@ impl<'a> PlanContext<'a> {
                 LogicalQuery {
                     root: LogicalOperator::Scan(LogicalNode::with_location(
                         Scan {
-                            catalog: catalog.clone(),
-                            schema: schema.clone(),
-                            source: ent.clone(),
+                            catalog: reference.catalog.clone(),
+                            schema: reference.schema.clone(),
+                            source: reference.entry.clone(),
                         },
                         location,
                     )),
@@ -321,15 +315,17 @@ impl<'a> PlanContext<'a> {
         let mut planner = QueryNodePlanner::new(self.bind_data);
         let source = planner.plan_query(context, insert.source)?;
 
-        let entry = match self.bind_data.tables.try_get_bound(insert.table)? {
-            (BoundTableOrCteReference::Table { entry, .. }, _) => entry,
+        let (reference, location) = match self.bind_data.tables.try_get_bound(insert.table)? {
+            (BoundTableOrCteReference::Table(reference), location) => (reference, location),
             (BoundTableOrCteReference::Cte { .. }, _) => {
-                return Err(RayexecError::new("Cannot insert into CTE"))
-            } // Shouldn't be possible.
+                // Shouldn't be possible.
+                return Err(RayexecError::new("Cannot insert into CTE"));
+            }
         };
 
         let table_type_schema = TypeSchema::new(
-            entry
+            reference
+                .entry
                 .try_as_table_entry()?
                 .columns
                 .iter()
@@ -343,10 +339,15 @@ impl<'a> PlanContext<'a> {
         // maps the columns to the right position.
 
         Ok(LogicalQuery {
-            root: LogicalOperator::Insert(LogicalNode::new(Insert {
-                table: entry.clone(),
-                input: Box::new(input),
-            })),
+            root: LogicalOperator::Insert(LogicalNode::with_location(
+                Insert {
+                    catalog: reference.catalog.clone(),
+                    schema: reference.schema.clone(),
+                    table: reference.entry.clone(),
+                    input: Box::new(input),
+                },
+                location,
+            )),
             scope: Scope::empty(),
         })
     }
