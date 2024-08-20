@@ -1,59 +1,64 @@
+pub mod discard;
+pub mod table_storage;
+
+use discard::DiscardCopyToFunction;
 use futures::future::BoxFuture;
-use rayexec_bullet::{field::Field, scalar::OwnedScalarValue};
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::{catalog_entry::TableEntry, memory_catalog::MemoryCatalog},
-    datasource::{DataSource, DataSourceConnection},
+    datasource::{DataSource, DataSourceConnection, DataSourceCopyTo},
     functions::table::TableFunction,
-    storage::{catalog_storage::CatalogStorage, memory::MemoryTableStorage},
+    storage::catalog_storage::CatalogStorage,
 };
 use std::{collections::HashMap, sync::Arc};
-
-// TODO: Preload with data.
-#[derive(Debug)]
-pub struct TablePreload {
-    pub schema: String,
-    pub name: String,
-    pub columns: Vec<Field>,
-}
+use table_storage::{DebugTableStorage, TablePreload};
 
 // TODO: Some weirdness with interaction between catalog storage and table
 // storage.
 
 #[derive(Debug)]
+pub struct DebugDataSourceOptions {
+    /// Tables to preload the source with.
+    pub preloads: Vec<TablePreload>,
+
+    /// Options we expect to receive on connect, errors if we receive options
+    /// that don't exactly match these.
+    pub expected_options: HashMap<String, OwnedScalarValue>,
+
+    /// Format string to use for using the discard COPY TO implementation.
+    pub discard_format: String,
+}
+
+#[derive(Debug)]
 pub struct DebugDataSource {
     catalog_storage: Arc<DebugCatalogStorage>,
-    table_storage: Arc<MemoryTableStorage>,
-    /// Options we expect to receive, errors if we receive options that don't
-    /// exactly match these.
-    expected_options: HashMap<String, OwnedScalarValue>,
+    table_storage: Arc<DebugTableStorage>,
+    opts: DebugDataSourceOptions,
 }
 
 impl DebugDataSource {
-    pub fn new(
-        preload: impl IntoIterator<Item = TablePreload>,
-        expected_options: impl Into<HashMap<String, OwnedScalarValue>>,
-    ) -> Self {
+    pub fn new(opts: DebugDataSourceOptions) -> Self {
         let mut catalog_storage = DebugCatalogStorage {
             tables: HashMap::new(),
         };
 
-        for table in preload {
+        for table in &opts.preloads {
             catalog_storage.tables.insert(
-                [table.schema, table.name],
+                [table.schema.clone(), table.name.clone()],
                 TableEntry {
-                    columns: table.columns,
+                    columns: table.columns.clone(),
                 },
             );
         }
 
         let catalog_storage = Arc::new(catalog_storage);
-        let table_storage = Arc::new(MemoryTableStorage::default());
+        let table_storage = Arc::new(DebugTableStorage::new_with_tables(&opts.preloads));
 
         DebugDataSource {
             catalog_storage,
             table_storage,
-            expected_options: expected_options.into(),
+            opts,
         }
     }
 }
@@ -64,7 +69,7 @@ impl DataSource for DebugDataSource {
         options: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async move {
-            if options != self.expected_options {
+            if options != self.opts.expected_options {
                 return Err(RayexecError::new(
                     "Provided options do not match expected options",
                 ));
@@ -75,6 +80,13 @@ impl DataSource for DebugDataSource {
                 table_storage: self.table_storage.clone(),
             })
         })
+    }
+
+    fn initialize_copy_to_functions(&self) -> Vec<DataSourceCopyTo> {
+        vec![DataSourceCopyTo {
+            format: self.opts.discard_format.clone(),
+            copy_to: Box::new(DiscardCopyToFunction),
+        }]
     }
 
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {

@@ -21,6 +21,11 @@ describe remote1.schema1.table1;
 c1  Int64
 c2  Utf8
 
+query II
+select * from remote1.schema1.table1 order by 1;
+----
+1  a
+2  b
 
 statement ok
 ATTACH remote_debug1 DATABASE AS remote2;
@@ -36,3 +41,20 @@ temp
 # TODO: Remote attach verify
 # statement error
 # ATTACH remote_memory_missing DATABASE AS remote3;
+
+# COPY TO from remote table to local
+
+query I
+COPY remote1.schema1.table1 TO 'myfile' (FORMAT discard_local);
+----
+2
+
+query I
+COPY (SELECT * FROM remote1.schema1.table1) TO 'myfile' (FORMAT discard_local);
+----
+2
+
+# COPY TO to remote side not yet supported
+statement error No registered COPY TO function for format 'discard_remote'
+COPY (SELECT * FROM remote1.schema1.table1) TO 'myfile' (FORMAT discard_remote);
+

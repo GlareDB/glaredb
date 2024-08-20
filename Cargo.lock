@@ -1957,12 +1957,14 @@ version = "0.0.37"
 dependencies = [
  "bytes",
  "futures",
+ "parking_lot",
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "rayexec_proto",
  "regex",
+ "scc",
  "tracing",
  "url",
 ]

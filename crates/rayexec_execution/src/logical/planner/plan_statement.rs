@@ -253,20 +253,21 @@ impl<'a> PlanContext<'a> {
                 planner.plan_query(context, query)?
             }
             ast::CopyToSource::Table(table) => {
-                let (catalog, schema, ent) = match self.bind_data.tables.try_get_bound(table)? {
-                    (
-                        BoundTableOrCteReference::Table {
-                            catalog,
-                            schema,
-                            entry,
-                        },
-                        _,
-                    ) => (catalog, schema, entry),
-                    (BoundTableOrCteReference::Cte { .. }, _) => {
-                        // Shouldn't be possible.
-                        return Err(RayexecError::new("Cannot COPY from CTE"));
-                    }
-                };
+                let (catalog, schema, ent, location) =
+                    match self.bind_data.tables.try_get_bound(table)? {
+                        (
+                            BoundTableOrCteReference::Table {
+                                catalog,
+                                schema,
+                                entry,
+                            },
+                            location,
+                        ) => (catalog, schema, entry, location),
+                        (BoundTableOrCteReference::Cte { .. }, _) => {
+                            // Shouldn't be possible.
+                            return Err(RayexecError::new("Cannot COPY from CTE"));
+                        }
+                    };
 
                 let scope = Scope::with_columns(
                     None,
@@ -276,13 +277,15 @@ impl<'a> PlanContext<'a> {
                         .map(|f| f.name.clone()),
                 );
 
-                // TODO: Loc
                 LogicalQuery {
-                    root: LogicalOperator::Scan(LogicalNode::new(Scan {
-                        catalog: catalog.clone(),
-                        schema: schema.clone(),
-                        source: ent.clone(),
-                    })),
+                    root: LogicalOperator::Scan(LogicalNode::with_location(
+                        Scan {
+                            catalog: catalog.clone(),
+                            schema: schema.clone(),
+                            source: ent.clone(),
+                        },
+                        location,
+                    )),
                     scope,
                 }
             }

@@ -11,6 +11,8 @@ rayexec_error = { path = '../rayexec_error' }
 rayexec_io = { path = '../rayexec_io' }
 futures = { workspace = true }
 tracing = { workspace = true }
+parking_lot = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
 bytes = { workspace = true }
+scc = { workspace = true }

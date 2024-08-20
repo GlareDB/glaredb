@@ -34,8 +34,8 @@ erased-serde = { workspace = true }
 rand = "0.8.5"
 uuid = { workspace = true }
 dashmap = "6.0.1"
-scc = "2.1.13"
 strsim = "0.11.1"
+scc = { workspace = true }
 
 [dev-dependencies]
 similar-asserts = "1.5.0"
