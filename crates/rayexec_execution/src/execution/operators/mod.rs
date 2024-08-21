@@ -8,7 +8,6 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod insert;
-pub mod ipc;
 pub mod join;
 pub mod limit;
 pub mod materialize;
@@ -29,14 +28,14 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
-use copy_to::{CopyToPartitionState, PhysicalCopyTo};
+use copy_to::PhysicalCopyTo;
 use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
-use create_table::{CreateTableOperatorState, CreateTablePartitionState, PhysicalCreateTable};
+use create_table::PhysicalCreateTable;
 use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
-use insert::{InsertPartitionState, PhysicalInsert};
+use insert::PhysicalInsert;
 use join::hash_join::PhysicalHashJoin;
 use join::nl_join::PhysicalNestedLoopJoin;
 use limit::PhysicalLimit;
@@ -50,7 +49,7 @@ use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
-use sink::{PhysicalQuerySink, QuerySinkPartitionState};
+use sink::{QuerySinkPartitionState, SinkOperation, SinkOperator};
 use sort::local_sort::PhysicalLocalSort;
 use sort::merge_sorted::PhysicalMergeSortedInputs;
 use source::QuerySourcePartitionState;
@@ -65,6 +64,7 @@ use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionT
 use values::PhysicalValues;
 
 use crate::database::DatabaseContext;
+use crate::engine::result::ResultSink;
 use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
@@ -114,9 +114,6 @@ pub enum PartitionState {
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
-    Insert(InsertPartitionState),
-    CopyTo(CopyToPartitionState),
-    CreateTable(CreateTablePartitionState),
     CreateSchema(CreateSchemaPartitionState),
     Drop(DropPartitionState),
     Empty(EmptyPartitionState),
@@ -135,7 +132,6 @@ pub enum OperatorState {
     MergeSorted(MergeSortedOperatorState),
     Materialize(MaterializeOperatorState),
     Union(UnionOperatorState),
-    CreateTable(CreateTableOperatorState),
     None,
 }
 
@@ -313,7 +309,8 @@ pub enum PhysicalOperator {
     NestedLoopJoin(PhysicalNestedLoopJoin),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
-    QuerySink(PhysicalQuerySink),
+    ResultSink(SinkOperator<ResultSink>),
+    HybridSink(SinkOperator<Box<dyn SinkOperation>>),
     RoundRobin(PhysicalRoundRobinRepartition),
     MergeSorted(PhysicalMergeSortedInputs),
     LocalSort(PhysicalLocalSort),
@@ -344,7 +341,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::NestedLoopJoin(op) => op.create_states(context, partitions),
             Self::HashJoin(op) => op.create_states(context, partitions),
             Self::Values(op) => op.create_states(context, partitions),
-            Self::QuerySink(op) => op.create_states(context, partitions),
+            Self::ResultSink(op) => op.create_states(context, partitions),
+            Self::HybridSink(op) => op.create_states(context, partitions),
             Self::RoundRobin(op) => op.create_states(context, partitions),
             Self::MergeSorted(op) => op.create_states(context, partitions),
             Self::LocalSort(op) => op.create_states(context, partitions),
@@ -379,7 +377,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::NestedLoopJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::QuerySink(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::ResultSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::HybridSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::RoundRobin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -413,7 +412,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::NestedLoopJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::HashJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::QuerySink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::HybridSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::RoundRobin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::MergeSorted(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::LocalSort(op) => op.poll_finalize_push(cx, partition_state, operator_state),
@@ -445,7 +445,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::NestedLoopJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::QuerySink(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::HybridSink(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::RoundRobin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -474,7 +475,8 @@ impl Explainable for PhysicalOperator {
             Self::NestedLoopJoin(op) => op.explain_entry(conf),
             Self::HashJoin(op) => op.explain_entry(conf),
             Self::Values(op) => op.explain_entry(conf),
-            Self::QuerySink(op) => op.explain_entry(conf),
+            Self::ResultSink(op) => op.explain_entry(conf),
+            Self::HybridSink(op) => op.explain_entry(conf),
             Self::RoundRobin(op) => op.explain_entry(conf),
             Self::MergeSorted(op) => op.explain_entry(conf),
             Self::LocalSort(op) => op.explain_entry(conf),

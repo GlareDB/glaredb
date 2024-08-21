@@ -6,10 +6,11 @@ use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
 use crate::{
+    database::DatabaseContext,
     execution::{
         intermediate::StreamId,
         operators::{
-            sink::{PartitionSink, QuerySink},
+            sink::{PartitionSink, SinkOperation},
             source::{PartitionSource, QuerySource},
         },
     },
@@ -32,20 +33,24 @@ pub struct ClientToServerStream<C: HttpClient> {
     client: Arc<HybridClient<C>>,
 }
 
-impl<C: HttpClient> ClientToServerStream<C> {
+impl<C: HttpClient + 'static> ClientToServerStream<C> {
     pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
         ClientToServerStream { stream_id, client }
     }
 }
 
-impl<C: HttpClient + 'static> QuerySink for ClientToServerStream<C> {
-    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>> {
+impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
+    fn create_partition_sinks(
+        &self,
+        _context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
         assert_eq!(1, num_sinks);
 
-        vec![Box::new(ClientToServerPartitionSink {
+        Ok(vec![Box::new(ClientToServerPartitionSink {
             stream_id: self.stream_id,
             client: self.client.clone(),
-        })]
+        })])
     }
 
     fn partition_requirement(&self) -> Option<usize> {

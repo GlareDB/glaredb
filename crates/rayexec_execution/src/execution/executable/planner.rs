@@ -5,6 +5,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crate::{
     database::DatabaseContext,
+    engine::result::ResultSink,
     execution::{
         intermediate::{
             IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId, PipelineSink,
@@ -12,7 +13,7 @@ use crate::{
         },
         operators::{
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
-            sink::{PhysicalQuerySink, QuerySink},
+            sink::{SinkOperation, SinkOperator},
             source::PhysicalQuerySource,
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
@@ -81,7 +82,7 @@ pub enum PlanLocationState<'a, C: HttpClient> {
         ///
         /// Should only be used once per query. The option helps us enforce that
         /// (and also allows us to avoid needing to wrap in an Arc).
-        output_sink: Option<Box<dyn QuerySink>>,
+        output_sink: Option<ResultSink>,
         /// Optional hybrid client if we're executing in hybrid mode.
         ///
         /// When providing, appropriate query sinks and sources will be inserted
@@ -275,7 +276,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     pipeline = self.push_repartition(pipeline, partitions, executables)?;
                 }
 
-                let operator = Arc::new(PhysicalOperator::QuerySink(PhysicalQuerySink::new(sink)));
+                let operator = Arc::new(PhysicalOperator::ResultSink(SinkOperator::new(sink)));
                 let states = operator.create_states(self.context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
@@ -316,10 +317,10 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                 stream_id,
             } => {
                 // Sink is pipeline executing somewhere else.
-                let operator = match &self.loc_state {
+                let operator: SinkOperator<Box<dyn SinkOperation>> = match &self.loc_state {
                     PlanLocationState::Server { stream_buffers } => {
                         let sink = stream_buffers.create_outgoing_stream(stream_id)?;
-                        PhysicalQuerySink::new(Box::new(sink))
+                        SinkOperator::new(Box::new(sink))
                     }
                     PlanLocationState::Client { hybrid_client, .. } => {
                         // Missing hybrid client shouldn't happen. Means we've
@@ -329,7 +330,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                             RayexecError::new("Hybrid client missing, cannot create sink pipeline")
                         })?;
                         let sink = ClientToServerStream::new(stream_id, hybrid_client.clone());
-                        PhysicalQuerySink::new(Box::new(sink))
+                        SinkOperator::new(Box::new(sink))
                     }
                 };
 

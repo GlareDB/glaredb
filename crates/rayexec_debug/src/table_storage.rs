@@ -1,4 +1,4 @@
-use std::{sync::Arc, task::Context};
+use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -6,8 +6,8 @@ use rayexec_bullet::{batch::Batch, field::Field};
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog_entry::CatalogEntry,
-    execution::operators::{PollFinalize, PollPush},
-    storage::table_storage::{DataTable, DataTableInsert, DataTableScan, TableStorage},
+    execution::operators::sink::PartitionSink,
+    storage::table_storage::{DataTable, DataTableScan, TableStorage},
 };
 
 // Much of the debug table implementation was copied from the memory table
@@ -143,7 +143,7 @@ impl DataTable for DebugDataTable {
             .collect())
     }
 
-    fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn DataTableInsert>>> {
+    fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {
         let inserts: Vec<_> = (0..input_partitions)
             .map(|_| {
                 Box::new(DebugDataTableInsert {
@@ -174,15 +174,19 @@ pub struct DebugDataTableInsert {
     data: Arc<Mutex<Vec<Batch>>>,
 }
 
-impl DataTableInsert for DebugDataTableInsert {
-    fn poll_push(&mut self, _cx: &mut Context, batch: Batch) -> Result<PollPush> {
-        self.collected.push(batch);
-        Ok(PollPush::NeedsMore)
+impl PartitionSink for DebugDataTableInsert {
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            self.collected.push(batch);
+            Ok(())
+        })
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
-        let mut data = self.data.lock();
-        data.append(&mut self.collected);
-        Ok(PollFinalize::Finalized)
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            let mut data = self.data.lock();
+            data.append(&mut self.collected);
+            Ok(())
+        })
     }
 }

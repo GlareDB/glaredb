@@ -3,7 +3,10 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::{
+    array::{Array, PrimitiveArray},
+    batch::Batch,
+};
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Waker};
@@ -17,13 +20,40 @@ use super::{
     OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
-pub trait QuerySink: Debug + Send + Sync + Explainable {
+pub trait SinkOperation: Debug + Send + Sync + Explainable {
     /// Create an exact number of partition sinks for the query.
     ///
     /// This is guaranteed to only be called once during pipeline execution.
-    fn create_partition_sinks(&self, num_sinks: usize) -> Vec<Box<dyn PartitionSink>>;
+    fn create_partition_sinks(
+        &self,
+        context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Result<Vec<Box<dyn PartitionSink>>>;
 
+    /// Return an optional partitioning requirement for this sink.
+    ///
+    /// Called during executable pipeline planning.
     fn partition_requirement(&self) -> Option<usize>;
+}
+
+impl SinkOperation for Box<dyn SinkOperation> {
+    fn create_partition_sinks(
+        &self,
+        context: &DatabaseContext,
+        num_sinks: usize,
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
+        self.as_ref().create_partition_sinks(context, num_sinks)
+    }
+
+    fn partition_requirement(&self) -> Option<usize> {
+        self.as_ref().partition_requirement()
+    }
+}
+
+impl Explainable for Box<dyn SinkOperation> {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.as_ref().explain_entry(conf)
+    }
 }
 
 pub trait PartitionSink: Debug + Send {
@@ -53,7 +83,12 @@ pub enum QuerySinkPartitionState {
         /// `Finished`.
         future: BoxFuture<'static, Result<()>>,
     },
-    Finished,
+    Finished {
+        /// Number of rows that went through this operator.
+        row_count: usize,
+        /// If we've already returned the row count at the end.
+        row_count_returned: bool,
+    },
 }
 
 impl fmt::Debug for QuerySinkPartitionState {
@@ -67,36 +102,45 @@ impl fmt::Debug for QuerySinkPartitionState {
 pub struct QuerySinkInnerPartitionState {
     sink: Box<dyn PartitionSink>,
     pull_waker: Option<Waker>,
+    row_count: usize, // TODO: Global sync
 }
 
+/// An operator that writes batches to a partition sink.
+///
+/// The output batch for this operator is a single column containing the number
+/// of rows passed through this operator.
+///
+/// Insert, CopyTo, CreateTable all use this. CreateTable uses this to enable
+/// CTAS semantics easily.
 #[derive(Debug)]
-pub struct PhysicalQuerySink {
-    sink: Box<dyn QuerySink>,
+pub struct SinkOperator<S: SinkOperation> {
+    pub(crate) sink: S,
 }
 
-impl PhysicalQuerySink {
-    pub fn new(sink: Box<dyn QuerySink>) -> Self {
-        PhysicalQuerySink { sink }
+impl<S: SinkOperation> SinkOperator<S> {
+    pub fn new(sink: S) -> Self {
+        SinkOperator { sink }
     }
 }
 
-impl ExecutableOperator for PhysicalQuerySink {
+impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
     fn create_states(
         &self,
-        _context: &DatabaseContext,
+        context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         let partitions = partitions[0];
 
         let states: Vec<_> = self
             .sink
-            .create_partition_sinks(partitions)
+            .create_partition_sinks(context, partitions)?
             .into_iter()
             .map(|sink| {
                 PartitionState::QuerySink(QuerySinkPartitionState::Writing {
                     inner: Some(QuerySinkInnerPartitionState {
                         sink,
                         pull_waker: None,
+                        row_count: 0,
                     }),
                     future: None,
                 })
@@ -143,7 +187,10 @@ impl ExecutableOperator for PhysicalQuerySink {
                         return Ok(PollPush::NeedsMore);
                     }
 
-                    let mut push_future = inner.as_mut().unwrap().sink.push(batch);
+                    let inner = inner.as_mut().unwrap();
+                    inner.row_count += batch.num_rows();
+
+                    let mut push_future = inner.sink.push(batch);
                     match push_future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
                             // Future completed, need more batches.
@@ -204,7 +251,10 @@ impl ExecutableOperator for PhysicalQuerySink {
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
                             }
-                            *state = QuerySinkPartitionState::Finished;
+                            *state = QuerySinkPartitionState::Finished {
+                                row_count: inner.row_count,
+                                row_count_returned: false,
+                            };
 
                             Ok(PollFinalize::Finalized)
                         }
@@ -232,7 +282,11 @@ impl ExecutableOperator for PhysicalQuerySink {
                                 waker.wake();
                             }
 
-                            *state = QuerySinkPartitionState::Finished;
+                            *state = QuerySinkPartitionState::Finished {
+                                row_count: inner.as_ref().unwrap().row_count,
+                                row_count_returned: false,
+                            };
+
                             Ok(PollFinalize::Finalized)
                         }
                         Poll::Ready(Err(e)) => Err(e),
@@ -262,14 +316,29 @@ impl ExecutableOperator for PhysicalQuerySink {
                     }
                     Ok(PollPull::Pending)
                 }
-                QuerySinkPartitionState::Finished => Ok(PollPull::Exhausted),
+                QuerySinkPartitionState::Finished {
+                    row_count,
+                    row_count_returned,
+                } => {
+                    if *row_count_returned {
+                        Ok(PollPull::Exhausted)
+                    } else {
+                        let row_count_batch =
+                            Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
+                                *row_count as u64,
+                            ]))])?;
+                        *row_count_returned = true;
+
+                        Ok(PollPull::Batch(row_count_batch))
+                    }
+                }
             },
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 }
 
-impl Explainable for PhysicalQuerySink {
+impl<S: SinkOperation> Explainable for SinkOperator<S> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         self.sink.explain_entry(conf)
     }

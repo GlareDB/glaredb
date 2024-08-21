@@ -267,7 +267,7 @@ where
                 target_partitions: VarAccessor::new(&self.vars).partitions(),
             },
             PlanLocationState::Client {
-                output_sink: Some(Box::new(sink)),
+                output_sink: Some(sink),
                 hybrid_client: self.hybrid_client.as_ref(),
             },
         );

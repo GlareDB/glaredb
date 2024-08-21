@@ -2,7 +2,8 @@ use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
-use rayexec_execution::functions::copy::{CopyToFunction, CopyToSink};
+use rayexec_execution::execution::operators::sink::PartitionSink;
+use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::AccessConfig;
 use rayexec_io::{location::FileLocation, FileProvider, FileSink};
@@ -26,7 +27,7 @@ impl<R: Runtime> CopyToFunction for CsvCopyToFunction<R> {
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,
-    ) -> Result<Vec<Box<dyn CopyToSink>>> {
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
         let provider = self.runtime.file_provider();
 
         let mut sinks = Vec::with_capacity(num_partitions);
@@ -65,7 +66,7 @@ impl CsvCopyToSink {
     }
 }
 
-impl CopyToSink for CsvCopyToSink {
+impl PartitionSink for CsvCopyToSink {
     fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         self.push_inner(batch).boxed()
     }

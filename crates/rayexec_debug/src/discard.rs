@@ -1,7 +1,9 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
-use rayexec_execution::functions::copy::{CopyToFunction, CopyToSink};
+use rayexec_execution::{
+    execution::operators::sink::PartitionSink, functions::copy::CopyToFunction,
+};
 use rayexec_io::location::FileLocation;
 
 /// COPY TO function implementation that discards all input.
@@ -18,7 +20,7 @@ impl CopyToFunction for DiscardCopyToFunction {
         _schema: Schema,
         _location: FileLocation,
         num_partitions: usize,
-    ) -> Result<Vec<Box<dyn CopyToSink>>> {
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
         let sinks = (0..num_partitions)
             .map(|_| Box::new(DiscardCopyToSink) as _)
             .collect();
@@ -30,7 +32,7 @@ impl CopyToFunction for DiscardCopyToFunction {
 #[derive(Debug, Clone, Copy)]
 struct DiscardCopyToSink;
 
-impl CopyToSink for DiscardCopyToSink {
+impl PartitionSink for DiscardCopyToSink {
     fn push(&mut self, _batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async { Ok(()) })
     }

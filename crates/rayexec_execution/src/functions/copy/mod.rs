@@ -1,6 +1,4 @@
 use dyn_clone::DynClone;
-use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
@@ -10,6 +8,8 @@ use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+use crate::execution::operators::sink::PartitionSink;
 
 pub const FORMAT_OPT_KEY: &str = "format";
 
@@ -77,7 +77,7 @@ pub trait CopyToFunction: Debug + Sync + Send + DynClone {
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,
-    ) -> Result<Vec<Box<dyn CopyToSink>>>;
+    ) -> Result<Vec<Box<dyn PartitionSink>>>;
 }
 
 impl Clone for Box<dyn CopyToFunction> {
@@ -96,18 +96,4 @@ impl PartialEq for dyn CopyToFunction + '_ {
     fn eq(&self, other: &dyn CopyToFunction) -> bool {
         self.name() == other.name()
     }
-}
-
-pub trait CopyToSink: Debug + Send {
-    /// Push a batch to the sink.
-    ///
-    /// Batches are pushed in the order they're received in.
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>>;
-
-    /// Finalize the sink.
-    ///
-    /// Called once only after all batches have been pushed. If there's any
-    /// pending work that needs to happen (flushing), it should happen here.
-    /// Once this returns, the sink is complete.
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>>;
 }

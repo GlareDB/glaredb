@@ -3,14 +3,11 @@ use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
-use std::task::Context;
 
 use crate::database::catalog_entry::CatalogEntry;
-use crate::execution::operators::PollFinalize;
-use crate::execution::operators::PollPush;
+use crate::execution::operators::sink::PartitionSink;
 
 use super::table_storage::DataTable;
-use super::table_storage::DataTableInsert;
 use super::table_storage::DataTableScan;
 use super::table_storage::TableStorage;
 
@@ -111,7 +108,7 @@ impl DataTable for MemoryDataTable {
             .collect())
     }
 
-    fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn DataTableInsert>>> {
+    fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {
         let inserts: Vec<_> = (0..input_partitions)
             .map(|_| {
                 Box::new(MemoryDataTableInsert {
@@ -142,15 +139,19 @@ pub struct MemoryDataTableInsert {
     data: Arc<Mutex<Vec<Batch>>>,
 }
 
-impl DataTableInsert for MemoryDataTableInsert {
-    fn poll_push(&mut self, _cx: &mut Context, batch: Batch) -> Result<PollPush> {
-        self.collected.push(batch);
-        Ok(PollPush::NeedsMore)
+impl PartitionSink for MemoryDataTableInsert {
+    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            self.collected.push(batch);
+            Ok(())
+        })
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
-        let mut data = self.data.lock();
-        data.append(&mut self.collected);
-        Ok(PollFinalize::Finalized)
+    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            let mut data = self.data.lock();
+            data.append(&mut self.collected);
+            Ok(())
+        })
     }
 }

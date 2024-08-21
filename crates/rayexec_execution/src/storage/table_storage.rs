@@ -2,12 +2,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
-use std::task::Context;
 
-use crate::{
-    database::catalog_entry::CatalogEntry,
-    execution::operators::{PollFinalize, PollPush},
-};
+use crate::{database::catalog_entry::CatalogEntry, execution::operators::sink::PartitionSink};
 
 pub trait TableStorage: Debug + Sync + Send {
     fn data_table(&self, schema: &str, ent: &CatalogEntry) -> Result<Box<dyn DataTable>>;
@@ -30,7 +26,7 @@ pub trait DataTable: Debug + Sync + Send {
     /// number.
     fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>>;
 
-    fn insert(&self, _input_partitions: usize) -> Result<Vec<Box<dyn DataTableInsert>>> {
+    fn insert(&self, _input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {
         Err(RayexecError::new("Data table does not support inserts"))
     }
 
@@ -58,11 +54,6 @@ impl DataTableScan for EmptyTableScan {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
         Box::pin(async move { Ok(None) })
     }
-}
-
-pub trait DataTableInsert: Debug + Sync + Send {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
-    fn poll_finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }
 
 pub trait DataTableUpdate: Debug + Sync + Send {}
