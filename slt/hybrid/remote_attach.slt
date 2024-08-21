@@ -21,7 +21,7 @@ describe remote1.schema1.table1;
 c1  Int64
 c2  Utf8
 
-query II
+query IT
 select * from remote1.schema1.table1 order by 1;
 ----
 1  a

@@ -463,15 +463,24 @@ impl<'a> PlanContext<'a> {
 
         let [catalog, schema, name] = create.name.pop_3()?;
 
+        // TODO: Get the location based on the the catalog that we're trying to
+        // create a table in. There's still some figuring out how we want to
+        // create tables in attached data sources, and if we need to store
+        // additional data about the catalog (specifically if the catalog we're
+        // referencing is a "stub", and hybrid execution is required).
+
         Ok(LogicalQuery {
-            root: LogicalOperator::CreateTable(LogicalNode::new(CreateTable {
-                catalog,
-                schema,
-                name,
-                columns,
-                on_conflict,
-                input,
-            })),
+            root: LogicalOperator::CreateTable(LogicalNode::with_location(
+                CreateTable {
+                    catalog,
+                    schema,
+                    name,
+                    columns,
+                    on_conflict,
+                    input,
+                },
+                LocationRequirement::ClientLocal,
+            )),
             scope: Scope::empty(),
         })
     }

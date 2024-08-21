@@ -1,0 +1,17 @@
+# CREATE TEMP TABLE AS with remote source
+
+statement error Missing catalog 'remote1'
+CREATE TEMP TABLE t1 AS SELECT * FROM remote1.schema1.table1;
+
+statement ok
+ATTACH remote_debug1 DATABASE AS remote1;
+
+statement ok
+CREATE TEMP TABLE t1 AS SELECT * FROM remote1.schema1.table1;
+
+query IT
+SELECT * FROM t1;
+----
+1  a
+2  b
+
