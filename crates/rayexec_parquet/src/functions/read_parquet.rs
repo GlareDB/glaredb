@@ -1,6 +1,7 @@
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use rayexec_execution::{
     database::DatabaseContext,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
@@ -13,7 +14,6 @@ use rayexec_proto::{
     packed::{PackedDecoder, PackedEncoder},
     ProtoConv,
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{metadata::Metadata, schema::from_parquet_schema};
@@ -50,18 +50,11 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 struct ReadParquetState {
     location: FileLocation,
     conf: AccessConfig,
-    // TODO: Not sure what we want to do here. We could put
-    // Serialize/Deserialize macros on everything, but I'm not sure how
-    // deep/wide that would go.
-    //
-    // Could also just keep the bytes around and put those directly in the
-    // encoded state.
-    #[serde(skip)]
-    metadata: Option<Arc<Metadata>>,
+    metadata: Arc<Metadata>,
     schema: Schema,
 }
 
@@ -70,6 +63,7 @@ impl ReadParquetState {
         let mut packed = PackedEncoder::new(buf);
         packed.encode_next(&self.location.to_proto()?)?;
         packed.encode_next(&self.conf.to_proto()?)?;
+        packed.encode_next(&self.metadata.metadata_buffer)?;
         packed.encode_next(&self.schema.to_proto()?)?;
         Ok(())
     }
@@ -78,12 +72,16 @@ impl ReadParquetState {
         let mut packed = PackedDecoder::new(buf);
         let location = FileLocation::from_proto(packed.decode_next()?)?;
         let conf = AccessConfig::from_proto(packed.decode_next()?)?;
+        let metadata_buffer: Bytes = packed.decode_next()?;
         let schema = Schema::from_proto(packed.decode_next()?)?;
+
+        let metadata = Arc::new(Metadata::try_from_buffer(metadata_buffer)?);
+
         Ok(ReadParquetState {
             location,
             conf,
             schema,
-            metadata: None,
+            metadata,
         })
     }
 }
@@ -107,15 +105,15 @@ impl<R: Runtime> ReadParquetImpl<R> {
 
         let size = source.size().await?;
 
-        let metadata = Metadata::load_from(source.as_mut(), size).await?;
-        let schema = from_parquet_schema(metadata.parquet_metadata.file_metadata().schema_descr())?;
+        let metadata = Metadata::new_from_source(source.as_mut(), size).await?;
+        let schema = from_parquet_schema(metadata.decoded_metadata.file_metadata().schema_descr())?;
 
         Ok(Box::new(Self {
             func,
             state: ReadParquetState {
                 location,
                 conf,
-                metadata: Some(Arc::new(metadata)),
+                metadata: Arc::new(metadata),
                 schema,
             },
         }))
@@ -136,13 +134,8 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
     }
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {
-        let metadata = match self.state.metadata.as_ref().cloned() {
-            Some(metadata) => metadata,
-            None => return Err(RayexecError::new("Missing parquet metadata on state")),
-        };
-
         Ok(Box::new(RowGroupPartitionedDataTable {
-            metadata,
+            metadata: self.state.metadata.clone(),
             schema: self.state.schema.clone(),
             location: self.state.location.clone(),
             conf: self.state.conf.clone(),

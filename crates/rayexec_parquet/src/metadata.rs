@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use parquet::file::{
     footer::{decode_footer, decode_metadata},
     metadata::ParquetMetaData,
@@ -8,12 +9,18 @@ use tracing::trace;
 
 #[derive(Debug, Clone)]
 pub struct Metadata {
-    pub parquet_metadata: ParquetMetaData,
+    pub decoded_metadata: ParquetMetaData,
+    /// The metadata in its original serialized form.
+    ///
+    /// Storing this allows us to repeatedly deserialize the metadata without
+    /// needing to read from the file again. This is needed during hybrid/dist
+    /// exec.
+    pub metadata_buffer: Bytes,
 }
 
 impl Metadata {
     /// Loads parquet metadata from an async source.
-    pub async fn load_from(reader: &mut dyn FileSource, size: usize) -> Result<Self> {
+    pub async fn new_from_source(reader: &mut dyn FileSource, size: usize) -> Result<Self> {
         if size < 8 {
             return Err(RayexecError::new("File size is too small"));
         }
@@ -32,12 +39,22 @@ impl Metadata {
         }
 
         let metadata_start = size - len - 8;
-        let metadata = reader.read_range(metadata_start, len).await?;
+        let metadata_buffer = reader.read_range(metadata_start, len).await?;
 
-        let metadata = decode_metadata(&metadata).context("failed to decode metadata")?;
+        let metadata = decode_metadata(&metadata_buffer).context("failed to decode metadata")?;
 
         Ok(Metadata {
-            parquet_metadata: metadata,
+            decoded_metadata: metadata,
+            metadata_buffer,
+        })
+    }
+
+    pub fn try_from_buffer(buf: Bytes) -> Result<Self> {
+        let metadata = decode_metadata(&buf).context("failed to decode metadata")?;
+
+        Ok(Metadata {
+            decoded_metadata: metadata,
+            metadata_buffer: buf,
         })
     }
 }

@@ -35,7 +35,7 @@ impl<R: Runtime> DataTable for RowGroupPartitionedDataTable<R> {
         let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];
 
         // Split row groups into individual partitions.
-        for row_group in 0..self.metadata.parquet_metadata.row_groups().len() {
+        for row_group in 0..self.metadata.decoded_metadata.row_groups().len() {
             let partition = row_group % num_partitions;
             partitioned_row_groups[partition].push_back(row_group);
         }

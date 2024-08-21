@@ -143,7 +143,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         for (datatype, column_chunk_meta) in schema
             .iter()
             .map(|f| f.datatype.clone())
-            .zip(metadata.parquet_metadata.row_group(0).columns())
+            .zip(metadata.decoded_metadata.row_group(0).columns())
         {
             let physical = column_chunk_meta.column_type();
             let builder =
@@ -230,7 +230,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         for (idx, chunk) in self.column_chunks.iter_mut().enumerate() {
             let col = self
                 .metadata
-                .parquet_metadata
+                .decoded_metadata
                 .row_group(self.current_row_group.expect("current row group to be set"))
                 .column(idx);
             let (start, len) = col.byte_range();
@@ -255,11 +255,11 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         let row_group = self.current_row_group.expect("current row group to be set");
         let locations = self
             .metadata
-            .parquet_metadata
+            .decoded_metadata
             .offset_index()
             .map(|row_groups| row_groups[row_group][col].clone());
 
-        let row_group_meta = self.metadata.parquet_metadata.row_group(row_group);
+        let row_group_meta = self.metadata.decoded_metadata.row_group(row_group);
 
         let chunk = match std::mem::take(&mut self.column_chunks[col]) {
             Some(chunk) => Arc::new(chunk),
