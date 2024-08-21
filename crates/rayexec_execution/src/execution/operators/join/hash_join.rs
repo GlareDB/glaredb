@@ -103,6 +103,9 @@ struct SharedOutputState {
     /// Initially set to number of build partitions.
     build_inputs_remaining: usize,
 
+    /// Number of probe inputs remaining.
+    ///
+    /// Initially set to number of probe partitions.
     probe_inputs_remaining: usize,
 
     /// The shared global hash table once it's been fully built.
@@ -110,6 +113,9 @@ struct SharedOutputState {
     /// This is None if there's still inputs still building.
     shared_global: Option<Arc<PartitionJoinHashTable>>,
 
+    /// Union of all bitmaps across all partitions.
+    ///
+    /// Referenced with draining unvisited rows in the case of a LEFT join.
     global_left_visits: Option<LeftBatchVisitBitmaps>,
 
     /// Pending wakers for thread that attempted to probe the table prior to it
@@ -414,6 +420,15 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 state.input_finished = true;
 
+                // Set partition-local global hash table reference if we don't
+                // have it. It's possible for this partition not have this if we
+                // pushed no batches for this partition.
+                //
+                // We want to ensure this is set no matter the join type.
+                if state.global.is_none() {
+                    state.global = shared.shared_global.clone();
+                }
+
                 // Merge local left visit bitmaps into global if we have it.
                 match (
                     shared.global_left_visits.as_mut(),
@@ -463,12 +478,6 @@ impl ExecutableOperator for PhysicalHashJoin {
                                     .new_left_visit_bitmaps(),
                                 current_idx: 0,
                             });
-
-                            // Ensure we have a reference to the global hash
-                            // table as well. This would have only been set
-                            // during a push on the right. But if we're here, we
-                            // never pushed a batch on the right.
-                            state.global = shared.shared_global.clone();
                         }
                         None => {
                             // Nothing to do.
