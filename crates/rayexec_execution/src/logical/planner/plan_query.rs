@@ -8,7 +8,7 @@ use crate::logical::{
     },
     context::QueryContext,
     expr::LogicalExpression,
-    operator::{LogicalNode, SetOpKind, SetOperation},
+    operator::{EqualityJoin, LogicalNode, SetOpKind, SetOperation},
 };
 use crate::{
     functions::implicit::implicit_cast_score,
@@ -450,7 +450,7 @@ impl<'a> QueryNodePlanner<'a> {
                             ast::JoinType::Cross => {
                                 unreachable!("Cross join should not have a join condition")
                             }
-                            _ => unimplemented!(),
+                            other => not_implemented!("plan join type: {other:?}"),
                         };
 
                         LogicalQuery {
@@ -477,7 +477,133 @@ impl<'a> QueryNodePlanner<'a> {
                         }
                         _other => return Err(RayexecError::new("Missing join condition for join")),
                     },
-                    _ => unimplemented!(),
+                    using_or_natural => {
+                        // let merged = left_plan.scope.merge(right_plan.scope)?;
+                        let left_schema = left_plan.root.output_schema(&[])?; // TODO: Outers
+                        let right_schema = right_plan.root.output_schema(&[])?; // TODO: Outers
+
+                        let (left_on, right_on) = match using_or_natural {
+                            ast::JoinCondition::Using(idents) => {
+                                let left_ctx = ExpressionContext::new(
+                                    &left_nested,
+                                    &left_plan.scope,
+                                    &left_schema,
+                                );
+
+                                let right_ctx = ExpressionContext::new(
+                                    &right_nested,
+                                    &right_plan.scope,
+                                    &right_schema,
+                                );
+
+                                let mut left_on = Vec::new();
+                                let mut right_on = Vec::new();
+
+                                for ident in idents {
+                                    let left_idx = left_ctx
+                                        .plan_ident(ident.clone())?
+                                        .try_into_column_ref()?
+                                        .try_as_uncorrelated()?;
+                                    let right_idx = right_ctx
+                                        .plan_ident(ident)?
+                                        .try_into_column_ref()?
+                                        .try_as_uncorrelated()?;
+
+                                    left_on.push(left_idx);
+                                    right_on.push(right_idx);
+                                }
+
+                                (left_on, right_on)
+                            }
+                            ast::JoinCondition::Natural => {
+                                not_implemented!("NATURAL join")
+                            }
+                            other => unreachable!(
+                                "outer match statement checked join condition: {other:?}"
+                            ),
+                        };
+
+                        // Compute projections where USING columns come first,
+                        // then remaining left columns then remaining right.
+
+                        let mut remaining_left = Vec::new();
+                        for left_idx in 0..left_schema.types.len() {
+                            if !left_on.contains(&left_idx) {
+                                remaining_left.push(left_idx);
+                            }
+                        }
+
+                        let mut remaining_right = Vec::new();
+                        for right_idx in 0..right_schema.types.len() {
+                            if !right_on.contains(&right_idx) {
+                                remaining_right.push(right_idx);
+                            }
+                        }
+
+                        // Compute merged scope.
+                        //
+                        // Use left on for the USING columns (these come first).
+                        let using_scope_items = left_on
+                            .iter()
+                            .map(|&idx| left_plan.scope.items[idx].clone());
+
+                        let left_remaining_scope_items = remaining_left
+                            .iter()
+                            .map(|&idx| left_plan.scope.items[idx].clone());
+
+                        let right_remaining_scope_items = remaining_right
+                            .iter()
+                            .map(|&idx| right_plan.scope.items[idx].clone());
+
+                        let merged: Vec<_> = using_scope_items
+                            .chain(left_remaining_scope_items)
+                            .chain(right_remaining_scope_items)
+                            .collect();
+                        let scope = Scope { items: merged };
+
+                        // Projections
+                        let right_offset = left_schema.types.len();
+                        let projections: Vec<_> = left_on
+                            .iter()
+                            .map(|&idx| LogicalExpression::new_column(idx))
+                            .chain(
+                                remaining_left
+                                    .into_iter()
+                                    .map(|idx| LogicalExpression::new_column(idx)),
+                            )
+                            .chain(
+                                remaining_right
+                                    .into_iter()
+                                    .map(|idx| LogicalExpression::new_column(idx + right_offset)),
+                            )
+                            .collect();
+
+                        let join_type = match join_type {
+                            ast::JoinType::Inner => JoinType::Inner,
+                            ast::JoinType::Left => JoinType::Left,
+                            ast::JoinType::Right => JoinType::Right,
+                            ast::JoinType::Cross => {
+                                unreachable!("Cross join should not have a join condition")
+                            }
+                            other => not_implemented!("plan join type: {other:?}"),
+                        };
+
+                        LogicalQuery {
+                            root: LogicalOperator::Projection(LogicalNode::new(Projection {
+                                exprs: projections,
+                                input: Box::new(LogicalOperator::EqualityJoin(LogicalNode::new(
+                                    EqualityJoin {
+                                        left: Box::new(left_plan.root),
+                                        right: Box::new(right_plan.root),
+                                        join_type,
+                                        left_on,
+                                        right_on,
+                                    },
+                                ))),
+                            })),
+                            scope,
+                        }
+                    }
                 }
             }
             ast::FromNodeBody::File(_) => {
