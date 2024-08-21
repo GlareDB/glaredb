@@ -49,7 +49,7 @@ use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
-use sink::{QuerySinkPartitionState, SinkOperation, SinkOperator};
+use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
 use sort::local_sort::PhysicalLocalSort;
 use sort::merge_sorted::PhysicalMergeSortedInputs;
 use source::QuerySourcePartitionState;
@@ -99,7 +99,7 @@ pub enum PartitionState {
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
-    QuerySink(QuerySinkPartitionState),
+    Sink(SinkPartitionState),
     QuerySource(QuerySourcePartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
@@ -132,6 +132,7 @@ pub enum OperatorState {
     MergeSorted(MergeSortedOperatorState),
     Materialize(MaterializeOperatorState),
     Union(UnionOperatorState),
+    Sink(SinkOperatorState),
     None,
 }
 

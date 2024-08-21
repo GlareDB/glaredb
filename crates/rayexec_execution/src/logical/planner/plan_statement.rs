@@ -348,7 +348,7 @@ impl<'a> PlanContext<'a> {
                 },
                 location,
             )),
-            scope: Scope::empty(),
+            scope: Scope::with_columns(None, ["rows_inserted"]),
         })
     }
 

@@ -3,6 +3,7 @@ use crate::{
     logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 use futures::{future::BoxFuture, FutureExt};
+use parking_lot::Mutex;
 use rayexec_bullet::{
     array::{Array, PrimitiveArray},
     batch::Batch,
@@ -70,39 +71,55 @@ pub trait PartitionSink: Debug + Send {
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>>;
 }
 
-pub enum QuerySinkPartitionState {
+pub enum SinkPartitionState {
     Writing {
-        inner: Option<QuerySinkInnerPartitionState>,
+        inner: Option<SinkInnerPartitionState>,
         /// Future we're working on for a pending write.
         future: Option<BoxFuture<'static, Result<()>>>,
     },
     Finalizing {
-        inner: Option<QuerySinkInnerPartitionState>,
+        inner: Option<SinkInnerPartitionState>,
         /// Future we're working on for a pending finalize. This should never be
         /// None, as if there's nothing for us to do, the state should be in
         /// `Finished`.
         future: BoxFuture<'static, Result<()>>,
     },
     Finished {
-        /// Number of rows that went through this operator.
+        /// Number of rows that went through this operator for this partition.
         row_count: usize,
-        /// If we've already returned the row count at the end.
-        row_count_returned: bool,
     },
 }
 
-impl fmt::Debug for QuerySinkPartitionState {
+impl fmt::Debug for SinkPartitionState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("QuerySinkPartitionState")
-            .finish_non_exhaustive()
+        f.debug_struct("SinkPartitionState").finish_non_exhaustive()
     }
 }
 
 #[derive(Debug)]
-pub struct QuerySinkInnerPartitionState {
+pub struct SinkInnerPartitionState {
     sink: Box<dyn PartitionSink>,
     pull_waker: Option<Waker>,
-    row_count: usize, // TODO: Global sync
+    current_row_count: usize,
+}
+
+#[derive(Debug)]
+pub struct SinkOperatorState {
+    inner: Mutex<SinkOperatorStateInner>,
+}
+
+#[derive(Debug)]
+struct SinkOperatorStateInner {
+    /// Row count from all partitions.
+    global_row_count: usize,
+
+    /// If we've already returned the global row count.
+    global_row_count_returned: bool,
+
+    /// Number of partitions still writing to the sink.
+    ///
+    /// The last partition to complete should write out the global row count.
+    partitions_remaining: usize,
 }
 
 /// An operator that writes batches to a partition sink.
@@ -136,11 +153,11 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
             .create_partition_sinks(context, partitions)?
             .into_iter()
             .map(|sink| {
-                PartitionState::QuerySink(QuerySinkPartitionState::Writing {
-                    inner: Some(QuerySinkInnerPartitionState {
+                PartitionState::Sink(SinkPartitionState::Writing {
+                    inner: Some(SinkInnerPartitionState {
                         sink,
                         pull_waker: None,
-                        row_count: 0,
+                        current_row_count: 0,
                     }),
                     future: None,
                 })
@@ -148,7 +165,13 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorState::Sink(SinkOperatorState {
+                inner: Mutex::new(SinkOperatorStateInner {
+                    global_row_count: 0,
+                    global_row_count_returned: false,
+                    partitions_remaining: partitions,
+                }),
+            })),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
@@ -163,8 +186,8 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         batch: Batch,
     ) -> Result<PollPush> {
         match partition_state {
-            PartitionState::QuerySink(state) => match state {
-                QuerySinkPartitionState::Writing { inner, future } => {
+            PartitionState::Sink(state) => match state {
+                SinkPartitionState::Writing { inner, future } => {
                     if let Some(curr_future) = future {
                         match curr_future.poll_unpin(cx) {
                             Poll::Ready(Ok(_)) => {
@@ -188,7 +211,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     }
 
                     let inner = inner.as_mut().unwrap();
-                    inner.row_count += batch.num_rows();
+                    inner.current_row_count += batch.num_rows();
 
                     let mut push_future = inner.sink.push(batch);
                     match push_future.poll_unpin(cx) {
@@ -229,8 +252,8 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         match partition_state {
-            PartitionState::QuerySink(state) => match state {
-                QuerySinkPartitionState::Writing { inner, future } => {
+            PartitionState::Sink(state) => match state {
+                SinkPartitionState::Writing { inner, future } => {
                     if let Some(curr_future) = future {
                         // Still a writing future that needs to complete.
                         match curr_future.poll_unpin(cx) {
@@ -251,9 +274,8 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
                             }
-                            *state = QuerySinkPartitionState::Finished {
-                                row_count: inner.row_count,
-                                row_count_returned: false,
+                            *state = SinkPartitionState::Finished {
+                                row_count: inner.current_row_count,
                             };
 
                             Ok(PollFinalize::Finalized)
@@ -265,7 +287,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             // SAFETY: Lifetime of copy to sink outlives this future.
                             let future = unsafe { make_static(finalize_future) };
 
-                            *state = QuerySinkPartitionState::Finalizing {
+                            *state = SinkPartitionState::Finalizing {
                                 inner: Some(inner),
                                 future,
                             };
@@ -274,7 +296,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                         }
                     }
                 }
-                QuerySinkPartitionState::Finalizing { inner, future } => {
+                SinkPartitionState::Finalizing { inner, future } => {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
                             // We're done.
@@ -282,9 +304,8 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                                 waker.wake();
                             }
 
-                            *state = QuerySinkPartitionState::Finished {
-                                row_count: inner.as_ref().unwrap().row_count,
-                                row_count_returned: false,
+                            *state = SinkPartitionState::Finished {
+                                row_count: inner.as_ref().unwrap().current_row_count,
                             };
 
                             Ok(PollFinalize::Finalized)
@@ -305,32 +326,42 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        operator_state: &OperatorState,
     ) -> Result<PollPull> {
         match partition_state {
-            PartitionState::QuerySink(state) => match state {
-                QuerySinkPartitionState::Writing { inner, .. }
-                | QuerySinkPartitionState::Finalizing { inner, .. } => {
+            PartitionState::Sink(state) => match state {
+                SinkPartitionState::Writing { inner, .. }
+                | SinkPartitionState::Finalizing { inner, .. } => {
                     if let Some(inner) = inner.as_mut() {
                         inner.pull_waker = Some(cx.waker().clone());
                     }
                     Ok(PollPull::Pending)
                 }
-                QuerySinkPartitionState::Finished {
-                    row_count,
-                    row_count_returned,
-                } => {
-                    if *row_count_returned {
-                        Ok(PollPull::Exhausted)
-                    } else {
+                SinkPartitionState::Finished { ref row_count } => {
+                    let mut shared = match operator_state {
+                        OperatorState::Sink(state) => state.inner.lock(),
+                        other => panic!("invalid operator state: {other:?}"),
+                    };
+
+                    if shared.global_row_count_returned {
+                        return Ok(PollPull::Exhausted);
+                    }
+
+                    shared.global_row_count += row_count;
+                    shared.partitions_remaining -= 1;
+
+                    if shared.partitions_remaining == 0 {
+                        shared.global_row_count_returned = true;
+
                         let row_count_batch =
                             Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
                                 *row_count as u64,
                             ]))])?;
-                        *row_count_returned = true;
 
-                        Ok(PollPull::Batch(row_count_batch))
+                        return Ok(PollPull::Batch(row_count_batch));
                     }
+
+                    Ok(PollPull::Exhausted)
                 }
             },
             other => panic!("invalid partition state: {other:?}"),

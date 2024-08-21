@@ -1073,8 +1073,10 @@ pub struct Insert {
 
 impl SchemaNode for Insert {
     fn output_schema(&self, _outer: &[TypeSchema]) -> Result<TypeSchema> {
-        // TODO: This would be someting in the case of RETURNING.
-        Ok(TypeSchema::empty())
+        // TODO: RETURNING would chang this.
+
+        // Number of rows returned.
+        Ok(TypeSchema::new([DataType::UInt64]))
     }
 }
 

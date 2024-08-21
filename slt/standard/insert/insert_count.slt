@@ -1,0 +1,31 @@
+# Row count returned by INSERT INTO
+
+statement ok
+CREATE TEMP TABLE t1 (a int, b int, c int);
+
+query I
+INSERT INTO t1 VALUES (1, 2, 3);
+----
+1
+
+query I
+INSERT INTO t1 SELECT 4, 5, 6 WHERE false;
+----
+0
+
+query I
+SELECT count(*) FROM t1;
+----
+1
+
+query I
+INSERT INTO t1 SELECT * FROM generate_series(1, 100) s1,
+                             generate_series(1, 100) s2,
+                             generate_series(1, 100) s3;
+----
+1000000
+
+query I
+SELECT count(*) FROM t1;
+----
+1000001
