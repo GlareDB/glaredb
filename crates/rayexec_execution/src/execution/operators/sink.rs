@@ -84,10 +84,7 @@ pub enum SinkPartitionState {
         /// `Finished`.
         future: BoxFuture<'static, Result<()>>,
     },
-    Finished {
-        /// Number of rows that went through this operator for this partition.
-        row_count: usize,
-    },
+    Finished,
 }
 
 impl fmt::Debug for SinkPartitionState {
@@ -249,7 +246,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::Sink(state) => match state {
@@ -270,13 +267,23 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     let mut finalize_future = inner.sink.finalize();
                     match finalize_future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
+                            // TODO: This is duplicated iwth the below `Finalizing` match arm.
+
                             // We're done.
                             if let Some(waker) = inner.pull_waker.take() {
                                 waker.wake();
                             }
-                            *state = SinkPartitionState::Finished {
-                                row_count: inner.current_row_count,
-                            };
+
+                            match operator_state {
+                                OperatorState::Sink(state) => {
+                                    let mut state = state.inner.lock();
+                                    state.global_row_count += inner.current_row_count;
+                                    state.partitions_remaining -= 1;
+                                }
+                                other => panic!("invalid operator state: {other:?}"),
+                            }
+
+                            *state = SinkPartitionState::Finished;
 
                             Ok(PollFinalize::Finalized)
                         }
@@ -304,9 +311,17 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                                 waker.wake();
                             }
 
-                            *state = SinkPartitionState::Finished {
-                                row_count: inner.as_ref().unwrap().current_row_count,
-                            };
+                            match operator_state {
+                                OperatorState::Sink(state) => {
+                                    let mut state = state.inner.lock();
+                                    state.global_row_count +=
+                                        inner.as_ref().unwrap().current_row_count;
+                                    state.partitions_remaining -= 1;
+                                }
+                                other => panic!("invalid operator state: {other:?}"),
+                            }
+
+                            *state = SinkPartitionState::Finished;
 
                             Ok(PollFinalize::Finalized)
                         }
@@ -337,7 +352,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     }
                     Ok(PollPull::Pending)
                 }
-                SinkPartitionState::Finished { ref row_count } => {
+                SinkPartitionState::Finished => {
                     let mut shared = match operator_state {
                         OperatorState::Sink(state) => state.inner.lock(),
                         other => panic!("invalid operator state: {other:?}"),
@@ -347,15 +362,14 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                         return Ok(PollPull::Exhausted);
                     }
 
-                    shared.global_row_count += row_count;
-                    shared.partitions_remaining -= 1;
-
                     if shared.partitions_remaining == 0 {
                         shared.global_row_count_returned = true;
 
+                        let row_count = shared.global_row_count as u64;
+
                         let row_count_batch =
                             Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
-                                *row_count as u64,
+                                row_count,
                             ]))])?;
 
                         return Ok(PollPull::Batch(row_count_batch));
