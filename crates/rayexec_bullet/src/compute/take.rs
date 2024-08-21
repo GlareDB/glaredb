@@ -1,11 +1,11 @@
 use crate::{
     array::{
-        Array, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType,
-        VarlenValuesBuffer,
+        Array, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, TimestampArray, VarlenArray,
+        VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Take values from an array at the provided indices, and return a new array.
 ///
@@ -13,7 +13,6 @@ use rayexec_error::{RayexecError, Result};
 pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
     Ok(match arr {
         Array::Null(_) => Array::Null(NullArray::new(indices.len())),
-        Array::Boolean(_arr) => unimplemented!(), // TODO
         Array::Float32(arr) => Array::Float32(take_primitive(arr, indices)?),
         Array::Float64(arr) => Array::Float64(take_primitive(arr, indices)?),
         Array::Int8(arr) => Array::Int8(take_primitive(arr, indices)?),
@@ -42,11 +41,15 @@ pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
         }
         Array::Date32(arr) => Array::Date32(take_primitive(arr, indices)?),
         Array::Date64(arr) => Array::Date64(take_primitive(arr, indices)?),
+        Array::Timestamp(arr) => {
+            let primitive = take_primitive(arr.get_primitive(), indices)?;
+            Array::Timestamp(TimestampArray::new(arr.unit(), primitive))
+        }
         Array::Utf8(arr) => Array::Utf8(take_varlen(arr, indices)?),
         Array::LargeUtf8(arr) => Array::LargeUtf8(take_varlen(arr, indices)?),
         Array::Binary(arr) => Array::Binary(take_varlen(arr, indices)?),
         Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
-        other => unimplemented!("other: {}", other.datatype()),
+        other => not_implemented!("other: {}", other.datatype()),
     })
 }
 
