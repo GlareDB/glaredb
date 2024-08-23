@@ -7814,9 +7814,9 @@ dependencies = [
 
 [[package]]
 name = "scylla"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b20b46cf4ea921ba41121ba9ddf933185cd830cbe2c4fa6272a6e274a6b7368d"
+checksum = "aa10c3f279c517c76c24cdb9d6578e9ba5add658be315f10d71841a301d9e6a3"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -7845,9 +7845,9 @@ dependencies = [
 
 [[package]]
 name = "scylla-cql"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27ea3cd3ff5bf9d7db7a6d65c54cecf52f7c40b8e3e32c8c2d6da84d23776ea4"
+checksum = "e3160e9f484ba92cb2f6ca0254752e638df382f443954317695630e8668d9d14"
 dependencies = [
  "async-trait",
  "byteorder",
@@ -7862,9 +7862,9 @@ dependencies = [
 
 [[package]]
 name = "scylla-macros"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e50f3e2aec7ea9f495e029fb783eb34c64d26a8f2055e1d6b43d00e04d2fbda6"
+checksum = "83d8b68f5c1cd0b233234f7fb69f5729c4ca6029b7de280da350a1582d45273e"
 dependencies = [
  "darling 0.20.10",
  "proc-macro2",
