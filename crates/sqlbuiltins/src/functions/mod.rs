@@ -28,6 +28,7 @@ use scalars::postgres::{
     CurrentSchema,
     CurrentSchemas,
     CurrentUser,
+    FormatType,
     HasDatabasePrivilege,
     HasSchemaPrivilege,
     HasTablePrivilege,
@@ -239,6 +240,7 @@ impl FunctionRegistry {
             Arc::new(PgEncodingToChar),
             Arc::new(PgArrayToString),
             Arc::new(PgVersion),
+            Arc::new(FormatType),
             // System functions
             Arc::new(ConnectionId),
             Arc::new(Version),
