@@ -122,19 +122,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: [atomic-release]
     steps:
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v3
         with:
           name: dist-aarch64-apple-darwin.zip
           path: dist
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v3
         with:
           name: dist-x86_64-apple-darwin.zip
           path: dist
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v3
         with:
           name: dist-x86_64-unknown-linux-gnu.zip
           path: dist
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v3
         with:
           name: dist-x86_64-pc-windows-msvc.zip
           path: dist
@@ -320,7 +320,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v3
         with:
           name: wheels
       - name: maturin publish
@@ -507,7 +507,7 @@ jobs:
           check-latest: true
           registry-url: "https://registry.npmjs.org"
       - run: yarn install --frozen-lockfile
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v3
         with:
           path: bindings/nodejs/artifacts
       - run: yarn artifacts
