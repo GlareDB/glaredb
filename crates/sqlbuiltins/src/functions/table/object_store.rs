@@ -728,6 +728,7 @@ impl TableFunc for CloudUpload {
                     storage.store.inner.as_ref(),
                     meta,
                     /* sheet_name = */ None,
+                    /* table_name = */ None,
                     /* has_header = */ true,
                 )
                 .await?;
