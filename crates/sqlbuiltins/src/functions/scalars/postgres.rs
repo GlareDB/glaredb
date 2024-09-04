@@ -538,3 +538,27 @@ impl BuiltinScalarUDF for PgVersion {
         FunctionNamespace::Required("pg_catalog")
     }
 }
+
+
+#[derive(Clone, Copy, Debug)]
+pub struct FormatType;
+
+impl ConstBuiltinFunction for FormatType {
+    const NAME: &'static str = "format_type";
+    const DESCRIPTION: &'static str = "mock for postgres format_type";
+    const EXAMPLE: &'static str = "format_type(oid, int)";
+    const FUNCTION_TYPE: FunctionType = FunctionType::Scalar;
+
+    fn signature(&self) -> Option<Signature> {
+        Some(Signature::exact(
+            vec![DataType::Int32, DataType::Int32],
+            Volatility::Stable,
+        ))
+    }
+}
+
+impl BuiltinScalarUDF for FormatType {
+    fn try_as_expr(&self, _: &SessionCatalog, _: Vec<Expr>) -> DataFusionResult<Expr> {
+        Ok(Expr::Literal(ScalarValue::Null))
+    }
+}
