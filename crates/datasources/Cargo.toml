@@ -56,7 +56,7 @@ scylla = "0.13.2"
 serde_with = "3.9.0"
 tokio-postgres-rustls = "0.12.0"
 tokio-rustls = "0.26.0"
-tokio-util = "0.7.11"
+tokio-util = "0.7.12"
 uuid = "1.10.0"
 webpki-roots = "0.26.3"
 calamine = { version = "0.25.0", features = ["dates"] }
