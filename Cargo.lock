@@ -1573,7 +1573,7 @@ dependencies = [
  "bitflags 2.5.0",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -4504,15 +4504,6 @@ checksum = "f8478577c03552c21db0e2724ffb8986a5ce7af88107e6be5d2ee6e158c12800"
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
@@ -5116,7 +5107,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -6597,7 +6588,7 @@ checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "log",
  "multimap",
  "once_cell",
@@ -6640,7 +6631,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.58",
@@ -7814,9 +7805,9 @@ dependencies = [
 
 [[package]]
 name = "scylla"
-version = "0.13.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa10c3f279c517c76c24cdb9d6578e9ba5add658be315f10d71841a301d9e6a3"
+checksum = "8139623d3fb0c8205b15e84fa587f3aa0ba61f876c19a9157b688f7c1763a7c5"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -7827,7 +7818,7 @@ dependencies = [
  "futures",
  "hashbrown 0.14.3",
  "histogram",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "lazy_static",
  "lz4_flex",
  "rand",
@@ -7845,9 +7836,9 @@ dependencies = [
 
 [[package]]
 name = "scylla-cql"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3160e9f484ba92cb2f6ca0254752e638df382f443954317695630e8668d9d14"
+checksum = "de7020bcd1f6fdbeaed356cd426bf294b2071bd7120d48d2e8e319295e2acdcd"
 dependencies = [
  "async-trait",
  "byteorder",
@@ -7862,9 +7853,9 @@ dependencies = [
 
 [[package]]
 name = "scylla-macros"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83d8b68f5c1cd0b233234f7fb69f5729c4ca6029b7de280da350a1582d45273e"
+checksum = "3859b6938663fc5062e3b26f3611649c9bd26fb252e85f6fdfa581e0d2ce74b6"
 dependencies = [
  "darling 0.20.10",
  "proc-macro2",
