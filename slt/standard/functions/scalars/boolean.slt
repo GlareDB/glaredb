@@ -38,3 +38,47 @@ select false or false;
 ----
 false
 
+# Variadic variants
+
+query B
+select and(true, true, true);
+----
+true
+
+query B
+select and(true, true, false);
+----
+false
+
+query B
+select and();
+----
+NULL
+
+query B
+select or(true, true, true);
+----
+true
+
+query B
+select or(true, true, false);
+----
+true
+
+query B
+select or(false, false, false);
+----
+false
+
+query B
+select or();
+----
+NULL
+
+query B
+select or() from (values (1), (1), (1));
+----
+NULL
+NULL
+NULL
+

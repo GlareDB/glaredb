@@ -1,12 +1,11 @@
 use crate::database::DatabaseContext;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use crate::logical::explainable::Explainable;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::{
     ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,

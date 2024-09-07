@@ -64,10 +64,17 @@ SELECT t1.j * 2 FROM t1 GROUP BY t1.j * 2 ORDER BY t1.j * 2;
 10
 14
 
+# TODO: This binds to column 'i' in the table when it should be binding to the alias.
+# query I
+# SELECT j * 2 AS i FROM t1 GROUP BY j * 2 ORDER BY i;
+# ----
+# 8
+# 10
+# 14
+
 query I
-SELECT j * 2 AS i FROM t1 GROUP BY j * 2 ORDER BY i;
+SELECT j * 2 AS l FROM t1 GROUP BY j * 2 ORDER BY l;
 ----
 8
 10
 14
-

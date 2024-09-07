@@ -34,24 +34,15 @@ select b, d, c from
 2  1  mario
 
 
-# Using not implemented
-# query II
-# select * from
-#     (values (1, 2),
-#             (3, 4)) as t1(a, b)
-#   inner join
-#     (values (1, 5),
-#             (6, 4)) as t2(a, b) using (a)
-# ----
-# 2  5
-
-#
-# Queries below here don't optimize correctly. Once they do, they should be
-# moved into the above section.
-#
-
-statement ok
-set debug_error_on_nested_loop_join to false;
+query II
+select * from
+    (values (1, 2),
+            (3, 4)) as t1(a, b)
+  inner join
+    (values (1, 5),
+            (6, 4)) as t2(a, b) using (a)
+----
+1  2  5
 
 query II
 select b, d from
@@ -62,3 +53,12 @@ select b, d from
             (6, 4)) as t2(c, d) on a = c + 1
 ----
 4  5
+
+#
+# Queries below here don't optimize correctly. Once they do, they should be
+# moved into the above section.
+#
+
+statement ok
+set debug_error_on_nested_loop_join to false;
+

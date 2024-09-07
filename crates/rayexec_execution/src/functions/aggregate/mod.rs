@@ -9,7 +9,6 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::StateCombiner;
-use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, executor::aggregate::AggregateState};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
@@ -19,7 +18,8 @@ use std::{
     vec,
 };
 
-use crate::logical::expr::LogicalExpression;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 use super::FunctionInfo;
 
@@ -51,13 +51,12 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// call `plan_from_datatype`.
     fn plan_from_expressions(
         &self,
-        inputs: &[LogicalExpression],
-        operator_schema: &TypeSchema,
+        bind_context: &BindContext,
+        inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        // TODO: Are we going to need to pass in the outer schemas here?
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(operator_schema, &[]))
+            .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)

@@ -1,8 +1,6 @@
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
-    database::DatabaseContext,
-    functions::table::PlannedTableFunction,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    proto::DatabaseProtoConv,
+    database::DatabaseContext, functions::table::PlannedTableFunction, proto::DatabaseProtoConv,
     storage::table_storage::DataTableScan,
 };
 use futures::{future::BoxFuture, FutureExt};

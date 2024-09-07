@@ -10,10 +10,10 @@ use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::DatabaseContext,
     execution::operators::sink::{PartitionSink, SinkOperation},
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::{ErrorSink, QueryHandle},
 };
 

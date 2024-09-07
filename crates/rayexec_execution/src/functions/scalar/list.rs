@@ -7,7 +7,6 @@ use rayexec_bullet::{
     },
     bitmap::Bitmap,
     datatype::{DataType, DataTypeId, ListTypeMeta},
-    field::TypeSchema,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -15,8 +14,9 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    expr::Expression,
     functions::{plan_check_num_args, FunctionInfo, Signature},
-    logical::{consteval::ConstEval, expr::LogicalExpression},
+    logical::{binder::bind_context::BindContext, consteval::ConstEval},
 };
 
 use super::{PlannedScalarFunction, ScalarFunction};
@@ -55,12 +55,12 @@ impl ScalarFunction for ListExtract {
 
     fn plan_from_expressions(
         &self,
-        inputs: &[&LogicalExpression],
-        operator_schema: &TypeSchema,
+        bind_context: &BindContext,
+        inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(operator_schema, &[]))
+            .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
         plan_check_num_args(self, &datatypes, 2)?;

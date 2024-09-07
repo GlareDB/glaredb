@@ -83,7 +83,7 @@ impl PartitionAggregateHashTable {
         inputs: &[&Array],
         selection: &Bitmap,
     ) -> Result<()> {
-        let row_count = selection.popcnt();
+        let row_count = selection.count_trues();
 
         self.indexes_buffer.clear();
         self.indexes_buffer.reserve(row_count);

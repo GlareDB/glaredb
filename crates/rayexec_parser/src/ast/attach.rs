@@ -18,7 +18,7 @@ pub enum AttachType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Attach<T: AstMeta> {
-    pub datasource_name: T::DataSourceName,
+    pub datasource_name: Ident,
     pub attach_type: AttachType,
     pub alias: T::ItemReference,
     pub options: HashMap<Ident, Expr<T>>,

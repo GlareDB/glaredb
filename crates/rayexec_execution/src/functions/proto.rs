@@ -18,7 +18,7 @@ use super::{
 pub const FUNCTION_LOOKUP_CATALOG: &str = "glare_catalog";
 
 impl DatabaseProtoConv for Box<dyn ScalarFunction> {
-    type ProtoType = rayexec_proto::generated::expr::ScalarFunction;
+    type ProtoType = rayexec_proto::generated::functions::ScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -41,7 +41,7 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction> {
 }
 
 impl DatabaseProtoConv for Box<dyn PlannedScalarFunction> {
-    type ProtoType = rayexec_proto::generated::expr::PlannedScalarFunction;
+    type ProtoType = rayexec_proto::generated::functions::PlannedScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         let mut state = Vec::new();
@@ -70,7 +70,7 @@ impl DatabaseProtoConv for Box<dyn PlannedScalarFunction> {
 }
 
 impl DatabaseProtoConv for Box<dyn AggregateFunction> {
-    type ProtoType = rayexec_proto::generated::expr::AggregateFunction;
+    type ProtoType = rayexec_proto::generated::functions::AggregateFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -93,7 +93,7 @@ impl DatabaseProtoConv for Box<dyn AggregateFunction> {
 }
 
 impl DatabaseProtoConv for Box<dyn PlannedAggregateFunction> {
-    type ProtoType = rayexec_proto::generated::expr::PlannedAggregateFunction;
+    type ProtoType = rayexec_proto::generated::functions::PlannedAggregateFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         let mut state = Vec::new();
@@ -122,7 +122,7 @@ impl DatabaseProtoConv for Box<dyn PlannedAggregateFunction> {
 }
 
 impl DatabaseProtoConv for Box<dyn TableFunction> {
-    type ProtoType = rayexec_proto::generated::expr::TableFunction;
+    type ProtoType = rayexec_proto::generated::functions::TableFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -145,7 +145,7 @@ impl DatabaseProtoConv for Box<dyn TableFunction> {
 }
 
 impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
-    type ProtoType = rayexec_proto::generated::expr::PlannedTableFunction;
+    type ProtoType = rayexec_proto::generated::functions::PlannedTableFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         let mut state = Vec::new();
@@ -174,7 +174,7 @@ impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
 }
 
 impl ProtoConv for TableFunctionArgs {
-    type ProtoType = rayexec_proto::generated::expr::TableFunctionArgs;
+    type ProtoType = rayexec_proto::generated::functions::TableFunctionArgs;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         let mut named = HashMap::new();
@@ -210,7 +210,7 @@ impl ProtoConv for TableFunctionArgs {
 }
 
 impl DatabaseProtoConv for Box<dyn CopyToFunction> {
-    type ProtoType = rayexec_proto::generated::expr::CopyToFunction;
+    type ProtoType = rayexec_proto::generated::functions::CopyToFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -233,7 +233,7 @@ impl DatabaseProtoConv for Box<dyn CopyToFunction> {
 }
 
 impl ProtoConv for CopyToArgs {
-    type ProtoType = rayexec_proto::generated::expr::CopyToFunctionArgs;
+    type ProtoType = rayexec_proto::generated::functions::CopyToFunctionArgs;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         let mut named = HashMap::new();

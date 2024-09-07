@@ -7,7 +7,7 @@ use crate::execution::operators::{
     ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
     PollPush,
 };
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct TopKPartitionState {}

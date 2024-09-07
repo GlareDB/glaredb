@@ -2,7 +2,6 @@ use crate::{
     database::create::{CreateSchemaInfo, CreateTableInfo},
     engine::vars::SessionVars,
     execution::{
-        explain::format_logical_plan_for_explain,
         intermediate::PipelineSink,
         operators::{
             copy_to::CopyToOperation,
@@ -12,11 +11,11 @@ use crate::{
             empty::PhysicalEmpty,
             filter::FilterOperation,
             hash_aggregate::PhysicalHashAggregate,
+            hash_join::PhysicalHashJoin,
             insert::InsertOperation,
-            join::{hash_join::PhysicalHashJoin, nl_join::PhysicalNestedLoopJoin},
             limit::PhysicalLimit,
-            materialize::PhysicalMaterialize,
-            project::ProjectOperation,
+            nl_join::PhysicalNestedLoopJoin,
+            project::{PhysicalProject, ProjectOperation},
             scan::PhysicalScan,
             simple::SimpleOperator,
             sink::SinkOperator,
@@ -28,18 +27,42 @@ use crate::{
             PhysicalOperator,
         },
     },
-    expr::{PhysicalAggregateExpression, PhysicalScalarExpression, PhysicalSortExpression},
+    explain::{explainable::ExplainConfig, formatter::ExplainFormatter},
+    expr::{
+        comparison_expr::ComparisonOperator,
+        physical::{
+            column_expr::PhysicalColumnExpr, planner::PhysicalExpressionPlanner,
+            scalar_function_expr::PhysicalScalarFunctionExpr, PhysicalAggregateExpression,
+            PhysicalScalarExpression,
+        },
+        Expression,
+    },
+    functions::scalar::boolean::AndImpl,
     logical::{
-        context::QueryContext,
-        grouping_set::GroupingSets,
-        operator::{self, LocationRequirement, LogicalNode, LogicalOperator},
+        binder::bind_context::BindContext,
+        logical_aggregate::LogicalAggregate,
+        logical_copy::LogicalCopyTo,
+        logical_create::{LogicalCreateSchema, LogicalCreateTable},
+        logical_describe::LogicalDescribe,
+        logical_drop::LogicalDrop,
+        logical_empty::LogicalEmpty,
+        logical_explain::LogicalExplain,
+        logical_filter::LogicalFilter,
+        logical_insert::LogicalInsert,
+        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_limit::LogicalLimit,
+        logical_order::LogicalOrder,
+        logical_project::LogicalProject,
+        logical_scan::{LogicalScan, ScanSource},
+        logical_set::LogicalShowVar,
+        logical_setop::{LogicalSetop, SetOpKind},
+        operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
 };
 use rayexec_bullet::{
     array::{Array, Utf8Array},
     batch::Batch,
     compute::concat::concat,
-    field::TypeSchema,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use std::{collections::HashMap, sync::Arc};
@@ -95,12 +118,16 @@ impl IntermediatePipelinePlanner {
     pub fn plan_pipelines(
         &self,
         root: operator::LogicalOperator,
-        context: QueryContext,
+        bind_context: BindContext,
     ) -> Result<PlannedPipelineGroups> {
-        let mut state = IntermediatePipelineBuildState::new(&self.config);
+        let mut state = IntermediatePipelineBuildState::new(&self.config, &bind_context);
         let mut id_gen = PipelineIdGen::new(self.query_id);
 
-        let mut materializations = state.plan_materializations(context, &mut id_gen)?;
+        let mut materializations = {
+            // TODO
+            // state.plan_materializations(context, &mut id_gen)?;
+            Materializations::default()
+        };
         state.walk(&mut materializations, &mut id_gen, root)?;
 
         state.finish(&mut id_gen)?;
@@ -144,6 +171,7 @@ impl PipelineIdGen {
 }
 
 /// Key for a pipeline that's being materialized.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 enum MaterializationSource {
     Local(IntermediatePipelineId),
@@ -202,88 +230,27 @@ struct IntermediatePipelineBuildState<'a> {
     local_group: IntermediatePipelineGroup,
     /// Pipelines in the remote group.
     remote_group: IntermediatePipelineGroup,
+    /// Bind context used during logical planning.
+    ///
+    /// Used to generate physical expressions, and determined data types
+    /// returned from operators.
+    bind_context: &'a BindContext,
+    /// Expression planner for converting logical to physical expressions.
+    expr_planner: PhysicalExpressionPlanner<'a>,
 }
 
 impl<'a> IntermediatePipelineBuildState<'a> {
-    fn new(config: &'a IntermediateConfig) -> Self {
+    fn new(config: &'a IntermediateConfig, bind_context: &'a BindContext) -> Self {
+        let expr_planner = PhysicalExpressionPlanner::new(bind_context);
+
         IntermediatePipelineBuildState {
             config,
             in_progress: None,
             local_group: IntermediatePipelineGroup::default(),
             remote_group: IntermediatePipelineGroup::default(),
+            bind_context,
+            expr_planner,
         }
-    }
-
-    /// Plans all materialized logical plans in the query context.
-    ///
-    /// For each materialized plan, this will do two things:
-    ///
-    /// 1. Build the complete pipeline representing a plan whose sink will be a
-    ///    PhysicalMaterialize. This pipeline will be placed in one of the pipeline
-    ///    in one of the pipeline groups.
-    ///
-    /// 2. Create materialization keys the correspond to the materialized
-    ///    pipeline. When an operator encounters a materialization scan, it'll
-    ///    look at the key to determine the pipeline source.
-    ///
-    /// A materialized plan may depend on earlier materialized plans. What gets
-    /// returned is the set of materializations that should be used in the rest
-    /// of the plan.
-    fn plan_materializations(
-        &mut self,
-        context: QueryContext,
-        id_gen: &mut PipelineIdGen,
-    ) -> Result<Materializations> {
-        let mut materializations = Materializations::default();
-
-        for materialized in context.materialized {
-            // Generate the pipeline(s) for this plan.
-            self.walk(&mut materializations, id_gen, materialized.root)?;
-
-            // Finish off the pipeline with a PhysicalMaterialize as the sink.
-            let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Materialize(PhysicalMaterialize::new(
-                    materialized.num_scans,
-                ))),
-                partitioning_requirement: None,
-            };
-
-            let location = LocationRequirement::Any;
-            self.push_intermediate_operator(operator, location, id_gen)?;
-
-            let pipeline = self.take_in_progress_pipeline()?;
-            let location = pipeline.location;
-
-            let pipeline = IntermediatePipeline {
-                id: pipeline.id,
-                sink: PipelineSink::InPipeline,
-                source: pipeline.source,
-                operators: pipeline.operators,
-            };
-
-            let id = pipeline.id;
-            let source = match location {
-                LocationRequirement::ClientLocal => {
-                    self.local_group.pipelines.insert(id, pipeline);
-                    MaterializationSource::Local(id)
-                }
-                LocationRequirement::Remote => {
-                    self.remote_group.pipelines.insert(id, pipeline);
-                    MaterializationSource::Remote(id)
-                }
-                LocationRequirement::Any => {
-                    self.local_group.pipelines.insert(id, pipeline);
-                    MaterializationSource::Local(id)
-                }
-            };
-
-            let sources: Vec<_> = (0..materialized.num_scans).map(|_| source).collect();
-            materializations
-                .materialize_sources
-                .insert(materialized.idx, sources);
-        }
-
-        Ok(materializations)
     }
 
     fn walk(
@@ -293,19 +260,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         plan: LogicalOperator,
     ) -> Result<()> {
         match plan {
-            LogicalOperator::Projection(proj) => self.push_project(id_gen, materializations, proj),
+            LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
-            LogicalOperator::ExpressionList(values) => self.push_values(id_gen, values),
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
-            LogicalOperator::AnyJoin(join) => self.push_any_join(id_gen, materializations, join),
-            LogicalOperator::EqualityJoin(join) => {
-                self.push_equality_join(id_gen, materializations, join)
+            LogicalOperator::ArbitraryJoin(join) => {
+                self.push_arbitrary_join(id_gen, materializations, join)
             }
-            LogicalOperator::DependentJoin(_join) => Err(RayexecError::new(
-                "Dependent joins cannot be made into a pipeline",
-            )),
+            LogicalOperator::ComparisonJoin(join) => {
+                self.push_comparison_join(id_gen, materializations, join)
+            }
             LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
@@ -324,14 +289,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::CopyTo(copy_to) => {
                 self.push_copy_to(id_gen, materializations, copy_to)
             }
-            LogicalOperator::MaterializedScan(scan) => {
-                self.push_materialized_scan(materializations, id_gen, scan)
-            }
             LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
-            LogicalOperator::TableFunction(table_func) => {
-                self.push_table_function(id_gen, table_func)
-            }
-            LogicalOperator::SetOperation(setop) => {
+            LogicalOperator::SetOp(setop) => {
                 self.push_set_operation(id_gen, materializations, setop)
             }
             LogicalOperator::SetVar(_) => {
@@ -540,19 +499,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        copy_to: LogicalNode<operator::CopyTo>,
+        mut copy_to: Node<LogicalCopyTo>,
     ) -> Result<()> {
         let location = copy_to.location;
-        let copy_to = copy_to.into_inner();
+        let source = copy_to.take_one_child_exact()?;
 
-        self.walk(materializations, id_gen, *copy_to.source)?;
+        self.walk(materializations, id_gen, source)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::CopyTo(SinkOperator::new(
                 CopyToOperation {
-                    copy_to: copy_to.copy_to,
-                    location: copy_to.location,
-                    schema: copy_to.source_schema,
+                    copy_to: copy_to.node.copy_to,
+                    location: copy_to.node.location,
+                    schema: copy_to.node.source_schema,
                 },
             ))),
             // This should be temporary until there's a better understanding of
@@ -569,21 +528,21 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        setop: LogicalNode<operator::SetOperation>,
+        mut setop: Node<LogicalSetop>,
     ) -> Result<()> {
         let location = setop.location;
-        let setop = setop.into_inner();
 
-        // Schema from the top. Used as the input to a GROUP BY if ALL is
-        // omitted.
-        let top_schema = setop.top.output_schema(&[])?;
+        let [left, right] = setop.take_two_children_exact()?;
+        let top = left;
+        let bottom = right;
 
-        // Continue building top.
-        self.walk(materializations, id_gen, *setop.top)?;
+        // Continue building left/top.
+        self.walk(materializations, id_gen, top)?;
 
         // Create new pipelines for bottom.
-        let mut bottom_builder = IntermediatePipelineBuildState::new(self.config);
-        bottom_builder.walk(materializations, id_gen, *setop.bottom)?;
+        let mut bottom_builder =
+            IntermediatePipelineBuildState::new(self.config, self.bind_context);
+        bottom_builder.walk(materializations, id_gen, bottom)?;
         self.local_group
             .merge_from_other(&mut bottom_builder.local_group);
         self.remote_group
@@ -591,8 +550,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let bottom_in_progress = bottom_builder.take_in_progress_pipeline()?;
 
-        match setop.kind {
-            operator::SetOpKind::Union => {
+        match setop.node.kind {
+            SetOpKind::Union => {
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
                     partitioning_requirement: None,
@@ -608,15 +567,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Make output distinct by grouping on all columns. No output
         // aggregates, so the output schema remains the same.
-        if !setop.all {
-            let grouping_sets =
-                GroupingSets::new_for_group_by((0..top_schema.types.len()).collect());
-            let group_types = top_schema.types;
+        if !setop.node.all {
+            let output_types = self
+                .bind_context
+                .get_table(setop.node.table_ref)?
+                .column_types
+                .clone();
+
+            let grouping_sets = vec![(0..output_types.len()).collect()];
 
             let operator =
                 IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, grouping_sets, Vec::new()),
+                        PhysicalHashAggregate::new(output_types, Vec::new(), grouping_sets),
                     )),
                     partitioning_requirement: None,
                 };
@@ -627,13 +590,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_drop(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        drop: LogicalNode<operator::DropEntry>,
-    ) -> Result<()> {
+    fn push_drop(&mut self, id_gen: &mut PipelineIdGen, drop: Node<LogicalDrop>) -> Result<()> {
         let location = drop.location;
-        let drop = drop.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
@@ -641,8 +599,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(
-                drop.catalog,
-                drop.info,
+                drop.node.catalog,
+                drop.node.info,
             ))),
             partitioning_requirement: Some(1),
         };
@@ -661,19 +619,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        insert: LogicalNode<operator::Insert>,
+        mut insert: Node<LogicalInsert>,
     ) -> Result<()> {
         let location = insert.location;
-        let insert = insert.into_inner();
+        let input = insert.take_one_child_exact()?;
 
-        self.walk(materializations, id_gen, *insert.input)?;
+        self.walk(materializations, id_gen, input)?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Insert(SinkOperator::new(
                 InsertOperation {
-                    catalog: insert.catalog,
-                    schema: insert.schema,
-                    table: insert.table,
+                    catalog: insert.node.catalog,
+                    schema: insert.node.schema,
+                    table: insert.node.table,
                 },
             ))),
             partitioning_requirement: None,
@@ -684,98 +642,41 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_table_function(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        table_func: LogicalNode<operator::TableFunction>,
-    ) -> Result<()> {
-        let location = table_func.location;
-        let table_func = table_func.into_inner();
+    fn push_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {
+        let location = scan.location;
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
-                table_func.function,
-            ))),
-            partitioning_requirement: None,
-        };
+        // TODO: use this.
+        let _projections = scan.node.projection;
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
-
-        Ok(())
-    }
-
-    fn push_materialized_scan(
-        &mut self,
-        materializations: &mut Materializations,
-        id_gen: &mut PipelineIdGen,
-        scan: LogicalNode<operator::MaterializedScan>,
-    ) -> Result<()> {
-        // TODO: Do we care? Currently just defaulting to the materialization
-        // location.
-        let _location = scan.location;
-
-        let scan = scan.into_inner();
-
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
-
-        let (source_id, location) = match materializations.materialize_sources.get_mut(&scan.idx) {
-            Some(sources) => {
-                let source = sources.pop().required("materialization source key")?;
-                match source {
-                    MaterializationSource::Local(id) => (id, LocationRequirement::ClientLocal),
-                    MaterializationSource::Remote(id) => (id, LocationRequirement::Remote),
+        let operator = match scan.node.source {
+            ScanSource::Table {
+                catalog,
+                schema,
+                source,
+            } => IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
+                    catalog, schema, source,
+                ))),
+                partitioning_requirement: None,
+            },
+            ScanSource::TableFunction { function } => IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
+                    function,
+                ))),
+                partitioning_requirement: None,
+            },
+            ScanSource::ExpressionList { rows } => {
+                let batch = self.create_batch_for_row_values(rows)?;
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
+                    partitioning_requirement: None,
                 }
             }
-            None => {
-                return Err(RayexecError::new(format!(
-                    "Missing pipelines for materialized plan at index {}",
-                    scan.idx
-                )))
-            }
-        };
-
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location,
-            source: PipelineSource::OtherPipeline {
-                pipeline: source_id,
-            },
-        });
-
-        Ok(())
-    }
-
-    fn push_scan(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        scan: LogicalNode<operator::Scan>,
-    ) -> Result<()> {
-        let location = scan.location;
-        let scan = scan.into_inner();
-
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
-
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
-                scan.catalog,
-                scan.schema,
-                scan.source,
-            ))),
-            partitioning_requirement: None,
+            ScanSource::View { .. } => not_implemented!("view physical planning"),
         };
 
         self.in_progress = Some(InProgressPipeline {
@@ -791,10 +692,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_create_schema(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        create: LogicalNode<operator::CreateSchema>,
+        create: Node<LogicalCreateSchema>,
     ) -> Result<()> {
         let location = create.location;
-        let create = create.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
@@ -802,10 +702,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::CreateSchema(PhysicalCreateSchema::new(
-                create.catalog,
+                create.node.catalog,
                 CreateSchemaInfo {
-                    name: create.name,
-                    on_conflict: create.on_conflict,
+                    name: create.node.name,
+                    on_conflict: create.node.on_conflict,
                 },
             ))),
             partitioning_requirement: Some(1),
@@ -825,20 +725,28 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        create: LogicalNode<operator::CreateTable>,
+        mut create: Node<LogicalCreateTable>,
     ) -> Result<()> {
         let location = create.location;
-        let create = create.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let is_ctas = create.input.is_some();
-        match create.input {
+        let input = match create.children.len() {
+            1 | 0 => create.children.pop(),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Create table has more than one child: {other}",
+                )))
+            }
+        };
+
+        let is_ctas = input.is_some();
+        match input {
             Some(input) => {
                 // CTAS, plan the input. It'll be the source of this pipeline.
-                self.walk(materializations, id_gen, *input)?;
+                self.walk(materializations, id_gen, input)?;
             }
             None => {
                 // No input, just have an empty operator as the source.
@@ -859,12 +767,12 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::CreateTable(SinkOperator::new(
                 CreateTableSinkOperation {
-                    catalog: create.catalog,
-                    schema: create.schema,
+                    catalog: create.node.catalog,
+                    schema: create.node.schema,
                     info: CreateTableInfo {
-                        name: create.name,
-                        columns: create.columns,
-                        on_conflict: create.on_conflict,
+                        name: create.node.name,
+                        columns: create.node.columns,
+                        on_conflict: create.node.on_conflict,
                     },
                     is_ctas,
                 },
@@ -880,20 +788,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_describe(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        describe: LogicalNode<operator::Describe>,
+        describe: Node<LogicalDescribe>,
     ) -> Result<()> {
         let location = describe.location;
-        let describe = describe.into_inner();
 
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
         let names = Array::Utf8(Utf8Array::from_iter(
-            describe.schema.iter().map(|f| f.name.as_str()),
+            describe.node.schema.iter().map(|f| f.name.as_str()),
         ));
         let datatypes = Array::Utf8(Utf8Array::from_iter(
-            describe.schema.iter().map(|f| f.datatype.to_string()),
+            describe.node.schema.iter().map(|f| f.datatype.to_string()),
         ));
         let batch = Batch::try_new(vec![names, datatypes])?;
 
@@ -916,7 +823,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         _materializations: &mut Materializations,
-        explain: LogicalNode<operator::Explain>,
+        explain: Node<LogicalExplain>,
     ) -> Result<()> {
         let location = explain.location;
         let explain = explain.into_inner();
@@ -925,15 +832,31 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             not_implemented!("explain analyze")
         }
 
-        let formatted_logical =
-            format_logical_plan_for_explain(None, &explain.input, explain.format, explain.verbose)?;
+        let formatter = ExplainFormatter::new(
+            self.bind_context,
+            ExplainConfig {
+                verbose: explain.verbose,
+            },
+            explain.format,
+        );
 
-        // TODO: Executable, intermediate (w/ location)
+        let mut type_strings = Vec::new();
+        let mut plan_strings = Vec::new();
+
+        type_strings.push("unoptimized".to_string());
+        plan_strings.push(formatter.format_logical_plan(&explain.logical_unoptimized)?);
+
+        if let Some(optimized) = explain.logical_optimized {
+            type_strings.push("optimized".to_string());
+            plan_strings.push(formatter.format_logical_plan(&optimized)?);
+        }
+
+        // TODO: Pipeline stuff
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new(vec![
-                Array::Utf8(Utf8Array::from_iter(["logical"])),
-                Array::Utf8(Utf8Array::from_iter([formatted_logical.as_str()])),
+                Array::Utf8(Utf8Array::from(type_strings)),
+                Array::Utf8(Utf8Array::from(plan_strings)),
             ])?,
         ])));
 
@@ -955,7 +878,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_show_var(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        show: LogicalNode<operator::ShowVar>,
+        show: Node<LogicalShowVar>,
     ) -> Result<()> {
         let location = show.location;
         let show = show.into_inner();
@@ -989,18 +912,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        project: LogicalNode<operator::Projection>,
+        mut project: Node<LogicalProject>,
     ) -> Result<()> {
-        let input_schema = project.as_ref().input.output_schema(&[])?;
         let location = project.location;
-        let project = project.into_inner();
-        self.walk(materializations, id_gen, *project.input)?;
 
-        let projections = project
-            .exprs
-            .into_iter()
-            .map(|expr| PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &input_schema))
-            .collect::<Result<Vec<_>>>()?;
+        let input = project.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
+        self.walk(materializations, id_gen, input)?;
+
+        let projections = self
+            .expr_planner
+            .plan_scalars(&input_refs, &project.node.projections)?;
+
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
                 ProjectOperation::new(projections),
@@ -1017,15 +940,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        filter: LogicalNode<operator::Filter>,
+        mut filter: Node<LogicalFilter>,
     ) -> Result<()> {
-        let input_schema = filter.as_ref().input.output_schema(&[])?;
         let location = filter.location;
-        let filter = filter.into_inner();
-        self.walk(materializations, id_gen, *filter.input)?;
 
-        let predicate =
-            PhysicalScalarExpression::try_from_uncorrelated_expr(filter.predicate, &input_schema)?;
+        let input = filter.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
+        self.walk(materializations, id_gen, input)?;
+
+        let predicate = self
+            .expr_planner
+            .plan_scalar(&input_refs, &filter.node.filter)?;
+
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
                 FilterOperation::new(predicate),
@@ -1042,26 +968,17 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        order: LogicalNode<operator::Order>,
+        mut order: Node<LogicalOrder>,
     ) -> Result<()> {
         let location = order.location;
-        let order = order.into_inner();
 
-        let input_schema = order.input.output_schema(&[])?;
-        self.walk(materializations, id_gen, *order.input)?;
+        let input = order.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
+        self.walk(materializations, id_gen, input)?;
 
-        let exprs = order
-            .exprs
-            .into_iter()
-            .map(|order_expr| {
-                PhysicalSortExpression::try_from_uncorrelated_expr(
-                    order_expr.expr,
-                    &input_schema,
-                    order_expr.desc,
-                    order_expr.nulls_first,
-                )
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let exprs = self
+            .expr_planner
+            .plan_sorts(&input_refs, &order.node.exprs)?;
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
@@ -1123,19 +1040,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        limit: LogicalNode<operator::Limit>,
+        mut limit: Node<LogicalLimit>,
     ) -> Result<()> {
         let location = limit.location;
-        let limit = limit.into_inner();
+        let input = limit.take_one_child_exact()?;
 
-        self.walk(materializations, id_gen, *limit.input)?;
+        self.walk(materializations, id_gen, input)?;
 
         // TODO: Who sets partitioning? How was that working before?
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
-                limit.limit,
-                limit.offset,
+                limit.node.limit,
+                limit.node.offset,
             ))),
             partitioning_requirement: None,
         };
@@ -1149,34 +1066,71 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        agg: LogicalNode<operator::Aggregate>,
+        mut agg: Node<LogicalAggregate>,
     ) -> Result<()> {
         let location = agg.location;
-        let agg = agg.into_inner();
 
-        let input_schema = agg.input.output_schema(&[])?;
-        self.walk(materializations, id_gen, *agg.input)?;
+        let input = agg.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
+        self.walk(materializations, id_gen, input)?;
 
-        let mut agg_exprs = Vec::with_capacity(agg.aggregates.len());
-        for expr in agg.aggregates.into_iter() {
-            let agg_expr =
-                PhysicalAggregateExpression::try_from_logical_expression(expr, &input_schema)?;
-            agg_exprs.push(agg_expr);
+        let mut phys_aggs = Vec::new();
+
+        // Extract arg expressions, place in their own pre-projection.
+        let mut preproject_exprs = Vec::new();
+        for agg_expr in agg.node.aggregates {
+            let agg = match agg_expr {
+                Expression::Aggregate(agg) => agg,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected aggregate, got: {other}"
+                    )))
+                }
+            };
+
+            let start_col_index = preproject_exprs.len();
+            for arg in &agg.inputs {
+                let scalar = self.expr_planner.plan_scalar(&input_refs, arg)?;
+                preproject_exprs.push(scalar);
+            }
+            let end_col_index = preproject_exprs.len();
+
+            let phys_agg = PhysicalAggregateExpression {
+                output_type: agg.agg.return_type(),
+                function: agg.agg,
+                columns: (start_col_index..end_col_index)
+                    .map(|idx| PhysicalColumnExpr { idx })
+                    .collect(),
+            };
+
+            phys_aggs.push(phys_agg);
         }
 
-        match agg.grouping_sets {
+        // Place group by expressions in pre-projection as well.
+        let mut group_types = Vec::with_capacity(agg.node.group_exprs.len());
+        for group_expr in agg.node.group_exprs {
+            group_types.push(group_expr.datatype(self.bind_context)?);
+            let scalar = self.expr_planner.plan_scalar(&input_refs, &group_expr)?;
+            preproject_exprs.push(scalar);
+        }
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
+                    operation: ProjectOperation::new(preproject_exprs),
+                })),
+                partitioning_requirement: None,
+            },
+            location,
+            id_gen,
+        )?;
+
+        match agg.node.grouping_sets {
             Some(grouping_sets) => {
                 // If we're working with groups, push a hash aggregate operator.
-
-                let group_types: Vec<_> = grouping_sets
-                    .columns()
-                    .iter()
-                    .map(|idx| input_schema.types.get(*idx).expect("type to exist").clone())
-                    .collect();
-
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(group_types, grouping_sets, agg_exprs),
+                        PhysicalHashAggregate::new(group_types, phys_aggs, grouping_sets),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1187,7 +1141,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
                 let operator = IntermediateOperator {
                     operator: Arc::new(PhysicalOperator::UngroupedAggregate(
-                        PhysicalUngroupedAggregate::new(agg_exprs),
+                        PhysicalUngroupedAggregate::new(phys_aggs),
                     )),
                     partitioning_requirement: None,
                 };
@@ -1198,7 +1152,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_empty(&mut self, id_gen: &mut PipelineIdGen, empty: LogicalNode<()>) -> Result<()> {
+    fn push_empty(&mut self, id_gen: &mut PipelineIdGen, empty: Node<LogicalEmpty>) -> Result<()> {
         // "Empty" is a source of data by virtue of emitting a batch consisting
         // of no columns and 1 row.
         //
@@ -1232,76 +1186,121 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    /// Push an equality (hash) join.
-    fn push_equality_join(
+    fn push_comparison_join(
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: LogicalNode<operator::EqualityJoin>,
+        mut join: Node<LogicalComparisonJoin>,
     ) -> Result<()> {
         let location = join.location;
-        let join = join.into_inner();
 
-        let left_types = join.left.output_schema(&[])?;
-        let right_types = join.right.output_schema(&[])?;
+        let table_refs = join.get_children_table_refs();
 
-        // Build up all inputs on the right (probe) side. This is going to
-        // continue with the the current pipeline.
-        self.walk(materializations, id_gen, *join.right)?;
+        let equality_idx = join
+            .node
+            .conditions
+            .iter()
+            .position(|c| c.op == ComparisonOperator::Eq);
 
-        // Build up the left (build) side in a separate pipeline. This will feed
-        // into the currently pipeline at the join operator.
-        let mut left_state = IntermediatePipelineBuildState::new(self.config);
-        left_state.walk(materializations, id_gen, *join.left)?;
+        if let Some(equality_idx) = equality_idx {
+            // Use hash join
 
-        // Take any completed pipelines from the left side and put them in our
-        // list.
-        self.local_group
-            .merge_from_other(&mut left_state.local_group);
-        self.remote_group
-            .merge_from_other(&mut left_state.remote_group);
+            let [left, right] = join.take_two_children_exact()?;
+            let left_ref = table_refs[0];
+            let right_ref = table_refs[1];
+            let left_types = self.bind_context.get_table(left_ref)?.column_types.clone();
+            let right_types = self.bind_context.get_table(right_ref)?.column_types.clone();
 
-        // Get the left pipeline.
-        let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
-            RayexecError::new("expected in-progress pipeline from left side of join")
-        })?;
+            // Build up all inputs on the right (probe) side. This is going to
+            // continue with the the current pipeline.
+            self.walk(materializations, id_gen, right)?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
-                join.join_type,
-                join.left_on,
-                join.right_on,
-                left_types,
-                right_types,
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+            // Build up the left (build) side in a separate pipeline. This will feed
+            // into the currently pipeline at the join operator.
+            let mut left_state =
+                IntermediatePipelineBuildState::new(self.config, self.bind_context);
+            left_state.walk(materializations, id_gen, left)?;
 
-        // Left pipeline will be child this this pipeline at the current
-        // operator.
-        self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+            // Take any completed pipelines from the left side and put them in our
+            // list.
+            self.local_group
+                .merge_from_other(&mut left_state.local_group);
+            self.remote_group
+                .merge_from_other(&mut left_state.remote_group);
 
-        Ok(())
+            // Get the left pipeline.
+            let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
+                RayexecError::new("expected in-progress pipeline from left side of join")
+            })?;
+
+            let conditions = join
+                .node
+                .conditions
+                .iter()
+                .map(|condition| {
+                    self.expr_planner
+                        .plan_join_condition_as_hash_join_condition(&table_refs, condition)
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            let operator = IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
+                    join.node.join_type,
+                    equality_idx,
+                    conditions,
+                    left_types,
+                    right_types,
+                ))),
+                partitioning_requirement: None,
+            };
+            self.push_intermediate_operator(operator, location, id_gen)?;
+
+            // Left pipeline will be child this this pipeline at the current
+            // operator.
+            self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+
+            Ok(())
+        } else {
+            // Need to fall back to nested loop join.
+            let conditions = self
+                .expr_planner
+                .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;
+
+            let condition = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+                function: Box::new(AndImpl),
+                inputs: conditions,
+            });
+
+            let [left, right] = join.take_two_children_exact()?;
+
+            self.push_nl_join(
+                id_gen,
+                materializations,
+                location,
+                left,
+                right,
+                Some(condition),
+                join.node.join_type,
+            )?;
+
+            Ok(())
+        }
     }
 
-    fn push_any_join(
+    fn push_arbitrary_join(
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: LogicalNode<operator::AnyJoin>,
+        mut join: Node<LogicalArbitraryJoin>,
     ) -> Result<()> {
         let location = join.location;
-        let join = join.into_inner();
-
-        let left_schema = join.left.output_schema(&[])?;
-        let right_schema = join.right.output_schema(&[])?;
-        let input_schema = left_schema.merge(right_schema);
-        let filter = PhysicalScalarExpression::try_from_uncorrelated_expr(join.on, &input_schema)?;
+        let filter = self
+            .expr_planner
+            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)?;
 
         // Modify the filter as to match the join type.
-        let filter = match join.join_type {
-            operator::JoinType::Inner => filter,
+        let filter = match join.node.join_type {
+            JoinType::Inner => filter,
             other => {
                 // TODO: Other join types.
                 return Err(RayexecError::new(format!(
@@ -1310,13 +1309,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             }
         };
 
+        let [left, right] = join.take_two_children_exact()?;
+
         self.push_nl_join(
             id_gen,
             materializations,
             location,
-            *join.left,
-            *join.right,
+            left,
+            right,
             Some(filter),
+            join.node.join_type,
         )
     }
 
@@ -1324,17 +1326,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         &mut self,
         id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
-        join: LogicalNode<operator::CrossJoin>,
+        mut join: Node<LogicalCrossJoin>,
     ) -> Result<()> {
         let location = join.location;
-        let join = join.into_inner();
+        let [left, right] = join.take_two_children_exact()?;
+
         self.push_nl_join(
             id_gen,
             materializations,
             location,
-            *join.left,
-            *join.right,
+            left,
+            right,
             None,
+            JoinType::Inner,
         )
     }
 
@@ -1343,6 +1347,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     /// This will create a complete pipeline for the left side of the join
     /// (build), right right side (probe) will be pushed onto the current
     /// pipeline.
+    #[allow(clippy::too_many_arguments)]
     fn push_nl_join(
         &mut self,
         id_gen: &mut PipelineIdGen,
@@ -1351,6 +1356,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         left: operator::LogicalOperator,
         right: operator::LogicalOperator,
         filter: Option<PhysicalScalarExpression>,
+        join_type: JoinType,
     ) -> Result<()> {
         if self.config.error_on_nested_loop_join {
             return Err(RayexecError::new("Debug trigger: nested loop join"));
@@ -1361,7 +1367,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Create a completely independent pipeline (or pipelines) for left
         // side.
-        let mut left_state = IntermediatePipelineBuildState::new(self.config);
+        let mut left_state = IntermediatePipelineBuildState::new(self.config, self.bind_context);
         left_state.walk(materializations, id_gen, left)?;
 
         // Take completed pipelines from the left and merge them into this
@@ -1379,7 +1385,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::NestedLoopJoin(
-                PhysicalNestedLoopJoin::new(filter),
+                PhysicalNestedLoopJoin::new(filter, join_type),
             )),
             partitioning_requirement: None,
         };
@@ -1394,31 +1400,19 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn push_values(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        values: LogicalNode<operator::ExpressionList>,
-    ) -> Result<()> {
+    fn create_batch_for_row_values(&self, rows: Vec<Vec<Expression>>) -> Result<Batch> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
         // TODO: This could probably be simplified.
 
-        let location = values.location;
-        let values = values.into_inner();
-
         let mut row_arrs: Vec<Vec<Arc<Array>>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
-        for row_exprs in values.rows {
-            let exprs = row_exprs
-                .into_iter()
-                .map(|expr| {
-                    PhysicalScalarExpression::try_from_uncorrelated_expr(expr, &TypeSchema::empty())
-                })
-                .collect::<Result<Vec<_>>>()?;
+        for row_exprs in rows {
+            let exprs = self.expr_planner.plan_scalars(&[], &row_exprs)?;
             let arrs = exprs
                 .into_iter()
                 .map(|expr| expr.eval(&dummy_batch))
@@ -1447,20 +1441,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             cols.push(col);
         }
 
-        let batch = Batch::try_new(cols)?;
-
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
-            partitioning_requirement: None,
-        };
-
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
-
-        Ok(())
+        Batch::try_new(cols)
     }
 }

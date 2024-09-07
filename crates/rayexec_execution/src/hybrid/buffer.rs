@@ -14,6 +14,7 @@ use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 use uuid::Uuid;
 
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::DatabaseContext,
     execution::{
@@ -23,7 +24,6 @@ use crate::{
             source::{PartitionSource, QuerySource},
         },
     },
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::ErrorSink,
 };
 

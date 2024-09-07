@@ -87,7 +87,7 @@ mod tests {
                 group_by: None,
                 having: None,
             })),
-            order_by: Vec::new(),
+            order_by: None,
             limit: LimitModifier {
                 limit: None,
                 offset: None,

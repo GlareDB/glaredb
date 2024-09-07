@@ -16,9 +16,6 @@ use rayexec_error::{RayexecError, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
     /// Expected input types for this signature.
-    ///
-    /// If the last data type is a list, this signature will be considered
-    /// variadic.
     pub input: &'static [DataTypeId],
 
     /// Type of the variadic args if this function is variadic.
@@ -306,7 +303,7 @@ where
     // determine that is stil tbd.
     RayexecError::new(format!(
         "Got invalid type(s) '{}' for '{}'",
-        got.displayable(),
+        got.display_with_brackets(),
         func.name()
     ))
 }

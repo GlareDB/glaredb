@@ -1,6 +1,6 @@
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::{catalog::CatalogTx, drop::DropInfo, DatabaseContext},
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
 };
 use futures::{future::BoxFuture, FutureExt};

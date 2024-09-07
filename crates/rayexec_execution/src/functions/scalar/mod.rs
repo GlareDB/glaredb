@@ -12,13 +12,13 @@ pub mod struct_funcs;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
-use rayexec_bullet::field::TypeSchema;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::logical::expr::LogicalExpression;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 use super::FunctionInfo;
 
@@ -92,13 +92,12 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// data types from the function.
     fn plan_from_expressions(
         &self,
-        inputs: &[&LogicalExpression],
-        operator_schema: &TypeSchema,
+        bind_context: &BindContext,
+        inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction>> {
-        // TODO: Are we going to need to pass in the outer schemas here?
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(operator_schema, &[]))
+            .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)

@@ -5,6 +5,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::DatabaseContext,
     execution::{
@@ -14,7 +15,6 @@ use crate::{
             source::{PartitionSource, QuerySource},
         },
     },
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
 use super::client::{HybridClient, PullStatus};

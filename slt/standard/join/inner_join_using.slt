@@ -1,0 +1,67 @@
+# INNER JOIN with USING
+
+statement ok
+CREATE TEMP TABLE t1 (a int, b int, c int);
+
+statement ok
+CREATE TEMP TABLE t2 (a int, b int, c int);
+
+statement ok
+INSERT INTO t1 VALUES (1,2,3);
+
+statement ok
+INSERT INTO t2 VALUES (1,2,3), (1,2,4), (2,2,3);
+
+query TT
+DESCRIBE SELECT * FROM t1 INNER JOIN t2 USING (a);
+----
+a  Int32
+b  Int32
+c  Int32
+b  Int32
+c  Int32
+
+query IIIII rowsort
+SELECT * FROM t1 INNER JOIN t2 USING (a);
+----
+1  2  3  2  3
+1  2  3  2  4
+
+query IIIII rowsort
+SELECT * FROM t1 INNER JOIN t2 USING (b);
+----
+2  1  3  1  3
+2  1  3  1  4
+2  1  3  2  3
+
+query III
+SELECT t1.* FROM t1 INNER JOIN t2 USING (a);
+----
+1  2  3
+1  2  3
+
+query III
+SELECT t2.* FROM t1 INNER JOIN t2 USING (a);
+----
+1  2  3
+1  2  4
+
+query TT
+DESCRIBE SELECT * FROM t1 INNER JOIN t2 USING (a, b, c);
+----
+a  Int32
+b  Int32
+c  Int32
+
+query III
+SELECT * FROM t1 INNER JOIN t2 USING (a, b, c);
+----
+1  2  3
+
+query I
+SELECT b FROM t1 INNER JOIN t2 USING (a, b, c);
+----
+2
+
+statement error Cannot find column 'd' on left side of join
+SELECT * FROM t1 INNER JOIN t2 USING (a, b, c, d);

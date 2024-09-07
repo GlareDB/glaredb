@@ -1,10 +1,10 @@
 use super::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_error::Result;
+use rayexec_bullet::executor::scalar::UniformExecutor;
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -19,8 +19,8 @@ impl FunctionInfo for And {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean, DataTypeId::Boolean],
-            variadic: None,
+            input: &[],
+            variadic: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -32,11 +32,13 @@ impl ScalarFunction for And {
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(AndImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
+        for input in inputs {
+            if input.datatype_id() != DataTypeId::Boolean {
+                return Err(invalid_input_types_error(self, inputs));
+            }
         }
+
+        Ok(Box::new(AndImpl))
     }
 }
 
@@ -56,17 +58,28 @@ impl PlannedScalarFunction for AndImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-                let validity = BinaryExecutor::execute(first, second, |a, b| a && b, &mut buffer)?;
-                Array::Boolean(BooleanArray::new(buffer, validity))
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        let first = match inputs.first() {
+            Some(first) => first,
+            None => return Ok(Array::Boolean(BooleanArray::new_nulls(1))),
+        };
+
+        let bool_arrs = inputs
+            .iter()
+            .map(|arr| match arr.as_ref() {
+                Array::Boolean(arr) => Ok(arr),
+                other => Err(RayexecError::new(format!(
+                    "Expected Boolean arrays, got {}",
+                    other.datatype(),
+                ))),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+        let validity =
+            UniformExecutor::execute(&bool_arrs, |bools| bools.iter().all(|b| *b), &mut buffer)?;
+
+        Ok(Array::Boolean(BooleanArray::new(buffer, validity)))
     }
 }
 
@@ -80,8 +93,8 @@ impl FunctionInfo for Or {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean, DataTypeId::Boolean],
-            variadic: None,
+            input: &[],
+            variadic: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -93,11 +106,13 @@ impl ScalarFunction for Or {
     }
 
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean) => Ok(Box::new(OrImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
+        for input in inputs {
+            if input.datatype_id() != DataTypeId::Boolean {
+                return Err(invalid_input_types_error(self, inputs));
+            }
         }
+
+        Ok(Box::new(OrImpl))
     }
 }
 
@@ -117,17 +132,28 @@ impl PlannedScalarFunction for OrImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-                let validity = BinaryExecutor::execute(first, second, |a, b| a || b, &mut buffer)?;
-                Array::Boolean(BooleanArray::new(buffer, validity))
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        let first = match inputs.first() {
+            Some(first) => first,
+            None => return Ok(Array::Boolean(BooleanArray::new_nulls(1))),
+        };
+
+        let bool_arrs = inputs
+            .iter()
+            .map(|arr| match arr.as_ref() {
+                Array::Boolean(arr) => Ok(arr),
+                other => Err(RayexecError::new(format!(
+                    "Expected Boolean arrays, got {}",
+                    other.datatype(),
+                ))),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
+        let validity =
+            UniformExecutor::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
+
+        Ok(Array::Boolean(BooleanArray::new(buffer, validity)))
     }
 }
 

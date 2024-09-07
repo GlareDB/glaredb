@@ -1,8 +1,5 @@
-use crate::{
-    database::DatabaseContext,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    proto::DatabaseProtoConv,
-};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::compute;
 use rayexec_error::Result;

@@ -5,7 +5,7 @@ use rayexec_bullet::{
 };
 use rayexec_error::{RayexecError, Result};
 
-use crate::expr::PhysicalSortExpression;
+use crate::expr::physical::PhysicalSortExpression;
 
 /// Extract sort keys from batches.
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ pub struct SortKeysExtractor {
 
 impl SortKeysExtractor {
     pub fn new(exprs: &[PhysicalSortExpression]) -> Self {
-        let order_by = exprs.iter().map(|expr| expr.column).collect();
+        let order_by = exprs.iter().map(|expr| expr.column.idx).collect();
         let encoder = ComparableRowEncoder {
             columns: exprs
                 .iter()

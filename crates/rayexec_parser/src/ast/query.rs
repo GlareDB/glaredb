@@ -7,13 +7,16 @@ use crate::{
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByNode, SelectNode};
+use super::{
+    AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByModifier, OrderByNode,
+    SelectNode,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryNode<T: AstMeta> {
     pub ctes: Option<CommonTableExprDefs<T>>,
     pub body: QueryNodeBody<T>,
-    pub order_by: Vec<OrderByNode<T>>,
+    pub order_by: Option<OrderByModifier<T>>,
     pub limit: LimitModifier<T>,
 }
 
@@ -28,9 +31,11 @@ impl AstParseable for QueryNode<Raw> {
         let body = QueryNodeBody::parse(parser)?;
 
         let order_by = if parser.parse_keyword_sequence(&[Keyword::ORDER, Keyword::BY]) {
-            parser.parse_comma_separated(OrderByNode::parse)?
+            Some(OrderByModifier {
+                order_by_nodes: parser.parse_comma_separated(OrderByNode::parse)?,
+            })
         } else {
-            Vec::new()
+            None
         };
 
         let limit = LimitModifier::parse(parser)?;
@@ -66,12 +71,7 @@ impl QueryNode<Raw> {
 pub enum QueryNodeBody<T: AstMeta> {
     Select(Box<SelectNode<T>>),
     Nested(Box<QueryNode<T>>),
-    Set {
-        left: Box<QueryNodeBody<T>>,
-        right: Box<QueryNodeBody<T>>,
-        operation: SetOperation,
-        all: bool,
-    },
+    Set(SetOp<T>),
     Values(Values<T>),
 }
 
@@ -111,16 +111,24 @@ impl QueryNodeBody<Raw> {
             let _ = parser.next();
             let all = parser.parse_keyword(Keyword::ALL);
 
-            body = QueryNodeBody::Set {
+            body = QueryNodeBody::Set(SetOp {
                 left: Box::new(body),
                 right: Box::new(Self::parse_inner(parser, next_precedence)?),
                 operation: op,
                 all,
-            };
+            });
         }
 
         Ok(body)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetOp<T: AstMeta> {
+    pub left: Box<QueryNodeBody<T>>,
+    pub right: Box<QueryNodeBody<T>>,
+    pub operation: SetOperation,
+    pub all: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

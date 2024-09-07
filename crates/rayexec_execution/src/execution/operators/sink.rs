@@ -1,7 +1,5 @@
-use crate::{
-    database::DatabaseContext,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-};
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
 use rayexec_bullet::{

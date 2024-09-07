@@ -1,5 +1,8 @@
 use dashmap::DashMap;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::{
+    batch::Batch,
+    field::{Field, Schema},
+};
 use rayexec_error::{RayexecError, Result};
 use uuid::Uuid;
 
@@ -19,14 +22,15 @@ use crate::{
         client::{HybridPlanResponse, PullStatus},
     },
     logical::{
-        binder::{
-            bind_data::BindData,
+        binder::bind_statement::StatementBinder,
+        operator::LogicalOperator,
+        planner::plan_statement::StatementPlanner,
+        resolver::{
+            resolve_context::ResolveContext,
             resolve_hybrid::{HybridContextExtender, HybridResolver},
-            BoundStatement,
+            ResolvedStatement,
         },
-        planner::plan_statement::PlanContext,
     },
-    optimizer::Optimizer,
     runtime::{PipelineExecutor, QueryHandle, Runtime},
 };
 use std::sync::Arc;
@@ -86,8 +90,8 @@ where
     pub async fn plan_partially_bound(
         &self,
         mut context: DatabaseContext,
-        stmt: BoundStatement,
-        bind_data: BindData,
+        stmt: ResolvedStatement,
+        bind_data: ResolveContext,
     ) -> Result<HybridPlanResponse> {
         // Extend context with what we need in the query.
         let mut extender = HybridContextExtender::new(&mut context, &self.registry);
@@ -96,22 +100,50 @@ where
         // Now resolve with the extended context.
         let tx = CatalogTx::new();
         let resolver = HybridResolver::new(&tx, &context);
-        let bind_data = resolver.resolve_all_unbound(bind_data).await?;
+        let resolve_context = resolver.resolve_remaining(bind_data).await?;
 
         // TODO: Remove session var requirement.
         let vars = SessionVars::new_local();
 
-        let (mut logical, query_context) =
-            PlanContext::new(&vars, &bind_data).plan_statement(stmt)?;
+        let binder = StatementBinder {
+            session_vars: &vars,
+            resolve_context: &resolve_context,
+        };
+        let (bound_stmt, mut bind_context) = binder.bind(stmt)?;
+        let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
 
-        let optimizer = Optimizer::new();
-        logical.root = optimizer.optimize(logical.root)?;
-        let schema = logical.schema()?;
+        // TODO:
+        // let optimizer = Optimizer::new();
+        // logical = optimizer.optimize(logical)?;
+
+        // If we're an explain, put a copy of the optimized plan on the
+        // node.
+        if let LogicalOperator::Explain(explain) = &mut logical {
+            let child = explain
+                .children
+                .first()
+                .ok_or_else(|| RayexecError::new("Missing explain child"))?;
+            explain.node.logical_optimized = Some(Box::new(child.clone()));
+        }
+
+        let schema = Schema::new(
+            bind_context
+                .iter_tables(bind_context.root_scope_ref())?
+                .flat_map(|t| {
+                    t.column_names
+                        .iter()
+                        .zip(&t.column_types)
+                        .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                }),
+        );
 
         let query_id = Uuid::new_v4();
+        let planner = IntermediatePipelinePlanner::new(
+            IntermediateConfig::from_session_vars(&vars),
+            query_id,
+        );
 
-        let planner = IntermediatePipelinePlanner::new(IntermediateConfig::default(), query_id);
-        let pipelines = planner.plan_pipelines(logical.root, query_context)?;
+        let pipelines = planner.plan_pipelines(logical, bind_context)?;
 
         self.pending_pipelines.insert(
             query_id,

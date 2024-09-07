@@ -1,7 +1,7 @@
 use crate::{
     database::DatabaseContext,
     execution::operators::InputOutputStates,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::batch::Batch;

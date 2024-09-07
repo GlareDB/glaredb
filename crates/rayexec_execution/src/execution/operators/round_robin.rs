@@ -11,7 +11,7 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::{ExecutionStates, PollFinalize};
 

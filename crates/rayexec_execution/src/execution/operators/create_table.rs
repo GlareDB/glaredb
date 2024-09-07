@@ -1,6 +1,6 @@
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::{catalog::CatalogTx, create::CreateTableInfo, DatabaseContext},
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
     storage::table_storage::DataTable,
 };

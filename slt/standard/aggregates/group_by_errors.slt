@@ -1,0 +1,19 @@
+# Error cases for GROUP BY
+
+statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT j * 2, i * 2 FROM (values (1,2),(3,4)) t(i,j) GROUP BY j * 2;
+
+statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(j), i FROM (values (1,2),(3,4)) t(i,j);
+
+statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(j), i + 3 FROM (values (1,2),(3,4)) t(i,j);
+
+statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(j), t.i FROM (values (1,2),(3,4)) t(i,j);
+
+statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(j) FROM (values (1,2),(3,4)) t(i,j) ORDER BY i;
+
+statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(j) FROM (values (1,2),(3,4)) t(i,j) ORDER BY t.i;

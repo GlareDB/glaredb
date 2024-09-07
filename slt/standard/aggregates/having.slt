@@ -1,6 +1,6 @@
 # HAVING
 #
-# (Taken from duckdb's test_having.test, incomlete)
+# (Taken from duckdb's test_having.test, incomplete)
 
 statement ok
 create temp table test (a bigint, b bigint)
@@ -44,6 +44,12 @@ SELECT b, SUM(a) AS sum FROM test GROUP BY b HAVING COUNT(true) = 1 ORDER BY b;
 # expression in having
 query II
 SELECT b, SUM(a) FROM test GROUP BY b HAVING SUM(a)+10>28;
+----
+22	24
+
+# uncorrelated subquery in having
+query IR
+SELECT b, SUM(a) FROM test GROUP BY b HAVING SUM(a)>(SELECT SUM(t.a)*0.5 FROM test t);
 ----
 22	24
 

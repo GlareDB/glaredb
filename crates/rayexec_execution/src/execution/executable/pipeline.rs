@@ -1,6 +1,6 @@
 use crate::{
     execution::operators::PollFinalize,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
 };
 
 use crate::execution::operators::{
@@ -101,18 +101,6 @@ impl ExecutablePipeline {
         }
 
         Ok(())
-    }
-
-    /// Return an iterator over all operators in the pipeline.
-    ///
-    /// Operators are ordered from the the "source" operator (operator at index
-    /// 0) to the "sink" operator (operator at the last index).
-    pub(crate) fn iter_operators(&self) -> impl Iterator<Item = &dyn ExecutableOperator> {
-        let p0 = self
-            .partitions
-            .first()
-            .expect("pipeline to have at least one partition");
-        p0.operators.iter().map(|o| o.physical.as_ref())
     }
 }
 

@@ -16,12 +16,20 @@ pub mod expr {
     include!(concat!(env!("OUT_DIR"), "/rayexec.expr.rs"));
 }
 
+pub mod physical_expr {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.physical_expr.rs"));
+}
+
+pub mod functions {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.functions.rs"));
+}
+
 pub mod access {
     include!(concat!(env!("OUT_DIR"), "/rayexec.access.rs"));
 }
 
-pub mod binder {
-    include!(concat!(env!("OUT_DIR"), "/rayexec.binder.rs"));
+pub mod resolver {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.resolver.rs"));
 }
 
 pub mod ast {

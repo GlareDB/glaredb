@@ -172,13 +172,13 @@ pub enum Expr<T: AstMeta> {
     },
     /// Unary expression.
     UnaryExpr {
-        op: T::UnaryOperator,
+        op: UnaryOperator,
         expr: Box<Expr<T>>,
     },
     /// A binary expression.
     BinaryExpr {
         left: Box<Expr<T>>,
-        op: T::BinaryOperator,
+        op: BinaryOperator,
         right: Box<Expr<T>>,
     },
     /// A function call.

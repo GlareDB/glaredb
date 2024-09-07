@@ -1,12 +1,12 @@
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 
-use crate::logical::expr::LogicalExpression;
+use crate::expr::{literal_expr::LiteralExpr, Expression};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FoldedExpression {
     /// An expression that underwent some amount of folding.
-    Expression(LogicalExpression),
+    Expression(Expression),
 
     /// An expression that was able to be folded into a constant.
     Constant(OwnedScalarValue),
@@ -22,10 +22,10 @@ impl FoldedExpression {
         }
     }
 
-    pub fn into_expr(self) -> LogicalExpression {
+    pub fn into_expr(self) -> Expression {
         match self {
             Self::Expression(expr) => expr,
-            Self::Constant(constant) => LogicalExpression::Literal(constant),
+            Self::Constant(constant) => Expression::Literal(LiteralExpr { literal: constant }),
         }
     }
 }
@@ -35,9 +35,9 @@ impl FoldedExpression {
 pub struct ConstEval {}
 
 impl ConstEval {
-    pub fn fold(&self, expr: LogicalExpression) -> Result<FoldedExpression> {
+    pub fn fold(&self, expr: Expression) -> Result<FoldedExpression> {
         match expr {
-            LogicalExpression::Literal(c) => Ok(FoldedExpression::Constant(c)),
+            Expression::Literal(c) => Ok(FoldedExpression::Constant(c.literal)),
             other => {
                 // TODO: Fancy folding goes here.
                 Ok(FoldedExpression::Expression(other))

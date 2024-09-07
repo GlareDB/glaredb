@@ -1,6 +1,6 @@
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::{catalog::CatalogTx, catalog_entry::CatalogEntry, DatabaseContext},
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
     proto::DatabaseProtoConv,
 };
 use rayexec_error::{OptionExt, RayexecError, Result};

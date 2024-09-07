@@ -2,13 +2,13 @@
 //!
 //! Planning happens in two stages:
 //!
-//! 1. Statement binding
+//! 1. Statement resolve
 //! 2. Logical planning
 //!
-//! During 'statement binding', the AST is walked, and database objects are
+//! During 'statement resolve', the AST is walked, and database objects are
 //! resolved from the database context. Since resolving potentially external
 //! database objects is async, the entire binding phase is async. Statement
-//! binding does not attempt to verify that the user's query is correct. Its
+//! resolving does not attempt to verify that the user's query is correct. Its
 //! primary job is to make sure the query is annotated with everything it needs
 //! such that the planner does not need to reference the catalog.
 //!
@@ -28,11 +28,16 @@
 //!   as it can. Once the statement is returned, we can send it off to an
 //!   instance (the cloud) this is able to complete the binding process. This is
 //!   for hybrid exec.
-pub mod plan_expr;
-pub mod plan_statement;
 pub mod scope;
 
-mod decorrelate;
-mod plan_aggregate;
+pub mod plan_statement;
+
+mod plan_copy;
+mod plan_create_table;
+mod plan_explain;
+mod plan_from;
+mod plan_insert;
 mod plan_query;
+mod plan_select;
+mod plan_setop;
 mod plan_subquery;

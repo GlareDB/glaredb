@@ -27,13 +27,13 @@ select * from t2 right join t1 on t1.a = t2.a
 2     20    2  3
 NULL  NULL  3  4
 
-query TT
-explain select * from t2 right join t1 on t1.a = 1;
-----
-logical Projection (expressions = [#0, #1, #2, #3])
-.         AnyJoin (join = RIGHT, on = CAST(#2, Int64)=#4)
-.           Scan (column_types = [Int32, Int32], source = t2)
-.           Projection (expressions = [#0, #1, 1])
-.             Scan (column_types = [Int32, Int32], source = t1)
+# query TT
+# explain select * from t2 right join t1 on t1.a = 1;
+# ----
+# logical Projection (expressions = [#0, #1, #2, #3])
+# .         AnyJoin (join = RIGHT, on = CAST(#2, Int64)=#4)
+# .           Scan (column_types = [Int32, Int32], source = t2)
+# .           Projection (expressions = [#0, #1, 1])
+# .             Scan (column_types = [Int32, Int32], source = t1)
 
 

@@ -1,12 +1,13 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 use crate::{
     execution::operators::{
         sort::util::merger::IterState, ExecutableOperator, OperatorState, PartitionState, PollPull,
         PollPush,
     },
-    expr::PhysicalSortExpression,
+    expr::physical::PhysicalSortExpression,
 };
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -584,7 +585,31 @@ impl PhysicalMergeSortedInputs {
 
 impl Explainable for PhysicalMergeSortedInputs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("MergeSorted").with_values("sort_expressions", &self.exprs)
+        ExplainEntry::new("MergeSorted")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalMergeSortedInputs {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalMergeSortedInputs;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            exprs: self
+                .exprs
+                .iter()
+                .map(|expr| expr.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            exprs: proto
+                .exprs
+                .into_iter()
+                .map(|expr| DatabaseProtoConv::from_proto_ctx(expr, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
     }
 }
 
@@ -592,8 +617,11 @@ impl Explainable for PhysicalMergeSortedInputs {
 mod tests {
     use std::sync::Arc;
 
-    use crate::execution::operators::test_util::{
-        make_i32_batch, unwrap_poll_pull_batch, TestWakerContext,
+    use crate::{
+        execution::operators::test_util::{
+            make_i32_batch, unwrap_poll_pull_batch, TestWakerContext,
+        },
+        expr::physical::column_expr::PhysicalColumnExpr,
     };
 
     use super::*;
@@ -608,7 +636,7 @@ mod tests {
 
         let operator = Arc::new(PhysicalMergeSortedInputs::new(vec![
             PhysicalSortExpression {
-                column: 0,
+                column: PhysicalColumnExpr { idx: 0 },
                 desc: true,
                 nulls_first: true,
             },
@@ -702,7 +730,7 @@ mod tests {
 
         let operator = Arc::new(PhysicalMergeSortedInputs::new(vec![
             PhysicalSortExpression {
-                column: 0,
+                column: PhysicalColumnExpr { idx: 0 },
                 desc: true,
                 nulls_first: true,
             },

@@ -7,10 +7,11 @@ pub mod drop;
 pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
+pub mod hash_join;
 pub mod insert;
-pub mod join;
 pub mod limit;
 pub mod materialize;
+pub mod nl_join;
 pub mod project;
 pub mod round_robin;
 pub mod scan;
@@ -35,14 +36,17 @@ use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
+use hash_join::{
+    HashJoinBuildPartitionState, HashJoinOperatorState, HashJoinProbePartitionState,
+    PhysicalHashJoin,
+};
 use insert::PhysicalInsert;
-use join::hash_join::PhysicalHashJoin;
-use join::nl_join::PhysicalNestedLoopJoin;
 use limit::PhysicalLimit;
 use materialize::{
     MaterializeOperatorState, MaterializePullPartitionState, MaterializePushPartitionState,
     PhysicalMaterialize,
 };
+use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectOperation};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{not_implemented, OptionExt, Result};
@@ -65,19 +69,16 @@ use values::PhysicalValues;
 
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
 use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
-use self::join::hash_join::{
-    HashJoinBuildPartitionState, HashJoinOperatorState, HashJoinProbePartitionState,
-};
-use self::join::nl_join::{
+use self::limit::LimitPartitionState;
+use self::nl_join::{
     NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
     NestedLoopJoinProbePartitionState,
 };
-use self::limit::LimitPartitionState;
 use self::round_robin::{
     RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
 };
@@ -521,6 +522,8 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
             Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
             Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
+            Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
+            Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
             other => not_implemented!("to proto: {other:?}"),
         };
 
@@ -575,6 +578,12 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::CopyTo(op) => {
                 PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
             }
+            Value::LocalSort(op) => {
+                PhysicalOperator::LocalSort(PhysicalLocalSort::from_proto_ctx(op, context)?)
+            }
+            Value::MergeSorted(op) => PhysicalOperator::MergeSorted(
+                PhysicalMergeSortedInputs::from_proto_ctx(op, context)?,
+            ),
         })
     }
 }

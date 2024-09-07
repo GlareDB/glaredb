@@ -1,9 +1,5 @@
-use crate::{
-    database::DatabaseContext,
-    functions::copy::CopyToFunction,
-    logical::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    proto::DatabaseProtoConv,
-};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{database::DatabaseContext, functions::copy::CopyToFunction, proto::DatabaseProtoConv};
 use rayexec_bullet::field::Schema;
 use rayexec_error::{OptionExt, Result};
 use rayexec_io::location::FileLocation;

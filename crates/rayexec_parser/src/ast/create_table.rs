@@ -65,7 +65,7 @@ impl AstParseable for CreateTable<Raw> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDef<T: AstMeta> {
-    pub name: T::ColumnReference,
+    pub name: Ident,
     pub datatype: T::DataType,
     pub opts: Vec<ColumnOption>,
 }
@@ -108,7 +108,7 @@ mod tests {
     fn query_node_values_1() -> QueryNode<Raw> {
         QueryNode {
             ctes: None,
-            order_by: Vec::new(),
+            order_by: None,
             body: QueryNodeBody::Values(Values {
                 rows: vec![vec![Expr::Literal(Literal::Number("1".to_string()))]],
             }),

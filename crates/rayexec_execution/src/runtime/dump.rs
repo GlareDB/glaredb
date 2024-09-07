@@ -2,7 +2,7 @@ use crate::execution::executable::pipeline::PartitionPipelineTimings;
 use crate::execution::executable::pipeline::PipelineId;
 use crate::execution::executable::pipeline::PipelinePartitionState;
 use crate::execution::operators::ExecutableOperator;
-use crate::logical::explainable::ExplainConfig;
+use crate::explain::explainable::ExplainConfig;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;

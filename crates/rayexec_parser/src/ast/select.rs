@@ -87,6 +87,15 @@ pub enum SelectExpr<T: AstMeta> {
     Wildcard(Wildcard<T>),
 }
 
+impl<T: AstMeta> SelectExpr<T> {
+    pub fn get_alias(&self) -> Option<&Ident> {
+        match self {
+            Self::AliasedExpr(_, alias) => Some(alias),
+            _ => None,
+        }
+    }
+}
+
 impl AstParseable for SelectExpr<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let expr = WildcardExpr::parse(parser)?;
@@ -244,7 +253,7 @@ pub enum GroupByExpr<T: AstMeta> {
     /// `GROUP BY ROLLUP (<expr>)`
     Rollup(Vec<Expr<T>>),
     /// `GROUP BY GROUPING SETS (<expr>)`
-    GroupingSets(Vec<Expr<T>>),
+    GroupingSets(Vec<Expr<T>>), // TODO: vec vec
 }
 
 impl AstParseable for GroupByExpr<Raw> {

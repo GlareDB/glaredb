@@ -1,6 +1,6 @@
 use crate::{
     execution::intermediate::{IntermediatePipelineGroup, StreamId},
-    logical::binder::bind_data::BindData,
+    logical::resolver::resolve_context::ResolveContext,
     proto::DatabaseProtoConv,
 };
 use rayexec_bullet::{
@@ -13,10 +13,12 @@ use rayexec_bullet::{
 };
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::{
-    read_text, reqwest::{
+    read_text,
+    reqwest::{
         header::{HeaderValue, CONTENT_TYPE},
         Method, Request, StatusCode,
-    }, HttpClient, HttpResponse
+    },
+    HttpClient, HttpResponse,
 };
 use rayexec_proto::prost::Message;
 use rayexec_proto::ProtoConv;
@@ -26,7 +28,7 @@ use std::io::Cursor;
 use url::{Host, Url};
 use uuid::Uuid;
 
-use crate::{database::DatabaseContext, logical::binder::BoundStatement};
+use crate::{database::DatabaseContext, logical::resolver::ResolvedStatement};
 
 pub const API_VERSION: usize = 0;
 
@@ -54,9 +56,9 @@ pub struct HybridPlanRequest {
     /// The sql statement we're planning.
     ///
     /// This includes partially bound items that reference the things in the
-    /// bind data.
-    pub statement: BoundStatement,
-    pub bind_data: BindData,
+    /// resolved context.
+    pub statement: ResolvedStatement,
+    pub resolve_context: ResolveContext,
 }
 
 impl DatabaseProtoConv for HybridPlanRequest {
@@ -66,17 +68,20 @@ impl DatabaseProtoConv for HybridPlanRequest {
         let statement =
             serde_json::to_vec(&self.statement).context("failed to encode statement")?;
         Ok(Self::ProtoType {
-            bound_statement_json: statement,
-            bind_data: Some(self.bind_data.to_proto_ctx(context)?),
+            resolved_statement_json: statement,
+            resolve_context: Some(self.resolve_context.to_proto_ctx(context)?),
         })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        let statement = serde_json::from_slice(&proto.bound_statement_json)
+        let statement = serde_json::from_slice(&proto.resolved_statement_json)
             .context("failed to decode statement")?;
         Ok(Self {
             statement,
-            bind_data: BindData::from_proto_ctx(proto.bind_data.required("bind_data")?, context)?,
+            resolve_context: ResolveContext::from_proto_ctx(
+                proto.resolve_context.required("resolve_context")?,
+                context,
+            )?,
         })
     }
 }
@@ -428,8 +433,8 @@ impl<C: HttpClient> HybridClient<C> {
     // data, and decoding the pipelines we get back.
     pub async fn remote_plan(
         &self,
-        stmt: BoundStatement,
-        bind_data: BindData,
+        stmt: ResolvedStatement,
+        resolve_context: ResolveContext,
         context: &DatabaseContext,
     ) -> Result<HybridPlanResponse> {
         let url = self
@@ -439,7 +444,7 @@ impl<C: HttpClient> HybridClient<C> {
 
         let msg = HybridPlanRequest {
             statement: stmt,
-            bind_data,
+            resolve_context,
         };
 
         let encoded_msg = msg.to_proto_ctx(context)?.encode_to_vec();

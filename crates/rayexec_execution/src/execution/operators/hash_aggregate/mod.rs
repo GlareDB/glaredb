@@ -15,9 +15,8 @@ use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
     ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
 };
-use crate::expr::PhysicalAggregateExpression;
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::logical::grouping_set::GroupingSets;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::physical::PhysicalAggregateExpression;
 
 use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 
@@ -93,34 +92,59 @@ struct SharedOutputPartitionState {
 /// group by columns.
 #[derive(Debug)]
 pub struct PhysicalHashAggregate {
-    /// Grouping sets we're grouping by.
-    grouping_sets: GroupingSets,
-
+    /// Null masks for determining which column values should be part of a
+    /// group.
+    null_masks: Vec<Bitmap>,
+    /// Distinct columns that are used in the grouping sets.
+    group_columns: Vec<usize>,
     /// Datatypes of the columns in the grouping sets.
     group_types: Vec<DataType>,
-
     /// Union of all column indices that are inputs to the aggregate functions.
     aggregate_columns: Vec<usize>,
-
     exprs: Vec<PhysicalAggregateExpression>,
 }
 
 impl PhysicalHashAggregate {
     pub fn new(
         group_types: Vec<DataType>,
-        grouping_sets: GroupingSets,
         exprs: Vec<PhysicalAggregateExpression>,
+        grouping_sets: Vec<BTreeSet<usize>>,
     ) -> Self {
         // Collect all unique column indices that are part of computing the
         // aggregate.
         let mut agg_input_cols = BTreeSet::new();
         for expr in &exprs {
-            agg_input_cols.extend(expr.column_indices.iter().copied());
+            agg_input_cols.extend(expr.columns.iter().map(|expr| expr.idx));
         }
 
+        // Used to generate intial null masks. This doesn't take into account
+        // the physical column offset.
+        let mut distinct_group_cols = BTreeSet::new();
+        for set in &grouping_sets {
+            distinct_group_cols.extend(set.iter());
+        }
+
+        let null_masks = grouping_sets
+            .iter()
+            .map(|set| {
+                let mut mask = Bitmap::all_false(distinct_group_cols.len());
+                for (idx, col_idx) in distinct_group_cols.iter().enumerate() {
+                    mask.set(idx, !set.contains(col_idx))
+                }
+                mask
+            })
+            .collect();
+
+        // Adjust group cols to take into account physical column index.
+        let group_columns = distinct_group_cols
+            .into_iter()
+            .map(|col| col + agg_input_cols.len())
+            .collect();
+
         PhysicalHashAggregate {
+            null_masks,
+            group_columns,
             group_types,
-            grouping_sets,
             aggregate_columns: agg_input_cols.into_iter().collect(),
             exprs,
         }
@@ -142,7 +166,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
             let col_selection = Bitmap::from_iter(
                 self.aggregate_columns
                     .iter()
-                    .map(|idx| expr.column_indices.contains(idx)),
+                    .map(|idx| expr.contains_column_idx(*idx)),
             );
             col_selections.push(col_selection);
         }
@@ -227,8 +251,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 // Get the columns containg the "group" values (the columns in a
                 // a GROUP BY).
                 let grouping_columns: Vec<_> = self
-                    .grouping_sets
-                    .columns()
+                    .group_columns
                     .iter()
                     .map(|idx| {
                         batch
@@ -247,9 +270,9 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 let mut masked_grouping_columns: Vec<&Array> =
                     Vec::with_capacity(grouping_columns.len());
 
-                // For each mask, create a new set of grouping values, hash
+                // For null mask, create a new set of grouping values, hash
                 // them, and put into the hash maps.
-                for null_mask in self.grouping_sets.null_masks() {
+                for null_mask in &self.null_masks {
                     masked_grouping_columns.clear();
 
                     for (col_idx, col_is_null) in null_mask.iter().enumerate() {
@@ -425,8 +448,6 @@ impl ExecutableOperator for PhysicalHashAggregate {
 impl Explainable for PhysicalHashAggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         // TODO: grouping sets
-        ExplainEntry::new("HashAggregate")
-            .with_values("aggregate_columns", &self.aggregate_columns)
-            .with_values("group_by_columns", self.grouping_sets.columns())
+        ExplainEntry::new("HashAggregate").with_values("aggregate_columns", &self.aggregate_columns)
     }
 }

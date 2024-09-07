@@ -329,7 +329,10 @@ fn encode_varlen<T, O>(
     T: VarlenType + ?Sized,
     O: OffsetIndex,
 {
-    let valid_count = array.validity().map(|v| v.popcnt()).unwrap_or(array.len());
+    let valid_count = array
+        .validity()
+        .map(|v| v.count_trues())
+        .unwrap_or(array.len());
     let null_count = array.len() - valid_count;
     let field = IpcFieldNode::new(array.len() as i64, null_count as i64);
 
@@ -373,7 +376,10 @@ fn encode_primitive<T>(
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
 ) {
-    let valid_count = array.validity().map(|v| v.popcnt()).unwrap_or(array.len());
+    let valid_count = array
+        .validity()
+        .map(|v| v.count_trues())
+        .unwrap_or(array.len());
     let null_count = array.len() - valid_count;
     let field = IpcFieldNode::new(array.len() as i64, null_count as i64);
 

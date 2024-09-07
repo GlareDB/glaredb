@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package rayexec.resolver;
+
+import "expr.proto";
+import "logical.proto";
+import "functions.proto";
+import "ast/raw.proto";
+import "catalog.proto";
+
+message ResolvedFunctionReference {
+    oneof value {
+        functions.ScalarFunction    scalar    = 1;
+        functions.AggregateFunction aggregate = 2;
+    }
+}
+
+message ResolvedTableFunctionReference {
+    string                         name = 1;
+    functions.PlannedTableFunction func = 2;
+}
+
+message UnresolvedTableFunctionReference {
+    ast.raw.ObjectReference     reference = 1;
+    functions.TableFunctionArgs args      = 2;
+}
+
+message ResolvedCteReference {
+    uint32 idx = 1;
+}
+
+message ResolvedTableReference {
+    string               catalog = 1;
+    string               schema  = 2;
+    catalog.CatalogEntry entry   = 3;
+}
+
+message ResolvedTableOrCteReference {
+    oneof value {
+        ResolvedTableReference table = 1;
+        ResolvedCteReference   cte   = 2;
+    }
+}
+
+message UnresolvedTableReference {
+    ast.raw.ObjectReference reference       = 1;
+    string                  catalog         = 2;
+    optional catalog.AttachInfo attach_info = 3;
+}
+
+message ItemReference {
+    repeated string idents = 1;
+}
+
+message ResolvedTableOrCteReferenceWithLocation {
+    ResolvedTableOrCteReference bound    = 1;
+    logical.LocationRequirement location = 2;
+}
+
+message ResolvedFunctionReferenceWithLocation {
+    ResolvedFunctionReference   bound    = 1;
+    logical.LocationRequirement location = 2;
+}
+
+message ResolvedTableFunctionReferenceWithLocation {
+    ResolvedTableFunctionReference bound    = 1;
+    logical.LocationRequirement    location = 2;
+}
+
+message ResolvedCopyTo {
+    functions.CopyToFunction func = 1;
+}
+
+message MaybeResolvedTable {
+    oneof value {
+        ResolvedTableOrCteReferenceWithLocation resolved   = 1;
+        UnresolvedTableReference                unresolved = 2;
+    }
+}
+
+message MaybeResolvedFunction {
+    oneof value {
+        ResolvedFunctionReferenceWithLocation resolved   = 1;
+        ast.raw.ObjectReference               unresolved = 2;
+    }
+}
+
+message MaybeResolvedTableFunction {
+    oneof value {
+        ResolvedTableFunctionReferenceWithLocation resolved   = 1;
+        UnresolvedTableFunctionReference           unresolved = 2;
+    }
+}
+
+message ResolveListIdx {
+    uint32 idx = 1;
+}
+
+message TablesResolveList {
+    repeated MaybeResolvedTable tables = 1;
+}
+
+message FunctionsResolveList {
+    repeated MaybeResolvedFunction functions = 1;
+}
+
+message TableFunctionsResolveList {
+    repeated MaybeResolvedTableFunction functions = 1;
+}
+
+message ResolveContext {
+    TablesResolveList         tables          = 1;
+    FunctionsResolveList      functions       = 2;
+    TableFunctionsResolveList table_functions = 3;
+    optional ResolvedCopyTo   copy_to         = 4;
+    uint32                    current_depth   = 5;
+    // TODO: CTEs
+}

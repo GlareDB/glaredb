@@ -47,7 +47,7 @@ impl UnaryNonNullUpdater {
         State: AggregateState<Type, Output>,
     {
         debug_assert_eq!(
-            row_selection.popcnt(),
+            row_selection.count_trues(),
             mapping.len(),
             "number of rows selected in input must equal length of mappings"
         );
@@ -104,7 +104,7 @@ impl BinaryUpdater {
         State: AggregateState<(Type1, Type2), Output>,
     {
         debug_assert_eq!(
-            row_selection.popcnt(),
+            row_selection.count_trues(),
             mapping.len(),
             "number of rows selected in input must equal length of mappings"
         );

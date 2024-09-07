@@ -33,7 +33,7 @@ impl AstParseable for FromNode<Raw> {
                 body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
-                    join_type: JoinType::Cross,
+                    join_type: JoinType::Inner,
                     join_condition: JoinCondition::None,
                 }),
             }
@@ -46,7 +46,7 @@ impl AstParseable for FromNode<Raw> {
                 body: FromNodeBody::Join(FromJoin {
                     left: Box::new(node),
                     right: Box::new(right),
-                    join_type: JoinType::Cross,
+                    join_type: JoinType::Inner,
                     join_condition: JoinCondition::None,
                 }),
             }
@@ -270,7 +270,6 @@ pub struct FromJoin<T: AstMeta> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JoinType {
-    Cross,
     Inner,
     Left,
     Right,

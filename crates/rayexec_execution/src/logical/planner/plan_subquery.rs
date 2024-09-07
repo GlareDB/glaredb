@@ -1,127 +1,109 @@
 use crate::{
-    expr::scalar::{BinaryOperator, PlannedBinaryOperator},
+    expr::{
+        aggregate_expr::AggregateExpr,
+        column_expr::ColumnExpr,
+        comparison_expr::{ComparisonExpr, ComparisonOperator},
+        literal_expr::LiteralExpr,
+        subquery_expr::{SubqueryExpr, SubqueryType},
+        Expression,
+    },
     functions::aggregate::count::CountNonNullImpl,
     logical::{
-        context::QueryContext,
-        expr::{LogicalExpression, Subquery},
-        operator::{Aggregate, CrossJoin, Limit, LogicalNode, LogicalOperator, Projection},
+        binder::bind_context::BindContext,
+        logical_aggregate::LogicalAggregate,
+        logical_join::LogicalCrossJoin,
+        logical_limit::LogicalLimit,
+        logical_project::LogicalProject,
+        operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
+        planner::plan_query::QueryPlanner,
     },
 };
-use rayexec_bullet::{datatype::DataType, scalar::OwnedScalarValue};
-use rayexec_error::Result;
+use rayexec_bullet::{datatype::DataType, scalar::ScalarValue};
+use rayexec_error::{not_implemented, Result};
 
-use super::decorrelate::SubqueryDecorrelator;
-
-/// Logic for flattening and planning subqueries.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct SubqueryPlanner;
 
 impl SubqueryPlanner {
-    pub fn flatten(
+    pub fn plan(
         &self,
-        context: &mut QueryContext,
+        bind_context: &mut BindContext,
+        expr: &mut Expression,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
-        plan.walk_mut_post(&mut |plan| {
-            match plan {
-                LogicalOperator::Projection(node) => {
-                    let proj = node.as_mut();
-                    for expr in &mut proj.exprs {
-                        self.plan_subquery_expr(context, expr, &mut proj.input)?;
-                    }
-                }
-                LogicalOperator::Aggregate(node) => {
-                    let agg = node.as_mut();
-                    for expr in &mut agg.aggregates {
-                        self.plan_subquery_expr(context, expr, &mut agg.input)?;
-                    }
-                }
-                LogicalOperator::Filter(node) => {
-                    let filter = node.as_mut();
-                    self.plan_subquery_expr(context, &mut filter.predicate, &mut filter.input)?;
-                }
-                _other => (),
-            };
-            Ok(())
-        })?;
-
+        self.plan_inner(bind_context, expr, &mut plan)?;
         Ok(plan)
     }
 
-    /// Plans a subquery expression with a logical operator input.
-    ///
-    /// Recursively transforms the expression the remove subqueries and place
-    /// them in the plan.
-    ///
-    /// Does nothing if the expression isn't a subquery, or doesn't have a
-    /// subquery as a child.
-    pub fn plan_subquery_expr(
+    fn plan_inner(
         &self,
-        context: &mut QueryContext,
-        expr: &mut LogicalExpression,
-        input: &mut LogicalOperator,
+        bind_context: &mut BindContext,
+        expr: &mut Expression,
+        plan: &mut LogicalOperator,
     ) -> Result<()> {
-        let schema = input.output_schema(&[])?;
-        let mut num_cols = schema.types.len();
-
-        expr.walk_mut_post(&mut |expr| {
-            if let LogicalExpression::Subquery(subquery) = expr {
-                if subquery.is_correlated()? {
-                    *expr = SubqueryDecorrelator::default()
-                        .plan_correlated(context, subquery, input, num_cols, 1)?;
+        match expr {
+            Expression::Subquery(subquery) => {
+                if subquery.has_correlations(bind_context)? {
+                    not_implemented!("correlated subqueries");
                 } else {
-                    *expr = self.plan_uncorrelated(subquery, input, num_cols)?;
+                    *expr = self.plan_uncorrelated(bind_context, subquery, plan)?
                 }
-                num_cols += 1;
             }
-            Ok(())
-        })?;
+            other => other.for_each_child_mut(&mut |expr| {
+                self.plan_inner(bind_context, expr, plan)?;
+                Ok(())
+            })?,
+        }
 
         Ok(())
     }
 
-    /// Plans a single uncorrelated subquery expression.
-    ///
-    /// The subquery will be flattened into the original input operator, and a
-    /// new expression will be returned referencing the flattened result.
-    ///
-    /// `input_columns` is the number of columns that `input` will originally
-    /// produce.
     fn plan_uncorrelated(
         &self,
-        subquery: &mut Subquery,
-        input: &mut LogicalOperator,
-        input_columns: usize,
-    ) -> Result<LogicalExpression> {
-        let root = subquery.take_root();
-        match subquery {
-            Subquery::Scalar { .. } => {
+        bind_context: &mut BindContext,
+        subquery: &mut SubqueryExpr,
+        plan: &mut LogicalOperator,
+    ) -> Result<Expression> {
+        // Generate subquery logical plan.
+        let subquery_plan = QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
+
+        match subquery.subquery_type {
+            SubqueryType::Scalar => {
                 // Normal subquery.
                 //
                 // Cross join the subquery with the original input, replace
                 // the subquery expression with a reference to the new
                 // column.
-                let column_ref = LogicalExpression::new_column(input_columns);
 
-                // TODO: We should check that the subquery produces one
-                // column around here.
+                // Generate column expr that references the scalar being joined
+                // to the plan.
+                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let column = ColumnExpr {
+                    table_scope: subquery_table,
+                    column: 0,
+                };
 
-                // LIMIT the original subquery to 1
-                let subquery = LogicalOperator::Limit(LogicalNode::new(Limit {
-                    offset: None,
-                    limit: 1,
-                    input: root,
-                }));
+                // Limit original subquery to only one row.
+                let subquery_plan = LogicalOperator::Limit(Node {
+                    node: LogicalLimit {
+                        offset: None,
+                        limit: 1,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![subquery_plan],
+                });
 
-                let orig_input = Box::new(input.take());
-                *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
-                    left: orig_input,
-                    right: Box::new(subquery),
-                }));
+                // Cross join!
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                *plan = LogicalOperator::CrossJoin(Node {
+                    node: LogicalCrossJoin,
+                    location: LocationRequirement::Any,
+                    children: vec![orig, subquery_plan],
+                });
 
-                Ok(column_ref)
+                Ok(Expression::Column(column))
             }
-            Subquery::Exists { negated, .. } => {
+            SubqueryType::Exists { negated } => {
                 // Exists subquery.
                 //
                 // EXISTS -> COUNT(*) == 1
@@ -130,63 +112,83 @@ impl SubqueryPlanner {
                 // Cross join with existing input. Replace original subquery expression
                 // with reference to new column.
 
-                let expr = LogicalExpression::Binary {
-                    op: if *negated {
-                        PlannedBinaryOperator {
-                            op: BinaryOperator::NotEq,
-                            scalar: BinaryOperator::NotEq
-                                .scalar_function()
-                                .plan_from_datatypes(&[DataType::Int64, DataType::Int64])?,
-                        }
-                    } else {
-                        PlannedBinaryOperator {
-                            op: BinaryOperator::Eq,
-                            scalar: BinaryOperator::Eq
-                                .scalar_function()
-                                .plan_from_datatypes(&[DataType::Int64, DataType::Int64])?,
-                        }
-                    },
-                    left: Box::new(LogicalExpression::new_column(input_columns)),
-                    right: Box::new(LogicalExpression::Literal(OwnedScalarValue::Int64(1))),
+                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let subquery_column = ColumnExpr {
+                    table_scope: subquery_table,
+                    column: 0,
                 };
 
-                // COUNT(*) and LIMIT the original query.
-                let subquery = LogicalOperator::Aggregate(LogicalNode::new(Aggregate {
-                    // TODO: Replace with CountStar once that's in.
-                    //
-                    // This currently just includes a 'true'
-                    // projection that makes the final aggregate
-                    // represent COUNT(true).
-                    aggregates: vec![LogicalExpression::Aggregate {
-                        agg: Box::new(CountNonNullImpl),
-                        inputs: vec![LogicalExpression::new_column(0)],
-                        filter: None,
-                    }],
-                    grouping_sets: None,
-                    group_exprs: Vec::new(),
-                    input: Box::new(LogicalOperator::Limit(LogicalNode::new(Limit {
-                        offset: None,
-                        limit: 1,
-                        input: Box::new(LogicalOperator::Projection(LogicalNode::new(
-                            Projection {
-                                exprs: vec![LogicalExpression::Literal(OwnedScalarValue::Boolean(
-                                    true,
-                                ))],
-                                input: root,
+                let agg_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    agg_table,
+                    "__generated_count",
+                    DataType::Int64,
+                )?;
+
+                let projection_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    projection_table,
+                    "__generated_exists",
+                    DataType::Boolean,
+                )?;
+
+                let subquery_exists_plan = LogicalOperator::Project(Node {
+                    node: LogicalProject {
+                        projections: vec![Expression::Comparison(ComparisonExpr {
+                            left: Box::new(Expression::Column(ColumnExpr {
+                                table_scope: agg_table,
+                                column: 0,
+                            })),
+                            right: Box::new(Expression::Literal(LiteralExpr {
+                                literal: ScalarValue::Int64(1),
+                            })),
+                            op: if negated {
+                                ComparisonOperator::NotEq
+                            } else {
+                                ComparisonOperator::Eq
                             },
-                        ))),
-                    }))),
-                }));
+                        })],
+                        projection_table,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![LogicalOperator::Aggregate(Node {
+                        node: LogicalAggregate {
+                            aggregates_table: agg_table,
+                            aggregates: vec![Expression::Aggregate(AggregateExpr {
+                                agg: Box::new(CountNonNullImpl),
+                                inputs: vec![Expression::Column(subquery_column)],
+                                filter: None,
+                            })],
+                            group_table: None,
+                            group_exprs: Vec::new(),
+                            grouping_sets: None,
+                        },
+                        location: LocationRequirement::Any,
+                        children: vec![LogicalOperator::Limit(Node {
+                            node: LogicalLimit {
+                                offset: None,
+                                limit: 1,
+                            },
+                            location: LocationRequirement::Any,
+                            children: vec![subquery_plan],
+                        })],
+                    })],
+                });
 
-                let orig_input = Box::new(input.take());
-                *input = LogicalOperator::CrossJoin(LogicalNode::new(CrossJoin {
-                    left: orig_input,
-                    right: Box::new(subquery),
-                }));
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                *plan = LogicalOperator::CrossJoin(Node {
+                    node: LogicalCrossJoin,
+                    location: LocationRequirement::Any,
+                    children: vec![orig, subquery_exists_plan],
+                });
 
-                Ok(expr)
+                // Return column referencing the project.
+                Ok(Expression::Column(ColumnExpr {
+                    table_scope: projection_table,
+                    column: 0,
+                }))
             }
-            Subquery::Any { .. } => unimplemented!(),
+            other => not_implemented!("subquery type {other:?}"),
         }
     }
 }

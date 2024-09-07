@@ -113,7 +113,7 @@ impl BooleanArray {
                         |acc, (valid, is_true)| if valid && is_true { acc + 1 } else { acc },
                     )
             }
-            None => self.values.popcnt(),
+            None => self.values.count_trues(),
         }
     }
 

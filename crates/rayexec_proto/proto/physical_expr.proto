@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package rayexec.physical_expr;
+
+import "schema.proto";
+import "expr.proto";
+import "functions.proto";
+
+message PhysicalColumnExpr {
+    uint32 idx = 1;
+}
+
+message PhysicalLiteralExpr {
+    expr.OwnedScalarValue literal = 1;
+}
+
+message PhysicalCastExpr {
+    schema.DataType          cast_to = 1;
+    PhysicalScalarExpression expr    = 2;
+}
+
+message PhysicalScalarFunctionExpr {
+    functions.PlannedScalarFunction   function = 1;
+    repeated PhysicalScalarExpression inputs   = 2;
+}
+
+message PhysicalScalarExpression {
+    oneof value {
+        PhysicalColumnExpr         column   = 1;
+        PhysicalLiteralExpr        literal  = 2;
+        PhysicalCastExpr           cast     = 3;
+        PhysicalScalarFunctionExpr function = 4;
+    }
+}
+
+message PhysicalAggregateExpression {
+    functions.PlannedAggregateFunction function    = 1;
+    repeated PhysicalColumnExpr        columns     = 2;
+    schema.DataType                    output_type = 3;
+}
+
+message PhysicalSortExpression {
+    PhysicalColumnExpr column      = 1;
+    bool               desc        = 2;
+    bool               nulls_first = 3;
+}

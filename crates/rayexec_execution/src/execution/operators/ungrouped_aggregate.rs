@@ -1,8 +1,8 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
-use crate::expr::PhysicalAggregateExpression;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::{multi_array_drain, GroupedStates};
-use crate::logical::explainable::{ExplainConfig, ExplainEntry};
 use crate::proto::DatabaseProtoConv;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
@@ -11,8 +11,6 @@ use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::{Context, Waker};
-
-use crate::logical::explainable::Explainable;
 
 use super::{
     ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
@@ -141,9 +139,9 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                 for (agg_idx, agg) in self.aggregates.iter().enumerate() {
                     let cols: Vec<_> = agg
-                        .column_indices
+                        .columns
                         .iter()
-                        .map(|idx| batch.column(*idx).expect("column to exist").as_ref())
+                        .map(|expr| batch.column(expr.idx).expect("column to exist").as_ref())
                         .collect();
 
                     agg_states[agg_idx].update_states(&row_selection, &cols, &mapping)?;
@@ -268,7 +266,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
 impl Explainable for PhysicalUngroupedAggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhysicalUngroupedAggregate").with_values("aggregates", &self.aggregates)
+        ExplainEntry::new("PhysicalUngroupedAggregate")
     }
 }
 

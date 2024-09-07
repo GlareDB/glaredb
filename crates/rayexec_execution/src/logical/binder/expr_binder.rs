@@ -1,0 +1,867 @@
+use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::{
+    datatype::DataType,
+    scalar::{interval::Interval, OwnedScalarValue, ScalarValue},
+};
+use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_parser::ast::{self, QueryNode};
+
+use crate::{
+    expr::{
+        aggregate_expr::AggregateExpr,
+        arith_expr::{ArithExpr, ArithOperator},
+        cast_expr::CastExpr,
+        comparison_expr::{ComparisonExpr, ComparisonOperator},
+        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
+        literal_expr::LiteralExpr,
+        negate_expr::{NegateExpr, NegateOperator},
+        scalar_function_expr::ScalarFunctionExpr,
+        subquery_expr::{SubqueryExpr, SubqueryType},
+        AsScalarFunction, Expression,
+    },
+    functions::{
+        aggregate::AggregateFunction,
+        scalar::{
+            concat::Concat,
+            like::{self, StartsWith},
+            list::{ListExtract, ListValues},
+            ScalarFunction,
+        },
+        CastType,
+    },
+    logical::{
+        binder::bind_query::QueryBinder,
+        resolver::{
+            resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
+        },
+    },
+};
+
+use super::{
+    bind_context::{BindContext, BindScopeRef},
+    column_binder::ExpressionColumnBinder,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecursionContext {
+    /// Whether to allow aggregate function binding.
+    pub allow_aggregates: bool,
+    /// Whether to allow window function binding.
+    pub allow_windows: bool,
+    /// If we're in the root expression.
+    pub is_root: bool,
+}
+
+#[derive(Debug)]
+pub struct BaseExpressionBinder<'a> {
+    pub current: BindScopeRef,
+    pub resolve_context: &'a ResolveContext,
+}
+
+impl<'a> BaseExpressionBinder<'a> {
+    pub const fn new(current: BindScopeRef, resolve_context: &'a ResolveContext) -> Self {
+        BaseExpressionBinder {
+            current,
+            resolve_context,
+        }
+    }
+
+    pub fn bind_expressions(
+        &self,
+        bind_context: &mut BindContext,
+        exprs: &[ast::Expr<ResolvedMeta>],
+        column_binder: &mut impl ExpressionColumnBinder,
+        recur: RecursionContext,
+    ) -> Result<Vec<Expression>> {
+        exprs
+            .iter()
+            .map(|expr| self.bind_expression(bind_context, expr, column_binder, recur))
+            .collect::<Result<Vec<_>>>()
+    }
+
+    pub fn bind_expression(
+        &self,
+        bind_context: &mut BindContext,
+        expr: &ast::Expr<ResolvedMeta>,
+        column_binder: &mut impl ExpressionColumnBinder,
+        recur: RecursionContext,
+    ) -> Result<Expression> {
+        match expr {
+            ast::Expr::Ident(ident) => {
+                // Use the provided column binder, no fallback.
+                match column_binder.bind_from_ident(self.current, bind_context, ident, recur)? {
+                    Some(expr) => Ok(expr),
+                    None => Err(RayexecError::new(format!(
+                        "Missing column for reference: {ident}",
+                    ))),
+                }
+            }
+            ast::Expr::CompoundIdent(idents) => {
+                // Use the provided column binder, no fallback.
+                match column_binder.bind_from_idents(self.current, bind_context, idents, recur)? {
+                    Some(expr) => Ok(expr),
+                    None => {
+                        let ident_string = idents
+                            .iter()
+                            .map(|i| i.as_normalized_string())
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        Err(RayexecError::new(format!(
+                            "Missing column for reference: {ident_string}",
+                        )))
+                    }
+                }
+            }
+            ast::Expr::QualifiedWildcard(_) => Err(RayexecError::new(
+                "Qualified wildcard not a valid expression to bind",
+            )),
+            ast::Expr::Literal(literal) => {
+                // Use the provided column binder only if this is the root of
+                // the expression.
+                //
+                // Fallback to normal literal binding.
+                if recur.is_root {
+                    if let Some(expr) =
+                        column_binder.bind_from_root_literal(self.current, bind_context, literal)?
+                    {
+                        return Ok(expr);
+                    }
+                }
+                Self::bind_literal(literal)
+            }
+            ast::Expr::Array(arr) => {
+                let exprs = arr
+                    .iter()
+                    .map(|v| {
+                        self.bind_expression(
+                            bind_context,
+                            v,
+                            column_binder,
+                            RecursionContext {
+                                is_root: false,
+                                ..recur
+                            },
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let scalar = Box::new(ListValues);
+                let exprs =
+                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), exprs)?;
+
+                let refs: Vec<_> = exprs.iter().collect();
+                let planned = scalar.plan_from_expressions(bind_context, &refs)?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: planned,
+                    inputs: exprs,
+                }))
+            }
+            ast::Expr::ArraySubscript { expr, subscript } => {
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr.as_ref(),
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+                match subscript.as_ref() {
+                    ast::ArraySubscript::Index(index) => {
+                        let index = self.bind_expression(
+                            bind_context,
+                            index,
+                            column_binder,
+                            RecursionContext {
+                                allow_windows: false,
+                                allow_aggregates: false,
+                                is_root: false,
+                            },
+                        )?;
+
+                        let scalar = Box::new(ListExtract);
+                        let mut exprs = self.apply_casts_for_scalar_function(
+                            bind_context,
+                            scalar.as_ref(),
+                            vec![expr, index],
+                        )?;
+                        let index = exprs.pop().unwrap();
+                        let expr = exprs.pop().unwrap();
+
+                        let planned =
+                            scalar.plan_from_expressions(bind_context, &[&expr, &index])?;
+
+                        Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                            function: planned,
+                            inputs: vec![expr, index],
+                        }))
+                    }
+                    ast::ArraySubscript::Slice { .. } => {
+                        Err(RayexecError::new("Array slicing not yet implemented"))
+                    }
+                }
+            }
+            ast::Expr::UnaryExpr { op, expr } => {
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                Ok(match op {
+                    ast::UnaryOperator::Plus => expr,
+                    ast::UnaryOperator::Not => Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(expr),
+                    }),
+                    ast::UnaryOperator::Minus => Expression::Negate(NegateExpr {
+                        op: NegateOperator::Negate,
+                        expr: Box::new(expr),
+                    }),
+                })
+            }
+            ast::Expr::BinaryExpr { left, op, right } => {
+                let left = self.bind_expression(
+                    bind_context,
+                    left,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+                let right = self.bind_expression(
+                    bind_context,
+                    right,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                Ok(match op {
+                    ast::BinaryOperator::NotEq => {
+                        let op = ComparisonOperator::NotEq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Eq => {
+                        let op = ComparisonOperator::Eq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Lt => {
+                        let op = ComparisonOperator::Lt;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::LtEq => {
+                        let op = ComparisonOperator::LtEq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Gt => {
+                        let op = ComparisonOperator::Gt;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::GtEq => {
+                        let op = ComparisonOperator::GtEq;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Plus => {
+                        let op = ArithOperator::Add;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Minus => {
+                        let op = ArithOperator::Sub;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Multiply => {
+                        let op = ArithOperator::Mul;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Divide => {
+                        let op = ArithOperator::Div;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Modulo => {
+                        let op = ArithOperator::Mod;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Arith(ArithExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::And => {
+                        let op = ConjunctionOperator::And;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Conjunction(ConjunctionExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::Or => {
+                        let op = ConjunctionOperator::Or;
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        Expression::Conjunction(ConjunctionExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op,
+                        })
+                    }
+                    ast::BinaryOperator::StringConcat => {
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, Concat, [left, right])?;
+                        let planned =
+                            Concat.plan_from_expressions(bind_context, &[&left, &right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr {
+                            function: planned,
+                            inputs: vec![left, right],
+                        })
+                    }
+                    ast::BinaryOperator::StringStartsWith => {
+                        let [left, right] =
+                            self.apply_cast_for_operator(bind_context, StartsWith, [left, right])?;
+                        let planned =
+                            StartsWith.plan_from_expressions(bind_context, &[&left, &right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr {
+                            function: planned,
+                            inputs: vec![left, right],
+                        })
+                    }
+                    other => not_implemented!("binary operator {other:?}"),
+                })
+            }
+            ast::Expr::Function(func) => {
+                let reference = self
+                    .resolve_context
+                    .functions
+                    .try_get_bound(func.reference)?;
+
+                let recur = if reference.0.is_aggregate() {
+                    RecursionContext {
+                        allow_windows: false,
+                        allow_aggregates: false,
+                        ..recur
+                    }
+                } else {
+                    recur
+                };
+
+                let inputs = func
+                    .args
+                    .iter()
+                    .map(|arg| match arg {
+                        ast::FunctionArg::Unnamed { arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => Ok(self.bind_expression(
+                                bind_context,
+                                expr,
+                                column_binder,
+                                RecursionContext {
+                                    is_root: false,
+                                    ..recur
+                                },
+                            )?),
+                            ast::FunctionArgExpr::Wildcard => {
+                                // Resolver should have handled removing '*'
+                                // from function calls.
+                                Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ))
+                            }
+                        },
+                        ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                            "Named arguments to scalar functions not supported",
+                        )),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                // TODO: This should probably assert that location == any since
+                // I don't think it makes sense to try to handle different sets
+                // of scalar/aggs in the hybrid case yet.
+                match reference {
+                    (ResolvedFunction::Scalar(scalar), _) => {
+                        let inputs = self.apply_casts_for_scalar_function(
+                            bind_context,
+                            scalar.as_ref(),
+                            inputs,
+                        )?;
+
+                        let refs: Vec<_> = inputs.iter().collect();
+                        let function = scalar.plan_from_expressions(bind_context, &refs)?;
+
+                        Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                            function,
+                            inputs,
+                        }))
+                    }
+                    (ResolvedFunction::Aggregate(agg), _) => {
+                        let inputs = self.apply_casts_for_aggregate_function(
+                            bind_context,
+                            agg.as_ref(),
+                            inputs,
+                        )?;
+
+                        let refs: Vec<_> = inputs.iter().collect();
+                        let agg = agg.plan_from_expressions(bind_context, &refs)?;
+
+                        Ok(Expression::Aggregate(AggregateExpr {
+                            agg,
+                            inputs,
+                            filter: None,
+                        }))
+                    }
+                }
+            }
+            ast::Expr::Nested(nested) => self.bind_expression(
+                bind_context,
+                nested,
+                column_binder,
+                RecursionContext {
+                    is_root: false,
+                    ..recur
+                },
+            ),
+            ast::Expr::Subquery(subquery) => self.bind_subquery(
+                bind_context,
+                subquery,
+                SubqueryType::Scalar,
+                column_binder,
+                recur,
+            ),
+            ast::Expr::Tuple(_) => not_implemented!("tuple expressions"),
+            ast::Expr::Collate { .. } => not_implemented!("COLLATE"),
+            ast::Expr::Exists {
+                subquery,
+                not_exists,
+            } => self.bind_subquery(
+                bind_context,
+                subquery,
+                SubqueryType::Exists {
+                    negated: *not_exists,
+                },
+                column_binder,
+                recur,
+            ),
+            ast::Expr::TypedString { datatype, value } => {
+                let scalar = OwnedScalarValue::Utf8(value.clone().into());
+                // TODO: Add this back. Currently doing this to avoid having to
+                // update cast rules for arrays and scalars at the same time.
+                //
+                // let scalar = cast_scalar(scalar, &datatype)?;
+                Ok(Expression::Cast(CastExpr {
+                    to: datatype.clone(),
+                    expr: Box::new(Expression::Literal(LiteralExpr { literal: scalar })),
+                }))
+            }
+            ast::Expr::Cast { datatype, expr } => {
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+                Ok(Expression::Cast(CastExpr {
+                    to: datatype.clone(),
+                    expr: Box::new(expr),
+                }))
+            }
+            ast::Expr::Like {
+                expr,
+                pattern,
+                not_like,
+                case_insensitive,
+            } => {
+                if *not_like {
+                    not_implemented!("NOT LIKE")
+                }
+                if *case_insensitive {
+                    not_implemented!("case insensitive LIKE")
+                }
+
+                let expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+                let pattern = self.bind_expression(
+                    bind_context,
+                    pattern,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let scalar = like::Like.plan_from_expressions(bind_context, &[&expr, &pattern])?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: scalar,
+                    inputs: vec![expr, pattern],
+                }))
+            }
+            ast::Expr::Interval(ast::Interval {
+                value,
+                leading,
+                trailing,
+            }) => {
+                if leading.is_some() {
+                    return Err(RayexecError::new(
+                        "Leading unit in interval not yet supported",
+                    ));
+                }
+                let expr = self.bind_expression(
+                    bind_context,
+                    value,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                match trailing {
+                    Some(trailing) => {
+                        // If a user provides a unit like `INTERVAL 3 YEARS`, we
+                        // go ahead an multiply 3 with the a constant interval
+                        // representing 1 YEAR.
+                        //
+                        // This builds on top of our existing casting/function
+                        // dispatch rules. It's assumed that we have a
+                        // `mul(interval, int64)` function (and similar).
+
+                        let const_interval = match trailing {
+                            ast::IntervalUnit::Year => Interval::new(12, 0, 0),
+                            ast::IntervalUnit::Month => Interval::new(1, 0, 0),
+                            ast::IntervalUnit::Week => Interval::new(0, 7, 0),
+                            ast::IntervalUnit::Day => Interval::new(0, 1, 0),
+                            ast::IntervalUnit::Hour => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_HOUR)
+                            }
+                            ast::IntervalUnit::Minute => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MINUTE)
+                            }
+                            ast::IntervalUnit::Second => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_SECOND)
+                            }
+                            ast::IntervalUnit::Millisecond => {
+                                Interval::new(0, 0, Interval::NANOSECONDS_IN_MILLISECOND)
+                            }
+                            other => {
+                                // TODO: Got lazy, add the rest.
+                                return Err(RayexecError::new(format!(
+                                    "Missing interval constant for {other:?}"
+                                )));
+                            }
+                        };
+
+                        let interval = Expression::Literal(LiteralExpr {
+                            literal: ScalarValue::Interval(const_interval),
+                        });
+
+                        let op = ArithOperator::Mul;
+                        // Plan `mul(<interval>, <expr>)`
+                        Ok(Expression::Arith(ArithExpr {
+                            op,
+                            left: Box::new(interval),
+                            right: Box::new(expr),
+                        }))
+                    }
+                    None => Ok(Expression::Cast(CastExpr {
+                        to: DataType::Interval,
+                        expr: Box::new(expr),
+                    })),
+                }
+            }
+        }
+    }
+
+    pub(crate) fn bind_subquery(
+        &self,
+        bind_context: &mut BindContext,
+        subquery: &QueryNode<ResolvedMeta>,
+        subquery_type: SubqueryType,
+        _column_binder: &mut impl ExpressionColumnBinder,
+        _recur: RecursionContext,
+    ) -> Result<Expression> {
+        let nested = bind_context.new_child_scope(self.current);
+        let bound =
+            QueryBinder::new(nested, self.resolve_context).bind(bind_context, subquery.clone())?;
+
+        let table = bind_context.get_table(bound.output_table_ref())?;
+        let return_type = if subquery_type == SubqueryType::Scalar {
+            table
+                .column_types
+                .first()
+                .cloned()
+                .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?
+        } else {
+            DataType::Boolean
+        };
+
+        if matches!(subquery_type, SubqueryType::Scalar | SubqueryType::Any)
+            && table.num_columns() != 1
+        {
+            return Err(RayexecError::new(format!(
+                "Expected subquery to return 1 column, returns {} columns",
+                table.num_columns(),
+            )));
+        }
+
+        // Move correlated columns that don't reference the current scope to the
+        // current scope's list of correlated columns.
+        let mut current_correlations = Vec::new();
+        for col in bind_context.correlated_columns(nested)? {
+            if col.outer != self.current {
+                current_correlations.push(col.clone());
+            }
+        }
+        bind_context.push_correlations(self.current, current_correlations)?;
+
+        Ok(Expression::Subquery(SubqueryExpr {
+            bind_idx: nested,
+            subquery: Box::new(bound),
+            subquery_type,
+            return_type,
+            operator: None, // TODO
+        }))
+    }
+
+    pub(crate) fn bind_literal(literal: &ast::Literal<ResolvedMeta>) -> Result<Expression> {
+        Ok(match literal {
+            ast::Literal::Number(n) => {
+                if let Ok(n) = n.parse::<i64>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::Int64(n),
+                    })
+                } else if let Ok(n) = n.parse::<u64>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::UInt64(n),
+                    })
+                } else if let Ok(n) = n.parse::<f64>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::Float64(n),
+                    })
+                } else {
+                    return Err(RayexecError::new(format!(
+                        "Unable to parse {n} as a number"
+                    )));
+                }
+            }
+            ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
+                literal: OwnedScalarValue::Boolean(*b),
+            }),
+            ast::Literal::Null => Expression::Literal(LiteralExpr {
+                literal: OwnedScalarValue::Null,
+            }),
+            ast::Literal::SingleQuotedString(s) => Expression::Literal(LiteralExpr {
+                literal: OwnedScalarValue::Utf8(s.to_string().into()),
+            }),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unusupported SQL literal: {other:?}"
+                )))
+            }
+        })
+    }
+
+    pub(crate) fn apply_cast_for_operator<const N: usize>(
+        &self,
+        bind_context: &BindContext,
+        operator: impl AsScalarFunction,
+        inputs: [Expression; N],
+    ) -> Result<[Expression; N]> {
+        let inputs = self.apply_casts_for_scalar_function(
+            bind_context,
+            operator.as_scalar_function(),
+            inputs.to_vec(),
+        )?;
+        inputs
+            .try_into()
+            .map_err(|_| RayexecError::new("Number of casted inputs incorrect"))
+    }
+
+    /// Applies casts to an input expression based on the signatures for a
+    /// scalar function.
+    fn apply_casts_for_scalar_function(
+        &self,
+        bind_context: &BindContext,
+        scalar: &dyn ScalarFunction,
+        inputs: Vec<Expression>,
+    ) -> Result<Vec<Expression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(bind_context))
+            .collect::<Result<Vec<_>>>()?;
+
+        if scalar.exact_signature(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = scalar.candidate(&input_datatypes);
+
+            if candidates.is_empty() {
+                // TODO: Do we want to fall through? Is it possible for a
+                // scalar and aggregate function to have the same name?
+
+                // TODO: Better error.
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    scalar.name(),
+                    input_datatypes.display_with_brackets(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            //
+            // TODO: Sort by score
+            //
+            // We should do some lightweight const folding and prefer candidates
+            // that cast the consts over ones that need array inputs to be
+            // casted.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        }),
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
+    }
+
+    // TODO: Reduce dupliation with the scalar one.
+    fn apply_casts_for_aggregate_function(
+        &self,
+        bind_context: &BindContext,
+        agg: &dyn AggregateFunction,
+        inputs: Vec<Expression>,
+    ) -> Result<Vec<Expression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(bind_context))
+            .collect::<Result<Vec<_>>>()?;
+
+        if agg.exact_signature(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = agg.candidate(&input_datatypes);
+
+            if candidates.is_empty() {
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    agg.name(),
+                    input_datatypes.display_with_brackets(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        }),
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
+    }
+}

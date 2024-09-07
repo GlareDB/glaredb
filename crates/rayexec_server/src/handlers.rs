@@ -53,7 +53,7 @@ pub async fn remote_plan_rpc(
 
     let resp = state
         .server_state
-        .plan_partially_bound(context, msg.statement, msg.bind_data)
+        .plan_partially_bound(context, msg.statement, msg.resolve_context)
         .await?;
 
     // TODO: Weird. Needed since we're encoding an intermediate plan which may

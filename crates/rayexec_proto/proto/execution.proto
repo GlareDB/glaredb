@@ -5,7 +5,8 @@ package rayexec.execution;
 import "schema.proto";
 import "foreign.proto";
 import "catalog.proto";
-import "expr.proto";
+import "functions.proto";
+import "physical_expr.proto";
 import "array.proto";
 import "access.proto";
 
@@ -71,11 +72,11 @@ message PhysicalDrop {
 message PhysicalEmpty {}
 
 message PhysicalFilter {
-    expr.PhysicalScalarExpression predicate = 1;
+    physical_expr.PhysicalScalarExpression predicate = 1;
 }
 
 message PhysicalProject {
-    repeated expr.PhysicalScalarExpression exprs = 1;
+    repeated physical_expr.PhysicalScalarExpression exprs = 1;
 }
 
 message PhysicalInsert {
@@ -100,7 +101,7 @@ message PhysicalScan {
 }
 
 message PhysicalUngroupedAggregate {
-    repeated expr.PhysicalAggregateExpression aggregates = 1;
+    repeated physical_expr.PhysicalAggregateExpression aggregates = 1;
 }
 
 message PhysicalUnion {}
@@ -110,17 +111,25 @@ message PhysicalValues {
 }
 
 message PhysicalTableFunction {
-    expr.PlannedTableFunction function = 1;
+    functions.PlannedTableFunction function = 1;
 }
 
 message PhysicalNestedLoopJoin {
-    optional expr.PhysicalScalarExpression filter = 1;
+    optional physical_expr.PhysicalScalarExpression filter = 1;
+}
+
+message PhysicalLocalSort {
+    repeated physical_expr.PhysicalSortExpression exprs = 1;
+}
+
+message PhysicalMergeSortedInputs {
+    repeated physical_expr.PhysicalSortExpression exprs = 1;
 }
 
 message PhysicalCopyTo {
-    expr.CopyToFunction copy_to  = 1;
-    access.FileLocation location = 2;
-    schema.Schema       schema   = 3;
+    functions.CopyToFunction copy_to  = 1;
+    access.FileLocation      location = 2;
+    schema.Schema            schema   = 3;
 }
 
 message PhysicalOperator {
@@ -137,10 +146,12 @@ message PhysicalOperator {
         PhysicalScan               scan                = 10;
         PhysicalUngroupedAggregate ungrouped_aggregate = 11;
         PhysicalUnion union                            = 12;
-        PhysicalValues         values                  = 13;
-        PhysicalTableFunction  table_function          = 14;
-        PhysicalNestedLoopJoin nl_join                 = 15;
-        PhysicalCopyTo         copy_to                 = 16;
+        PhysicalValues            values               = 13;
+        PhysicalTableFunction     table_function       = 14;
+        PhysicalNestedLoopJoin    nl_join              = 15;
+        PhysicalCopyTo            copy_to              = 16;
+        PhysicalLocalSort         local_sort           = 17;
+        PhysicalMergeSortedInputs merge_sorted         = 18;
     }
 }
 

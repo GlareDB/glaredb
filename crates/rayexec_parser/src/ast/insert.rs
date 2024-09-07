@@ -50,7 +50,7 @@ mod tests {
     fn query_node_values_1() -> QueryNode<Raw> {
         QueryNode {
             ctes: None,
-            order_by: Vec::new(),
+            order_by: None,
             body: QueryNodeBody::Values(Values {
                 rows: vec![vec![Expr::Literal(Literal::Number("1".to_string()))]],
             }),

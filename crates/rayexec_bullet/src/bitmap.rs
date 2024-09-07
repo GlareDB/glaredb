@@ -54,7 +54,7 @@ impl Bitmap {
         self.data.len()
     }
 
-    pub fn popcnt(&self) -> usize {
+    pub fn count_trues(&self) -> usize {
         let mut count = self
             .data
             .iter()
@@ -413,13 +413,13 @@ mod tests {
     #[test]
     fn popcnt_simple() {
         let mut bm = Bitmap::from_iter([true, false, false, true, false]);
-        assert_eq!(2, bm.popcnt());
+        assert_eq!(2, bm.count_trues());
 
         bm.bit_negate();
-        assert_eq!(3, bm.popcnt());
+        assert_eq!(3, bm.count_trues());
 
         let bm = Bitmap::from_iter([true, false, false, true, false, true, false, false]);
-        assert_eq!(3, bm.popcnt());
+        assert_eq!(3, bm.count_trues());
     }
 
     #[test]

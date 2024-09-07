@@ -4,6 +4,7 @@ package rayexec.catalog;
 
 import "expr.proto";
 import "schema.proto";
+import "functions.proto";
 
 enum CatalogEntryType {
     CATALOG_ENTRY_TYPE_INVALID            = 0;
@@ -28,20 +29,20 @@ message CatalogEntry {
 }
 
 message ScalarFunctionEntry {
-    expr.ScalarFunction function = 1;
+    functions.ScalarFunction function = 1;
 }
 
 message AggregateFunctionEntry {
-    expr.AggregateFunction function = 1;
+    functions.AggregateFunction function = 1;
 }
 
 message TableFunctionEntry {
-    expr.TableFunction function = 1;
+    functions.TableFunction function = 1;
 }
 
 message CopyToFunctionEntry {
-    expr.CopyToFunction function = 1;
-    string              format   = 2;
+    functions.CopyToFunction function = 1;
+    string                   format   = 2;
 }
 
 message TableEntry {

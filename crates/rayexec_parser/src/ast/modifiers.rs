@@ -8,6 +8,11 @@ use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr};
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrderByModifier<T: AstMeta> {
+    pub order_by_nodes: Vec<OrderByNode<T>>,
+}
+
 /// A single node in an ORDER BY clause.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrderByNode<T: AstMeta> {

@@ -2,15 +2,15 @@ syntax = "proto3";
 
 package rayexec.hybrid;
 
-import "binder.proto";
+import "resolver.proto";
 import "foreign.proto";
 import "execution.proto";
 import "schema.proto";
 import "array.proto";
 
 message PlanRequest {
-    bytes           bound_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
-    binder.BindData bind_data            = 2;
+    bytes                   resolved_statement_json = 1;  // Bytes encoded using serde_json, at some point maybe that all becomes proto.
+    resolver.ResolveContext resolve_context         = 2;
 }
 
 message PlanResponse {

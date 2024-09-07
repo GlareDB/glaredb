@@ -1,7 +1,6 @@
-pub mod join_order;
 pub mod location;
 
-use crate::{logical::operator::LogicalOperator, optimizer::join_order::JoinOrderRule};
+use crate::logical::operator::LogicalOperator;
 use location::LocationRule;
 use rayexec_error::Result;
 
@@ -21,11 +20,8 @@ impl Optimizer {
 
     /// Run a logical plan through the optimizer.
     pub fn optimize(&self, plan: LogicalOperator) -> Result<LogicalOperator> {
-        let join_order = JoinOrderRule {};
-        let optimized = join_order.optimize(plan)?;
-
         let location = LocationRule {};
-        let optimized = location.optimize(optimized)?;
+        let optimized = location.optimize(plan)?;
 
         Ok(optimized)
     }

@@ -1,9 +1,10 @@
 use crate::database::DatabaseContext;
 use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
-use crate::logical::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 use crate::{
     execution::operators::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush},
-    expr::PhysicalSortExpression,
+    expr::physical::PhysicalSortExpression,
 };
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
@@ -210,10 +211,43 @@ impl ExecutableOperator for PhysicalLocalSort {
     }
 }
 
+impl Explainable for PhysicalLocalSort {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("LocalSort")
+    }
+}
+
+impl DatabaseProtoConv for PhysicalLocalSort {
+    type ProtoType = rayexec_proto::generated::execution::PhysicalLocalSort;
+
+    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            exprs: self
+                .exprs
+                .iter()
+                .map(|expr| expr.to_proto_ctx(context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+        Ok(Self {
+            exprs: proto
+                .exprs
+                .into_iter()
+                .map(|expr| DatabaseProtoConv::from_proto_ctx(expr, context))
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::execution::operators::test_util::{
-        make_i32_batch, test_database_context, unwrap_poll_pull_batch, TestWakerContext,
+    use crate::{
+        execution::operators::test_util::{
+            make_i32_batch, test_database_context, unwrap_poll_pull_batch, TestWakerContext,
+        },
+        expr::physical::column_expr::PhysicalColumnExpr,
     };
     use std::sync::Arc;
 
@@ -238,7 +272,7 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalLocalSort::new(vec![PhysicalSortExpression {
-            column: 0,
+            column: PhysicalColumnExpr { idx: 0 },
             desc: true,
             nulls_first: true,
         }]));
@@ -280,7 +314,7 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalLocalSort::new(vec![PhysicalSortExpression {
-            column: 0,
+            column: PhysicalColumnExpr { idx: 0 },
             desc: false,
             nulls_first: true,
         }]));
@@ -322,7 +356,7 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalLocalSort::new(vec![PhysicalSortExpression {
-            column: 0,
+            column: PhysicalColumnExpr { idx: 0 },
             desc: true,
             nulls_first: true,
         }]));
@@ -372,11 +406,5 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         assert_eq!(PollPull::Exhausted, poll_pull);
-    }
-}
-
-impl Explainable for PhysicalLocalSort {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("LocalSort").with_values("sort_expressions", &self.exprs)
     }
 }
