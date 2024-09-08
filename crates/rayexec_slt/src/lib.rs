@@ -1,11 +1,12 @@
 mod vars;
+use rayexec_bullet::format::pretty::table::pretty_format_batches;
 pub use vars::*;
 
 mod convert;
 
 use async_trait::async_trait;
 use convert::{batch_to_rows, schema_to_types};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use libtest_mimic::{Arguments, Trial};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::engine::session::Session;
@@ -18,6 +19,15 @@ use std::{
 };
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+/// Environment variable for having printing out debug explain info.
+///
+/// If set, this will will execute an EXPLAIN for a query before executing the
+/// query itself. The explain output will be printed out.
+///
+/// Since many queries don't support EXPLAIN (e.g. CREATE TABLE), a message
+/// indicating explain not available will be printed out instead.
+pub const DEBUG_PRINT_EXPLAIN_VAR: &str = "DEBUG_PRINT_EXPLAIN";
 
 #[derive(Debug)]
 pub struct RunConfig {
@@ -153,26 +163,64 @@ struct TestSession {
 }
 
 impl TestSession {
+    async fn debug_explain(&mut self, sql: &str) {
+        if std::env::var(DEBUG_PRINT_EXPLAIN_VAR).is_err() {
+            // Not set.
+            return;
+        }
+
+        println!("---- EXPLAIN ----");
+        println!("{sql}");
+
+        let mut results = match self
+            .conf
+            .session
+            .simple(&format!("EXPLAIN VERBOSE {sql}"))
+            .await
+        {
+            Ok(results) => results,
+            Err(_) => {
+                println!("Explain not available");
+                return;
+            }
+        };
+
+        let result = results.pop().unwrap();
+        let batches = match result.stream.try_collect::<Vec<_>>().await {
+            Ok(batches) => batches,
+            Err(_) => {
+                println!("Explain not available");
+                return;
+            }
+        };
+
+        let table = pretty_format_batches(&result.output_schema, &batches, 100, Some(200))
+            .expect("table to format without error");
+        println!("{table}");
+    }
+
     async fn run_inner(
         &mut self,
         sql: &str,
     ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, RayexecError> {
         info!(%sql, "query");
 
-        let mut sql = sql.to_string();
+        let mut sql_with_replacements = sql.to_string();
         for (k, v) in self.conf.vars.iter() {
             if k == "__SLT_TMP__" && self.conf.create_slt_tmp {
                 std::fs::create_dir_all(v.as_ref()).context("failed to create slt tmp dir")?
             }
 
-            sql = sql.replace(k, v.as_ref());
+            sql_with_replacements = sql_with_replacements.replace(k, v.as_ref());
         }
 
+        self.debug_explain(&sql_with_replacements).await;
+
         let mut rows = Vec::new();
-        let mut results = self.conf.session.simple(&sql).await?;
+        let mut results = self.conf.session.simple(&sql_with_replacements).await?;
         if results.len() != 1 {
             return Err(RayexecError::new(format!(
-                "Unexpected number of results for '{sql}': {}",
+                "Unexpected number of results for '{sql_with_replacements}': {}",
                 results.len()
             )));
         }
