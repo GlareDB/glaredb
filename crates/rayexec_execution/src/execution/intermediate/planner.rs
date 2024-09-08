@@ -822,36 +822,51 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_explain(
         &mut self,
         id_gen: &mut PipelineIdGen,
-        _materializations: &mut Materializations,
-        explain: Node<LogicalExplain>,
+        materializations: &mut Materializations,
+        mut explain: Node<LogicalExplain>,
     ) -> Result<()> {
         let location = explain.location;
-        let explain = explain.into_inner();
 
-        if explain.analyze {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        if explain.node.analyze {
             not_implemented!("explain analyze")
         }
+
+        // Plan in seperate planner to avoid conmingling pipelines we will be
+        // executing (the explain) with the ones we won't (the explained plan
+        // itself).
+        let input = explain.take_one_child_exact()?;
+        let mut planner = Self::new(self.config, self.bind_context);
+        planner.walk(materializations, id_gen, input)?;
+        planner.finish(id_gen)?;
 
         let formatter = ExplainFormatter::new(
             self.bind_context,
             ExplainConfig {
-                verbose: explain.verbose,
+                verbose: explain.node.verbose,
             },
-            explain.format,
+            explain.node.format,
         );
 
         let mut type_strings = Vec::new();
         let mut plan_strings = Vec::new();
 
         type_strings.push("unoptimized".to_string());
-        plan_strings.push(formatter.format_logical_plan(&explain.logical_unoptimized)?);
+        plan_strings.push(formatter.format_logical_plan(&explain.node.logical_unoptimized)?);
 
-        if let Some(optimized) = explain.logical_optimized {
+        if let Some(optimized) = explain.node.logical_optimized {
             type_strings.push("optimized".to_string());
             plan_strings.push(formatter.format_logical_plan(&optimized)?);
         }
 
-        // TODO: Pipeline stuff
+        type_strings.push("physical".to_string());
+        plan_strings.push(formatter.format_intermedate_groups(&[
+            ("local", &planner.local_group),
+            ("remote", &planner.remote_group),
+        ])?);
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new(vec![
@@ -1262,6 +1277,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             Ok(())
         } else {
             // Need to fall back to nested loop join.
+
+            if join.node.join_type != JoinType::Inner {
+                not_implemented!("join type with nl join: {}", join.node.join_type);
+            }
+
             let conditions = self
                 .expr_planner
                 .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;

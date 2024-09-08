@@ -1,6 +1,10 @@
 pub mod planner;
 
-use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
+use crate::{
+    database::DatabaseContext,
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    proto::DatabaseProtoConv,
+};
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use std::{collections::HashMap, sync::Arc};
@@ -71,14 +75,24 @@ pub enum PipelineSink {
     InPipeline,
     /// Sink is in the same group of operators as itself.
     InGroup {
+        /// ID of the pipeline we should send output to.
         pipeline_id: IntermediatePipelineId,
+        /// Index of the operator in the pipeline.
         operator_idx: usize,
+        /// Index of the input this pipeline is into the other pipeline.
+        ///
+        /// Typically 0, but may be some other value in the case of joins.
         input_idx: usize,
     },
-    /// Sink is a pipeline executing remotely.
+    /// Sink is a pipeline in some other group.
+    ///
+    /// Currently this just indicates that we're sending to a pipeline "not on
+    /// this machine".
     OtherGroup {
-        partitions: usize,
+        /// Stream ID we should be using when sending output to the other group.
         stream_id: StreamId,
+        /// Number of partitions the receiving pipeline expects.
+        partitions: usize,
     },
 }
 
@@ -319,5 +333,14 @@ impl DatabaseProtoConv for IntermediateOperator {
             )?),
             partitioning_requirement: proto.partitioning_requirement.map(|v| v as usize),
         })
+    }
+}
+
+impl Explainable for IntermediateOperator {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        self.operator.explain_entry(conf).with_value(
+            "partitioning_requirement",
+            &format!("{:?}", self.partitioning_requirement),
+        )
     }
 }

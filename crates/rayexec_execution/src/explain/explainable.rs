@@ -42,6 +42,23 @@ impl ExplainEntry {
         self.items.insert(key, vals);
         self
     }
+
+    pub fn with_named_map<S1: fmt::Display, S2: fmt::Display>(
+        mut self,
+        key: impl Into<String>,
+        map_name: impl Into<String>,
+        map: impl IntoIterator<Item = (S1, S2)>,
+    ) -> Self {
+        let key = key.into();
+        let vals = ExplainValue::NamedMap(
+            map_name.into(),
+            map.into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
+        self.items.insert(key, vals);
+        self
+    }
 }
 
 impl fmt::Display for ExplainEntry {
@@ -61,10 +78,12 @@ impl fmt::Display for ExplainEntry {
     }
 }
 
+// TODO: `AsExplainValue` trait.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExplainValue {
     Value(String),
     Values(Vec<String>),
+    NamedMap(String, Vec<(String, String)>),
 }
 
 impl fmt::Display for ExplainValue {
@@ -72,6 +91,15 @@ impl fmt::Display for ExplainValue {
         match self {
             Self::Value(v) => write!(f, "{v}"),
             Self::Values(v) => write!(f, "[{}]", v.join(", ")),
+            Self::NamedMap(name, map) => {
+                let s = map
+                    .iter()
+                    .map(|(k, v)| format!("{k}: {v}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                // "{k1: v1, k2: v2 ... }"
+                write!(f, "{} {{{}}}", name, s)
+            }
         }
     }
 }
@@ -124,5 +152,15 @@ mod tests {
 
         let out = ent.to_string();
         assert_eq!("DummyNode (k1 = v1, k2 = [vs1, vs2, vs3])", out);
+    }
+
+    #[test]
+    fn explain_entry_display_with_map_value() {
+        let ent = ExplainEntry::new("DummyNode")
+            .with_value("k1", "v1")
+            .with_named_map("k2", "my_map", [("m1", "v1"), ("m2", "v2")]);
+
+        let out = ent.to_string();
+        assert_eq!("DummyNode (k1 = v1, k2 = my_map {m1: v1, m2: v2})", out);
     }
 }
