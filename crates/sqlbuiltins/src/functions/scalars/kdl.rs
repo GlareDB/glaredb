@@ -45,7 +45,6 @@ impl ConstBuiltinFunction for KDLSelect {
     }
 }
 
-
 impl BuiltinScalarUDF for KDLSelect {
     fn try_as_expr(&self, _: &SessionCatalog, args: Vec<Expr>) -> DataFusionResult<Expr> {
         let return_type_fn: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Utf8)));
@@ -80,7 +79,6 @@ impl BuiltinScalarUDF for KDLSelect {
             )
             .map_err(DataFusionError::from)
         });
-
 
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(ScalarUDF::new(

@@ -155,7 +155,6 @@ impl PyExecutionOutput {
     }
 }
 
-
 // just a wrapper around the stream so that we can compose multiple subqueries
 #[async_trait]
 impl TableProvider for PyExecutionOutput {

@@ -73,7 +73,6 @@ impl LanceSink {
             ..Default::default()
         };
 
-
         let mut ds: Option<Dataset> = None;
 
         while let Some(batches) = chunks.next().await {

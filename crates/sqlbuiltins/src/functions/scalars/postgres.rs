@@ -539,7 +539,6 @@ impl BuiltinScalarUDF for PgVersion {
     }
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub struct FormatType;
 

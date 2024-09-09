@@ -152,16 +152,24 @@ impl CassandraRowStream {
     pub fn new(session: Arc<Session>, schema: ArrowSchemaRef, query: String) -> Self {
         let schema_clone = schema.clone();
         let stream = stream! {
-                let res = session.query(query, &[]).await;
-                match res {
-                    Ok(res) => {
-                        yield rows_to_record_batch(res.rows, schema_clone)
-                    },
-                    Err(e) => {
-                        yield Err(DataFusionError::Execution(e.to_string()));
-                        return;
+            match session.query_iter(query, &[]).await {
+        Ok(res) => {
+            let mut inner = res.chunks(1024);
+                    while let Some(item) = inner.next().await {
+            match item.into_iter().collect::<Result<Vec<_>, _>>() {
+                Ok(rows) => yield rows_to_record_batch(Some(rows), schema_clone.clone()),
+                Err(e) => {
+                yield Err(DataFusionError::Execution(e.to_string()));
+                return;
+                }
+            }
                     }
-                };
+        },
+        Err(e) => {
+                    yield Err(DataFusionError::Execution(e.to_string()));
+                    return;
+                }
+            };
         };
 
         Self {

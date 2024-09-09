@@ -75,7 +75,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - run: just dist
       - uses: actions/upload-artifact@v3
         with:
@@ -181,7 +181,7 @@ jobs:
           version: 11
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - run: just protoc
       - uses: actions/setup-python@v5
         with:
@@ -228,7 +228,7 @@ jobs:
       - uses: ilammy/setup-nasm@v1
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - run: just protoc
       - uses: actions/setup-python@v5
         with:
@@ -279,7 +279,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - run: just protoc
       - uses: actions/setup-python@v5
         with:
@@ -412,7 +412,7 @@ jobs:
           version: 11
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - run: just protoc
       - uses: actions/setup-node@v4
         if: ${{ !matrix.docker }}

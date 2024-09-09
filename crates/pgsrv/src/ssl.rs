@@ -35,7 +35,6 @@ impl SslConfig {
             keys.push(key?.secret_pkcs8_der().to_vec());
         }
 
-
         let key = match keys.len() {
             0 => return Err(PgSrvError::ReadCertsAndKeys("No keys found")),
             1 => PrivateKeyDer::try_from(keys.pop().unwrap())
@@ -74,7 +73,6 @@ impl SslConfig {
 struct CertResolver {
     cert: Arc<sign::CertifiedKey>,
 }
-
 
 impl CertResolver {
     fn new(chain: Vec<CertificateDer<'static>>, key: &PrivateKeyDer) -> Result<CertResolver> {

@@ -107,7 +107,6 @@ pub enum DispatchError {
     Datasource(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
-
 /// Trait for planning views.
 ///
 /// Currently views aren't that sophisticated as we're only storing the SQL

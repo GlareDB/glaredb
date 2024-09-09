@@ -22,5 +22,5 @@ num-traits = "0.2.19"
 dtoa = "1.0.9"
 chrono-tz = "0.8.6"
 bytes = { workspace = true }
-const_format = "0.2.32"
+const_format = "0.2.33"
 once_cell = "1.19.0"

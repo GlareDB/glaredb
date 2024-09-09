@@ -18,7 +18,6 @@ use url::Url;
 
 use crate::native::access::arrow_to_delta_safe;
 
-
 /// Writes lance files to object storage.
 #[derive(Debug, Clone)]
 pub struct DeltaSink {
@@ -112,7 +111,6 @@ impl DeltaSink {
                 .with_input_batches(batches?.into_iter())
                 .await?;
         }
-
 
         Ok(records as u64)
     }

@@ -75,7 +75,6 @@ impl BuiltinScalarUDF for JAQSelect {
             .map_err(DataFusionError::from)
         });
 
-
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(ScalarUDF::new(
                 Self::NAME,
@@ -144,7 +143,6 @@ impl BuiltinScalarUDF for JAQMatches {
             .map_err(DataFusionError::from)
         });
 
-
         Ok(Expr::ScalarFunction(ScalarFunction::new_udf(
             Arc::new(ScalarUDF::new(
                 Self::NAME,
@@ -156,7 +154,6 @@ impl BuiltinScalarUDF for JAQMatches {
         )))
     }
 }
-
 
 fn jaq_to_scalar_string(value: &Val) -> ScalarValue {
     match value {

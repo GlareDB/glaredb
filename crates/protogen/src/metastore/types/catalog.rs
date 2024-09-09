@@ -894,7 +894,6 @@ mod tests {
 
     use super::*;
 
-
     #[test]
     fn convert_catalog_state_no_deployment_metadata() {
         // New `deployment` field added. Assert we can handle catalogs that

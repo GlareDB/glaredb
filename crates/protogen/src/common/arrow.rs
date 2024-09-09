@@ -253,7 +253,6 @@ impl TryFrom<&Field> for arrow::Field {
     }
 }
 
-
 impl TryFrom<&arrow::Schema> for Schema {
     type Error = ProtoConvError;
 

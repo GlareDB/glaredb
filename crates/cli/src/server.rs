@@ -166,7 +166,6 @@ impl ComputeServerBuilder {
         self
     }
 
-
     pub fn with_metastore_bucket(mut self, name: String) -> Self {
         self.metastore_bucket = Some(name);
         self
@@ -322,7 +321,6 @@ impl ComputeServerBuilder {
                 (None, None, None) => StorageConfig::Memory,
             };
 
-
             let metastore_client =
                 start_inprocess(metastore_storage_conf.new_object_store()?).await?;
 
@@ -339,7 +337,6 @@ impl ComputeServerBuilder {
         Ok(engine)
     }
 }
-
 
 impl ComputeServer {
     pub fn builder() -> ComputeServerBuilder {

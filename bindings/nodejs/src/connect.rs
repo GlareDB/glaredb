@@ -36,7 +36,6 @@ impl TryFrom<ConnectOptions> for glaredb::ConnectOptions {
     }
 }
 
-
 /// Connect to a GlareDB database.
 #[napi(catch_unwind)]
 pub async fn connect(

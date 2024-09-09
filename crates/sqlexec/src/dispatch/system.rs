@@ -50,7 +50,6 @@ impl<'a> SystemTableDispatcher<'a> {
         }
     }
 
-
     pub async fn dispatch(&self, ent: &TableEntry) -> Result<Arc<dyn TableProvider>> {
         let schema_ent = self
             .catalog

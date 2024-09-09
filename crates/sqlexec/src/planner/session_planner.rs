@@ -943,7 +943,6 @@ impl<'a> SessionPlanner<'a> {
                         .unwrap_or(Ok(100))?,
                 );
 
-
                 TableOptionsV0::Json(TableOptionsObjectStore {
                     location,
                     storage_options,

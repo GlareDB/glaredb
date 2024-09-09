@@ -72,7 +72,7 @@ docker exec "$(docker ps -aqf name=$CONTAINER_NAME)" \
   cqlsh \
   -u cassandra \
   -p cassandra \
-  --cqlversion='3.4.6' \
+  --cqlversion='3.4.7' \
   -f /scripts/data.cql
 
 echo "--- Cassandra is ready and seeded"

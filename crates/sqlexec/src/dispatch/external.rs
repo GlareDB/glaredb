@@ -293,7 +293,6 @@ impl<'a> ExternalDispatcher<'a> {
         }
     }
 
-
     pub async fn dispatch_external_table(
         &self,
         table: &TableEntry,
@@ -310,7 +309,6 @@ impl<'a> ExternalDispatcher<'a> {
                 .collect();
             Schema::new(fields)
         });
-
 
         self.dispatch_table_options_v0(&table.options, tunnel, optional_schema)
             .await

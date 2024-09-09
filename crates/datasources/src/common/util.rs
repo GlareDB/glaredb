@@ -223,7 +223,6 @@ pub fn try_parse_datetime(v: &str) -> Result<chrono::DateTime<chrono::Utc>, chro
         .map(|dt| dt.to_utc())
 }
 
-
 #[cfg(test)]
 mod tests {
     use datafusion::arrow::array::{

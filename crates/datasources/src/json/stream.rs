@@ -183,7 +183,6 @@ impl JsonHandler {
                     None => Ok(value),
                 };
 
-
                 match res {
                     Ok(value) => match value {
                         Value::Array(vals) => {
