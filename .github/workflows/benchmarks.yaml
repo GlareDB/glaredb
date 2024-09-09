@@ -24,7 +24,7 @@ jobs:
       - uses: extractions/setup-just@v2
         name: Setup just
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache@v4
         name: Cache
         with:

@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache@v4
         name: toolchain cache
         with:
@@ -64,7 +64,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache@v4
         name: nightly toolchain cache
         id: lint-toolchain
@@ -87,7 +87,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache@v4
         name: toolchain cache
         with:
@@ -118,7 +118,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
@@ -153,7 +153,7 @@ jobs:
           node-version: 20
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
@@ -186,7 +186,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: toolchain cache
         with:
@@ -262,7 +262,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -300,7 +300,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -323,7 +323,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - name: install poetry
         uses: snok/install-poetry@v1
       - name: install python
@@ -351,7 +351,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -408,7 +408,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -460,7 +460,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
 
       - uses: actions/cache/restore@v4
         name: glaredb cache
@@ -521,7 +521,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
@@ -613,7 +613,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
         with:
-          just-version: "1.23.0"
+          just-version: "1.35.0"
       - uses: actions/cache/restore@v4
         name: glaredb cache
         with:
