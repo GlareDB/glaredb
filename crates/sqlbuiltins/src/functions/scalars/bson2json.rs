@@ -90,7 +90,6 @@ impl BuiltinScalarUDF for Bson2Json {
     }
 }
 
-
 pub struct Json2Bson;
 
 impl ConstBuiltinFunction for Json2Bson {

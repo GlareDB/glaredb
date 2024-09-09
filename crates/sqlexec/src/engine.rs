@@ -378,7 +378,6 @@ impl Engine {
             Ok::<(), ExecError>(())
         })?;
 
-
         Ok(Engine {
             supervisor: MetastoreClientSupervisor::new(metastore, DEFAULT_METASTORE_CLIENT_CONFIG),
             tracker,

@@ -185,7 +185,6 @@ pub fn infer_schema(
             .collect()
     };
 
-
     for row in rows.take(infer_schema_length) {
         for (i, col_val) in row.iter().enumerate() {
             let col_name = col_names.get(i).unwrap();

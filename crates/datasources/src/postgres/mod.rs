@@ -246,7 +246,6 @@ impl PostgresAccessState {
             .roots
             .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
 
-
         // Configure tls depending on ssl mode.
         //
         // - Disable => no tls
@@ -264,7 +263,6 @@ impl PostgresAccessState {
                 root_store
                     .roots
                     .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
-
 
                 match tokio_postgres::connect(
                     connection_string,
@@ -356,7 +354,6 @@ impl PostgresAccessState {
         root_store
             .roots
             .extend(webpki_roots::TLS_SERVER_ROOTS.iter().map(|r| r.to_owned()));
-
 
         let tcp_stream = TcpStream::connect(tunnel_addr).await?;
         let mut tls_conf = ClientConfig::builder()

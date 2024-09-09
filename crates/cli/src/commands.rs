@@ -236,7 +236,6 @@ impl RunCommand for RpcProxyArgs {
     }
 }
 
-
 impl RunCommand for SltArgs {
     fn run(self) -> Result<()> {
         let disco = SltDiscovery::new()

@@ -151,23 +151,18 @@ impl CassandraAccessState {
     }
     async fn get_schema(&self, ks: &str, table: &str) -> Result<ArrowSchema> {
         let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
-        let res = self.session.query(query, &[]).await?;
+        let res = self.session.query_unpaged(query, &[]).await?;
         let fields: Fields = res
-            .col_specs
+            .col_specs()
             .into_iter()
-            .map(|c| {
-                let name = c.name;
-                let ty = c.typ;
-                let dtype = try_convert_dtype(&ty)?;
-                Ok(Field::new(name, dtype, true))
-            })
+            .map(|c| Ok(Field::new(&c.name, try_convert_dtype(&c.typ)?, true)))
             .collect::<Result<_>>()?;
         Ok(ArrowSchema::new(fields))
     }
     pub async fn validate_table_access(&self, ks: &str, table: &str) -> Result<()> {
         let query = format!("SELECT * FROM {ks}.{table} LIMIT 1");
-        let res = self.session.query(query, &[]).await?;
-        if res.col_specs.is_empty() {
+        let res = self.session.query_unpaged(query, &[]).await?;
+        if res.col_specs().is_empty() {
             return Err(CassandraError::TableNotFound(format!(
                 "table {} not found in keyspace {}",
                 table, ks
@@ -280,7 +275,7 @@ impl VirtualLister for CassandraAccessState {
     async fn list_schemas(&self) -> Result<Vec<String>, ExtensionError> {
         let query = "SELECT keyspace_name FROM system_schema.keyspaces";
         self.session
-            .query(query, &[])
+            .query_unpaged(query, &[])
             .await
             .map_err(CassandraError::from)
             .and_then(|res| {
@@ -302,7 +297,7 @@ impl VirtualLister for CassandraAccessState {
             schema
         );
         self.session
-            .query(query, &[])
+            .query_unpaged(query, &[])
             .await
             .map_err(CassandraError::from)
             .and_then(|res| {
@@ -324,7 +319,7 @@ impl VirtualLister for CassandraAccessState {
             schema, table
         );
         self.session
-            .query(query, &[])
+            .query_unpaged(query, &[])
             .await
             .map_err(CassandraError::from)
             .and_then(|res| {

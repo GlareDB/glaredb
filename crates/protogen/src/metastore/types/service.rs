@@ -352,7 +352,6 @@ pub struct CreateExternalTable {
     pub columns: Option<Vec<InternalColumnDefinition>>,
 }
 
-
 impl TryFrom<service::CreateExternalTable> for CreateExternalTable {
     type Error = ProtoConvError;
     fn try_from(value: service::CreateExternalTable) -> Result<Self, Self::Error> {

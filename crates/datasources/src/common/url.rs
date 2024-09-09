@@ -149,7 +149,6 @@ impl TryFrom<&str> for DatasourceUrl {
     }
 }
 
-
 impl TryFrom<FuncParamValue> for DatasourceUrl {
     type Error = ExtensionError;
 

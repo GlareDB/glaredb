@@ -34,7 +34,6 @@ use datafusion::common::{
 };
 use datafusion::logical_expr::{Expr, ExprSchemable};
 
-
 pub const ARROW_CAST_NAME: &str = "arrow_cast";
 
 /// Create an [`Expr`] that evaluates the `arrow_cast` function
@@ -656,7 +655,6 @@ impl Display for Token {
 
 #[cfg(test)]
 mod test {
-
 
     use super::*;
 

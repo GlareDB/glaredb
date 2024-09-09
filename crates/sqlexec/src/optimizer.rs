@@ -89,7 +89,6 @@ impl OptimizerRule for DdlInputOptimizationRule {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use std::borrow::Cow;
@@ -121,7 +120,6 @@ mod test {
     use crate::planner::logical_plan::FullObjectReference;
     use crate::planner::physical_plan::remote_scan::ProviderReference;
 
-
     // Create a simple unoptimized plan
     fn create_unoptimized_plan() -> DFLogicalPlan {
         let schema = Schema::new(vec![
@@ -129,7 +127,6 @@ mod test {
             Field::new("b", DataType::Int32, false),
             Field::new("c", DataType::Int32, false),
         ]);
-
 
         let plan = table_scan(Some("test"), &schema, None).unwrap();
 
@@ -149,7 +146,6 @@ mod test {
             )
             .unwrap(),
         );
-
 
         DFLogicalPlan::Limit(Limit {
             skip: 0,

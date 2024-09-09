@@ -61,7 +61,6 @@ impl From<JsonError> for DataFusionError {
     }
 }
 
-
 impl From<jaq_interpret::Error> for JsonError {
     fn from(e: jaq_interpret::Error) -> Self {
         JsonError::JaqInterpret(e.to_string())

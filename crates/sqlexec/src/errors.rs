@@ -178,7 +178,6 @@ impl From<ExecError> for datafusion::error::DataFusionError {
     }
 }
 
-
 pub type Result<T, E = ExecError> = std::result::Result<T, E>;
 
 #[allow(unused_macros)]

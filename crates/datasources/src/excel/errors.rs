@@ -27,13 +27,11 @@ pub enum CalamineError {
     OpenWorkbook(#[from] calamine::XlsxError),
 }
 
-
 impl From<calamine::Error> for ExcelError {
     fn from(error: calamine::Error) -> Self {
         ExcelError::Load(error.to_string())
     }
 }
-
 
 impl From<ExcelError> for DataFusionError {
     fn from(e: ExcelError) -> Self {

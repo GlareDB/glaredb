@@ -144,7 +144,6 @@ impl SqliteAccess {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct SqliteAccessState {
     client: SqliteAsyncClient,

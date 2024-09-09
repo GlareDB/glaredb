@@ -639,7 +639,6 @@ mod tests {
             .await
             .unwrap();
 
-
         // Client 2 should still get latest committed version.
         c2.refresh_cached_state().await.unwrap();
         let refreshed2 = c2.get_cached_state().await.unwrap();
@@ -695,7 +694,6 @@ mod tests {
             .commit_state(state.version, new_state.as_ref().clone())
             .await
             .unwrap();
-
 
         // Client should now have the new committed state.
         c.refresh_cached_state().await.unwrap();

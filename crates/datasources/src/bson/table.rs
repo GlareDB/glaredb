@@ -87,7 +87,6 @@ async fn bson_streaming_table_inner(
         );
     }
 
-
     let mut streams = Vec::<Arc<(dyn PartitionStream + 'static)>>::with_capacity(readers.len() + 1);
 
     // get the schema; if provided as an argument, just use that, otherwise, sample.

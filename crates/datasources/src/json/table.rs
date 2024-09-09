@@ -97,7 +97,6 @@ async fn json_streaming_table_inner(
                 }
             }
 
-
             let schema = Arc::new(Schema::new(
                 field_set
                     .into_iter()
@@ -122,7 +121,6 @@ async fn json_streaming_table_inner(
     Ok(Arc::new(StreamingTable::try_new(schema.clone(), streams)?))
 }
 
-
 fn push_unwind_json_values(
     data: &mut Vec<Map<String, Value>>,
     vals: impl Iterator<Item = Result<Value, serde_json::Error>>,
@@ -140,7 +138,6 @@ fn push_unwind_json_values(
             }
             None => val?,
         };
-
 
         match value {
             Value::Array(vals) => {
