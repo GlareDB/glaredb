@@ -153,7 +153,7 @@ impl CassandraRowStream {
         let schema_clone = schema.clone();
         let stream = stream! {
             match session.query_iter(query, &[]).await {
-                Ok(res) => {
+        Ok(res) => {
             let mut inner = res.chunks(1024);
                     while let Some(item) = inner.next().await {
             match item.into_iter().collect::<Result<Vec<_>, _>>() {
@@ -164,8 +164,8 @@ impl CassandraRowStream {
                 }
             }
                     }
-                },
-                Err(e) => {
+        },
+        Err(e) => {
                     yield Err(DataFusionError::Execution(e.to_string()));
                     return;
                 }
