@@ -13,10 +13,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self};
 use std::collections::HashMap;
 
-use super::{
-    bind_group_by::BoundGroupBy,
-    select_expr_expander::ExpandedSelectExpr,
-};
+use super::{bind_group_by::BoundGroupBy, select_expr_expander::ExpandedSelectExpr};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Preprojection {

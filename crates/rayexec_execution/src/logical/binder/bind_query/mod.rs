@@ -12,10 +12,13 @@ pub mod select_list;
 
 use bind_setop::{BoundSetOp, SetOpBinder};
 use bind_values::{BoundValues, ValuesBinder};
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::logical::resolver::{resolve_context::ResolveContext, ResolvedMeta};
+use crate::logical::{
+    binder::bind_context::BoundCte,
+    resolver::{resolve_context::ResolveContext, ResolvedMeta},
+};
 use bind_select::{BoundSelect, SelectBinder};
 
 use super::bind_context::{BindContext, BindScopeRef, TableRef};
@@ -59,7 +62,13 @@ impl<'a> QueryBinder<'a> {
         bind_context: &mut BindContext,
         query: ast::QueryNode<ResolvedMeta>,
     ) -> Result<BoundQuery> {
-        self.bind_body(bind_context, query.body, query.order_by, query.limit)
+        if let Some(ctes) = query.ctes {
+            self.bind_ctes(bind_context, ctes)?;
+        }
+
+        let body = self.bind_body(bind_context, query.body, query.order_by, query.limit)?;
+
+        Ok(body)
     }
 
     pub fn bind_body(
@@ -87,5 +96,75 @@ impl<'a> QueryBinder<'a> {
                 Ok(BoundQuery::Setop(setop))
             }
         }
+    }
+
+    fn bind_ctes(
+        &self,
+        bind_context: &mut BindContext,
+        ctes: ast::CommonTableExprs<ResolvedMeta>,
+    ) -> Result<()> {
+        if ctes.recursive {
+            not_implemented!("recursive CTEs");
+        }
+
+        for cte in ctes.ctes {
+            self.bind_cte(bind_context, cte)?
+        }
+
+        Ok(())
+    }
+
+    fn bind_cte(
+        &self,
+        bind_context: &mut BindContext,
+        cte: ast::CommonTableExpr<ResolvedMeta>,
+    ) -> Result<()> {
+        let nested = bind_context.new_child_scope(self.current);
+        let binder = QueryBinder::new(nested, self.resolve_context);
+        let bound = binder.bind(bind_context, *cte.body)?;
+
+        let mut names = Vec::new();
+        let mut types = Vec::new();
+        for table in bind_context.iter_tables(nested)? {
+            types.extend(table.column_types.iter().cloned());
+            names.extend(table.column_names.iter().cloned());
+        }
+
+        // Sets alias where cte is defined
+        //
+        // WITH my_cte(alias1, alias2) AS ...
+        if let Some(col_aliases) = &cte.column_aliases {
+            if col_aliases.len() > names.len() {
+                return Err(RayexecError::new(format!(
+                    "Expected at most {} column aliases, received {}",
+                    names.len(),
+                    col_aliases.len()
+                )));
+            }
+
+            for (idx, col_alias) in col_aliases.iter().enumerate() {
+                names[idx] = col_alias.as_normalized_string();
+            }
+        }
+
+        let cte = BoundCte {
+            bind_scope: nested,
+            materialized: cte.materialized,
+            name: cte.alias.into_normalized_string(),
+            column_names: names,
+            column_types: types,
+            bound: Box::new(bound),
+            mat_ref: None,
+        };
+
+        // Note that we bind the CTE in a nested scope, but add it to the
+        // current scope so that it's visible to all child scopes of current.
+        //
+        // This allows for CTEs to reference previously defined CTEs, and we can
+        // avoid accidentally clobbering columns that are already in scope for
+        // the curent scope.
+        bind_context.add_cte(self.current, cte)?;
+
+        Ok(())
     }
 }

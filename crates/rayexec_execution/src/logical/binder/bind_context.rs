@@ -1,10 +1,15 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::expr::Expression;
+use crate::{
+    expr::Expression,
+    logical::operator::{LogicalNode, LogicalOperator},
+};
+
+use super::bind_query::BoundQuery;
 
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -24,24 +29,76 @@ impl fmt::Display for TableRef {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MaterializationRef {
+    pub materialization_idx: usize,
+}
+
+impl fmt::Display for MaterializationRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "MAT_{}", self.materialization_idx)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CteRef {
+    pub cte_idx: usize,
+}
+
+impl fmt::Display for CteRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CTE_{}", self.cte_idx)
+    }
+}
+
 #[derive(Debug)]
 pub struct BindContext {
     /// All child scopes used for binding.
     ///
     /// Initialized with a single scope (root).
     scopes: Vec<BindScope>,
-
     /// All tables in the bind context. Tables may or may not be inside a scope.
+    ///
+    /// Referenced via `TableRef`.
     tables: Vec<Table>,
+    /// All CTEs in the query.
+    ///
+    /// Referenced via `CteRef`.
+    ctes: Vec<BoundCte>,
+    /// All plans that will be materialized.
+    ///
+    /// Referenced via `MaterializationRef`.
+    materializations: Vec<PlanMaterialization>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
     pub outer: BindScopeRef,
     pub table: TableRef,
     /// Index of the column in the table.
     pub col_idx: usize,
+}
+
+#[derive(Debug)]
+pub struct BoundCte {
+    /// Scope used for binding the CTE.
+    pub bind_scope: BindScopeRef,
+    /// If this CTE should be materialized.
+    pub materialized: bool,
+    /// Normalized name fo the CTE.
+    pub name: String,
+    /// Column names, possibly aliased.
+    pub column_names: Vec<String>,
+    /// Column types.
+    pub column_types: Vec<DataType>,
+    /// The bound plan representing the CTE.
+    pub bound: Box<BoundQuery>,
+    /// Materialization reference for the CTE.
+    ///
+    /// If `materialized` is false and this is None, we need to plan the bound
+    /// query first.
+    pub mat_ref: Option<MaterializationRef>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,6 +123,8 @@ struct BindScope {
     using_columns: Vec<UsingColumn>,
     /// Tables currently in scope.
     tables: Vec<TableRef>,
+    /// CTEs in scope. Keyed by normalized CTE name.
+    ctes: HashMap<String, CteRef>,
 }
 
 /// Reference to a table inside a scope.
@@ -126,6 +185,19 @@ impl Table {
     }
 }
 
+/// A node in the logical plan that will be materialized to allow for multiple
+/// scans.
+#[derive(Debug)]
+pub struct PlanMaterialization {
+    pub mat_ref: MaterializationRef,
+    /// Plan we'll be materializing.
+    pub plan: LogicalOperator,
+    /// Number of scans against this plan.
+    pub scan_count: usize,
+    /// Table reference for the output of this plan.
+    pub table_ref: TableRef,
+}
+
 impl Default for BindContext {
     fn default() -> Self {
         Self::new()
@@ -140,8 +212,11 @@ impl BindContext {
                 tables: Vec::new(),
                 correlated_columns: Vec::new(),
                 using_columns: Vec::new(),
+                ctes: HashMap::new(),
             }],
             tables: Vec::new(),
+            ctes: Vec::new(),
+            materializations: Vec::new(),
         }
     }
 
@@ -160,6 +235,7 @@ impl BindContext {
             tables: Vec::new(),
             correlated_columns: Vec::new(),
             using_columns: Vec::new(),
+            ctes: HashMap::new(),
         });
 
         BindScopeRef { context_idx: idx }
@@ -174,9 +250,130 @@ impl BindContext {
             tables: Vec::new(),
             correlated_columns: Vec::new(),
             using_columns: Vec::new(),
+            ctes: HashMap::new(),
         });
 
         BindScopeRef { context_idx: idx }
+    }
+
+    /// Adds a CTE to the current scope.
+    ///
+    /// Errors on duplicate CTE name.
+    pub fn add_cte(&mut self, current: BindScopeRef, cte: BoundCte) -> Result<CteRef> {
+        let idx = self.ctes.len();
+
+        let scope = self.get_scope_mut(current)?;
+        if scope.ctes.contains_key(&cte.name) {
+            return Err(RayexecError::new(format!(
+                "Duplicate CTE name '{}'",
+                cte.name
+            )));
+        }
+
+        let cte_ref = CteRef { cte_idx: idx };
+        scope.ctes.insert(cte.name.clone(), cte_ref);
+
+        self.ctes.push(cte);
+
+        Ok(cte_ref)
+    }
+
+    /// Try to find CTE by name.
+    ///
+    /// If CTE is not found in the current scope, the parent scope will be
+    /// search (all the way up to the root of the query).
+    pub fn find_cte(&self, current: BindScopeRef, name: &str) -> Result<CteRef> {
+        let scope = self.get_scope(current)?;
+
+        match scope.ctes.get(name) {
+            Some(cte) => Ok(*cte),
+            None => {
+                let parent = match self.get_parent_ref(current)? {
+                    Some(parent) => parent,
+                    None => return Err(RayexecError::new(format!("Missing CTE '{name}'"))),
+                };
+
+                self.find_cte(parent, name)
+            }
+        }
+    }
+
+    pub fn get_cte(&self, cte_ref: CteRef) -> Result<&BoundCte> {
+        self.ctes
+            .get(cte_ref.cte_idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing CTE for ref: {cte_ref}")))
+    }
+
+    pub fn get_cte_mut(&mut self, cte_ref: CteRef) -> Result<&mut BoundCte> {
+        self.ctes
+            .get_mut(cte_ref.cte_idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing CTE for ref: {cte_ref}")))
+    }
+
+    /// Adds a plan for materialization to the bind context.
+    ///
+    /// Scan count for the materialization is initially set to 0.
+    pub fn new_materialization(&mut self, plan: LogicalOperator) -> Result<MaterializationRef> {
+        // TODO: Dedup with subquery decorrelation.
+        let plan_tables = plan.get_output_table_refs();
+        if plan_tables.len() != 1 {
+            return Err(RayexecError::new(
+                "Expected 1 table ref for plan in plan materialization",
+            ));
+        }
+
+        let idx = self.materializations.len();
+        let mat_ref = MaterializationRef {
+            materialization_idx: idx,
+        };
+
+        self.materializations.push(PlanMaterialization {
+            mat_ref,
+            plan,
+            scan_count: 0,
+            table_ref: plan_tables[0],
+        });
+
+        Ok(mat_ref)
+    }
+
+    pub fn inc_materialization_scan_count(
+        &mut self,
+        mat_ref: MaterializationRef,
+        by: usize,
+    ) -> Result<()> {
+        let mat = self.get_materialization_mut(mat_ref)?;
+        mat.scan_count += by;
+        Ok(())
+    }
+
+    pub fn get_materialization_mut(
+        &mut self,
+        mat_ref: MaterializationRef,
+    ) -> Result<&mut PlanMaterialization> {
+        self.materializations
+            .get_mut(mat_ref.materialization_idx)
+            .ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing materialization for idx {}",
+                    mat_ref.materialization_idx
+                ))
+            })
+    }
+
+    pub fn get_materialization(&self, mat_ref: MaterializationRef) -> Result<&PlanMaterialization> {
+        self.materializations
+            .get(mat_ref.materialization_idx)
+            .ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing materialization for idx {}",
+                    mat_ref.materialization_idx
+                ))
+            })
+    }
+
+    pub fn iter_materializations(&self) -> impl Iterator<Item = &PlanMaterialization> {
+        self.materializations.iter()
     }
 
     pub fn get_parent_ref(&self, bind_ref: BindScopeRef) -> Result<Option<BindScopeRef>> {
@@ -192,6 +389,18 @@ impl BindContext {
     pub fn correlated_columns(&self, bind_ref: BindScopeRef) -> Result<&Vec<CorrelatedColumn>> {
         let child = self.get_scope(bind_ref)?;
         Ok(&child.correlated_columns)
+    }
+
+    /// Appends correlated column from some other scope to current scope.
+    pub fn append_correlated_columns(
+        &mut self,
+        current: BindScopeRef,
+        from: BindScopeRef,
+    ) -> Result<()> {
+        let mut other_correlated = self.get_scope(from)?.correlated_columns.clone();
+        let current = self.get_scope_mut(current)?;
+        current.correlated_columns.append(&mut other_correlated);
+        Ok(())
     }
 
     /// Appends `other` context to `current`.
@@ -212,15 +421,20 @@ impl BindContext {
             }
         }
 
-        // TODO: Correlated columns, USING
-        let mut other_tables = {
+        let (mut other_tables, mut other_using, mut other_correlations) = {
             let other = self.get_scope(other)?;
-            other.tables.clone()
+            (
+                other.tables.clone(),
+                other.using_columns.clone(),
+                other.correlated_columns.clone(),
+            )
         };
 
         let current = self.get_scope_mut(current)?;
 
         current.tables.append(&mut other_tables);
+        current.using_columns.append(&mut other_using);
+        current.correlated_columns.append(&mut other_correlations);
 
         Ok(())
     }

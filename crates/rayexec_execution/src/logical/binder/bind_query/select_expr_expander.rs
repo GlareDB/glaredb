@@ -68,6 +68,7 @@ impl<'a> SelectExprExpander<'a> {
             let mut ex = self.expand_select_expr(expr)?;
             expanded.append(&mut ex);
         }
+
         Ok(expanded)
     }
 

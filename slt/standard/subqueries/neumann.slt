@@ -1,0 +1,50 @@
+# Queries from "Unnesting Arbitrary Queries"
+#
+# https://cs.emis.de/LNI/Proceedings/Proceedings241/383.pdf
+
+halt
+
+statement ok
+CREATE TEMP TABLE students (id INT, name TEXT, major TEXT, year INT);
+
+statement ok
+CREATE TEMP TABLE exams (sid INT, course TEXT, curriculum TEXT, grade INT, year INT);
+
+statement ok
+INSERT INTO students VALUES
+  (1,  'Sean',  'CS',   2024),
+  (2,  'Sam',   'CS',   2024),
+  (3,  'Tal',   'Games  Eng',  2024);
+
+statement ok
+INSERT INTO exams VALUES
+  (1,  'Databases',       'CS',  77,   2022),
+  (1,  'Datastructures',  'CS',  77,   2023),
+  (2,  'Databases',       'CS',  100,  2022),
+  (2,  'Datastructures',  'CS',  99,   2023)
+
+query TT rowsort
+SELECT s.name,e.course
+  FROM students s,exams e
+ WHERE s.id=e.sid AND
+       e.grade=(SELECT min(e2.grade)
+                  FROM exams e2
+                 WHERE s.id=e2.sid)
+----
+Sam   Datastructures
+Sean  Databases
+Sean  Datastructures
+
+query TT rowsort
+SELECT s.name, e.course
+  FROM students s, exams e
+ WHERE s.id=e.sid AND
+       (s.major = 'CS' OR s.major = 'Games Eng') AND
+        e.grade>=(SELECT avg(e2.grade)+1
+                    FROM exams e2
+                   WHERE s.id=e2.sid OR
+                         (e2.curriculum=s.major AND
+                          s.year>e2.year))
+----
+Sam  Databases
+Sam  Datastructures

@@ -21,7 +21,7 @@ use crate::{
         intermediate::StreamId,
         operators::{
             sink::{PartitionSink, SinkOperation},
-            source::{PartitionSource, QuerySource},
+            source::{PartitionSource, SourceOperation},
         },
     },
     runtime::ErrorSink,
@@ -265,7 +265,7 @@ pub struct IncomingStream {
     state: Arc<Mutex<IncomingStreamState>>,
 }
 
-impl QuerySource for IncomingStream {
+impl SourceOperation for IncomingStream {
     fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
         assert_eq!(1, num_sources);
 

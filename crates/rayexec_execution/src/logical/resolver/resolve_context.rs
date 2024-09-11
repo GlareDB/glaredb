@@ -12,7 +12,7 @@ use super::{
     resolved_copy_to::ResolvedCopyTo,
     resolved_cte::ResolvedCte,
     resolved_function::ResolvedFunction,
-    resolved_table::{CteIndex, ResolvedTableOrCteReference, UnresolvedTableReference},
+    resolved_table::{ResolvedTableOrCteReference, UnresolvedTableReference},
     resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference},
 };
 
@@ -86,10 +86,10 @@ impl ResolveContext {
     // TODO: This doesn't account for CTEs defined in sibling subqueries yet
     // that happen to have the same name and depths _and_ there's no CTEs in the
     // parent.
-    pub fn find_cte(&self, name: &str) -> Option<CteIndex> {
+    pub fn find_cte(&self, name: &str) -> Option<&ResolvedCte> {
         let mut search_depth = self.current_depth;
 
-        for (idx, cte) in self.ctes.iter().rev().enumerate() {
+        for cte in self.ctes.iter().rev() {
             if cte.depth > search_depth {
                 // We're looking another subquery's CTEs.
                 return None;
@@ -97,7 +97,7 @@ impl ResolveContext {
 
             if cte.name == name {
                 // We found a good reference.
-                return Some(CteIndex(self.ctes.len() - 1 - idx)); // Since we're iterating backwards.
+                return Some(cte);
             }
 
             // Otherwise keep searching, even if the cte is up a level.
@@ -117,10 +117,8 @@ impl ResolveContext {
     }
 
     /// Push a CTE into bind data, returning a CTE reference.
-    pub fn push_cte(&mut self, cte: ResolvedCte) -> CteIndex {
-        let idx = self.ctes.len();
+    pub fn push_cte(&mut self, cte: ResolvedCte) {
         self.ctes.push(cte);
-        CteIndex(idx)
     }
 }
 

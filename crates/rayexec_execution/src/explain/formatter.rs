@@ -10,6 +10,7 @@ use crate::{
 };
 use rayexec_error::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use super::explainable::{ExplainConfig, ExplainEntry};
 
@@ -148,6 +149,11 @@ impl ExplainNode {
                     ("partitions", partitions.to_string()),
                 ],
             ),
+            PipelineSink::Materialization { mat_ref } => entry.with_named_map(
+                "Sink",
+                "Materialization",
+                [("materialization_ref", mat_ref)],
+            ),
         };
 
         entry = match pipeline.source {
@@ -167,6 +173,11 @@ impl ExplainNode {
             PipelineSource::OtherPipeline { pipeline } => {
                 entry.with_named_map("Source", "OtherPipeline", [("pipeline_id", pipeline.0)])
             }
+            PipelineSource::Materialization { mat_ref } => entry.with_named_map(
+                "Source",
+                "Materialization",
+                [("materialization_ref", mat_ref)],
+            ),
         };
 
         let children = pipeline
@@ -190,6 +201,7 @@ impl ExplainNode {
             LogicalOperator::Invalid => (ExplainEntry::new("INVALID"), &Vec::new()),
             LogicalOperator::Project(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Filter(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::Distinct(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Scan(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Aggregate(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::SetOp(n) => (n.explain_entry(config), &n.children),
@@ -211,15 +223,27 @@ impl ExplainNode {
             LogicalOperator::CrossJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ArbitraryJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ComparisonJoin(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::MaterializationScan(n) => {
+                // Materialization special case, walk children by get
+                // materialization from bind context.
+                let entry = n.explain_entry(config);
+
+                let children = match bind_context.get_materialization(n.node.mat) {
+                    Ok(mat) => vec![Self::walk_logical_plan(bind_context, &mat.plan, config)],
+                    Err(e) => {
+                        error!(%e, "failed to get materialization from bind context");
+                        Vec::new()
+                    }
+                };
+
+                return ExplainNode { entry, children };
+            }
         };
 
         let children = children
             .iter()
             .map(|c| Self::walk_logical_plan(bind_context, c, config))
             .collect();
-
-        // This will be used at some point.
-        let _ = bind_context;
 
         ExplainNode { entry, children }
     }

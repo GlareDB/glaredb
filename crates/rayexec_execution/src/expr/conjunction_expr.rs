@@ -36,6 +36,6 @@ pub struct ConjunctionExpr {
 
 impl fmt::Display for ConjunctionExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.right, self.op)
+        write!(f, "{} {} {}", self.left, self.op, self.right)
     }
 }

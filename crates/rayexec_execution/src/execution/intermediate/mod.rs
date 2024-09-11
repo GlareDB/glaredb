@@ -3,6 +3,7 @@ pub mod planner;
 use crate::{
     database::DatabaseContext,
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    logical::binder::bind_context::MaterializationRef,
     proto::DatabaseProtoConv,
 };
 use rayexec_error::{OptionExt, Result};
@@ -94,6 +95,8 @@ pub enum PipelineSink {
         /// Number of partitions the receiving pipeline expects.
         partitions: usize,
     },
+    /// Sink is into a materialization operator.
+    Materialization { mat_ref: MaterializationRef },
 }
 
 impl ProtoConv for PipelineSink {
@@ -101,7 +104,8 @@ impl ProtoConv for PipelineSink {
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         use rayexec_proto::generated::execution::{
-            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkOtherGroup,
+            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkMaterialization,
+            PipelineSinkOtherGroup,
         };
 
         let value = match self {
@@ -123,6 +127,11 @@ impl ProtoConv for PipelineSink {
                 stream_id: Some(stream_id.to_proto()?),
                 partitions: *partitions as u32,
             }),
+            Self::Materialization { mat_ref } => {
+                Value::Materialization(PipelineSinkMaterialization {
+                    materialization_ref: mat_ref.materialization_idx as u32,
+                })
+            }
         };
 
         Ok(Self::ProtoType { value: Some(value) })
@@ -130,7 +139,8 @@ impl ProtoConv for PipelineSink {
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         use rayexec_proto::generated::execution::{
-            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkOtherGroup,
+            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkMaterialization,
+            PipelineSinkOtherGroup,
         };
 
         Ok(match proto.value.required("value")? {
@@ -152,6 +162,13 @@ impl ProtoConv for PipelineSink {
                 stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
                 partitions: partitions as usize,
             },
+            Value::Materialization(PipelineSinkMaterialization {
+                materialization_ref,
+            }) => Self::Materialization {
+                mat_ref: MaterializationRef {
+                    materialization_idx: materialization_ref as usize,
+                },
+            },
         })
     }
 }
@@ -163,7 +180,7 @@ impl ProtoConv for PipelineSink {
 ///
 /// For hybrid execution, the source may be a remote pipeline, and so we will
 /// include an ipc source operator as this pipeline's source.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PipelineSource {
     /// Source is already in the pipeline, don't do anything.
     InPipeline,
@@ -174,6 +191,8 @@ pub enum PipelineSource {
         stream_id: StreamId,
         partitions: usize,
     },
+    /// Source is from a materialization operator.
+    Materialization { mat_ref: MaterializationRef },
 }
 
 impl ProtoConv for PipelineSource {
@@ -181,7 +200,8 @@ impl ProtoConv for PipelineSource {
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         use rayexec_proto::generated::execution::{
-            pipeline_source::Value, PipelineSourceOtherGroup, PipelineSourceOtherPipeline,
+            pipeline_source::Value, PipelineSourceMaterialization, PipelineSourceOtherGroup,
+            PipelineSourceOtherPipeline,
         };
 
         let value = match self {
@@ -196,6 +216,11 @@ impl ProtoConv for PipelineSource {
                 stream_id: Some(stream_id.to_proto()?),
                 partitions: *partitions as u32,
             }),
+            Self::Materialization { mat_ref } => {
+                Value::Materialization(PipelineSourceMaterialization {
+                    materialization_ref: mat_ref.materialization_idx as u32,
+                })
+            }
         };
 
         Ok(Self::ProtoType { value: Some(value) })
@@ -203,7 +228,8 @@ impl ProtoConv for PipelineSource {
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         use rayexec_proto::generated::execution::{
-            pipeline_source::Value, PipelineSourceOtherGroup, PipelineSourceOtherPipeline,
+            pipeline_source::Value, PipelineSourceMaterialization, PipelineSourceOtherGroup,
+            PipelineSourceOtherPipeline,
         };
 
         Ok(match proto.value.required("value")? {
@@ -217,6 +243,13 @@ impl ProtoConv for PipelineSource {
             }) => Self::OtherGroup {
                 stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
                 partitions: partitions as usize,
+            },
+            Value::Materialization(PipelineSourceMaterialization {
+                materialization_ref,
+            }) => Self::Materialization {
+                mat_ref: MaterializationRef {
+                    materialization_idx: materialization_ref as usize,
+                },
             },
         })
     }
@@ -262,6 +295,32 @@ impl DatabaseProtoConv for IntermediatePipelineGroup {
                 .collect::<Result<HashMap<_, _>>>()?,
         })
     }
+}
+
+#[derive(Debug, Default)]
+pub struct IntermediateMaterializationGroup {
+    pub(crate) materializations: HashMap<MaterializationRef, IntermediateMaterialization>,
+}
+
+impl IntermediateMaterializationGroup {
+    pub fn is_empty(&self) -> bool {
+        self.materializations.is_empty()
+    }
+}
+
+/// An intermediate materialization.
+///
+/// Almost the same thing as a normal pipeline, but we don't know where the
+/// batches will be sent yet.
+// TODO: There might be path to unifying this with intermediate pipeline.
+// Eventually everything gets turned into a pipeline.
+#[derive(Debug)]
+pub struct IntermediateMaterialization {
+    pub(crate) id: IntermediatePipelineId,
+    pub(crate) source: PipelineSource,
+    pub(crate) operators: Vec<IntermediateOperator>,
+    /// How many output scans there are for this materialization.
+    pub(crate) scan_count: usize,
 }
 
 #[derive(Debug)]

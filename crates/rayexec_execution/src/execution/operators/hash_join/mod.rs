@@ -488,5 +488,8 @@ impl ExecutableOperator for PhysicalHashJoin {
 impl Explainable for PhysicalHashJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("HashJoin")
+            .with_values("conditions", &self.conditions)
+            .with_value("equality", &self.equality)
+            .with_value("join_type", self.join_type)
     }
 }

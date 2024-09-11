@@ -1,20 +1,20 @@
-use hashbrown::HashMap;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::HashMap, collections::VecDeque, sync::Arc};
 
 use crate::{
     database::DatabaseContext,
     engine::result::ResultSink,
     execution::{
         intermediate::{
-            IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId, PipelineSink,
-            PipelineSource,
+            IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipelineGroup,
+            IntermediatePipelineId, PipelineSink, PipelineSource,
         },
         operators::{
+            materialize::MaterializeOperation,
             round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
             sink::{SinkOperation, SinkOperator},
-            source::PhysicalQuerySource,
+            source::{SourceOperation, SourceOperator},
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
         },
     },
@@ -23,6 +23,7 @@ use crate::{
         client::HybridClient,
         stream::{ClientToServerStream, ServerToClientStream},
     },
+    logical::binder::bind_context::MaterializationRef,
     runtime::Runtime,
 };
 
@@ -40,24 +41,6 @@ impl PipelineIdGen {
         self.gen.0 += 1;
         id
     }
-}
-
-#[derive(Debug)]
-struct PendingOperatorWithState {
-    operator: Arc<PhysicalOperator>,
-    operator_state: Arc<OperatorState>,
-    input_states: Vec<Option<Vec<PartitionState>>>,
-    pull_states: VecDeque<Vec<PartitionState>>,
-    trunk_idx: usize,
-}
-
-#[derive(Debug)]
-struct PendingPipeline {
-    /// Indices into a `pending_operators` vec containing the operators and
-    /// state.
-    operators: Vec<usize>,
-    sink: PipelineSink,
-    source: PipelineSource,
 }
 
 #[derive(Debug, Clone)]
@@ -118,133 +101,198 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
     pub fn plan_from_intermediate(
         &mut self,
         group: IntermediatePipelineGroup,
+        materializations: IntermediateMaterializationGroup,
     ) -> Result<Vec<ExecutablePipeline>> {
-        let mut pending_operators: Vec<PendingOperatorWithState> = Vec::new();
-        let mut pending_pipelines: HashMap<_, PendingPipeline> =
-            HashMap::with_capacity(group.pipelines.len());
+        let mut pending = PendingQuery::try_from_operators_and_materializations(
+            &self.config,
+            self.context,
+            group,
+            materializations,
+        )?;
 
-        // Initial states.
-        for (id, intermediate) in group.pipelines {
-            let pipeline = self.plan_operators_with_state(&mut pending_operators, intermediate)?;
-            pending_pipelines.insert(id, pipeline);
+        pending.plan_executable_pipelines(self.context, &mut self.loc_state, &mut self.id_gen)
+    }
+}
+
+#[derive(Debug)]
+struct PendingQuery {
+    /// All pending operators in a query.
+    operators: Vec<PendingOperatorWithState>,
+    /// Pending pipelines in this query.
+    ///
+    /// This includes pipelines that make up a materialization.
+    pipelines: HashMap<IntermediatePipelineId, PendingPipeline>,
+    /// Pending materializations in the query.
+    materializations: HashMap<MaterializationRef, PendingMaterialization>,
+}
+
+impl PendingQuery {
+    fn try_from_operators_and_materializations(
+        config: &ExecutionConfig,
+        context: &DatabaseContext,
+        group: IntermediatePipelineGroup,
+        materializations: IntermediateMaterializationGroup,
+    ) -> Result<Self> {
+        let mut pending_materializations = HashMap::new();
+        let mut pending_pipelines = HashMap::new();
+        let mut operators = Vec::new();
+
+        // Handle materializations first.
+        //
+        // This will construct the appropriate sink/source operators, and then
+        // converts the materialization body into a normal pending pipeline.
+        for (mat_ref, materialization) in materializations.materializations {
+            let mut operator_indexes = Vec::with_capacity(materialization.operators.len());
+
+            for operator in materialization.operators {
+                let idx = operators.len();
+                let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                    config, context, operator,
+                )?;
+
+                operator_indexes.push(idx);
+                operators.push(pending);
+            }
+
+            let mat_op = MaterializeOperation::new(
+                mat_ref,
+                config.target_partitions,
+                materialization.scan_count,
+            );
+
+            // Add materialization sink to pending operators.
+            let idx = operators.len();
+            let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                config,
+                context,
+                IntermediateOperator {
+                    operator: Arc::new(PhysicalOperator::DynSink(SinkOperator::new(Box::new(
+                        mat_op.sink,
+                    )))),
+                    partitioning_requirement: Some(config.target_partitions),
+                },
+            )?;
+            operators.push(pending);
+            operator_indexes.push(idx);
+
+            // Add scan sources to pending operators.
+            let mut scan_sources = Vec::new();
+            for source in mat_op.sources {
+                let idx = operators.len();
+                let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                    config,
+                    context,
+                    IntermediateOperator {
+                        operator: Arc::new(PhysicalOperator::MaterializedSource(
+                            SourceOperator::new(source),
+                        )),
+                        partitioning_requirement: Some(config.target_partitions),
+                    },
+                )?;
+
+                // Note these indexes aren't being stored on the pending
+                // pipeline.
+                scan_sources.push(idx);
+                operators.push(pending);
+            }
+
+            // Push materialization as pipeline.
+            pending_pipelines.insert(
+                materialization.id,
+                PendingPipeline {
+                    operators: operator_indexes,
+                    sink: PipelineSink::InPipeline, //  We added the sink above.
+                    source: materialization.source,
+                },
+            );
+
+            // Store indices for the scans for the output of the
+            // materialization.
+            pending_materializations.insert(mat_ref, PendingMaterialization { scan_sources });
         }
 
-        let mut pipelines = Vec::with_capacity(pending_pipelines.len());
+        // Handle the other operators.
+        for (id, pipeline) in group.pipelines {
+            let mut operator_indexes = Vec::with_capacity(pipeline.operators.len());
 
-        for pending in pending_pipelines.values() {
-            self.plan_pending_pipeline(
-                pending,
-                &mut pending_operators,
-                &pending_pipelines,
-                &mut pipelines,
-            )?;
+            for operator in pipeline.operators {
+                let idx = operators.len();
+                let pending = PendingOperatorWithState::try_from_intermediate_operator(
+                    config, context, operator,
+                )?;
+
+                operator_indexes.push(idx);
+                operators.push(pending);
+            }
+
+            pending_pipelines.insert(
+                id,
+                PendingPipeline {
+                    operators: operator_indexes,
+                    sink: pipeline.sink,
+                    source: pipeline.source,
+                },
+            );
+        }
+
+        Ok(PendingQuery {
+            operators,
+            pipelines: pending_pipelines,
+            materializations: pending_materializations,
+        })
+    }
+
+    fn plan_executable_pipelines<C: HttpClient + 'static>(
+        &mut self,
+        context: &DatabaseContext,
+        loc_state: &mut PlanLocationState<'_, C>,
+        id_gen: &mut PipelineIdGen,
+    ) -> Result<Vec<ExecutablePipeline>> {
+        let mut pipelines = Vec::with_capacity(self.pipelines.len() + self.materializations.len());
+
+        // TODO: Would be cool not cloning here. Needed to avoid mut reference
+        // issues (borrow a pending pipeline but need mut self).
+        let pending_pipelines: Vec<_> = self.pipelines.values().cloned().collect();
+
+        for pending in pending_pipelines {
+            self.plan_executable_pipeline(context, loc_state, id_gen, &pending, &mut pipelines)?;
         }
 
         Ok(pipelines)
     }
 
-    fn plan_pending_pipeline(
+    /// Plan an executable pipeline for a pending pipline, placing the resuling
+    /// pipeline(s) in `executables`.
+    ///
+    /// A single pending pipeline may result in multiple executable pipelines
+    /// due repartitioning.
+    fn plan_executable_pipeline<C: HttpClient + 'static>(
         &mut self,
+        context: &DatabaseContext,
+        loc_state: &mut PlanLocationState<'_, C>,
+        id_gen: &mut PipelineIdGen,
         pending: &PendingPipeline,
-        operators: &mut [PendingOperatorWithState],
-        pipelines: &HashMap<IntermediatePipelineId, PendingPipeline>,
         executables: &mut Vec<ExecutablePipeline>,
     ) -> Result<()> {
+        // Plan source.
+        let mut pipeline = self.plan_from_source(context, loc_state, id_gen, pending)?;
+
         let mut operator_indices = pending.operators.iter();
-
-        // Create initial pipeline from the source operator.
-        let mut pipeline = match pending.source {
-            PipelineSource::InPipeline => {
-                // Source is the first operator.
-                let idx = operator_indices.next().unwrap();
-                let source = &mut operators[*idx];
-                debug_assert_eq!(1, source.input_states.len());
-                let partition_states = source.input_states[0].take().unwrap();
-
-                let mut pipeline =
-                    ExecutablePipeline::new(self.id_gen.next(), partition_states.len());
-                pipeline.push_operator(
-                    source.operator.clone(),
-                    source.operator_state.clone(),
-                    partition_states,
-                )?;
-
-                pipeline
-            }
-            PipelineSource::OtherPipeline { pipeline } => {
-                let operator_idx = pipelines
-                    .get(&pipeline)
-                    .required("pipeline")?
-                    .operators
-                    .last()
-                    .required("at least one operator")?;
-                let source = &mut operators[*operator_idx];
-
-                // TODO: Definitely needs comments.
-                let pull_states = source
-                    .pull_states
-                    .pop_front()
-                    .required("separate pull states")?;
-
-                let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), pull_states.len());
-                pipeline.push_operator(
-                    source.operator.clone(),
-                    source.operator_state.clone(),
-                    pull_states,
-                )?;
-
-                pipeline
-            }
-            PipelineSource::OtherGroup {
-                stream_id,
-                partitions,
-            } => {
-                // Source is pipeline that's executing somewhere else.
-                let operator = match &self.loc_state {
-                    PlanLocationState::Server { stream_buffers } => {
-                        let source = stream_buffers.create_incoming_stream(stream_id)?;
-                        PhysicalQuerySource::new(Box::new(source))
-                    }
-                    PlanLocationState::Client { hybrid_client, .. } => {
-                        // Missing hybrid client shouldn't happen.
-                        let hybrid_client = hybrid_client.ok_or_else(|| {
-                            RayexecError::new("Hybrid client missing, cannot create sink pipeline")
-                        })?;
-                        let source = ServerToClientStream::new(stream_id, hybrid_client.clone());
-                        PhysicalQuerySource::new(Box::new(source))
-                    }
-                };
-
-                let states = operator.create_states(self.context, vec![partitions])?;
-                let partition_states = match states.partition_states {
-                    InputOutputStates::OneToOne { partition_states } => partition_states,
-                    _ => {
-                        return Err(RayexecError::new(
-                            "Invalid partition states for query source",
-                        ))
-                    }
-                };
-
-                let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), partitions);
-                pipeline.push_operator(
-                    Arc::new(operator),
-                    states.operator_state,
-                    partition_states,
-                )?;
-
-                pipeline
-            }
-        };
+        // Skip first index if the source was in the list of operators.
+        if pending.source == PipelineSource::InPipeline {
+            operator_indices.next();
+        }
 
         // Wire up the rest.
         for operator_idx in operator_indices {
-            let operator = &mut operators[*operator_idx];
+            let operator = self.get_operator_mut(*operator_idx)?;
             let partition_states = operator.input_states[operator.trunk_idx].take().unwrap();
 
             // If partition doesn't match, push a round robin and start new
             // pipeline.
             if partition_states.len() != pipeline.num_partitions() {
-                pipeline = self.push_repartition(pipeline, partition_states.len(), executables)?;
+                pipeline =
+                    Self::push_repartition(id_gen, pipeline, partition_states.len(), executables)?;
             }
 
             pipeline.push_operator(
@@ -254,10 +302,28 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
             )?;
         }
 
-        // Wire up sink.
+        // Finish it, pushes to executables for us.
+        self.finish_pipeline(context, loc_state, id_gen, pending, pipeline, executables)?;
+
+        Ok(())
+    }
+
+    /// Finishes planning an executable pipeline by ensuring it has an
+    /// appropriate sink.
+    ///
+    /// The resulting pipeline(s) will be placed in `executables`.
+    fn finish_pipeline<C: HttpClient + 'static>(
+        &mut self,
+        context: &DatabaseContext,
+        loc_state: &mut PlanLocationState<'_, C>,
+        id_gen: &mut PipelineIdGen,
+        pending: &PendingPipeline,
+        mut pipeline: ExecutablePipeline,
+        executables: &mut Vec<ExecutablePipeline>,
+    ) -> Result<()> {
         match pending.sink {
             PipelineSink::QueryOutput => {
-                let sink = match &mut self.loc_state {
+                let sink = match loc_state {
                     PlanLocationState::Client { output_sink, .. } => match output_sink.take() {
                         Some(sink) => sink,
                         None => return Err(RayexecError::new("Missing output sink")),
@@ -273,22 +339,24 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                 };
 
                 if partitions != pipeline.num_partitions() {
-                    pipeline = self.push_repartition(pipeline, partitions, executables)?;
+                    pipeline = Self::push_repartition(id_gen, pipeline, partitions, executables)?;
                 }
 
                 let operator = Arc::new(PhysicalOperator::ResultSink(SinkOperator::new(sink)));
-                let states = operator.create_states(self.context, vec![partitions])?;
+                let states = operator.create_states(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states for query sink")),
                 };
 
                 pipeline.push_operator(operator, states.operator_state, partition_states)?;
+
+                executables.push(pipeline);
             }
             PipelineSink::InPipeline => {
-                // The pipeline's final operator is the query sink. A requisite
-                // states have already been created from above, so nothing for
-                // us to do.
+                // The pipeline's final operator is the query sink. Nothing left
+                // for us to do.
+                executables.push(pipeline);
             }
             PipelineSink::InGroup {
                 pipeline_id,
@@ -297,13 +365,17 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
             } => {
                 // We have the sink pipeline with us, wire up directly.
 
-                let pending = pipelines.get(&pipeline_id).unwrap();
-                let operator = &mut operators[pending.operators[operator_idx]];
-                let partition_states = operator.input_states[input_idx].take().unwrap();
+                let pending = self.pipelines.get(&pipeline_id).unwrap();
+                let operator = self.get_operator_mut(pending.operators[operator_idx])?;
+                let partition_states = operator.take_input_states(input_idx)?;
 
                 if partition_states.len() != pipeline.num_partitions() {
-                    pipeline =
-                        self.push_repartition(pipeline, partition_states.len(), executables)?;
+                    pipeline = Self::push_repartition(
+                        id_gen,
+                        pipeline,
+                        partition_states.len(),
+                        executables,
+                    )?;
                 }
 
                 pipeline.push_operator(
@@ -311,13 +383,15 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     operator.operator_state.clone(),
                     partition_states,
                 )?;
+
+                executables.push(pipeline);
             }
             PipelineSink::OtherGroup {
-                partitions,
                 stream_id,
+                partitions,
             } => {
                 // Sink is pipeline executing somewhere else.
-                let operator: SinkOperator<Box<dyn SinkOperation>> = match &self.loc_state {
+                let operator: SinkOperator<Box<dyn SinkOperation>> = match loc_state {
                     PlanLocationState::Server { stream_buffers } => {
                         let sink = stream_buffers.create_outgoing_stream(stream_id)?;
                         SinkOperator::new(Box::new(sink))
@@ -334,15 +408,19 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     }
                 };
 
-                let states = operator.create_states(self.context, vec![partitions])?;
+                let states = operator.create_states(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states")),
                 };
 
                 if partition_states.len() != pipeline.num_partitions() {
-                    pipeline =
-                        self.push_repartition(pipeline, partition_states.len(), executables)?;
+                    pipeline = Self::push_repartition(
+                        id_gen,
+                        pipeline,
+                        partition_states.len(),
+                        executables,
+                    )?;
                 }
 
                 pipeline.push_operator(
@@ -350,19 +428,159 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
                     states.operator_state,
                     partition_states,
                 )?;
+
+                executables.push(pipeline);
+            }
+            PipelineSink::Materialization { .. } => {
+                // TODO: This is never constructed as pipelines that make up a
+                // materialization are constructed slightly differently in that
+                // we don't need to specify a sink.
+                //
+                // This does cause a slight split in logic, and we may at some
+                // point use this variant if we want to try to unify them.
+                unreachable!("Materialization variant never constructed")
             }
         }
 
-        // And we're done, pipeline is complete.
-        executables.push(pipeline);
-
         Ok(())
+    }
+
+    /// Construct the initial executable pipeline with the pipelines source.
+    fn plan_from_source<C: HttpClient + 'static>(
+        &mut self,
+        context: &DatabaseContext,
+        loc_state: &PlanLocationState<'_, C>,
+        id_gen: &mut PipelineIdGen,
+        pending: &PendingPipeline,
+    ) -> Result<ExecutablePipeline> {
+        match pending.source {
+            PipelineSource::InPipeline => {
+                // Source is the first operator in the pipeline.
+                let idx = *pending
+                    .operators
+                    .first()
+                    .ok_or_else(|| RayexecError::new("Missing first operator in pipeline"))?;
+
+                let source = self.get_operator_mut(idx)?;
+                debug_assert_eq!(1, source.input_states.len());
+                let partition_states = source.take_input_states(0)?;
+
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
+                pipeline.push_operator(
+                    source.operator.clone(),
+                    source.operator_state.clone(),
+                    partition_states,
+                )?;
+
+                Ok(pipeline)
+            }
+            PipelineSource::OtherPipeline { pipeline } => {
+                // Source is the last operation for some other pipeline
+                // executing on this node.
+                let operator_idx = *self
+                    .pipelines
+                    .get(&pipeline)
+                    .ok_or_else(|| {
+                        RayexecError::new(format!("Missing pipeline for id {pipeline:?}"))
+                    })?
+                    .operators
+                    .last()
+                    .ok_or_else(|| {
+                        RayexecError::new(format!("Pipeline has no operators: {pipeline:?}"))
+                    })?;
+
+                let source = self.get_operator_mut(operator_idx)?;
+
+                // TODO: Definitely needs comments.
+                let pull_states = source.pull_states.pop_front().ok_or_else(|| {
+                    RayexecError::new(format!("Pipeline has missing pull states: {pipeline:?}"))
+                })?;
+
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), pull_states.len());
+                pipeline.push_operator(
+                    source.operator.clone(),
+                    source.operator_state.clone(),
+                    pull_states,
+                )?;
+
+                Ok(pipeline)
+            }
+            PipelineSource::OtherGroup {
+                stream_id,
+                partitions,
+            } => {
+                // Source is pipeline that's executing somewhere else.
+                //
+                // Set up hybrid operator.
+                let operator = match &loc_state {
+                    PlanLocationState::Server { stream_buffers } => {
+                        let source = stream_buffers.create_incoming_stream(stream_id)?;
+                        SourceOperator::new(Box::new(source) as Box<dyn SourceOperation>)
+                    }
+                    PlanLocationState::Client { hybrid_client, .. } => {
+                        // Missing hybrid client shouldn't happen.
+                        let hybrid_client = hybrid_client.ok_or_else(|| {
+                            RayexecError::new("Hybrid client missing, cannot create sink pipeline")
+                        })?;
+                        let source = ServerToClientStream::new(stream_id, hybrid_client.clone());
+                        SourceOperator::new(Box::new(source) as Box<dyn SourceOperation>)
+                    }
+                };
+
+                let states = operator.create_states(context, vec![partitions])?;
+                let partition_states = match states.partition_states {
+                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    _ => {
+                        return Err(RayexecError::new(
+                            "Invalid partition states for query source",
+                        ))
+                    }
+                };
+
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), partitions);
+                pipeline.push_operator(
+                    Arc::new(operator),
+                    states.operator_state,
+                    partition_states,
+                )?;
+
+                Ok(pipeline)
+            }
+            PipelineSource::Materialization { mat_ref } => {
+                let mat = self.materializations.get_mut(&mat_ref).ok_or_else(|| {
+                    RayexecError::new(format!("Missing pending materialization: {mat_ref}"))
+                })?;
+
+                let operator_idx = match mat.scan_sources.pop() {
+                    Some(idx) => idx,
+                    None => {
+                        // Since we're popping these, would only happen if the
+                        // scan count for the materialization is out of sync.
+                        return Err(RayexecError::new(format!(
+                            "Missing source operator index: {mat_ref}"
+                        )));
+                    }
+                };
+
+                let operator = self.get_operator_mut(operator_idx)?;
+                let partition_states = operator.take_input_states(0)?;
+
+                let mut pipeline = ExecutablePipeline::new(id_gen.next(), partition_states.len());
+                pipeline.push_operator(
+                    operator.operator.clone(),
+                    operator.operator_state.clone(),
+                    partition_states,
+                )?;
+
+                Ok(pipeline)
+            }
+        }
     }
 
     /// Push a repartition operator on the pipline, and return a new pipeline
     /// with the repartition as the source.
     fn push_repartition(
-        &mut self,
+        id_gen: &mut PipelineIdGen,
         mut pipeline: ExecutablePipeline,
         output_partitions: usize,
         pipelines: &mut Vec<ExecutablePipeline>,
@@ -384,7 +602,7 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
         pipelines.push(pipeline);
 
         // New pipeline with round robin as source.
-        let mut pipeline = ExecutablePipeline::new(self.id_gen.next(), pull_states.len());
+        let mut pipeline = ExecutablePipeline::new(id_gen.next(), pull_states.len());
         pipeline.push_operator(
             rr_operator,
             rr_state,
@@ -397,83 +615,108 @@ impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
         Ok(pipeline)
     }
 
-    /// Create pending operators with state and push to `operators`.
+    fn get_operator_mut(&mut self, idx: usize) -> Result<&mut PendingOperatorWithState> {
+        self.operators
+            .get_mut(idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing pending operation at idx {idx}")))
+    }
+}
+
+#[derive(Debug)]
+struct PendingMaterialization {
+    /// Indexes for operators that scan the materialization.
     ///
-    /// The returned pipeline will have indices that reference the operators in
-    /// `operators`.
+    /// Length of the vector corresponds to the computed scan count for the
+    /// materialization. Indexes should be popped when the operator is used as a
+    /// source to a pipeline.
     ///
-    /// The number of operators produced matches the number of operators in the
-    /// intermediate pipeline.
-    fn plan_operators_with_state(
-        &self,
-        operators: &mut Vec<PendingOperatorWithState>,
-        intermediate: IntermediatePipeline,
-    ) -> Result<PendingPipeline> {
-        let mut pipeline = PendingPipeline {
-            operators: Vec::with_capacity(intermediate.operators.len()),
-            sink: intermediate.sink,
-            source: intermediate.source,
-        };
+    /// An error should be returned if this is non-zero at the end of planning,
+    /// or if there are more dependent pipelines than there are sources.
+    scan_sources: Vec<usize>,
+}
 
-        // Create states for the rest.
-        for operator in intermediate.operators {
-            let partitions = operator
-                .partitioning_requirement
-                .unwrap_or(self.config.target_partitions);
+#[derive(Debug, Clone)]
+struct PendingPipeline {
+    /// Indices that index into the `operators` vec in pending query.
+    operators: Vec<usize>,
+    /// Sink for this pipeline.
+    sink: PipelineSink,
+    /// Source for this pipeline.
+    source: PipelineSource,
+}
 
-            // TODO: How to get other input partitions.
-            let states = operator
-                .operator
-                .create_states(self.context, vec![partitions])?;
+/// An operator with initialized state.
+#[derive(Debug)]
+struct PendingOperatorWithState {
+    /// The physical operator.
+    operator: Arc<PhysicalOperator>,
+    /// Global operator state.
+    operator_state: Arc<OperatorState>,
+    /// Input states that get taken when building up the final execution
+    /// pipeline.
+    input_states: Vec<Option<Vec<PartitionState>>>,
+    /// Output states that get popped when building the final pipeline.
+    ///
+    /// May be empty if the operator uses the same partition state for pushing
+    /// and pulling.
+    pull_states: VecDeque<Vec<PartitionState>>,
+    /// Index of the input state to use for the pull state. This corresponds to
+    /// the "trunk" of the pipeline.
+    trunk_idx: usize,
+}
 
-            let pending = match states.partition_states {
-                InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
+impl PendingOperatorWithState {
+    fn try_from_intermediate_operator(
+        config: &ExecutionConfig,
+        context: &DatabaseContext,
+        operator: IntermediateOperator,
+    ) -> Result<Self> {
+        let partitions = operator
+            .partitioning_requirement
+            .unwrap_or(config.target_partitions);
+
+        // TODO: How to get other input partitions.
+        let states = operator.operator.create_states(context, vec![partitions])?;
+
+        Ok(match states.partition_states {
+            InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
+                operator: operator.operator,
+                operator_state: states.operator_state,
+                input_states: vec![Some(partition_states)],
+                pull_states: VecDeque::new(),
+                trunk_idx: 0,
+            },
+            InputOutputStates::NaryInputSingleOutput {
+                partition_states,
+                pull_states,
+            } => {
+                let input_states: Vec<_> = partition_states.into_iter().map(Some).collect();
+                PendingOperatorWithState {
                     operator: operator.operator,
                     operator_state: states.operator_state,
-                    input_states: vec![Some(partition_states)],
+                    input_states,
                     pull_states: VecDeque::new(),
-                    trunk_idx: 0,
-                },
-                InputOutputStates::NaryInputSingleOutput {
-                    partition_states,
-                    pull_states,
-                } => {
-                    let input_states: Vec<_> = partition_states.into_iter().map(Some).collect();
-                    PendingOperatorWithState {
-                        operator: operator.operator,
-                        operator_state: states.operator_state,
-                        input_states,
-                        pull_states: VecDeque::new(),
-                        trunk_idx: pull_states,
-                    }
+                    trunk_idx: pull_states,
                 }
-                InputOutputStates::SingleInputNaryOutput {
-                    push_states,
-                    pull_states,
-                } => PendingOperatorWithState {
-                    operator: operator.operator,
-                    operator_state: states.operator_state,
-                    input_states: vec![Some(push_states)],
-                    pull_states: pull_states.into_iter().collect(),
-                    trunk_idx: 0,
-                },
-                InputOutputStates::SeparateInputOutput {
-                    push_states,
-                    pull_states,
-                } => PendingOperatorWithState {
-                    operator: operator.operator,
-                    operator_state: states.operator_state,
-                    input_states: vec![Some(push_states)],
-                    pull_states: [pull_states].into_iter().collect(),
-                    trunk_idx: 0,
-                },
-            };
+            }
+            InputOutputStates::SeparateInputOutput {
+                push_states,
+                pull_states,
+            } => PendingOperatorWithState {
+                operator: operator.operator,
+                operator_state: states.operator_state,
+                input_states: vec![Some(push_states)],
+                pull_states: [pull_states].into_iter().collect(),
+                trunk_idx: 0,
+            },
+        })
+    }
 
-            let idx = operators.len();
-            operators.push(pending);
-            pipeline.operators.push(idx);
-        }
-
-        Ok(pipeline)
+    fn take_input_states(&mut self, idx: usize) -> Result<Vec<PartitionState>> {
+        self.input_states
+            .get_mut(idx)
+            .ok_or_else(|| RayexecError::new(format!("Missing input states at idx {idx}")))?
+            .take()
+            .ok_or_else(|| RayexecError::new(format!("Input states already taken at idx {idx}")))
     }
 }

@@ -3,7 +3,7 @@ use rayexec_bullet::{
     batch::Batch,
     field::{Field, Schema},
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
         intermediate::{
             planner::{IntermediateConfig, IntermediatePipelinePlanner},
-            IntermediatePipelineGroup, StreamId,
+            IntermediateMaterializationGroup, IntermediatePipelineGroup, StreamId,
         },
     },
     hybrid::{
@@ -61,6 +61,7 @@ struct PendingPipelineState {
     context: DatabaseContext,
     /// The pipeline group we'll be turning into executables pipelines.
     group: IntermediatePipelineGroup,
+    materializations: IntermediateMaterializationGroup,
 }
 
 impl<P, R> ServerState<P, R>
@@ -145,11 +146,16 @@ where
 
         let pipelines = planner.plan_pipelines(logical, bind_context)?;
 
+        if !pipelines.materializations.is_empty() {
+            not_implemented!("materializations with hybrid exec")
+        }
+
         self.pending_pipelines.insert(
             query_id,
             PendingPipelineState {
                 context,
                 group: pipelines.remote,
+                materializations: IntermediateMaterializationGroup::default(),
             },
         );
 
@@ -179,7 +185,7 @@ where
         // planning can get the appropriate error sink when creating streams.
         let error_sink = self.buffers.create_error_sink(query_id)?;
 
-        let pipelines = planner.plan_from_intermediate(state.group)?;
+        let pipelines = planner.plan_from_intermediate(state.group, state.materializations)?;
         let handle = self.executor.spawn_pipelines(pipelines, error_sink);
 
         self.executing_pipelines.insert(query_id, handle);

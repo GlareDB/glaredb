@@ -156,7 +156,7 @@ impl<'a> NormalResolver<'a> {
                 // Check bind data for cte that would satisfy this reference.
                 if let Some(cte) = resolve_context.find_cte(&name) {
                     return Ok(MaybeResolvedTable::Resolved(
-                        ResolvedTableOrCteReference::Cte(cte),
+                        ResolvedTableOrCteReference::Cte(cte.name.clone()),
                     ));
                 }
 

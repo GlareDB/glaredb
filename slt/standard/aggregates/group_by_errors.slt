@@ -17,3 +17,7 @@ SELECT sum(j) FROM (values (1,2),(3,4)) t(i,j) ORDER BY i;
 
 statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
 SELECT sum(j) FROM (values (1,2),(3,4)) t(i,j) ORDER BY t.i;
+
+# https://github.com/GlareDB/rayexec/issues/135
+statement error Column 'generate_series' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(generate_series), * FROM generate_series(1, 1000);

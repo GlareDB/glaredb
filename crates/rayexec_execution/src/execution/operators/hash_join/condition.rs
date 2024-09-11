@@ -4,6 +4,7 @@ use rayexec_bullet::{
     compute::take::take,
 };
 use rayexec_error::{RayexecError, Result};
+use std::fmt;
 use std::sync::Arc;
 
 use crate::{
@@ -23,6 +24,18 @@ pub struct HashJoinCondition {
     /// condition was created for. Assumed to take exactly two inputs (left and
     /// right).
     pub function: Box<dyn PlannedScalarFunction>,
+}
+
+impl fmt::Display for HashJoinCondition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(LEFT {}) {} (RIGHT {})",
+            self.left,
+            self.function.scalar_function().name(),
+            self.right
+        )
+    }
 }
 
 /// Join condition with the left side precomputed.

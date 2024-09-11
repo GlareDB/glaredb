@@ -29,7 +29,6 @@ use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListI
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_copy_to::ResolvedCopyTo;
 use resolved_cte::ResolvedCte;
-use resolved_table::CteIndex;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
@@ -60,8 +59,6 @@ impl AstMeta for ResolvedMeta {
     // clone them, and the args that go back into the ast don't actually do
     // anything, they're never referenced again.
     type TableFunctionArgs = TableFunctionArgs;
-    /// Index into the CTE list in bind data.
-    type CteReference = CteIndex;
     /// Index into the functions bind list in bind data.
     type FunctionReference = ResolveListIdx;
     type DataType = DataType;
@@ -577,29 +574,33 @@ impl<'a> Resolver<'a> {
 
     async fn resolve_ctes(
         &self,
-        ctes: ast::CommonTableExprDefs<Raw>,
+        ctes: ast::CommonTableExprs<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::CommonTableExprDefs<ResolvedMeta>> {
-        let mut bound_refs = Vec::with_capacity(ctes.ctes.len());
+    ) -> Result<ast::CommonTableExprs<ResolvedMeta>> {
+        let mut resolved_ctes = Vec::with_capacity(ctes.ctes.len());
+
         for cte in ctes.ctes.into_iter() {
             let depth = resolve_context.current_depth;
 
-            let bound_body = Box::pin(self.resolve_query(*cte.body, resolve_context)).await?;
-            let bound_cte = ResolvedCte {
-                name: cte.alias.into_normalized_string(),
+            let resolved_body = Box::pin(self.resolve_query(*cte.body, resolve_context)).await?;
+            let resolved_cte = ResolvedCte {
+                name: cte.alias.as_normalized_string(),
                 depth,
-                column_aliases: cte.column_aliases,
-                body: bound_body,
-                materialized: cte.materialized,
             };
 
-            let bound_ref = resolve_context.push_cte(bound_cte);
-            bound_refs.push(bound_ref);
+            resolve_context.push_cte(resolved_cte);
+
+            resolved_ctes.push(ast::CommonTableExpr {
+                alias: cte.alias,
+                column_aliases: cte.column_aliases,
+                materialized: cte.materialized,
+                body: Box::new(resolved_body),
+            });
         }
 
-        Ok(ast::CommonTableExprDefs {
+        Ok(ast::CommonTableExprs {
             recursive: ctes.recursive,
-            ctes: bound_refs,
+            ctes: resolved_ctes,
         })
     }
 

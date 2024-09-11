@@ -4,6 +4,7 @@ use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
 use super::logical_copy::LogicalCopyTo;
 use super::logical_create::{LogicalCreateSchema, LogicalCreateTable};
 use super::logical_describe::LogicalDescribe;
+use super::logical_distinct::LogicalDistinct;
 use super::logical_drop::LogicalDrop;
 use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
@@ -11,6 +12,7 @@ use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
 use super::logical_join::{LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin};
 use super::logical_limit::LogicalLimit;
+use super::logical_materialization::LogicalMaterializationScan;
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
@@ -181,9 +183,11 @@ pub enum LogicalOperator {
     Filter(Node<LogicalFilter>),
     Limit(Node<LogicalLimit>),
     Order(Node<LogicalOrder>),
+    Distinct(Node<LogicalDistinct>),
     Aggregate(Node<LogicalAggregate>),
     SetOp(Node<LogicalSetop>),
     Scan(Node<LogicalScan>),
+    MaterializationScan(Node<LogicalMaterializationScan>),
     Empty(Node<LogicalEmpty>),
     SetVar(Node<LogicalSetVar>),
     ResetVar(Node<LogicalResetVar>),
@@ -265,7 +269,9 @@ impl LogicalNode for LogicalOperator {
             Self::Invalid => Vec::new(), // Programmer error. Maybe panic?
             LogicalOperator::Project(n) => n.get_output_table_refs(),
             LogicalOperator::Filter(n) => n.get_output_table_refs(),
+            LogicalOperator::Distinct(n) => n.get_output_table_refs(),
             LogicalOperator::Scan(n) => n.get_output_table_refs(),
+            LogicalOperator::MaterializationScan(n) => n.get_output_table_refs(),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
             LogicalOperator::SetOp(n) => n.get_output_table_refs(),
             LogicalOperator::Empty(n) => n.get_output_table_refs(),

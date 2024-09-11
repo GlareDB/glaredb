@@ -26,11 +26,14 @@ with cte1 as (select * from (values (1, 2), (3, 4)) v(a, b)) select b from cte1;
 2
 4
 
-# TODO: Error source: query failed: Expected LeftParen, got Some(TokenWithLocation { token: Word(Word { value: "b", quote: None, keyword: None }), line: 0, col: 0 })
-# query I
-# with cte1(b) as (select 4 as a) select b from cte1;
-# ----
-# 4
+query I
+with cte1(b) as (select 4 as a) select b from cte1;
+----
+4
+
+# Too many col aliases
+statement error Expected at most 1 column aliases, received 2
+with cte1(b, c) as (select 4 as a) select b from cte1;
 
 # Multiple uses
 query II

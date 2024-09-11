@@ -44,6 +44,7 @@ use crate::{
         logical_copy::LogicalCopyTo,
         logical_create::{LogicalCreateSchema, LogicalCreateTable},
         logical_describe::LogicalDescribe,
+        logical_distinct::LogicalDistinct,
         logical_drop::LogicalDrop,
         logical_empty::LogicalEmpty,
         logical_explain::LogicalExplain,
@@ -51,6 +52,7 @@ use crate::{
         logical_insert::LogicalInsert,
         logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
         logical_limit::LogicalLimit,
+        logical_materialization::LogicalMaterializationScan,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
@@ -64,13 +66,15 @@ use rayexec_bullet::{
     batch::Batch,
     compute::concat::concat,
 };
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
-use std::{collections::HashMap, sync::Arc};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
+use std::sync::Arc;
+use tracing::error;
 use uuid::Uuid;
 
 use super::{
-    IntermediateOperator, IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId,
-    PipelineSource, StreamId,
+    IntermediateMaterialization, IntermediateMaterializationGroup, IntermediateOperator,
+    IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId, PipelineSource,
+    StreamId,
 };
 
 /// Configuration used during intermediate pipeline planning.
@@ -97,6 +101,7 @@ impl IntermediateConfig {
 pub struct PlannedPipelineGroups {
     pub local: IntermediatePipelineGroup,
     pub remote: IntermediatePipelineGroup,
+    pub materializations: IntermediateMaterializationGroup,
 }
 
 /// Planner for building intermedate pipelines.
@@ -123,11 +128,7 @@ impl IntermediatePipelinePlanner {
         let mut state = IntermediatePipelineBuildState::new(&self.config, &bind_context);
         let mut id_gen = PipelineIdGen::new(self.query_id);
 
-        let mut materializations = {
-            // TODO
-            // state.plan_materializations(context, &mut id_gen)?;
-            Materializations::default()
-        };
+        let mut materializations = state.plan_materializations(&mut id_gen)?;
         state.walk(&mut materializations, &mut id_gen, root)?;
 
         state.finish(&mut id_gen)?;
@@ -137,6 +138,7 @@ impl IntermediatePipelinePlanner {
         Ok(PlannedPipelineGroups {
             local: state.local_group,
             remote: state.remote_group,
+            materializations: materializations.local,
         })
     }
 }
@@ -170,40 +172,10 @@ impl PipelineIdGen {
     }
 }
 
-/// Key for a pipeline that's being materialized.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-enum MaterializationSource {
-    Local(IntermediatePipelineId),
-    Remote(IntermediatePipelineId),
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Materializations {
-    /// Source keys for `MaterializeScan` operators.
-    ///
-    /// Key corresponds to the index of the materialized plan in the
-    /// QueryContext. Since multiple pipelines can read from the same
-    /// materialization, each key has a vec of pipelines that we take from.
-    materialize_sources: HashMap<usize, Vec<MaterializationSource>>,
-}
-
-impl Materializations {
-    /// Checks if there's any pipelines still in the map.
-    ///
-    /// This is used as a debugging check. After planning the entire query, all
-    /// pending pipelines should have been consumed. If there's still pipelines,
-    /// that means we're not accuratately tracking the number of materialized
-    /// scans.
-    #[allow(dead_code)]
-    fn has_remaining_pipelines(&self) -> bool {
-        for pipelines in self.materialize_sources.values() {
-            if !pipelines.is_empty() {
-                return true;
-            }
-        }
-        false
-    }
+    local: IntermediateMaterializationGroup,
+    // TODO: Remote materializations.
 }
 
 /// Represents an intermediate pipeline that we're building up.
@@ -253,6 +225,40 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
     }
 
+    /// Plan materializations from the bind context.
+    fn plan_materializations(&mut self, id_gen: &mut PipelineIdGen) -> Result<Materializations> {
+        // TODO: The way this and the materialization ref is implemented allows
+        // materializations to depend on previously planned materializations.
+        // Unsure if we want to make that a strong guarantee (probably yes).
+
+        let mut materializations = Materializations {
+            local: IntermediateMaterializationGroup::default(),
+        };
+
+        for mat in self.bind_context.iter_materializations() {
+            self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
+
+            let in_progress = self.take_in_progress_pipeline()?;
+            if in_progress.location == LocationRequirement::Remote {
+                not_implemented!("remote materializations");
+            }
+
+            let intermediate = IntermediateMaterialization {
+                id: in_progress.id,
+                source: in_progress.source,
+                operators: in_progress.operators,
+                scan_count: mat.scan_count,
+            };
+
+            materializations
+                .local
+                .materializations
+                .insert(mat.mat_ref, intermediate);
+        }
+
+        Ok(materializations)
+    }
+
     fn walk(
         &mut self,
         materializations: &mut Materializations,
@@ -262,6 +268,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
+            LogicalOperator::Distinct(distinct) => {
+                self.push_distinct(id_gen, materializations, distinct)
+            }
             LogicalOperator::CrossJoin(join) => {
                 self.push_cross_join(id_gen, materializations, join)
             }
@@ -288,6 +297,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::Insert(insert) => self.push_insert(id_gen, materializations, insert),
             LogicalOperator::CopyTo(copy_to) => {
                 self.push_copy_to(id_gen, materializations, copy_to)
+            }
+            LogicalOperator::MaterializationScan(scan) => {
+                self.push_materialize_scan(id_gen, materializations, scan)
             }
             LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::SetOp(setop) => {
@@ -412,7 +424,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 id: id_gen.next_pipeline_id(),
                 operators: vec![operator],
                 location,
-                // TODO: partitions? include other pipeline id
                 source: PipelineSource::OtherGroup {
                     stream_id,
                     partitions: 1,
@@ -421,7 +432,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             let finalized = IntermediatePipeline {
                 id: in_progress.id,
-                // TODO: partitions? include other pipeline id
                 sink: PipelineSink::OtherGroup {
                     stream_id,
                     partitions: 1,
@@ -642,6 +652,43 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
+    fn push_materialize_scan(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        scan: Node<LogicalMaterializationScan>,
+    ) -> Result<()> {
+        if !materializations
+            .local
+            .materializations
+            .contains_key(&scan.node.mat)
+        {
+            return Err(RayexecError::new(format!(
+                "Missing materialization for ref: {}",
+                scan.node.mat
+            )));
+        }
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new(
+                "Expected in progress to be None for materialization scan",
+            ));
+        }
+
+        // Initialize in-progress with no operators, but scan source being this
+        // materialization.
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next_pipeline_id(),
+            operators: Vec::new(),
+            location: LocationRequirement::ClientLocal, // Currently only support local.
+            source: PipelineSource::Materialization {
+                mat_ref: scan.node.mat,
+            },
+        });
+
+        Ok(())
+    }
+
     fn push_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {
         let location = scan.location;
 
@@ -840,8 +887,15 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // itself).
         let input = explain.take_one_child_exact()?;
         let mut planner = Self::new(self.config, self.bind_context);
-        planner.walk(materializations, id_gen, input)?;
-        planner.finish(id_gen)?;
+        // Done in a closure so that we can at least output the logical plans is
+        // physical planning errors. This is entirely for dev purposes right now
+        // and I expect the conditional will be removed at some point.
+        let plan = || {
+            planner.walk(materializations, id_gen, input)?;
+            planner.finish(id_gen)?;
+            Ok::<_, RayexecError>(())
+        };
+        let plan_result = plan();
 
         let formatter = ExplainFormatter::new(
             self.bind_context,
@@ -862,11 +916,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             plan_strings.push(formatter.format_logical_plan(&optimized)?);
         }
 
-        type_strings.push("physical".to_string());
-        plan_strings.push(formatter.format_intermedate_groups(&[
-            ("local", &planner.local_group),
-            ("remote", &planner.remote_group),
-        ])?);
+        match plan_result {
+            Ok(_) => {
+                type_strings.push("physical".to_string());
+                plan_strings.push(formatter.format_intermedate_groups(&[
+                    ("local", &planner.local_group),
+                    ("remote", &planner.remote_group),
+                ])?);
+            }
+            Err(e) => {
+                error!(%e, "error planning explain input")
+            }
+        }
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new(vec![
@@ -937,7 +998,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let projections = self
             .expr_planner
-            .plan_scalars(&input_refs, &project.node.projections)?;
+            .plan_scalars(&input_refs, &project.node.projections)
+            .context("Failed to plan expressions for projection")?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
@@ -965,7 +1027,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let predicate = self
             .expr_planner
-            .plan_scalar(&input_refs, &filter.node.filter)?;
+            .plan_scalar(&input_refs, &filter.node.filter)
+            .context("Failed to plan expressions for filter")?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
@@ -976,6 +1039,16 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         self.push_intermediate_operator(operator, location, id_gen)?;
 
+        Ok(())
+    }
+
+    fn push_distinct(
+        &mut self,
+        _id_gen: &mut PipelineIdGen,
+        _materializations: &mut Materializations,
+        _distinct: Node<LogicalDistinct>,
+    ) -> Result<()> {
+        // TODO: https://github.com/GlareDB/rayexec/issues/226
         Ok(())
     }
 
@@ -1105,7 +1178,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
             let start_col_index = preproject_exprs.len();
             for arg in &agg.inputs {
-                let scalar = self.expr_planner.plan_scalar(&input_refs, arg)?;
+                let scalar = self
+                    .expr_planner
+                    .plan_scalar(&input_refs, arg)
+                    .context("Failed to plan expressions for aggregate pre-projection")?;
                 preproject_exprs.push(scalar);
             }
             let end_col_index = preproject_exprs.len();
@@ -1125,7 +1201,11 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let mut group_types = Vec::with_capacity(agg.node.group_exprs.len());
         for group_expr in agg.node.group_exprs {
             group_types.push(group_expr.datatype(self.bind_context)?);
-            let scalar = self.expr_planner.plan_scalar(&input_refs, &group_expr)?;
+            let scalar = self
+                .expr_planner
+                .plan_scalar(&input_refs, &group_expr)
+                .context("Failed to plan expressions for group by pre-projection")?;
+
             preproject_exprs.push(scalar);
         }
 
@@ -1316,7 +1396,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = join.location;
         let filter = self
             .expr_planner
-            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)?;
+            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)
+            .context("Failed to plan expressions arbitrary join filter")?;
 
         // Modify the filter as to match the join type.
         let filter = match join.node.join_type {
@@ -1432,7 +1513,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Convert expressions into arrays of one element each.
         for row_exprs in rows {
-            let exprs = self.expr_planner.plan_scalars(&[], &row_exprs)?;
+            let exprs = self
+                .expr_planner
+                .plan_scalars(&[], &row_exprs)
+                .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
                 .map(|expr| expr.eval(&dummy_batch))

@@ -14,7 +14,8 @@ use crate::{
     logical::{
         binder::{
             bind_context::{
-                BindContext, BindScopeRef, CorrelatedColumn, TableAlias, TableRef, UsingColumn,
+                BindContext, BindScopeRef, CorrelatedColumn, CteRef, TableAlias, TableRef,
+                UsingColumn,
             },
             column_binder::DefaultColumnBinder,
             expr_binder::{BaseExpressionBinder, RecursionContext},
@@ -22,8 +23,8 @@ use crate::{
         logical_join::JoinType,
         operator::LocationRequirement,
         resolver::{
-            resolve_context::ResolveContext, resolved_cte::ResolvedCte,
-            resolved_table::ResolvedTableOrCteReference, ResolvedMeta,
+            resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
+            ResolvedMeta,
         },
     },
 };
@@ -42,6 +43,7 @@ pub enum BoundFromItem {
     Join(BoundJoin),
     TableFunction(BoundTableFunction),
     Subquery(BoundSubquery),
+    MaterializedCte(BoundMaterializedCte),
     Empty,
 }
 
@@ -65,6 +67,13 @@ pub struct BoundTableFunction {
 pub struct BoundSubquery {
     pub table_ref: TableRef,
     pub subquery: Box<BoundQuery>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundMaterializedCte {
+    pub table_ref: TableRef,
+    pub cte_ref: CteRef,
+    pub cte_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -230,13 +239,9 @@ impl<'a> FromBinder<'a> {
                     }),
                 })
             }
-            (ResolvedTableOrCteReference::Cte(cte_idx), _location) => {
+            (ResolvedTableOrCteReference::Cte(name), _location) => {
                 // TODO: Does location matter here?
-                let cte = self.resolve_context.ctes.get(cte_idx.0).ok_or_else(|| {
-                    RayexecError::new(format!("Missing cte at index {cte_idx:?}"))
-                })?;
-
-                self.bind_cte(bind_context, cte, alias)
+                self.bind_cte(bind_context, name, alias)
             }
         }
     }
@@ -244,41 +249,11 @@ impl<'a> FromBinder<'a> {
     fn bind_cte(
         &self,
         bind_context: &mut BindContext,
-        cte: &ResolvedCte,
+        cte: &str,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
-        if cte.materialized {
-            not_implemented!("materialized CTE");
-        }
-
-        let nested_scope = bind_context.new_child_scope(self.current);
-        let binder = QueryBinder::new(nested_scope, self.resolve_context);
-
-        let bound = binder.bind(bind_context, cte.body.clone())?;
-
-        let mut names = Vec::new();
-        let mut types = Vec::new();
-        for table in bind_context.iter_tables(nested_scope)? {
-            types.extend(table.column_types.iter().cloned());
-            names.extend(table.column_names.iter().cloned());
-        }
-
-        // Sets alias where cte is defined
-        //
-        // WITH my_cte(alias1, alias2) AS ...
-        if let Some(col_aliases) = &cte.column_aliases {
-            if col_aliases.len() > names.len() {
-                return Err(RayexecError::new(format!(
-                    "Expected at most {} column aliases, received {}",
-                    names.len(),
-                    col_aliases.len()
-                )));
-            }
-
-            for (idx, col_alias) in col_aliases.iter().enumerate() {
-                names[idx] = col_alias.as_normalized_string();
-            }
-        }
+        let cte_ref = bind_context.find_cte(self.current, cte)?;
+        let cte = bind_context.get_cte(cte_ref)?;
 
         let table_alias = TableAlias {
             database: None,
@@ -286,24 +261,53 @@ impl<'a> FromBinder<'a> {
             table: cte.name.clone(),
         };
 
-        // Binds with the alias provided in the FROM.
-        //
-        // ... FROM mycte AS aliased_cte(c1, c2) ...
-        let table_ref = self.push_table_scope_with_from_alias(
-            bind_context,
-            Some(table_alias),
-            names,
-            types,
-            alias,
-        )?;
+        let names = cte.column_names.clone();
+        let types = cte.column_types.clone();
 
-        Ok(BoundFrom {
-            bind_ref: self.current,
-            item: BoundFromItem::Subquery(BoundSubquery {
-                table_ref,
-                subquery: Box::new(bound),
-            }),
-        })
+        if cte.materialized {
+            let cte_name = cte.name.clone();
+            // Binds with the alias provided in the FROM.
+            //
+            // ... FROM mycte AS aliased_cte(c1, c2) ...
+            let table_ref = self.push_table_scope_with_from_alias(
+                bind_context,
+                Some(table_alias),
+                names,
+                types,
+                alias,
+            )?;
+
+            Ok(BoundFrom {
+                bind_ref: self.current,
+                item: BoundFromItem::MaterializedCte(BoundMaterializedCte {
+                    table_ref,
+                    cte_ref,
+                    cte_name,
+                }),
+            })
+        } else {
+            // Not materialize, just copy the plan as a subquery.
+            let subquery = cte.bound.clone();
+
+            // Binds with the alias provided in the FROM.
+            //
+            // ... FROM mycte AS aliased_cte(c1, c2) ...
+            let table_ref = self.push_table_scope_with_from_alias(
+                bind_context,
+                Some(table_alias),
+                names,
+                types,
+                alias,
+            )?;
+
+            Ok(BoundFrom {
+                bind_ref: self.current,
+                item: BoundFromItem::Subquery(BoundSubquery {
+                    table_ref,
+                    subquery,
+                }),
+            })
+        }
     }
 
     fn bind_subquery(
@@ -459,15 +463,25 @@ impl<'a> FromBinder<'a> {
                 .find_table_for_column(right_idx, None, &using)?
                 .ok_or_else(|| missing_column("right"))?;
 
-            // Add USING column to _current_ scope.
-            bind_context.append_using_column(
-                self.current,
-                UsingColumn {
+            let using_column = match join_type {
+                JoinType::Left
+                | JoinType::Inner
+                | JoinType::Full
+                | JoinType::Semi
+                | JoinType::Anti => UsingColumn {
                     column: using,
                     table_ref: left_table,
                     col_idx: left_col_idx,
                 },
-            )?;
+                JoinType::Right => UsingColumn {
+                    column: using,
+                    table_ref: right_table,
+                    col_idx: right_col_idx,
+                },
+            };
+
+            // Add USING column to _current_ scope.
+            bind_context.append_using_column(self.current, using_column)?;
 
             // Generate additional equality condition.
             // TODO: Probably make this a method on the expr binder. Easy to miss the cast.

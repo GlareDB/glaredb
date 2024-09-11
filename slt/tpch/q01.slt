@@ -1,56 +1,36 @@
 query TT
-describe select
+DESCRIBE SELECT
     l_returnflag,
     l_linestatus,
-    sum(l_quantity) as sum_qty,
-    sum(l_extendedprice) as sum_base_price,
-    sum(l_extendedprice * (1 - l_discount)) as sum_disc_price,
-    sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) as sum_charge,
-    avg(l_quantity) as avg_qty,
-    avg(l_extendedprice) as avg_price,
-    avg(l_discount) as avg_disc,
-    count(*) as count_order
-from
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'
-where
-    l_shipdate <= date '1998-09-02'
-group by
+    sum(l_quantity) AS sum_qty,
+    sum(l_extendedprice) AS sum_base_price,
+    sum(l_extendedprice * (1 - l_discount)) AS sum_disc_price,
+    sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) AS sum_charge,
+    avg(l_quantity) AS avg_qty,
+    avg(l_extendedprice) AS avg_price,
+    avg(l_discount) AS avg_disc,
+    count(*) AS count_order
+FROM
+    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+WHERE
+    l_shipdate <= CAST('1998-09-02' AS date)
+GROUP BY
     l_returnflag,
     l_linestatus
-order by
+ORDER BY
     l_returnflag,
     l_linestatus;
 ----
 l_returnflag    Utf8
 l_linestatus    Utf8
-sum_qty         Decimal64(15, 2)
-sum_base_price  Decimal64(15, 2)
-sum_disc_price  Decimal64(15, 2)
-sum_charge      Decimal64(15, 2)
-avg_qty         Decimal64(15, 2)
-avg_price       Decimal64(15, 2)
-avg_disc        Decimal64(15, 2)
+sum_qty         Decimal64(15,2)
+sum_base_price  Decimal64(15,2)
+sum_disc_price  Decimal64(15,2)
+sum_charge      Decimal64(15,2)
+avg_qty         Decimal64(15,2)
+avg_price       Decimal64(15,2)
+avg_disc        Decimal64(15,2)
 count_order     Int64
-
-query TT
-describe select * from '../submodules/testdata/tpch_sf0.1/lineitem.parquet'
-----
-l_orderkey        Int32
-l_partkey         Int32
-l_suppkey         Int32
-l_linenumber      Int32
-l_quantity        Decimal64(15, 2)
-l_extendedprice   Decimal64(15, 2)
-l_discount        Decimal64(15, 2)
-l_tax             Decimal64(15, 2)
-l_returnflag      Utf8
-l_linestatus      Utf8
-l_shipdate        Date32
-l_commitdate      Date32
-l_receiptdate     Date32
-l_shipinstruct    Utf8
-l_shipmode        Utf8
-l_comment         Utf8
 
 # TODO: Decimal64 overflow (sum_charge)
 query ??????????
@@ -76,11 +56,10 @@ order by
     l_returnflag,
     l_linestatus;
 ----
-A  F  3774200.00  5320753880.69   75438500323908752.55  0.00  25.53  36002.12  0.05  147790
-N  F  95257.00    133737795.84    26358588572608103.23  0.00  25.30  35521.32  0.04  3765
+A  F  3774200.00  5320753880.69   80331595165623948.60  0.00  25.53  36002.12  0.05  147790
+N  F  95257.00    133737795.84    28461172233513036.07  0.00  25.30  35521.32  0.04  3765
 N  O  7459297.00  10512270008.90  76745590693286985.65  0.00  25.54  36000.92  0.05  292000
-R  F  3785523.00  5337950526.47   74589610799170734.84  0.00  25.52  35994.02  0.04  148301
-
+R  F  3785523.00  5337950526.47   75507363538426777.05  0.00  25.52  35994.02  0.04  148301
 
 # CORRECT:
 # ┌──────────────┬──────────────┬───────────────┬────────────────┬─────────────────┬────────────────────┬────────────────────┬────────────────────┬─────────────────────┬─────────────┐

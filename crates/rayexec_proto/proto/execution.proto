@@ -10,11 +10,6 @@ import "physical_expr.proto";
 import "array.proto";
 import "access.proto";
 
-message TableEntry {
-    string   name                 = 1;
-    repeated schema.Field columns = 2;
-}
-
 enum OnConflict {
     INVALID_ON_CONFLICT = 0;
     IGNORE              = 1;
@@ -142,7 +137,6 @@ message PhysicalOperator {
         PhysicalProject            project             = 6;
         PhysicalInsert             insert              = 7;
         PhysicalLimit              limit               = 8;
-        PhysicalMaterialize        materialize         = 9;
         PhysicalScan               scan                = 10;
         PhysicalUngroupedAggregate ungrouped_aggregate = 11;
         PhysicalUnion union                            = 12;
@@ -179,12 +173,17 @@ message PipelineSinkOtherGroup {
     uint32   partitions = 2;
 }
 
+message PipelineSinkMaterialization {
+    uint32 materialization_ref = 1;
+}
+
 message PipelineSink {
     oneof value {
-        PipelineSinkQueryOutput query_output = 1;
-        PipelineSinkInPipeline  in_pipeline  = 2;
-        PipelineSinkInGroup     in_group     = 3;
-        PipelineSinkOtherGroup  other_group  = 4;
+        PipelineSinkQueryOutput     query_output    = 1;
+        PipelineSinkInPipeline      in_pipeline     = 2;
+        PipelineSinkInGroup         in_group        = 3;
+        PipelineSinkOtherGroup      other_group     = 4;
+        PipelineSinkMaterialization materialization = 5;
     }
 }
 
@@ -199,11 +198,16 @@ message PipelineSourceOtherGroup {
     uint32   partitions = 2;
 }
 
+message PipelineSourceMaterialization {
+    uint32 materialization_ref = 1;
+}
+
 message PipelineSource {
     oneof value {
-        PipelineSourceInPipeline    in_pipeline    = 1;
-        PipelineSourceOtherPipeline other_pipeline = 2;
-        PipelineSourceOtherGroup    other_group    = 3;
+        PipelineSourceInPipeline      in_pipeline     = 1;
+        PipelineSourceOtherPipeline   other_pipeline  = 2;
+        PipelineSourceOtherGroup      other_group     = 3;
+        PipelineSourceMaterialization materialization = 4;
     }
 }
 

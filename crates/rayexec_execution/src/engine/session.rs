@@ -12,7 +12,10 @@ use crate::{
     },
     execution::{
         executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
-        intermediate::planner::{IntermediateConfig, IntermediatePipelinePlanner},
+        intermediate::{
+            planner::{IntermediateConfig, IntermediatePipelinePlanner},
+            IntermediateMaterializationGroup,
+        },
     },
     hybrid::client::HybridClient,
     logical::{
@@ -183,7 +186,7 @@ where
 
         let (stream, sink, errors) = new_results_sinks();
 
-        let (pipelines, output_schema) = match bindmode {
+        let (pipelines, materializations, output_schema) = match bindmode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
                 // Hybrid planning, send to remote to complete planning.
 
@@ -195,7 +198,11 @@ where
                 // Begin executing remote side.
                 hybrid_client.remote_execute(resp.query_id).await?;
 
-                (resp.pipelines, resp.schema)
+                (
+                    resp.pipelines,
+                    IntermediateMaterializationGroup::default(),
+                    resp.schema,
+                )
             }
             _ => {
                 // Normal all-local planning.
@@ -283,7 +290,7 @@ where
                     ));
                 }
 
-                (pipelines.local, schema)
+                (pipelines.local, pipelines.materializations, schema)
             }
         };
 
@@ -298,7 +305,7 @@ where
             },
         );
 
-        let pipelines = planner.plan_from_intermediate(pipelines)?;
+        let pipelines = planner.plan_from_intermediate(pipelines, materializations)?;
         let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
 
         Ok(ExecutionResult {

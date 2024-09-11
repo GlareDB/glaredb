@@ -14,7 +14,8 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{
     cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
-    literal_expr::PhysicalLiteralExpr, scalar_function_expr::PhysicalScalarFunctionExpr, PhysicalSortExpression,
+    literal_expr::PhysicalLiteralExpr, scalar_function_expr::PhysicalScalarFunctionExpr,
+    PhysicalSortExpression,
 };
 
 /// Plans logical expressions into their physical equivalents.

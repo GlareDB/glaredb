@@ -8,13 +8,12 @@ use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AstParseable, CommonTableExprDefs, Expr, LimitModifier, OrderByModifier, OrderByNode,
-    SelectNode,
+    AstParseable, CommonTableExprs, Expr, LimitModifier, OrderByModifier, OrderByNode, SelectNode,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryNode<T: AstMeta> {
-    pub ctes: Option<CommonTableExprDefs<T>>,
+    pub ctes: Option<CommonTableExprs<T>>,
     pub body: QueryNodeBody<T>,
     pub order_by: Option<OrderByModifier<T>>,
     pub limit: LimitModifier<T>,
@@ -23,7 +22,7 @@ pub struct QueryNode<T: AstMeta> {
 impl AstParseable for QueryNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let ctes = if parser.parse_keyword(Keyword::WITH) {
-            Some(CommonTableExprDefs::parse(parser)?)
+            Some(CommonTableExprs::parse(parser)?)
         } else {
             None
         };

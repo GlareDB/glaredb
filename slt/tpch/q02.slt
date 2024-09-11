@@ -1,0 +1,99 @@
+query TT
+DESCRIBE SELECT
+    s_acctbal,
+    s_name,
+    n_name,
+    p_partkey,
+    p_mfgr,
+    s_address,
+    s_phone,
+    s_comment
+FROM
+    '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
+    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
+    '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+WHERE
+    p_partkey = ps_partkey
+    AND s_suppkey = ps_suppkey
+    AND p_size = 15
+    AND p_type LIKE '%BRASS'
+    AND s_nationkey = n_nationkey
+    AND n_regionkey = r_regionkey
+    AND r_name = 'EUROPE'
+    AND ps_supplycost = (
+        SELECT
+            min(ps_supplycost)
+        FROM
+            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
+            '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+        WHERE
+            p_partkey = ps_partkey
+            AND s_suppkey = ps_suppkey
+            AND s_nationkey = n_nationkey
+            AND n_regionkey = r_regionkey
+            AND r_name = 'EUROPE')
+ORDER BY
+    s_acctbal DESC,
+    n_name,
+    s_name,
+    p_partkey
+LIMIT 100;
+----
+s_acctbal  Decimal64(15,2)
+s_name     Utf8
+n_name     Utf8
+p_partkey  Int32
+p_mfgr     Utf8
+s_address  Utf8
+s_phone    Utf8
+s_comment  Utf8
+
+query ????????
+SELECT
+    s_acctbal,
+    s_name,
+    n_name,
+    p_partkey,
+    p_mfgr,
+    s_address,
+    s_phone,
+    s_comment
+FROM
+    '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
+    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
+    '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+WHERE
+    p_partkey = ps_partkey
+    AND s_suppkey = ps_suppkey
+    AND p_size = 15
+    AND p_type LIKE '%BRASS'
+    AND s_nationkey = n_nationkey
+    AND n_regionkey = r_regionkey
+    AND r_name = 'EUROPE'
+    AND ps_supplycost = (
+        SELECT
+            min(ps_supplycost)
+        FROM
+            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
+            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
+            '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+        WHERE
+            p_partkey = ps_partkey
+            AND s_suppkey = ps_suppkey
+            AND s_nationkey = n_nationkey
+            AND n_regionkey = r_regionkey
+            AND r_name = 'EUROPE')
+ORDER BY
+    s_acctbal DESC,
+    n_name,
+    s_name,
+    p_partkey
+LIMIT 100;
+----

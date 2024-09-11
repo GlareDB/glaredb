@@ -169,6 +169,8 @@ impl TestSession {
             return;
         }
 
+        let (cols, _rows) = crossterm::terminal::size().unwrap_or((100, 0));
+
         println!("---- EXPLAIN ----");
         println!("{sql}");
 
@@ -194,8 +196,9 @@ impl TestSession {
             }
         };
 
-        let table = pretty_format_batches(&result.output_schema, &batches, 100, Some(200))
-            .expect("table to format without error");
+        let table =
+            pretty_format_batches(&result.output_schema, &batches, cols as usize, Some(200))
+                .expect("table to format without error");
         println!("{table}");
     }
 

@@ -118,22 +118,36 @@ impl JoinHashTable {
         let mut row_indices: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
 
         for (right_idx, hash) in hashes.iter().enumerate() {
-            let val = self.hash_table.get(*hash, |(_, _key)| {
-                // Key equality checking is done when we run the batch through
-                // the conditions.
-                true
-            });
+            // Get all matching row keys from hash table.
+            //
+            // SAFETY: Iterator only lives for this method call.
+            // See: https://docs.rs/hashbrown/latest/hashbrown/raw/struct.RawTable.html#method.iter_hash
+            unsafe {
+                self.hash_table.iter_hash(*hash).for_each(|bucket| {
+                    let val = bucket.as_ref(); // Unsafe
+                    let row_key = val.1;
 
-            if let Some(val) = val {
-                use std::collections::hash_map::Entry;
-
-                let row_key = val.1;
-                match row_indices.entry(row_key.batch_idx) {
-                    Entry::Occupied(mut ent) => ent.get_mut().push((row_key.row_idx, right_idx)),
-                    Entry::Vacant(ent) => {
-                        ent.insert(vec![(row_key.row_idx, right_idx)]);
+                    // Hashbrown only stores first seven bits of hash. We check
+                    // here to further prune items we pull out of the table.
+                    //
+                    // Note this still doesn't guarantee row equality. That is
+                    // checked when we actually execute the conditions, this
+                    // just gets us the candidates.
+                    if &val.0 != hash {
+                        return;
                     }
-                }
+
+                    // This is all safe, just adding to the row_indices vec.
+                    use std::collections::hash_map::Entry;
+                    match row_indices.entry(row_key.batch_idx) {
+                        Entry::Occupied(mut ent) => {
+                            ent.get_mut().push((row_key.row_idx, right_idx))
+                        }
+                        Entry::Vacant(ent) => {
+                            ent.insert(vec![(row_key.row_idx, right_idx)]);
+                        }
+                    }
+                })
             }
         }
 

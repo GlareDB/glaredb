@@ -3,6 +3,10 @@
 statement ok
 create temp table t1 (a int, b int);
 
-# TODO: Error source: statement failed: Invalid number of partition states, got: 8, expected: 1
-# statement ok
-# insert into t1 with cte1 as (select 1, 2) select * from cte1;
+statement ok
+insert into t1 with cte1 as (select 1, 2) select * from cte1;
+
+query II
+select * from t1;
+----
+1  2

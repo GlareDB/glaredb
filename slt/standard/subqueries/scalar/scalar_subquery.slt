@@ -18,10 +18,8 @@ select (select 3), (select 4);
 ----
 3  4
 
-# TODO: Need to verify subquery returns one column
-# statement error
-# select 1 + (select 1, 2);
-# ----
+statement error Expected subquery to return 1 column, returns 2 columns
+select 1 + (select 1, 2);
 
 # Accounts for existing input into the plan.
 query I

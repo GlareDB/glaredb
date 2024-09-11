@@ -10,15 +10,15 @@ use serde::{Deserialize, Serialize};
 use super::{AstParseable, Ident, QueryNode};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CommonTableExprDefs<T: AstMeta> {
+pub struct CommonTableExprs<T: AstMeta> {
     pub recursive: bool,
-    pub ctes: Vec<T::CteReference>,
+    pub ctes: Vec<CommonTableExpr<T>>,
 }
 
-impl AstParseable for CommonTableExprDefs<Raw> {
+impl AstParseable for CommonTableExprs<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         let recursive = parser.parse_keyword(Keyword::RECURSIVE);
-        Ok(CommonTableExprDefs {
+        Ok(CommonTableExprs {
             recursive,
             ctes: parser.parse_comma_separated(CommonTableExpr::parse)?,
         })
@@ -46,9 +46,7 @@ impl AstParseable for CommonTableExpr<Raw> {
             // Aliases specified.
             //
             // `alias(c1, c2) AS (<subquery>)`
-            parser.expect_token(&Token::LeftParen)?;
             let column_aliases = parser.parse_parenthesized_comma_separated(Ident::parse)?;
-            parser.expect_token(&Token::RightParen)?;
             parser.expect_keyword(Keyword::AS)?;
             Some(column_aliases)
         };

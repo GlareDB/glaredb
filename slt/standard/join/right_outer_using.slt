@@ -21,11 +21,9 @@ c  Int32
 b  Int32
 c  Int32
 
-# TODO: Missings last value in first column (should be 2) since we're not
-# associating column 'a' with left+right table, just left.
-# query IIIII
-# SELECT * FROM t1 RIGHT JOIN t2 USING (a)
-# ----
-# 1  2     3     2  3
-# 1  2     3     2  4
-# 2  NULL  NULL  2  3
+query IIIII
+SELECT * FROM t1 RIGHT JOIN t2 USING (a)
+----
+1  2     3     2  3
+1  2     3     2  4
+2  NULL  NULL  2  3

@@ -137,6 +137,9 @@ impl<'a> SelectBinder<'a> {
             }
         }
 
+        // Append any correlations to current scope.
+        bind_context.append_correlated_columns(self.current, from_bind_ref)?;
+
         Ok(BoundSelect {
             select_list,
             from,

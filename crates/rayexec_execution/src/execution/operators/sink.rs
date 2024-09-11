@@ -19,6 +19,7 @@ use super::{
     OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
 };
 
+/// Operation for sending batches somewhere.
 pub trait SinkOperation: Debug + Send + Sync + Explainable {
     /// Create an exact number of partition sinks for the query.
     ///

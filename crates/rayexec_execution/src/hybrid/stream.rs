@@ -12,7 +12,7 @@ use crate::{
         intermediate::StreamId,
         operators::{
             sink::{PartitionSink, SinkOperation},
-            source::{PartitionSource, QuerySource},
+            source::{PartitionSource, SourceOperation},
         },
     },
 };
@@ -95,7 +95,7 @@ impl<C: HttpClient> ServerToClientStream<C> {
     }
 }
 
-impl<C: HttpClient + 'static> QuerySource for ServerToClientStream<C> {
+impl<C: HttpClient + 'static> SourceOperation for ServerToClientStream<C> {
     fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
         assert_eq!(1, num_sources);
 

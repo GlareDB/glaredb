@@ -6,27 +6,26 @@ create temp table t1 (a bigint, b bigint, c bigint);
 statement ok
 insert into t1 values (1, 2, 3), (4, 5, 6);
 
-# query II rowsort
-# select a, (select count(*) from t1) from t1;
-# ----
-# 1  2
-# 4  2
+query II rowsort
+select a, (select count(*) from t1) from t1;
+----
+1  2
+4  2
 
-# # TODO: Error source: query failed: Cannot create a physical aggregate expression from logical expression: #0
-# query II rowsort
-# select a, (select count(a) from t1) from t1;
-# ----
-# 1  2
-# 4  2
+query II rowsort
+select a, (select count(a) from t1) from t1;
+----
+1  2
+4  2
 
-# query II rowsort
-# select a, (select count(null) from t1) from t1;
-# ----
-# 1  0
-# 4  0
+query II rowsort
+select a, (select count(null) from t1) from t1;
+----
+1  0
+4  0
 
-# query II rowsort
-# select a, (select count(a) from t1 where t1.a > 2) from t1;
-# ----
-# 1  1
-# 4  1
+query II rowsort
+select a, (select count(a) from t1 where t1.a > 2) from t1;
+----
+1  1
+4  1

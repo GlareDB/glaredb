@@ -27,12 +27,11 @@ SELECT * FROM t1 LEFT JOIN t2 USING (a);
 1  2  3  2  3
 1  2  3  2  4
 
-# TODO: b, c in first row are incorrectly nulls
-# # t1, t2 flipped
-# query IIIII rowsort
-# SELECT * FROM t2 LEFT JOIN t1 USING (a)
-# ----
-# 1  2  3  2     3
-# 1  2  4  2     3
-# 2  2  3  NULL  NULL
+# t1, t2 flipped
+query IIIII rowsort
+SELECT * FROM t2 LEFT JOIN t1 USING (a)
+----
+1  2  3  2     3
+1  2  4  2     3
+2  2  3  NULL  NULL
 
