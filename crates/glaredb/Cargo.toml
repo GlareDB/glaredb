@@ -17,6 +17,7 @@ metastore = { path = "../metastore" }
 arrow_util = { path = "../arrow_util" }
 terminal_util = { path = "../terminal_util" }
 url = { workspace = true }
+tokio = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 anyhow = { workspace = true }
