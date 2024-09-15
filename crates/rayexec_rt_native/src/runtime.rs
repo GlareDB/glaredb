@@ -9,7 +9,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::{
     execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
     runtime::{
-        ErrorSink, OptionalTokioRuntime, PipelineExecutor, QueryHandle, Runtime,
+        handle::QueryHandle, ErrorSink, OptionalTokioRuntime, PipelineExecutor, Runtime,
         TokioHandlerProvider,
     },
 };
@@ -22,6 +22,7 @@ use rayexec_io::{
 
 use crate::{
     filesystem::LocalFileSystemProvider, http::TokioWrappedHttpClient, threaded::ThreadedScheduler,
+    time::NativeInstant,
 };
 
 /// Inner behavior of the execution runtime.
@@ -30,7 +31,7 @@ use crate::{
 pub trait Scheduler: Sync + Send + Debug + Sized + Clone {
     type Handle: QueryHandle;
 
-    fn try_new() -> Result<Self>;
+    fn try_new(num_threads: usize) -> Result<Self>;
 
     fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> Self::Handle
     where
@@ -42,7 +43,12 @@ pub struct NativeExecutor<S: Scheduler>(S);
 
 impl<S: Scheduler> NativeExecutor<S> {
     pub fn try_new() -> Result<Self> {
-        Ok(NativeExecutor(S::try_new()?))
+        let threads = num_cpus::get();
+        Ok(NativeExecutor(S::try_new(threads)?))
+    }
+
+    pub fn try_new_with_num_threads(num_threads: usize) -> Result<Self> {
+        Ok(NativeExecutor(S::try_new(num_threads)?))
     }
 }
 
@@ -92,6 +98,7 @@ impl Runtime for NativeRuntime {
     type HttpClient = TokioWrappedHttpClient;
     type FileProvider = NativeFileProvider;
     type TokioHandle = OptionalTokioRuntime;
+    type Instant = NativeInstant;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         Arc::new(NativeFileProvider {

@@ -74,3 +74,18 @@ select * from generate_series(1, 3) t1(a), generate_series(1, 2) t2(b) where a =
 ----
 1  1
 2  2
+
+query I
+select count(*) from
+  generate_series(1, 2) a,
+  generate_series(1, 2) b,
+  generate_series(1, 2) c,
+  generate_series(1, 2) d,
+  generate_series(1, 2) e,
+  generate_series(1, 2) f,
+  generate_series(1, 2) g,
+  generate_series(1, 2) h,
+  generate_series(1, 2) i,
+  generate_series(1, 2) j
+----
+1024

@@ -20,7 +20,7 @@ impl ColumnExpr {
             .column_types
             .get(self.column)
             .cloned()
-            .ok_or_else(|| RayexecError::new(format!("Missing column: {self}")))
+            .ok_or_else(|| RayexecError::new(format!("Missing column in bind context: {self}")))
     }
 }
 

@@ -14,7 +14,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::{
     database::DatabaseContext,
     execution::operators::sink::{PartitionSink, SinkOperation},
-    runtime::{ErrorSink, QueryHandle},
+    runtime::{handle::QueryHandle, ErrorSink},
 };
 
 /// Create sinks and streams for sending query output to a client.

@@ -1,17 +1,21 @@
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use super::{
+    helpers::{
+        create_single_decimal_input_grouped_state, create_single_primitive_input_grouped_state,
+        create_single_timestamp_input_grouped_state,
+    },
+    AggregateFunction, GroupedStates, PlannedAggregateFunction,
+};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::{
-    array::{Array, DecimalArray, PrimitiveArray, TimestampArray},
-    bitmap::Bitmap,
-    datatype::{DataType, DataTypeId, TimeUnit},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    datatype::{DataType, DataTypeId},
+    executor::aggregate::AggregateState,
     scalar::interval::Interval,
 };
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, vec};
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Min;
@@ -113,82 +117,6 @@ impl AggregateFunction for Max {
     }
 }
 
-macro_rules! create_primitive_grouped_state {
-    ($variant:ident, $state:ty) => {
-        Box::new(DefaultGroupedStates::new(
-            |row_selection: &Bitmap,
-             arrays: &[&Array],
-             mapping: &[usize],
-             states: &mut [$state]| {
-                match &arrays[0] {
-                    Array::$variant(arr) => {
-                        UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
-                    }
-                    other => panic!("unexpected array type: {other:?}"),
-                }
-            },
-            |states: vec::Drain<$state>| {
-                let mut buffer = Vec::with_capacity(states.len());
-                let mut bitmap = Bitmap::with_capacity(states.len());
-                StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-                Ok(Array::$variant(PrimitiveArray::new(buffer, Some(bitmap))))
-            },
-        ))
-    };
-}
-
-macro_rules! create_decimal_grouped_state {
-    ($variant:ident, $state:ty, $precision:expr, $scale:expr) => {{
-        let precision = $precision.clone();
-        let scale = $scale.clone();
-        Box::new(DefaultGroupedStates::new(
-            |row_selection: &Bitmap,
-             arrays: &[&Array],
-             mapping: &[usize],
-             states: &mut [$state]| {
-                match &arrays[0] {
-                    Array::$variant(arr) => UnaryNonNullUpdater::update(
-                        row_selection,
-                        arr.get_primitive(),
-                        mapping,
-                        states,
-                    ),
-                    other => panic!("unexpected array type: {other:?}"),
-                }
-            },
-            move |states: vec::Drain<$state>| {
-                let mut buffer = Vec::with_capacity(states.len());
-                let mut bitmap = Bitmap::with_capacity(states.len());
-                StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-                let arr = PrimitiveArray::new(buffer, Some(bitmap));
-                Ok(Array::$variant(DecimalArray::new(precision, scale, arr)))
-            },
-        ))
-    }};
-}
-
-fn create_timestamp_grouped_state<S: AggregateState<i64, i64> + Send + 'static>(
-    unit: TimeUnit,
-) -> Box<dyn GroupedStates> {
-    Box::new(DefaultGroupedStates::new(
-        |row_selection: &Bitmap, arrays: &[&Array], mapping: &[usize], states: &mut [S]| {
-            match &arrays[0] {
-                Array::Timestamp(arr) => {
-                    UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
-                }
-                other => panic!("unexpected array type: {other:?}"),
-            }
-        },
-        move |states: vec::Drain<S>| {
-            let mut buffer = Vec::with_capacity(states.len());
-            let mut bitmap = Bitmap::with_capacity(states.len());
-            StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-            let arr = PrimitiveArray::new(buffer, Some(bitmap));
-            Ok(Array::Timestamp(TimestampArray::new(unit, arr)))
-        },
-    ))
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MinImpl {
     datatype: DataType,
@@ -209,23 +137,36 @@ impl PlannedAggregateFunction for MinImpl {
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         match &self.datatype {
-            DataType::Int8 => create_primitive_grouped_state!(Int8, MinState<i8>),
-            DataType::Int16 => create_primitive_grouped_state!(Int16, MinState<i16>),
-            DataType::Int32 => create_primitive_grouped_state!(Int32, MinState<i32>),
-            DataType::Int64 => create_primitive_grouped_state!(Int64, MinState<i64>),
-            DataType::UInt8 => create_primitive_grouped_state!(UInt8, MinState<u8>),
-            DataType::UInt16 => create_primitive_grouped_state!(UInt16, MinState<u16>),
-            DataType::UInt32 => create_primitive_grouped_state!(UInt32, MinState<u32>),
-            DataType::UInt64 => create_primitive_grouped_state!(UInt64, MinState<u64>),
-            DataType::Float32 => create_primitive_grouped_state!(Float32, MinState<f32>),
-            DataType::Float64 => create_primitive_grouped_state!(Float64, MinState<f64>),
-            DataType::Interval => create_primitive_grouped_state!(Interval, MinState<Interval>),
-            DataType::Timestamp(meta) => create_timestamp_grouped_state::<MinState<i64>>(meta.unit),
+            DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MinState<i8>),
+            DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MinState<i16>),
+            DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MinState<i32>),
+            DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MinState<i64>),
+            DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MinState<u8>),
+            DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MinState<u16>),
+            DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MinState<u32>),
+            DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MinState<u64>),
+            DataType::Float32 => {
+                create_single_primitive_input_grouped_state!(Float32, MinState<f32>)
+            }
+            DataType::Float64 => {
+                create_single_primitive_input_grouped_state!(Float64, MinState<f64>)
+            }
+            DataType::Interval => {
+                create_single_primitive_input_grouped_state!(Interval, MinState<Interval>)
+            }
+            DataType::Timestamp(meta) => {
+                create_single_timestamp_input_grouped_state::<MinState<i64>>(meta.unit)
+            }
             DataType::Decimal64(meta) => {
-                create_decimal_grouped_state!(Decimal64, MinState<i64>, meta.precision, meta.scale)
+                create_single_decimal_input_grouped_state!(
+                    Decimal64,
+                    MinState<i64>,
+                    meta.precision,
+                    meta.scale
+                )
             }
             DataType::Decimal128(meta) => {
-                create_decimal_grouped_state!(
+                create_single_decimal_input_grouped_state!(
                     Decimal128,
                     MinState<i128>,
                     meta.precision,
@@ -257,23 +198,36 @@ impl PlannedAggregateFunction for MaxImpl {
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         match &self.datatype {
-            DataType::Int8 => create_primitive_grouped_state!(Int8, MaxState<i8>),
-            DataType::Int16 => create_primitive_grouped_state!(Int16, MaxState<i16>),
-            DataType::Int32 => create_primitive_grouped_state!(Int32, MaxState<i32>),
-            DataType::Int64 => create_primitive_grouped_state!(Int64, MaxState<i64>),
-            DataType::UInt8 => create_primitive_grouped_state!(UInt8, MaxState<u8>),
-            DataType::UInt16 => create_primitive_grouped_state!(UInt16, MaxState<u16>),
-            DataType::UInt32 => create_primitive_grouped_state!(UInt32, MaxState<u32>),
-            DataType::UInt64 => create_primitive_grouped_state!(UInt64, MaxState<u64>),
-            DataType::Float32 => create_primitive_grouped_state!(Float32, MaxState<f32>),
-            DataType::Float64 => create_primitive_grouped_state!(Float64, MaxState<f64>),
-            DataType::Interval => create_primitive_grouped_state!(Interval, MaxState<Interval>),
-            DataType::Timestamp(meta) => create_timestamp_grouped_state::<MaxState<i64>>(meta.unit),
+            DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MaxState<i8>),
+            DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MaxState<i16>),
+            DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MaxState<i32>),
+            DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MaxState<i64>),
+            DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MaxState<u8>),
+            DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MaxState<u16>),
+            DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MaxState<u32>),
+            DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MaxState<u64>),
+            DataType::Float32 => {
+                create_single_primitive_input_grouped_state!(Float32, MaxState<f32>)
+            }
+            DataType::Float64 => {
+                create_single_primitive_input_grouped_state!(Float64, MaxState<f64>)
+            }
+            DataType::Interval => {
+                create_single_primitive_input_grouped_state!(Interval, MaxState<Interval>)
+            }
+            DataType::Timestamp(meta) => {
+                create_single_timestamp_input_grouped_state::<MaxState<i64>>(meta.unit)
+            }
             DataType::Decimal64(meta) => {
-                create_decimal_grouped_state!(Decimal64, MaxState<i64>, meta.precision, meta.scale)
+                create_single_decimal_input_grouped_state!(
+                    Decimal64,
+                    MaxState<i64>,
+                    meta.precision,
+                    meta.scale
+                )
             }
             DataType::Decimal128(meta) => {
-                create_decimal_grouped_state!(
+                create_single_decimal_input_grouped_state!(
                     Decimal128,
                     MaxState<i128>,
                     meta.precision,

@@ -147,6 +147,30 @@ impl<N> Node<N> {
         Ok(&self.children[0])
     }
 
+    pub fn get_nth_child(&self, n: usize) -> Result<&LogicalOperator> {
+        if self.children.len() < n + 1 {
+            return Err(RayexecError::new(format!(
+                "Expected at least {} children, got {}",
+                n + 1,
+                self.children.len()
+            )));
+        }
+
+        Ok(&self.children[n])
+    }
+
+    pub fn get_nth_child_mut(&mut self, n: usize) -> Result<&mut LogicalOperator> {
+        if self.children.len() < n + 1 {
+            return Err(RayexecError::new(format!(
+                "Expected at least {} children, got {}",
+                n + 1,
+                self.children.len()
+            )));
+        }
+
+        Ok(&mut self.children[n])
+    }
+
     /// Get all table refs from the immediate children of this node.
     pub fn get_children_table_refs(&self) -> Vec<TableRef> {
         self.children.iter().fold(Vec::new(), |mut refs, child| {

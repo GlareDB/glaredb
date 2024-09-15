@@ -1,5 +1,6 @@
 //! Implementations of physical operators in an execution pipeline.
 
+pub mod analyze;
 pub mod copy_to;
 pub mod create_schema;
 pub mod create_table;

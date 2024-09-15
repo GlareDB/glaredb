@@ -23,7 +23,7 @@ use crate::{
 };
 use rayexec_bullet::{datatype::DataType, scalar::ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 #[derive(Debug)]
 pub struct SubqueryPlanner;
@@ -62,6 +62,16 @@ impl SubqueryPlanner {
         Ok(())
     }
 
+    /// Plans a correlated subquery.
+    ///
+    /// This will attempt to decorrelate the subquery, modifying `plan` to do
+    /// so. The returned expression should then be used in place of the original
+    /// subquery expression.
+    ///
+    /// Decorrelation follows the logic described in "Unnesting Arbitrary
+    /// Queries" (Neumann, Kemper):
+    ///
+    /// <https://btw-2015.informatik.uni-hamburg.de/res/proceedings/Hauptband/Wiss/Neumann-Unnesting_Arbitrary_Querie.pdf>
     fn plan_correlated(
         &self,
         bind_context: &mut BindContext,
@@ -73,20 +83,11 @@ impl SubqueryPlanner {
 
         // Get only correlated columns that are pointing to this plan.
         let plan_tables = plan.get_output_table_refs();
-        // TODO: Unsure if this is fine. Easy way of always ensuring this is to
-        // wrap in projection which guarantees a single ref, but I'm not sure if
-        // it's possible for this to be any other value.
-        if plan_tables.len() != 1 {
-            return Err(RayexecError::new(
-                "Expected 1 table ref for plan in subquery decorrelation",
-            ));
-        }
-        let left_table_ref = plan_tables[0];
 
         let correlated_columns: Vec<_> = bind_context
             .correlated_columns(subquery.bind_idx)?
             .iter()
-            .filter(|c| c.table == left_table_ref)
+            .filter(|c| plan_tables.contains(&c.table))
             .cloned()
             .collect();
 
@@ -105,7 +106,7 @@ impl SubqueryPlanner {
                 let left = LogicalOperator::MaterializationScan(Node {
                     node: LogicalMaterializationScan {
                         mat: mat_ref,
-                        table_ref: left_table_ref,
+                        table_refs: plan_tables,
                     },
                     location: LocationRequirement::Any,
                     children: Vec::new(),
@@ -155,7 +156,7 @@ impl SubqueryPlanner {
                 // Update plan to now be a comparison join.
                 *plan = LogicalOperator::ComparisonJoin(Node {
                     node: LogicalComparisonJoin {
-                        join_type: JoinType::Inner,
+                        join_type: JoinType::Left,
                         conditions,
                     },
                     location: LocationRequirement::Any,
@@ -164,7 +165,7 @@ impl SubqueryPlanner {
 
                 Ok(right_out)
             }
-            _ => unimplemented!(),
+            other => not_implemented!("correlated subquery type: {other:?}"),
         }
     }
 
@@ -335,6 +336,8 @@ impl PartialEq<LogicalOperatorPtr> for LogicalOperatorPtr {
 
 impl Eq for LogicalOperatorPtr {}
 
+/// Contains logic for pushing down a dependent join in a logical such that the
+/// resulting plan does not have a dependent join.
 #[derive(Debug)]
 struct DependentJoinPushdown {
     /// Reference to the materialized plan on the left side.
@@ -375,13 +378,51 @@ impl DependentJoinPushdown {
         }
     }
 
+    /// Walk the logical plan and find correlations that we need to handle
+    /// during pushdown.
     fn find_correlations(&mut self, plan: &LogicalOperator) -> Result<bool> {
         let mut has_correlation = false;
-        #[allow(clippy::single_match)] // Temp, more match arms will be added.
         match plan {
             LogicalOperator::Project(project) => {
                 has_correlation = self.any_expression_has_correlation(&project.node.projections);
                 has_correlation |= self.find_correlations_in_children(&project.children)?;
+            }
+            LogicalOperator::Filter(filter) => {
+                has_correlation = self.expression_has_correlation(&filter.node.filter);
+                has_correlation |= self.find_correlations_in_children(&filter.children)?;
+            }
+            LogicalOperator::Aggregate(agg) => {
+                has_correlation = self.any_expression_has_correlation(&agg.node.aggregates);
+                has_correlation |= self.any_expression_has_correlation(&agg.node.group_exprs);
+                has_correlation |= self.find_correlations_in_children(&agg.children)?;
+            }
+            LogicalOperator::CrossJoin(join) => {
+                // TODO: Implement the push down
+                has_correlation = self.find_correlations_in_children(&join.children)?;
+            }
+            LogicalOperator::ArbitraryJoin(join) => {
+                // TODO: Implement the push down
+                has_correlation = self.expression_has_correlation(&join.node.condition);
+                has_correlation |= self.find_correlations_in_children(&join.children)?
+            }
+            LogicalOperator::ComparisonJoin(join) => {
+                // TODO: Implement the push down
+                has_correlation = self.any_expression_has_correlation(
+                    join.node
+                        .conditions
+                        .iter()
+                        .flat_map(|c| [&c.left, &c.right].into_iter()),
+                );
+                has_correlation |= self.find_correlations_in_children(&join.children)?;
+            }
+            LogicalOperator::Limit(_) => {
+                // Limit should not have correlations.
+            }
+            LogicalOperator::Order(order) => {
+                // TODO: Implement the push down
+                has_correlation =
+                    self.any_expression_has_correlation(order.node.exprs.iter().map(|e| &e.expr));
+                has_correlation |= self.find_correlations_in_children(&order.children)?;
             }
             _ => (),
         }
@@ -478,7 +519,7 @@ impl DependentJoinPushdown {
                 children: vec![LogicalOperator::MaterializationScan(Node {
                     node: LogicalMaterializationScan {
                         mat: self.mat_ref,
-                        table_ref: materialization.table_ref,
+                        table_refs: materialization.table_refs.clone(),
                     },
                     location: LocationRequirement::Any,
                     children: Vec::new(),
@@ -505,13 +546,96 @@ impl DependentJoinPushdown {
                 // Append column exprs referencing the materialization.
                 let offset = project.node.projections.len();
                 for (idx, correlated) in self.columns.iter().enumerate() {
-                    let expr = self.column_map.get(correlated).ok_or_else(|| RayexecError::new(format!("Missing correlated column in column map for appending projection: {correlated:?}")))?;
-                    project.node.projections.push(Expression::Column(*expr));
+                    let expr =
+                        Expression::Column(*self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending projection: {correlated:?}"))
+                        })?);
+
+                    // Append column to table in bind context.
+                    bind_context.push_column_for_table(
+                        project.node.projection_table,
+                        format!("__generated_projection_decorrelation_{idx}"),
+                        expr.datatype(bind_context)?,
+                    )?;
+
+                    project.node.projections.push(expr);
 
                     self.column_map.insert(
                         correlated.clone(),
                         ColumnExpr {
                             table_scope: project.node.projection_table,
+                            column: offset + idx,
+                        },
+                    );
+                }
+
+                Ok(())
+            }
+            LogicalOperator::Filter(filter) => {
+                self.pushdown_children(bind_context, &mut filter.children)?;
+                self.rewrite_expression(&mut filter.node.filter)?;
+
+                // Filter does not change columns that can be referenced by
+                // parent nodes, don't update column map.
+
+                Ok(())
+            }
+            LogicalOperator::Aggregate(agg) => {
+                self.pushdown_children(bind_context, &mut agg.children)?;
+                self.rewrite_expressions(&mut agg.node.aggregates)?;
+                self.rewrite_expressions(&mut agg.node.group_exprs)?;
+
+                // Append correlated columns to group by expressions.
+                let offset = agg.node.group_exprs.len();
+
+                // If we don't have a table ref for the group by (indicating we
+                // have no groups), go ahead and create it.
+                let group_by_table = match agg.node.group_table {
+                    Some(table) => table,
+                    None => {
+                        let table = bind_context.new_ephemeral_table()?;
+                        agg.node.group_table = Some(table);
+                        table
+                    }
+                };
+
+                // Same as above, we're always going to have groups.
+                let grouping_sets = match &mut agg.node.grouping_sets {
+                    Some(sets) => sets,
+                    None => {
+                        // Create single group.
+                        agg.node.grouping_sets = Some(vec![BTreeSet::new()]);
+                        agg.node.grouping_sets.as_mut().unwrap()
+                    }
+                };
+
+                for (idx, correlated) in self.columns.iter().enumerate() {
+                    let expr =
+                        Expression::Column(*self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending group expression: {correlated:?}"))
+                        })?);
+
+                    // Append column to group by table in bind context.
+                    bind_context.push_column_for_table(
+                        group_by_table,
+                        format!("__generated_aggregate_decorrelation_{idx}"),
+                        expr.datatype(bind_context)?,
+                    )?;
+
+                    // Add to group by.
+                    agg.node.group_exprs.push(expr);
+                    // Add to all grouping sets too.
+                    for set in grouping_sets.iter_mut() {
+                        set.insert(offset + idx);
+                    }
+
+                    // Update column map to point to expression in GROUP BY.
+                    self.column_map.insert(
+                        correlated.clone(),
+                        ColumnExpr {
+                            table_scope: group_by_table,
                             column: offset + idx,
                         },
                     );
@@ -526,8 +650,9 @@ impl DependentJoinPushdown {
                         | ScanSource::View { .. }
                         | ScanSource::TableFunction { .. }
                 ) {
-                    // Nothing to do.
-                    return Ok(());
+                    return Err(RayexecError::new(
+                        "Unexpectedly reached scan node when pushing down dependent join",
+                    ));
                 }
 
                 not_implemented!("dependent join pushdown for VALUES")
@@ -547,8 +672,13 @@ impl DependentJoinPushdown {
         Ok(())
     }
 
-    fn any_expression_has_correlation(&self, exprs: &[Expression]) -> bool {
-        exprs.iter().any(|e| self.expression_has_correlation(e))
+    fn any_expression_has_correlation<'a>(
+        &self,
+        exprs: impl IntoIterator<Item = &'a Expression>,
+    ) -> bool {
+        exprs
+            .into_iter()
+            .any(|e| self.expression_has_correlation(e))
     }
 
     fn expression_has_correlation(&self, expr: &Expression) -> bool {

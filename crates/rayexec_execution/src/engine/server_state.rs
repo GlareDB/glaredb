@@ -31,7 +31,7 @@ use crate::{
             ResolvedStatement,
         },
     },
-    runtime::{PipelineExecutor, QueryHandle, Runtime},
+    runtime::{handle::QueryHandle, PipelineExecutor, Runtime},
 };
 use std::sync::Arc;
 

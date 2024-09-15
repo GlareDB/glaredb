@@ -7,9 +7,13 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalMaterializationScan {
+    /// Reference to the materialization in the bind context.
     pub mat: MaterializationRef,
-    // TODO: I'm not sure if this should always be a single ref.
-    pub table_ref: TableRef,
+    /// Table references of the output of the materialization.
+    ///
+    /// These should match the references that are stored on the materialization
+    /// in the bind context. They are duplicated here for convenience.
+    pub table_refs: Vec<TableRef>,
 }
 
 impl Explainable for LogicalMaterializationScan {
@@ -17,7 +21,7 @@ impl Explainable for LogicalMaterializationScan {
         let mut ent =
             ExplainEntry::new("MaterializationScan").with_value("materialization_ref", self.mat);
         if conf.verbose {
-            ent = ent.with_value("table_ref", self.table_ref);
+            ent = ent.with_values("table_refs", &self.table_refs)
         }
         ent
     }
@@ -25,6 +29,6 @@ impl Explainable for LogicalMaterializationScan {
 
 impl LogicalNode for Node<LogicalMaterializationScan> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        vec![self.node.table_ref]
+        self.node.table_refs.clone()
     }
 }

@@ -65,7 +65,7 @@ where
             editor.raw_writer(),
             "Preview ({version}) - There will be bugs!"
         )?;
-        editor.raw_writer().write_all(&[b'\n'])?;
+        editor.raw_writer().write_all(b"\n")?;
 
         editor.edit_start()?;
 
@@ -122,7 +122,7 @@ where
                     None => return Ok(()), // Nothing to execute.
                 };
                 let mut writer = editor.raw_writer();
-                writer.write_all(&[b'\n'])?;
+                writer.write_all(b"\n")?;
 
                 match engine.engine.sql(&query).await {
                     Ok(tables) => {
@@ -150,7 +150,7 @@ where
                     }
                 }
 
-                writer.write_all(&[b'\n'])?;
+                writer.write_all(b"\n")?;
                 editor.edit_start()?;
 
                 Ok(())

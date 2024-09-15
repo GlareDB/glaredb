@@ -6,6 +6,38 @@ use crate::{
 use rayexec_error::Result;
 use std::fmt::Write as _;
 
+pub fn ugly_print_no_schema<'a, I>(batches: I) -> Result<String>
+where
+    I: IntoIterator<Item = &'a Batch>,
+{
+    const OPTS: FormatOptions = FormatOptions::new();
+    let formatter = Formatter::new(OPTS);
+
+    let mut buf = String::new();
+
+    for batch in batches.into_iter() {
+        for idx in 0..batch.num_rows() {
+            for (col_idx, col) in batch.columns().iter().enumerate() {
+                write!(
+                    buf,
+                    "{}\t ",
+                    formatter
+                        .format_array_value(col, idx)
+                        .expect("value to exist")
+                )?;
+                if col_idx < batch.columns().len() - 1 {
+                    write!(buf, "| ")?;
+                }
+            }
+            if idx < batch.num_rows() - 1 {
+                writeln!(buf)?;
+            }
+        }
+    }
+
+    Ok(buf)
+}
+
 pub fn ugly_print<'a, I>(schema: &Schema, batches: I) -> Result<String>
 where
     I: IntoIterator<Item = &'a Batch>,

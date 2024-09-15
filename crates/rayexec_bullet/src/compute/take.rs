@@ -1,7 +1,7 @@
 use crate::{
     array::{
-        Array, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, TimestampArray, VarlenArray,
-        VarlenType, VarlenValuesBuffer,
+        Array, BooleanArray, DecimalArray, NullArray, OffsetIndex, PrimitiveArray, TimestampArray,
+        VarlenArray, VarlenType, VarlenValuesBuffer,
     },
     bitmap::Bitmap,
 };
@@ -13,6 +13,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
     Ok(match arr {
         Array::Null(_) => Array::Null(NullArray::new(indices.len())),
+        Array::Boolean(arr) => Array::Boolean(take_boolean(arr, indices)?),
         Array::Float32(arr) => Array::Float32(take_primitive(arr, indices)?),
         Array::Float64(arr) => Array::Float64(take_primitive(arr, indices)?),
         Array::Int8(arr) => Array::Int8(take_primitive(arr, indices)?),
@@ -51,6 +52,21 @@ pub fn take(arr: &Array, indices: &[usize]) -> Result<Array> {
         Array::LargeBinary(arr) => Array::LargeBinary(take_varlen(arr, indices)?),
         other => not_implemented!("other: {}", other.datatype()),
     })
+}
+
+pub fn take_boolean(arr: &BooleanArray, indices: &[usize]) -> Result<BooleanArray> {
+    if !indices.iter().all(|&idx| idx < arr.len()) {
+        return Err(RayexecError::new("Index out of bounds"));
+    }
+
+    let values = arr.values();
+    let new_values = Bitmap::from_iter(indices.iter().map(|idx| values.value(*idx)));
+
+    let validity = arr
+        .validity()
+        .map(|validity| Bitmap::from_iter(indices.iter().map(|idx| validity.value(*idx))));
+
+    Ok(BooleanArray::new(new_values, validity))
 }
 
 pub fn take_primitive<T: Copy>(

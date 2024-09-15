@@ -31,11 +31,10 @@ impl fmt::Debug for ThreadedScheduler {
 impl Scheduler for ThreadedScheduler {
     type Handle = ThreadedQueryHandle;
 
-    fn try_new() -> Result<Self> {
-        let threads = num_cpus::get();
+    fn try_new(num_threads: usize) -> Result<Self> {
         let thread_pool = ThreadPoolBuilder::new()
             .thread_name(|idx| format!("rayexec_compute_{idx}"))
-            .num_threads(threads)
+            .num_threads(num_threads)
             .build()
             .map_err(|e| RayexecError::with_source("Failed to build thread pool", Box::new(e)))?;
 

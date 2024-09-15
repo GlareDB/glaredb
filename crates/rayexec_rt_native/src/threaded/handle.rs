@@ -1,10 +1,10 @@
-use std::{collections::BTreeMap, sync::Arc};
-
+use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_execution::runtime::{
-    dump::{PartitionPipelineDump, PipelineDump, QueryDump},
-    QueryHandle,
+use rayexec_error::Result;
+use rayexec_execution::{
+    execution::executable::profiler::QueryProfileData, runtime::handle::QueryHandle,
 };
+use std::sync::Arc;
 
 use super::task::{PartitionPipelineTask, TaskState};
 
@@ -32,43 +32,19 @@ impl QueryHandle for ThreadedQueryHandle {
         }
     }
 
-    fn dump(&self) -> QueryDump {
-        use std::collections::btree_map::Entry;
+    fn generate_profile_data(&self) -> BoxFuture<'_, Result<QueryProfileData>> {
+        Box::pin(async {
+            let mut data = QueryProfileData::default();
+            let states = self.states.lock();
 
-        let mut dump = QueryDump {
-            pipelines: BTreeMap::new(),
-        };
-
-        let states = self.states.lock();
-
-        for state in states.iter() {
-            let pipeline_state = state.pipeline.lock();
-            match dump.pipelines.entry(pipeline_state.pipeline.pipeline_id()) {
-                Entry::Occupied(mut ent) => {
-                    ent.get_mut().partitions.insert(
-                        pipeline_state.pipeline.partition(),
-                        PartitionPipelineDump {
-                            state: pipeline_state.pipeline.state().clone(),
-                            timings: pipeline_state.pipeline.timings().clone(),
-                        },
-                    );
-                }
-                Entry::Vacant(ent) => {
-                    let partition_dump = PartitionPipelineDump {
-                        state: pipeline_state.pipeline.state().clone(),
-                        timings: pipeline_state.pipeline.timings().clone(),
-                    };
-                    let pipeline_dump = PipelineDump {
-                        operators: pipeline_state.pipeline.iter_operators().cloned().collect(),
-                        partitions: [(pipeline_state.pipeline.partition(), partition_dump)]
-                            .into_iter()
-                            .collect(),
-                    };
-                    ent.insert(pipeline_dump);
-                }
+            for state in states.iter() {
+                let pipeline = state.pipeline.lock();
+                data.add_partition_data(&pipeline.pipeline);
             }
-        }
 
-        dump
+            // TODO: Get remote pipeline data somehow.
+
+            Ok(data)
+        })
     }
 }

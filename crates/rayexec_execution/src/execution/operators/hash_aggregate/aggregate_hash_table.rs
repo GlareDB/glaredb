@@ -14,6 +14,11 @@ use std::sync::Arc;
 /// States for a single aggregation.
 #[derive(Debug)]
 pub struct AggregateStates {
+    /// The states we're tracking for a single aggregate.
+    ///
+    /// Internally the state are stored in a vector, with the index of the
+    /// vector corresponding to the index of the group in the table's
+    /// `group_values` vector.
     pub states: Box<dyn GroupedStates>,
 
     /// Bitmap for selecting columns from the input to the hash map.
@@ -170,15 +175,17 @@ impl PartitionAggregateHashTable {
             return Ok(());
         }
 
+        // This buffer is used to build up a mapping of (other_group -> own_group) for merging.
         self.indexes_buffer.clear();
-        self.indexes_buffer.reserve(row_count);
+        self.indexes_buffer.resize(row_count, 0);
 
         // Ensure the has table we're merging into has all the groups from
         // the other hash table.
-        for (hash, group_idx) in other.hash_table.drain() {
+        for (hash, other_group_idx) in other.hash_table.drain() {
             // TODO: Deduplicate with othe find and create method.
 
-            let row = std::mem::replace(&mut other.group_values[group_idx], ScalarRow::empty());
+            let row =
+                std::mem::replace(&mut other.group_values[other_group_idx], ScalarRow::empty());
 
             let ent = self.hash_table.get_mut(hash, |(_hash, self_group_idx)| {
                 row == self.group_values[*self_group_idx]
@@ -187,31 +194,38 @@ impl PartitionAggregateHashTable {
             match ent {
                 Some((_, self_group_idx)) => {
                     // 'self' already has the group from the other table.
-                    self.indexes_buffer.push(*self_group_idx)
+                    //
+                    // Map other group to this group for merge.
+                    self.indexes_buffer[other_group_idx] = *self_group_idx;
                 }
                 None => {
                     // 'self' has never seend this group before. Add it to the map with
                     // an empty state.
-                    let group_idx = self.group_values.len();
+                    let new_group_idx = self.group_values.len();
 
                     // Need to create new states and insert them into the hash table.
                     for agg_state in self.agg_states.iter_mut() {
                         let idx = agg_state.states.new_group();
                         // Very critical, if we're not generating the same
                         // index, all bets are off.
-                        assert_eq!(group_idx, idx);
+                        assert_eq!(new_group_idx, idx);
                     }
 
                     self.hash_table
-                        .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
+                        .insert(hash, (hash, new_group_idx), |(hash, _group_idx)| *hash);
 
                     self.group_values.push(row.into_owned());
-                    self.indexes_buffer.push(group_idx);
+
+                    // Map other group to the newly created group in this table.
+                    self.indexes_buffer[other_group_idx] = new_group_idx
                 }
             }
         }
 
         // And now we combine the states using the computed mappings.
+        //
+        // This will do the merge between the other states and own states using
+        // the the mapping we just built up.
         let other_states = std::mem::take(&mut other.agg_states);
         for (own_state, other_state) in self.agg_states.iter_mut().zip(other_states.into_iter()) {
             own_state
@@ -240,6 +254,7 @@ impl fmt::Debug for PartitionAggregateHashTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AggregateHashTable")
             .field("aggregate_states", &self.agg_states)
+            .field("group_values", &self.group_values)
             .finish_non_exhaustive()
     }
 }

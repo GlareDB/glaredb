@@ -1,15 +1,16 @@
 pub mod avg;
 pub mod count;
 pub mod covar;
+pub mod first;
 pub mod minmax;
 pub mod sum;
 
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
+use rayexec_bullet::array::Array;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::aggregate::StateCombiner;
-use rayexec_bullet::{array::Array, executor::aggregate::AggregateState};
+use rayexec_bullet::executor::aggregate::{AggregateState, StateCombiner};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
 use std::{
@@ -30,6 +31,7 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
         Box::new(count::Count),
         Box::new(minmax::Min),
         Box::new(minmax::Max),
+        Box::new(first::First),
     ]
 });
 
@@ -145,6 +147,9 @@ pub trait GroupedStates: Debug + Send {
     ) -> Result<()>;
 
     /// Try to combine two sets of grouped states into a single set of states.
+    ///
+    /// `mapping` is used to map groups in `consume` to the target groups in
+    /// self that should be merged.
     ///
     /// Errors if the concrete types do not match. Essentially this prevents
     /// trying to combine state between different aggregates (SumI32 and AvgF32)
@@ -324,4 +329,143 @@ pub fn multi_array_drain(
     }
 
     Ok(Some(arrays))
+}
+
+mod helpers {
+    use std::vec;
+
+    use rayexec_bullet::{
+        array::{Array, PrimitiveArray, TimestampArray},
+        bitmap::Bitmap,
+        datatype::TimeUnit,
+        executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    };
+
+    macro_rules! create_single_boolean_input_grouped_state {
+        ($state:ty) => {{
+            use crate::functions::aggregate::DefaultGroupedStates;
+            use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+            use rayexec_bullet::bitmap::Bitmap;
+            use rayexec_bullet::executor::aggregate::{StateFinalizer, UnaryNonNullUpdater};
+            use std::vec;
+
+            Box::new(DefaultGroupedStates::new(
+                |row_selection: &Bitmap,
+                 arrays: &[&Array],
+                 mapping: &[usize],
+                 states: &mut [$state]| {
+                    match &arrays[0] {
+                        Array::Boolean(arr) => {
+                            UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
+                        }
+                        other => panic!("unexpected array type: {other:?}"),
+                    }
+                },
+                |states: vec::Drain<$state>| {
+                    let mut values = BooleanValuesBuffer::with_capacity(states.len());
+                    let mut bitmap = Bitmap::with_capacity(states.len());
+                    StateFinalizer::finalize(states, &mut values, &mut bitmap)?;
+                    Ok(Array::Boolean(BooleanArray::new(values, Some(bitmap))))
+                },
+            ))
+        }};
+    }
+    pub(crate) use create_single_boolean_input_grouped_state;
+
+    macro_rules! create_single_primitive_input_grouped_state {
+        ($variant:ident, $state:ty) => {{
+            use crate::functions::aggregate::DefaultGroupedStates;
+            use rayexec_bullet::array::{Array, PrimitiveArray};
+            use rayexec_bullet::bitmap::Bitmap;
+            use rayexec_bullet::executor::aggregate::{StateFinalizer, UnaryNonNullUpdater};
+            use std::vec;
+
+            Box::new(DefaultGroupedStates::new(
+                |row_selection: &Bitmap,
+                 arrays: &[&Array],
+                 mapping: &[usize],
+                 states: &mut [$state]| {
+                    match &arrays[0] {
+                        Array::$variant(arr) => {
+                            UnaryNonNullUpdater::update(row_selection, arr, mapping, states)
+                        }
+                        other => panic!("unexpected array type: {other:?}"),
+                    }
+                },
+                |states: vec::Drain<$state>| {
+                    let mut buffer = Vec::with_capacity(states.len());
+                    let mut bitmap = Bitmap::with_capacity(states.len());
+                    StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+                    Ok(Array::$variant(PrimitiveArray::new(buffer, Some(bitmap))))
+                },
+            ))
+        }};
+    }
+    pub(crate) use create_single_primitive_input_grouped_state;
+
+    macro_rules! create_single_decimal_input_grouped_state {
+        ($variant:ident, $state:ty, $precision:expr, $scale:expr) => {{
+            use crate::functions::aggregate::DefaultGroupedStates;
+            use rayexec_bullet::array::{Array, DecimalArray, PrimitiveArray};
+            use rayexec_bullet::bitmap::Bitmap;
+            use rayexec_bullet::executor::aggregate::{StateFinalizer, UnaryNonNullUpdater};
+            use std::vec;
+
+            let precision = $precision.clone();
+            let scale = $scale.clone();
+            Box::new(DefaultGroupedStates::new(
+                |row_selection: &Bitmap,
+                 arrays: &[&Array],
+                 mapping: &[usize],
+                 states: &mut [$state]| {
+                    match &arrays[0] {
+                        Array::$variant(arr) => UnaryNonNullUpdater::update(
+                            row_selection,
+                            arr.get_primitive(),
+                            mapping,
+                            states,
+                        ),
+                        other => panic!("unexpected array type: {other:?}"),
+                    }
+                },
+                move |states: vec::Drain<$state>| {
+                    let mut buffer = Vec::with_capacity(states.len());
+                    let mut bitmap = Bitmap::with_capacity(states.len());
+                    StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+                    let arr = PrimitiveArray::new(buffer, Some(bitmap));
+                    Ok(Array::$variant(DecimalArray::new(precision, scale, arr)))
+                },
+            ))
+        }};
+    }
+    pub(crate) use create_single_decimal_input_grouped_state;
+
+    use super::{DefaultGroupedStates, GroupedStates};
+
+    pub(crate) fn create_single_timestamp_input_grouped_state<
+        S: AggregateState<i64, i64> + Send + 'static,
+    >(
+        unit: TimeUnit,
+    ) -> Box<dyn GroupedStates> {
+        Box::new(DefaultGroupedStates::new(
+            |row_selection: &Bitmap, arrays: &[&Array], mapping: &[usize], states: &mut [S]| {
+                match &arrays[0] {
+                    Array::Timestamp(arr) => UnaryNonNullUpdater::update(
+                        row_selection,
+                        arr.get_primitive(),
+                        mapping,
+                        states,
+                    ),
+                    other => panic!("unexpected array type: {other:?}"),
+                }
+            },
+            move |states: vec::Drain<S>| {
+                let mut buffer = Vec::with_capacity(states.len());
+                let mut bitmap = Bitmap::with_capacity(states.len());
+                StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
+                let arr = PrimitiveArray::new(buffer, Some(bitmap));
+                Ok(Array::Timestamp(TimestampArray::new(unit, arr)))
+            },
+        ))
+    }
 }

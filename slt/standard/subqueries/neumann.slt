@@ -2,8 +2,6 @@
 #
 # https://cs.emis.de/LNI/Proceedings/Proceedings241/383.pdf
 
-halt
-
 statement ok
 CREATE TEMP TABLE students (id INT, name TEXT, major TEXT, year INT);
 

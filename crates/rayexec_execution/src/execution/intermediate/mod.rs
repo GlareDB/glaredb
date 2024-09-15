@@ -399,7 +399,7 @@ impl Explainable for IntermediateOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         self.operator.explain_entry(conf).with_value(
             "partitioning_requirement",
-            &format!("{:?}", self.partitioning_requirement),
+            format!("{:?}", self.partitioning_requirement),
         )
     }
 }

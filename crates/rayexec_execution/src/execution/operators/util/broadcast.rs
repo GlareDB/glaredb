@@ -145,3 +145,50 @@ impl Future for RecvFut {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::task::Wake;
+
+    use futures::FutureExt;
+    use rayexec_bullet::array::{Array, Int64Array};
+
+    use super::*;
+
+    struct NopWaker {}
+
+    impl Wake for NopWaker {
+        fn wake(self: Arc<Self>) {}
+    }
+
+    fn poll_with_noop<T, F>(fut: &mut F) -> Poll<T>
+    where
+        F: Future<Output = T> + Unpin,
+    {
+        let waker = Waker::from(Arc::new(NopWaker {}));
+        let mut cx = Context::from_waker(&waker);
+        fut.poll_unpin(&mut cx)
+    }
+
+    /// Create a batch with a single int64 value.
+    fn test_batch(n: i64) -> Batch {
+        let col = Array::Int64(Int64Array::from_iter([n]));
+        Batch::try_new([col]).unwrap()
+    }
+
+    #[test]
+    fn single_send_recv_simple() {
+        let (send, mut recvs) = BroadcastChannel::new(1);
+        send.send(test_batch(1));
+
+        let mut fut = recvs[0].recv();
+        let poll = poll_with_noop(&mut fut);
+        assert_eq!(Poll::Ready(Some(test_batch(1))), poll);
+
+        send.finish();
+
+        let mut fut = recvs[0].recv();
+        let poll = poll_with_noop(&mut fut);
+        assert_eq!(Poll::Ready(None), poll);
+    }
+}

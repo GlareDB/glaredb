@@ -9,6 +9,8 @@ use std::{
     task::{Context, Poll, Wake, Waker},
 };
 
+use crate::time::NativeInstant;
+
 /// State shared by the partition pipeline task and the waker.
 #[derive(Debug)]
 pub(crate) struct TaskState {
@@ -56,7 +58,10 @@ impl PartitionPipelineTask {
 
         let mut cx = Context::from_waker(&waker);
         loop {
-            match pipeline_state.pipeline.poll_execute(&mut cx) {
+            match pipeline_state
+                .pipeline
+                .poll_execute::<NativeInstant>(&mut cx)
+            {
                 Poll::Ready(Some(Ok(()))) => {
                     // Pushing through the pipeline was successful. Continue the
                     // loop to try to get as much work done as possible.

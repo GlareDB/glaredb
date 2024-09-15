@@ -153,26 +153,17 @@ impl<'a> PhysicalExpressionPlanner<'a> {
 
     pub fn plan_join_condition_as_hash_join_condition(
         &self,
-        table_refs: &[TableRef],
+        left_refs: &[TableRef],
+        right_refs: &[TableRef],
         condition: &ComparisonCondition,
     ) -> Result<HashJoinCondition> {
-        if table_refs.len() != 2 {
-            return Err(RayexecError::new(format!(
-                "Planning hash join condition requires two table refs, got {}",
-                table_refs.len()
-            )));
-        }
-
-        let left_ref = table_refs[0];
-        let right_ref = table_refs[1];
-
         let scalar = condition.op.as_scalar_function();
         let function = scalar
             .plan_from_expressions(self.bind_context, &[&condition.left, &condition.right])?;
 
         Ok(HashJoinCondition {
-            left: self.plan_scalar(&[left_ref], &condition.left)?,
-            right: self.plan_scalar(&[right_ref], &condition.right)?,
+            left: self.plan_scalar(left_refs, &condition.left)?,
+            right: self.plan_scalar(right_refs, &condition.right)?,
             function,
         })
     }

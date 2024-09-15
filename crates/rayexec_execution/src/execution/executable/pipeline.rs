@@ -1,6 +1,7 @@
 use crate::{
     execution::operators::PollFinalize,
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    runtime::time::{RuntimeInstant, Timer},
 };
 
 use crate::execution::operators::{
@@ -12,9 +13,10 @@ use std::{
     fmt,
     sync::Arc,
     task::{Context, Poll},
-    time::Instant,
 };
 use tracing::trace;
+
+use super::profiler::OperatorProfileData;
 
 // TODO: Include intermedate pipeline to track lineage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -94,6 +96,7 @@ impl ExecutablePipeline {
                 physical: physical.clone(),
                 operator_state: operator_state.clone(),
                 partition_state,
+                profile_data: OperatorProfileData::default(),
             });
 
         for (operator, partition_pipeline) in operators.zip(self.partitions.iter_mut()) {
@@ -118,7 +121,7 @@ impl Explainable for ExecutablePipeline {
 pub struct ExecutablePartitionPipeline {
     /// Information about the pipeline.
     ///
-    /// Should only be used for debugging/logging.
+    /// Should only be used for generating profiling data.
     info: PartitionPipelineInfo,
 
     /// State of this pipeline.
@@ -138,9 +141,6 @@ pub struct ExecutablePartitionPipeline {
     /// exhausted, this will be incremented to avoid pulling from an exhausted
     /// operator.
     pull_start_idx: usize,
-
-    /// Execution timings.
-    timings: PartitionPipelineTimings,
 }
 
 impl ExecutablePartitionPipeline {
@@ -153,7 +153,6 @@ impl ExecutablePartitionPipeline {
             state: PipelinePartitionState::PullFrom { operator_idx: 0 },
             operators: Vec::new(),
             pull_start_idx: 0,
-            timings: PartitionPipelineTimings::default(),
         }
     }
 
@@ -172,37 +171,20 @@ impl ExecutablePartitionPipeline {
         &self.state
     }
 
-    pub fn timings(&self) -> &PartitionPipelineTimings {
-        &self.timings
-    }
-
-    /// Return an iterator over all the physcial operators in this partition
-    /// pipeline.
-    pub fn iter_operators(&self) -> impl Iterator<Item = &Arc<dyn ExecutableOperator>> {
-        self.operators.iter().map(|op| &op.physical)
+    pub fn operators(&self) -> &[OperatorWithState] {
+        &self.operators
     }
 }
 
 /// Information about a partition pipeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PartitionPipelineInfo {
-    pipeline: PipelineId,
-    partition: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PartitionPipelineTimings {
-    /// Instant at which the pipeline started execution. Set on the first call
-    /// the `poll_execute`.
-    pub start: Option<Instant>,
-
-    /// Instant at which the pipeline completed. Only set when the pipeline
-    /// completes without error.
-    pub completed: Option<Instant>,
+    pub pipeline: PipelineId,
+    pub partition: usize,
 }
 
 #[derive(Debug)]
-pub(crate) struct OperatorWithState {
+pub struct OperatorWithState {
     /// The underlying physical operator.
     physical: Arc<dyn ExecutableOperator>,
 
@@ -211,6 +193,19 @@ pub(crate) struct OperatorWithState {
 
     /// The state for this operator that's exclusive to this partition.
     partition_state: PartitionState,
+
+    /// Profile data for this operator.
+    profile_data: OperatorProfileData,
+}
+
+impl OperatorWithState {
+    pub fn physical_operator(&self) -> &dyn ExecutableOperator {
+        self.physical.as_ref()
+    }
+
+    pub fn profile_data(&self) -> &OperatorProfileData {
+        &self.profile_data
+    }
 }
 
 #[derive(Clone)]
@@ -271,18 +266,15 @@ impl ExecutablePartitionPipeline {
     /// We set the state to skip pulling from all previous operators even if
     /// they've not been exhausted. An example operator that would emit a Break
     /// is LIMIT.
-    pub fn poll_execute(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>> {
+    pub fn poll_execute<I>(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>>
+    where
+        I: RuntimeInstant,
+    {
         trace!(
             pipeline_id = %self.info.pipeline.0,
             partition = %self.info.partition,
             "executing partition pipeline",
         );
-
-        // TODO: Time stuff currently commented out since wasm32-unknown-unknown
-        // doesn't have proper time implementations.
-        // if self.timings.start.is_none() {
-        //     self.timings.start = Some(Instant::now());
-        // }
 
         let state = &mut self.state;
 
@@ -293,15 +285,21 @@ impl ExecutablePartitionPipeline {
                         .operators
                         .get_mut(*operator_idx)
                         .expect("operator to exist");
+
+                    let timer = Timer::<I>::start();
                     let poll_pull = operator.physical.poll_pull(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
                     );
+                    let elapsed = timer.stop();
+                    operator.profile_data.elapsed += elapsed;
+
                     match poll_pull {
                         Ok(PollPull::Batch(batch)) => {
                             // We got a batch, increment operator index to push
                             // it into the next operator.
+                            operator.profile_data.rows_emitted += batch.num_rows();
                             *state = PipelinePartitionState::PushTo {
                                 batch,
                                 operator_idx: *operator_idx + 1,
@@ -336,11 +334,17 @@ impl ExecutablePartitionPipeline {
                         .operators
                         .get_mut(*operator_idx)
                         .expect("next operator to exist");
-                    match next_operator.physical.poll_finalize_push(
+
+                    let timer = Timer::<I>::start();
+                    let poll_finalize = next_operator.physical.poll_finalize_push(
                         cx,
                         &mut next_operator.partition_state,
                         &next_operator.operator_state,
-                    ) {
+                    );
+                    let elapsed = timer.stop();
+                    next_operator.profile_data.elapsed += elapsed;
+
+                    match poll_finalize {
                         Ok(PollFinalize::Finalized) => {
                             if self.pull_start_idx == self.operators.len() - 1 {
                                 // This partition pipeline has been completely exhausted, and
@@ -374,12 +378,18 @@ impl ExecutablePartitionPipeline {
                         .operators
                         .get_mut(*operator_idx)
                         .expect("operator to exist");
+
+                    operator.profile_data.rows_read += batch.num_rows();
+
+                    let timer = Timer::<I>::start();
                     let poll_push = operator.physical.poll_push(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
                         batch,
                     );
+                    let elapsed = timer.stop();
+                    operator.profile_data.elapsed += elapsed;
 
                     match poll_push {
                         Ok(PollPush::Pushed) => {
@@ -451,7 +461,6 @@ impl ExecutablePartitionPipeline {
                     }
                 }
                 PipelinePartitionState::Completed => {
-                    // self.timings.completed = Some(Instant::now());
                     return Poll::Ready(None);
                 }
             }

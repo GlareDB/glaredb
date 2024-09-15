@@ -127,6 +127,14 @@ pub struct VarlenValuesBuffer<O: OffsetIndex> {
     data: Vec<u8>,
 }
 
+impl<O: OffsetIndex> Default for VarlenValuesBuffer<O> {
+    fn default() -> Self {
+        let offsets: Vec<O> = vec![O::from_usize(0)];
+        let data: Vec<u8> = Vec::new();
+        VarlenValuesBuffer { offsets, data }
+    }
+}
+
 impl<O: OffsetIndex> VarlenValuesBuffer<O> {
     pub fn try_new(data: Vec<u8>, offsets: Vec<O>) -> Result<Self> {
         if data.len() != offsets.len() + 1 {
@@ -150,14 +158,6 @@ impl<A: AsVarlenType, O: OffsetIndex> ValuesBuffer<A> for VarlenValuesBuffer<O> 
     fn push_null(&mut self) {
         let offset = self.data.len();
         self.offsets.push(O::from_usize(offset));
-    }
-}
-
-impl<O: OffsetIndex> Default for VarlenValuesBuffer<O> {
-    fn default() -> Self {
-        let offsets: Vec<O> = vec![O::from_usize(0)];
-        let data: Vec<u8> = Vec::new();
-        VarlenValuesBuffer { offsets, data }
     }
 }
 

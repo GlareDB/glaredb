@@ -1,14 +1,16 @@
 use futures::{
+    future::BoxFuture,
     stream::{self, BoxStream},
     StreamExt,
 };
 use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
-    execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
-    runtime::{
-        dump::QueryDump, ErrorSink, PipelineExecutor, QueryHandle, Runtime, TokioHandlerProvider,
+    execution::executable::{
+        pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
+        profiler::QueryProfileData,
     },
+    runtime::{handle::QueryHandle, ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider},
 };
 use rayexec_io::{
     http::HttpClientReader,
@@ -18,14 +20,13 @@ use rayexec_io::{
     FileProvider, FileSink, FileSource,
 };
 use std::{
-    collections::BTreeMap,
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
 };
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::http::WasmHttpClient;
+use crate::{http::WasmHttpClient, time::PerformanceInstant};
 
 #[derive(Debug, Clone)]
 pub struct WasmRuntime {
@@ -45,6 +46,7 @@ impl Runtime for WasmRuntime {
     type HttpClient = WasmHttpClient;
     type FileProvider = WasmFileProvider;
     type TokioHandle = MissingTokioHandle;
+    type Instant = PerformanceInstant;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         // TODO: Could probably remove this arc.
@@ -97,11 +99,12 @@ impl PipelineExecutor for WasmExecutor {
 
         // TODO: Put references into query handle to allow canceling.
 
-        for state in states {
+        for state in &states {
+            let state = state.clone();
             spawn_local(async move { state.execute() })
         }
 
-        Box::new(WasmQueryHandle {})
+        Box::new(WasmQueryHandle { states })
     }
 }
 
@@ -196,7 +199,7 @@ impl WasmTaskState {
 
         let mut pipeline = self.pipeline.lock();
         loop {
-            match pipeline.poll_execute(&mut cx) {
+            match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
                 Poll::Ready(Some(Ok(()))) => {
                     continue;
                 }
@@ -216,18 +219,28 @@ impl WasmTaskState {
 }
 
 #[derive(Debug)]
-pub struct WasmQueryHandle {}
+pub struct WasmQueryHandle {
+    states: Vec<WasmTaskState>,
+}
 
 impl QueryHandle for WasmQueryHandle {
     fn cancel(&self) {
         // TODO
     }
 
-    fn dump(&self) -> QueryDump {
-        // TODO
-        QueryDump {
-            pipelines: BTreeMap::new(),
-        }
+    fn generate_profile_data(&self) -> BoxFuture<'_, Result<QueryProfileData>> {
+        Box::pin(async {
+            let mut data = QueryProfileData::default();
+
+            for state in self.states.iter() {
+                let pipeline = state.pipeline.lock();
+                data.add_partition_data(&pipeline);
+            }
+
+            // TODO: Remote pipelines
+
+            Ok(data)
+        })
     }
 }
 

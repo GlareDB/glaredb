@@ -33,7 +33,7 @@ impl<'a, W: io::Write> io::Write for RawTerminalWriter<'a, W> {
             }
 
             // Insert a '\r\n'
-            self.writer.write_all(&[b'\r', b'\n'])?;
+            self.writer.write_all(b"\r\n")?;
             n += 1; // This should only account for '\n', user doesn't care/know about the '\r'.
 
             // Update current, skipping the '\n'
