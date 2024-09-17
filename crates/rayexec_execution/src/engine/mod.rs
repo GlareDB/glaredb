@@ -1,7 +1,6 @@
 pub mod result;
 pub mod server_state;
 pub mod session;
-pub mod vars;
 
 use rayexec_error::Result;
 use server_state::ServerState;

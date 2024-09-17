@@ -1,4 +1,7 @@
-use crate::logical::operator::{LocationRequirement, LogicalOperator};
+use crate::logical::{
+    binder::bind_context::BindContext,
+    operator::{LocationRequirement, LogicalOperator},
+};
 use rayexec_error::Result;
 
 use super::OptimizeRule;
@@ -14,7 +17,11 @@ use super::OptimizeRule;
 pub struct LocationRule {}
 
 impl OptimizeRule for LocationRule {
-    fn optimize(&self, mut plan: LogicalOperator) -> Result<LogicalOperator> {
+    fn optimize(
+        &mut self,
+        _bind_context: &mut BindContext,
+        mut plan: LogicalOperator,
+    ) -> Result<LogicalOperator> {
         // TODO: Pull up first.
         plan.walk_mut(
             &mut |op| {

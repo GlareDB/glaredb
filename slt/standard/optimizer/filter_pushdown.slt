@@ -1,0 +1,47 @@
+# Test filter pushdown optimization rule.
+
+statement ok
+CREATE TEMP TABLE t1 (i INT);
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (3), (NULL);
+
+statement ok
+SET allow_nested_loop_join TO false;
+
+# Cross join -> comparison join
+
+query II rowsort
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i;
+----
+1  1
+2  2
+3  3
+
+query II rowsort
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a1.i > 1;
+----
+2  2
+3  3
+
+query II rowsort
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a2.i > 1;
+----
+2  2
+3  3
+
+query II rowsort
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a2.i > 1 AND 1 = 1;
+----
+2  2
+3  3
+
+# Should work with ORDER BY clause
+
+query II rowsort
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i ORDER BY 1;
+----
+1  1
+2  2
+3  3
+

@@ -1,8 +1,9 @@
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::{
-    expr::Expression,
+    expr::{cast_expr::CastExpr, Expression},
     logical::{
         binder::{
             bind_context::{BindContext, BindScopeRef, TableRef},
@@ -43,7 +44,7 @@ impl<'a> ValuesBinder<'a> {
         // TODO: This could theoretically bind expressions as correlated
         // columns. TBD if that's desired.
         let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
-        let rows = values
+        let mut rows = values
             .rows
             .into_iter()
             .map(|row| {
@@ -60,17 +61,47 @@ impl<'a> ValuesBinder<'a> {
             })
             .collect::<Result<Vec<Vec<_>>>>()?;
 
-        let first = match rows.first() {
-            Some(first) => first,
+        let mut types = match rows.first() {
+            Some(first) => first
+                .iter()
+                .map(|expr| expr.datatype(bind_context))
+                .collect::<Result<Vec<_>>>()?,
             None => return Err(RayexecError::new("Empty VALUES statement")),
         };
 
-        let types = first
-            .iter()
-            .map(|expr| expr.datatype(bind_context))
-            .collect::<Result<Vec<_>>>()?;
+        // TODO: Below casting could be a bit more sophisticated by using the
+        // implicit cast scoring to find the best types. Currently just searches
+        // for null types and replaces those.
 
-        let names = (0..first.len())
+        // Find any null types and try to replace them.
+        for row in &rows {
+            if row.len() != types.len() {
+                return Err(RayexecError::new(
+                    "All rows in VALUES clause must have the same number of columns",
+                ));
+            }
+
+            for (expr, datatype) in row.iter().zip(&mut types) {
+                if datatype == &DataType::Null {
+                    // Replace with current expression type.
+                    *datatype = expr.datatype(bind_context)?;
+                }
+            }
+        }
+
+        // Now cast everything to the right type.
+        for row in &mut rows {
+            for (expr, datatype) in row.iter_mut().zip(&types) {
+                if &expr.datatype(bind_context)? != datatype {
+                    *expr = Expression::Cast(CastExpr {
+                        to: datatype.clone(),
+                        expr: Box::new(expr.clone()), // TODO: Could try to take instead of clone.
+                    })
+                }
+            }
+        }
+
+        let names = (0..types.len())
             .map(|idx| format!("column{}", idx + 1))
             .collect();
 

@@ -1,6 +1,9 @@
 use crate::{
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    expr::{comparison_expr::ComparisonOperator, Expression},
+    expr::{
+        comparison_expr::{ComparisonExpr, ComparisonOperator},
+        Expression,
+    },
 };
 use std::fmt;
 
@@ -43,6 +46,14 @@ pub struct ComparisonCondition {
 }
 
 impl ComparisonCondition {
+    pub fn into_expression(self) -> Expression {
+        Expression::Comparison(ComparisonExpr {
+            left: Box::new(self.left),
+            right: Box::new(self.right),
+            op: self.op,
+        })
+    }
+
     pub fn flip_sides(&mut self) {
         self.op = match self.op {
             ComparisonOperator::Eq => ComparisonOperator::Eq,

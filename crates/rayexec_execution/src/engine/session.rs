@@ -7,15 +7,13 @@ use rayexec_parser::{parser, statement::RawStatement};
 use uuid::Uuid;
 
 use crate::{
+    config::vars::SessionVars,
     database::{
         catalog::CatalogTx, memory_catalog::MemoryCatalog, AttachInfo, Database, DatabaseContext,
     },
     execution::{
-        executable::planner::{ExecutablePipelinePlanner, ExecutionConfig, PlanLocationState},
-        intermediate::{
-            planner::{IntermediateConfig, IntermediatePipelinePlanner},
-            IntermediateMaterializationGroup,
-        },
+        executable::planner::{ExecutablePipelinePlanner, PlanLocationState},
+        intermediate::{planner::IntermediatePipelinePlanner, IntermediateMaterializationGroup},
     },
     hybrid::client::HybridClient,
     logical::{
@@ -26,12 +24,12 @@ use crate::{
         planner::plan_statement::StatementPlanner,
         resolver::{ResolveMode, Resolver},
     },
+    optimizer::Optimizer,
     runtime::{PipelineExecutor, Runtime},
 };
 
 use super::{
     result::{new_results_sinks, ExecutionResult},
-    vars::{SessionVars, VarAccessor},
     DataSourceRegistry,
 };
 
@@ -214,9 +212,8 @@ where
                 let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
 
-                // TODO:
-                // let optimizer = Optimizer::new();
-                // logical = optimizer.optimize(logical)?;
+                let mut optimizer = Optimizer::new();
+                logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
 
                 // If we're an explain, put a copy of the optimized plan on the
                 // node.
@@ -241,7 +238,7 @@ where
 
                 let query_id = Uuid::new_v4();
                 let planner = IntermediatePipelinePlanner::new(
-                    IntermediateConfig::from_session_vars(&self.vars),
+                    self.vars.intermediate_plan_config(),
                     query_id,
                 );
 
@@ -296,9 +293,7 @@ where
 
         let mut planner = ExecutablePipelinePlanner::<R>::new(
             &self.context,
-            ExecutionConfig {
-                target_partitions: VarAccessor::new(&self.vars).partitions(),
-            },
+            self.vars.executable_plan_config(),
             PlanLocationState::Client {
                 output_sink: Some(sink),
                 hybrid_client: self.hybrid_client.as_ref(),

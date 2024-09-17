@@ -10,9 +10,8 @@ select first(a) from (select * from (values (4), (5), (6))) as t(a);
 ----
 4
 
-# TODO: Need to collect nulls better
-# query I
-# select first(a) from (select * from (values (NULL), (5), (6))) as t(a);
-# ----
-# 5
+query I
+select first(a) from (select * from (values (NULL), (5), (6))) as t(a);
+----
+5
 

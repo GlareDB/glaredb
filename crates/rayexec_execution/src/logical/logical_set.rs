@@ -1,6 +1,6 @@
 use rayexec_bullet::scalar::OwnedScalarValue;
 
-use crate::engine::vars::SessionVar;
+use crate::config::vars::SessionVar;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 use super::binder::bind_context::TableRef;

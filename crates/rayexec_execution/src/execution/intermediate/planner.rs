@@ -1,6 +1,6 @@
 use crate::{
+    config::IntermediatePlanConfig,
     database::create::{CreateSchemaInfo, CreateTableInfo},
-    engine::vars::SessionVars,
     execution::{
         intermediate::PipelineSink,
         operators::{
@@ -77,25 +77,6 @@ use super::{
     StreamId,
 };
 
-/// Configuration used during intermediate pipeline planning.
-#[derive(Debug, Clone, Default)]
-pub struct IntermediateConfig {
-    /// Trigger an error if we attempt to plan a nested loop join.
-    pub error_on_nested_loop_join: bool,
-}
-
-impl IntermediateConfig {
-    pub fn from_session_vars(vars: &SessionVars) -> Self {
-        IntermediateConfig {
-            error_on_nested_loop_join: vars
-                .get_var_expect("debug_error_on_nested_loop_join")
-                .value
-                .try_as_bool()
-                .unwrap(),
-        }
-    }
-}
-
 /// Planned pipelines grouped into locations for where they should be executed.
 #[derive(Debug)]
 pub struct PlannedPipelineGroups {
@@ -110,12 +91,12 @@ pub struct PlannedPipelineGroups {
 /// into another, but are not yet executable.
 #[derive(Debug)]
 pub struct IntermediatePipelinePlanner {
-    config: IntermediateConfig,
+    config: IntermediatePlanConfig,
     query_id: Uuid,
 }
 
 impl IntermediatePipelinePlanner {
-    pub fn new(config: IntermediateConfig, query_id: Uuid) -> Self {
+    pub fn new(config: IntermediatePlanConfig, query_id: Uuid) -> Self {
         IntermediatePipelinePlanner { config, query_id }
     }
 
@@ -194,7 +175,7 @@ struct InProgressPipeline {
 
 #[derive(Debug)]
 struct IntermediatePipelineBuildState<'a> {
-    config: &'a IntermediateConfig,
+    config: &'a IntermediatePlanConfig,
     /// Pipeline we're working on, as well as the location for where it should
     /// be executed.
     in_progress: Option<InProgressPipeline>,
@@ -212,7 +193,7 @@ struct IntermediatePipelineBuildState<'a> {
 }
 
 impl<'a> IntermediatePipelineBuildState<'a> {
-    fn new(config: &'a IntermediateConfig, bind_context: &'a BindContext) -> Self {
+    fn new(config: &'a IntermediatePlanConfig, bind_context: &'a BindContext) -> Self {
         let expr_planner = PhysicalExpressionPlanner::new(bind_context);
 
         IntermediatePipelineBuildState {
@@ -1476,9 +1457,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         filter: Option<PhysicalScalarExpression>,
         join_type: JoinType,
     ) -> Result<()> {
-        if self.config.error_on_nested_loop_join {
-            return Err(RayexecError::new("Debug trigger: nested loop join"));
-        }
+        self.config.check_nested_loop_join_allowed()?;
 
         // Continue to build up all the inputs into the right side.
         self.walk(materializations, id_gen, right)?;

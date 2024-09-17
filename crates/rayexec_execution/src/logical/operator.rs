@@ -260,20 +260,6 @@ impl LogicalOperator {
         unimplemented!()
     }
 
-    pub fn walk_mut_pre<F>(&mut self, _pre: &mut F) -> Result<()>
-    where
-        F: FnMut(&mut LogicalOperator) -> Result<()>,
-    {
-        unimplemented!()
-    }
-
-    pub fn walk_mut_post<F>(&mut self, _post: &mut F) -> Result<()>
-    where
-        F: FnMut(&mut LogicalOperator) -> Result<()>,
-    {
-        unimplemented!()
-    }
-
     /// Walk the plan depth first.
     ///
     /// `pre` provides access to children on the way down, and `post` on the way
@@ -284,6 +270,68 @@ impl LogicalOperator {
         F2: FnMut(&mut LogicalOperator) -> Result<()>,
     {
         unimplemented!()
+    }
+
+    pub fn children(&self) -> &[LogicalOperator] {
+        match self {
+            Self::Invalid => panic!("attempting to get children for invalid operator"),
+            Self::Project(n) => &n.children,
+            Self::Filter(n) => &n.children,
+            Self::Distinct(n) => &n.children,
+            Self::Scan(n) => &n.children,
+            Self::MaterializationScan(n) => &n.children,
+            Self::Aggregate(n) => &n.children,
+            Self::SetOp(n) => &n.children,
+            Self::Empty(n) => &n.children,
+            Self::Limit(n) => &n.children,
+            Self::Order(n) => &n.children,
+            Self::SetVar(n) => &n.children,
+            Self::ResetVar(n) => &n.children,
+            Self::ShowVar(n) => &n.children,
+            Self::AttachDatabase(n) => &n.children,
+            Self::DetachDatabase(n) => &n.children,
+            Self::Drop(n) => &n.children,
+            Self::Insert(n) => &n.children,
+            Self::CreateSchema(n) => &n.children,
+            Self::CreateTable(n) => &n.children,
+            Self::Describe(n) => &n.children,
+            Self::Explain(n) => &n.children,
+            Self::CopyTo(n) => &n.children,
+            Self::CrossJoin(n) => &n.children,
+            Self::ArbitraryJoin(n) => &n.children,
+            Self::ComparisonJoin(n) => &n.children,
+        }
+    }
+
+    pub fn children_mut(&mut self) -> &mut Vec<LogicalOperator> {
+        match self {
+            Self::Invalid => panic!("attempting to get children for invalid operator"),
+            Self::Project(n) => &mut n.children,
+            Self::Filter(n) => &mut n.children,
+            Self::Distinct(n) => &mut n.children,
+            Self::Scan(n) => &mut n.children,
+            Self::MaterializationScan(n) => &mut n.children,
+            Self::Aggregate(n) => &mut n.children,
+            Self::SetOp(n) => &mut n.children,
+            Self::Empty(n) => &mut n.children,
+            Self::Limit(n) => &mut n.children,
+            Self::Order(n) => &mut n.children,
+            Self::SetVar(n) => &mut n.children,
+            Self::ResetVar(n) => &mut n.children,
+            Self::ShowVar(n) => &mut n.children,
+            Self::AttachDatabase(n) => &mut n.children,
+            Self::DetachDatabase(n) => &mut n.children,
+            Self::Drop(n) => &mut n.children,
+            Self::Insert(n) => &mut n.children,
+            Self::CreateSchema(n) => &mut n.children,
+            Self::CreateTable(n) => &mut n.children,
+            Self::Describe(n) => &mut n.children,
+            Self::Explain(n) => &mut n.children,
+            Self::CopyTo(n) => &mut n.children,
+            Self::CrossJoin(n) => &mut n.children,
+            Self::ArbitraryJoin(n) => &mut n.children,
+            Self::ComparisonJoin(n) => &mut n.children,
+        }
     }
 }
 

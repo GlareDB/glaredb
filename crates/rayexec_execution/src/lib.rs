@@ -1,4 +1,5 @@
 pub mod database;
+pub mod config;
 pub mod datasource;
 pub mod engine;
 pub mod execution;

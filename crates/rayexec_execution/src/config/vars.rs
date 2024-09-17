@@ -6,36 +6,9 @@ use rayexec_bullet::{
 use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
 
+use super::{ExecutablePlanConfig, IntermediatePlanConfig};
+
 static DEFAULT_GLOBAL_SESSION_VARS: Lazy<SessionVars> = Lazy::new(SessionVars::global_default);
-
-/// Wrapper around session variables providing nicer ergonimics around accessing
-/// select variables.
-#[derive(Debug)]
-pub struct VarAccessor<'a> {
-    pub vars: &'a SessionVars,
-}
-
-impl<'a> VarAccessor<'a> {
-    pub const fn new(vars: &'a SessionVars) -> Self {
-        VarAccessor { vars }
-    }
-
-    pub fn partitions(&self) -> usize {
-        self.vars
-            .get_var_expect("partitions")
-            .value
-            .try_as_usize()
-            .expect("convertable to usize")
-    }
-
-    pub fn batch_size(&self) -> usize {
-        self.vars
-            .get_var_expect("batch_size")
-            .value
-            .try_as_usize()
-            .expect("convertable to usize")
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionVar {
@@ -84,10 +57,9 @@ impl SessionVars {
                 value: ScalarValue::Utf8("".into()),
             },
             SessionVar {
-                name: "debug_error_on_nested_loop_join",
-                desc:
-                    "Trigger an error during planning when attempting to plan a nested loop join.",
-                value: ScalarValue::Boolean(false),
+                name: "allow_nested_loop_join",
+                desc: "If nested loop join operators are allowed in the plan.",
+                value: ScalarValue::Boolean(true),
             },
             SessionVar {
                 name: "partitions",
@@ -115,6 +87,26 @@ impl SessionVars {
     pub fn new_local() -> Self {
         SessionVars {
             vars: HashMap::new(),
+        }
+    }
+
+    pub fn intermediate_plan_config(&self) -> IntermediatePlanConfig {
+        IntermediatePlanConfig {
+            allow_nested_loop_join: self
+                .get_var_expect("allow_nested_loop_join")
+                .value
+                .try_as_bool()
+                .expect("variable to be bool"),
+        }
+    }
+
+    pub fn executable_plan_config(&self) -> ExecutablePlanConfig {
+        ExecutablePlanConfig {
+            partitions: self
+                .get_var_expect("partitions")
+                .value
+                .try_as_usize()
+                .expect("convertable to usize"),
         }
     }
 

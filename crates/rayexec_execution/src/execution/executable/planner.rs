@@ -3,6 +3,7 @@ use rayexec_io::http::HttpClient;
 use std::{collections::HashMap, collections::VecDeque, sync::Arc};
 
 use crate::{
+    config::ExecutablePlanConfig,
     database::DatabaseContext,
     engine::result::ResultSink,
     execution::{
@@ -43,14 +44,6 @@ impl PipelineIdGen {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ExecutionConfig {
-    /// Target number of partitions in executable pipelines.
-    ///
-    /// Partitionining determines parallelism for a single pipeline.
-    pub target_partitions: usize,
-}
-
 #[derive(Debug)]
 pub enum PlanLocationState<'a, C: HttpClient> {
     /// State when planning on the server.
@@ -78,7 +71,7 @@ pub enum PlanLocationState<'a, C: HttpClient> {
 #[derive(Debug)]
 pub struct ExecutablePipelinePlanner<'a, R: Runtime> {
     context: &'a DatabaseContext,
-    config: ExecutionConfig,
+    config: ExecutablePlanConfig,
     id_gen: PipelineIdGen,
     /// Location specific state used during planning.
     loc_state: PlanLocationState<'a, R::HttpClient>,
@@ -87,7 +80,7 @@ pub struct ExecutablePipelinePlanner<'a, R: Runtime> {
 impl<'a, R: Runtime> ExecutablePipelinePlanner<'a, R> {
     pub fn new(
         context: &'a DatabaseContext,
-        config: ExecutionConfig,
+        config: ExecutablePlanConfig,
         loc_state: PlanLocationState<'a, R::HttpClient>,
     ) -> Self {
         ExecutablePipelinePlanner {
@@ -128,7 +121,7 @@ struct PendingQuery {
 
 impl PendingQuery {
     fn try_from_operators_and_materializations(
-        config: &ExecutionConfig,
+        config: &ExecutablePlanConfig,
         context: &DatabaseContext,
         group: IntermediatePipelineGroup,
         materializations: IntermediateMaterializationGroup,
@@ -154,11 +147,8 @@ impl PendingQuery {
                 operators.push(pending);
             }
 
-            let mat_op = MaterializeOperation::new(
-                mat_ref,
-                config.target_partitions,
-                materialization.scan_count,
-            );
+            let mat_op =
+                MaterializeOperation::new(mat_ref, config.partitions, materialization.scan_count);
 
             // Add materialization sink to pending operators.
             let idx = operators.len();
@@ -169,7 +159,7 @@ impl PendingQuery {
                     operator: Arc::new(PhysicalOperator::DynSink(SinkOperator::new(Box::new(
                         mat_op.sink,
                     )))),
-                    partitioning_requirement: Some(config.target_partitions),
+                    partitioning_requirement: Some(config.partitions),
                 },
             )?;
             operators.push(pending);
@@ -186,7 +176,7 @@ impl PendingQuery {
                         operator: Arc::new(PhysicalOperator::MaterializedSource(
                             SourceOperator::new(source),
                         )),
-                        partitioning_requirement: Some(config.target_partitions),
+                        partitioning_requirement: Some(config.partitions),
                     },
                 )?;
 
@@ -667,13 +657,13 @@ struct PendingOperatorWithState {
 
 impl PendingOperatorWithState {
     fn try_from_intermediate_operator(
-        config: &ExecutionConfig,
+        config: &ExecutablePlanConfig,
         context: &DatabaseContext,
         operator: IntermediateOperator,
     ) -> Result<Self> {
         let partitions = operator
             .partitioning_requirement
-            .unwrap_or(config.target_partitions);
+            .unwrap_or(config.partitions);
 
         // TODO: How to get other input partitions.
         let states = operator.operator.create_states(context, vec![partitions])?;

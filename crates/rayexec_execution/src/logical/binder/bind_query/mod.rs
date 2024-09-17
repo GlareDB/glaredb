@@ -6,7 +6,6 @@ pub mod bind_select;
 pub mod bind_setop;
 pub mod bind_values;
 
-pub mod condition_extractor;
 pub mod select_expr_expander;
 pub mod select_list;
 

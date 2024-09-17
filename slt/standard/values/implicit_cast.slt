@@ -1,0 +1,24 @@
+# Implicit casting in VALUES to ensure every row has the same types.
+
+query TT
+DESCRIBE SELECT * FROM (VALUES (4), (NULL));
+----
+column1  Int64
+
+query I rowsort
+SELECT * FROM (VALUES (4), (NULL));
+----
+4
+NULL
+
+query TT
+DESCRIBE SELECT * FROM (VALUES (NULL), (4));
+----
+column1  Int64
+
+
+query I rowsort
+SELECT * FROM (VALUES (NULL), (4));
+----
+4
+NULL

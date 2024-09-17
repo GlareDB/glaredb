@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::{
-    engine::vars::SessionVars,
+    config::vars::SessionVars,
     logical::{
         binder::expr_binder::{BaseExpressionBinder, RecursionContext},
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll},

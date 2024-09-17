@@ -1,7 +1,7 @@
 # SIMPLE INNER
 
 statement ok
-set debug_error_on_nested_loop_join to true;
+set allow_nested_loop_join to false;
 
 query IIII
 select * from
@@ -53,12 +53,4 @@ select b, d from
             (6, 4)) as t2(c, d) on a = c + 1
 ----
 4  5
-
-#
-# Queries below here don't optimize correctly. Once they do, they should be
-# moved into the above section.
-#
-
-statement ok
-set debug_error_on_nested_loop_join to false;
 

@@ -2,7 +2,7 @@ use rayexec_error::Result;
 use rayexec_parser::statement::Statement;
 
 use crate::{
-    engine::vars::SessionVars,
+    config::vars::SessionVars,
     logical::{
         binder::bind_query::QueryBinder,
         logical_create::LogicalCreateSchema,

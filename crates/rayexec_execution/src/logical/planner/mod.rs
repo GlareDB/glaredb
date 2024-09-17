@@ -30,12 +30,12 @@
 //!   for hybrid exec.
 pub mod scope;
 
+pub mod plan_from;
 pub mod plan_statement;
 
 mod plan_copy;
 mod plan_create_table;
 mod plan_explain;
-mod plan_from;
 mod plan_insert;
 mod plan_query;
 mod plan_select;

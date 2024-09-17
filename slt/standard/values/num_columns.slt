@@ -1,0 +1,9 @@
+# Test different numbers of columns per row.
+
+# TODO: Could have a Display impl for the tokens to make these sorts of messages
+# a bit cleaner.
+statement error Unexpected token 'RightParen'. Expected expression.
+SELECT * FROM (VALUES ());
+
+statement error All rows in VALUES clause must have the same number of columns
+SELECT * FROM (VALUES (1), (2, 3));

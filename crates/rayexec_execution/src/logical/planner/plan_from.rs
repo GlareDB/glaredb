@@ -9,19 +9,20 @@ use crate::{
     logical::{
         binder::{
             bind_context::BindContext,
-            bind_query::{
-                bind_from::{BoundFrom, BoundFromItem, BoundJoin},
-                condition_extractor::JoinConditionExtractor,
-            },
+            bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin},
         },
         logical_empty::LogicalEmpty,
         logical_filter::LogicalFilter,
-        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_join::{
+            ComparisonCondition, JoinType, LogicalArbitraryJoin, LogicalComparisonJoin,
+            LogicalCrossJoin,
+        },
         logical_materialization::LogicalMaterializationScan,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
+    optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor,
 };
 
 use super::plan_query::QueryPlanner;
@@ -202,12 +203,10 @@ impl FromPlanner {
             }));
         }
 
-        let extractor = JoinConditionExtractor::new(
-            bind_context,
-            join.left_bind_ref,
-            join.right_bind_ref,
-            join.join_type,
-        );
+        let left_tables = left.get_output_table_refs();
+        let right_tables = right.get_output_table_refs();
+
+        let extractor = JoinConditionExtractor::new(&left_tables, &right_tables, join.join_type);
 
         let extracted = extractor.extract(join.conditions)?;
 
@@ -233,16 +232,33 @@ impl FromPlanner {
             })
         }
 
+        self.plan_join_from_conditions(
+            join.join_type,
+            extracted.comparisons,
+            extracted.arbitrary,
+            left,
+            right,
+        )
+    }
+
+    pub fn plan_join_from_conditions(
+        &self,
+        join_type: JoinType,
+        comparisons: Vec<ComparisonCondition>,
+        arbitrary: Vec<Expression>,
+        left: LogicalOperator,
+        right: LogicalOperator,
+    ) -> Result<LogicalOperator> {
         // Need to use an arbitrary join if:
         //
         // - We didn't extract any comparison conditions.
         // - We're not an INNER join and we have arbitrary expressions.
-        let use_arbitrary_join = extracted.comparisons.is_empty()
-            || (join.join_type != JoinType::Inner && !extracted.arbitrary.is_empty());
+        let use_arbitrary_join =
+            comparisons.is_empty() || (join_type != JoinType::Inner && !arbitrary.is_empty());
 
         if use_arbitrary_join {
-            let mut expressions = extracted.arbitrary;
-            for condition in extracted.comparisons {
+            let mut expressions = arbitrary;
+            for condition in comparisons {
                 expressions.push(Expression::Comparison(ComparisonExpr {
                     left: Box::new(condition.left),
                     right: Box::new(condition.right),
@@ -260,7 +276,7 @@ impl FromPlanner {
 
             return Ok(LogicalOperator::ArbitraryJoin(Node {
                 node: LogicalArbitraryJoin {
-                    join_type: join.join_type,
+                    join_type,
                     condition: Expression::and_all(expressions).expect("at least one expression"),
                 },
                 location: LocationRequirement::Any,
@@ -271,19 +287,18 @@ impl FromPlanner {
         // Otherwise we're able to use a comparison join.
         let mut plan = LogicalOperator::ComparisonJoin(Node {
             node: LogicalComparisonJoin {
-                join_type: join.join_type,
-                conditions: extracted.comparisons,
+                join_type,
+                conditions: comparisons,
             },
             location: LocationRequirement::Any,
             children: vec![left, right],
         });
 
         // Push filter if we have arbitrary expressions.
-        if !extracted.arbitrary.is_empty() {
+        if !arbitrary.is_empty() {
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: Expression::and_all(extracted.arbitrary)
-                        .expect("at least one expression"),
+                    filter: Expression::and_all(arbitrary).expect("at least one expression"),
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
