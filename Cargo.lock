@@ -790,9 +790,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.8.1"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ae74d9bd0a7530e8afd1770739ad34b36838829d6ad61818f9230f683f5ad77"
+checksum = "2f95446d919226d587817a7d21379e6eb099b97b45110a7f272a444ca5c54070"
 dependencies = [
  "aws-lc-sys",
  "mirai-annotations",
@@ -802,9 +802,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e89b6941c2d1a7045538884d6e760ccfffdf8e1ffc2613d8efa74305e1f3752"
+checksum = "234314bd569802ec87011d653d6815c6d7b9ffb969e9fee5b8b20ef860e8dce9"
 dependencies = [
  "bindgen",
  "cc",
@@ -1692,9 +1692,9 @@ dependencies = [
 
 [[package]]
 name = "bson"
-version = "2.11.0"
+version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8a88e82b9106923b5c4d6edfca9e7db958d4e98a478ec115022e81b9b38e2c8"
+checksum = "80cf6f7806607bd58ad490bab34bf60e25455ea4aaf995f897a13324d41ea580"
 dependencies = [
  "ahash 0.8.11",
  "base64 0.13.1",
@@ -1895,12 +1895,13 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.90"
+version = "1.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cd6604a82acf3039f1144f54b8eb34e91ffba622051189e71b781822d5ee1f5"
+checksum = "b62ac837cdb5cb22e10a256099b4fc502b1dfe560cb282963a974d7abd80e476"
 dependencies = [
  "jobserver",
  "libc",
+ "shlex",
 ]
 
 [[package]]
@@ -2961,7 +2962,7 @@ dependencies = [
  "reqwest 0.12.7",
  "ring 0.17.8",
  "rust_decimal",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "scylla",
  "serde",
  "serde_json",
@@ -4313,7 +4314,7 @@ dependencies = [
  "http 1.1.0",
  "hyper 1.4.1",
  "hyper-util",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "rustls-native-certs 0.7.0",
  "rustls-pki-types",
  "tokio",
@@ -4560,9 +4561,9 @@ dependencies = [
 
 [[package]]
 name = "jobserver"
-version = "0.1.28"
+version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab46a6e9526ddef3ae7f787c06f0f2600639ba80ea3eade3d8e670a2230f51d6"
+checksum = "48d1dbcbbeb6a7fec7e059840aa538bd62aaccf972c7346c4d9d2059312853d0"
 dependencies = [
  "libc",
 ]
@@ -5393,7 +5394,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic 0.10.2",
- "tower 0.5.0",
+ "tower 0.5.1",
  "tracing",
  "uuid",
 ]
@@ -5648,7 +5649,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "rand",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "rustls-pemfile 2.1.3",
  "serde",
  "serde_json",
@@ -5705,9 +5706,9 @@ dependencies = [
 
 [[package]]
 name = "napi"
-version = "2.16.9"
+version = "2.16.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1277600d452e570cc83cf5f4e8efb389cc21e5cbefadcfba7239f4551e2e3e99"
+checksum = "04409e8c2d61995696e44d2181b79b68c1dd41f7e24a17cde60bbd9f54ddddef"
 dependencies = [
  "bitflags 2.5.0",
  "chrono",
@@ -5729,9 +5730,9 @@ checksum = "e1c0f5d67ee408a4685b61f5ab7e58605c8ae3f2b4189f0127d804ff13d5560a"
 
 [[package]]
 name = "napi-derive"
-version = "2.16.11"
+version = "2.16.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "150d87c4440b9f4815cb454918db498b5aae9a57aa743d20783fe75381181d01"
+checksum = "17435f7a00bfdab20b0c27d9c56f58f6499e418252253081bfff448099da31d1"
 dependencies = [
  "cfg-if",
  "convert_case 0.6.0",
@@ -5743,9 +5744,9 @@ dependencies = [
 
 [[package]]
 name = "napi-derive-backend"
-version = "1.0.73"
+version = "1.0.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cd81b794fc1d6051acf8c4f3cb4f82833b0621272a232b4ff0cf3df1dbddb61"
+checksum = "967c485e00f0bf3b1bdbe510a38a4606919cf1d34d9a37ad41f25a81aa077abe"
 dependencies = [
  "convert_case 0.6.0",
  "once_cell",
@@ -6004,9 +6005,9 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "openssh"
-version = "0.11.0"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f27389e5da64700a3efb7f925e442f824f6e3d4b1c27f75e115a92ad3aecbb1"
+checksum = "cf397b60b682d691bf2c6125b848304ef0df2023a657aa0fc006fd6769c3d8fa"
 dependencies = [
  "libc",
  "once_cell",
@@ -6292,7 +6293,7 @@ dependencies = [
  "pgrepr",
  "proxyutil",
  "reqwest 0.12.7",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "rustls-pemfile 2.1.3",
  "serde",
  "sqlexec",
@@ -6953,7 +6954,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.0.0",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "socket2",
  "thiserror",
  "tokio",
@@ -6970,7 +6971,7 @@ dependencies = [
  "rand",
  "ring 0.17.8",
  "rustc-hash 2.0.0",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "slab",
  "thiserror",
  "tinyvec",
@@ -7265,7 +7266,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "rustls-native-certs 0.7.0",
  "rustls-pemfile 2.1.3",
  "rustls-pki-types",
@@ -7593,16 +7594,16 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.12"
+version = "0.23.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c58f8c84392efc0a126acce10fa59ff7b3d2ac06ab451a33f2741989b806b044"
+checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
 dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
  "ring 0.17.8",
  "rustls-pki-types",
- "rustls-webpki 0.102.6",
+ "rustls-webpki 0.102.8",
  "subtle",
  "zeroize",
 ]
@@ -7681,9 +7682,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.102.6"
+version = "0.102.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e6b52d4fda176fd835fdc55a835d4a89b8499cad995885a21149d5ad62f852e"
+checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
 dependencies = [
  "aws-lc-rs",
  "ring 0.17.8",
@@ -7930,9 +7931,9 @@ checksum = "a3f0bf26fd526d2a95683cd0f87bf103b8539e2ca1ef48ce002d67aad59aa0b4"
 
 [[package]]
 name = "serde"
-version = "1.0.209"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99fce0ffe7310761ca6bf9faf5115afbc19688edd00171d81b1bb1b116c63e09"
+checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
 dependencies = [
  "serde_derive",
 ]
@@ -7948,9 +7949,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.209"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5831b979fd7b5439637af1752d535ff49f4860c0f341d1baeb6faf0f4242170"
+checksum = "243902eda00fad750862fc144cea25caca5e20d615af0a81bee94ca738f1df1f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8396,7 +8397,7 @@ dependencies = [
  "protogen",
  "proxyutil",
  "reqwest 0.12.7",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "serde",
  "sqlbuiltins",
  "telemetry",
@@ -8405,7 +8406,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tonic 0.10.2",
- "tower 0.5.0",
+ "tower 0.5.1",
  "tracing",
  "url",
  "uuid",
@@ -8424,9 +8425,9 @@ dependencies = [
 
 [[package]]
 name = "sqllogictest"
-version = "0.21.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1106ff933150aa8b8af71ee57631cd3ac2feeccd230d122ad833e7f0cd5e8fe1"
+checksum = "f2b6b8f606d3c4cdcaf2031c4320b79d7584e454b79562ba3d675f49701c160e"
 dependencies = [
  "async-trait",
  "educe",
@@ -9029,7 +9030,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04fb792ccd6bbcd4bba408eb8a292f70fc4a3589e5d793626f45190e6454b6ab"
 dependencies = [
  "ring 0.17.8",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "tokio",
  "tokio-postgres",
  "tokio-rustls 0.26.0",
@@ -9063,7 +9064,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
 dependencies = [
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "rustls-pki-types",
  "tokio",
 ]
@@ -9235,9 +9236,9 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36b837f86b25d7c0d7988f00a54e74739be6477f2aac6201b8f429a7569991b7"
+checksum = "2873938d487c3cfb9aed7546dc9f2711d867c9f90c46b889989a2cb84eba6b4f"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -10149,7 +10150,7 @@ dependencies = [
  "hyper-util",
  "log",
  "percent-encoding",
- "rustls 0.23.12",
+ "rustls 0.23.13",
  "rustls-pemfile 2.1.3",
  "seahash",
  "serde",
