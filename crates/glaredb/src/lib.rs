@@ -448,7 +448,7 @@ impl RecordStream {
                 .map(|v| RowMapBatch::try_from(v?).map_err(DatabaseError::from))
                 .map(|v| match v {
                     Ok(batch) => stream::iter(batch.iter().map(Ok)).boxed(),
-                    Err(e) => stream::once(async move {  Err(e) }).boxed(),
+                    Err(e) => stream::once(async move { Err(e) }).boxed(),
                 })
                 .flatten()
         })
