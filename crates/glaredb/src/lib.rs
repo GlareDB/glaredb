@@ -441,14 +441,14 @@ impl RecordStream {
         Ok(())
     }
 
-    pub fn to_row_stream<'a>(&'a mut self) -> RowStream<'a> {
+    pub fn to_row_stream(&mut self) -> RowStream<'_> {
         let stream = &mut self.0;
         stream::once(async move {
             stream
                 .map(|v| RowMapBatch::try_from(v?).map_err(DatabaseError::from))
                 .map(|v| match v {
                     Ok(batch) => stream::iter(batch.iter().map(Ok)).boxed(),
-                    Err(e) => stream::once(async move { return Err(e) }).boxed(),
+                    Err(e) => stream::once(async move {  Err(e) }).boxed(),
                 })
                 .flatten()
         })
