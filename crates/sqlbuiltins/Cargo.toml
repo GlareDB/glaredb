@@ -46,4 +46,4 @@ arrow-cast = { version = "50.0.0" } # MUST synchronize sync with the datafusion:
 lance-linalg = { git = "https://github.com/GlareDB/lance", branch = "df36" } # omits duckdb submodule
 jaq-interpret = "1.5.0"
 jaq-parse = "1.0.3"
-bson = "2.12.0"
+bson = "2.13.0"
