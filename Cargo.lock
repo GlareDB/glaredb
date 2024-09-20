@@ -4626,9 +4626,9 @@ dependencies = [
 
 [[package]]
 name = "klickhouse"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58b682b30ec24c0adc06c7b1ae2e63698d71fa8d41738446e1a2999628aa988e"
+checksum = "1f502fafade837b6812a5b26f27ac39228933763dcbc78599b04b74dea48435c"
 dependencies = [
  "async-trait",
  "chrono",
