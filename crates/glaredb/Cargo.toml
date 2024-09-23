@@ -9,7 +9,6 @@ workspace = true
 [lib]
 # no tests currently implemented in this package; skip, then
 doctest = false
-test = false
 
 [dependencies]
 sqlexec = { path = "../sqlexec" }
@@ -23,3 +22,6 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = "0.20.1"
 indexmap = "2.5.0"
+
+[dev-dependencies]
+tokio = { workspace = true }
