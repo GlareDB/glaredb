@@ -3929,6 +3929,7 @@ dependencies = [
  "sqlexec",
  "terminal_util",
  "thiserror",
+ "tokio",
  "url",
 ]
 
