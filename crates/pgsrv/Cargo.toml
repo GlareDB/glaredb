@@ -29,7 +29,7 @@ proxyutil = { path = "../proxyutil" }
 sqlexec = { path = "../sqlexec" }
 once_cell = "1.19.0"
 rustls-pemfile = "2.1.3"
-tokio-postgres = "0.7.11"
+tokio-postgres = "0.7.12"
 tokio-rustls = "0.26.0"
 tokio-util = { version = "0.7.12", features = ["codec"] }
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
