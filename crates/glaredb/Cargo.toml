@@ -9,7 +9,6 @@ workspace = true
 [lib]
 # no tests currently implemented in this package; skip, then
 doctest = false
-test = false
 
 [dependencies]
 sqlexec = { path = "../sqlexec" }
@@ -17,10 +16,12 @@ metastore = { path = "../metastore" }
 arrow_util = { path = "../arrow_util" }
 terminal_util = { path = "../terminal_util" }
 url = { workspace = true }
-tokio = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = "0.20.1"
 indexmap = "2.5.0"
+
+[dev-dependencies]
+tokio = { workspace = true }
