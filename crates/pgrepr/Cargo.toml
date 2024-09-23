@@ -13,7 +13,7 @@ doctest = false
 [dependencies]
 thiserror.workspace = true
 datafusion = {workspace = true}
-tokio-postgres = { version = "0.7.11", features = ["with-uuid-1", "with-serde_json-1", "with-chrono-0_4"] }
+tokio-postgres = { version = "0.7.12", features = ["with-uuid-1", "with-serde_json-1", "with-chrono-0_4"] }
 chrono = { workspace = true }
 tracing = { workspace = true }
 repr = { path = "../repr" }

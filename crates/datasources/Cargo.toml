@@ -41,7 +41,7 @@ async-channel = "2.3.1"
 async-sqlite = "0.3.0"
 async-stream = "0.3.5"
 bitvec = "1"
-bson = "2.12.0"
+bson = "2.13.0"
 chrono-tz = "0.9"
 gcp-bigquery-client = "0.23.0"
 glob = "0.3.1"
@@ -58,15 +58,15 @@ tokio-postgres-rustls = "0.12.0"
 tokio-rustls = "0.26.0"
 tokio-util = "0.7.12"
 uuid = "1.10.0"
-webpki-roots = "0.26.5"
+webpki-roots = "0.26.6"
 calamine = { version = "0.25.0", features = ["dates"] }
-klickhouse = { version = "0.13.0", features = ["tls"] }
+klickhouse = { version = "0.13.1", features = ["tls"] }
 mysql_async = { version = "0.34.2", default-features = false, features = ["default-rustls"] }
 mysql_common = { version = "0.32.4", default-features = false, features = ["chrono"] }
 rust_decimal = { version = "1.36.0", features = ["db-tokio-postgres"] }
 ssh-key = { version = "0.6.6", features = ["ed25519", "alloc"] }
 tiberius = { version = "0.12.3", default-features = false, features = ["tds73","rustls","chrono"] }
-tokio-postgres = { version = "0.7.11", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
+tokio-postgres = { version = "0.7.12", features = ["with-uuid-1", "with-serde_json-1","with-chrono-0_4"] }
 memoize = { version = "0.4.2", features = ["full"] }
 bigquery-storage = { git = "https://github.com/glaredb/bigquery-storage", branch = "deps/2023-10-27-update" }
 lance = { git = "https://github.com/GlareDB/lance", branch = "df36" }
