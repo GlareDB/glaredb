@@ -1,3 +1,6 @@
+# TODO: Slow in CI. Plan has all inner joins (and hash joins), but doesn't seem
+# to parallelize cleanly (large build side?).
+
 query TT
 DESCRIBE SELECT
     n_name,
