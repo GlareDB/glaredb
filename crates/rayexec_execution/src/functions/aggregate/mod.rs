@@ -13,6 +13,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{AggregateState, StateCombiner};
 use rayexec_error::{RayexecError, Result};
 use std::any::Any;
+use std::hash::Hash;
 use std::{
     fmt::{self, Debug},
     marker::PhantomData,
@@ -83,6 +84,8 @@ impl PartialEq for dyn AggregateFunction + '_ {
     }
 }
 
+impl Eq for dyn AggregateFunction {}
+
 pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
     /// The aggregate function that produce this instance.
     fn aggregate_function(&self) -> &dyn AggregateFunction;
@@ -113,6 +116,15 @@ impl PartialEq for dyn PlannedAggregateFunction + '_ {
     fn eq(&self, other: &dyn PlannedAggregateFunction) -> bool {
         self.aggregate_function() == other.aggregate_function()
             && self.return_type() == other.return_type()
+    }
+}
+
+impl Eq for dyn PlannedAggregateFunction {}
+
+impl Hash for dyn PlannedAggregateFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.aggregate_function().name().hash(state);
+        self.return_type().hash(state);
     }
 }
 

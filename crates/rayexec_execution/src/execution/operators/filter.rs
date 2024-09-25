@@ -21,7 +21,7 @@ impl FilterOperation {
 
 impl StatelessOperation for FilterOperation {
     fn execute(&self, batch: Batch) -> Result<Batch> {
-        let selection = self.predicate.eval(&batch)?;
+        let selection = self.predicate.eval(&batch, None)?;
         let selection = match selection.as_ref() {
             Array::Boolean(arr) => arr,
             other => {
@@ -32,11 +32,24 @@ impl StatelessOperation for FilterOperation {
             }
         };
 
-        let filtered_arrays = batch
-            .columns()
-            .iter()
-            .map(|a| filter(a, selection))
-            .collect::<Result<Vec<_>, _>>()?;
+        let filtered_arrays = if let Some(validity) = selection.validity() {
+            // Need to account for nulls (which are falsy in this context).
+            let mut bitmap = selection.values().clone();
+            bitmap.bit_and_mut(validity)?;
+
+            batch
+                .columns()
+                .iter()
+                .map(|a| filter(a, &bitmap))
+                .collect::<Result<Vec<_>, _>>()?
+        } else {
+            // Can just use the values directly.
+            batch
+                .columns()
+                .iter()
+                .map(|a| filter(a, selection.values()))
+                .collect::<Result<Vec<_>, _>>()?
+        };
 
         let batch = if filtered_arrays.is_empty() {
             // If we're working on an empty input batch, just produce an new

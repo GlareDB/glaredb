@@ -1,4 +1,4 @@
-use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::array::{VarlenArray, VarlenValuesBuffer};

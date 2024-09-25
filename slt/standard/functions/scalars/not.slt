@@ -1,0 +1,23 @@
+# NOT
+
+query T
+SELECT not(true);
+----
+false
+
+query T
+SELECT not(false);
+----
+true
+
+query T
+SELECT not(NULL);
+----
+NULL
+
+query T
+SELECT NOT a FROM (VALUES (true), (false), (NULL)) v(a);
+----
+false
+true
+NULL

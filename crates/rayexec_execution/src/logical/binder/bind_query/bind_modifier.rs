@@ -16,7 +16,7 @@ use crate::{
 
 use super::select_list::SelectList;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundOrderByExpr {
     pub expr: Expression,
     pub desc: bool,
@@ -39,12 +39,12 @@ impl fmt::Display for BoundOrderByExpr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundOrderBy {
     pub exprs: Vec<BoundOrderByExpr>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundLimit {
     pub limit: usize,
     pub offset: Option<usize>,

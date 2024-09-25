@@ -14,7 +14,7 @@ use expr_resolver::ExpressionResolver;
 use rayexec_bullet::{
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     scalar::{
-        decimal::{Decimal128Type, Decimal64Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+        decimal::{Decimal128Type, Decimal64Type, DecimalType},
         OwnedScalarValue, ScalarValue,
     },
 };
@@ -903,38 +903,45 @@ impl<'a> Resolver<'a> {
             ast::DataType::Real => DataType::Float32,
             ast::DataType::Double => DataType::Float64,
             ast::DataType::Decimal(prec, scale) => {
-                let scale: i8 = match scale {
-                    Some(scale) => scale
-                        .try_into()
-                        .map_err(|_| RayexecError::new(format!("Scale too high: {scale}")))?,
-                    None if prec.is_some() => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
-                    None => DECIMAL_DEFUALT_SCALE,
-                };
-
-                let prec: u8 = match prec {
+                // - Precision cannot be negative.
+                // - Specifying just precision defaults to a 0 scale.
+                // - Defaults to decimal64 prec and scale if neither provided.
+                match prec {
                     Some(prec) if prec < 0 => {
                         return Err(RayexecError::new("Precision cannot be negative"))
                     }
-                    Some(prec) => prec
-                        .try_into()
-                        .map_err(|_| RayexecError::new(format!("Precision too high: {prec}")))?,
-                    None => Decimal64Type::MAX_PRECISION,
-                };
+                    Some(prec) => {
+                        let prec: u8 = prec.try_into().map_err(|_| {
+                            RayexecError::new(format!("Precision too high: {prec}"))
+                        })?;
 
-                if scale as i16 > prec as i16 {
-                    return Err(RayexecError::new(
-                        "Decimal scale cannot be larger than precision",
-                    ));
-                }
+                        let scale: i8 = match scale {
+                            Some(scale) => scale.try_into().map_err(|_| {
+                                RayexecError::new(format!("Scale too high: {scale}"))
+                            })?,
+                            None => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
+                        };
 
-                if prec <= Decimal64Type::MAX_PRECISION {
-                    DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
-                } else if prec <= Decimal128Type::MAX_PRECISION {
-                    DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
-                } else {
-                    return Err(RayexecError::new(
-                        "Decimal precision too big for max decimal size",
-                    ));
+                        if scale as i16 > prec as i16 {
+                            return Err(RayexecError::new(
+                                "Decimal scale cannot be larger than precision",
+                            ));
+                        }
+
+                        if prec <= Decimal64Type::MAX_PRECISION {
+                            DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
+                        } else if prec <= Decimal128Type::MAX_PRECISION {
+                            DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
+                        } else {
+                            return Err(RayexecError::new(
+                                "Decimal precision too big for max decimal size",
+                            ));
+                        }
+                    }
+                    None => DataType::Decimal64(DecimalTypeMeta::new(
+                        Decimal64Type::MAX_PRECISION,
+                        Decimal64Type::DEFAULT_SCALE,
+                    )),
                 }
             }
             ast::DataType::Bool => DataType::Boolean,

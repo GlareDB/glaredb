@@ -1,14 +1,13 @@
-use num::{PrimInt, Signed};
+use num::{FromPrimitive, PrimInt, Signed, Zero};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 
-/// Default scale to use for decimals if one isn't provided.
-pub const DECIMAL_DEFUALT_SCALE: i8 = 9;
-
-pub trait DecimalPrimitive: PrimInt + Signed + Debug + Display {
+pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.
+    ///
+    /// This is guaranteed to be called with a non-zero positive number.
     fn ilog10(self) -> u32;
 }
 
@@ -31,8 +30,15 @@ pub trait DecimalType: Debug {
     /// Max precision for this decimal type.
     const MAX_PRECISION: u8;
 
+    /// Default scale to use if none provided.
+    const DEFAULT_SCALE: i8;
+
     /// Validates that the value is within the provided precision.
     fn validate_precision(value: Self::Primitive, precision: u8) -> Result<()> {
+        if value.is_zero() {
+            return Ok(());
+        }
+
         if precision > Self::MAX_PRECISION {
             return Err(RayexecError::new(format!(
                 "Precision {precision} is greater than max precision {}",
@@ -51,24 +57,28 @@ pub trait DecimalType: Debug {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal64Type;
 
 impl DecimalType for Decimal64Type {
     type Primitive = i64;
     const MAX_PRECISION: u8 = 18;
+    // Note that changing this would require changing some of the date functions
+    // since they assume this is 3.
+    const DEFAULT_SCALE: i8 = 3;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal128Type;
 
 impl DecimalType for Decimal128Type {
     type Primitive = i128;
     const MAX_PRECISION: u8 = 38;
+    const DEFAULT_SCALE: i8 = 9;
 }
 
 /// Represents a single decimal value.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Hash)]
 pub struct DecimalScalar<T: DecimalType> {
     pub precision: u8,
     pub scale: i8,

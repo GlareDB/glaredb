@@ -1,7 +1,7 @@
 use super::Expression;
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IsOperator {
     IsTrue,
     IsFalse,
@@ -20,7 +20,7 @@ impl fmt::Display for IsOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IsExpr {
     pub op: IsOperator,
     pub input: Box<Expression>,

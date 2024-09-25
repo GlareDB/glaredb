@@ -2,7 +2,7 @@ use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::Result;
 use rayexec_execution::{
-    execution::executable::profiler::QueryProfileData, runtime::handle::QueryHandle,
+    execution::executable::profiler::ExecutionProfileData, runtime::handle::QueryHandle,
 };
 use std::sync::Arc;
 
@@ -32,9 +32,9 @@ impl QueryHandle for ThreadedQueryHandle {
         }
     }
 
-    fn generate_profile_data(&self) -> BoxFuture<'_, Result<QueryProfileData>> {
+    fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
         Box::pin(async {
-            let mut data = QueryProfileData::default();
+            let mut data = ExecutionProfileData::default();
             let states = self.states.lock();
 
             for state in states.iter() {

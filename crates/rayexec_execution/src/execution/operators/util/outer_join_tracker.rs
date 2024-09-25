@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use rayexec_bullet::{
     array::{Array, BooleanArray},
     batch::Batch,
@@ -79,6 +81,38 @@ impl LeftOuterJoinDrainState {
         }
     }
 
+    /// Drains the next batch from the left, and appends a boolean column
+    /// representing which rows were visited.
+    pub fn drain_mark_next(&mut self) -> Result<Option<Batch>> {
+        let batch = match self.batches.get(self.batch_idx) {
+            Some(batch) => batch,
+            None => return Ok(None),
+        };
+        let bitmap = self
+            .tracker
+            .bitmaps
+            .get(self.batch_idx)
+            .expect("bitmap to exist");
+        self.batch_idx += 1;
+
+        let cols = batch
+            .columns()
+            .iter()
+            .cloned()
+            .chain([Arc::new(Array::Boolean(BooleanArray::new(
+                bitmap.clone(),
+                None,
+            )))]);
+
+        let batch = Batch::try_new(cols)?;
+
+        Ok(Some(batch))
+    }
+
+    /// Drain the next batch.
+    ///
+    /// This will filter out rows that have been visited, and join the remaining
+    /// rows will null columns on the right.
     pub fn drain_next(&mut self) -> Result<Option<Batch>> {
         let batch = match self.batches.get(self.batch_idx) {
             Some(batch) => batch,
@@ -111,12 +145,10 @@ impl LeftOuterJoinDrainState {
             return Ok(Some(batch));
         }
 
-        let selection = BooleanArray::new(bitmap, None);
-
         let left_cols = batch
             .columns()
             .iter()
-            .map(|c| filter(c, &selection))
+            .map(|c| filter(c, &bitmap))
             .collect::<Result<Vec<_>>>()?;
 
         let right_cols = self
@@ -164,11 +196,10 @@ impl RightOuterJoinTracker {
     pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Batch> {
         let unvisited_count = self.unvisited.count_trues();
 
-        let selection = BooleanArray::new(self.unvisited, None);
         let right_unvisited = right
             .columns()
             .iter()
-            .map(|a| compute::filter::filter(a, &selection))
+            .map(|a| compute::filter::filter(a, &self.unvisited))
             .collect::<Result<Vec<_>>>()?;
 
         let left_null_cols = left_types

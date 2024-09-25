@@ -1,9 +1,14 @@
 # Decimal casts
 
 query R
+select 0::DECIMAL;
+----
+0.000
+
+query R
 select '1.00'::DECIMAL
 ----
-1.000000000
+1.000
 
 query R
 select '1.00'::DECIMAL(3)
@@ -31,10 +36,15 @@ select '1.001'::DECIMAL(3, 2)
 # ----
 # 100
 
-# TODO: Unable to cast from Float64 to Decimal64(8, 2)
-# query I
-# select 10.3::DECIMAL(8, 2);
-# ----
+query I
+select 10.3::DECIMAL(8, 2);
+----
+10.30
+
+query I
+select 10.308::DECIMAL(8, 2);
+----
+10.31
 
 query R
 select 10::DECIMAL(8, 2);
@@ -50,3 +60,22 @@ select 10::DECIMAL(8, -1);
 statement error 10000 cannot be stored in decimal with a precision of 2
 select 1000::DECIMAL(2, 1);
 
+query R
+select (1.4::decimal)::float;
+----
+1.4
+
+query R
+select (1.4::decimal * 8.2::decimal)::float;
+----
+11.48
+
+query R
+select (1.4::decimal(4,2) * 8.2::decimal(4,2))::float;
+----
+11.48
+
+query R
+SELECT CAST(0.2 AS DECIMAL(15, 2));
+----
+0.20

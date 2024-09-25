@@ -31,13 +31,13 @@ use crate::{
 
 use super::{BoundQuery, QueryBinder};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundFrom {
     pub bind_ref: BindScopeRef,
     pub item: BoundFromItem,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundFromItem {
     BaseTable(BoundBaseTable),
     Join(BoundJoin),
@@ -47,7 +47,7 @@ pub enum BoundFromItem {
     Empty,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundBaseTable {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
@@ -56,27 +56,27 @@ pub struct BoundBaseTable {
     pub entry: Arc<CatalogEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundTableFunction {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
     pub function: Box<dyn PlannedTableFunction>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSubquery {
     pub table_ref: TableRef,
     pub subquery: Box<BoundQuery>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundMaterializedCte {
     pub table_ref: TableRef,
     pub cte_ref: CteRef,
     pub cte_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundJoin {
     /// Reference to binder for left side of join.
     pub left_bind_ref: BindScopeRef,
@@ -468,7 +468,8 @@ impl<'a> FromBinder<'a> {
                 | JoinType::Inner
                 | JoinType::Full
                 | JoinType::Semi
-                | JoinType::Anti => UsingColumn {
+                | JoinType::Anti
+                | JoinType::LeftMark { .. } => UsingColumn {
                     column: using,
                     table_ref: left_table,
                     col_idx: left_col_idx,

@@ -34,6 +34,24 @@ pub struct AggregateStates {
     pub col_selection: Bitmap,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GroupValue<'a> {
+    // TODO: This is likely a peformance bottleneck with storing group values in
+    // rows.
+    row: ScalarRow<'a>,
+    /// Id for the group. Computed from the null mask.
+    group_id: u64,
+}
+
+impl<'a> GroupValue<'a> {
+    const fn empty() -> Self {
+        GroupValue {
+            row: ScalarRow::empty(),
+            group_id: 0,
+        }
+    }
+}
+
 /// An aggregate hash table for storing group values alongside the computed
 /// aggregates.
 ///
@@ -49,9 +67,7 @@ pub struct PartitionAggregateHashTable {
     /// - `SELECT SUM(a), MAX(b), ...` => length  of 2
     agg_states: Vec<AggregateStates>,
 
-    // TODO: This is likely a peformance bottleneck with storing group values in
-    // rows.
-    group_values: Vec<OwnedScalarRow>,
+    group_values: Vec<GroupValue<'static>>,
 
     /// Hash table pointing to the group index.
     hash_table: RawTable<(u64, usize)>,
@@ -87,6 +103,7 @@ impl PartitionAggregateHashTable {
         hashes: &[u64],
         inputs: &[&Array],
         selection: &Bitmap,
+        group_id: u64,
     ) -> Result<()> {
         let row_count = selection.count_trues();
 
@@ -95,7 +112,7 @@ impl PartitionAggregateHashTable {
 
         // Get group indices, creating new states as needed for groups we've
         // never seen before.
-        self.find_or_create_group_indices(groups, hashes, selection)?;
+        self.find_or_create_group_indices(groups, hashes, selection, group_id)?;
 
         // Now we just rip through the values.
         for agg_states in self.agg_states.iter_mut() {
@@ -123,6 +140,7 @@ impl PartitionAggregateHashTable {
         groups: &[&Array],
         hashes: &[u64],
         selection: &Bitmap,
+        group_id: u64,
     ) -> Result<()> {
         for (row_idx, (&hash, selected)) in hashes.iter().zip(selection.iter()).enumerate() {
             if !selected {
@@ -133,11 +151,14 @@ impl PartitionAggregateHashTable {
             //
             // It's like that replacing this with something that compares
             // scalars directly to a arrays at an index would be faster.
-            let row = ScalarRow::try_new_from_arrays(groups, row_idx)?;
+            let value = GroupValue {
+                row: ScalarRow::try_new_from_arrays(groups, row_idx)?,
+                group_id,
+            };
 
             // Look up the entry into the hash table.
             let ent = self.hash_table.get_mut(hash, |(_hash, group_idx)| {
-                row == self.group_values[*group_idx]
+                value == self.group_values[*group_idx]
             });
 
             match ent {
@@ -159,7 +180,10 @@ impl PartitionAggregateHashTable {
                     self.hash_table
                         .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
 
-                    self.group_values.push(row.into_owned());
+                    self.group_values.push(GroupValue {
+                        row: value.row.into_owned(),
+                        group_id: value.group_id,
+                    });
                     self.indexes_buffer.push(group_idx);
                 }
             }
@@ -184,8 +208,10 @@ impl PartitionAggregateHashTable {
         for (hash, other_group_idx) in other.hash_table.drain() {
             // TODO: Deduplicate with othe find and create method.
 
-            let row =
-                std::mem::replace(&mut other.group_values[other_group_idx], ScalarRow::empty());
+            let row = std::mem::replace(
+                &mut other.group_values[other_group_idx],
+                GroupValue::empty(),
+            );
 
             let ent = self.hash_table.get_mut(hash, |(_hash, self_group_idx)| {
                 row == self.group_values[*self_group_idx]
@@ -214,7 +240,7 @@ impl PartitionAggregateHashTable {
                     self.hash_table
                         .insert(hash, (hash, new_group_idx), |(hash, _group_idx)| *hash);
 
-                    self.group_values.push(row.into_owned());
+                    self.group_values.push(row);
 
                     // Map other group to the newly created group in this table.
                     self.indexes_buffer[other_group_idx] = new_group_idx
@@ -309,7 +335,7 @@ impl AggregateHashTableDrain {
         // number of rows we're returning.
         self.group_values_drain_buf.clear();
         self.group_values_drain_buf
-            .extend(self.table.group_values.drain(0..num_rows));
+            .extend(self.table.group_values.drain(0..num_rows).map(|v| v.row));
 
         for group_dt in self.group_types.iter() {
             // Since group values are in row format, we just pop the value for

@@ -1,13 +1,27 @@
-# Error source: query failed: Unexpected keyword in infix expression: BETWEEN
-
 query TT
-describe select
-    sum(l_extendedprice * l_discount) as revenue
-from
+DESCRIBE SELECT
+    sum(l_extendedprice * l_discount) AS revenue
+FROM
     '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
-where
-        l_shipdate >= date '1994-01-01'
-  and l_shipdate < date '1995-01-01'
-  and l_discount between 0.06 - 0.01 and 0.06 + 0.01
-  and l_quantity < 24;
+WHERE
+    l_shipdate >= CAST('1994-01-01' AS date)
+    AND l_shipdate < CAST('1995-01-01' AS date)
+    AND l_discount BETWEEN 0.05
+    AND 0.07
+    AND l_quantity < 24;
 ----
+revenue  Decimal64(18,4)
+
+query ?
+SELECT
+    sum(l_extendedprice * l_discount) AS revenue
+FROM
+    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+WHERE
+    l_shipdate >= CAST('1994-01-01' AS date)
+    AND l_shipdate < CAST('1995-01-01' AS date)
+    AND l_discount BETWEEN 0.05
+    AND 0.07
+    AND l_quantity < 24;
+----
+11803420.2534

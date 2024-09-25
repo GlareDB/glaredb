@@ -1,0 +1,66 @@
+# SUBSTRING
+
+query T
+SELECT substring('hello', 1);
+----
+hello
+
+query T
+SELECT substring('hello', 10);
+----
+(empty)
+
+
+query T
+SELECT substring('hello', 2);
+----
+ello
+
+query T
+SELECT substring('hello', 1, 3);
+----
+hel
+
+query T
+SELECT substring('hello', 2, 3);
+----
+ell
+
+query T
+SELECT substring('hello', 2, 8);
+----
+ello
+
+query T
+SELECT substring('😤🤝👀', 2);
+----
+🤝👀
+
+query T
+SELECT substring('😤🤝👀', 2, 1);
+----
+🤝
+
+query T
+SELECT substring('😤🤝👀', 4);
+----
+(empty)
+
+query T
+SELECT substring(a, 2, 1) FROM (VALUES ('😤🤝👀'), (NULL), ('hello')) v(a);
+----
+🤝
+NULL
+e
+
+# FROM/FOR keywords
+
+query T
+SELECT substring('hello' FROM 1);
+----
+hello
+
+query T
+SELECT substring('hello' FROM 2 FOR 3);
+----
+ell

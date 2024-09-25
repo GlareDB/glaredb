@@ -1,0 +1,32 @@
+# GROUP BY CUBE
+
+statement ok
+CREATE TEMP TABLE t1 (a INT);
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (3);
+
+query II rowsort
+SELECT a, max(a) FROM t1 GROUP BY CUBE(a);
+----
+1     1
+2     2
+3     3
+NULL  3
+
+statement ok
+CREATE TEMP TABLE t2 (a INT, b INT);
+
+statement ok
+INSERT INTO t2 VALUES (1, 5), (2, 6), (3, 7), (NULL, 8),
+                      (1, 4), (2, 7), (3, 3), (NULL, 9);
+
+query II rowsort
+SELECT a, max(b) FROM t2 GROUP BY CUBE(a);
+----
+1     5
+2     7
+3     7
+NULL  9
+NULL  9
+

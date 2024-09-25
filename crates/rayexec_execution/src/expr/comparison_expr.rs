@@ -13,6 +13,30 @@ pub enum ComparisonOperator {
     GtEq,
 }
 
+impl ComparisonOperator {
+    pub fn flip(self) -> Self {
+        match self {
+            ComparisonOperator::Eq => ComparisonOperator::Eq,
+            ComparisonOperator::NotEq => ComparisonOperator::NotEq,
+            ComparisonOperator::Lt => ComparisonOperator::Gt,
+            ComparisonOperator::LtEq => ComparisonOperator::GtEq,
+            ComparisonOperator::Gt => ComparisonOperator::Lt,
+            ComparisonOperator::GtEq => ComparisonOperator::LtEq,
+        }
+    }
+
+    pub fn negate(self) -> Self {
+        match self {
+            ComparisonOperator::Eq => ComparisonOperator::NotEq,
+            ComparisonOperator::NotEq => ComparisonOperator::Eq,
+            ComparisonOperator::Lt => ComparisonOperator::GtEq,
+            ComparisonOperator::LtEq => ComparisonOperator::Gt,
+            ComparisonOperator::Gt => ComparisonOperator::LtEq,
+            ComparisonOperator::GtEq => ComparisonOperator::Lt,
+        }
+    }
+}
+
 impl AsScalarFunction for ComparisonOperator {
     fn as_scalar_function(&self) -> &dyn ScalarFunction {
         match self {
@@ -39,7 +63,7 @@ impl fmt::Display for ComparisonOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ComparisonExpr {
     pub left: Box<Expression>,
     pub right: Box<Expression>,

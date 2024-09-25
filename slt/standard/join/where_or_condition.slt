@@ -1,0 +1,31 @@
+# Join with equalities wrapped in an OR.
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, a_text TEXT);
+
+statement ok
+CREATE TEMP TABLE t2 (b INT, b_text TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (1, 'cat'),
+  (2, 'dog'),
+  (3, 'mouse'),
+  (4, 'chicken');
+
+statement ok
+INSERT INTO t2 VALUES
+  (1, 'moose'),
+  (2, 'goose'),
+  (3, 'rooster'),
+  (4, 'gooster');
+
+query IT
+SELECT * FROM t1, t2 WHERE
+  (a = b AND a_text = 'dog' AND b_text IN ('goose', 'rooster'))
+  OR
+  (a = b AND a_text = 'chicken');
+----
+2  dog      2  goose
+4  chicken  4  gooster
+

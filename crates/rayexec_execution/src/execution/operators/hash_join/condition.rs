@@ -1,8 +1,4 @@
-use rayexec_bullet::{
-    array::{Array, BooleanArray},
-    batch::Batch,
-    compute::take::take,
-};
+use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute::take::take};
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 use std::sync::Arc;
@@ -74,7 +70,7 @@ impl LeftPrecomputedJoinConditions {
     /// input.
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
-            let precomputed = condition.left.eval(left)?;
+            let precomputed = condition.left.eval(left, None)?;
             condition.left_precomputed.push(precomputed)
         }
 
@@ -91,7 +87,7 @@ impl LeftPrecomputedJoinConditions {
         left_batch_idx: usize,
         left_rows: &[usize],
         right: &Batch,
-    ) -> Result<BooleanArray> {
+    ) -> Result<Bitmap> {
         assert_eq!(left_rows.len(), right.num_rows());
 
         let mut results = Vec::with_capacity(self.conditions.len());
@@ -110,7 +106,7 @@ impl LeftPrecomputedJoinConditions {
             // TODO: Use selection instead of taking for left.
 
             let left_input = Arc::new(take(left_precomputed.as_ref(), left_rows)?);
-            let right_input = condition.right.eval(right)?;
+            let right_input = condition.right.eval(right, None)?;
 
             let result = condition.function.execute(&[&left_input, &right_input])?;
 
@@ -119,7 +115,7 @@ impl LeftPrecomputedJoinConditions {
 
         let refs: Vec<_> = results.iter().collect();
         let out = match AndImpl.execute(&refs)? {
-            Array::Boolean(arr) => arr,
+            Array::Boolean(arr) => arr.into_selection_bitmap(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Expect boolean array as result for condition, got {}",

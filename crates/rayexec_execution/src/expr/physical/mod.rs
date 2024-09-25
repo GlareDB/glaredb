@@ -1,5 +1,6 @@
 pub mod planner;
 
+pub mod case_expr;
 pub mod cast_expr;
 pub mod column_expr;
 pub mod literal_expr;
@@ -8,11 +9,12 @@ pub mod scalar_function_expr;
 use std::fmt;
 use std::sync::Arc;
 
+use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType};
-use rayexec_error::{OptionExt, Result};
+use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, datatype::DataType};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
@@ -23,6 +25,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {
+    Case(PhysicalCaseExpr),
     Cast(PhysicalCastExpr),
     Column(PhysicalColumnExpr),
     Literal(PhysicalLiteralExpr),
@@ -30,19 +33,48 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval(&self, batch: &Batch) -> Result<Arc<Array>> {
+    /// Evaluates an expression on a batch using an optional row selection.
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
         match self {
-            Self::Cast(expr) => expr.eval(batch),
-            Self::Column(expr) => expr.eval(batch),
-            Self::Literal(expr) => expr.eval(batch),
-            Self::ScalarFunction(expr) => expr.eval(batch),
+            Self::Case(expr) => expr.eval(batch, selection),
+            Self::Cast(expr) => expr.eval(batch, selection),
+            Self::Column(expr) => expr.eval(batch, selection),
+            Self::Literal(expr) => expr.eval(batch, selection),
+            Self::ScalarFunction(expr) => expr.eval(batch, selection),
         }
+    }
+
+    pub fn select(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
+        let arr = self.eval(batch, selection)?;
+        let bitmap = match arr.as_ref() {
+            Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected expression to return bools for select, got {}",
+                    other.datatype()
+                )))
+            }
+        };
+
+        let selection = match selection {
+            Some(sel) => sel,
+            None => return Ok(bitmap),
+        };
+
+        let mut zipped = Bitmap::all_false(selection.len());
+
+        for (row_idx, selected) in selection.index_iter().zip(bitmap.iter()) {
+            zipped.set(row_idx, selected);
+        }
+
+        Ok(zipped)
     }
 }
 
 impl fmt::Display for PhysicalScalarExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Case(expr) => expr.fmt(f),
             Self::Cast(expr) => expr.fmt(f),
             Self::Column(expr) => expr.fmt(f),
             Self::Literal(expr) => expr.fmt(f),
@@ -58,6 +90,7 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
         use rayexec_proto::generated::physical_expr::physical_scalar_expression::Value;
 
         let value = match self {
+            Self::Case(_) => not_implemented!("proto encode CASE"),
             Self::Cast(cast) => Value::Cast(Box::new(cast.to_proto_ctx(context)?)),
             Self::Column(cast) => Value::Column(cast.to_proto_ctx(context)?),
             Self::Literal(cast) => Value::Literal(cast.to_proto_ctx(context)?),

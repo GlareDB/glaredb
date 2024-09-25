@@ -1,5 +1,4 @@
-# Aliased nested from
-query TI
+query TT
 DESCRIBE SELECT
     cntrycode,
     count(*) AS numcust,
@@ -31,3 +30,48 @@ GROUP BY
     cntrycode
 ORDER BY
     cntrycode;
+----
+cntrycode   Utf8
+numcust     Int64
+totacctbal  Decimal64(15,2)
+
+query ???
+SELECT
+    cntrycode,
+    count(*) AS numcust,
+    sum(c_acctbal) AS totacctbal
+FROM (
+    SELECT
+        substring(c_phone FROM 1 FOR 2) AS cntrycode,
+        c_acctbal
+    FROM
+        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer
+    WHERE
+        substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
+        AND c_acctbal > (
+            SELECT
+                avg(c_acctbal)
+            FROM
+                '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer
+            WHERE
+                c_acctbal > 0.00
+                AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17'))
+            AND NOT EXISTS (
+                SELECT
+                    *
+                FROM
+                    '../submodules/testdata/tpch_sf0.1/orders.parquet'  orders
+                WHERE
+                    o_custkey = c_custkey)) AS custsale
+GROUP BY
+    cntrycode
+ORDER BY
+    cntrycode;
+----
+13  94  714035.05
+17  96  722560.15
+18  99  738012.52
+23  93  708285.25
+29  85  632693.46
+30  87  646748.02
+31  87  647372.50

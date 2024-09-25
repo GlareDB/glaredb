@@ -3,7 +3,7 @@ use std::fmt;
 
 use super::{AsScalarFunction, Expression};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConjunctionOperator {
     And,
     Or,
@@ -27,15 +27,27 @@ impl fmt::Display for ConjunctionOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConjunctionExpr {
-    pub left: Box<Expression>,
-    pub right: Box<Expression>,
     pub op: ConjunctionOperator,
+    pub expressions: Vec<Expression>,
 }
 
 impl fmt::Display for ConjunctionExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.op, self.right)
+        let mut iter = self.expressions.iter();
+
+        write!(f, "(")?;
+        match iter.next() {
+            Some(expr) => write!(f, "{}", expr)?,
+            None => return Ok(()),
+        }
+
+        for expr in iter {
+            write!(f, " {} {}", self.op, expr)?;
+        }
+        write!(f, ")")?;
+
+        Ok(())
     }
 }

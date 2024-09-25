@@ -3,7 +3,7 @@ use std::fmt;
 
 use super::{AsScalarFunction, Expression};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArithOperator {
     Add,
     Sub,
@@ -36,7 +36,7 @@ impl fmt::Display for ArithOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArithExpr {
     pub left: Box<Expression>,
     pub right: Box<Expression>,

@@ -1,0 +1,23 @@
+# Correlated IN subqueries
+
+statement ok
+CREATE TEMP TABLE ints (i INT);
+
+statement ok
+INSERT INTO ints VALUES (4), (5), (6), (NULL);
+
+query IT
+SELECT i, i IN (SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
+----
+4     true
+5     true
+6     true
+NULL  false
+
+query IT
+SELECT i, i + 1 IN (SELECT i FROM ints WHERE i >= a1.i) FROM ints a1;
+----
+4     true
+5     true
+6     false
+NULL  false

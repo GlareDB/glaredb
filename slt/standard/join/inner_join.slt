@@ -1,12 +1,12 @@
 # Basic ON
 query II rowsort
-select * from generate_series(1, 3) t1(a) inner join generate_series(1, 2) t2(b) on a = b;
+SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b) ON a = b;
 ----
 1  1
 2  2
 
 query II rowsort
-select * from generate_series(1, 3) t1(a) inner join generate_series(1, 2) t2(b) on a <> b;
+SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b) ON a <> b;
 ----
 1  2
 2  1
@@ -18,7 +18,13 @@ statement ok
 set allow_nested_loop_join to false;
 
 query II rowsort
-select * from generate_series(1, 3) t1(a) inner join generate_series(1, 2) t2(b) on a = b;
+SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b) ON a = b;
 ----
 1  1
+2  2
+
+# Ensure we're properly evaluating all conditions.
+query II rowsort
+SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b) ON a = b AND a >= 2;
+----
 2  2

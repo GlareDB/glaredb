@@ -5,7 +5,7 @@ use std::fmt;
 
 use super::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WindowExpr {
     pub agg: Box<dyn PlannedAggregateFunction>,
     pub inputs: Vec<Expression>,

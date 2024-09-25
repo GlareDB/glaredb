@@ -47,7 +47,7 @@ impl From<BooleanValuesBuffer> for Bitmap {
 }
 
 /// A logical array for representing bools.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BooleanArray {
     validity: Option<Bitmap>,
     values: Bitmap,
@@ -123,6 +123,19 @@ impl BooleanArray {
 
     pub fn values(&self) -> &Bitmap {
         &self.values
+    }
+
+    /// Turns this boolean array into a selection bitmap for filtering.
+    ///
+    /// This will treat invalid (NULL) values as false.
+    pub fn into_selection_bitmap(self) -> Bitmap {
+        let mut bitmap = self.values;
+        if let Some(validity) = self.validity {
+            bitmap
+                .bit_and_mut(&validity)
+                .expect("bool array to bitmap to not fail");
+        }
+        bitmap
     }
 }
 

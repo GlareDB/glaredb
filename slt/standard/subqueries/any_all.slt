@@ -1,0 +1,18 @@
+# ANY/ALL subqueries
+
+statement ok
+CREATE TEMP TABLE ints (i INT);
+
+statement ok
+INSERT INTO ints VALUES (4), (5), (6), (NULL);
+
+query T
+SELECT 5 = ANY(SELECT * FROM ints);
+----
+true
+
+query T
+SELECT 9 = ANY(SELECT * FROM ints);
+----
+false
+

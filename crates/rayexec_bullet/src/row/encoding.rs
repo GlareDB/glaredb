@@ -1,12 +1,11 @@
 use crate::array::{Array, OffsetIndex, PrimitiveArray, VarlenArray, VarlenType};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// Binary-encoded rows suitable for comparisons.
 #[derive(Debug)]
 pub struct ComparableRows {
     /// Underlying row data.
     data: Vec<u8>,
-
     /// Offsets into the data buffer.
     offsets: Vec<usize>,
 }
@@ -81,23 +80,34 @@ impl<'a> ComparableRow<'a> {
     }
 }
 
+/// Configuration for how to encode a column.
 #[derive(Debug, Clone)]
 pub struct ComparableColumn {
+    /// If we should encode columns to reverse the natural sort order for
+    /// values.
+    ///
+    /// If this is false, this should correspond to sorting in ascending order
+    /// (e.g. '1 < 2' evaluates to true).
+    ///
+    /// If true, this is reverse the sort order (e.g. '1 < 2' evaluates to
+    /// false, causing '2' to come before '1').
     pub desc: bool,
+    /// If we should encode nulls such that they should be ordered before any
+    /// valid values.
     pub nulls_first: bool,
 }
 
 impl ComparableColumn {
-    const fn null_bit(&self) -> u8 {
+    const fn null_byte(&self) -> u8 {
         if self.nulls_first {
-            1
-        } else {
             0
+        } else {
+            0xFF
         }
     }
 
-    const fn valid_bit(&self) -> u8 {
-        1 - self.null_bit()
+    const fn valid_byte(&self) -> u8 {
+        !self.null_byte()
     }
 
     /// Invert all bits in buf if this column should be ordered descending.
@@ -143,7 +153,7 @@ impl ComparableRowEncoder {
             }
         }
 
-        let size = self.compute_data_size(columns);
+        let size = self.compute_data_size(columns)?;
         let mut data = vec![0; size];
 
         let mut offsets: Vec<usize> = vec![0];
@@ -152,8 +162,6 @@ impl ComparableRowEncoder {
             let mut row_offset = *offsets.last().unwrap();
             for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
                 row_offset = match arr {
-                    Array::Null(_) => unimplemented!(),
-                    Array::Boolean(_) => unimplemented!(),
                     Array::Int8(arr) => Self::encode_primitive(
                         cmp_col,
                         arr,
@@ -224,6 +232,34 @@ impl ComparableRowEncoder {
                         data.as_mut_slice(),
                         row_offset,
                     ),
+                    Array::Decimal64(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr.get_primitive(),
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
+                    Array::Decimal128(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr.get_primitive(),
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
+                    Array::Date32(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr,
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
+                    Array::Date64(arr) => Self::encode_primitive(
+                        cmp_col,
+                        arr,
+                        row_idx,
+                        data.as_mut_slice(),
+                        row_offset,
+                    ),
                     Array::Utf8(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
@@ -236,7 +272,7 @@ impl ComparableRowEncoder {
                     Array::LargeBinary(arr) => {
                         Self::encode_varlen(cmp_col, arr, row_idx, data.as_mut_slice(), row_offset)
                     }
-                    _ => unimplemented!(),
+                    other => not_implemented!("row enc: {}", other.datatype()),
                 };
             }
 
@@ -248,7 +284,7 @@ impl ComparableRowEncoder {
 
     /// Compute the size of the data buffer we'll need for storing all encoded
     /// rows.
-    fn compute_data_size(&self, columns: &[&Array]) -> usize {
+    fn compute_data_size(&self, columns: &[&Array]) -> Result<usize> {
         let mut size = 0;
         for arr in columns {
             let mut arr_size = match arr {
@@ -258,17 +294,23 @@ impl ComparableRowEncoder {
                 Array::Int16(arr) => arr.len() * std::mem::size_of::<i16>(),
                 Array::Int32(arr) => arr.len() * std::mem::size_of::<i32>(),
                 Array::Int64(arr) => arr.len() * std::mem::size_of::<i64>(),
+                Array::Int128(arr) => arr.len() * std::mem::size_of::<i64>(),
                 Array::UInt8(arr) => arr.len() * std::mem::size_of::<u8>(),
                 Array::UInt16(arr) => arr.len() * std::mem::size_of::<u16>(),
                 Array::UInt32(arr) => arr.len() * std::mem::size_of::<u32>(),
                 Array::UInt64(arr) => arr.len() * std::mem::size_of::<u64>(),
+                Array::UInt128(arr) => arr.len() * std::mem::size_of::<u64>(),
                 Array::Float32(arr) => arr.len() * std::mem::size_of::<f32>(),
                 Array::Float64(arr) => arr.len() * std::mem::size_of::<f64>(),
+                Array::Decimal64(arr) => arr.get_primitive().len() * std::mem::size_of::<i64>(),
+                Array::Decimal128(arr) => arr.get_primitive().len() * std::mem::size_of::<i128>(),
+                Array::Date32(arr) => arr.len() * std::mem::size_of::<i32>(),
+                Array::Date64(arr) => arr.len() * std::mem::size_of::<i64>(),
                 Array::Utf8(arr) => arr.data().as_ref().len(),
                 Array::LargeUtf8(arr) => arr.data().as_ref().len(),
                 Array::Binary(arr) => arr.data().as_ref().len(),
                 Array::LargeBinary(arr) => arr.data().as_ref().len(),
-                _ => unimplemented!(),
+                other => not_implemented!("compute data size: {}", other.datatype()),
             };
 
             // Account for validities.
@@ -281,7 +323,7 @@ impl ComparableRowEncoder {
             size += arr_size;
         }
 
-        size
+        Ok(size)
     }
 
     /// Encodes a variable length array into `buf` starting at `start`.
@@ -294,11 +336,11 @@ impl ComparableRowEncoder {
         buf: &mut [u8],
         start: usize,
     ) -> usize {
-        let null_bit = col.null_bit();
-        let valid_bit = col.valid_bit();
+        let null_byte = col.null_byte();
+        let valid_byte = col.valid_byte();
 
         if arr.is_valid(row).expect("row to be in bounds") {
-            buf[start] = valid_bit;
+            buf[start] = valid_byte;
             let value = arr.value(row).expect("row to be in bounds");
             let end = start + 1 + value.as_binary().len();
             let write_buf = &mut buf[start + 1..end];
@@ -307,7 +349,7 @@ impl ComparableRowEncoder {
 
             start + 1 + write_buf.len()
         } else {
-            buf[start] = null_bit;
+            buf[start] = null_byte;
 
             start + 1
         }
@@ -323,11 +365,11 @@ impl ComparableRowEncoder {
         buf: &mut [u8],
         start: usize,
     ) -> usize {
-        let null_bit = col.null_bit();
-        let valid_bit = col.valid_bit();
+        let null_byte = col.null_byte();
+        let valid_byte = col.valid_byte();
 
         if arr.is_valid(row).expect("row to be in bounds") {
-            buf[start] = valid_bit;
+            buf[start] = valid_byte;
             let value = arr.value(row).expect("row to be in bounds");
             let end = start + 1 + std::mem::size_of::<T>();
             let write_buf = &mut buf[start + 1..end];
@@ -336,7 +378,7 @@ impl ComparableRowEncoder {
 
             start + 1 + write_buf.len()
         } else {
-            buf[start] = null_bit;
+            buf[start] = null_byte;
 
             start + 1
         }
@@ -365,6 +407,7 @@ comparable_encode_unsigned!(u8);
 comparable_encode_unsigned!(u16);
 comparable_encode_unsigned!(u32);
 comparable_encode_unsigned!(u64);
+comparable_encode_unsigned!(u128);
 
 /// Implements `ComparableEncode` for signed ints.
 macro_rules! comparable_encode_signed {
@@ -383,6 +426,7 @@ comparable_encode_signed!(i8);
 comparable_encode_signed!(i16);
 comparable_encode_signed!(i32);
 comparable_encode_signed!(i64);
+comparable_encode_signed!(i128);
 
 impl ComparableEncode for f32 {
     fn encode(&self, buf: &mut [u8]) {
@@ -499,5 +543,101 @@ mod tests {
 
         let expected = vec![Ordering::Less, Ordering::Greater, Ordering::Equal];
         assert_eq!(expected, cmps);
+    }
+
+    #[test]
+    fn primitive_nulls_last_asc() {
+        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+
+        let encoder = ComparableRowEncoder {
+            columns: vec![ComparableColumn {
+                desc: false,
+                nulls_first: false,
+            }],
+        };
+
+        let rows1 = encoder.encode(&[&col1]).unwrap();
+        let rows2 = encoder.encode(&[&col2]).unwrap();
+
+        assert_eq!(4, rows1.num_rows());
+        assert_eq!(4, rows2.num_rows());
+
+        assert!(rows1.row(0).unwrap() < rows2.row(0).unwrap());
+        assert!(rows1.row(1).unwrap() > rows2.row(1).unwrap());
+        assert!(rows1.row(2).unwrap() > rows2.row(2).unwrap());
+        assert!(rows1.row(3).unwrap() < rows2.row(3).unwrap());
+    }
+
+    #[test]
+    fn primitive_nulls_last_desc() {
+        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+
+        let encoder = ComparableRowEncoder {
+            columns: vec![ComparableColumn {
+                desc: true,
+                nulls_first: false,
+            }],
+        };
+
+        let rows1 = encoder.encode(&[&col1]).unwrap();
+        let rows2 = encoder.encode(&[&col2]).unwrap();
+
+        assert_eq!(4, rows1.num_rows());
+        assert_eq!(4, rows2.num_rows());
+
+        assert!(rows1.row(0).unwrap() > rows2.row(0).unwrap());
+        assert!(rows1.row(1).unwrap() > rows2.row(1).unwrap());
+        assert!(rows1.row(2).unwrap() < rows2.row(2).unwrap());
+        assert!(rows1.row(3).unwrap() < rows2.row(3).unwrap());
+    }
+
+    #[test]
+    fn primitive_nulls_first_asc() {
+        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+
+        let encoder = ComparableRowEncoder {
+            columns: vec![ComparableColumn {
+                desc: false,
+                nulls_first: true,
+            }],
+        };
+
+        let rows1 = encoder.encode(&[&col1]).unwrap();
+        let rows2 = encoder.encode(&[&col2]).unwrap();
+
+        assert_eq!(4, rows1.num_rows());
+        assert_eq!(4, rows2.num_rows());
+
+        assert!(rows1.row(0).unwrap() < rows2.row(0).unwrap());
+        assert!(rows1.row(1).unwrap() < rows2.row(1).unwrap());
+        assert!(rows1.row(2).unwrap() > rows2.row(2).unwrap());
+        assert!(rows1.row(3).unwrap() > rows2.row(3).unwrap());
+    }
+
+    #[test]
+    fn primitive_nulls_first_desc() {
+        let col1 = Array::Int32(Int32Array::from_iter([Some(-1), None, Some(1), Some(2)]));
+        let col2 = Array::Int32(Int32Array::from_iter([Some(1), Some(0), Some(-1), None]));
+
+        let encoder = ComparableRowEncoder {
+            columns: vec![ComparableColumn {
+                desc: true,
+                nulls_first: true,
+            }],
+        };
+
+        let rows1 = encoder.encode(&[&col1]).unwrap();
+        let rows2 = encoder.encode(&[&col2]).unwrap();
+
+        assert_eq!(4, rows1.num_rows());
+        assert_eq!(4, rows2.num_rows());
+
+        assert!(rows1.row(0).unwrap() > rows2.row(0).unwrap());
+        assert!(rows1.row(1).unwrap() < rows2.row(1).unwrap());
+        assert!(rows1.row(2).unwrap() < rows2.row(2).unwrap());
+        assert!(rows1.row(3).unwrap() > rows2.row(3).unwrap());
     }
 }

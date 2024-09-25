@@ -5,6 +5,8 @@ use crate::{
             bind_context::{BindContext, BindScopeRef, Table, TableRef},
             bind_query::bind_setop::{BoundSetOp, SetOpCastRequirement},
         },
+        logical_limit::LogicalLimit,
+        logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_setop::LogicalSetop,
         operator::{LocationRequirement, LogicalOperator, Node},
@@ -42,7 +44,7 @@ impl SetOpPlanner {
             SetOpCastRequirement::None => (),
         }
 
-        Ok(LogicalOperator::SetOp(Node {
+        let mut plan = LogicalOperator::SetOp(Node {
             node: LogicalSetop {
                 kind: setop.kind,
                 all: setop.all,
@@ -50,7 +52,32 @@ impl SetOpPlanner {
             },
             location: LocationRequirement::Any,
             children: vec![left, right],
-        }))
+        });
+
+        // Handle ORDER BY
+        if let Some(order_by) = setop.order_by {
+            plan = LogicalOperator::Order(Node {
+                node: LogicalOrder {
+                    exprs: order_by.exprs,
+                },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            })
+        }
+
+        // Handle LIMIT
+        if let Some(limit) = setop.limit {
+            plan = LogicalOperator::Limit(Node {
+                node: LogicalLimit {
+                    offset: limit.offset,
+                    limit: limit.limit,
+                },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+            });
+        }
+
+        Ok(plan)
     }
 
     fn wrap_cast(

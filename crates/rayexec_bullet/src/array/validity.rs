@@ -4,7 +4,7 @@ use crate::bitmap::Bitmap;
 
 /// Union all validities.
 ///
-/// The final bitmap will be the OR of all bitmaps.
+/// The final bitmap will be the AND of all bitmaps.
 pub(crate) fn union_validities<'a>(
     validities: impl IntoIterator<Item = Option<&'a Bitmap>>,
 ) -> Result<Option<Bitmap>> {
@@ -12,7 +12,7 @@ pub(crate) fn union_validities<'a>(
 
     for bitmap in validities {
         match (&mut unioned, bitmap) {
-            (Some(unioned), Some(bitmap)) => unioned.bit_or_mut(bitmap)?,
+            (Some(unioned), Some(bitmap)) => unioned.bit_and_mut(bitmap)?,
             (None, Some(bitmap)) => unioned = Some(bitmap.clone()),
             _ => (),
         }
@@ -43,4 +43,33 @@ pub(crate) fn concat_validities<'a>(
     }
 
     Some(validity)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn union_none() {
+        let got = union_validities([None, None, None]).unwrap();
+        assert_eq!(None, got);
+    }
+
+    #[test]
+    fn union_one_with_many_nones() {
+        let a = Bitmap::from_iter([true, false, true]);
+        let got = union_validities([None, Some(&a), None]).unwrap();
+        assert_eq!(Some(a), got);
+    }
+
+    #[test]
+    fn union_many_nones() {
+        let a = Bitmap::from_iter([true, true, true]);
+        let b = Bitmap::from_iter([true, false, true]);
+        let c = Bitmap::from_iter([true, true, false]);
+        let got = union_validities([Some(&a), Some(&b), Some(&c)]).unwrap();
+
+        let expected = Bitmap::from_iter([true, false, false]);
+        assert_eq!(Some(expected), got);
+    }
 }

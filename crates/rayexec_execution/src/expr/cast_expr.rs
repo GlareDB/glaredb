@@ -3,7 +3,7 @@ use std::fmt;
 
 use super::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {
     pub to: DataType,
     pub expr: Box<Expression>,

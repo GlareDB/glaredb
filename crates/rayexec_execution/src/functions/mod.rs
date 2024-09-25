@@ -8,9 +8,13 @@ pub mod table;
 use std::{borrow::Borrow, fmt::Display};
 
 use fmtutil::IntoDisplayableSlice;
-use implicit::implicit_cast_score;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use implicit::{implicit_cast_score, NO_CAST_SCORE};
+use rayexec_bullet::{
+    array::Array,
+    datatype::{DataType, DataTypeId},
+};
 use rayexec_error::{RayexecError, Result};
+use scalar::PlannedScalarFunction;
 
 /// Function signature.
 #[derive(Debug, Clone, PartialEq)]
@@ -108,32 +112,29 @@ pub trait FunctionInfo {
     ///
     /// The returned candidates will have info on which arguments need to be
     /// casted and which are fine to state as-is.
+    ///
+    /// Candidates are returned in sorted order with the highest cast score
+    /// being first.
     fn candidate(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
         CandidateSignature::find_candidates(inputs, self.signatures())
     }
 }
 
-// pub trait SerializableFunction {
-//     /// Name of the function inside the catalog.
-//     ///
-//     /// This is used to "tag" the function during serialization so we know which
-//     /// function to try to deserialize to.
-//     // TODO: This may need to change to be more specific if we allow adding
-//     // functions outside the 'glare_catalog' schema.
-//     fn catalog_name(&self) -> &'static str;
-
-//     fn serialize_data<S>(&self, serializer: S) -> Result<(), S::Error>
-//     where
-//         S: Serializer;
-// }
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum CastType {
     /// Need to cast the type to this one.
-    Cast { to: DataTypeId, score: i32 },
-
+    Cast { to: DataTypeId, score: u32 },
     /// Casting isn't needed, the original data type works.
     NoCastNeeded,
+}
+
+impl CastType {
+    fn score(&self) -> u32 {
+        match self {
+            Self::Cast { score, .. } => *score,
+            Self::NoCastNeeded => NO_CAST_SCORE,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,6 +148,9 @@ pub struct CandidateSignature {
 
 impl CandidateSignature {
     /// Find candidate signatures for the given dataypes.
+    ///
+    /// This will return a sorted vec where the first element is the candidate
+    /// with the highest score.
     fn find_candidates(inputs: &[DataType], sigs: &[Signature]) -> Vec<Self> {
         let mut candidates = Vec::new();
 
@@ -161,6 +165,13 @@ impl CandidateSignature {
                 casts: std::mem::take(&mut buf),
             })
         }
+
+        candidates.sort_unstable_by(|a, b| {
+            let a_score: u32 = a.casts.iter().map(|c| c.score()).sum();
+            let b_score: u32 = b.casts.iter().map(|c| c.score()).sum();
+
+            a_score.cmp(&b_score).reverse() // Higher score should be first.
+        });
 
         candidates
     }
@@ -187,7 +198,7 @@ impl CandidateSignature {
             }
 
             let score = implicit_cast_score(have, want);
-            if score > 0 {
+            if let Some(score) = score {
                 buf.push(CastType::Cast { to: want, score });
                 continue;
             }
@@ -216,7 +227,7 @@ impl CandidateSignature {
                     }
 
                     let score = implicit_cast_score(have, expected);
-                    if score > 0 {
+                    if let Some(score) = score {
                         buf.push(CastType::Cast {
                             to: expected,
                             score,
@@ -257,11 +268,13 @@ impl CandidateSignature {
                 }
 
                 let score = implicit_cast_score(input, test_type);
-                if score == 0 {
-                    // Test type is not a valid cast for this input.
-                    valid = false;
+                match score {
+                    Some(score) => total_score += score,
+                    None => {
+                        // Test type is not a valid cast for this input.
+                        valid = false;
+                    }
                 }
-                total_score += score;
             }
 
             if total_score > best_total_score && valid {
@@ -283,13 +296,41 @@ pub fn plan_check_num_args<T>(
 ) -> Result<()> {
     if inputs.len() != expected {
         return Err(RayexecError::new(format!(
-            "Expected {} input for '{}', received {}",
+            "Expected {} {} for '{}', received {}",
             expected,
+            if expected == 1 { "input" } else { "inputs" },
             func.name(),
             inputs.len(),
         )));
     }
     Ok(())
+}
+
+pub fn plan_check_num_args_one_of<T, const N: usize>(
+    func: &impl FunctionInfo,
+    inputs: &[T],
+    one_of: [usize; N],
+) -> Result<()> {
+    if !one_of.contains(&inputs.len()) {
+        return Err(RayexecError::new(format!(
+            "Expected {} inputs for '{}', received {}",
+            one_of.display_with_brackets(),
+            func.name(),
+            inputs.len(),
+        )));
+    }
+    Ok(())
+}
+
+pub fn exec_invalid_array_type_err(
+    scalar: &impl PlannedScalarFunction,
+    arr: &Array,
+) -> RayexecError {
+    RayexecError::new(format!(
+        "Invalid array type: {}, function: {}",
+        arr.datatype(),
+        scalar.scalar_function().name()
+    ))
 }
 
 /// Return an error indicating the input types we got are not ones we can

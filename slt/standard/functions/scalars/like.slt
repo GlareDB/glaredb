@@ -83,3 +83,25 @@ query B
 select 'abc' LIKE '%';
 ----
 true
+
+# NOT LIKE
+
+query B
+select 'aaa' NOT LIKE 'aaa';
+----
+false
+
+query B
+select 'aaa' NOT LIKE 'bbb';
+----
+true
+
+query B
+select 'abc' NOT LIKE 'bc%';
+----
+true
+
+query B
+select 'abc' NOT LIKE '%bc%';
+----
+false

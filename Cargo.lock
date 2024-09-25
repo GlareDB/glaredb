@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.47"
+version = "0.0.49"
 
 [[package]]
 name = "fnv"
@@ -1249,9 +1249,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.3.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de3fc2e30ba82dd1b3911c8de1ffc143c74a914a14e99514d7637e3099df5ea0"
+checksum = "68b900aa2f7301e21c36462b170ee99994de34dff39a4a6a528e80e7376d07e5"
 dependencies = [
  "equivalent",
  "hashbrown",
@@ -1382,7 +1382,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "logutil"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1622,7 +1622,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -1898,7 +1898,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "clap",
  "crossterm",
@@ -1919,7 +1919,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "chrono",
  "csv-core",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "csv",
@@ -1953,7 +1953,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_debug"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "futures",
@@ -1971,7 +1971,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_delta"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -1992,7 +1992,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "erased-serde",
  "serde",
@@ -2000,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "ahash",
  "chrono",
@@ -2011,6 +2011,7 @@ dependencies = [
  "futures",
  "half",
  "hashbrown",
+ "indexmap",
  "num-traits",
  "num_cpus",
  "once_cell",
@@ -2038,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "chrono",
@@ -2058,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -2077,7 +2078,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -2089,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "erased-serde",
  "futures",
@@ -2104,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_proto"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "prost",
  "prost-build",
@@ -2114,7 +2115,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "futures",
@@ -2133,7 +2134,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "axum",
  "clap",
@@ -2155,7 +2156,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2169,7 +2170,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "async-trait",
  "crossterm",
@@ -2189,7 +2190,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -2771,7 +2772,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.47"
+version = "0.0.49"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",

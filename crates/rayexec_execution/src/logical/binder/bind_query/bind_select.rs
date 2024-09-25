@@ -21,7 +21,7 @@ use super::{
     select_list::{BoundSelectList, SelectList},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelect {
     /// Bound projections.
     pub select_list: BoundSelectList,

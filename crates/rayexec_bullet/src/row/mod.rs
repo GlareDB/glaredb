@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::{array::Array, scalar::ScalarValue};
 
 /// Scalar representation of a single row.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarRow<'a> {
     pub columns: Vec<ScalarValue<'a>>,
 }

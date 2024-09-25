@@ -15,7 +15,7 @@ use rayexec_execution::{
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_server::serve_with_engine;
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 pub fn main() -> Result<()> {
     const PORT: u16 = 8085;
@@ -102,6 +102,7 @@ pub fn main() -> Result<()> {
                 session,
                 vars: ReplacementVars::default(),
                 create_slt_tmp: false,
+                query_timeout: Duration::from_secs(5),
             })
         },
         "slt_hybrid",

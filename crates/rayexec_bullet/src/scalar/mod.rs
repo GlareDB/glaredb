@@ -23,6 +23,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt;
+use std::hash::Hash;
 use timestamp::TimestampScalar;
 
 /// A single scalar value.
@@ -54,6 +55,43 @@ pub enum ScalarValue<'a> {
     LargeBinary(Cow<'a, [u8]>),
     Struct(Vec<ScalarValue<'a>>),
     List(Vec<ScalarValue<'a>>),
+}
+
+// TODO: TBD if we want this. We may need to implement PartialEq to exact
+// equality semantics for floats.
+impl<'a> Eq for ScalarValue<'a> {}
+
+impl<'a> Hash for ScalarValue<'a> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Null => 0_u8.hash(state),
+            Self::Boolean(v) => v.hash(state),
+            Self::Float32(v) => v.to_le_bytes().hash(state),
+            Self::Float64(v) => v.to_le_bytes().hash(state),
+            Self::Int8(v) => v.hash(state),
+            Self::Int16(v) => v.hash(state),
+            Self::Int32(v) => v.hash(state),
+            Self::Int64(v) => v.hash(state),
+            Self::Int128(v) => v.hash(state),
+            Self::UInt8(v) => v.hash(state),
+            Self::UInt16(v) => v.hash(state),
+            Self::UInt32(v) => v.hash(state),
+            Self::UInt64(v) => v.hash(state),
+            Self::UInt128(v) => v.hash(state),
+            Self::Decimal64(v) => v.hash(state),
+            Self::Decimal128(v) => v.hash(state),
+            Self::Date32(v) => v.hash(state),
+            Self::Date64(v) => v.hash(state),
+            Self::Timestamp(v) => v.hash(state),
+            Self::Interval(v) => v.hash(state),
+            Self::Utf8(v) => v.hash(state),
+            Self::LargeUtf8(v) => v.hash(state),
+            Self::Binary(v) => v.hash(state),
+            Self::LargeBinary(v) => v.hash(state),
+            Self::Struct(v) => v.hash(state),
+            Self::List(v) => v.hash(state),
+        }
+    }
 }
 
 pub type OwnedScalarValue = ScalarValue<'static>;
@@ -418,6 +456,12 @@ impl<'a> From<u64> for ScalarValue<'a> {
 impl<'a> From<&'a str> for ScalarValue<'a> {
     fn from(value: &'a str) -> Self {
         ScalarValue::Utf8(Cow::Borrowed(value))
+    }
+}
+
+impl From<String> for ScalarValue<'static> {
+    fn from(value: String) -> Self {
+        ScalarValue::Utf8(Cow::Owned(value))
     }
 }
 

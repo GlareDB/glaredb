@@ -1,3 +1,4 @@
+pub mod profiler;
 pub mod result;
 pub mod server_state;
 pub mod session;

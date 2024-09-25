@@ -1,5 +1,4 @@
-# Error source: query failed: Expected RightParen, got Some(TokenWithLocation { token: Period, line: 0, col: 0 })
-query TI
+query TT
 DESCRIBE SELECT
     s_name,
     count(*) AS numwait
@@ -17,7 +16,7 @@ WHERE
         SELECT
             *
         FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l2,
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l2
         WHERE
             l2.l_orderkey = l1.l_orderkey
             AND l2.l_suppkey <> l1.l_suppkey)
@@ -25,7 +24,7 @@ WHERE
         SELECT
             *
         FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l3,
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l3
         WHERE
             l3.l_orderkey = l1.l_orderkey
             AND l3.l_suppkey <> l1.l_suppkey
@@ -38,3 +37,94 @@ ORDER BY
     numwait DESC,
     s_name
 LIMIT 100;
+----
+s_name   Utf8
+numwait  Int64
+
+query ??
+SELECT
+    s_name,
+    count(*) AS numwait
+FROM
+    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l1,
+    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
+    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+WHERE
+    s_suppkey = l1.l_suppkey
+    AND o_orderkey = l1.l_orderkey
+    AND o_orderstatus = 'F'
+    AND l1.l_receiptdate > l1.l_commitdate
+    AND EXISTS (
+        SELECT
+            *
+        FROM
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l2
+        WHERE
+            l2.l_orderkey = l1.l_orderkey
+            AND l2.l_suppkey <> l1.l_suppkey)
+    AND NOT EXISTS (
+        SELECT
+            *
+        FROM
+            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  l3
+        WHERE
+            l3.l_orderkey = l1.l_orderkey
+            AND l3.l_suppkey <> l1.l_suppkey
+            AND l3.l_receiptdate > l3.l_commitdate)
+    AND s_nationkey = n_nationkey
+    AND n_name = 'SAUDI ARABIA'
+GROUP BY
+    s_name
+ORDER BY
+    numwait DESC,
+    s_name
+LIMIT 100;
+----
+Supplier#000000445  16
+Supplier#000000825  16
+Supplier#000000709  15
+Supplier#000000762  15
+Supplier#000000357  14
+Supplier#000000399  14
+Supplier#000000496  14
+Supplier#000000977  13
+Supplier#000000144  12
+Supplier#000000188  12
+Supplier#000000415  12
+Supplier#000000472  12
+Supplier#000000633  12
+Supplier#000000708  12
+Supplier#000000889  12
+Supplier#000000380  11
+Supplier#000000602  11
+Supplier#000000659  11
+Supplier#000000821  11
+Supplier#000000929  11
+Supplier#000000262  10
+Supplier#000000460  10
+Supplier#000000486  10
+Supplier#000000669  10
+Supplier#000000718  10
+Supplier#000000778  10
+Supplier#000000167  9
+Supplier#000000578  9
+Supplier#000000673  9
+Supplier#000000687  9
+Supplier#000000074  8
+Supplier#000000565  8
+Supplier#000000648  8
+Supplier#000000918  8
+Supplier#000000427  7
+Supplier#000000503  7
+Supplier#000000610  7
+Supplier#000000670  7
+Supplier#000000811  7
+Supplier#000000114  6
+Supplier#000000379  6
+Supplier#000000436  6
+Supplier#000000500  6
+Supplier#000000660  6
+Supplier#000000788  6
+Supplier#000000846  6
+Supplier#000000920  4

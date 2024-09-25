@@ -6,7 +6,7 @@ use rayexec_execution::{
 };
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
 pub fn main() -> Result<()> {
     let rt = NativeRuntime::with_default_tokio()?;
@@ -26,6 +26,7 @@ pub fn main() -> Result<()> {
                 session,
                 vars: ReplacementVars::default(),
                 create_slt_tmp: true,
+                query_timeout: Duration::from_secs(5),
             })
         },
         "slt_datasource_csv",

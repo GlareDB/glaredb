@@ -40,7 +40,7 @@ impl<'a> ExplainFormatter<'a> {
         self.format(&node)
     }
 
-    pub fn format_intermedate_groups(
+    pub fn format_intermediate_groups(
         &self,
         groups: &[(&str, &IntermediatePipelineGroup)],
     ) -> Result<String> {
@@ -223,9 +223,24 @@ impl ExplainNode {
             LogicalOperator::CrossJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ArbitraryJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::ComparisonJoin(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::MagicJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::MaterializationScan(n) => {
                 // Materialization special case, walk children by get
                 // materialization from bind context.
+                let entry = n.explain_entry(config);
+
+                let children = match bind_context.get_materialization(n.node.mat) {
+                    Ok(mat) => vec![Self::walk_logical_plan(bind_context, &mat.plan, config)],
+                    Err(e) => {
+                        error!(%e, "failed to get materialization from bind context");
+                        Vec::new()
+                    }
+                };
+
+                return ExplainNode { entry, children };
+            }
+            LogicalOperator::MagicMaterializationScan(n) => {
+                // TODO: Do we actually want too show the children?
                 let entry = n.explain_entry(config);
 
                 let children = match bind_context.get_materialization(n.node.mat) {

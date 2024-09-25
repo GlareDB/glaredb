@@ -65,7 +65,7 @@ impl ProtoConv for CatalogEntryType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CatalogEntry {
     pub oid: u32,
     pub name: String,
@@ -106,7 +106,7 @@ impl DatabaseProtoConv for CatalogEntry {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CatalogEntryInner {
     Table(TableEntry),
     Schema(SchemaEntry),
@@ -156,7 +156,7 @@ impl DatabaseProtoConv for CatalogEntryInner {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ScalarFunctionEntry {
     pub function: Box<dyn ScalarFunction>,
 }
@@ -180,7 +180,7 @@ impl DatabaseProtoConv for ScalarFunctionEntry {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct AggregateFunctionEntry {
     pub function: Box<dyn AggregateFunction>,
 }
@@ -204,7 +204,7 @@ impl DatabaseProtoConv for AggregateFunctionEntry {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TableFunctionEntry {
     pub function: Box<dyn TableFunction>,
 }
@@ -228,7 +228,7 @@ impl DatabaseProtoConv for TableFunctionEntry {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CopyToFunctionEntry {
     /// COPY TO function implemenation.
     pub function: Box<dyn CopyToFunction>,
@@ -261,7 +261,7 @@ impl DatabaseProtoConv for CopyToFunctionEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableEntry {
     pub columns: Vec<Field>,
 }
@@ -290,7 +290,7 @@ impl ProtoConv for TableEntry {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SchemaEntry {}
 
 impl ProtoConv for SchemaEntry {

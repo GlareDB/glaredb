@@ -3,16 +3,7 @@ use chrono::{Datelike, NaiveDate};
 use num::PrimInt;
 use std::{fmt::Write, marker::PhantomData, str::FromStr};
 
-use crate::scalar::interval::Interval;
-
-pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 1, 1) {
-    Some(date) => date,
-    _ => unreachable!(),
-};
-
-pub const EPOCH_DAYS_FROM_CE: i32 = 719_163;
-
-pub const SECONDS_IN_DAY: i64 = 86_400;
+use crate::{compute::date::EPOCH_DAYS_FROM_CE, scalar::interval::Interval};
 
 /// Logic for parsing a string into some type.
 pub trait Parser {
@@ -352,6 +343,8 @@ impl Parser for IntervalParser {
 
 #[cfg(test)]
 mod tests {
+    use crate::compute::date::EPOCH_NAIVE_DATE;
+
     use super::*;
 
     #[test]

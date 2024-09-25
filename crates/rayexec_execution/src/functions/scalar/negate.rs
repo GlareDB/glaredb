@@ -8,6 +8,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use super::macros::primitive_unary_execute_bool;
 use super::{PlannedScalarFunction, ScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +122,61 @@ impl PlannedScalarFunction for NegateImpl {
             Array::Float64(input) => {
                 primitive_unary_execute!(input, Float64, |a| -a)
             }
+            other => panic!("unexpected array type: {other:?}"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Not;
+
+impl FunctionInfo for Not {
+    fn name(&self) -> &'static str {
+        "not"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        &[Signature {
+            input: &[DataTypeId::Boolean],
+            variadic: None,
+            return_type: DataTypeId::Boolean,
+        }]
+    }
+}
+
+impl ScalarFunction for Not {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+        Ok(Box::new(NotImpl))
+    }
+
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+        plan_check_num_args(self, inputs, 1)?;
+        match &inputs[0] {
+            DataType::Boolean => Ok(Box::new(NotImpl)),
+            other => Err(invalid_input_types_error(self, &[other])),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotImpl;
+
+impl PlannedScalarFunction for NotImpl {
+    fn scalar_function(&self) -> &dyn ScalarFunction {
+        &Not
+    }
+
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
+    fn return_type(&self) -> DataType {
+        DataType::Boolean
+    }
+
+    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+        Ok(match inputs[0].as_ref() {
+            Array::Boolean(arr) => primitive_unary_execute_bool!(arr, |b| !b),
             other => panic!("unexpected array type: {other:?}"),
         })
     }

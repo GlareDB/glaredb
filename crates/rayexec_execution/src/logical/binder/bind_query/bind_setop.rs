@@ -37,7 +37,7 @@ pub enum SetOpCastRequirement {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSetOp {
     pub left: Box<BoundQuery>,
     pub left_scope: BindScopeRef,
@@ -125,7 +125,7 @@ impl<'a> SetOpBinder<'a> {
             let left_score = implicit_cast_score(&right, left.datatype_id());
             let right_score = implicit_cast_score(&left, right.datatype_id());
 
-            if left_score == 0 && right_score == 0 {
+            if left_score.is_none() && right_score.is_none() {
                 return Err(RayexecError::new(format!(
                     "Cannot find suitable cast type for {left} and {right}"
                 )));
@@ -162,7 +162,8 @@ impl<'a> SetOpBinder<'a> {
         let table_ref = bind_context.push_table(self.current, None, output_types, left_names)?;
 
         // ORDER BY and LIMIT on output of the setop.
-        let modifier_binder = ModifierBinder::new(vec![self.current], self.resolve_context);
+        let modifier_binder =
+            ModifierBinder::new(vec![left_scope, right_scope], self.resolve_context);
         // TODO: This select list should be able to reference aliases in the output.
         let mut empty_select_list =
             SelectList::try_new(self.current, bind_context, self.resolve_context, Vec::new())?;

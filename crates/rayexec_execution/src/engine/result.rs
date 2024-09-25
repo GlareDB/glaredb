@@ -17,6 +17,8 @@ use crate::{
     runtime::{handle::QueryHandle, ErrorSink},
 };
 
+use super::profiler::PlanningProfileData;
+
 /// Create sinks and streams for sending query output to a client.
 pub fn new_results_sinks() -> (ResultStream, ResultSink, ResultErrorSink) {
     let inner = Arc::new(Mutex::new(InnerState {
@@ -40,6 +42,7 @@ pub fn new_results_sinks() -> (ResultStream, ResultSink, ResultErrorSink) {
 
 #[derive(Debug)]
 pub struct ExecutionResult {
+    pub planning_profile: PlanningProfileData,
     pub output_schema: Schema,
     pub stream: ResultStream,
     pub handle: Box<dyn QueryHandle>,

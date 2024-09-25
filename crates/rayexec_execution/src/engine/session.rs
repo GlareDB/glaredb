@@ -25,10 +25,11 @@ use crate::{
         resolver::{ResolveMode, Resolver},
     },
     optimizer::Optimizer,
-    runtime::{PipelineExecutor, Runtime},
+    runtime::{time::Timer, PipelineExecutor, Runtime},
 };
 
 use super::{
+    profiler::PlanningProfileData,
     result::{new_results_sinks, ExecutionResult},
     DataSourceRegistry,
 };
@@ -165,6 +166,8 @@ where
             .map(|p| p.statement.clone())
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
+        let mut profile = PlanningProfileData::default();
+
         let tx = CatalogTx::new();
 
         let bindmode = if self.hybrid_client.is_some() {
@@ -173,6 +176,7 @@ where
             ResolveMode::Normal
         };
 
+        let timer = Timer::<R::Instant>::start();
         let (resolved_stmt, resolve_context) = Resolver::new(
             bindmode,
             &tx,
@@ -181,6 +185,7 @@ where
         )
         .resolve_statement(stmt)
         .await?;
+        profile.resolve_step = Some(timer.stop());
 
         let (stream, sink, errors) = new_results_sinks();
 
@@ -209,11 +214,17 @@ where
                     session_vars: &self.vars,
                     resolve_context: &resolve_context,
                 };
+                let timer = Timer::<R::Instant>::start();
                 let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
+                profile.bind_step = Some(timer.stop());
+
+                let timer = Timer::<R::Instant>::start();
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
+                profile.plan_logical_step = Some(timer.stop());
 
                 let mut optimizer = Optimizer::new();
                 logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
+                profile.optimizer_step = Some(optimizer.profile_data);
 
                 // If we're an explain, put a copy of the optimized plan on the
                 // node.
@@ -278,7 +289,12 @@ where
                         }
                         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
-                    root => planner.plan_pipelines(root, bind_context)?,
+                    root => {
+                        let timer = Timer::<R::Instant>::start();
+                        let pipelines = planner.plan_pipelines(root, bind_context)?;
+                        profile.plan_intermediate_step = Some(timer.stop());
+                        pipelines
+                    }
                 };
 
                 if !pipelines.remote.is_empty() {
@@ -300,10 +316,14 @@ where
             },
         );
 
+        let timer = Timer::<R::Instant>::start();
         let pipelines = planner.plan_from_intermediate(pipelines, materializations)?;
+        profile.plan_executable_step = Some(timer.stop());
+
         let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
 
         Ok(ExecutionResult {
+            planning_profile: profile,
             output_schema,
             stream,
             handle,

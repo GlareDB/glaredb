@@ -1,6 +1,4 @@
-# CASE
-
-query TI
+query TT
 DESCRIBE SELECT
     l_shipmode,
     sum(
@@ -19,7 +17,7 @@ DESCRIBE SELECT
         END) AS low_line_count
 FROM
     '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
+    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders
 WHERE
     o_orderkey = l_orderkey
     AND l_shipmode IN ('MAIL', 'SHIP')
@@ -32,3 +30,41 @@ GROUP BY
 ORDER BY
     l_shipmode;
 ----
+l_shipmode       Utf8
+high_line_count  Int64
+low_line_count   Int64
+
+query ???
+SELECT
+    l_shipmode,
+    sum(
+        CASE WHEN o_orderpriority = '1-URGENT'
+            OR o_orderpriority = '2-HIGH' THEN
+            1
+        ELSE
+            0
+        END) AS high_line_count,
+    sum(
+        CASE WHEN o_orderpriority <> '1-URGENT'
+            AND o_orderpriority <> '2-HIGH' THEN
+            1
+        ELSE
+            0
+        END) AS low_line_count
+FROM
+    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
+    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders
+WHERE
+    o_orderkey = l_orderkey
+    AND l_shipmode IN ('MAIL', 'SHIP')
+    AND l_commitdate < l_receiptdate
+    AND l_shipdate < l_commitdate
+    AND l_receiptdate >= CAST('1994-01-01' AS date)
+    AND l_receiptdate < CAST('1995-01-01' AS date)
+GROUP BY
+    l_shipmode
+ORDER BY
+    l_shipmode;
+----
+MAIL  647  945
+SHIP  620  943

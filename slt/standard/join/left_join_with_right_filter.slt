@@ -1,0 +1,26 @@
+# LEFT JOIN with a condition that can be pushed to the right side.
+
+statement ok
+CREATE TEMP TABLE t1 (a INT);
+
+statement ok
+CREATE TEMP TABLE t2 (b INT);
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+
+statement ok
+INSERT INTO t2 VALUES (2), (3), (4), (5);
+
+# 'b > 2' can be pushed to the right side.
+#
+# This catches a bug where the join condition extractor was accidentally pushing
+# it to the left filters.
+query I rowsort
+SELECT * FROM t1 LEFT JOIN t2 ON a = b AND b > 2;
+----
+1  NULL
+2  NULL
+3  3
+4  4
+

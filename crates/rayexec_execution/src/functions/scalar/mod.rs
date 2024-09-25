@@ -2,6 +2,7 @@ pub mod arith;
 pub mod boolean;
 pub mod comparison;
 pub mod concat;
+pub mod datetime;
 pub mod like;
 pub mod list;
 pub mod negate;
@@ -15,6 +16,7 @@ use once_cell::sync::Lazy;
 use rayexec_bullet::{array::Array, datatype::DataType};
 use rayexec_error::Result;
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::sync::Arc;
 
 use crate::expr::Expression;
@@ -47,6 +49,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(numeric::IsNan),
         // String
         Box::new(string::Repeat),
+        Box::new(string::Substring),
         Box::new(concat::Concat),
         Box::new(like::StartsWith),
         Box::new(like::EndsWith),
@@ -57,11 +60,14 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(struct_funcs::StructPack),
         // Unary
         Box::new(negate::Negate),
+        Box::new(negate::Not),
         // Random
         Box::new(random::Random),
         // List
         Box::new(list::ListExtract),
         Box::new(list::ListValues),
+        // Datetime
+        Box::new(datetime::DatePart),
     ]
 });
 
@@ -122,6 +128,8 @@ impl PartialEq for dyn ScalarFunction + '_ {
     }
 }
 
+impl Eq for dyn ScalarFunction {}
+
 /// A scalar function with potentially some state associated with it.
 pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     /// The scalar function that's able to produce an instance of this planned
@@ -154,9 +162,18 @@ impl PartialEq for dyn PlannedScalarFunction + '_ {
     }
 }
 
+impl Eq for dyn PlannedScalarFunction {}
+
 impl Clone for Box<dyn PlannedScalarFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
+    }
+}
+
+impl Hash for dyn PlannedScalarFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.scalar_function().name().hash(state);
+        self.return_type().hash(state);
     }
 }
 

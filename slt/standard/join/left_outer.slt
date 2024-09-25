@@ -1,20 +1,30 @@
 # LEFT OUTER join
 
 statement ok
-create temp table t1 (a int, b int);
+CREATE TEMP TABLE t1 (a int, b int);
 
 statement ok
-insert into t1 values (1, 2), (2, 3), (3, 4);
+INSERT INTO t1 VALUES (1, 2), (2, 3), (3, 4);
 
 statement ok
-create temp table t2 (a int, b int);
+CREATE TEMP TABLE t2 (a int, b int);
 
 statement ok
-insert into t2 values (1, 10), (2, 20);
+INSERT INTO t2 VALUES (1, 10), (2, 20);
 
 query IIII rowsort
-select * from t1 left outer join t2 on t1.a = t2.a
+SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a
 ----
 1  2  1     10
 2  3  2     20
 3  4  NULL  NULL
+
+# TODO: Unhandled join type for arbitrary join: Left
+# # Ensure we're evaluating all conditions and marking left row visits
+# # appropriately.
+# query IIII rowsort
+# SELECT * FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.a AND t1.a = 2;
+# ----
+# 1  2  NULL  NULL
+# 2  3  2     20
+# 3  4  NULL  NULL

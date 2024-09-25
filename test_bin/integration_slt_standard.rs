@@ -2,7 +2,7 @@ use rayexec_error::Result;
 use rayexec_execution::engine::Engine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
 pub fn main() -> Result<()> {
     run_multi_threaded()?;
@@ -25,6 +25,7 @@ fn run_with_engine(
                 session,
                 vars: ReplacementVars::default(),
                 create_slt_tmp: false,
+                query_timeout: Duration::from_secs(5),
             })
         },
         tag,

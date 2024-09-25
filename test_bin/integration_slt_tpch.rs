@@ -6,7 +6,7 @@ use rayexec_execution::{
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
 pub fn main() -> Result<()> {
     let rt = NativeRuntime::with_default_tokio()?;
@@ -27,6 +27,7 @@ pub fn main() -> Result<()> {
                 session,
                 vars: ReplacementVars::default(),
                 create_slt_tmp: false,
+                query_timeout: Duration::from_secs(30), // Since these are all running in debug mode.
             })
         },
         "slt_tpch",

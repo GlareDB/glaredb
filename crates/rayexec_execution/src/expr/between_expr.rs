@@ -2,7 +2,7 @@ use super::Expression;
 use std::fmt;
 
 /// <input> BETWEEN <lower> AND <upper>
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BetweenExpr {
     pub lower: Box<Expression>,
     pub upper: Box<Expression>,

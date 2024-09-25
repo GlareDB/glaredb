@@ -1,18 +1,25 @@
 pub mod condition_extractor;
+pub mod extracted_filter;
 pub mod split;
 
-use std::collections::HashSet;
+use extracted_filter::ExtractedFilter;
 
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
 use rayexec_error::{RayexecError, Result};
 use split::split_conjunction;
 
 use crate::{
-    expr::Expression,
+    expr::{self, Expression},
     logical::{
         binder::bind_context::{BindContext, TableRef},
+        logical_aggregate::LogicalAggregate,
+        logical_distinct::LogicalDistinct,
         logical_filter::LogicalFilter,
-        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_join::{
+            JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
+            LogicalMagicJoin,
+        },
+        logical_materialization::LogicalMaterializationScan,
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -22,47 +29,12 @@ use crate::{
 
 use super::OptimizeRule;
 
-/// Holds a filtering expression and all table refs the expression references.
-#[derive(Debug)]
-struct ExtractedFilter {
-    /// The filter expression.
-    filter: Expression,
-    /// Tables refs this expression references.
-    tables_refs: HashSet<TableRef>,
-}
-
-impl ExtractedFilter {
-    fn from_expr(expr: Expression) -> Self {
-        fn inner(child: &Expression, refs: &mut HashSet<TableRef>) {
-            match child {
-                Expression::Column(col) => {
-                    refs.insert(col.table_scope);
-                }
-                other => other
-                    .for_each_child(&mut |child| {
-                        inner(child, refs);
-                        Ok(())
-                    })
-                    .expect("getting table refs to not fail"),
-            }
-        }
-
-        let mut refs = HashSet::new();
-        inner(&expr, &mut refs);
-
-        ExtractedFilter {
-            filter: expr,
-            tables_refs: refs,
-        }
-    }
-}
-
 #[derive(Debug, Default)]
-pub struct FilterPushdownRule {
+pub struct FilterPushdown {
     filters: Vec<ExtractedFilter>,
 }
 
-impl OptimizeRule for FilterPushdownRule {
+impl OptimizeRule for FilterPushdown {
     fn optimize(
         &mut self,
         bind_context: &mut BindContext,
@@ -77,14 +49,20 @@ impl OptimizeRule for FilterPushdownRule {
             LogicalOperator::ComparisonJoin(join) => {
                 self.pushdown_comparison_join(bind_context, join)
             }
+            LogicalOperator::MagicJoin(join) => self.pushdown_magic_join(bind_context, join),
             LogicalOperator::Project(project) => self.pushdown_project(bind_context, project),
+            LogicalOperator::Aggregate(agg) => self.pushdown_aggregate(bind_context, agg),
             LogicalOperator::Order(order) => self.pushdown_order_by(bind_context, order),
+            LogicalOperator::Distinct(distinct) => self.pushdown_distinct(bind_context, distinct),
+            LogicalOperator::MaterializationScan(mat) => {
+                self.pushdown_materialized_scan(bind_context, mat)
+            }
             other => self.stop_pushdown(bind_context, other),
         }
     }
 }
 
-impl FilterPushdownRule {
+impl FilterPushdown {
     /// Adds an expression as a filter that we'll be pushing down.
     fn add_filter(&mut self, expr: Expression) {
         let mut split = Vec::new();
@@ -105,20 +83,17 @@ impl FilterPushdownRule {
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         // Continue with a separate pushdown step for the children.
-        let mut children = Vec::with_capacity(plan.children().len());
-        for mut child in plan.children_mut().drain(..) {
-            let mut pushdown = FilterPushdownRule::default();
-            child = pushdown.optimize(bind_context, child)?;
-            children.push(child)
-        }
-        *plan.children_mut() = children;
+        plan.modify_replace_children(&mut |child| {
+            let mut pushdown = FilterPushdown::default();
+            pushdown.optimize(bind_context, child)
+        })?;
 
         if self.filters.is_empty() {
             // No remaining filters.
             return Ok(plan);
         }
 
-        let filter = Expression::and_all(self.filters.drain(..).map(|ex| ex.filter))
+        let filter = expr::and(self.filters.drain(..).map(|ex| ex.filter))
             .expect("expression to be created from non-empty iter");
 
         Ok(LogicalOperator::Filter(Node {
@@ -128,46 +103,55 @@ impl FilterPushdownRule {
         }))
     }
 
+    fn pushdown_materialized_scan(
+        &mut self,
+        bind_context: &mut BindContext,
+        plan: Node<LogicalMaterializationScan>,
+    ) -> Result<LogicalOperator> {
+        // TODO: I have no idea how this will work with recursively called
+        // scans.
+
+        // Note we may end up trying to optimize the materialized plan multiple
+        // times if it's being scanned multiple times, but that shouldn't impact
+        // anything, we'll just try to optimize an optimized plan some
+        // additional number of times.
+        let orig = {
+            let mat = &mut bind_context.get_materialization_mut(plan.node.mat)?;
+            std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
+        };
+
+        // Optimize the materialized plan _without_ our current set of
+        // filters.
+        let mut pushdown = FilterPushdown::default();
+        let optimized = pushdown.optimize(bind_context, orig)?;
+
+        let mat = bind_context.get_materialization_mut(plan.node.mat)?;
+        mat.plan = optimized;
+
+        // Ensure we wrap this scan in any remaining filters.
+        self.stop_pushdown(bind_context, LogicalOperator::MaterializationScan(plan))
+    }
+
+    /// Push down through a project.
+    ///
+    /// Column references for stored filters will be updated to point to the
+    /// children of the projection and not the projection itself.
     fn pushdown_project(
         &mut self,
         bind_context: &mut BindContext,
         mut plan: Node<LogicalProject>,
     ) -> Result<LogicalOperator> {
-        /// Replaces an expression that's referencing the project with the
-        /// expression from the project by cloning it.
-        fn replace_projection_reference(
-            project: &LogicalProject,
-            expr: &mut Expression,
-        ) -> Result<()> {
-            match expr {
-                Expression::Column(col) => {
-                    // Filters should only be referencing their child. If this
-                    // filter expression isn't, then that's definitely a bug.
-                    if col.table_scope != project.projection_table {
-                        return Err(RayexecError::new(format!("Filter not referencing projection, filter ref: {col}, projection table: {}", project.projection_table)));
-                    }
-                    if col.column >= project.projections.len() {
-                        return Err(RayexecError::new(format!(
-                            "Filter referencing column outside of projection, filter ref: {col}"
-                        )));
-                    }
-
-                    *expr = project.projections[col.column].clone();
-
-                    Ok(())
-                }
-                other => other
-                    .for_each_child_mut(&mut |child| replace_projection_reference(project, child)),
-            }
-        }
-
         let mut child_pushdown = Self::default();
 
         // Drain current filters to replace column references with concrete
         // expressions from the project.
         for filter in self.filters.drain(..) {
             let mut expr = filter.filter;
-            replace_projection_reference(&plan.node, &mut expr)?;
+            replace_references(
+                &plan.node.projections,
+                plan.node.projection_table,
+                &mut expr,
+            )?;
 
             let filter = ExtractedFilter::from_expr(expr);
             child_pushdown.filters.push(filter);
@@ -184,14 +168,101 @@ impl FilterPushdownRule {
         Ok(LogicalOperator::Project(plan))
     }
 
+    fn pushdown_aggregate(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: Node<LogicalAggregate>,
+    ) -> Result<LogicalOperator> {
+        let mut child_pushdown = Self::default();
+
+        let mut remaining_filters = Vec::new();
+
+        // Find filters that we can pushdown, replacing column references as
+        // needed.
+        //
+        // This can only push down filters that refernence columns in the group
+        // by.
+        for filter in self.filters.drain(..) {
+            // Cannot pushdown filter referencing aggregate output.
+            if filter.tables_refs.contains(&plan.node.aggregates_table) {
+                remaining_filters.push(filter);
+                continue;
+            }
+
+            let grouping_sets = match &plan.node.grouping_sets {
+                Some(sets) => sets,
+                None => {
+                    // No GROUP BY, nothing to match on.
+                    remaining_filters.push(filter);
+                    continue;
+                }
+            };
+
+            let group_table = plan
+                .node
+                .group_table
+                .expect("group table ref must exist if grouping sets exists");
+
+            let expr_cols = filter.filter.get_column_references();
+
+            // Check that all grouping sets contain all column references in the
+            // filter.
+            let all_contain = grouping_sets.iter().all(|grouping_set| {
+                expr_cols.iter().all(|expr_col| {
+                    // Expr can only reference the grouping table or the agg
+                    // outputs. We already check the agg outputs above, so this
+                    // must be true.
+                    debug_assert_eq!(group_table, expr_col.table_scope);
+
+                    grouping_set.contains(&expr_col.column)
+                })
+            });
+
+            if !all_contain {
+                remaining_filters.push(filter);
+                continue;
+            }
+
+            // Filter is something we can push down, replace column references
+            // and add to child pushdowner.
+            let mut expr = filter.filter;
+            replace_references(&plan.node.group_exprs, group_table, &mut expr)?;
+
+            child_pushdown.add_filter(expr);
+        }
+
+        // Replace any filters that we can't push down.
+        self.filters = remaining_filters;
+
+        // Push down child.
+        plan.modify_replace_children(&mut |child| child_pushdown.optimize(bind_context, child))?;
+
+        // Put all remaining filters on top of rewritten agg node.
+        self.stop_pushdown(bind_context, LogicalOperator::Aggregate(plan))
+    }
+
+    fn pushdown_distinct(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: Node<LogicalDistinct>,
+    ) -> Result<LogicalOperator> {
+        // TODO: This will likely need to be revisited when DISTINCT ON is
+        // supported for real.
+        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
+
+        Ok(LogicalOperator::Distinct(plan))
+    }
+
+    /// Push down through an ORDER BY.
+    ///
+    /// No changes needed for the order by node.
     fn pushdown_order_by(
         &mut self,
         bind_context: &mut BindContext,
         mut plan: Node<LogicalOrder>,
     ) -> Result<LogicalOperator> {
-        let mut child = plan.take_one_child_exact()?;
-        child = self.optimize(bind_context, child)?;
-        plan.children = vec![child];
+        // No changes needed for this node, just pass the filter(s) through.
+        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
 
         Ok(LogicalOperator::Order(plan))
     }
@@ -233,10 +304,139 @@ impl FilterPushdownRule {
         }
     }
 
+    /// Push down through a magic join.
+    ///
+    /// This assumes that the left side a materialized scan, and the right
+    /// contains any number of "magic" materialized scans.
+    ///
+    /// Since this join "owns" the materialization, we're free to push filters
+    /// down through to the materialization since left and right are dependent
+    /// on each other, and we do not need to worry about materialized scans
+    /// outside of this join.
+    ///
+    /// We do not make changes to the conditions of this join as they're
+    /// referencing correlated columns (and would be found in both the left and
+    /// right always). They will always be hash joins.
+    fn pushdown_magic_join(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut plan: Node<LogicalMagicJoin>,
+    ) -> Result<LogicalOperator> {
+        match plan.node.join_type {
+            JoinType::Left | JoinType::LeftMark { .. } => {
+                // Push down filters that reference only the left side.
+                //
+                // This **requires** the materialization scans on the right to
+                // produce deduplicated tuples (on the correlated columns). The
+                // "magic" scan enforces this.
+                //
+                // # Magic
+                //
+                // A filter may reference a previously correlated column,
+                // however the decorrelation step only exposes the original
+                // reference on the left side. The right side exposes new column
+                // references (which corresponds to the same underlying
+                // correlated column).
+                //
+                // By having scan on the left keep the original column
+                // references, and the scans on right exposing new ones, filters
+                // that reference the original correlated column will be seen to
+                // only apply to the left side (and thus we're able push into
+                // the materialization). The filters are implicitly applied to
+                // the right by way of the "magic" scans referencing the same
+                // materialization.
+
+                let mut left_pushdown = Self::default();
+                let mut right_pushdown = Self::default();
+
+                let [left, right] = plan.take_two_children_exact()?;
+
+                let left_tables = left.get_output_table_refs();
+                let right_tables = match plan.node.join_type {
+                    JoinType::Left => right.get_output_table_refs(),
+                    JoinType::LeftMark { table_ref } => vec![table_ref], // Right side is only able to reference the mark column.
+                    _ => unreachable!("join type checked in outer match"),
+                };
+
+                let mut remaining_filters = Vec::new();
+
+                for filter in self.filters.drain(..) {
+                    let side = ExprJoinSide::try_from_table_refs(
+                        &filter.tables_refs,
+                        &left_tables,
+                        &right_tables,
+                    )?;
+
+                    match side {
+                        ExprJoinSide::Left => {
+                            // Filter should be pushed to materialization.
+                            left_pushdown.filters.push(filter);
+                        }
+                        _ => remaining_filters.push(filter),
+                    }
+                }
+                self.filters = remaining_filters;
+
+                match &left {
+                    LogicalOperator::MaterializationScan(scan) => {
+                        // Sanity check.
+                        if scan.node.mat != plan.node.mat_ref {
+                            return Err(RayexecError::new(format!(
+                                "Different materialization refs: {} and {}",
+                                scan.node.mat, plan.node.mat_ref
+                            )));
+                        }
+
+                        let orig = {
+                            let mat = &mut bind_context.get_materialization_mut(scan.node.mat)?;
+                            std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
+                        };
+
+                        let optimized = left_pushdown.optimize(bind_context, orig)?;
+
+                        let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                        mat.plan = optimized;
+                    }
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Unexpected operator on left side of magic join: {other:?}"
+                        )))
+                    }
+                }
+
+                let new_right = right_pushdown.optimize(bind_context, right)?;
+
+                self.stop_pushdown(
+                    bind_context,
+                    LogicalOperator::MagicJoin(Node {
+                        node: LogicalMagicJoin {
+                            mat_ref: plan.node.mat_ref,
+                            join_type: plan.node.join_type,
+                            conditions: plan.node.conditions,
+                        },
+                        location: plan.location,
+                        children: vec![left, new_right], // Left doesn't change, just a reference to a materialization.
+                    }),
+                )
+            }
+            // TODO: Left mark
+            _ => self.stop_pushdown(bind_context, LogicalOperator::MagicJoin(plan)),
+        }
+    }
+
+    /// Pushdown through a comparison join.
+    ///
+    /// INNER: Turn the join into a cross join + filters. Then push down through
+    /// cross join. The provides the opportunity for pushing down conditions
+    /// further in the query along with adding more conditions to the result
+    /// join.
+    ///
+    /// LEFT: Does not modify the join, but may push down additional filters to
+    /// the left side.
     fn pushdown_comparison_join(
         &mut self,
         bind_context: &mut BindContext,
-        plan: Node<LogicalComparisonJoin>,
+        mut plan: Node<LogicalComparisonJoin>,
     ) -> Result<LogicalOperator> {
         match plan.node.join_type {
             JoinType::Inner => {
@@ -254,12 +454,57 @@ impl FilterPushdownRule {
 
                 self.pushdown_cross_join(bind_context, plan)
             }
+            JoinType::Left | JoinType::LeftMark { .. } => {
+                let mut left_pushdown = Self::default();
+                let mut right_pushdown = Self::default();
+
+                let [mut left, mut right] = plan.take_two_children_exact()?;
+
+                let left_tables = left.get_output_table_refs();
+                let right_tables = match plan.node.join_type {
+                    JoinType::Left => right.get_output_table_refs(),
+                    JoinType::LeftMark { table_ref } => vec![table_ref], // Exprs can only reference the mark column if left mark.
+                    _ => unreachable!("join type checked in outer match"),
+                };
+
+                let mut remaining_filters = Vec::new();
+                for filter in self.filters.drain(..) {
+                    let side = ExprJoinSide::try_from_table_refs(
+                        &filter.tables_refs,
+                        &left_tables,
+                        &right_tables,
+                    )?;
+
+                    // Can only push filters to left side.
+                    if side == ExprJoinSide::Left {
+                        left_pushdown.filters.push(filter);
+                        continue;
+                    }
+
+                    remaining_filters.push(filter);
+                }
+
+                // Put back remaining filters.
+                self.filters = remaining_filters;
+
+                // Left/right pushdown.
+                left = left_pushdown.optimize(bind_context, left)?;
+                right = right_pushdown.optimize(bind_context, right)?;
+
+                plan.children = vec![left, right];
+
+                self.stop_pushdown(bind_context, LogicalOperator::ComparisonJoin(plan))
+            }
             // TODO: Other optimizations.
             _ => self.stop_pushdown(bind_context, LogicalOperator::ComparisonJoin(plan)),
         }
     }
 
     /// Push down through a cross join.
+    ///
+    /// This will attempt to turn the cross join into an INNER join. Any
+    /// remaining filters will be be placed in a filter node just above the
+    /// resulting join.
     fn pushdown_cross_join(
         &mut self,
         bind_context: &mut BindContext,
@@ -338,6 +583,8 @@ impl FilterPushdownRule {
         }
 
         // Create the join using the extracted conditions.
+        //
+        // This will handle creating the join + filter if needed.
         FromPlanner.plan_join_from_conditions(
             JoinType::Inner,
             conditions.comparisons,
@@ -345,5 +592,40 @@ impl FilterPushdownRule {
             left,
             right,
         )
+    }
+}
+
+/// Recursively replaces column references in `expr` with the underlying column
+/// expression via cloning.
+///
+/// This expects all column references in `expr` to be pointing to the same
+/// table ref.
+fn replace_references(
+    columns: &[Expression],
+    table_ref: TableRef,
+    expr: &mut Expression,
+) -> Result<()> {
+    match expr {
+        Expression::Column(col) => {
+            if col.table_scope != table_ref {
+                return Err(RayexecError::new(format!(
+                    "Unexpected table ref, expected {}, got {}",
+                    table_ref, col.table_scope
+                )));
+            }
+            if col.column >= columns.len() {
+                return Err(RayexecError::new(format!(
+                    "Column reference outside of expected columns, ref: {col}, columns len: {}",
+                    columns.len()
+                )));
+            }
+
+            *expr = columns[col.column].clone();
+
+            Ok(())
+        }
+        other => {
+            other.for_each_child_mut(&mut |child| replace_references(columns, table_ref, child))
+        }
     }
 }

@@ -369,7 +369,7 @@ pub struct IntermediateOperator {
     /// If this operator has a partitioning requirement.
     ///
     /// If set, the input and output partitions for this operator will be the
-    /// value provided. If unset, it'll default to a value determeded by the
+    /// value provided. If unset, it'll default to a value determined by the
     /// executable pipeline planner.
     pub(crate) partitioning_requirement: Option<usize>,
 }

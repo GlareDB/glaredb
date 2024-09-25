@@ -1,0 +1,26 @@
+# EXTRACT function (essentially an alias for date_part)
+
+query R
+SELECT EXTRACT(day FROM DATE '2012-07-04');
+----
+4.000
+
+query R
+SELECT EXTRACT('day' FROM DATE '2012-07-04');
+----
+4.000
+
+query R
+SELECT EXTRACT(Day FROM DATE '2012-07-04');
+----
+4.000
+
+query R
+SELECT EXTRACT(month FROM DATE '2012-07-04');
+----
+7.000
+
+query R
+SELECT EXTRACT(year FROM DATE '2012-07-04');
+----
+2012.000

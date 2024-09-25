@@ -5,7 +5,7 @@ use rayexec_bullet::{
     batch::Batch,
     datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
     field::{Field, Schema},
-    scalar::decimal::{Decimal128Type, DecimalType, DECIMAL_DEFUALT_SCALE},
+    scalar::decimal::{Decimal128Type, DecimalType},
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_io::{
@@ -259,7 +259,7 @@ fn struct_field_to_field(field: StructField) -> Result<Field> {
             PrimitiveType::Double => DataType::Float64,
             PrimitiveType::Decimal => DataType::Decimal128(DecimalTypeMeta::new(
                 Decimal128Type::MAX_PRECISION,
-                DECIMAL_DEFUALT_SCALE,
+                Decimal128Type::DEFAULT_SCALE,
             )),
             PrimitiveType::Boolean => DataType::Boolean,
             PrimitiveType::Binary => DataType::Binary,

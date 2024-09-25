@@ -1,7 +1,7 @@
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralExpr {
     pub literal: OwnedScalarValue,
 }

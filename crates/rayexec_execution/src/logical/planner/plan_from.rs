@@ -3,7 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::{
     expr::{
-        column_expr::ColumnExpr, comparison_expr::ComparisonExpr, literal_expr::LiteralExpr,
+        self, column_expr::ColumnExpr, comparison_expr::ComparisonExpr, literal_expr::LiteralExpr,
         Expression,
     },
     logical::{
@@ -213,8 +213,7 @@ impl FromPlanner {
         if !extracted.left_filter.is_empty() {
             left = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: Expression::and_all(extracted.left_filter)
-                        .expect("at least one expression"),
+                    filter: expr::and(extracted.left_filter).expect("at least one expression"),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left],
@@ -224,8 +223,7 @@ impl FromPlanner {
         if !extracted.right_filter.is_empty() {
             right = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: Expression::and_all(extracted.right_filter)
-                        .expect("at least one expression"),
+                    filter: expr::and(extracted.right_filter).expect("at least one expression"),
                 },
                 location: LocationRequirement::Any,
                 children: vec![right],
@@ -277,7 +275,7 @@ impl FromPlanner {
             return Ok(LogicalOperator::ArbitraryJoin(Node {
                 node: LogicalArbitraryJoin {
                     join_type,
-                    condition: Expression::and_all(expressions).expect("at least one expression"),
+                    condition: expr::and(expressions).expect("at least one expression"),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -298,7 +296,7 @@ impl FromPlanner {
         if !arbitrary.is_empty() {
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: Expression::and_all(arbitrary).expect("at least one expression"),
+                    filter: expr::and(arbitrary).expect("at least one expression"),
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

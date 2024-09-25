@@ -1,10 +1,10 @@
-use std::ops::Neg;
+use std::{ops::Neg, str::FromStr};
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    keywords::Keyword,
+    keywords::{keyword_from_str, Keyword},
     meta::{AstMeta, Raw},
     parser::Parser,
     tokens::{Token, Word},
@@ -205,6 +205,30 @@ pub enum Expr<T: AstMeta> {
         subquery: Box<QueryNode<T>>,
         not_exists: bool,
     },
+    /// ANY (<subquery>)
+    AnySubquery {
+        left: Box<Expr<T>>,
+        op: BinaryOperator,
+        right: Box<QueryNode<T>>,
+    },
+    /// ALL (<subquery>)
+    AllSubquery {
+        left: Box<Expr<T>>,
+        op: BinaryOperator,
+        right: Box<QueryNode<T>>,
+    },
+    /// IN (<subquery>)
+    InSubquery {
+        negated: bool,
+        expr: Box<Expr<T>>,
+        subquery: Box<QueryNode<T>>,
+    },
+    /// IN (<list>)
+    InList {
+        negated: bool,
+        expr: Box<Expr<T>>,
+        list: Vec<Expr<T>>,
+    },
     /// DATE '1992-10-11'
     TypedString {
         datatype: T::DataType,
@@ -223,7 +247,7 @@ pub enum Expr<T: AstMeta> {
     Like {
         expr: Box<Expr<T>>,
         pattern: Box<Expr<T>>,
-        not_like: bool,
+        negated: bool,
         case_insensitive: bool,
     },
     /// Interval
@@ -231,6 +255,41 @@ pub enum Expr<T: AstMeta> {
     /// `INTERVAL '1 year 2 months'`
     /// `INTERVAL 1 YEAR`
     Interval(Interval<T>),
+    /// `<expr> BETWEEN <low> AND <high>`
+    Between {
+        negated: bool,
+        expr: Box<Expr<T>>,
+        low: Box<Expr<T>>,
+        high: Box<Expr<T>>,
+    },
+    /// Case epxression.
+    ///
+    /// `CASE <expr> WHEN <condition> THEN <result> ... ELSE <else_expr> END`
+    /// `CASE <expr> WHEN <condition> THEN <result> ... END`
+    /// `CASE WHEN <condition> THEN <result> ... ELSE <else_expr> END`
+    /// `CASE WHEN <condition> THEN <result> ... END`
+    Case {
+        expr: Option<Box<Expr<T>>>,
+        conditions: Vec<Expr<T>>,
+        results: Vec<Expr<T>>,
+        else_expr: Option<Box<Expr<T>>>,
+    },
+    /// Substrings expression.
+    ///
+    /// `SUBSTRING(<string>, FROM <from>, [FOR <count>]),
+    /// `SUBSTRING(<string>, <from>, [<count>]),
+    Substring {
+        expr: Box<Expr<T>>,
+        from: Box<Expr<T>>,
+        count: Option<Box<Expr<T>>>,
+    },
+    /// Extract expression.
+    ///
+    /// `EXTRACT(<date_part> FROM <expr>)`
+    Extract {
+        date_part: DatePart,
+        expr: Box<Expr<T>>,
+    },
 }
 
 impl AstParseable for Expr<Raw> {
@@ -344,6 +403,83 @@ impl Expr<Raw> {
                             expr: Box::new(expr),
                         }
                     }
+                    Keyword::CASE => {
+                        let expr = if !parser.parse_keyword(Keyword::WHEN) {
+                            let expr = Expr::parse(parser)?;
+                            parser.expect_keyword(Keyword::WHEN)?;
+                            Some(Box::new(expr))
+                        } else {
+                            None
+                        };
+
+                        let mut conditions = Vec::new();
+                        let mut results = Vec::new();
+
+                        loop {
+                            conditions.push(Expr::parse(parser)?);
+                            parser.expect_keyword(Keyword::THEN)?;
+                            results.push(Expr::parse(parser)?);
+                            if !parser.parse_keyword(Keyword::WHEN) {
+                                break;
+                            }
+                        }
+
+                        let else_expr = if parser.parse_keyword(Keyword::ELSE) {
+                            Some(Box::new(Expr::parse(parser)?))
+                        } else {
+                            None
+                        };
+
+                        parser.expect_keyword(Keyword::END)?;
+
+                        Expr::Case {
+                            expr,
+                            conditions,
+                            results,
+                            else_expr,
+                        }
+                    }
+                    Keyword::SUBSTRING => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let expr = Expr::parse(parser)?;
+
+                        let from = if parser.consume_token(&Token::Comma)
+                            || parser.parse_keyword(Keyword::FROM)
+                        {
+                            Box::new(Expr::parse(parser)?)
+                        } else {
+                            return Err(RayexecError::new("Missing FROM argument for SUBSTRING"));
+                        };
+
+                        let count = if parser.consume_token(&Token::Comma)
+                            || parser.parse_keyword(Keyword::FOR)
+                        {
+                            Some(Box::new(Expr::parse(parser)?))
+                        } else {
+                            None
+                        };
+
+                        parser.expect_token(&Token::RightParen)?;
+
+                        Expr::Substring {
+                            expr: Box::new(expr),
+                            from,
+                            count,
+                        }
+                    }
+                    Keyword::EXTRACT => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let date_part = DatePart::parse(parser)?;
+                        parser.expect_keyword(Keyword::FROM)?;
+                        let expr = Expr::parse(parser)?;
+                        parser.expect_token(&Token::RightParen)?;
+
+                        Expr::Extract {
+                            date_part,
+                            expr: Box::new(expr),
+                        }
+                    }
+
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
                 },
                 None => Self::parse_ident_expr(w.clone(), parser)?,
@@ -427,8 +563,27 @@ impl Expr<Raw> {
         };
 
         if let Some(op) = bin_op {
-            if let Some(_kw) = parser.parse_one_of_keywords(&[Keyword::ALL, Keyword::ANY]) {
-                unimplemented!()
+            if let Some(kw) =
+                parser.parse_one_of_keywords(&[Keyword::ALL, Keyword::ANY, Keyword::SOME])
+            {
+                // TODO: Need to also allow array expressions instead of subqueries.
+                parser.expect_token(&Token::LeftParen)?;
+                let right = QueryNode::parse(parser)?;
+                parser.expect_token(&Token::RightParen)?;
+
+                match kw {
+                    Keyword::ALL => Ok(Expr::AllSubquery {
+                        left: Box::new(prefix),
+                        op,
+                        right: Box::new(right),
+                    }),
+                    Keyword::ANY | Keyword::SOME => Ok(Expr::AnySubquery {
+                        left: Box::new(prefix),
+                        op,
+                        right: Box::new(right),
+                    }),
+                    _ => unreachable!(),
+                }
             } else {
                 Ok(Expr::BinaryExpr {
                     left: Box::new(prefix),
@@ -448,17 +603,18 @@ impl Expr<Raw> {
 
             match kw {
                 Keyword::IS => {
-                    unimplemented!()
+                    not_implemented!("IS parse")
                 }
+                // TODO: Loop on the NOT so we don't need to repeat.
                 Keyword::NOT => match parser.next_keyword()? {
                     Keyword::LIKE => Ok(Expr::Like {
-                        not_like: true,
+                        negated: true,
                         case_insensitive: false,
                         expr: Box::new(prefix),
                         pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                     }),
                     Keyword::ILIKE => Ok(Expr::Like {
-                        not_like: true,
+                        negated: true,
                         case_insensitive: true,
                         expr: Box::new(prefix),
                         pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
@@ -469,18 +625,47 @@ impl Expr<Raw> {
                         )))
                     }
                 },
+                Keyword::IN => {
+                    parser.expect_token(&Token::LeftParen)?;
+                    let expr = if QueryNode::is_query_node_start(parser) {
+                        Expr::InSubquery {
+                            negated: false,
+                            expr: Box::new(prefix),
+                            subquery: Box::new(QueryNode::parse(parser)?),
+                        }
+                    } else {
+                        Expr::InList {
+                            negated: false,
+                            expr: Box::new(prefix),
+                            list: parser.parse_comma_separated(Expr::parse)?,
+                        }
+                    };
+                    parser.expect_token(&Token::RightParen)?;
+                    Ok(expr)
+                }
                 Keyword::LIKE => Ok(Expr::Like {
-                    not_like: false,
+                    negated: false,
                     case_insensitive: false,
                     expr: Box::new(prefix),
                     pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                 }),
                 Keyword::ILIKE => Ok(Expr::Like {
-                    not_like: false,
+                    negated: false,
                     case_insensitive: true,
                     expr: Box::new(prefix),
                     pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                 }),
+                Keyword::BETWEEN => {
+                    let low = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                    parser.expect_keyword(Keyword::AND)?;
+                    let high = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                    Ok(Expr::Between {
+                        negated: false,
+                        expr: Box::new(prefix),
+                        low: Box::new(low),
+                        high: Box::new(high),
+                    })
+                }
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unexpected keyword in infix expression: {other}"
@@ -777,6 +962,136 @@ impl AstParseable for Interval<Raw> {
             leading: None,
             trailing,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DatePart {
+    Century,
+    Day,
+    Decade,
+    DayOfWeek,
+    DayOfYear,
+    Epoch,
+    Hour,
+    IsoDayOfWeek,
+    IsoYear,
+    Julian,
+    Microseconds,
+    Millenium,
+    Milliseconds,
+    Minute,
+    Month,
+    Quarter,
+    Second,
+    Timezone,
+    TimezoneHour,
+    TimezoneMinute,
+    Week,
+    Year,
+}
+
+impl AstParseable for DatePart {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        let tok = match parser.peek() {
+            Some(tok) => tok,
+            None => {
+                return Err(RayexecError::new(
+                    "Expected keyword or string, got end of statement",
+                ))
+            }
+        };
+
+        match &tok.token {
+            Token::Word(word) => {
+                let keyword = match word.keyword {
+                    Some(k) => k,
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "Expected a keyword, got {}",
+                            word.value,
+                        )))
+                    }
+                };
+                let _ = parser.next(); // Consume
+                Self::try_from_kw(keyword)
+            }
+            Token::SingleQuotedString(s) => {
+                let kw = keyword_from_str(s)
+                    .ok_or_else(|| RayexecError::new(format!("Unexpected date part: {s}")))?;
+                let _ = parser.next(); // Consume
+                Self::try_from_kw(kw)
+            }
+            other => Err(RayexecError::new(format!(
+                "Expected a keyword: got {other:?}"
+            ))),
+        }
+    }
+}
+
+impl DatePart {
+    pub fn try_from_kw(kw: Keyword) -> Result<Self> {
+        Ok(match kw {
+            Keyword::CENTURY => DatePart::Century,
+            Keyword::DAY => DatePart::Day,
+            Keyword::DECADE => DatePart::Decade,
+            Keyword::DOW => DatePart::DayOfWeek,
+            Keyword::DOY => DatePart::DayOfYear,
+            Keyword::EPOCH => DatePart::Epoch,
+            Keyword::HOUR => DatePart::Hour,
+            Keyword::ISODOW => DatePart::IsoDayOfWeek,
+            Keyword::ISOYEAR => DatePart::IsoYear,
+            Keyword::JULIAN => DatePart::Julian,
+            Keyword::MICROSECONDS => DatePart::Microseconds,
+            Keyword::MILLENIUM => DatePart::Millenium,
+            Keyword::MILLISECONDS => DatePart::Milliseconds,
+            Keyword::MINUTE => DatePart::Minute,
+            Keyword::MONTH => DatePart::Month,
+            Keyword::QUARTER => DatePart::Quarter,
+            Keyword::SECOND => DatePart::Second,
+            Keyword::TIMEZONE => DatePart::Timezone,
+            Keyword::TIMEZONE_HOUR => DatePart::TimezoneHour,
+            Keyword::TIMEZONE_MINUTE => DatePart::TimezoneMinute,
+            Keyword::WEEK => DatePart::Week,
+            Keyword::YEAR => DatePart::Year,
+            other => return Err(RayexecError::new(format!("Unexepcted date part: {other}"))),
+        })
+    }
+
+    pub fn into_kw(self) -> Keyword {
+        match self {
+            DatePart::Century => Keyword::CENTURY,
+            DatePart::Day => Keyword::DAY,
+            DatePart::Decade => Keyword::DECADE,
+            DatePart::DayOfWeek => Keyword::DOW,
+            DatePart::DayOfYear => Keyword::DOY,
+            DatePart::Epoch => Keyword::EPOCH,
+            DatePart::Hour => Keyword::HOUR,
+            DatePart::IsoDayOfWeek => Keyword::ISODOW,
+            DatePart::IsoYear => Keyword::ISOYEAR,
+            DatePart::Julian => Keyword::JULIAN,
+            DatePart::Microseconds => Keyword::MICROSECONDS,
+            DatePart::Millenium => Keyword::MILLENIUM,
+            DatePart::Milliseconds => Keyword::MILLISECONDS,
+            DatePart::Minute => Keyword::MINUTE,
+            DatePart::Month => Keyword::MONTH,
+            DatePart::Quarter => Keyword::QUARTER,
+            DatePart::Second => Keyword::SECOND,
+            DatePart::Timezone => Keyword::TIMEZONE,
+            DatePart::TimezoneHour => Keyword::TIMEZONE_HOUR,
+            DatePart::TimezoneMinute => Keyword::TIMEZONE_MINUTE,
+            DatePart::Week => Keyword::WEEK,
+            DatePart::Year => Keyword::YEAR,
+        }
+    }
+}
+
+impl FromStr for DatePart {
+    type Err = RayexecError;
+    fn from_str(s: &str) -> Result<Self> {
+        let kw = keyword_from_str(s)
+            .ok_or_else(|| RayexecError::new(format!("'{s}' is not a valid date part")))?;
+        Self::try_from_kw(kw)
     }
 }
 
@@ -1187,6 +1502,89 @@ mod tests {
             left: Box::new(Expr::Ident(Ident::from_string("s1"))),
             op: BinaryOperator::StringStartsWith,
             right: Box::new(Expr::Ident(Ident::from_string("s2"))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn between() {
+        let expr: Expr<_> = parse_ast("col BETWEEN a AND b").unwrap();
+        let expected = Expr::Between {
+            negated: false,
+            expr: Box::new(Expr::Ident(Ident::from_string("col"))),
+            low: Box::new(Expr::Ident(Ident::from_string("a"))),
+            high: Box::new(Expr::Ident(Ident::from_string("b"))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_no_leading_expr_no_else() {
+        let expr: Expr<_> = parse_ast("CASE WHEN a > b THEN c END").unwrap();
+        let expected = Expr::Case {
+            expr: None,
+            conditions: vec![Expr::BinaryExpr {
+                left: Box::new(Expr::Ident(Ident::from_string("a"))),
+                op: BinaryOperator::Gt,
+                right: Box::new(Expr::Ident(Ident::from_string("b"))),
+            }],
+            results: vec![Expr::Ident(Ident::from_string("c"))],
+            else_expr: None,
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_with_leading_expr_no_else() {
+        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c END").unwrap();
+        let expected = Expr::Case {
+            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            conditions: vec![Expr::Ident(Ident::from_string("b"))],
+            results: vec![Expr::Ident(Ident::from_string("c"))],
+            else_expr: None,
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_with_leading_expr_with_else() {
+        let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c ELSE d END").unwrap();
+        let expected = Expr::Case {
+            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            conditions: vec![Expr::Ident(Ident::from_string("b"))],
+            results: vec![Expr::Ident(Ident::from_string("c"))],
+            else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn case_multiple_conditions() {
+        let expr: Expr<_> = parse_ast("CASE a WHEN b1 THEN c1 WHEN b2 THEN c2 ELSE d END").unwrap();
+        let expected = Expr::Case {
+            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            conditions: vec![
+                Expr::Ident(Ident::from_string("b1")),
+                Expr::Ident(Ident::from_string("b2")),
+            ],
+            results: vec![
+                Expr::Ident(Ident::from_string("c1")),
+                Expr::Ident(Ident::from_string("c2")),
+            ],
+            else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
+        };
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn substring_from() {
+        let expr: Expr<_> = parse_ast("SUBSTRING('string' FROM 3)").unwrap();
+        let expected = Expr::Substring {
+            expr: Box::new(Expr::Literal(Literal::SingleQuotedString(
+                "string".to_string(),
+            ))),
+            from: Box::new(Expr::Literal(Literal::Number("3".to_string()))),
+            count: None,
         };
         assert_eq!(expected, expr);
     }

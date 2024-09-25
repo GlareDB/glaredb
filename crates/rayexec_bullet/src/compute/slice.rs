@@ -42,6 +42,8 @@ pub fn slice(arr: &Array, start: usize, count: usize) -> Result<Array> {
                 primitive,
             ))
         }
+        Array::Date32(arr) => Array::Date32(slice_primitive(arr, start, count)?),
+        Array::Date64(arr) => Array::Date64(slice_primitive(arr, start, count)?),
         Array::Timestamp(arr) => {
             let sliced = slice_primitive(arr.get_primitive(), start, count)?;
             Array::Timestamp(TimestampArray::new(arr.unit(), sliced))

@@ -8,7 +8,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::{
     execution::executable::{
         pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
-        profiler::QueryProfileData,
+        profiler::ExecutionProfileData,
     },
     runtime::{handle::QueryHandle, ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider},
 };
@@ -228,9 +228,9 @@ impl QueryHandle for WasmQueryHandle {
         // TODO
     }
 
-    fn generate_profile_data(&self) -> BoxFuture<'_, Result<QueryProfileData>> {
+    fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
         Box::pin(async {
-            let mut data = QueryProfileData::default();
+            let mut data = ExecutionProfileData::default();
 
             for state in self.states.iter() {
                 let pipeline = state.pipeline.lock();

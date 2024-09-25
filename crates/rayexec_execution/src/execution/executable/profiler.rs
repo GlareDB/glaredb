@@ -7,12 +7,12 @@ use crate::explain::explainable::ExplainConfig;
 use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct QueryProfileData {
+pub struct ExecutionProfileData {
     /// Profile data for all pipelines in this query.
     pub pipelines: BTreeMap<PipelineId, PipelineProfileData>,
 }
 
-impl QueryProfileData {
+impl ExecutionProfileData {
     pub fn add_partition_data(&mut self, partition: &ExecutablePartitionPipeline) {
         let pipeline_data = self.pipelines.entry(partition.pipeline_id()).or_default();
 
@@ -39,7 +39,7 @@ impl QueryProfileData {
     }
 }
 
-impl fmt::Display for QueryProfileData {
+impl fmt::Display for ExecutionProfileData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (id, pipeline) in &self.pipelines {
             writeln!(f, "Pipeline {id:?}")?;

@@ -53,3 +53,33 @@ SELECT b, SUM(a) FROM test GROUP BY b HAVING SUM(a)>(SELECT SUM(t.a)*0.5 FROM te
 ----
 22	24
 
+# TODO: Error source: query failed: Not yet implemented: join type with nl join: LEFT
+# correlated subquery in having
+# query IR
+# SELECT test.b, SUM(a) FROM test GROUP BY test.b HAVING SUM(a)=(SELECT SUM(a) FROM test t WHERE test.b=t.b) ORDER BY test.b;
+# ----
+# 21	12.000000
+# 22	24.000000
+
+# TODO: Error source: query failed: Not yet implemented: join type with nl join: LEFT
+# use outer aggregation in inner subquery
+# query IR
+# SELECT test.b, SUM(a) FROM test GROUP BY test.b HAVING SUM(a)*2=(SELECT SUM(a)+SUM(t.a) FROM test t WHERE test.b=t.b) ORDER BY test.b
+# ----
+# 21	12.000000
+# 22	24.000000
+
+# TODO: Error source: query failed: Not yet implemented: join type with nl join: LEFT
+# use outer aggregation that hasn't been used yet in subquery
+# query IR
+# SELECT test.b, SUM(a) FROM test GROUP BY test.b HAVING SUM(a)*2+2=(SELECT SUM(a)+SUM(t.a)+COUNT(t.a) FROM test t WHERE test.b=t.b) ORDER BY test.b
+# ----
+# 22	24.000000
+
+# TODO: Error source: query failed: Not yet implemented: join type with nl join: LEFT
+# ORDER BY subquery
+# query IR
+# SELECT test.b, SUM(a) FROM test GROUP BY test.b ORDER BY (SELECT SUM(a) FROM test t WHERE test.b=t.b) DESC;
+# ----
+# 22	24.000000
+# 21	12.000000

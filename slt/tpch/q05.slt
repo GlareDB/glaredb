@@ -25,7 +25,7 @@ ORDER BY
     revenue DESC;
 ----
 n_name   Utf8
-revenue  Decimal64(15,2)
+revenue  Decimal64(18,4)
 
 query ??
 SELECT
@@ -53,3 +53,9 @@ GROUP BY
 ORDER BY
     revenue DESC;
 ----
+CHINA      7822103.0000
+INDIA      6376121.5085
+JAPAN      6000077.2184
+INDONESIA  5580475.4027
+VIETNAM    4497840.5466
+

@@ -1,8 +1,11 @@
 use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
+use std::fmt;
+
+use crate::compute::util::IntoExtactSizeIterator;
 
 /// An LSB ordered bitmap.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Bitmap {
     len: usize,
     data: Vec<u8>,
@@ -125,7 +128,11 @@ impl Bitmap {
     /// Bit OR this bitmap with some other bitmap.
     pub fn bit_or_mut(&mut self, other: &Bitmap) -> Result<()> {
         if self.len() != other.len() {
-            return Err(RayexecError::new("Bitmap lengths do not match"));
+            return Err(RayexecError::new(format!(
+                "Bitmap lengths do not match (or), got {} and {}",
+                self.len(),
+                other.len()
+            )));
         }
 
         for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
@@ -138,7 +145,11 @@ impl Bitmap {
     /// Bit AND this bitmap with some other bitmap.
     pub fn bit_and_mut(&mut self, other: &Bitmap) -> Result<()> {
         if self.len() != other.len() {
-            return Err(RayexecError::new("Bitmap lengths do not match"));
+            return Err(RayexecError::new(format!(
+                "Bitmap lengths do not match (and), got {} and {}",
+                self.len(),
+                other.len()
+            )));
         }
 
         for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
@@ -148,10 +159,55 @@ impl Bitmap {
         Ok(())
     }
 
+    /// Bit AND NOT this bitmap with some other bitmap.
+    pub fn bit_and_not_mut(&mut self, other: &Bitmap) -> Result<()> {
+        if self.len() != other.len() {
+            return Err(RayexecError::new(format!(
+                "Bitmap lengths do not match (and not), got {} and {}",
+                self.len(),
+                other.len()
+            )));
+        }
+
+        for (byte, other) in self.data.iter_mut().zip(other.data.iter()) {
+            *byte &= !*other;
+        }
+
+        Ok(())
+    }
+
     pub fn bit_negate(&mut self) {
         for b in self.data.iter_mut() {
             *b = !*b;
         }
+    }
+
+    pub fn try_as_u64(&self) -> Result<u64> {
+        if self.len() > 64 {
+            return Err(RayexecError::new("Bitmap too large, cannot turn into u64"));
+        }
+
+        let mut val = [0; 8];
+        let mut last = 0;
+        for (idx, byte) in self.data.iter().enumerate() {
+            val[idx] = *byte;
+            last = idx;
+        }
+
+        let rem = self.len % 8;
+        if rem != 0 {
+            let mask = (255 << (8 - rem)) >> (8 - rem);
+            val[last] &= mask;
+        }
+
+        Ok(u64::from_le_bytes(val))
+    }
+}
+
+impl fmt::Debug for Bitmap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let values: Vec<_> = self.iter().collect();
+        f.debug_struct("Bitmap").field("values", &values).finish()
     }
 }
 
@@ -195,6 +251,15 @@ impl Extend<bool> for Bitmap {
     }
 }
 
+impl<'a> IntoExtactSizeIterator for &'a Bitmap {
+    type Item = bool;
+    type IntoIter = BitmapIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// Iterator over individual bits (bools) in the bitmap.
 #[derive(Debug)]
 pub struct BitmapIter<'a> {
@@ -222,6 +287,8 @@ impl<'a> Iterator for BitmapIter<'a> {
         )
     }
 }
+
+impl<'a> ExactSizeIterator for BitmapIter<'a> {}
 
 /// Iterator over all "valid" indexes in the bitmap.
 #[derive(Debug)]
@@ -441,5 +508,48 @@ mod tests {
         let bm = Bitmap::from_iter([true, false, false, true, false, true]);
         let indexes: Vec<_> = bm.index_iter().rev().collect();
         assert_eq!(vec![5, 3, 0], indexes);
+    }
+
+    #[test]
+    fn try_as_u64_cases() {
+        struct TestCase {
+            bitmap: Bitmap,
+            expected: u64,
+        }
+
+        let cases = [
+            TestCase {
+                bitmap: Bitmap::from_iter([false, false, false, false, false]),
+                expected: 0,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([true, false, false, false, false]),
+                expected: 1,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([true, false, true, false, false]),
+                expected: 5,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([
+                    true, false, true, false, false, false, false, false, //
+                    false, true, true, false, false, false, false, false, //
+                ]),
+                expected: 1541,
+            },
+            TestCase {
+                bitmap: Bitmap::from_iter([
+                    true, false, true, false, false, false, false, false, //
+                    false, true, true, false, false, false, false, false, //
+                    true,
+                ]),
+                expected: 67077,
+            },
+        ];
+
+        for case in cases {
+            let got = case.bitmap.try_as_u64().unwrap();
+            assert_eq!(case.expected, got);
+        }
     }
 }

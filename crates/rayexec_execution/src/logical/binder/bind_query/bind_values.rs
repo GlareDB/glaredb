@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundValues {
     pub rows: Vec<Vec<Expression>>,
     pub expressions_table: TableRef,

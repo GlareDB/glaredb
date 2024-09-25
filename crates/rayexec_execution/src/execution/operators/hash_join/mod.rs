@@ -138,7 +138,10 @@ impl PhysicalHashJoin {
     }
 
     const fn is_left_join(&self) -> bool {
-        matches!(self.join_type, JoinType::Left | JoinType::Full)
+        matches!(
+            self.join_type,
+            JoinType::Left | JoinType::Full | JoinType::LeftMark { .. }
+        )
     }
 }
 
@@ -153,9 +156,15 @@ impl ExecutableOperator for PhysicalHashJoin {
         let probe_partitions = partitions[0];
 
         let right_join = matches!(self.join_type, JoinType::Full | JoinType::Right);
+        let mark_join = matches!(self.join_type, JoinType::LeftMark { .. });
 
         let shared = SharedState {
-            partial: JoinHashTable::new(self.left_types.clone(), &self.conditions, right_join),
+            partial: JoinHashTable::new(
+                self.left_types.clone(),
+                &self.conditions,
+                right_join,
+                mark_join,
+            ),
             build_inputs_remaining: build_partitions,
             probe_inputs_remaining: probe_partitions,
             shared_global: None,
@@ -174,6 +183,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                         self.left_types.clone(),
                         &self.conditions,
                         right_join,
+                        mark_join,
                     ),
                     hash_buf: Vec::new(),
                 })
@@ -215,7 +225,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
                 // Compute left hashes on equality condition.
-                let result = self.equality.left.eval(&batch)?;
+                let result = self.equality.left.eval(&batch, None)?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
                 let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
@@ -274,7 +284,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // Compute right hashes on equality condition.
-                let result = self.equality.right.eval(&batch)?;
+                let result = self.equality.right.eval(&batch, None)?;
                 state.hash_buf.clear();
                 state.hash_buf.resize(result.len(), 0);
                 let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
@@ -319,7 +329,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // Merge local table into the global table.
                 let local_table = std::mem::replace(
                     &mut state.local_hashtable,
-                    JoinHashTable::new(Vec::new(), &[], false), // TODO: A bit hacky.
+                    JoinHashTable::new(Vec::new(), &[], false, false), // TODO: A bit hacky.
                 );
                 shared.partial.merge(local_table)?;
 
@@ -333,7 +343,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 if shared.build_inputs_remaining == 0 {
                     let global_table = std::mem::replace(
                         &mut shared.partial,
-                        JoinHashTable::new(Vec::new(), &[], false), // TODO: A bit hacky.
+                        JoinHashTable::new(Vec::new(), &[], false, false), // TODO: A bit hacky.
                     );
 
                     // Init global left tracker too if needed.
@@ -461,9 +471,18 @@ impl ExecutableOperator for PhysicalHashJoin {
                 if state.input_finished {
                     // Check if we're still draining unvisited left rows.
                     if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
-                        match drain_state.drain_next()? {
-                            Some(batch) => return Ok(PollPull::Batch(batch)),
-                            None => return Ok(PollPull::Exhausted),
+                        if matches!(self.join_type, JoinType::LeftMark { .. }) {
+                            // Mark drain
+                            match drain_state.drain_mark_next()? {
+                                Some(batch) => return Ok(PollPull::Batch(batch)),
+                                None => return Ok(PollPull::Exhausted),
+                            }
+                        } else {
+                            // Normal left drain
+                            match drain_state.drain_next()? {
+                                Some(batch) => return Ok(PollPull::Batch(batch)),
+                                None => return Ok(PollPull::Exhausted),
+                            }
                         }
                     }
 

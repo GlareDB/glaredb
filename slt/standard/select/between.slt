@@ -1,0 +1,38 @@
+# BETWEEN
+
+query T
+SELECT 4 BETWEEN 2 AND 8;
+----
+true
+
+query T
+SELECT 9 BETWEEN 2 AND 8;
+----
+false
+
+query T
+SELECT NULL BETWEEN 2 AND 8;
+----
+NULL
+
+statement ok
+CREATE TEMP TABLE t1 (a INT);
+
+statement ok
+INSERT INTO t1 VALUES (4), (5), (6), (7), (8), (NULL);
+
+query T rowsort
+SELECT * FROM t1 WHERE a BETWEEN 5 AND 7;
+----
+5
+6
+7
+
+query T rowsort
+SELECT * FROM t1 WHERE a BETWEEN -84 AND 92;
+----
+4
+5
+6
+7
+8

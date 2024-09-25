@@ -7,7 +7,7 @@ use crate::{
     executor::scalar::UnaryExecutor,
     scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
 };
-use num::{NumCast, PrimInt, ToPrimitive};
+use num::{Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
 use std::{
     fmt::{self, Display},
@@ -228,6 +228,14 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Float32(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Float32(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Float32(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::Float32(arr), DataType::Decimal64(m)) => {
+            let prim = cast_float_to_decimal::<_, Decimal64Type>(arr, m.precision, m.scale)?;
+            Array::Decimal64(Decimal64Array::new(m.precision, m.scale, prim))
+        }
+        (Array::Float32(arr), DataType::Decimal128(m)) => {
+            let prim = cast_float_to_decimal::<_, Decimal128Type>(arr, m.precision, m.scale)?;
+            Array::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
+        }
         // From FLoat64
         (Array::Float64(arr), DataType::Int8) => Array::Int8(cast_primitive_numeric(arr)?),
         (Array::Float64(arr), DataType::Int16) => Array::Int16(cast_primitive_numeric(arr)?),
@@ -239,6 +247,28 @@ pub fn cast_array(arr: &Array, to: &DataType) -> Result<Array> {
         (Array::Float64(arr), DataType::UInt64) => Array::UInt64(cast_primitive_numeric(arr)?),
         (Array::Float64(arr), DataType::Float32) => Array::Float32(cast_primitive_numeric(arr)?),
         (Array::Float64(arr), DataType::Float64) => Array::Float64(cast_primitive_numeric(arr)?),
+        (Array::Float64(arr), DataType::Decimal64(m)) => {
+            let prim = cast_float_to_decimal::<_, Decimal64Type>(arr, m.precision, m.scale)?;
+            Array::Decimal64(Decimal64Array::new(m.precision, m.scale, prim))
+        }
+        (Array::Float64(arr), DataType::Decimal128(m)) => {
+            let prim = cast_float_to_decimal::<_, Decimal128Type>(arr, m.precision, m.scale)?;
+            Array::Decimal128(Decimal128Array::new(m.precision, m.scale, prim))
+        }
+
+        // From Decimal
+        (Array::Decimal64(arr), DataType::Float32) => {
+            Array::Float32(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+        }
+        (Array::Decimal64(arr), DataType::Float64) => {
+            Array::Float64(cast_decimal_to_float::<_, Decimal64Type>(arr)?)
+        }
+        (Array::Decimal128(arr), DataType::Float32) => {
+            Array::Float32(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+        }
+        (Array::Decimal128(arr), DataType::Float64) => {
+            Array::Float64(cast_decimal_to_float::<_, Decimal128Type>(arr)?)
+        }
 
         // From Utf8
         (Array::Utf8(arr), datatype) => cast_from_utf8_array(arr, datatype)?,
@@ -478,6 +508,104 @@ where
     })
 }
 
+pub fn cast_decimal_to_float<F, D>(arr: &DecimalArray<D::Primitive>) -> Result<PrimitiveArray<F>>
+where
+    F: Float + fmt::Display,
+    D: DecimalType,
+{
+    let mut new_vals: Vec<F> = Vec::with_capacity(arr.len());
+
+    let scale = <F as NumCast>::from((10.0).powi(arr.scale() as i32)).ok_or_else(|| {
+        RayexecError::new(format!("Failed to cast scale {} to float", arr.scale()))
+    })?;
+
+    for val in arr.get_primitive().values().as_ref().iter() {
+        let val = <F as NumCast>::from(*val)
+            .ok_or_else(|| RayexecError::new(format!("Failed to convert {val} to float")))?;
+
+        let scale = val.div(scale);
+
+        new_vals.push(scale);
+    }
+
+    Ok(PrimitiveArray::new(
+        new_vals,
+        arr.get_primitive().validity().cloned(),
+    ))
+}
+
+fn cast_float_to_decimal<F, D>(
+    arr: &PrimitiveArray<F>,
+    precision: u8,
+    scale: i8,
+) -> Result<PrimitiveArray<D::Primitive>>
+where
+    F: Float + fmt::Display,
+    D: DecimalType,
+{
+    if scale.is_negative() {
+        return Err(RayexecError::new(
+            "Casting to decimal with negative scale not yet supported",
+        ));
+    }
+
+    let mut new_vals: Vec<D::Primitive> = Vec::with_capacity(arr.len());
+
+    let scale = <F as NumCast>::from(10.pow(scale.unsigned_abs() as u32))
+        .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
+
+    for val in arr.values().as_ref().iter() {
+        // TODO: Properly handle negative scale.
+        let scaled_value = val.mul(scale).round();
+
+        new_vals.push(
+            <D::Primitive as NumCast>::from(scaled_value).ok_or_else(|| {
+                RayexecError::new(format!("Failed to cast {val} to decimal primitive"))
+            })?,
+        );
+    }
+
+    // Validate precision.
+    // TODO: Skip nulls
+    for v in &new_vals {
+        D::validate_precision(*v, precision)?;
+    }
+
+    Ok(PrimitiveArray::new(new_vals, arr.validity().cloned()))
+}
+
+pub fn cast_decimal_to_new_precision_and_scale<D>(
+    arr: &DecimalArray<D::Primitive>,
+    new_precision: u8,
+    new_scale: i8,
+) -> Result<DecimalArray<D::Primitive>>
+where
+    D: DecimalType,
+{
+    let scale_amount =
+        <D::Primitive as NumCast>::from(10.pow((arr.scale() - new_scale).unsigned_abs() as u32))
+            .expect("to be in range");
+
+    let mut new_vals: Vec<D::Primitive> = arr.get_primitive().values().as_ref().to_vec();
+    if arr.scale() < new_scale {
+        new_vals.iter_mut().for_each(|v| *v = v.mul(scale_amount))
+    } else {
+        new_vals.iter_mut().for_each(|v| *v = v.div(scale_amount))
+    }
+
+    // Validate precision.
+    // TODO: Skip nulls
+    for v in &new_vals {
+        D::validate_precision(*v, new_precision)?;
+    }
+
+    Ok(DecimalArray::new(
+        new_precision,
+        new_scale,
+        PrimitiveArray::new(new_vals, arr.get_primitive().validity().cloned()),
+    ))
+}
+
 /// Cast a primitive int type to the primitive representation of a decimal.
 fn cast_int_to_decimal<I, D>(
     arr: &PrimitiveArray<I>,
@@ -492,10 +620,9 @@ where
 
     // Convert everything to the primitive.
     for val in arr.values().as_ref().iter() {
-        new_vals.push(
-            <D::Primitive as NumCast>::from(*val)
-                .ok_or_else(|| RayexecError::new(format!("Failed to cast {val}")))?,
-        );
+        new_vals.push(<D::Primitive as NumCast>::from(*val).ok_or_else(|| {
+            RayexecError::new(format!("Failed to cast {val} to decimal primitive"))
+        })?);
     }
 
     // Scale everything.

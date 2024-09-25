@@ -1,8 +1,67 @@
 # Arith on Decimals (with casting)
 
-# TODO: We should be able to infer precision/scale better, currently just set to
-# a default.
-query T
+query R
 select 8 - '4.20'::decimal
 ----
-3.800000000
+3.800
+
+# MUL
+
+query TT
+DESCRIBE SELECT 10.308::DECIMAL(8, 2) * 12.1::DECIMAL(8, 2);
+----
+?column?  Decimal64(18,4)
+
+query R
+SELECT 10.308::DECIMAL(8, 2) * 12.1::DECIMAL(8, 2);
+----
+124.7510
+
+query TT
+DESCRIBE SELECT 10.308::DECIMAL(8, 3) * 12.1::DECIMAL(8, 2);
+----
+?column? Decimal64(18,5)
+
+query R
+SELECT 10.308::DECIMAL(8, 3) * 12.1::DECIMAL(8, 2);
+----
+124.72680
+
+query R
+SELECT 10.308::DECIMAL(10, 3) * 12.1::DECIMAL(8, 2);
+----
+124.72680
+
+# TODO: 64 -> 128 auto cast
+# query R
+# SELECT 10.308::DECIMAL(32, 3) * 12.1::DECIMAL(8, 2);
+# ----
+# 124.72680
+
+query R
+SELECT 10.3::DECIMAL * 12.1::DECIMAL;
+----
+124.630000
+
+# Div
+
+query R
+SELECT 10.4::DECIMAL / 2.0::DECIMAL;
+----
+5.2
+
+query TT
+DESCRIBE SELECT 10.4::DECIMAL(12, 7) / 2.0::DECIMAL;
+----
+?column? Float64
+
+query R
+SELECT 10.4::DECIMAL(12, 7) / 2.0::DECIMAL;
+----
+5.2
+
+query R
+SELECT 10.4::DECIMAL / 2.0::DECIMAL(12, 7);
+----
+5.2
+

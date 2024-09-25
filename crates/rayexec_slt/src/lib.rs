@@ -1,6 +1,6 @@
 mod vars;
 use rayexec_bullet::format::pretty::table::pretty_format_batches;
-use rayexec_execution::runtime::handle::QueryHandle;
+use rayexec_execution::engine::result::ExecutionResult;
 pub use vars::*;
 
 mod convert;
@@ -56,6 +56,9 @@ pub struct RunConfig {
     /// still be populated, which allows for testing if a certain action can
     /// create a directory.
     pub create_slt_tmp: bool,
+
+    /// Max duration a query can be executing before being canceled.
+    pub query_timeout: Duration,
 }
 
 /// Run all SLTs from the provided paths.
@@ -244,7 +247,7 @@ impl TestSession {
         self.debug_partitions_set = true;
     }
 
-    async fn debug_print_profile_data(&self, handle: &dyn QueryHandle, sql: &str) {
+    async fn debug_print_profile_data(&self, results: &ExecutionResult, sql: &str) {
         if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
             // Not set.
             return;
@@ -253,8 +256,14 @@ impl TestSession {
         println!("---- PROFILE ----");
         println!("{sql}");
 
-        match handle.generate_profile_data().await {
-            Ok(data) => println!("{data}"),
+        println!("---- PLANNING ----");
+        println!("{}", results.planning_profile);
+
+        match results.handle.generate_execution_profile_data().await {
+            Ok(data) => {
+                println!("---- EXECUTION ----");
+                println!("{data}");
+            }
             Err(e) => println!("Profiling data not available: {e}"),
         }
     }
@@ -288,22 +297,26 @@ impl TestSession {
 
         let typs = schema_to_types(&results[0].output_schema);
 
-        loop {
-            // Each pull on the stream has a 5 sec timeout. If it takes longer than
-            // 5 secs, we can assume that the query is stuck.
-            let timeout = tokio::time::timeout(Duration::from_secs(5), results[0].stream.next());
+        // Timeout for the entire query.
+        let mut timeout = Box::pin(tokio::time::sleep(self.conf.query_timeout));
 
-            match timeout.await {
-                Ok(Some(result)) => {
-                    let batch = result?;
-                    rows.extend(batch_to_rows(batch)?);
+        // Continually read from the stream, erroring if we exceed timeout.
+        loop {
+            tokio::select! {
+                result = results[0].stream.next() => {
+                    match result {
+                        Some(result) => {
+                            let batch = result?;
+                            rows.extend(batch_to_rows(batch)?);
+                        }
+                        None => break,
+                    }
                 }
-                Ok(None) => break,
-                Err(_) => {
-                    // Timed out.
+                _ = &mut timeout => {
+                     // Timed out.
                     results[0].handle.cancel();
 
-                    let prof_data = results[0].handle.generate_profile_data().await.unwrap();
+                    let prof_data = results[0].handle.generate_execution_profile_data().await.unwrap();
                     return Err(RayexecError::new(format!(
                         "Variables\n{}\nQuery timed out\n---{prof_data}",
                         self.conf.vars
@@ -312,8 +325,7 @@ impl TestSession {
             }
         }
 
-        self.debug_print_profile_data(results[0].handle.as_ref(), sql)
-            .await;
+        self.debug_print_profile_data(&results[0], sql).await;
 
         Ok(sqllogictest::DBOutput::Rows { types: typs, rows })
     }

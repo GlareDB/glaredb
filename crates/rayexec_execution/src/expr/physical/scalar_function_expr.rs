@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::{array::Array, batch::Batch};
+use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap};
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use crate::{
@@ -18,11 +18,11 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval(&self, batch: &Batch) -> Result<Arc<Array>> {
+    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
         let inputs = self
             .inputs
             .iter()
-            .map(|input| input.eval(batch))
+            .map(|input| input.eval(batch, selection))
             .collect::<Result<Vec<_>>>()?;
         let refs: Vec<_> = inputs.iter().collect(); // Can I not?
         let mut out = self.function.execute(&refs)?;

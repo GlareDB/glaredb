@@ -6,13 +6,11 @@ create temp table t1 (a int);
 statement ok
 insert into t1 values (1), (2), (3);
 
-# TODO: Casted type not good.
-# https://github.com/GlareDB/rayexec/issues/229
 query TT
 DESCRIBE SELECT a, (SELECT t1.a + 2) FROM t1 ORDER BY a;
 ----
 a         Int32
-?column?  Float32
+?column?  Int64
 
 
 # Simple scalar select.

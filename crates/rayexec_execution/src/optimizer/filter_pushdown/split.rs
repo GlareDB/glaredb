@@ -8,12 +8,12 @@ use crate::expr::{
 pub fn split_conjunction(expr: Expression, out: &mut Vec<Expression>) {
     match expr {
         Expression::Conjunction(ConjunctionExpr {
-            left,
-            right,
+            expressions,
             op: ConjunctionOperator::And,
         }) => {
-            split_conjunction(*left, out);
-            split_conjunction(*right, out);
+            for expr in expressions {
+                split_conjunction(expr, out);
+            }
         }
         other => out.push(other),
     }
@@ -43,12 +43,14 @@ mod tests {
     #[test]
     fn split_conjunction_single_and() {
         let expr = Expression::Conjunction(ConjunctionExpr {
-            left: Box::new(Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
-            })),
-            right: Box::new(Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(false),
-            })),
+            expressions: vec![
+                Expression::Literal(LiteralExpr {
+                    literal: ScalarValue::Boolean(true),
+                }),
+                Expression::Literal(LiteralExpr {
+                    literal: ScalarValue::Boolean(false),
+                }),
+            ],
             op: ConjunctionOperator::And,
         });
 
@@ -69,18 +71,22 @@ mod tests {
     #[test]
     fn split_conjunction_right_nested_and() {
         let expr = Expression::Conjunction(ConjunctionExpr {
-            left: Box::new(Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
-            })),
-            right: Box::new(Expression::Conjunction(ConjunctionExpr {
-                left: Box::new(Expression::Literal(LiteralExpr {
+            expressions: vec![
+                Expression::Literal(LiteralExpr {
                     literal: ScalarValue::Boolean(true),
-                })),
-                right: Box::new(Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(false),
-                })),
-                op: ConjunctionOperator::And,
-            })),
+                }),
+                Expression::Conjunction(ConjunctionExpr {
+                    expressions: vec![
+                        Expression::Literal(LiteralExpr {
+                            literal: ScalarValue::Boolean(true),
+                        }),
+                        Expression::Literal(LiteralExpr {
+                            literal: ScalarValue::Boolean(false),
+                        }),
+                    ],
+                    op: ConjunctionOperator::And,
+                }),
+            ],
             op: ConjunctionOperator::And,
         });
 
@@ -104,18 +110,23 @@ mod tests {
     #[test]
     fn split_conjunction_left_nested_and() {
         let expr = Expression::Conjunction(ConjunctionExpr {
-            left: Box::new(Expression::Conjunction(ConjunctionExpr {
-                left: Box::new(Expression::Literal(LiteralExpr {
+            expressions: vec![
+                Expression::Conjunction(ConjunctionExpr {
+                    expressions: vec![
+                        Expression::Literal(LiteralExpr {
+                            literal: ScalarValue::Boolean(true),
+                        }),
+                        Expression::Literal(LiteralExpr {
+                            literal: ScalarValue::Boolean(false),
+                        }),
+                    ],
+                    op: ConjunctionOperator::And,
+                }),
+                Expression::Literal(LiteralExpr {
                     literal: ScalarValue::Boolean(true),
-                })),
-                right: Box::new(Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(false),
-                })),
-                op: ConjunctionOperator::And,
-            })),
-            right: Box::new(Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
-            })),
+                }),
+            ],
+
             op: ConjunctionOperator::And,
         });
 

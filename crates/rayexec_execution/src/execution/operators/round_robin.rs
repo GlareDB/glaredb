@@ -1,6 +1,6 @@
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -13,60 +13,7 @@ use crate::execution::operators::{
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
-use super::{ExecutionStates, PollFinalize};
-
-/// Create the appropriate states for the round robin repartition operator.
-pub fn round_robin_states(
-    input_partitions: usize,
-    output_partitions: usize,
-) -> (
-    RoundRobinOperatorState,
-    Vec<RoundRobinPushPartitionState>,
-    Vec<RoundRobinPullPartitionState>,
-) {
-    let operator_state = RoundRobinOperatorState {
-        num_inputs_remaining: AtomicUsize::new(input_partitions),
-    };
-
-    // Should probably tweak this. I'm currently setting this to match the
-    // number of input partitions because it _feels_ right, but I'm not able to
-    // put into words why I think that.
-    let buffer_cap = input_partitions;
-
-    let output_buffers: Vec<_> = (0..output_partitions)
-        .map(|_| BatchBuffer {
-            inner: Arc::new(Mutex::new(BatchBufferInner {
-                batches: VecDeque::with_capacity(buffer_cap),
-                recv_waker: None,
-                send_wakers: vec![None; input_partitions],
-                exhausted: false,
-            })),
-        })
-        .collect();
-
-    let mut push_states = Vec::with_capacity(input_partitions);
-    let mut push_to = 0;
-    for idx in 0..input_partitions {
-        let state = RoundRobinPushPartitionState {
-            own_idx: idx,
-            push_to,
-            output_buffers: output_buffers.clone(),
-            max_buffer_capacity: buffer_cap,
-        };
-        push_states.push(state);
-
-        // Each state should be initialized to push to a different output
-        // partition to avoid immediate contention as soon as execution begins.
-        push_to = (push_to + 1) % output_partitions;
-    }
-
-    let pull_states: Vec<_> = output_buffers
-        .into_iter()
-        .map(|buffer| RoundRobinPullPartitionState { buffer })
-        .collect();
-
-    (operator_state, push_states, pull_states)
-}
+use super::{ExecutionStates, InputOutputStates, PollFinalize};
 
 /// Partition state on the pull side.
 #[derive(Debug)]
@@ -110,9 +57,66 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
     fn create_states(
         &self,
         _context: &DatabaseContext,
-        _partitions: Vec<usize>,
+        partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
-        unimplemented!()
+        if partitions.len() != 2 {
+            return Err(RayexecError::new(
+                "Round robin expects to values (input, output) in partition vec",
+            ));
+        }
+
+        // TODO: Unsure if I like this.
+        let input_partitions = partitions[0];
+        let output_partitions = partitions[1];
+
+        let operator_state = RoundRobinOperatorState {
+            num_inputs_remaining: AtomicUsize::new(input_partitions),
+        };
+
+        // Should probably tweak this. I'm currently setting this to match the
+        // number of input partitions because it _feels_ right, but I'm not able to
+        // put into words why I think that.
+        let buffer_cap = input_partitions;
+
+        let output_buffers: Vec<_> = (0..output_partitions)
+            .map(|_| BatchBuffer {
+                inner: Arc::new(Mutex::new(BatchBufferInner {
+                    batches: VecDeque::with_capacity(buffer_cap),
+                    recv_waker: None,
+                    send_wakers: vec![None; input_partitions],
+                    exhausted: false,
+                })),
+            })
+            .collect();
+
+        let mut push_states = Vec::with_capacity(input_partitions);
+        let mut push_to = 0;
+        for idx in 0..input_partitions {
+            let state = PartitionState::RoundRobinPush(RoundRobinPushPartitionState {
+                own_idx: idx,
+                push_to,
+                output_buffers: output_buffers.clone(),
+                max_buffer_capacity: buffer_cap,
+            });
+            push_states.push(state);
+
+            // Each state should be initialized to push to a different output
+            // partition to avoid immediate contention as soon as execution begins.
+            push_to = (push_to + 1) % output_partitions;
+        }
+
+        let pull_states: Vec<_> = output_buffers
+            .into_iter()
+            .map(|buffer| PartitionState::RoundRobinPull(RoundRobinPullPartitionState { buffer }))
+            .collect();
+
+        Ok(ExecutionStates {
+            operator_state: Arc::new(OperatorState::RoundRobin(operator_state)),
+            partition_states: InputOutputStates::SeparateInputOutput {
+                push_states,
+                pull_states,
+            },
+        })
     }
 
     fn poll_push(

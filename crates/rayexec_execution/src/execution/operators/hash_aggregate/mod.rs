@@ -283,6 +283,8 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         }
                     }
 
+                    let group_id = null_mask.try_as_u64()?;
+
                     // Compute hashes on the group by values.
                     let hashes = AhashHasher::hash_arrays(&masked_grouping_columns, hash_buf)?;
 
@@ -308,6 +310,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                             hashes,
                             &aggregate_columns,
                             &selection,
+                            group_id,
                         )?;
                     }
                 }

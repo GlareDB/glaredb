@@ -1,10 +1,13 @@
 //! Compute kernels.
 pub mod cast;
 pub mod concat;
+pub mod date;
 pub mod filter;
 pub mod interleave;
 pub mod slice;
 pub mod take;
+
+pub mod util;
 
 mod macros {
     /// Helper macro for collecting all arrays of a concrete type into a single

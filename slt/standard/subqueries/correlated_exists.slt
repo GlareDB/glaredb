@@ -1,0 +1,29 @@
+# Correlated EXIST subqueries
+
+statement ok
+CREATE TEMP TABLE ints (i INT);
+
+statement ok
+INSERT INTO ints VALUES (4), (5), (6), (NULL);
+
+query IT
+SELECT i, EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
+----
+4     false
+5     true
+6     true
+NULL  false
+
+query IT
+SELECT i, NOT EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
+----
+4     true
+5     false
+6     false
+NULL  true
+
+query I rowsort
+SELECT i FROM ints a1 WHERE EXISTS(SELECT i FROM ints WHERE i > a1.i);
+----
+4
+5

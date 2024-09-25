@@ -1,6 +1,17 @@
-# Correlated
-query TI
-DESCRIBE SELECT
+query TT
+DESCRIBE WITH revenue0 AS (
+    SELECT
+        l_suppkey AS supplier_no,
+        sum(l_extendedprice * (1 - l_discount)) AS total_revenue
+    FROM
+        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+    WHERE
+        l_shipdate >= CAST('1996-01-01' AS date)
+      AND l_shipdate < CAST('1996-04-01' AS date)
+    GROUP BY
+        supplier_no
+)
+SELECT
     s_suppkey,
     s_name,
     s_address,
@@ -8,32 +19,51 @@ DESCRIBE SELECT
     total_revenue
 FROM
     '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-    (
-        SELECT
-            l_suppkey AS supplier_no,
-            sum(l_extendedprice * (1 - l_discount)) AS total_revenue
-        FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
-        WHERE
-            l_shipdate >= CAST('1996-01-01' AS date)
-            AND l_shipdate < CAST('1996-04-01' AS date)
-        GROUP BY
-            supplier_no) revenue0
+    revenue0
 WHERE
     s_suppkey = supplier_no
     AND total_revenue = (
         SELECT
             max(total_revenue)
-        FROM (
-            SELECT
-                l_suppkey AS supplier_no,
-                sum(l_extendedprice * (1 - l_discount)) AS total_revenue
-            FROM
-                '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
-            WHERE
-                l_shipdate >= CAST('1996-01-01' AS date)
-                AND l_shipdate < CAST('1996-04-01' AS date)
-            GROUP BY
-                supplier_no) revenue1)
+        FROM  revenue0)
 ORDER BY
     s_suppkey;
+----
+s_suppkey      Int32
+s_name         Utf8
+s_address      Utf8
+s_phone        Utf8
+total_revenue  Decimal64(18,4)
+
+query ?????
+WITH revenue0 AS (
+    SELECT
+        l_suppkey AS supplier_no,
+        sum(l_extendedprice * (1 - l_discount)) AS total_revenue
+    FROM
+        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+    WHERE
+        l_shipdate >= CAST('1996-01-01' AS date)
+      AND l_shipdate < CAST('1996-04-01' AS date)
+    GROUP BY
+        supplier_no
+)
+SELECT
+    s_suppkey,
+    s_name,
+    s_address,
+    s_phone,
+    total_revenue
+FROM
+    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    revenue0
+WHERE
+    s_suppkey = supplier_no
+    AND total_revenue = (
+        SELECT
+            max(total_revenue)
+        FROM  revenue0)
+ORDER BY
+    s_suppkey;
+----
+677  Supplier#000000677  TEJ  LMkTnY5hp8aQckzyb  23-290-639-3315  1614410.2928

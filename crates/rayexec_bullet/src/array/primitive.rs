@@ -5,7 +5,7 @@ use crate::{bitmap::Bitmap, datatype::TimeUnit};
 use super::{is_valid, ArrayAccessor};
 
 /// Array for storing primitive values.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PrimitiveArray<T> {
     /// Validity bitmap.
     ///
@@ -215,7 +215,7 @@ impl<T> PrimitiveArrayBuilder<T> {
 
 /// Wrapper around a primitive array for storing the precision+scale for a
 /// decimal type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DecimalArray<T> {
     precision: u8,
     scale: i8,
@@ -232,6 +232,14 @@ impl<T> DecimalArray<T> {
             scale,
             array,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.array.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn get_primitive(&self) -> &PrimitiveArray<T> {
@@ -256,6 +264,14 @@ pub struct TimestampArray {
 impl TimestampArray {
     pub fn new(unit: TimeUnit, array: PrimitiveArray<i64>) -> Self {
         TimestampArray { unit, array }
+    }
+
+    pub fn len(&self) -> usize {
+        self.array.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn get_primitive(&self) -> &PrimitiveArray<i64> {

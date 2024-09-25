@@ -1,0 +1,27 @@
+# Ensure we can properly push down through cross joins and turn them into inner joins.
+
+statement ok
+CREATE TEMP TABLE t1 (a INT);
+
+statement ok
+INSERT INTO t1 VALUES (1), (2), (3), (NULL);
+
+statement ok
+CREATE TEMP TABLE t2 (b INT);
+
+statement ok
+INSERT INTO t2 VALUES (1), (2), (3), (NULL);
+
+statement ok
+SET allow_nested_loop_join TO false;
+
+query IIII rowsort
+SELECT * FROM
+  (SELECT * FROM t1, t2) alias1,
+  (SELECT * FROM t1, t2) alias2
+WHERE alias1.a = alias1.b AND alias2.a = alias2.b AND alias1.a = alias2.a;
+----
+1  1  1  1
+2  2  2  2
+3  3  3  3
+

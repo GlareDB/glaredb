@@ -10,6 +10,7 @@ use crate::{
     expr::{
         aggregate_expr::AggregateExpr,
         arith_expr::{ArithExpr, ArithOperator},
+        case_expr::{CaseExpr, WhenThen},
         cast_expr::CastExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
@@ -23,8 +24,10 @@ use crate::{
         aggregate::AggregateFunction,
         scalar::{
             concat::Concat,
+            datetime::DatePart,
             like::{self, StartsWith},
             list::{ListExtract, ListValues},
+            string::Substring,
             ScalarFunction,
         },
         CastType,
@@ -50,6 +53,15 @@ pub struct RecursionContext {
     pub allow_windows: bool,
     /// If we're in the root expression.
     pub is_root: bool,
+}
+
+impl RecursionContext {
+    fn not_root(self) -> Self {
+        RecursionContext {
+            is_root: false,
+            ..self
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -215,14 +227,29 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 Ok(match op {
                     ast::UnaryOperator::Plus => expr,
-                    ast::UnaryOperator::Not => Expression::Negate(NegateExpr {
-                        op: NegateOperator::Not,
-                        expr: Box::new(expr),
-                    }),
-                    ast::UnaryOperator::Minus => Expression::Negate(NegateExpr {
-                        op: NegateOperator::Negate,
-                        expr: Box::new(expr),
-                    }),
+                    ast::UnaryOperator::Not => {
+                        let [expr] = self.apply_cast_for_operator(
+                            bind_context,
+                            NegateOperator::Not,
+                            [expr],
+                        )?;
+                        Expression::Negate(NegateExpr {
+                            op: NegateOperator::Not,
+                            expr: Box::new(expr),
+                        })
+                    }
+                    ast::UnaryOperator::Minus => {
+                        let [expr] = self.apply_cast_for_operator(
+                            bind_context,
+                            NegateOperator::Negate,
+                            [expr],
+                        )?;
+
+                        Expression::Negate(NegateExpr {
+                            op: NegateOperator::Negate,
+                            expr: Box::new(expr),
+                        })
+                    }
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
@@ -361,8 +388,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, op, [left, right])?;
                         Expression::Conjunction(ConjunctionExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
+                            expressions: vec![left, right],
                             op,
                         })
                     }
@@ -371,8 +397,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, op, [left, right])?;
                         Expression::Conjunction(ConjunctionExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
+                            expressions: vec![left, right],
                             op,
                         })
                     }
@@ -489,13 +514,9 @@ impl<'a> BaseExpressionBinder<'a> {
                     ..recur
                 },
             ),
-            ast::Expr::Subquery(subquery) => self.bind_subquery(
-                bind_context,
-                subquery,
-                SubqueryType::Scalar,
-                column_binder,
-                recur,
-            ),
+            ast::Expr::Subquery(subquery) => {
+                self.bind_subquery(bind_context, subquery, SubqueryType::Scalar)
+            }
             ast::Expr::Tuple(_) => not_implemented!("tuple expressions"),
             ast::Expr::Collate { .. } => not_implemented!("COLLATE"),
             ast::Expr::Exists {
@@ -507,9 +528,147 @@ impl<'a> BaseExpressionBinder<'a> {
                 SubqueryType::Exists {
                     negated: *not_exists,
                 },
-                column_binder,
-                recur,
             ),
+            ast::Expr::AnySubquery { left, op, right }
+            | ast::Expr::AllSubquery { left, op, right } => {
+                let bound_expr = self.bind_expression(
+                    bind_context,
+                    left,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let op = match op {
+                    ast::BinaryOperator::Eq => ComparisonOperator::Eq,
+                    ast::BinaryOperator::NotEq => ComparisonOperator::NotEq,
+                    ast::BinaryOperator::Gt => ComparisonOperator::Gt,
+                    ast::BinaryOperator::GtEq => ComparisonOperator::GtEq,
+                    ast::BinaryOperator::Lt => ComparisonOperator::Lt,
+                    ast::BinaryOperator::LtEq => ComparisonOperator::LtEq,
+                    _ => {
+                        return Err(RayexecError::new(
+                            "ANY/ALL can only have =, <>, <, >, <=, or >= as an operator",
+                        ))
+                    }
+                };
+
+                match expr {
+                    ast::Expr::AnySubquery { .. } => {
+                        let typ = SubqueryType::Any {
+                            expr: Box::new(bound_expr),
+                            op,
+                        };
+                        self.bind_subquery(bind_context, right, typ)
+                    }
+                    ast::Expr::AllSubquery { .. } => {
+                        // Negate the op, and negate the resulting sbuquery expr.
+                        // '= ALL(..)' => 'NOT(<> ANY(..))'
+                        let typ = SubqueryType::Any {
+                            expr: Box::new(bound_expr),
+                            op: op.negate(),
+                        };
+                        let subquery = self.bind_subquery(bind_context, right, typ)?;
+
+                        Ok(Expression::Negate(NegateExpr {
+                            op: NegateOperator::Not,
+                            expr: Box::new(subquery),
+                        }))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            ast::Expr::InSubquery {
+                negated,
+                expr,
+                subquery,
+            } => {
+                let bound_expr = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let mut expr = self.bind_subquery(
+                    bind_context,
+                    subquery,
+                    SubqueryType::Any {
+                        expr: Box::new(bound_expr),
+                        op: ComparisonOperator::Eq,
+                    },
+                )?;
+
+                if *negated {
+                    expr = Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(expr),
+                    });
+                }
+
+                Ok(expr)
+            }
+            ast::Expr::InList {
+                negated,
+                expr,
+                list,
+            } => {
+                let needle = self.bind_expression(
+                    bind_context,
+                    expr,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                let list = self.bind_expressions(
+                    bind_context,
+                    list,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                )?;
+
+                // 'IN (..)' => '(needle = a OR needle = b ...))'
+                // 'NOT IN (..)' => '(needle <> a AND needle <> b ...))'
+                let (conj_op, cmp_op) = if !negated {
+                    (ConjunctionOperator::Or, ComparisonOperator::Eq)
+                } else {
+                    (ConjunctionOperator::And, ComparisonOperator::NotEq)
+                };
+
+                let cmp_exprs = list
+                    .into_iter()
+                    .map(|expr| {
+                        let [needle, expr] = self.apply_cast_for_operator(
+                            bind_context,
+                            cmp_op,
+                            [needle.clone(), expr],
+                        )?;
+                        Ok(Expression::Comparison(ComparisonExpr {
+                            left: Box::new(needle),
+                            right: Box::new(expr),
+                            op: cmp_op,
+                        }))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                // TODO: Error on no epxressions?
+
+                Ok(Expression::Conjunction(ConjunctionExpr {
+                    op: conj_op,
+                    expressions: cmp_exprs,
+                }))
+            }
             ast::Expr::TypedString { datatype, value } => {
                 let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
@@ -539,12 +698,9 @@ impl<'a> BaseExpressionBinder<'a> {
             ast::Expr::Like {
                 expr,
                 pattern,
-                not_like,
+                negated,
                 case_insensitive,
             } => {
-                if *not_like {
-                    not_implemented!("NOT LIKE")
-                }
                 if *case_insensitive {
                     not_implemented!("case insensitive LIKE")
                 }
@@ -570,10 +726,19 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 let scalar = like::Like.plan_from_expressions(bind_context, &[&expr, &pattern])?;
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr {
                     function: scalar,
                     inputs: vec![expr, pattern],
-                }))
+                });
+
+                if *negated {
+                    expr = Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(expr),
+                    })
+                }
+
+                Ok(expr)
             }
             ast::Expr::Interval(ast::Interval {
                 value,
@@ -648,6 +813,220 @@ impl<'a> BaseExpressionBinder<'a> {
                     })),
                 }
             }
+            ast::Expr::Between {
+                negated,
+                expr,
+                low,
+                high,
+            } => {
+                let bind = &mut |expr| {
+                    self.bind_expression(
+                        bind_context,
+                        expr,
+                        column_binder,
+                        RecursionContext {
+                            is_root: false,
+                            ..recur
+                        },
+                    )
+                };
+
+                let expr = bind(expr)?;
+                let low = bind(low)?;
+                let high = bind(high)?;
+
+                // c1 BETWEEN a AND b
+                // c1 >= a AND c1 <= b
+                //
+                // c1 NOT BETWEEN a AND b
+                // c1 < a OR c1 > b
+
+                let low_op = if !negated {
+                    ComparisonOperator::GtEq
+                } else {
+                    ComparisonOperator::Lt
+                };
+                let [low_left, low_right] =
+                    self.apply_cast_for_operator(bind_context, low_op, [expr.clone(), low])?;
+
+                let left = Expression::Comparison(ComparisonExpr {
+                    left: Box::new(low_left),
+                    right: Box::new(low_right),
+                    op: low_op,
+                });
+
+                let high_op = if !negated {
+                    ComparisonOperator::LtEq
+                } else {
+                    ComparisonOperator::Gt
+                };
+                let [high_left, high_right] =
+                    self.apply_cast_for_operator(bind_context, high_op, [expr, high])?;
+
+                let right = Expression::Comparison(ComparisonExpr {
+                    left: Box::new(high_left),
+                    right: Box::new(high_right),
+                    op: high_op,
+                });
+
+                let conj_op = if !negated {
+                    ConjunctionOperator::And
+                } else {
+                    ConjunctionOperator::Or
+                };
+                let [left, right] =
+                    self.apply_cast_for_operator(bind_context, conj_op, [left, right])?;
+
+                Ok(Expression::Conjunction(ConjunctionExpr {
+                    expressions: vec![left, right],
+                    op: conj_op,
+                }))
+            }
+            ast::Expr::Case {
+                expr,
+                conditions,
+                results,
+                else_expr,
+            } => {
+                if conditions.len() != results.len() {
+                    return Err(RayexecError::new(
+                        "CASE conditions and results differ in lengths",
+                    ));
+                }
+                // Parser shouldn't allow this, but just in case.
+                if conditions.is_empty() {
+                    return Err(RayexecError::new("CASE requires at least one condition"));
+                }
+
+                let expr = expr
+                    .as_ref()
+                    .map(|expr| {
+                        self.bind_expression(bind_context, expr, column_binder, recur.not_root())
+                    })
+                    .transpose()?;
+
+                let mut else_expr = else_expr
+                    .as_ref()
+                    .map(|expr| {
+                        self.bind_expression(bind_context, expr, column_binder, recur.not_root())
+                    })
+                    .transpose()?;
+
+                let conditions = self.bind_expressions(
+                    bind_context,
+                    conditions,
+                    column_binder,
+                    recur.not_root(),
+                )?;
+
+                let results =
+                    self.bind_expressions(bind_context, results, column_binder, recur.not_root())?;
+
+                // When leading expr is provided, conditions are implicit equalities.
+                let build_condition = |cond_expr| match &expr {
+                    Some(expr) => {
+                        let [left, right] = self.apply_cast_for_operator(
+                            bind_context,
+                            ComparisonOperator::Eq,
+                            [expr.clone(), cond_expr],
+                        )?;
+
+                        Ok::<_, RayexecError>(Expression::Comparison(ComparisonExpr {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                            op: ComparisonOperator::Eq,
+                        }))
+                    }
+                    None => Ok(cond_expr),
+                };
+
+                // TODO: Cast the results so they all produce the same type.
+                let mut cases = Vec::with_capacity(conditions.len());
+
+                for (condition, result) in conditions.into_iter().zip(results) {
+                    let condition = build_condition(condition)?;
+                    cases.push(WhenThen {
+                        when: condition,
+                        then: result,
+                    });
+                }
+
+                // Apply cast to else if needed.
+                if let Some(expr) = else_expr {
+                    let first_case_dt = cases
+                        .first()
+                        .expect("at least one case")
+                        .then
+                        .datatype(bind_context)?;
+
+                    if expr.datatype(bind_context)? != first_case_dt {
+                        else_expr = Some(Expression::Cast(CastExpr {
+                            to: first_case_dt,
+                            expr: Box::new(expr),
+                        }));
+                    } else {
+                        else_expr = Some(expr);
+                    }
+                }
+
+                Ok(Expression::Case(CaseExpr {
+                    cases,
+                    else_expr: else_expr.map(Box::new),
+                }))
+            }
+            ast::Expr::Substring { expr, from, count } => {
+                let func = Box::new(Substring);
+                let expr =
+                    self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
+                let from =
+                    self.bind_expression(bind_context, from, column_binder, recur.not_root())?;
+
+                let inputs = match count {
+                    Some(count) => {
+                        let count = self.bind_expression(
+                            bind_context,
+                            count,
+                            column_binder,
+                            recur.not_root(),
+                        )?;
+                        self.apply_casts_for_scalar_function(
+                            bind_context,
+                            func.as_ref(),
+                            vec![expr, from, count],
+                        )?
+                    }
+                    None => self.apply_casts_for_scalar_function(
+                        bind_context,
+                        func.as_ref(),
+                        vec![expr, from],
+                    )?,
+                };
+
+                let refs: Vec<_> = inputs.iter().collect();
+                let function = func.plan_from_expressions(bind_context, &refs)?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function,
+                    inputs,
+                }))
+            }
+            ast::Expr::Extract { date_part, expr } => {
+                let date_part_expr = Expression::Literal(LiteralExpr {
+                    literal: date_part.into_kw().to_string().into(),
+                });
+
+                let expr =
+                    self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
+
+                let func = Box::new(DatePart);
+                let function =
+                    func.plan_from_expressions(bind_context, &[&date_part_expr, &expr])?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function,
+                    inputs: vec![date_part_expr, expr],
+                }))
+            }
         }
     }
 
@@ -656,32 +1035,53 @@ impl<'a> BaseExpressionBinder<'a> {
         bind_context: &mut BindContext,
         subquery: &QueryNode<ResolvedMeta>,
         subquery_type: SubqueryType,
-        _column_binder: &mut impl ExpressionColumnBinder,
-        _recur: RecursionContext,
     ) -> Result<Expression> {
         let nested = bind_context.new_child_scope(self.current);
         let bound =
             QueryBinder::new(nested, self.resolve_context).bind(bind_context, subquery.clone())?;
 
         let table = bind_context.get_table(bound.output_table_ref())?;
+        let query_return_type = table
+            .column_types
+            .first()
+            .cloned()
+            .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?;
+
         let return_type = if subquery_type == SubqueryType::Scalar {
-            table
-                .column_types
-                .first()
-                .cloned()
-                .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?
+            query_return_type.clone()
         } else {
             DataType::Boolean
         };
 
-        if matches!(subquery_type, SubqueryType::Scalar | SubqueryType::Any)
-            && table.num_columns() != 1
+        if matches!(
+            subquery_type,
+            SubqueryType::Scalar | SubqueryType::Any { .. }
+        ) && table.num_columns() != 1
         {
             return Err(RayexecError::new(format!(
                 "Expected subquery to return 1 column, returns {} columns",
                 table.num_columns(),
             )));
         }
+
+        // Apply cast to expression to try to match the output of the subquery
+        // if needed.
+        let subquery_type = match subquery_type {
+            SubqueryType::Any { expr, op } => {
+                if expr.datatype(bind_context)? != return_type {
+                    SubqueryType::Any {
+                        expr: Box::new(Expression::Cast(CastExpr {
+                            to: query_return_type,
+                            expr,
+                        })),
+                        op,
+                    }
+                } else {
+                    SubqueryType::Any { expr, op }
+                }
+            }
+            other => other,
+        };
 
         // Move correlated columns that don't reference the current scope to the
         // current scope's list of correlated columns.
@@ -698,7 +1098,6 @@ impl<'a> BaseExpressionBinder<'a> {
             subquery: Box::new(bound),
             subquery_type,
             return_type,
-            operator: None, // TODO
         }))
     }
 
@@ -746,11 +1145,49 @@ impl<'a> BaseExpressionBinder<'a> {
         operator: impl AsScalarFunction,
         inputs: [Expression; N],
     ) -> Result<[Expression; N]> {
-        let inputs = self.apply_casts_for_scalar_function(
+        let mut inputs = self.apply_casts_for_scalar_function(
             bind_context,
             operator.as_scalar_function(),
             inputs.to_vec(),
         )?;
+
+        // Further refine the types. When we're applying casts for an operator,
+        // we know there's some relationship between the inputs.
+        //
+        // TODO: This may be useful for all functions, might pull this out.
+        let mut decimal64_meta = None;
+        let mut decimal128_meta = None;
+
+        for input in &inputs {
+            if matches!(input, Expression::Cast(_)) {
+                continue;
+            }
+
+            match input.datatype(bind_context)? {
+                DataType::Decimal64(m) => decimal64_meta = Some(m),
+                DataType::Decimal128(m) => decimal128_meta = Some(m),
+                _ => (),
+            }
+        }
+
+        for input in &mut inputs {
+            if let Expression::Cast(cast) = input {
+                match &mut cast.to {
+                    DataType::Decimal64(curr) => {
+                        if let Some(m) = decimal64_meta {
+                            *curr = m;
+                        }
+                    }
+                    DataType::Decimal128(curr) => {
+                        if let Some(m) = decimal128_meta {
+                            *curr = m;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+
         inputs
             .try_into()
             .map_err(|_| RayexecError::new("Number of casted inputs incorrect"))
@@ -789,8 +1226,6 @@ impl<'a> BaseExpressionBinder<'a> {
             }
 
             // TODO: Maybe more sophisticated candidate selection.
-            //
-            // TODO: Sort by score
             //
             // We should do some lightweight const folding and prefer candidates
             // that cast the consts over ones that need array inputs to be

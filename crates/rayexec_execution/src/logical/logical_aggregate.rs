@@ -20,6 +20,17 @@ pub struct LogicalAggregate {
     pub group_exprs: Vec<Expression>,
     /// Grouping set referencing group exprs.
     pub grouping_sets: Option<Vec<BTreeSet<usize>>>,
+    /// Table reference for getting the GROUPING value for a group.
+    ///
+    /// This is Some if there's an explicit GROUPING function call in the query.
+    /// Internally, the hash aggregate produces a group id based on null
+    /// bitmaps, and that id is stored with the group. This let's us
+    /// disambiguate NULL values from NULLs in the column vs NULLs produced by
+    /// the null bitmap.
+    ///
+    /// Follows postgres semantics.
+    /// See: <https://www.postgresql.org/docs/current/functions-aggregate.html#FUNCTIONS-GROUPING-TABLE>
+    pub grouping_set_table: Option<TableRef>,
 }
 
 impl Explainable for LogicalAggregate {
@@ -28,6 +39,10 @@ impl Explainable for LogicalAggregate {
 
         if conf.verbose {
             ent = ent.with_value("table_ref", self.aggregates_table);
+
+            if let Some(grouping_set_table) = self.grouping_set_table {
+                ent = ent.with_value("grouping_set_table_ref", grouping_set_table);
+            }
         }
 
         if let Some(group_table) = &self.group_table {
@@ -47,6 +62,9 @@ impl LogicalNode for Node<LogicalAggregate> {
         let mut refs = vec![self.node.aggregates_table];
         if let Some(group_table) = self.node.group_table {
             refs.push(group_table);
+        }
+        if let Some(grouping_set_table) = self.node.grouping_set_table {
+            refs.push(grouping_set_table);
         }
         refs
     }

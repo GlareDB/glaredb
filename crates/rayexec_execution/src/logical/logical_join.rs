@@ -8,18 +8,54 @@ use crate::{
 use std::fmt;
 
 use super::{
-    binder::bind_context::TableRef,
+    binder::bind_context::{MaterializationRef, TableRef},
     operator::{LogicalNode, Node},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
+    /// Standard LEFT join.
     Left,
+    /// Standard RIGHT join.
     Right,
+    /// Standard INNER join.
     Inner,
+    /// Standard full/outer join.
     Full,
+    /// Left semi join.
     Semi,
+    /// Left anti join.
     Anti,
+    /// A left join that emits all rows on the left side joined with a column
+    /// that indicates if there was a join partner on the right.
+    ///
+    /// These essentially exposes the left visit bitmaps to other operators.
+    ///
+    /// Idea taken from duckdb.
+    LeftMark {
+        /// The table ref to use in logical planning the reference the visit
+        /// bitmap output.
+        ///
+        /// This should have a single column of type bool.
+        table_ref: TableRef,
+    },
+}
+
+impl JoinType {
+    /// Helper for determining the output refs for a given node type.
+    fn output_refs<T>(self, node: &Node<T>) -> Vec<TableRef> {
+        if let JoinType::LeftMark { table_ref } = self {
+            let mut refs = node
+                .children
+                .first()
+                .map(|c| c.get_output_table_refs())
+                .unwrap_or_default();
+            refs.push(table_ref);
+            refs
+        } else {
+            node.get_children_table_refs()
+        }
+    }
 }
 
 impl fmt::Display for JoinType {
@@ -31,11 +67,12 @@ impl fmt::Display for JoinType {
             Self::Full => write!(f, "FULL"),
             Self::Semi => write!(f, "SEMI"),
             Self::Anti => write!(f, "ANTI"),
+            Self::LeftMark { table_ref } => write!(f, "LEFT MARK (ref = {table_ref})"),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComparisonCondition {
     /// Expression containing column references from the left side.
     pub left: Expression,
@@ -55,14 +92,7 @@ impl ComparisonCondition {
     }
 
     pub fn flip_sides(&mut self) {
-        self.op = match self.op {
-            ComparisonOperator::Eq => ComparisonOperator::Eq,
-            ComparisonOperator::NotEq => ComparisonOperator::NotEq,
-            ComparisonOperator::Lt => ComparisonOperator::Gt,
-            ComparisonOperator::LtEq => ComparisonOperator::GtEq,
-            ComparisonOperator::Gt => ComparisonOperator::Lt,
-            ComparisonOperator::GtEq => ComparisonOperator::LtEq,
-        };
+        self.op = self.op.flip();
         std::mem::swap(&mut self.left, &mut self.right);
     }
 }
@@ -73,7 +103,7 @@ impl fmt::Display for ComparisonCondition {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
     pub conditions: Vec<ComparisonCondition>,
@@ -89,11 +119,49 @@ impl Explainable for LogicalComparisonJoin {
 
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+        self.node.join_type.output_refs(self)
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// A magic join behaves the same as a comparison join, is only used to
+/// demarcate a join node that was created as a result of subquery
+/// decorrelation.
+///
+/// A separate type allows us to more easily run certain optimization steps
+/// since we'll have a bit more information.
+///
+/// The left child will be a materialization scan, and the right child will be a
+/// normal operator tree with some number of "magic" materialization scans that
+/// read deduplicated values from a materialized plan that's referenced on the
+/// left.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalMagicJoin {
+    /// The materialization reference for the left child.
+    ///
+    /// Any "magic" materialization scan we see on the right we can assume was
+    /// part of the same decorrelation step that created this node.
+    pub mat_ref: MaterializationRef,
+    /// The join type, behaves the same as a comparison join.
+    pub join_type: JoinType,
+    /// Conditions, same as comparison join.
+    pub conditions: Vec<ComparisonCondition>,
+}
+
+impl Explainable for LogicalMagicJoin {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("MagicJoin")
+            .with_values("conditions", &self.conditions)
+            .with_value("join_type", self.join_type)
+    }
+}
+
+impl LogicalNode for Node<LogicalMagicJoin> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        self.node.join_type.output_refs(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalArbitraryJoin {
     pub join_type: JoinType,
     pub condition: Expression,
@@ -109,7 +177,7 @@ impl Explainable for LogicalArbitraryJoin {
 
 impl LogicalNode for Node<LogicalArbitraryJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+        self.node.join_type.output_refs(self)
     }
 }
 

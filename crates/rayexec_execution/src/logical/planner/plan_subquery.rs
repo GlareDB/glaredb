@@ -4,6 +4,7 @@ use crate::{
         column_expr::ColumnExpr,
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         literal_expr::LiteralExpr,
+        negate_expr::{NegateExpr, NegateOperator},
         subquery_expr::{SubqueryExpr, SubqueryType},
         Expression,
     },
@@ -11,10 +12,12 @@ use crate::{
     logical::{
         binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef},
         logical_aggregate::LogicalAggregate,
-        logical_distinct::LogicalDistinct,
-        logical_join::{ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_join::{
+            ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin,
+            LogicalMagicJoin,
+        },
         logical_limit::LogicalLimit,
-        logical_materialization::LogicalMaterializationScan,
+        logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
         logical_project::LogicalProject,
         logical_scan::ScanSource,
         operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
@@ -78,6 +81,121 @@ impl SubqueryPlanner {
         subquery: &mut SubqueryExpr,
         plan: &mut LogicalOperator,
     ) -> Result<Expression> {
+        let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+        let ([left, right], mut conditions, mat_ref) =
+            self.plan_left_right_for_correlated(bind_context, subquery, orig)?;
+
+        match &subquery.subquery_type {
+            SubqueryType::Scalar => {
+                // Result expression for the subquery, output of the right side
+                // of the join.
+                let right_out = Expression::Column(ColumnExpr {
+                    table_scope: right.get_output_table_refs()[0],
+                    column: 0,
+                });
+
+                // Update plan to now be a comparison join.
+                *plan = LogicalOperator::MagicJoin(Node {
+                    node: LogicalMagicJoin {
+                        mat_ref,
+                        join_type: JoinType::Left,
+                        conditions,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![left, right],
+                });
+
+                Ok(right_out)
+            }
+            SubqueryType::Exists { negated } => {
+                let mark_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    mark_table,
+                    "__generated_visited_bool",
+                    DataType::Boolean,
+                )?;
+
+                *plan = LogicalOperator::MagicJoin(Node {
+                    node: LogicalMagicJoin {
+                        mat_ref,
+                        join_type: JoinType::LeftMark {
+                            table_ref: mark_table,
+                        },
+                        conditions,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![left, right],
+                });
+
+                let mut visited_expr = Expression::Column(ColumnExpr {
+                    table_scope: mark_table,
+                    column: 0,
+                });
+
+                if *negated {
+                    visited_expr = Expression::Negate(NegateExpr {
+                        op: NegateOperator::Not,
+                        expr: Box::new(visited_expr),
+                    })
+                }
+
+                Ok(visited_expr)
+            }
+            SubqueryType::Any { expr, op } => {
+                // Similar to EXISTS, just with an extra join condition
+                // representing the ANY condition.
+
+                let right_out = Expression::Column(ColumnExpr {
+                    table_scope: right.get_output_table_refs()[0],
+                    column: 0,
+                });
+
+                let mark_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    mark_table,
+                    "__generated_visited_bool",
+                    DataType::Boolean,
+                )?;
+
+                conditions.push(ComparisonCondition {
+                    left: expr.as_ref().clone(),
+                    right: right_out,
+                    op: *op,
+                });
+
+                *plan = LogicalOperator::MagicJoin(Node {
+                    node: LogicalMagicJoin {
+                        mat_ref,
+                        join_type: JoinType::LeftMark {
+                            table_ref: mark_table,
+                        },
+                        conditions,
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![left, right],
+                });
+
+                Ok(Expression::Column(ColumnExpr {
+                    table_scope: mark_table,
+                    column: 0,
+                }))
+            }
+        }
+    }
+
+    /// Plans the left and right side of a join for decorrelated a subquery.
+    ///
+    /// This will place `plan` in a materialization.
+    fn plan_left_right_for_correlated(
+        &self,
+        bind_context: &mut BindContext,
+        subquery: &mut SubqueryExpr,
+        plan: LogicalOperator,
+    ) -> Result<(
+        [LogicalOperator; 2],
+        Vec<ComparisonCondition>,
+        MaterializationRef,
+    )> {
         let mut subquery_plan =
             QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
@@ -91,82 +209,59 @@ impl SubqueryPlanner {
             .cloned()
             .collect();
 
-        match subquery.subquery_type {
-            SubqueryType::Scalar => {
-                // Create dependent join between left (original query) and right
-                // (subquery). Left requires duplication elimination on the
-                // correlated columns.
-                //
-                // The resulting plan may have nodes scanning from the left
-                // multiple times.
+        // Create dependent join between left (original query) and right
+        // (subquery). Left requires duplication elimination on the
+        // correlated columns.
+        //
+        // The resulting plan may have nodes scanning from the left
+        // multiple times.
 
-                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
-                let mat_ref = bind_context.new_materialization(orig)?;
+        let mat_ref = bind_context.new_materialization(plan)?;
 
-                let left = LogicalOperator::MaterializationScan(Node {
-                    node: LogicalMaterializationScan {
-                        mat: mat_ref,
-                        table_refs: plan_tables,
-                    },
-                    location: LocationRequirement::Any,
-                    children: Vec::new(),
-                });
-                bind_context.inc_materialization_scan_count(mat_ref, 1)?;
+        let left = LogicalOperator::MaterializationScan(Node {
+            node: LogicalMaterializationScan {
+                mat: mat_ref,
+                table_refs: plan_tables,
+            },
+            location: LocationRequirement::Any,
+            children: Vec::new(),
+        });
+        bind_context.inc_materialization_scan_count(mat_ref, 1)?;
 
-                // Flatten the right side. This assumes we're doing a dependent
-                // join with left. The goal is after flattening here, the join
-                // we make at the end _shouldn't_ be a dependent join, but just
-                // a normal comparison join.
-                let mut planner = DependentJoinPushdown::new(mat_ref, correlated_columns);
+        // Flatten the right side. This assumes we're doing a dependent
+        // join with left. The goal is after flattening here, the join
+        // we make at the end _shouldn't_ be a dependent join, but just
+        // a normal comparison join.
+        let mut planner = DependentJoinPushdown::new(mat_ref, correlated_columns);
 
-                planner.find_correlations(&subquery_plan)?;
-                planner.pushdown(bind_context, &mut subquery_plan)?;
+        planner.find_correlations(&subquery_plan)?;
+        planner.pushdown(bind_context, &mut subquery_plan)?;
 
-                // Make comparison join between left & right using the updated
-                // column map from the push down.
+        // Make comparison join between left & right using the updated
+        // column map from the push down.
 
-                let mut conditions = Vec::with_capacity(planner.columns.len());
-                for correlated in planner.columns {
-                    // Correlated points to left, the materialized side.
-                    let left = Expression::Column(ColumnExpr {
-                        table_scope: correlated.table,
-                        column: correlated.col_idx,
-                    });
+        let mut conditions = Vec::with_capacity(planner.columns.len());
+        for correlated in planner.columns {
+            // Correlated points to left, the materialized side.
+            let left = Expression::Column(ColumnExpr {
+                table_scope: correlated.table,
+                column: correlated.col_idx,
+            });
 
-                    let right = planner.column_map.get(&correlated).ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Missing updated right side for correlate column: {correlated:?}"
-                        ))
-                    })?;
+            let right = planner.column_map.get(&correlated).ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing updated right side for correlate column: {correlated:?}"
+                ))
+            })?;
 
-                    conditions.push(ComparisonCondition {
-                        left,
-                        right: Expression::Column(*right),
-                        op: ComparisonOperator::Eq,
-                    });
-                }
-
-                // Result expression for the subquery, output of the right side
-                // of the join.
-                let right_out = Expression::Column(ColumnExpr {
-                    table_scope: subquery_plan.get_output_table_refs()[0],
-                    column: 0,
-                });
-
-                // Update plan to now be a comparison join.
-                *plan = LogicalOperator::ComparisonJoin(Node {
-                    node: LogicalComparisonJoin {
-                        join_type: JoinType::Left,
-                        conditions,
-                    },
-                    location: LocationRequirement::Any,
-                    children: vec![left, subquery_plan],
-                });
-
-                Ok(right_out)
-            }
-            other => not_implemented!("correlated subquery type: {other:?}"),
+            conditions.push(ComparisonCondition {
+                left,
+                right: Expression::Column(*right),
+                op: ComparisonOperator::Eq,
+            });
         }
+
+        Ok(([left, subquery_plan], conditions, mat_ref))
     }
 
     fn plan_uncorrelated(
@@ -178,7 +273,7 @@ impl SubqueryPlanner {
         // Generate subquery logical plan.
         let subquery_plan = QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
-        match subquery.subquery_type {
+        match &subquery.subquery_type {
             SubqueryType::Scalar => {
                 // Normal subquery.
                 //
@@ -253,7 +348,7 @@ impl SubqueryPlanner {
                             right: Box::new(Expression::Literal(LiteralExpr {
                                 literal: ScalarValue::Int64(1),
                             })),
-                            op: if negated {
+                            op: if *negated {
                                 ComparisonOperator::NotEq
                             } else {
                                 ComparisonOperator::Eq
@@ -273,6 +368,7 @@ impl SubqueryPlanner {
                             group_table: None,
                             group_exprs: Vec::new(),
                             grouping_sets: None,
+                            grouping_set_table: None,
                         },
                         location: LocationRequirement::Any,
                         children: vec![LogicalOperator::Limit(Node {
@@ -299,7 +395,51 @@ impl SubqueryPlanner {
                     column: 0,
                 }))
             }
-            other => not_implemented!("subquery type {other:?}"),
+            SubqueryType::Any { expr, op } => {
+                // Any subquery.
+                //
+                // Join original plan (left) with subquery (right) with
+                // comparison referencing left/right sides.
+                //
+                // Resulting expression is boolean indicating if there was join
+                // between left and right.
+
+                let mark_table = bind_context.new_ephemeral_table()?;
+                bind_context.push_column_for_table(
+                    mark_table,
+                    "__generated_visited_bool",
+                    DataType::Boolean,
+                )?;
+
+                let subquery_table = subquery_plan.get_output_table_refs()[0];
+                let column = ColumnExpr {
+                    table_scope: subquery_table,
+                    column: 0,
+                };
+
+                let condition = ComparisonCondition {
+                    left: expr.as_ref().clone(),
+                    right: Expression::Column(column),
+                    op: *op,
+                };
+
+                let orig = std::mem::replace(plan, LogicalOperator::Invalid);
+                *plan = LogicalOperator::ComparisonJoin(Node {
+                    node: LogicalComparisonJoin {
+                        join_type: JoinType::LeftMark {
+                            table_ref: mark_table,
+                        },
+                        conditions: vec![condition],
+                    },
+                    location: LocationRequirement::Any,
+                    children: vec![orig, subquery_plan],
+                });
+
+                Ok(Expression::Column(ColumnExpr {
+                    table_scope: mark_table,
+                    column: 0,
+                }))
+            }
         }
     }
 }
@@ -468,62 +608,55 @@ impl DependentJoinPushdown {
             // Operator (and children) do not have correlated columns. Cross
             // join with materialized scan with duplicates eliminated.
 
-            let mut mappings = Vec::new();
-            for correlated in self.columns.iter() {
-                // Push a mapping of correlated -> materialized column.
-                //
-                // This uses the original correlated column info since the
-                // column should already be pointing to the output of the
-                // materialization.
+            let projection_ref = bind_context.new_ephemeral_table()?;
+            let mut projected_cols = Vec::with_capacity(self.columns.len());
+
+            for (idx, correlated) in self.columns.iter().enumerate() {
+                // Push a mapping of correlated -> projected materialized column.
                 //
                 // As we walk back up the tree, the mappings will be updated to
                 // point to the appropriate column.
-                mappings.push((
-                    correlated,
+                self.column_map.insert(
+                    correlated.clone(),
                     ColumnExpr {
-                        table_scope: correlated.table,
-                        column: correlated.col_idx,
+                        table_scope: projection_ref,
+                        column: idx,
                     },
-                ))
+                );
+
+                let (_, datatype) =
+                    bind_context.get_column_info(correlated.table, correlated.col_idx)?;
+
+                bind_context.push_column_for_table(
+                    projection_ref,
+                    format!("__generated_mat_scan_projection_{idx}"),
+                    datatype.clone(),
+                )?;
+
+                // This uses the original correlated column info since the
+                // column should already be pointing to the output of the
+                // materialization.
+                projected_cols.push(Expression::Column(ColumnExpr {
+                    table_scope: correlated.table,
+                    column: correlated.col_idx,
+                }));
             }
 
-            // Update mapping.
-            for (corr, expr) in mappings.clone() {
-                self.column_map.insert(corr.clone(), expr);
-            }
-
-            // Distinct on only the correlated columns, since that's what the
-            // subquery actually cares about.
-            //
-            // TODO: Maybe the distinct should be in the materialization
-            // instead? I think a more specializated materialization scheme
-            // needs to be added since the original plan may included
-            // duplicates, but the plan being fed into the subquery needs all
-            // duplicated removed (on the correlated columns).
-            let distinct_on = mappings
-                .into_iter()
-                .map(|(_, expr)| Expression::Column(expr))
-                .collect();
-
-            // Note this distinct is reading from the left side of the query,
-            // but being placed on the right side of the join. This is to make
+            // Note this scan is reading from the left side of the query, but
+            // being placed on the right side of the join. This is to make
             // rewriting operators (projections) further up this subtree easier.
             //
             // For projections, we have to to ensure that there's column exprs
-            // that point to the materialized node, and be having the
+            // that point to the materialized node, and by having the
             // materialization on the right, we can just append the expressions.
-            let materialization = bind_context.get_materialization(self.mat_ref)?;
-            let right = LogicalOperator::Distinct(Node {
-                node: LogicalDistinct { on: distinct_on },
+            let right = LogicalOperator::MagicMaterializationScan(Node {
+                node: LogicalMagicMaterializationScan {
+                    mat: self.mat_ref,
+                    projections: projected_cols,
+                    table_ref: projection_ref,
+                },
                 location: LocationRequirement::Any,
-                children: vec![LogicalOperator::MaterializationScan(Node {
-                    node: LogicalMaterializationScan {
-                        mat: self.mat_ref,
-                        table_refs: materialization.table_refs.clone(),
-                    },
-                    location: LocationRequirement::Any,
-                    children: Vec::new(),
-                })],
+                children: Vec::new(),
             });
             bind_context.inc_materialization_scan_count(self.mat_ref, 1)?;
 

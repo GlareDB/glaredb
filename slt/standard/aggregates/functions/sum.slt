@@ -30,3 +30,17 @@ select sum(a) from (values ('1.34'::decimal(6,3)), ('3.42'::decimal(6,3))) as v(
 ----
 4.760
 
+query R
+SELECT sum(1::decimal) * 0.5;
+----
+0.500000
+
+query TT
+DESCRIBE SELECT sum(a) * 0.5 FROM (VALUES (1::DECIMAL), (2::DECIMAL), (3::DECIMAL)) AS v(a)
+----
+?column?  Decimal64(18,6)
+
+query R
+SELECT sum(a) * 0.5 FROM (VALUES (1::DECIMAL), (2::DECIMAL), (3::DECIMAL)) AS v(a);
+----
+3.000000

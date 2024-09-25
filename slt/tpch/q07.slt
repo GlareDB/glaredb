@@ -1,45 +1,91 @@
-# Error source: query failed: Expected RightParen, got Some(TokenWithLocation {
-# token: Word(Word { value: "from", quote: None, keyword: Some(FROM) }), line:
-# 0, col: 0 })
-
+# TODO: This produces correct results, but decimal formatting makes the output
+# of 'EXTRACT(year FROM l_shipdate)' a bit weird. Shows extra zeros.
 query TT
-describe select
+DESCRIBE SELECT
     supp_nation,
     cust_nation,
     l_year,
-    sum(volume) as revenue
-from
-    (
-        select
-            n1.n_name as supp_nation,
-            n2.n_name as cust_nation,
-            extract(year from l_shipdate) as l_year,
-            l_extendedprice * (1 - l_discount) as volume
-        from
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet' supplier,
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem,
-            '../submodules/testdata/tpch_sf0.1/orders.parquet' orders,
-            '../submodules/testdata/tpch_sf0.1/customer.parquet' customer,
-            '../submodules/testdata/tpch_sf0.1/nation.parquet' n1,
-            '../submodules/testdata/tpch_sf0.1/nation.parquet' n2,
-        where
-                s_suppkey = l_suppkey
-          and o_orderkey = l_orderkey
-          and c_custkey = o_custkey
-          and s_nationkey = n1.n_nationkey
-          and c_nationkey = n2.n_nationkey
-          and (
-                (n1.n_name = 'FRANCE' and n2.n_name = 'GERMANY')
-                or (n1.n_name = 'GERMANY' and n2.n_name = 'FRANCE')
-            )
-          and l_shipdate between date '1995-01-01' and date '1996-12-31'
-    ) as shipping
-group by
+    sum(volume) AS revenue
+FROM (
+    SELECT
+        n1.n_name AS supp_nation,
+        n2.n_name AS cust_nation,
+        extract(year FROM l_shipdate) AS l_year,
+        l_extendedprice * (1 - l_discount) AS volume
+    FROM
+        '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
+        '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
+        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
+        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n1,
+        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n2
+    WHERE
+        s_suppkey = l_suppkey
+        AND o_orderkey = l_orderkey
+        AND c_custkey = o_custkey
+        AND s_nationkey = n1.n_nationkey
+        AND c_nationkey = n2.n_nationkey
+        AND ((n1.n_name = 'FRANCE'
+                AND n2.n_name = 'GERMANY')
+            OR (n1.n_name = 'GERMANY'
+                AND n2.n_name = 'FRANCE'))
+        AND l_shipdate BETWEEN CAST('1995-01-01' AS date)
+        AND CAST('1996-12-31' AS date)) AS shipping
+GROUP BY
     supp_nation,
     cust_nation,
     l_year
-order by
+ORDER BY
     supp_nation,
     cust_nation,
     l_year;
 ----
+supp_nation  Utf8
+cust_nation  Utf8
+l_year       Decimal64(18,3)
+revenue      Decimal64(18,4)
+
+query ????
+SELECT
+    supp_nation,
+    cust_nation,
+    l_year,
+    sum(volume) AS revenue
+FROM (
+    SELECT
+        n1.n_name AS supp_nation,
+        n2.n_name AS cust_nation,
+        extract(year FROM l_shipdate) AS l_year,
+        l_extendedprice * (1 - l_discount) AS volume
+    FROM
+        '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
+        '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
+        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
+        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n1,
+        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n2
+    WHERE
+        s_suppkey = l_suppkey
+        AND o_orderkey = l_orderkey
+        AND c_custkey = o_custkey
+        AND s_nationkey = n1.n_nationkey
+        AND c_nationkey = n2.n_nationkey
+        AND ((n1.n_name = 'FRANCE'
+                AND n2.n_name = 'GERMANY')
+            OR (n1.n_name = 'GERMANY'
+                AND n2.n_name = 'FRANCE'))
+        AND l_shipdate BETWEEN CAST('1995-01-01' AS date)
+        AND CAST('1996-12-31' AS date)) AS shipping
+GROUP BY
+    supp_nation,
+    cust_nation,
+    l_year
+ORDER BY
+    supp_nation,
+    cust_nation,
+    l_year;
+----
+FRANCE   GERMANY  1995.000  4637235.1501
+FRANCE   GERMANY  1996.000  5224779.5736
+GERMANY  FRANCE   1995.000  6232818.7037
+GERMANY  FRANCE   1996.000  5557312.1121

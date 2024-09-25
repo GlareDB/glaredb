@@ -1,6 +1,4 @@
-# Correlated
-
-query TI
+query TT
 DESCRIBE SELECT
     o_orderpriority,
     count(*) AS order_count
@@ -47,3 +45,8 @@ GROUP BY
 ORDER BY
     o_orderpriority;
 ----
+1-URGENT          999
+2-HIGH            997
+3-MEDIUM          1031
+4-NOT SPECIFIED   989
+5-LOW             1077

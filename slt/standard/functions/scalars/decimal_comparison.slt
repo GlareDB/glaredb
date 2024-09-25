@@ -1,0 +1,17 @@
+# Comparision between decimals.
+
+query ?
+SELECT 1.3::DECIMAL < 1.4::DECIMAL;
+----
+true
+
+query ?
+SELECT 1.3::DECIMAL(6, 4) < 1.4::DECIMAL(6, 2);
+----
+true
+
+query ?
+SELECT sum(1.3::DECIMAL(6, 4)) < 1.4::DECIMAL(6, 2);
+----
+true
+

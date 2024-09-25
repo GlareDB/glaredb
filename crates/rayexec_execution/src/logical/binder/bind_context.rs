@@ -23,6 +23,12 @@ pub struct TableRef {
     pub table_idx: usize,
 }
 
+impl From<usize> for TableRef {
+    fn from(value: usize) -> Self {
+        TableRef { table_idx: value }
+    }
+}
+
 impl fmt::Display for TableRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#{}", self.table_idx)
@@ -529,15 +535,21 @@ impl BindContext {
         Ok(idx)
     }
 
-    pub fn get_column_name(&self, table_ref: TableRef, col_idx: usize) -> Result<&str> {
+    pub fn get_column_info(
+        &self,
+        table_ref: TableRef,
+        col_idx: usize,
+    ) -> Result<(&str, &DataType)> {
         let table = self.get_table(table_ref)?;
-        table
+        let name = table
             .column_names
             .get(col_idx)
             .map(|s| s.as_str())
             .ok_or_else(|| {
                 RayexecError::new(format!("Missing column {col_idx} in table {table_ref}"))
-            })
+            })?;
+        let datatype = &table.column_types[col_idx];
+        Ok((name, datatype))
     }
 
     pub fn get_table_mut(&mut self, table_ref: TableRef) -> Result<&mut Table> {

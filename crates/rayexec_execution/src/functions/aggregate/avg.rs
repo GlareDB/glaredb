@@ -1,9 +1,11 @@
 use num_traits::{AsPrimitive, PrimInt};
 use rayexec_bullet::{
-    array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
+    array::{Array, PrimitiveArray},
     bitmap::Bitmap,
-    datatype::{DataType, DataTypeId, DecimalTypeMeta},
+    compute::cast::array::cast_decimal_to_float,
+    datatype::{DataType, DataTypeId},
     executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    scalar::decimal::Decimal64Type,
 };
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
@@ -37,12 +39,12 @@ impl FunctionInfo for Avg {
             Signature {
                 input: &[DataTypeId::Decimal64],
                 variadic: None,
-                return_type: DataTypeId::Decimal64,
+                return_type: DataTypeId::Float64,
             },
             Signature {
                 input: &[DataTypeId::Decimal128],
                 variadic: None,
-                return_type: DataTypeId::Decimal128,
+                return_type: DataTypeId::Float64,
             },
         ]
     }
@@ -134,12 +136,10 @@ impl PlannedAggregateFunction for AvgImpl {
     }
 
     fn return_type(&self) -> DataType {
-        match self {
-            Self::Decimal64(s) => DataType::Decimal64(DecimalTypeMeta::new(s.precision, s.scale)),
-            Self::Decimal128(s) => DataType::Decimal128(DecimalTypeMeta::new(s.precision, s.scale)),
-            Self::Float64(_) => DataType::Float64,
-            Self::Int64(_) => DataType::Int64,
-        }
+        // TODO: This used to return decimal is the case of the decimal impl,
+        // but I changed that return floats. We might change it back to return
+        // decimals, but not sure yet.
+        DataType::Float64
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
@@ -163,31 +163,27 @@ impl AvgDecimal64Impl {
         row_selection: &Bitmap,
         arrays: &[&Array],
         mapping: &[usize],
-        states: &mut [AvgStateInt<i64>],
+        states: &mut [AvgStateF64<f64>],
     ) -> Result<()> {
         match &arrays[0] {
             Array::Decimal64(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+                // TODO: Could reuse vec.
+                let floats = cast_decimal_to_float::<f64, Decimal64Type>(arr)?;
+                UnaryNonNullUpdater::update(row_selection, &floats, mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }
     }
 
-    fn finalize(states: vec::Drain<AvgStateInt<i64>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<AvgStateF64<f64>>) -> Result<Array> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let precision = self.precision;
-        let scale = self.scale;
-        let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-            Array::Int64(arr) => Ok(Array::Decimal64(Decimal64Array::new(precision, scale, arr))),
-            other => panic!("unexpected array type: {}", other.datatype()),
-        };
-        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 
@@ -202,33 +198,27 @@ impl AvgDecimal128Impl {
         row_selection: &Bitmap,
         arrays: &[&Array],
         mapping: &[usize],
-        states: &mut [AvgStateInt<i128>],
+        states: &mut [AvgStateF64<f64>],
     ) -> Result<()> {
         match &arrays[0] {
-            Array::Decimal128(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
+            Array::Decimal64(arr) => {
+                // TODO: Could reuse vec.
+                let floats = cast_decimal_to_float::<f64, Decimal64Type>(arr)?;
+                UnaryNonNullUpdater::update(row_selection, &floats, mapping, states)
             }
             other => panic!("unexpected array type: {other:?}"),
         }
     }
 
-    fn finalize(states: vec::Drain<AvgStateInt<i128>>) -> Result<Array> {
+    fn finalize(states: vec::Drain<AvgStateF64<f64>>) -> Result<Array> {
         let mut buffer = Vec::with_capacity(states.len());
         let mut bitmap = Bitmap::with_capacity(states.len());
         StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
+        Ok(Array::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let precision = self.precision;
-        let scale = self.scale;
-        let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-            Array::Int128(arr) => Ok(Array::Decimal128(Decimal128Array::new(
-                precision, scale, arr,
-            ))),
-            other => panic!("unexpected array type: {}", other.datatype()),
-        };
-        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
     }
 }
 

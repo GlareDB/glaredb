@@ -64,7 +64,7 @@ select a, a * (select 12), t1.a from t1;
 444  5328  444
 777  9324  777
 
-# TODO: Error source: query failed: Column reference points to non-existent schema (correlated)
+# TODO: Produces wrong results (just the 'a' column).
 # query I
 # select (select sum(a)) from t1;
 # ----

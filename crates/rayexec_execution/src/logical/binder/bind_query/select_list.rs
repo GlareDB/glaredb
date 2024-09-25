@@ -15,13 +15,13 @@ use std::collections::HashMap;
 
 use super::{bind_group_by::BoundGroupBy, select_expr_expander::ExpandedSelectExpr};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Preprojection {
     pub table: TableRef,
     pub expressions: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrunedProjectionTable {
     /// Table containing just column references.
     pub table: TableRef,
@@ -30,7 +30,7 @@ pub struct PrunedProjectionTable {
     pub expressions: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelectList {
     /// Optional pruned table to use at the end of select planning.
     ///
@@ -268,7 +268,8 @@ impl SelectList {
             match expr {
                 Expression::Column(col) => {
                     if col.table_scope != t1 && col.table_scope != t2 {
-                        let col_name = bind_context.get_column_name(col.table_scope, col.column)?;
+                        let (col_name, _) =
+                            bind_context.get_column_info(col.table_scope, col.column)?;
                         return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
                     }
                 }

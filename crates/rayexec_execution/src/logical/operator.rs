@@ -10,9 +10,11 @@ use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
 use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
-use super::logical_join::{LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin};
+use super::logical_join::{
+    LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
+};
 use super::logical_limit::LogicalLimit;
-use super::logical_materialization::LogicalMaterializationScan;
+use super::logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan};
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
@@ -178,6 +180,22 @@ impl<N> Node<N> {
             refs
         })
     }
+
+    // TODO: Duplicated with LogicalOperator.
+    pub fn modify_replace_children<F>(&mut self, modify: &mut F) -> Result<()>
+    where
+        F: FnMut(LogicalOperator) -> Result<LogicalOperator>,
+    {
+        let mut new_children = Vec::with_capacity(self.children.len());
+
+        for child in self.children.drain(..) {
+            new_children.push(modify(child)?);
+        }
+
+        self.children = new_children;
+
+        Ok(())
+    }
 }
 
 impl<N: Explainable> Explainable for Node<N> {
@@ -212,6 +230,7 @@ pub enum LogicalOperator {
     SetOp(Node<LogicalSetop>),
     Scan(Node<LogicalScan>),
     MaterializationScan(Node<LogicalMaterializationScan>),
+    MagicMaterializationScan(Node<LogicalMagicMaterializationScan>),
     Empty(Node<LogicalEmpty>),
     SetVar(Node<LogicalSetVar>),
     ResetVar(Node<LogicalResetVar>),
@@ -228,6 +247,7 @@ pub enum LogicalOperator {
     CrossJoin(Node<LogicalCrossJoin>),
     ComparisonJoin(Node<LogicalComparisonJoin>),
     ArbitraryJoin(Node<LogicalArbitraryJoin>),
+    MagicJoin(Node<LogicalMagicJoin>),
 }
 
 impl LogicalOperator {
@@ -272,6 +292,25 @@ impl LogicalOperator {
         unimplemented!()
     }
 
+    /// Replaces the children in the operator by running them through `modify`.
+    ///
+    /// Children will be left in an undetermined state if `modify` errors.
+    pub fn modify_replace_children<F>(&mut self, modify: &mut F) -> Result<()>
+    where
+        F: FnMut(LogicalOperator) -> Result<LogicalOperator>,
+    {
+        let children = self.children_mut();
+        let mut new_children = Vec::with_capacity(children.len());
+
+        for child in children.drain(..) {
+            new_children.push(modify(child)?);
+        }
+
+        *children = new_children;
+
+        Ok(())
+    }
+
     pub fn children(&self) -> &[LogicalOperator] {
         match self {
             Self::Invalid => panic!("attempting to get children for invalid operator"),
@@ -280,6 +319,7 @@ impl LogicalOperator {
             Self::Distinct(n) => &n.children,
             Self::Scan(n) => &n.children,
             Self::MaterializationScan(n) => &n.children,
+            Self::MagicMaterializationScan(n) => &n.children,
             Self::Aggregate(n) => &n.children,
             Self::SetOp(n) => &n.children,
             Self::Empty(n) => &n.children,
@@ -300,6 +340,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => &n.children,
             Self::ArbitraryJoin(n) => &n.children,
             Self::ComparisonJoin(n) => &n.children,
+            Self::MagicJoin(n) => &n.children,
         }
     }
 
@@ -311,6 +352,7 @@ impl LogicalOperator {
             Self::Distinct(n) => &mut n.children,
             Self::Scan(n) => &mut n.children,
             Self::MaterializationScan(n) => &mut n.children,
+            Self::MagicMaterializationScan(n) => &mut n.children,
             Self::Aggregate(n) => &mut n.children,
             Self::SetOp(n) => &mut n.children,
             Self::Empty(n) => &mut n.children,
@@ -331,6 +373,7 @@ impl LogicalOperator {
             Self::CrossJoin(n) => &mut n.children,
             Self::ArbitraryJoin(n) => &mut n.children,
             Self::ComparisonJoin(n) => &mut n.children,
+            Self::MagicJoin(n) => &mut n.children,
         }
     }
 }
@@ -344,6 +387,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Distinct(n) => n.get_output_table_refs(),
             LogicalOperator::Scan(n) => n.get_output_table_refs(),
             LogicalOperator::MaterializationScan(n) => n.get_output_table_refs(),
+            LogicalOperator::MagicMaterializationScan(n) => n.get_output_table_refs(),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
             LogicalOperator::SetOp(n) => n.get_output_table_refs(),
             LogicalOperator::Empty(n) => n.get_output_table_refs(),
@@ -364,6 +408,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::CrossJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(),
+            LogicalOperator::MagicJoin(n) => n.get_output_table_refs(),
         }
     }
 }

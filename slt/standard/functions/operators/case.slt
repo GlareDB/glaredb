@@ -1,0 +1,112 @@
+# CASE
+
+statement ok
+CREATE TEMP TABLE ints (i INT);
+
+statement ok
+INSERT INTO ints VALUES (4), (5), (6), (NULL);
+
+# No conditions
+# TODO: Parser errors need to be better.
+statement error Expected WHEN, got
+SELECT CASE ELSE 2 END;
+
+# Bool conditions
+
+query I
+SELECT CASE WHEN i >= 5 THEN i + 10 END FROM ints;
+----
+NULL
+15
+16
+NULL
+
+# Short circuit
+query I
+SELECT CASE WHEN i >= 5 THEN i + 10
+            WHEN i >= 6 THEN i + 20
+       END FROM ints;
+----
+NULL
+15
+16
+NULL
+
+query I
+SELECT CASE WHEN i = 6 THEN i + 10
+            WHEN i >= 5 THEN i + 20
+       END FROM ints;
+----
+NULL
+25
+16
+NULL
+
+# Default case
+query I
+SELECT CASE WHEN i = 6 THEN i + 10
+            WHEN i = 5 THEN i + 20
+            ELSE 12
+       END FROM ints;
+----
+12
+25
+16
+12
+
+# Implicit comparison
+
+query T
+SELECT CASE 4
+            WHEN 4 THEN 'a'
+            WHEN 5 THEN 'b'
+       END;
+----
+a
+
+query T
+SELECT CASE i
+            WHEN 4 THEN 'a'
+            WHEN 5 THEN 'b'
+       END FROM ints;
+----
+a
+b
+NULL
+NULL
+
+query T
+SELECT CASE i + 1
+            WHEN 4 THEN 'a'
+            WHEN 5 THEN 'b'
+       END FROM ints;
+----
+b
+NULL
+NULL
+NULL
+
+query T
+SELECT CASE i + 1
+            WHEN 4 THEN 'a'
+            WHEN 5 THEN 'b'
+            ELSE 'cat'
+       END FROM ints;
+----
+b
+cat
+cat
+cat
+
+# Else expr cast
+
+query R
+SELECT CASE i
+            WHEN 4 THEN 8.5
+            ELSE i
+       END FROM ints;
+----
+8.5
+5
+6
+NULL

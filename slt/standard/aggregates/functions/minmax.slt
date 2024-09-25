@@ -23,10 +23,10 @@ select max(a) from generate_series(4,20,2) as g(a);
 query R
 select min(a) from (values ('1.23'::decimal), ('4.56'::decimal)) as v(a);
 ----
-1.230000000
+1.230
 
 query R
 select max(a) from (values ('1.23'::decimal), ('4.56'::decimal)) as v(a);
 ----
-4.560000000
+4.560
 

@@ -129,6 +129,8 @@ impl PartialEq for dyn TableFunction + '_ {
     }
 }
 
+impl Eq for dyn TableFunction {}
+
 pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// Reinitialize the table function, including re-opening any connections
     /// needed.
@@ -173,6 +175,8 @@ impl PartialEq for dyn PlannedTableFunction + '_ {
         self.table_function() == other.table_function() && self.schema() == other.schema()
     }
 }
+
+impl Eq for dyn PlannedTableFunction {}
 
 impl Clone for Box<dyn PlannedTableFunction> {
     fn clone(&self) -> Self {

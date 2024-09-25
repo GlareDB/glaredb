@@ -22,7 +22,7 @@ use bind_select::{BoundSelect, SelectBinder};
 
 use super::bind_context::{BindContext, BindScopeRef, TableRef};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundQuery {
     Select(BoundSelect),
     Setop(BoundSetOp),

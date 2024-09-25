@@ -13,7 +13,7 @@ use crate::{
         },
         operators::{
             materialize::MaterializeOperation,
-            round_robin::{round_robin_states, PhysicalRoundRobinRepartition},
+            round_robin::PhysicalRoundRobinRepartition,
             sink::{SinkOperation, SinkOperator},
             source::{SourceOperation, SourceOperator},
             ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
@@ -281,8 +281,13 @@ impl PendingQuery {
             // If partition doesn't match, push a round robin and start new
             // pipeline.
             if partition_states.len() != pipeline.num_partitions() {
-                pipeline =
-                    Self::push_repartition(id_gen, pipeline, partition_states.len(), executables)?;
+                pipeline = Self::push_repartition(
+                    context,
+                    id_gen,
+                    pipeline,
+                    partition_states.len(),
+                    executables,
+                )?;
             }
 
             pipeline.push_operator(
@@ -329,7 +334,8 @@ impl PendingQuery {
                 };
 
                 if partitions != pipeline.num_partitions() {
-                    pipeline = Self::push_repartition(id_gen, pipeline, partitions, executables)?;
+                    pipeline =
+                        Self::push_repartition(context, id_gen, pipeline, partitions, executables)?;
                 }
 
                 let operator = Arc::new(PhysicalOperator::ResultSink(SinkOperator::new(sink)));
@@ -361,6 +367,7 @@ impl PendingQuery {
 
                 if partition_states.len() != pipeline.num_partitions() {
                     pipeline = Self::push_repartition(
+                        context,
                         id_gen,
                         pipeline,
                         partition_states.len(),
@@ -406,6 +413,7 @@ impl PendingQuery {
 
                 if partition_states.len() != pipeline.num_partitions() {
                     pipeline = Self::push_repartition(
+                        context,
                         id_gen,
                         pipeline,
                         partition_states.len(),
@@ -570,37 +578,35 @@ impl PendingQuery {
     /// Push a repartition operator on the pipline, and return a new pipeline
     /// with the repartition as the source.
     fn push_repartition(
+        context: &DatabaseContext,
         id_gen: &mut PipelineIdGen,
         mut pipeline: ExecutablePipeline,
         output_partitions: usize,
         pipelines: &mut Vec<ExecutablePipeline>,
     ) -> Result<ExecutablePipeline> {
         let rr_operator = Arc::new(PhysicalRoundRobinRepartition);
-        let (rr_state, push_states, pull_states) =
-            round_robin_states(pipeline.num_partitions(), output_partitions);
-        let rr_state = Arc::new(OperatorState::RoundRobin(rr_state));
+        let states = rr_operator
+            .create_states(context, vec![pipeline.num_partitions(), output_partitions])?;
+
+        let (push_states, pull_states) = match states.partition_states {
+            InputOutputStates::SeparateInputOutput {
+                push_states,
+                pull_states,
+            } => (push_states, pull_states),
+            other => panic!("invalid states for round robin: {other:?}"),
+        };
 
         pipeline.push_operator(
             rr_operator.clone(),
-            rr_state.clone(),
-            push_states
-                .into_iter()
-                .map(PartitionState::RoundRobinPush)
-                .collect(),
+            states.operator_state.clone(),
+            push_states,
         )?;
 
         pipelines.push(pipeline);
 
         // New pipeline with round robin as source.
         let mut pipeline = ExecutablePipeline::new(id_gen.next(), pull_states.len());
-        pipeline.push_operator(
-            rr_operator,
-            rr_state,
-            pull_states
-                .into_iter()
-                .map(PartitionState::RoundRobinPull)
-                .collect(),
-        )?;
+        pipeline.push_operator(rr_operator, states.operator_state, pull_states)?;
 
         Ok(pipeline)
     }

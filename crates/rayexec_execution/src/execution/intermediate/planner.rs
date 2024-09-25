@@ -50,9 +50,12 @@ use crate::{
         logical_explain::LogicalExplain,
         logical_filter::LogicalFilter,
         logical_insert::LogicalInsert,
-        logical_join::{JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin},
+        logical_join::{
+            JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
+            LogicalMagicJoin,
+        },
         logical_limit::LogicalLimit,
-        logical_materialization::LogicalMaterializationScan,
+        logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
         logical_order::LogicalOrder,
         logical_project::LogicalProject,
         logical_scan::{LogicalScan, ScanSource},
@@ -67,7 +70,7 @@ use rayexec_bullet::{
     compute::concat::concat,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 use tracing::error;
 use uuid::Uuid;
 
@@ -261,6 +264,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::ComparisonJoin(join) => {
                 self.push_comparison_join(id_gen, materializations, join)
             }
+            LogicalOperator::MagicJoin(join) => {
+                self.push_magic_join(id_gen, materializations, join)
+            }
             LogicalOperator::Empty(empty) => self.push_empty(id_gen, empty),
             LogicalOperator::Aggregate(agg) => self.push_aggregate(id_gen, materializations, agg),
             LogicalOperator::Limit(limit) => self.push_limit(id_gen, materializations, limit),
@@ -281,6 +287,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             }
             LogicalOperator::MaterializationScan(scan) => {
                 self.push_materialize_scan(id_gen, materializations, scan)
+            }
+            LogicalOperator::MagicMaterializationScan(scan) => {
+                self.push_magic_materialize_scan(id_gen, materializations, scan)
             }
             LogicalOperator::Scan(scan) => self.push_scan(id_gen, scan),
             LogicalOperator::SetOp(setop) => {
@@ -633,6 +642,63 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
+    fn push_magic_materialize_scan(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        scan: Node<LogicalMagicMaterializationScan>,
+    ) -> Result<()> {
+        if !materializations
+            .local
+            .materializations
+            .contains_key(&scan.node.mat)
+        {
+            return Err(RayexecError::new(format!(
+                "Missing materialization for ref: {}",
+                scan.node.mat
+            )));
+        }
+
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new(
+                "Expected in progress to be None for materialization scan",
+            ));
+        }
+
+        // Initialize in-progress with no operators, but scan source being this
+        // materialization.
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next_pipeline_id(),
+            operators: Vec::new(),
+            location: LocationRequirement::ClientLocal, // Currently only support local.
+            source: PipelineSource::Materialization {
+                mat_ref: scan.node.mat,
+            },
+        });
+
+        // Plan the projection out of the materialization.
+        let materialized_refs = &self
+            .bind_context
+            .get_materialization(scan.node.mat)?
+            .table_refs;
+        let projections = self
+            .expr_planner
+            .plan_scalars(materialized_refs, &scan.node.projections)
+            .context("Failed to plan projections out of materialization")?;
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
+                ProjectOperation::new(projections),
+            ))),
+            partitioning_requirement: None,
+        };
+
+        // TODO: Distinct the projection.
+
+        self.push_intermediate_operator(operator, scan.location, id_gen)?;
+
+        Ok(())
+    }
+
     fn push_materialize_scan(
         &mut self,
         id_gen: &mut PipelineIdGen,
@@ -900,7 +966,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         match plan_result {
             Ok(_) => {
                 type_strings.push("physical".to_string());
-                plan_strings.push(formatter.format_intermedate_groups(&[
+                plan_strings.push(formatter.format_intermediate_groups(&[
                     ("local", &planner.local_group),
                     ("remote", &planner.remote_group),
                 ])?);
@@ -1032,7 +1098,45 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // TODO: Actually implement <https://github.com/GlareDB/rayexec/issues/226>
 
         let input = distinct.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs();
         self.walk(materializations, id_gen, input)?;
+
+        // Create group expressions from the distinct.
+        let group_types = distinct
+            .node
+            .on
+            .iter()
+            .map(|expr| expr.datatype(self.bind_context))
+            .collect::<Result<Vec<_>>>()?;
+        let group_exprs = self
+            .expr_planner
+            .plan_scalars(&input_refs, &distinct.node.on)?;
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
+                    operation: ProjectOperation::new(group_exprs),
+                })),
+                partitioning_requirement: None,
+            },
+            distinct.location,
+            id_gen,
+        )?;
+
+        let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
+
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+                    group_types,
+                    Vec::new(),
+                    grouping_sets,
+                ))),
+                partitioning_requirement: None,
+            },
+            distinct.location,
+            id_gen,
+        )?;
 
         Ok(())
     }
@@ -1120,14 +1224,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         self.walk(materializations, id_gen, input)?;
 
-        // TODO: Who sets partitioning? How was that working before?
-
+        // This is a global limit, ensure this operator is only receiving a
+        // single input partition.
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
                 limit.node.limit,
                 limit.node.offset,
             ))),
-            partitioning_requirement: None,
+            partitioning_requirement: Some(1),
         };
 
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1264,6 +1368,28 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         });
 
         Ok(())
+    }
+
+    fn push_magic_join(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        join: Node<LogicalMagicJoin>,
+    ) -> Result<()> {
+        // Planning is no different from a comparison join. Materialization
+        // scans will be planned appropriately as we get there.
+        self.push_comparison_join(
+            id_gen,
+            materializations,
+            Node {
+                node: LogicalComparisonJoin {
+                    join_type: join.node.join_type,
+                    conditions: join.node.conditions,
+                },
+                location: join.location,
+                children: join.children,
+            },
+        )
     }
 
     fn push_comparison_join(
@@ -1403,7 +1529,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             other => {
                 // TODO: Other join types.
                 return Err(RayexecError::new(format!(
-                    "Unhandled join type for any join: {other:?}"
+                    "Unhandled join type for arbitrary join: {other:?}"
                 )));
             }
         };
@@ -1515,7 +1641,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
-                .map(|expr| expr.eval(&dummy_batch))
+                .map(|expr| expr.eval(&dummy_batch, None))
                 .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);
         }

@@ -16,8 +16,8 @@ pub mod window_expr;
 
 pub mod physical;
 
-use crate::functions::scalar::ScalarFunction;
 use crate::logical::binder::bind_context::BindContext;
+use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::TableRef};
 use aggregate_expr::AggregateExpr;
 use arith_expr::ArithExpr;
 use between_expr::BetweenExpr;
@@ -33,11 +33,12 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
+use std::collections::HashSet;
 use std::fmt::{self, Debug};
 use subquery_expr::SubqueryExpr;
 use window_expr::WindowExpr;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
     Aggregate(AggregateExpr),
     Arith(ArithExpr),
@@ -81,21 +82,6 @@ impl Expression {
         })
     }
 
-    /// ANDs all expressions, only returning None if iterator contains no
-    /// expressions.
-    pub fn and_all(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
-        let mut exprs = exprs.into_iter();
-        let left = exprs.next()?;
-
-        Some(exprs.fold(left, |left, right| {
-            Expression::Conjunction(ConjunctionExpr {
-                left: Box::new(left),
-                right: Box::new(right),
-                op: ConjunctionOperator::And,
-            })
-        }))
-    }
-
     pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>
     where
         F: FnMut(&mut Expression) -> Result<()>,
@@ -136,8 +122,9 @@ impl Expression {
                 func(&mut comp.right)?;
             }
             Self::Conjunction(conj) => {
-                func(&mut conj.left)?;
-                func(&mut conj.right)?;
+                for child in &mut conj.expressions {
+                    func(child)?;
+                }
             }
             Self::Is(is) => func(&mut is.input)?,
             Self::Literal(_) => (),
@@ -201,8 +188,9 @@ impl Expression {
                 func(&comp.right)?;
             }
             Self::Conjunction(conj) => {
-                func(&conj.left)?;
-                func(&conj.right)?;
+                for child in &conj.expressions {
+                    func(child)?;
+                }
             }
             Self::Is(is) => func(&is.input)?,
             Self::Literal(_) => (),
@@ -292,6 +280,47 @@ impl Expression {
         inner(self, &mut found)
     }
 
+    /// Get all column references in the expression.
+    pub fn get_column_references(&self) -> Vec<ColumnExpr> {
+        fn inner(expr: &Expression, cols: &mut Vec<ColumnExpr>) {
+            match expr {
+                Expression::Column(col) => cols.push(*col),
+                other => other
+                    .for_each_child(&mut |child| {
+                        inner(child, cols);
+                        Ok(())
+                    })
+                    .expect("not to fail"),
+            }
+        }
+
+        let mut cols = Vec::new();
+        inner(self, &mut cols);
+
+        cols
+    }
+
+    pub fn get_table_references(&self) -> HashSet<TableRef> {
+        fn inner(expr: &Expression, tables: &mut HashSet<TableRef>) {
+            match expr {
+                Expression::Column(col) => {
+                    tables.insert(col.table_scope);
+                }
+                other => other
+                    .for_each_child(&mut |child| {
+                        inner(child, tables);
+                        Ok(())
+                    })
+                    .expect("not to fail"),
+            }
+        }
+
+        let mut tables = HashSet::new();
+        inner(self, &mut tables);
+
+        tables
+    }
+
     pub const fn is_column_expr(&self) -> bool {
         matches!(self, Self::Column(_))
     }
@@ -301,9 +330,56 @@ impl Expression {
     pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit.literal),
-            other => Err(RayexecError::new(format!("Not a literal: {other:?}"))),
+            other => Err(RayexecError::new(format!("Not a literal: {other}"))),
         }
     }
+}
+
+pub fn and(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
+    let mut exprs: Vec<_> = exprs.into_iter().collect();
+    if exprs.is_empty() {
+        return None;
+    }
+
+    // ANDing one expression is the same as just the expression itself.
+    if exprs.len() == 1 {
+        return exprs.pop();
+    }
+
+    Some(Expression::Conjunction(ConjunctionExpr {
+        op: ConjunctionOperator::And,
+        expressions: exprs,
+    }))
+}
+
+pub fn or(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
+    let mut exprs: Vec<_> = exprs.into_iter().collect();
+    if exprs.is_empty() {
+        return None;
+    }
+
+    // ORing one expression is the same as just the expression itself.
+    if exprs.len() == 1 {
+        return exprs.pop();
+    }
+
+    Some(Expression::Conjunction(ConjunctionExpr {
+        op: ConjunctionOperator::Or,
+        expressions: exprs,
+    }))
+}
+
+pub fn col_ref(table_ref: impl Into<TableRef>, column_idx: usize) -> Expression {
+    Expression::Column(ColumnExpr {
+        table_scope: table_ref.into(),
+        column: column_idx,
+    })
+}
+
+pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
+    Expression::Literal(LiteralExpr {
+        literal: scalar.into(),
+    })
 }
 
 impl fmt::Display for Expression {
@@ -335,5 +411,42 @@ pub trait AsScalarFunction {
 impl<S: ScalarFunction> AsScalarFunction for S {
     fn as_scalar_function(&self) -> &dyn ScalarFunction {
         self as _
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_column_refs_simple() {
+        let expr = and([
+            col_ref(0, 0),
+            col_ref(0, 1),
+            or([col_ref(1, 8), col_ref(2, 4)]).unwrap(),
+        ])
+        .unwrap();
+
+        let expected = vec![
+            ColumnExpr {
+                table_scope: 0.into(),
+                column: 0,
+            },
+            ColumnExpr {
+                table_scope: 0.into(),
+                column: 1,
+            },
+            ColumnExpr {
+                table_scope: 1.into(),
+                column: 8,
+            },
+            ColumnExpr {
+                table_scope: 2.into(),
+                column: 4,
+            },
+        ];
+
+        let got = expr.get_column_references();
+        assert_eq!(expected, got);
     }
 }

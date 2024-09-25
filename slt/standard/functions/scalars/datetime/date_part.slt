@@ -1,0 +1,26 @@
+# DATE_PART function.
+
+# TODO: Formatting decimals should omit the trailing zeros.
+
+statement error 'gigasecond' is not a valid date part
+SELECT date_part('gigasecond', DATE '2012-07-04');
+
+query R
+SELECT date_part('day', DATE '2012-07-04');
+----
+4.000
+
+query R
+SELECT date_part('Day', DATE '2012-07-04');
+----
+4.000
+
+query R
+SELECT date_part('month', DATE '2012-07-04');
+----
+7.000
+
+query R
+SELECT date_part('year', DATE '2012-07-04');
+----
+2012.000

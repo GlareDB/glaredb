@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 
 use super::select_list::SelectList;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundGroupBy {
     pub expressions: Vec<Expression>,
     pub group_table: TableRef,

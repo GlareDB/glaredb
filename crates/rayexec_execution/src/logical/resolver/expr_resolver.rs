@@ -270,7 +270,12 @@ impl<'a> ExpressionResolver<'a> {
                         }),
                     },
                     ast::UnaryOperator::Not => {
-                        not_implemented!("bind not")
+                        let expr =
+                            Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                        Ok(ast::Expr::UnaryExpr {
+                            op,
+                            expr: Box::new(expr),
+                        })
                     }
                 }
             }
@@ -435,7 +440,7 @@ impl<'a> ExpressionResolver<'a> {
                 }))
             }
             ast::Expr::Like {
-                not_like,
+                negated: not_like,
                 case_insensitive,
                 expr,
                 pattern,
@@ -443,13 +448,125 @@ impl<'a> ExpressionResolver<'a> {
                 let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 let pattern = Box::pin(self.resolve_expression(*pattern, resolve_context)).await?;
                 Ok(ast::Expr::Like {
-                    not_like,
+                    negated: not_like,
                     case_insensitive,
                     expr: Box::new(expr),
                     pattern: Box::new(pattern),
                 })
             }
-            other => not_implemented!("bind expr {other:?}"),
+            ast::Expr::Between {
+                negated,
+                expr,
+                low,
+                high,
+            } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let low = Box::pin(self.resolve_expression(*low, resolve_context)).await?;
+                let high = Box::pin(self.resolve_expression(*high, resolve_context)).await?;
+                Ok(ast::Expr::Between {
+                    negated,
+                    expr: Box::new(expr),
+                    low: Box::new(low),
+                    high: Box::new(high),
+                })
+            }
+            ast::Expr::AnySubquery { left, op, right } => {
+                let left = Box::pin(self.resolve_expression(*left, resolve_context)).await?;
+                let right = Box::pin(self.resolver.resolve_query(*right, resolve_context)).await?;
+                Ok(ast::Expr::AnySubquery {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
+            ast::Expr::AllSubquery { left, op, right } => {
+                let left = Box::pin(self.resolve_expression(*left, resolve_context)).await?;
+                let right = Box::pin(self.resolver.resolve_query(*right, resolve_context)).await?;
+                Ok(ast::Expr::AllSubquery {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
+            ast::Expr::InSubquery {
+                negated,
+                expr,
+                subquery,
+            } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let subquery =
+                    Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
+                Ok(ast::Expr::InSubquery {
+                    negated,
+                    expr: Box::new(expr),
+                    subquery: Box::new(subquery),
+                })
+            }
+            ast::Expr::InList {
+                negated,
+                expr,
+                list,
+            } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let list = Box::pin(self.resolve_expressions(list, resolve_context)).await?;
+                Ok(ast::Expr::InList {
+                    negated,
+                    expr: Box::new(expr),
+                    list,
+                })
+            }
+            ast::Expr::Case {
+                expr,
+                conditions,
+                results,
+                else_expr,
+            } => {
+                let expr = match expr {
+                    Some(expr) => Some(Box::new(
+                        Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
+                    )),
+                    None => None,
+                };
+                let else_expr = match else_expr {
+                    Some(expr) => Some(Box::new(
+                        Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
+                    )),
+                    None => None,
+                };
+                let conditions =
+                    Box::pin(self.resolve_expressions(conditions, resolve_context)).await?;
+                let results = Box::pin(self.resolve_expressions(results, resolve_context)).await?;
+                Ok(ast::Expr::Case {
+                    expr,
+                    conditions,
+                    results,
+                    else_expr,
+                })
+            }
+            ast::Expr::Substring { expr, from, count } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                let from = Box::pin(self.resolve_expression(*from, resolve_context)).await?;
+                let count = match count {
+                    Some(count) => {
+                        Some(Box::pin(self.resolve_expression(*count, resolve_context)).await?)
+                    }
+                    None => None,
+                };
+
+                Ok(ast::Expr::Substring {
+                    expr: Box::new(expr),
+                    from: Box::new(from),
+                    count: count.map(Box::new),
+                })
+            }
+            ast::Expr::Extract { date_part, expr } => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                Ok(ast::Expr::Extract {
+                    date_part,
+                    expr: Box::new(expr),
+                })
+            }
+            other => not_implemented!("resolve expr {other:?}"),
         }
     }
 }

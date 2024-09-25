@@ -1,6 +1,9 @@
 use crate::{
     execution::operators::hash_join::condition::HashJoinCondition,
-    expr::{physical::PhysicalScalarExpression, AsScalarFunction, Expression},
+    expr::{
+        physical::{case_expr::PhyscialWhenThen, PhysicalScalarExpression},
+        AsScalarFunction, Expression,
+    },
     logical::{
         binder::{
             bind_context::{BindContext, TableRef},
@@ -10,10 +13,11 @@ use crate::{
     },
 };
 use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
+    case_expr::PhysicalCaseExpr, cast_expr::PhysicalCastExpr, column_expr::PhysicalColumnExpr,
     literal_expr::PhysicalLiteralExpr, scalar_function_expr::PhysicalScalarFunctionExpr,
     PhysicalSortExpression,
 };
@@ -117,17 +121,13 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             }
             Expression::Conjunction(expr) => {
                 let scalar = expr.op.as_scalar_function();
-                let function =
-                    scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
+                let refs: Vec<_> = expr.expressions.iter().collect();
+                let function = scalar.plan_from_expressions(self.bind_context, &refs)?;
+
+                let inputs = self.plan_scalars(table_refs, &expr.expressions)?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
-                    PhysicalScalarFunctionExpr {
-                        function,
-                        inputs: vec![
-                            self.plan_scalar(table_refs, &expr.left)?,
-                            self.plan_scalar(table_refs, &expr.right)?,
-                        ],
-                    },
+                    PhysicalScalarFunctionExpr { function, inputs },
                 ))
             }
             Expression::Arith(expr) => {
@@ -144,6 +144,45 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                         ],
                     },
                 ))
+            }
+            Expression::Negate(expr) => {
+                let scalar = expr.op.as_scalar_function();
+                let function = scalar.plan_from_expressions(self.bind_context, &[&expr.expr])?;
+
+                Ok(PhysicalScalarExpression::ScalarFunction(
+                    PhysicalScalarFunctionExpr {
+                        function,
+                        inputs: vec![self.plan_scalar(table_refs, &expr.expr)?],
+                    },
+                ))
+            }
+            Expression::Case(expr) => {
+                let datatype = expr.datatype(self.bind_context)?;
+
+                let cases = expr
+                    .cases
+                    .iter()
+                    .map(|when_then| {
+                        let when = self.plan_scalar(table_refs, &when_then.when)?;
+                        let then = self.plan_scalar(table_refs, &when_then.then)?;
+                        Ok(PhyscialWhenThen { when, then })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let else_expr = match &expr.else_expr {
+                    Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
+                    None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
+                        to: datatype,
+                        expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                            literal: ScalarValue::Null,
+                        })),
+                    }),
+                };
+
+                Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
+                    cases,
+                    else_expr: Box::new(else_expr),
+                }))
             }
             other => Err(RayexecError::new(format!(
                 "Unsupported scalar expression: {other}"

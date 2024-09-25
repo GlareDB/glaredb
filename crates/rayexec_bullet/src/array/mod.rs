@@ -379,11 +379,64 @@ impl Array {
             DataType::UInt128 => {
                 iter_scalars_for_type!(Vec::with_capacity(cap), UInt128, PrimitiveArray, 0)
             }
-            DataType::Decimal64(_meta) => {
-                unimplemented!()
+            DataType::Decimal64(meta) => {
+                let mut bitmap = Bitmap::default();
+                let mut buffer = Vec::with_capacity(cap);
+                for scalar in scalars {
+                    match scalar {
+                        ScalarValue::Null => {
+                            bitmap.push(false);
+                            buffer.push_value(0);
+                        }
+                        ScalarValue::Decimal64(v) => {
+                            // TODO: Assert prec/scale
+                            bitmap.push(true);
+                            buffer.push_value(v.value);
+                        }
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Unexpected scalar value: {other:?}, want: {}",
+                                datatype,
+                            )))
+                        }
+                    }
+                }
+                let prim = PrimitiveArray::new(buffer, Some(bitmap));
+                Ok(Array::Decimal64(Decimal64Array::new(
+                    meta.precision,
+                    meta.scale,
+                    prim,
+                )))
             }
-            DataType::Decimal128(_meta) => {
-                unimplemented!()
+            DataType::Decimal128(meta) => {
+                // TODO: Reduce duplication
+                let mut bitmap = Bitmap::default();
+                let mut buffer = Vec::with_capacity(cap);
+                for scalar in scalars {
+                    match scalar {
+                        ScalarValue::Null => {
+                            bitmap.push(false);
+                            buffer.push_value(0);
+                        }
+                        ScalarValue::Decimal128(v) => {
+                            // TODO: Assert prec/scale
+                            bitmap.push(true);
+                            buffer.push_value(v.value);
+                        }
+                        other => {
+                            return Err(RayexecError::new(format!(
+                                "Unexpected scalar value: {other:?}, want: {}",
+                                datatype,
+                            )))
+                        }
+                    }
+                }
+                let prim = PrimitiveArray::new(buffer, Some(bitmap));
+                Ok(Array::Decimal128(Decimal128Array::new(
+                    meta.precision,
+                    meta.scale,
+                    prim,
+                )))
             }
             DataType::Date32 => {
                 iter_scalars_for_type!(Vec::with_capacity(cap), Date32, PrimitiveArray, 0)

@@ -1,12 +1,15 @@
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
-use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::BindContext};
+use crate::{
+    functions::scalar::{negate, ScalarFunction},
+    logical::binder::bind_context::BindContext,
+};
 
 use super::{AsScalarFunction, Expression};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NegateOperator {
     Not,    // Boolean,
     Negate, // Numeric
@@ -14,11 +17,14 @@ pub enum NegateOperator {
 
 impl AsScalarFunction for NegateOperator {
     fn as_scalar_function(&self) -> &dyn ScalarFunction {
-        unimplemented!()
+        match self {
+            Self::Not => &negate::Not,
+            Self::Negate => &negate::Negate,
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NegateExpr {
     pub op: NegateOperator,
     pub expr: Box<Expression>,

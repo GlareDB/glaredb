@@ -6,7 +6,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 
-use crate::{compute::cast::parse::SECONDS_IN_DAY, scalar::interval::Interval};
+use crate::{compute::date::SECONDS_IN_DAY, scalar::interval::Interval};
 
 /// Logic for formatting and writing a type to a buffer.
 pub trait Formatter {

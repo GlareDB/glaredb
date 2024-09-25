@@ -1,0 +1,17 @@
+# Ensure limit is global by producing values from multiple partitions.
+
+statement ok
+SET partitions TO 2;
+
+query I
+SELECT count(*) FROM (
+  SELECT * FROM
+    generate_series(1, 3) a(a),
+    generate_series(1, 3) b(b),
+    generate_series(1, 3) c(c),
+    generate_series(1, 3) d(d)
+  GROUP BY a,b,c,d
+  LIMIT 2
+);
+----
+2

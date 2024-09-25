@@ -1,10 +1,13 @@
 use super::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::scalar::macros::primitive_binary_execute_bool;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
+use rayexec_bullet::compute::cast::array::cast_decimal_to_new_precision_and_scale;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_error::Result;
+use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use rayexec_error::{not_implemented, Result};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -111,6 +114,236 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
     },
 ];
 
+/// Describes a comparison betweeen a left and right element.
+trait ComparisonOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct EqOperation;
+
+impl ComparisonOperation for EqOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        left == right
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NotEqOperation;
+
+impl ComparisonOperation for NotEqOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        left != right
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LtOperation;
+
+impl ComparisonOperation for LtOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        left < right
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LtEqOperation;
+
+impl ComparisonOperation for LtEqOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        left <= right
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GtOperation;
+
+impl ComparisonOperation for GtOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        left > right
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GtEqOperation;
+
+impl ComparisonOperation for GtEqOperation {
+    fn compare<T>(left: T, right: T) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        left >= right
+    }
+}
+
+fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<BooleanArray> {
+    let mut buffer = BooleanValuesBuffer::with_capacity(left.len());
+    let validity = match (left, right) {
+        (Array::Boolean(left), Array::Boolean(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Int8(left), Array::Int8(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Int16(left), Array::Int16(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Int32(left), Array::Int32(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Int64(left), Array::Int64(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::UInt8(left), Array::UInt8(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::UInt16(left), Array::UInt16(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::UInt32(left), Array::UInt32(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::UInt64(left), Array::UInt64(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Float32(left), Array::Float32(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Float64(left), Array::Float64(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Decimal64(left), Array::Decimal64(right)) => {
+            match left.scale().cmp(&right.scale()) {
+                Ordering::Greater => {
+                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
+                        right,
+                        Decimal64Type::MAX_PRECISION,
+                        left.scale(),
+                    )?;
+
+                    BinaryExecutor::execute(
+                        left.get_primitive(),
+                        scaled_right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+                Ordering::Less => {
+                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
+                        left,
+                        Decimal64Type::MAX_PRECISION,
+                        right.scale(),
+                    )?;
+
+                    BinaryExecutor::execute(
+                        scaled_left.get_primitive(),
+                        right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+                Ordering::Equal => BinaryExecutor::execute(
+                    left.get_primitive(),
+                    right.get_primitive(),
+                    O::compare,
+                    &mut buffer,
+                )?,
+            }
+        }
+        (Array::Decimal128(left), Array::Decimal128(right)) => {
+            match left.scale().cmp(&right.scale()) {
+                Ordering::Greater => {
+                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
+                        right,
+                        Decimal128Type::MAX_PRECISION,
+                        left.scale(),
+                    )?;
+
+                    BinaryExecutor::execute(
+                        left.get_primitive(),
+                        scaled_right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+
+                Ordering::Less => {
+                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
+                        left,
+                        Decimal128Type::MAX_PRECISION,
+                        right.scale(),
+                    )?;
+
+                    BinaryExecutor::execute(
+                        scaled_left.get_primitive(),
+                        right.get_primitive(),
+                        O::compare,
+                        &mut buffer,
+                    )?
+                }
+
+                Ordering::Equal => BinaryExecutor::execute(
+                    left.get_primitive(),
+                    right.get_primitive(),
+                    O::compare,
+                    &mut buffer,
+                )?,
+            }
+        }
+        (Array::Timestamp(left), Array::Timestamp(right)) => {
+            // TODO: Unit check
+            BinaryExecutor::execute(
+                left.get_primitive(),
+                right.get_primitive(),
+                O::compare,
+                &mut buffer,
+            )?
+        }
+        (Array::Date32(left), Array::Date32(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Date64(left), Array::Date64(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Utf8(left), Array::Utf8(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::LargeUtf8(left), Array::LargeUtf8(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::Binary(left), Array::Binary(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (Array::LargeBinary(left), Array::LargeBinary(right)) => {
+            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
+        }
+        (left, right) => not_implemented!(
+            "comparison between {} and {}",
+            left.datatype(),
+            right.datatype()
+        ),
+    };
+
+    Ok(BooleanArray::new(buffer, validity))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Eq;
 
@@ -174,86 +407,9 @@ impl PlannedScalarFunction for EqImpl {
     }
 
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a == b
-                )
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a == b
-                )
-            }
-            (Array::Timestamp(first), Array::Timestamp(second)) => {
-                // TODO: Unit check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a == b
-                )
-            }
-            (Array::Date32(first), Array::Date32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Date64(first), Array::Date64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Utf8(first), Array::Utf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::Binary(first), Array::Binary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a == b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+        let left = arrays[0].as_ref();
+        let right = arrays[1].as_ref();
+        execute::<EqOperation>(left, right).map(Array::Boolean)
     }
 }
 
@@ -324,86 +480,9 @@ impl PlannedScalarFunction for NeqImpl {
     }
 
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a != b
-                )
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a != b
-                )
-            }
-            (Array::Timestamp(first), Array::Timestamp(second)) => {
-                // TODO: Unit check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a != b
-                )
-            }
-            (Array::Date32(first), Array::Date32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Date64(first), Array::Date64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Utf8(first), Array::Utf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::Binary(first), Array::Binary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a != b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+        let left = arrays[0].as_ref();
+        let right = arrays[1].as_ref();
+        execute::<NotEqOperation>(left, right).map(Array::Boolean)
     }
 }
 
@@ -470,86 +549,9 @@ impl PlannedScalarFunction for LtImpl {
     }
 
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| !a & b)
-            }
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a < b
-                )
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a < b
-                )
-            }
-            (Array::Timestamp(first), Array::Timestamp(second)) => {
-                // TODO: Unit check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a < b
-                )
-            }
-            (Array::Date32(first), Array::Date32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Date64(first), Array::Date64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Utf8(first), Array::Utf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::Binary(first), Array::Binary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a < b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+        let left = arrays[0].as_ref();
+        let right = arrays[1].as_ref();
+        execute::<LtOperation>(left, right).map(Array::Boolean)
     }
 }
 
@@ -616,86 +618,9 @@ impl PlannedScalarFunction for LtEqImpl {
     }
 
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a <= b
-                )
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a <= b
-                )
-            }
-            (Array::Timestamp(first), Array::Timestamp(second)) => {
-                // TODO: Unit check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a <= b
-                )
-            }
-            (Array::Date32(first), Array::Date32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Date64(first), Array::Date64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Utf8(first), Array::Utf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::Binary(first), Array::Binary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a <= b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+        let left = arrays[0].as_ref();
+        let right = arrays[1].as_ref();
+        execute::<LtEqOperation>(left, right).map(Array::Boolean)
     }
 }
 
@@ -762,86 +687,9 @@ impl PlannedScalarFunction for GtImpl {
     }
 
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a & !b)
-            }
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a > b
-                )
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a > b
-                )
-            }
-            (Array::Timestamp(first), Array::Timestamp(second)) => {
-                // TODO: Unit check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a > b
-                )
-            }
-            (Array::Date32(first), Array::Date32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Date64(first), Array::Date64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Utf8(first), Array::Utf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::Binary(first), Array::Binary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a > b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+        let left = arrays[0].as_ref();
+        let right = arrays[1].as_ref();
+        execute::<GtOperation>(left, right).map(Array::Boolean)
     }
 }
 
@@ -908,86 +756,9 @@ impl PlannedScalarFunction for GtEqImpl {
     }
 
     fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Boolean(first), Array::Boolean(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a >= b
-                )
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a >= b
-                )
-            }
-            (Array::Timestamp(first), Array::Timestamp(second)) => {
-                // TODO: Unit check
-                primitive_binary_execute_bool!(
-                    first.get_primitive(),
-                    second.get_primitive(),
-                    |a, b| a >= b
-                )
-            }
-            (Array::Date32(first), Array::Date32(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Date64(first), Array::Date64(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Utf8(first), Array::Utf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::LargeUtf8(first), Array::LargeUtf8(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::Binary(first), Array::Binary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            (Array::LargeBinary(first), Array::LargeBinary(second)) => {
-                primitive_binary_execute_bool!(first, second, |a, b| a >= b)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+        let left = arrays[0].as_ref();
+        let right = arrays[1].as_ref();
+        execute::<GtEqOperation>(left, right).map(Array::Boolean)
     }
 }
 

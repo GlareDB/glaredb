@@ -29,7 +29,7 @@ impl Drop for VecDeallocate {
 /// Currently this contains only a single variant, but should be extension point
 /// for working with externally managed data (Arrow arrays from arrow-rs, shared
 /// memory regions, CUDA, etc).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PrimitiveStorage<T> {
     /// A basic vector of data.
     Vec(Vec<T>),
@@ -115,6 +115,8 @@ impl<T: PartialEq> PartialEq for PrimitiveStorage<T> {
         a == b
     }
 }
+
+impl<T: Eq> Eq for PrimitiveStorage<T> {}
 
 impl<T> From<Vec<T>> for PrimitiveStorage<T> {
     fn from(value: Vec<T>) -> Self {

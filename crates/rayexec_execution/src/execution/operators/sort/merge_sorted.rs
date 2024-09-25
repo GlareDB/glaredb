@@ -148,6 +148,7 @@ impl PhysicalMergeSortedInputs {
         PhysicalMergeSortedInputs { exprs }
     }
 
+    // TODO: REMOVE
     pub fn create_states_orig(
         &self,
         input_partitions: usize,

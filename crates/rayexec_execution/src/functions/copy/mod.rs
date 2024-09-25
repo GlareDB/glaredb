@@ -97,3 +97,5 @@ impl PartialEq for dyn CopyToFunction + '_ {
         self.name() == other.name()
     }
 }
+
+impl Eq for dyn CopyToFunction {}
