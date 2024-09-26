@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   wasm:
-    name: Build wasm
+    name: Build and Publish WASM
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -16,6 +16,8 @@ jobs:
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -23,8 +25,89 @@ jobs:
       - name: Build wasm
         run: wasm-pack build crates/rayexec_wasm/ --scope glaredb
 
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Publish
-        run: |
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-          wasm-pack publish crates/rayexec_wasm/
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: wasm-pack publish crates/rayexec_wasm/
     
+  python-macos-arm:
+    name: Build Python (macOS ARM)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Maturin build
+        uses: PyO3/maturin-action@v1
+        with:
+          args: --release --out dist
+          working-directory: crates/rayexec_python
+          container: 'off'
+
+      - name: Upload python wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos
+          path: crates/rayexec_python/dist
+
+  python-manylinux:
+    name: Build python (Linux x86-64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Maturin build
+        uses: PyO3/maturin-action@v1
+        with:
+          before-script-linux: "../../scripts/install_protoc_linux.sh" # Relative to working dir
+          args: --release --out dist
+          working-directory: crates/rayexec_python
+          manylinux: 'auto'
+
+      - name: Upload python wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux
+          path: crates/rayexec_python/dist
+
+  python-pypi-upload:
+    name: Upload to pypi
+    needs: [python-macos-arm, python-manylinux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: wheels
+          pattern: wheels-*
+          merge-multiple: true
+
+      - name: List wheels
+        run: ls -R wheels
+
+      - name: Upload to pypi
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          working-directory: wheels
+          command: upload
+          args: ./*.whl
+

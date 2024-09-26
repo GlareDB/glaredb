@@ -1,0 +1,24 @@
+[package]
+name = "rayexec_python"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "rayexec"
+crate-type = ["cdylib"]
+
+[dependencies]
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_error = { path = '../rayexec_error' }
+rayexec_shell = { path = '../rayexec_shell' }
+rayexec_parquet = { path = '../rayexec_parquet' }
+rayexec_csv = { path = '../rayexec_csv' }
+rayexec_delta = { path = '../rayexec_delta' }
+rayexec_io = { path = '../rayexec_io' }
+rayexec_rt_native = { path = '../rayexec_rt_native' }
+futures = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+pyo3 = { version = "0.22.3", features = ["abi3-py37", "extension-module"] }
+tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

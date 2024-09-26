@@ -1,11 +1,12 @@
 use futures::TryStreamExt;
 use rayexec_bullet::format::pretty::table::PrettyTable;
+use rayexec_execution::engine::result::ExecutionResult;
 use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
 use std::sync::Arc;
 
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::{session::Session, Engine};
 use rayexec_execution::runtime::{PipelineExecutor, Runtime};
@@ -17,15 +18,7 @@ use tokio::sync::Mutex;
 pub struct SingleUserEngine<P: PipelineExecutor, R: Runtime> {
     pub runtime: R,
     pub engine: Engine<P, R>,
-
-    /// Session connected to the above engine.
-    ///
-    /// Wrapped in a mutex since planning may alter session state. Needs a tokio
-    /// mutex since the lock is held across an await (for async binding).
-    ///
-    /// The lock should not be held during actual execution (reading of the
-    /// result stream).
-    pub session: Arc<Mutex<Session<P, R>>>,
+    pub session: SingleUserSession<P, R>,
 }
 
 impl<P, R> SingleUserEngine<P, R>
@@ -36,13 +29,19 @@ where
     /// Create a new single user engine using the provided runtime and registry.
     pub fn try_new(executor: P, runtime: R, registry: DataSourceRegistry) -> Result<Self> {
         let engine = Engine::new_with_registry(executor, runtime.clone(), registry)?;
-        let session = engine.new_session()?;
+        let session = SingleUserSession {
+            session: Arc::new(Mutex::new(engine.new_session()?)),
+        };
 
         Ok(SingleUserEngine {
             runtime,
             engine,
-            session: Arc::new(Mutex::new(session)),
+            session,
         })
+    }
+
+    pub fn session(&self) -> &SingleUserSession<P, R> {
+        &self.session
     }
 
     /// Execute a sql query, storing the results in a `ResultTable`.
@@ -51,7 +50,7 @@ where
     /// result in more than one table.
     pub async fn sql(&self, sql: &str) -> Result<Vec<ResultTable>> {
         let results = {
-            let mut session = self.session.lock().await;
+            let mut session = self.session.session.lock().await;
             session.simple(sql).await?
         };
 
@@ -79,9 +78,43 @@ where
         let hybrid = HybridClient::new(client, config);
 
         hybrid.ping().await?;
-        self.session.lock().await.set_hybrid(hybrid);
+        self.session.session.lock().await.set_hybrid(hybrid);
 
         Ok(())
+    }
+}
+
+/// Session connected to the above engine.
+///
+/// Cheaply cloneable.
+#[derive(Debug, Clone)]
+pub struct SingleUserSession<P: PipelineExecutor, R: Runtime> {
+    /// The underlying session.
+    ///
+    /// Wrapped in a mutex since planning may alter session state. Needs a tokio
+    /// mutex since the lock is held across an await (for async binding).
+    ///
+    /// The lock should not be held during actual execution (reading of the
+    /// result stream).
+    pub(crate) session: Arc<Mutex<Session<P, R>>>,
+}
+
+impl<P, R> SingleUserSession<P, R>
+where
+    P: PipelineExecutor,
+    R: Runtime,
+{
+    pub async fn query(&self, sql: &str) -> Result<ExecutionResult> {
+        let mut session = self.session.lock().await;
+        let mut results = session.simple(sql).await?;
+
+        match results.len() {
+            1 => Ok(results.pop().unwrap()),
+            other => Err(RayexecError::new(format!(
+                "Expected 1 query, got {}",
+                other
+            ))),
+        }
     }
 }
 
@@ -92,6 +125,14 @@ pub struct ResultTable {
 }
 
 impl ResultTable {
+    pub async fn collect_from_result_stream(result: ExecutionResult) -> Result<Self> {
+        let batches: Vec<_> = result.stream.try_collect::<Vec<_>>().await?;
+        Ok(ResultTable {
+            schema: result.output_schema,
+            batches,
+        })
+    }
+
     pub fn pretty_table(&self, width: usize, max_rows: Option<usize>) -> Result<PrettyTable> {
         PrettyTable::try_new(&self.schema, &self.batches, width, max_rows)
     }

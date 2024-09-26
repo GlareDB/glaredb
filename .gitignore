@@ -6,3 +6,8 @@
 
 # Outputs from cargo flamegraph
 flamegraph.svg
+
+# Python stuff
+venv/
+.venv/
+__pycache__
