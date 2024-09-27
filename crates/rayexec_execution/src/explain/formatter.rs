@@ -217,6 +217,7 @@ impl ExplainNode {
             LogicalOperator::Insert(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::CreateSchema(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::CreateTable(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::CreateView(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Describe(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Explain(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::CopyTo(n) => (n.explain_entry(config), &n.children),

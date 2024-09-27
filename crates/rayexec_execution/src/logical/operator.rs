@@ -2,7 +2,7 @@ use super::binder::bind_context::TableRef;
 use super::logical_aggregate::LogicalAggregate;
 use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
 use super::logical_copy::LogicalCopyTo;
-use super::logical_create::{LogicalCreateSchema, LogicalCreateTable};
+use super::logical_create::{LogicalCreateSchema, LogicalCreateTable, LogicalCreateView};
 use super::logical_describe::LogicalDescribe;
 use super::logical_distinct::LogicalDistinct;
 use super::logical_drop::LogicalDrop;
@@ -241,6 +241,7 @@ pub enum LogicalOperator {
     Insert(Node<LogicalInsert>),
     CreateSchema(Node<LogicalCreateSchema>),
     CreateTable(Node<LogicalCreateTable>),
+    CreateView(Node<LogicalCreateView>),
     Describe(Node<LogicalDescribe>),
     Explain(Node<LogicalExplain>),
     CopyTo(Node<LogicalCopyTo>),
@@ -334,6 +335,7 @@ impl LogicalOperator {
             Self::Insert(n) => &n.children,
             Self::CreateSchema(n) => &n.children,
             Self::CreateTable(n) => &n.children,
+            Self::CreateView(n) => &n.children,
             Self::Describe(n) => &n.children,
             Self::Explain(n) => &n.children,
             Self::CopyTo(n) => &n.children,
@@ -367,6 +369,7 @@ impl LogicalOperator {
             Self::Insert(n) => &mut n.children,
             Self::CreateSchema(n) => &mut n.children,
             Self::CreateTable(n) => &mut n.children,
+            Self::CreateView(n) => &mut n.children,
             Self::Describe(n) => &mut n.children,
             Self::Explain(n) => &mut n.children,
             Self::CopyTo(n) => &mut n.children,
@@ -402,6 +405,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Insert(n) => n.get_output_table_refs(),
             LogicalOperator::CreateSchema(n) => n.get_output_table_refs(),
             LogicalOperator::CreateTable(n) => n.get_output_table_refs(),
+            LogicalOperator::CreateView(n) => n.get_output_table_refs(),
             LogicalOperator::Describe(n) => n.get_output_table_refs(),
             LogicalOperator::Explain(n) => n.get_output_table_refs(),
             LogicalOperator::CopyTo(n) => n.get_output_table_refs(),

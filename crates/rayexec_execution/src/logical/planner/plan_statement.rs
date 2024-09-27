@@ -38,6 +38,7 @@ impl StatementPlanner {
             BoundStatement::Insert(insert) => InsertPlanner.plan(bind_context, insert),
             BoundStatement::CreateSchema(plan) => Ok(LogicalOperator::CreateSchema(plan)),
             BoundStatement::CreateTable(create) => CreateTablePlanner.plan(bind_context, create),
+            BoundStatement::CreateView(create) => Ok(LogicalOperator::CreateView(create)),
             BoundStatement::Describe(plan) => Ok(LogicalOperator::Describe(plan)),
             BoundStatement::Explain(explain) => ExplainPlanner.plan(bind_context, explain),
             BoundStatement::CopyTo(copy_to) => CopyPlanner.plan(bind_context, copy_to),

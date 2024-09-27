@@ -3,6 +3,7 @@ pub mod bind_context;
 pub mod bind_copy;
 pub mod bind_create_schema;
 pub mod bind_create_table;
+pub mod bind_create_view;
 pub mod bind_describe;
 pub mod bind_drop;
 pub mod bind_explain;

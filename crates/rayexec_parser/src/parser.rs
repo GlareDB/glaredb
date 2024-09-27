@@ -1,7 +1,8 @@
 use crate::{
     ast::{
-        AstParseable, Attach, CopyTo, CreateSchema, CreateTable, Describe, Detach, DropStatement,
-        ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
+        AstParseable, Attach, CopyTo, CreateSchema, CreateTable, CreateView, Describe, Detach,
+        DropStatement, ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable,
+        ShowVariable,
     },
     keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
     meta::Raw,
@@ -15,20 +16,21 @@ use tracing::trace;
 pub fn parse(sql: &str) -> Result<Vec<Statement<Raw>>> {
     trace!(%sql, "parsing sql statement");
     let toks = Tokenizer::new(sql).tokenize()?;
-    Parser::with_tokens(toks).parse_statements()
+    Parser::with_tokens(toks, sql).parse_statements()
 }
 
 #[derive(Debug)]
-pub struct Parser {
+pub struct Parser<'a> {
     toks: Vec<TokenWithLocation>,
+    sql: &'a str,
     /// Index of token we should process next.
     pub(crate) idx: usize,
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
     /// Create a parser with arbitrary tokens.
-    pub fn with_tokens(toks: Vec<TokenWithLocation>) -> Self {
-        Parser { toks, idx: 0 }
+    pub fn with_tokens(toks: Vec<TokenWithLocation>, sql: &'a str) -> Self {
+        Parser { toks, sql, idx: 0 }
     }
 
     /// Parse any number of statements, including zero statements.
@@ -126,6 +128,9 @@ impl Parser {
         } else if self.parse_keyword(Keyword::SCHEMA) {
             self.idx = start;
             Ok(RawStatement::CreateSchema(CreateSchema::parse(self)?))
+        } else if self.parse_keyword(Keyword::VIEW) {
+            self.idx = start;
+            Ok(RawStatement::CreateView(CreateView::parse(self)?))
         } else {
             not_implemented!("create");
         }
@@ -403,14 +408,14 @@ impl Parser {
     /// Get the next token without altering the current index.
     ///
     /// Ignores whitespace.
-    pub(crate) fn peek(&mut self) -> Option<&TokenWithLocation> {
+    pub(crate) fn peek(&self) -> Option<&TokenWithLocation> {
         self.peek_nth(0)
     }
 
     /// Get the nth next token without altering the current index.
     ///
     /// Ignores whitespace.
-    pub(crate) fn peek_nth(&mut self, mut n: usize) -> Option<&TokenWithLocation> {
+    pub(crate) fn peek_nth(&self, mut n: usize) -> Option<&TokenWithLocation> {
         let mut idx = self.idx;
         loop {
             if idx >= self.toks.len() {
@@ -428,6 +433,19 @@ impl Parser {
                 return Some(tok);
             }
             n -= 1;
+        }
+    }
+
+    /// Returns a slice of the original sql string starting at some token to the
+    /// current position of the parser.
+    pub(crate) fn sql_slice_starting_at(&self, start: &TokenWithLocation) -> Result<&str> {
+        match self.peek() {
+            Some(end) => self.sql.get(start.start_idx..end.start_idx).ok_or_else(|| {
+                RayexecError::new("Unable to get string slice for original sql string")
+            }),
+            None => self.sql.get(start.start_idx..).ok_or_else(|| {
+                RayexecError::new("Unable to get string slice for original sql string")
+            }),
         }
     }
 }

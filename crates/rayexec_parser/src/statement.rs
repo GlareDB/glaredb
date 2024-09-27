@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ast::{
-        Attach, CopyTo, CreateSchema, CreateTable, Describe, Detach, DropStatement, ExplainNode,
-        Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
+        Attach, CopyTo, CreateSchema, CreateTable, CreateView, Describe, Detach, DropStatement,
+        ExplainNode, Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
     },
     meta::{AstMeta, Raw},
 };
@@ -30,14 +30,17 @@ pub enum Statement<T: AstMeta> {
     /// CREATE TABLE ...
     CreateTable(CreateTable<T>),
 
+    /// CREATE SCHEMA ...
+    CreateSchema(CreateSchema<T>),
+
+    /// CREATE VIEW ...
+    CreateView(CreateView<T>),
+
     /// DROP ...
     Drop(DropStatement<T>),
 
     /// INSERT INTO ...
     Insert(Insert<T>),
-
-    /// CREATE SCHEMA ...
-    CreateSchema(CreateSchema<T>),
 
     /// SET <variable> TO <value>
     SetVariable(SetVariable<T>),

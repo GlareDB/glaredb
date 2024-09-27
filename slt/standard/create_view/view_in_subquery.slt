@@ -1,0 +1,38 @@
+# Using view in a subquery.
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b INT);
+
+statement ok
+INSERT INTO t1 VALUES (3, 7), (4, 8), (5, 9);
+
+statement ok
+CREATE TEMP VIEW v1 AS SELECT a, b FROM t1 WHERE a >= 4;
+
+query I
+SELECT * FROM generate_series(1, 4) g1(a) WHERE EXISTS (SELECT * FROM v1) ORDER BY 1;
+----
+1
+2
+3
+4
+
+query ?
+SELECT 4 IN (SELECT a FROM v1);
+----
+true
+
+query ?
+SELECT 3 IN (SELECT a FROM v1);
+----
+false
+
+query I
+SELECT * FROM generate_series(1, 12) g1(c)
+   WHERE c >= (SELECT avg(b) FROM v1 WHERE c > a)
+   ORDER BY 1;
+----
+9
+10
+11
+12

@@ -1,12 +1,13 @@
 use crate::{
     config::IntermediatePlanConfig,
-    database::create::{CreateSchemaInfo, CreateTableInfo},
+    database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo},
     execution::{
         intermediate::PipelineSink,
         operators::{
             copy_to::CopyToOperation,
             create_schema::PhysicalCreateSchema,
             create_table::CreateTableSinkOperation,
+            create_view::PhysicalCreateView,
             drop::PhysicalDrop,
             empty::PhysicalEmpty,
             filter::FilterOperation,
@@ -42,7 +43,7 @@ use crate::{
         binder::bind_context::BindContext,
         logical_aggregate::LogicalAggregate,
         logical_copy::LogicalCopyTo,
-        logical_create::{LogicalCreateSchema, LogicalCreateTable},
+        logical_create::{LogicalCreateSchema, LogicalCreateTable, LogicalCreateView},
         logical_describe::LogicalDescribe,
         logical_distinct::LogicalDistinct,
         logical_drop::LogicalDrop,
@@ -279,6 +280,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::CreateTable(create) => {
                 self.push_create_table(id_gen, materializations, create)
             }
+            LogicalOperator::CreateView(create) => self.push_create_view(id_gen, create),
             LogicalOperator::CreateSchema(create) => self.push_create_schema(id_gen, create),
             LogicalOperator::Drop(drop) => self.push_drop(id_gen, drop),
             LogicalOperator::Insert(insert) => self.push_insert(id_gen, materializations, insert),
@@ -809,6 +811,39 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             id: id_gen.next_pipeline_id(),
             operators: vec![operator],
             location,
+            source: PipelineSource::InPipeline,
+        });
+
+        Ok(())
+    }
+
+    fn push_create_view(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        create: Node<LogicalCreateView>,
+    ) -> Result<()> {
+        if self.in_progress.is_some() {
+            return Err(RayexecError::new("Expected in progress to be None"));
+        }
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalOperator::CreateView(PhysicalCreateView {
+                catalog: create.node.catalog,
+                schema: create.node.schema,
+                info: CreateViewInfo {
+                    name: create.node.name,
+                    column_aliases: create.node.column_aliases,
+                    on_conflict: create.node.on_conflict,
+                    query_string: create.node.query_string,
+                },
+            })),
+            partitioning_requirement: Some(1),
+        };
+
+        self.in_progress = Some(InProgressPipeline {
+            id: id_gen.next_pipeline_id(),
+            operators: vec![operator],
+            location: create.location,
             source: PipelineSource::InPipeline,
         });
 

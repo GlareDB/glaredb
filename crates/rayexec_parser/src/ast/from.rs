@@ -173,7 +173,10 @@ impl FromNode<Raw> {
             let alias = Self::maybe_parse_alias(parser)?;
             Ok(FromNode {
                 alias,
-                body: FromNodeBody::Subquery(FromSubquery { query: subquery }),
+                body: FromNodeBody::Subquery(FromSubquery {
+                    options: (),
+                    query: subquery,
+                }),
             })
         } else {
             if let Some(tok) = parser.peek().cloned() {
@@ -251,6 +254,7 @@ pub struct FromBaseTable<T: AstMeta> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FromSubquery<T: AstMeta> {
+    pub options: T::SubqueryOptions,
     pub query: QueryNode<T>,
 }
 

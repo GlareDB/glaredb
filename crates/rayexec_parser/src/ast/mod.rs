@@ -6,6 +6,8 @@ pub mod create_table;
 pub use create_table::*;
 pub mod create_schema;
 pub use create_schema::*;
+pub mod create_view;
+pub use create_view::*;
 pub mod datatype;
 pub use datatype::*;
 pub mod expr;
@@ -57,7 +59,7 @@ mod testutil {
     /// Parse an AST node directly from a string.
     pub(crate) fn parse_ast<A: AstParseable>(s: &str) -> Result<A> {
         let toks = Tokenizer::new(s).tokenize()?;
-        let mut parser = Parser::with_tokens(toks);
+        let mut parser = Parser::with_tokens(toks, s);
         A::parse(&mut parser)
     }
 }

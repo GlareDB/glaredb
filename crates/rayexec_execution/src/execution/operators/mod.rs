@@ -4,6 +4,7 @@ pub mod analyze;
 pub mod copy_to;
 pub mod create_schema;
 pub mod create_table;
+pub mod create_view;
 pub mod drop;
 pub mod empty;
 pub mod filter;
@@ -33,6 +34,7 @@ mod test_util;
 use copy_to::PhysicalCopyTo;
 use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
 use create_table::PhysicalCreateTable;
+use create_view::{CreateViewPartitionState, PhysicalCreateView};
 use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
@@ -112,6 +114,7 @@ pub enum PartitionState {
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
     CreateSchema(CreateSchemaPartitionState),
+    CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
     Empty(EmptyPartitionState),
     None,
@@ -314,6 +317,7 @@ pub enum PhysicalOperator {
     CopyTo(PhysicalCopyTo),
     CreateTable(PhysicalCreateTable),
     CreateSchema(PhysicalCreateSchema),
+    CreateView(PhysicalCreateView),
     Drop(PhysicalDrop),
     Empty(PhysicalEmpty),
 }
@@ -348,6 +352,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CopyTo(op) => op.create_states(context, partitions),
             Self::CreateTable(op) => op.create_states(context, partitions),
             Self::CreateSchema(op) => op.create_states(context, partitions),
+            Self::CreateView(op) => op.create_states(context, partitions),
             Self::Drop(op) => op.create_states(context, partitions),
             Self::Empty(op) => op.create_states(context, partitions),
         }
@@ -388,6 +393,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CopyTo(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::CreateTable(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::CreateSchema(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::CreateView(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Drop(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Empty(op) => op.poll_push(cx, partition_state, operator_state, batch),
         }
@@ -429,6 +435,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CopyTo(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::CreateTable(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::CreateSchema(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::CreateView(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Drop(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Empty(op) => op.poll_finalize_push(cx, partition_state, operator_state),
         }
@@ -464,6 +471,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CopyTo(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::CreateTable(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::CreateSchema(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::CreateView(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Drop(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Empty(op) => op.poll_pull(cx, partition_state, operator_state),
         }
@@ -496,6 +504,7 @@ impl Explainable for PhysicalOperator {
             Self::CopyTo(op) => op.explain_entry(conf),
             Self::CreateTable(op) => op.explain_entry(conf),
             Self::CreateSchema(op) => op.explain_entry(conf),
+            Self::CreateView(op) => op.explain_entry(conf),
             Self::Drop(op) => op.explain_entry(conf),
             Self::Empty(op) => op.explain_entry(conf),
         }

@@ -29,6 +29,16 @@ pub trait AstMeta: Clone {
     /// Reference to a scalar or aggregate function.
     type FunctionReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
+    /// Extra options for subqueries.
+    ///
+    /// This is used to provide extra scoping for when we resolve views. Views
+    /// get converted to subqueries during the resolve step (and so we don't
+    /// need to special case if a view happens to be hybrid query).
+    ///
+    /// A normal subquery is able to reference columns outside of it, but a view
+    /// cannot. This type provides a way to indicate that.
+    type SubqueryOptions: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+
     /// A data type.
     type DataType: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 
@@ -49,6 +59,7 @@ impl AstMeta for Raw {
     type TableFunctionReference = ObjectReference;
     type TableFunctionArgs = Vec<FunctionArg<Raw>>;
     type FunctionReference = ObjectReference;
+    type SubqueryOptions = ();
     type DataType = DataType;
     type CopyToDestination = CopyToTarget;
     type CopyToOptions = Vec<CopyOption<Raw>>;

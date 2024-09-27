@@ -6,10 +6,9 @@ use crate::functions::{
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
-use serde::{Deserialize, Serialize};
 
 /// Behavior on create conflict.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum OnConflict {
     /// Ignore and return ok.
     ///
@@ -47,7 +46,7 @@ impl ProtoConv for OnConflict {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTableInfo {
     pub name: String,
     pub columns: Vec<Field>,
@@ -82,7 +81,7 @@ impl ProtoConv for CreateTableInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateSchemaInfo {
     pub name: String,
     pub on_conflict: OnConflict,
@@ -106,28 +105,40 @@ impl ProtoConv for CreateSchemaInfo {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateViewInfo {
+    pub name: String,
+    pub column_aliases: Option<Vec<String>>,
+    pub on_conflict: OnConflict,
+    // TODO: Currently just stores the string, would be nice to store something
+    // a bit more structured like a parsed or bound state.
+    //
+    // But that would required they be a bit more stable than they currently are.
+    pub query_string: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateScalarFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn ScalarFunction>,
     pub on_conflict: OnConflict,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateAggregateFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn AggregateFunction>,
     pub on_conflict: OnConflict,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateTableFunctionInfo {
     pub name: String,
     pub implementation: Box<dyn TableFunction>,
     pub on_conflict: OnConflict,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CreateCopyToFunctionInfo {
     pub name: String,
     pub format: String,

@@ -23,17 +23,23 @@ use rayexec_io::location::FileLocation;
 use rayexec_parser::{
     ast::{self, ColumnDef, ObjectReference},
     meta::{AstMeta, Raw},
+    parser,
     statement::{RawStatement, Statement},
 };
 use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_copy_to::ResolvedCopyTo;
 use resolved_cte::ResolvedCte;
+use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::{catalog::CatalogTx, DatabaseContext},
+    database::{
+        catalog::CatalogTx,
+        catalog_entry::{CatalogEntryInner, CatalogEntryType},
+        DatabaseContext,
+    },
     datasource::FileHandlers,
     functions::{copy::CopyToArgs, proto::FUNCTION_LOOKUP_CATALOG, table::TableFunctionArgs},
     logical::operator::LocationRequirement,
@@ -61,9 +67,28 @@ impl AstMeta for ResolvedMeta {
     type TableFunctionArgs = TableFunctionArgs;
     /// Index into the functions bind list in bind data.
     type FunctionReference = ResolveListIdx;
+    type SubqueryOptions = ResolvedSubqueryOptions;
     type DataType = DataType;
     type CopyToDestination = FileLocation;
     type CopyToOptions = CopyToArgs;
+}
+
+/// Options for a resolved subquery.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResolvedSubqueryOptions {
+    /// Normal subquery, no additional options needed.
+    ///
+    /// Normal subqueries can reference columns outside of its scope.
+    Normal,
+    /// View subquery.
+    ///
+    /// Column aliases have the following precedence:
+    /// 1. Aliases applied when calling the view in FROM
+    /// 2. Aliases stored on the view during create
+    /// 3. Unaliases inner columns
+    ///
+    /// View subqueries cannot reference columns outside of itself.
+    View { column_aliases: Vec<String> },
 }
 
 /// Determines the logic taken when encountering an unknown object in a query.
@@ -144,6 +169,10 @@ impl<'a> Resolver<'a> {
             }
             Statement::CreateTable(create) => Statement::CreateTable(
                 self.resolve_create_table(create, &mut resolve_context)
+                    .await?,
+            ),
+            Statement::CreateView(create) => Statement::CreateView(
+                self.resolve_create_view(create, &mut resolve_context)
                     .await?,
             ),
             Statement::CreateSchema(create) => {
@@ -421,6 +450,35 @@ impl<'a> Resolver<'a> {
             name,
             columns,
             source,
+        })
+    }
+
+    async fn resolve_create_view(
+        &self,
+        create: ast::CreateView<Raw>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::CreateView<ResolvedMeta>> {
+        // TODO: Search path
+        let mut name: ItemReference = Self::reference_to_strings(create.name).into();
+        if create.temp {
+            if name.0.len() == 1 {
+                name.0.insert(0, "temp".to_string()); // Schema
+                name.0.insert(0, "temp".to_string()); // Catalog
+            }
+            if name.0.len() == 2 {
+                name.0.insert(0, "temp".to_string()); // Catalog
+            }
+        }
+
+        let query = self.resolve_query(create.query, resolve_context).await?;
+
+        Ok(ast::CreateView {
+            or_replace: create.or_replace,
+            temp: create.temp,
+            name,
+            column_aliases: create.column_aliases,
+            query_sql: create.query_sql,
+            query,
         })
     }
 
@@ -754,11 +812,53 @@ impl<'a> Resolver<'a> {
                     }
                 };
 
-                let idx = resolve_context.tables.push_maybe_resolved(table);
-                ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
+                match table {
+                    MaybeResolved::Resolved(ResolvedTableOrCteReference::Table(ent), _)
+                        if ent.entry.entry_type() == CatalogEntryType::View =>
+                    {
+                        // Special case for view. If we resolved, then we'll go
+                        // ahead and parse the sql and treat it as a subquery.
+                        let view = match &ent.entry.entry {
+                            CatalogEntryInner::View(v) => v,
+                            _ => unreachable!("entry type checked"),
+                        };
+                        let mut statements = parser::parse(&view.query_sql)?;
+                        let statement = match statements.len() {
+                            1 => statements.pop().unwrap(),
+                            other => return Err(RayexecError::new(
+                                format!("Unexpected number of statements inside view body, expected 1, got {other}")
+                            ))
+                        };
+
+                        let query = match statement {
+                            Statement::Query(query) => {
+                                // TODO: Detect a view referencing itself and error.
+                                Box::pin(self.resolve_query(query, resolve_context)).await?
+                            }
+                            other => {
+                                return Err(RayexecError::new(format!(
+                                    "Unexpected statement type for view: {other:?}"
+                                )))
+                            }
+                        };
+
+                        ast::FromNodeBody::Subquery(ast::FromSubquery {
+                            options: ResolvedSubqueryOptions::View {
+                                column_aliases: view.column_aliases.clone().unwrap_or_default(),
+                            },
+                            query,
+                        })
+                    }
+                    _ => {
+                        // Normal case, just a table or CTE
+                        let idx = resolve_context.tables.push_maybe_resolved(table);
+                        ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
+                    }
+                }
             }
-            ast::FromNodeBody::Subquery(ast::FromSubquery { query }) => {
+            ast::FromNodeBody::Subquery(ast::FromSubquery { options: (), query }) => {
                 ast::FromNodeBody::Subquery(ast::FromSubquery {
+                    options: ResolvedSubqueryOptions::Normal,
                     query: Box::pin(self.resolve_query(query, resolve_context)).await?,
                 })
             }

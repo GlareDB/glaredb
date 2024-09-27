@@ -5,7 +5,7 @@ use crate::{
     config::vars::SessionVars,
     logical::{
         binder::bind_query::QueryBinder,
-        logical_create::LogicalCreateSchema,
+        logical_create::{LogicalCreateSchema, LogicalCreateView},
         logical_describe::LogicalDescribe,
         logical_drop::LogicalDrop,
         logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
@@ -20,6 +20,7 @@ use super::{
     bind_copy::{BoundCopyTo, CopyBinder},
     bind_create_schema::CreateSchemaBinder,
     bind_create_table::{BoundCreateTable, CreateTableBinder},
+    bind_create_view::CreateViewBinder,
     bind_describe::DescribeBinder,
     bind_drop::DropBinder,
     bind_explain::{BoundExplain, ExplainBinder},
@@ -48,6 +49,7 @@ pub enum BoundStatement {
     Insert(BoundInsert),
     CreateSchema(Node<LogicalCreateSchema>),
     CreateTable(BoundCreateTable),
+    CreateView(Node<LogicalCreateView>),
     Describe(Node<LogicalDescribe>),
     Explain(BoundExplain),
     CopyTo(BoundCopyTo),
@@ -103,6 +105,10 @@ impl<'a> StatementBinder<'a> {
             Statement::CreateTable(create) => BoundStatement::CreateTable(
                 CreateTableBinder::new(root_scope, self.resolve_context)
                     .bind_create_table(&mut context, create)?,
+            ),
+            Statement::CreateView(create) => BoundStatement::CreateView(
+                CreateViewBinder::new(root_scope, self.resolve_context)
+                    .bind_create_view(&mut context, create)?,
             ),
             Statement::Describe(describe) => BoundStatement::Describe(
                 DescribeBinder::new(root_scope, self.resolve_context)

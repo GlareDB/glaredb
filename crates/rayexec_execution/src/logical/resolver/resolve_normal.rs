@@ -277,7 +277,7 @@ impl<'a> NormalResolver<'a> {
             None => return Ok(None),
         };
 
-        schema_ent.get_table(self.tx, table)
+        schema_ent.get_table_or_view(self.tx, table)
     }
 
     pub async fn require_resolve_table_or_cte(

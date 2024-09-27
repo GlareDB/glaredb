@@ -24,7 +24,7 @@ use crate::{
         operator::LocationRequirement,
         resolver::{
             resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
-            ResolvedMeta,
+            ResolvedMeta, ResolvedSubqueryOptions,
         },
     },
 };
@@ -316,7 +316,10 @@ impl<'a> FromBinder<'a> {
         subquery: ast::FromSubquery<ResolvedMeta>,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
-        let nested_scope = bind_context.new_child_scope(self.current);
+        let nested_scope = match &subquery.options {
+            ResolvedSubqueryOptions::Normal => bind_context.new_child_scope(self.current),
+            ResolvedSubqueryOptions::View { .. } => bind_context.new_orphan_scope(), // View can only reference itself.
+        };
         let binder = QueryBinder::new(nested_scope, self.resolve_context);
 
         let bound = binder.bind(bind_context, subquery.query)?;
@@ -326,6 +329,21 @@ impl<'a> FromBinder<'a> {
         for table in bind_context.iter_tables(nested_scope)? {
             types.extend(table.column_types.iter().cloned());
             names.extend(table.column_names.iter().cloned());
+        }
+
+        // Apply additional aliases if we're a view.
+        if let ResolvedSubqueryOptions::View { column_aliases } = subquery.options {
+            if column_aliases.len() > names.len() {
+                return Err(RayexecError::new(format!(
+                    "View contains too many column aliases, expected {}, got {}",
+                    names.len(),
+                    column_aliases.len()
+                )));
+            }
+
+            for (name, alias) in names.iter_mut().zip(column_aliases) {
+                *name = alias;
+            }
         }
 
         let table_ref =

@@ -7,11 +7,12 @@ use super::{
     catalog_entry::{
         AggregateFunctionEntry, CatalogEntry, CatalogEntryInner, CatalogEntryType,
         CopyToFunctionEntry, ScalarFunctionEntry, SchemaEntry, TableEntry, TableFunctionEntry,
+        ViewEntry,
     },
     catalog_map::CatalogMap,
     create::{
         CreateAggregateFunctionInfo, CreateCopyToFunctionInfo, CreateScalarFunctionInfo,
-        CreateSchemaInfo, CreateTableFunctionInfo, CreateTableInfo,
+        CreateSchemaInfo, CreateTableFunctionInfo, CreateTableInfo, CreateViewInfo,
     },
     drop::{DropInfo, DropObject},
 };
@@ -143,7 +144,7 @@ impl MemoryCatalog {
 pub struct MemorySchema {
     /// Catalog entry representing this schema.
     schema: Arc<CatalogEntry>,
-    /// All tables in the schema.
+    /// All tables and views in the schema.
     tables: CatalogMap,
     /// All table functions in the schema.
     table_functions: CatalogMap,
@@ -173,6 +174,24 @@ impl MemorySchema {
         };
 
         Self::create_entry(tx, &self.tables, table, create.on_conflict)
+    }
+
+    pub fn create_view(
+        &self,
+        tx: &CatalogTx,
+        create: &CreateViewInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        let view = CatalogEntry {
+            oid: 0,
+            name: create.name.clone(),
+            entry: CatalogEntryInner::View(ViewEntry {
+                column_aliases: create.column_aliases.clone(),
+                query_sql: create.query_string.clone(),
+            }),
+            child: None,
+        };
+
+        Self::create_entry(tx, &self.tables, view, create.on_conflict)
     }
 
     pub fn create_scalar_function(
@@ -281,7 +300,11 @@ impl MemorySchema {
         Ok(ent)
     }
 
-    pub fn get_table(&self, tx: &CatalogTx, name: &str) -> Result<Option<Arc<CatalogEntry>>> {
+    pub fn get_table_or_view(
+        &self,
+        tx: &CatalogTx,
+        name: &str,
+    ) -> Result<Option<Arc<CatalogEntry>>> {
         self.tables.get_entry(tx, name)
     }
 

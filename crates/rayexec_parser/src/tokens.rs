@@ -74,6 +74,8 @@ pub enum Token {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenWithLocation {
     pub token: Token,
+    /// Starting index of the token within the sql string.
+    pub start_idx: usize,
     /// Line number for the token.
     pub line: usize,
     /// Column number for where the token starts.
@@ -162,6 +164,8 @@ impl<'a> State<'a> {
                 if next == '\n' {
                     self.line += 1;
                     self.col = 0;
+                } else {
+                    self.col += 1;
                 }
 
                 match chars.next() {
@@ -224,12 +228,16 @@ impl<'a> Tokenizer<'a> {
     /// Generate tokens for the configured query.
     pub fn tokenize(&mut self) -> Result<Vec<TokenWithLocation>> {
         let mut tokens = Vec::new();
+        let mut start_idx = self.state.idx;
         while let Some(token) = self.next_token()? {
             tokens.push(TokenWithLocation {
                 token,
-                line: 0,
-                col: 0,
+                start_idx,
+                line: self.state.line,
+                col: self.state.col,
             });
+
+            start_idx = self.state.idx;
         }
 
         Ok(tokens)
@@ -471,5 +479,29 @@ mod tests {
 
         let d = state.take_while(|_c| true);
         assert_eq!("", d);
+    }
+
+    #[test]
+    fn simple_token_start_idx() {
+        let toks = Tokenizer::new("CREATE VIEW   hi AS SELECT 1 FROM my_table")
+            .tokenize()
+            .unwrap();
+
+        // CREATE
+        assert_eq!(toks[0].start_idx, 0);
+
+        // <whitespace>
+        assert_eq!(toks[1].start_idx, 6);
+
+        // VIEW
+        assert_eq!(toks[2].start_idx, 7);
+
+        // <whitespace>
+        assert_eq!(toks[3].start_idx, 11);
+        assert_eq!(toks[4].start_idx, 12);
+        assert_eq!(toks[5].start_idx, 13);
+
+        // hi
+        assert_eq!(toks[6].start_idx, 14);
     }
 }

@@ -45,3 +45,25 @@ impl LogicalNode for Node<LogicalCreateTable> {
         Vec::new()
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LogicalCreateView {
+    pub catalog: String,
+    pub schema: String,
+    pub name: String,
+    pub column_aliases: Option<Vec<String>>,
+    pub on_conflict: OnConflict,
+    pub query_string: String,
+}
+
+impl Explainable for LogicalCreateView {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+        ExplainEntry::new("CreateView")
+    }
+}
+
+impl LogicalNode for Node<LogicalCreateView> {
+    fn get_output_table_refs(&self) -> Vec<TableRef> {
+        Vec::new()
+    }
+}

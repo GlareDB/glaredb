@@ -19,6 +19,7 @@ use super::DatabaseContext;
 pub enum CatalogEntryType {
     Table,
     Schema,
+    View,
     ScalarFunction,
     AggregateFunction,
     TableFunction,
@@ -30,6 +31,7 @@ impl fmt::Display for CatalogEntryType {
         match self {
             Self::Table => write!(f, "table"),
             Self::Schema => write!(f, "schema"),
+            Self::View => write!(f, "view"),
             Self::ScalarFunction => write!(f, "scalar function"),
             Self::AggregateFunction => write!(f, "aggregate function"),
             Self::TableFunction => write!(f, "table function"),
@@ -45,6 +47,7 @@ impl ProtoConv for CatalogEntryType {
         Ok(match self {
             Self::Table => Self::ProtoType::Table,
             Self::Schema => Self::ProtoType::Schema,
+            Self::View => unimplemented!(),
             Self::ScalarFunction => Self::ProtoType::ScalarFunction,
             Self::AggregateFunction => Self::ProtoType::AggregateFunction,
             Self::TableFunction => Self::ProtoType::TableFunction,
@@ -110,6 +113,7 @@ impl DatabaseProtoConv for CatalogEntry {
 pub enum CatalogEntryInner {
     Table(TableEntry),
     Schema(SchemaEntry),
+    View(ViewEntry),
     ScalarFunction(ScalarFunctionEntry),
     AggregateFunction(AggregateFunctionEntry),
     TableFunction(TableFunctionEntry),
@@ -125,6 +129,7 @@ impl DatabaseProtoConv for CatalogEntryInner {
         let value = match self {
             Self::Table(ent) => Value::Table(ent.to_proto()?),
             Self::Schema(ent) => Value::Schema(ent.to_proto()?),
+            Self::View(_ent) => unimplemented!(),
             Self::ScalarFunction(ent) => Value::ScalarFunction(ent.to_proto_ctx(context)?),
             Self::AggregateFunction(ent) => Value::AggregateFunction(ent.to_proto_ctx(context)?),
             Self::TableFunction(ent) => Value::TableFunction(ent.to_proto_ctx(context)?),
@@ -290,6 +295,24 @@ impl ProtoConv for TableEntry {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewEntry {
+    pub column_aliases: Option<Vec<String>>,
+    pub query_sql: String,
+}
+
+impl ProtoConv for ViewEntry {
+    type ProtoType = ();
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        unimplemented!()
+    }
+
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct SchemaEntry {}
 
@@ -310,6 +333,7 @@ impl CatalogEntry {
         match &self.entry {
             CatalogEntryInner::Table(_) => CatalogEntryType::Table,
             CatalogEntryInner::Schema(_) => CatalogEntryType::Schema,
+            CatalogEntryInner::View(_) => CatalogEntryType::View,
             CatalogEntryInner::ScalarFunction(_) => CatalogEntryType::ScalarFunction,
             CatalogEntryInner::AggregateFunction(_) => CatalogEntryType::AggregateFunction,
             CatalogEntryInner::TableFunction(_) => CatalogEntryType::TableFunction,
