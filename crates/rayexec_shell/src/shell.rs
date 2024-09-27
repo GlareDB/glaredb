@@ -124,19 +124,32 @@ where
                 let mut writer = editor.raw_writer();
                 writer.write_all(b"\n")?;
 
-                match engine.engine.sql(&query).await {
-                    Ok(tables) => {
+                match engine.engine.session().query_many(&query) {
+                    Ok(pending_queries) => {
                         trace!("writing results");
-                        for table in tables {
+                        for pending in pending_queries {
+                            let table = match pending.execute().await {
+                                Ok(table) => table,
+                                Err(e) => {
+                                    writeln!(writer, "{e}")?;
+                                    break;
+                                }
+                            };
+
+                            let table = match table.collect().await {
+                                Ok(table) => table,
+                                Err(e) => {
+                                    writeln!(writer, "{e}")?;
+                                    break;
+                                }
+                            };
+
                             match table.pretty_table(width, None) {
                                 Ok(table) => {
                                     writeln!(writer, "{table}")?;
                                 }
                                 Err(e) => {
-                                    // Same as below, the error is related to
-                                    // executing a query.
                                     writeln!(writer, "{e}")?;
-
                                     break;
                                 }
                             }

@@ -1,19 +1,18 @@
 mod vars;
-use rayexec_bullet::format::pretty::table::pretty_format_batches;
-use rayexec_execution::engine::result::ExecutionResult;
+use rayexec_shell::result_table::MaterializedResultTable;
+use rayexec_shell::session::SingleUserEngine;
 pub use vars::*;
 
 mod convert;
 
 use async_trait::async_trait;
-use convert::{batch_to_rows, schema_to_types};
-use futures::{StreamExt, TryStreamExt};
+use convert::{schema_to_types, table_to_rows};
 use libtest_mimic::{Arguments, Trial};
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::engine::session::Session;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use sqllogictest::DefaultColumnType;
 use std::fs;
+use std::future::Future;
 use std::{
     path::{Path, PathBuf},
     time::Duration,
@@ -42,7 +41,7 @@ pub const DEBUG_PRINT_PROFILE_DATA_VAR: &str = "DEBUG_PRINT_PROFILE_DATA";
 #[derive(Debug)]
 pub struct RunConfig {
     /// The session to use for this run.
-    pub session: Session<ThreadedNativeExecutor, NativeRuntime>,
+    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>,
 
     /// Variables to replace in the query.
     ///
@@ -70,9 +69,14 @@ pub struct RunConfig {
 /// associated configuration) for just the file.
 ///
 /// `kind` should be used to group these SLTs together.
-pub fn run<F>(paths: impl IntoIterator<Item = PathBuf>, session_fn: F, kind: &str) -> Result<()>
+pub fn run<F, Fut>(
+    paths: impl IntoIterator<Item = PathBuf>,
+    session_fn: F,
+    kind: &str,
+) -> Result<()>
 where
-    F: Fn() -> Result<RunConfig> + Clone + Send + 'static,
+    F: Fn() -> Fut + Clone + Send + 'static,
+    Fut: Future<Output = Result<RunConfig>>,
 {
     let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
@@ -153,14 +157,15 @@ pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
-async fn run_test<F>(path: impl AsRef<Path>, session_fn: F) -> Result<()>
+async fn run_test<F, Fut>(path: impl AsRef<Path>, session_fn: F) -> Result<()>
 where
-    F: Fn() -> Result<RunConfig> + Clone + Send + 'static,
+    F: Fn() -> Fut + Clone + Send + 'static,
+    Fut: Future<Output = Result<RunConfig>>,
 {
     let path = path.as_ref();
 
     let mut runner = sqllogictest::Runner::new(|| async {
-        let conf = session_fn()?;
+        let conf = session_fn().await?;
 
         Ok(TestSession {
             debug_partitions_set: false,
@@ -195,10 +200,11 @@ impl TestSession {
         println!("---- EXPLAIN ----");
         println!("{sql}");
 
-        let mut results = match self
+        let table = match self
             .conf
-            .session
-            .simple(&format!("EXPLAIN VERBOSE {sql}"))
+            .engine
+            .session()
+            .query(&format!("EXPLAIN VERBOSE {sql}"))
             .await
         {
             Ok(results) => results,
@@ -208,19 +214,13 @@ impl TestSession {
             }
         };
 
-        let result = results.pop().unwrap();
-        let batches = match result.stream.try_collect::<Vec<_>>().await {
-            Ok(batches) => batches,
-            Err(_) => {
-                println!("Explain not available");
-                return;
-            }
-        };
-
-        let table =
-            pretty_format_batches(&result.output_schema, &batches, cols as usize, Some(200))
-                .expect("table to format without error");
-        println!("{table}");
+        let pretty = table
+            .collect()
+            .await
+            .unwrap()
+            .pretty_table(cols as usize, Some(200))
+            .unwrap();
+        println!("{pretty}");
     }
 
     async fn debug_set_partitions(&mut self) {
@@ -235,19 +235,18 @@ impl TestSession {
 
         println!("---- SETTING PARTITIONS = {num} ----");
 
-        let mut results = self
+        let _ = self
             .conf
-            .session
-            .simple(&format!("SET partitions TO {num}"))
+            .engine
+            .session()
+            .query(&format!("SET partitions TO {num}"))
             .await
             .unwrap();
-        let result = results.pop().unwrap();
-        let _ = result.stream.try_collect::<Vec<_>>().await.unwrap();
 
         self.debug_partitions_set = true;
     }
 
-    async fn debug_print_profile_data(&self, results: &ExecutionResult, sql: &str) {
+    async fn debug_print_profile_data(&self, table: &MaterializedResultTable, sql: &str) {
         if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
             // Not set.
             return;
@@ -257,14 +256,19 @@ impl TestSession {
         println!("{sql}");
 
         println!("---- PLANNING ----");
-        println!("{}", results.planning_profile);
+        match table.planning_profile_data() {
+            Some(data) => {
+                println!("{}", data);
+            }
+            None => println!("Planning profile data not available"),
+        }
 
-        match results.handle.generate_execution_profile_data().await {
-            Ok(data) => {
-                println!("---- EXECUTION ----");
+        println!("---- EXECUTION ----");
+        match table.execution_profile_data() {
+            Some(data) => {
                 println!("{data}");
             }
-            Err(e) => println!("Profiling data not available: {e}"),
+            None => println!("Execution profile data not available"),
         }
     }
 
@@ -286,48 +290,39 @@ impl TestSession {
         self.debug_explain(&sql_with_replacements).await;
         self.debug_set_partitions().await;
 
-        let mut rows = Vec::new();
-        let mut results = self.conf.session.simple(&sql_with_replacements).await?;
-        if results.len() != 1 {
-            return Err(RayexecError::new(format!(
-                "Unexpected number of results for '{sql_with_replacements}': {}",
-                results.len()
-            )));
-        }
-
-        let typs = schema_to_types(&results[0].output_schema);
+        let table = self
+            .conf
+            .engine
+            .session()
+            .query(&sql_with_replacements)
+            .await?;
 
         // Timeout for the entire query.
         let mut timeout = Box::pin(tokio::time::sleep(self.conf.query_timeout));
+        let handle = table.handle().clone();
 
         // Continually read from the stream, erroring if we exceed timeout.
-        loop {
-            tokio::select! {
-                result = results[0].stream.next() => {
-                    match result {
-                        Some(result) => {
-                            let batch = result?;
-                            rows.extend(batch_to_rows(batch)?);
-                        }
-                        None => break,
-                    }
-                }
-                _ = &mut timeout => {
-                     // Timed out.
-                    results[0].handle.cancel();
+        tokio::select! {
+            materialized = table.collect_with_execution_profile() => {
+                let materialized = materialized?;
+                self.debug_print_profile_data(&materialized, sql).await;
 
-                    let prof_data = results[0].handle.generate_execution_profile_data().await.unwrap();
-                    return Err(RayexecError::new(format!(
-                        "Variables\n{}\nQuery timed out\n---{prof_data}",
-                        self.conf.vars
-                    )));
-                }
+                Ok(sqllogictest::DBOutput::Rows {
+                    types: schema_to_types(materialized.schema()),
+                    rows: table_to_rows(materialized)?,
+                })
+            }
+            _ = &mut timeout => {
+                 // Timed out.
+                handle.cancel();
+
+                let prof_data = handle.generate_execution_profile_data().await.unwrap();
+                Err(RayexecError::new(format!(
+                    "Variables\n{}\nQuery timed out\n---{prof_data}",
+                    self.conf.vars
+                )))
             }
         }
-
-        self.debug_print_profile_data(&results[0], sql).await;
-
-        Ok(sqllogictest::DBOutput::Rows { types: typs, rows })
     }
 }
 

@@ -1,8 +1,9 @@
 use rayexec_error::Result;
-use rayexec_execution::engine::Engine;
+use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use rayexec_shell::session::SingleUserEngine;
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, time::Duration};
 
 pub fn main() -> Result<()> {
     run_multi_threaded()?;
@@ -11,47 +12,49 @@ pub fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_with_engine(
-    engine: Arc<Engine<ThreadedNativeExecutor, NativeRuntime>>,
-    tag: &str,
-) -> Result<()> {
+fn run_with_executor(executor: ThreadedNativeExecutor, tag: &str) -> Result<()> {
+    let rt = NativeRuntime::with_default_tokio()?;
+
     let paths = rayexec_slt::find_files(Path::new("../slt/standard")).unwrap();
     rayexec_slt::run(
         paths,
         move || {
-            let session = engine.new_session()?;
+            let executor = executor.clone();
+            let rt = rt.clone();
+            async move {
+                let engine = SingleUserEngine::try_new(
+                    executor.clone(),
+                    rt.clone(),
+                    DataSourceRegistry::default()
+                        .with_datasource("memory", Box::new(MemoryDataSource))?,
+                )?;
 
-            Ok(RunConfig {
-                session,
-                vars: ReplacementVars::default(),
-                create_slt_tmp: false,
-                query_timeout: Duration::from_secs(5),
-            })
+                Ok(RunConfig {
+                    engine,
+                    vars: ReplacementVars::default(),
+                    create_slt_tmp: false,
+                    query_timeout: Duration::from_secs(5),
+                })
+            }
         },
         tag,
     )
 }
 
 fn run_default_threaded() -> Result<()> {
-    let rt = NativeRuntime::with_default_tokio()?;
-    let engine = Arc::new(Engine::new(ThreadedNativeExecutor::try_new()?, rt.clone())?);
-    run_with_engine(engine, "slt_standard/default")
+    run_with_executor(ThreadedNativeExecutor::try_new()?, "slt_standard/default")
 }
 
 fn run_single_threaded() -> Result<()> {
-    let rt = NativeRuntime::with_default_tokio()?;
-    let engine = Arc::new(Engine::new(
+    run_with_executor(
         ThreadedNativeExecutor::try_new_with_num_threads(1)?,
-        rt.clone(),
-    )?);
-    run_with_engine(engine, "slt_standard/single")
+        "slt_standard/single",
+    )
 }
 
 fn run_multi_threaded() -> Result<()> {
-    let rt = NativeRuntime::with_default_tokio()?;
-    let engine = Arc::new(Engine::new(
+    run_with_executor(
         ThreadedNativeExecutor::try_new_with_num_threads(16)?,
-        rt.clone(),
-    )?);
-    run_with_engine(engine, "slt_standard/multi")
+        "slt_standard/multi",
+    )
 }

@@ -2267,6 +2267,7 @@ dependencies = [
  "rayexec_bullet",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_parser",
  "tokio",
  "tracing",
  "url",
@@ -2286,6 +2287,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
+ "rayexec_shell",
  "sqllogictest",
  "tokio",
  "tracing",
@@ -2894,7 +2896,9 @@ dependencies = [
  "rayexec_postgres",
  "rayexec_rt_native",
  "rayexec_server",
+ "rayexec_shell",
  "rayexec_slt",
+ "tokio",
 ]
 
 [[package]]

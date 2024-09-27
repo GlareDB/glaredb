@@ -1,13 +1,13 @@
 use pyo3::{pyclass, pyfunction, pymethods, Python};
 
-use crate::{errors::Result, event_loop::run_until_complete, table::PythonTable};
+use crate::{errors::Result, event_loop::run_until_complete, table::PythonMaterializedResultTable};
 
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::{ResultTable, SingleUserEngine};
+use rayexec_shell::session::SingleUserEngine;
 
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {
@@ -34,15 +34,11 @@ pub struct PythonSession {
 #[pymethods]
 impl PythonSession {
     /// Runs a single query, returning the results.
-    fn query(&mut self, py: Python, sql: String) -> Result<PythonTable> {
+    fn query(&mut self, py: Python, sql: String) -> Result<PythonMaterializedResultTable> {
         let session = self.engine.session().clone();
         let table = run_until_complete(py, async move {
-            let result = session.query(&sql).await?;
-            let table = PythonTable {
-                table: ResultTable::collect_from_result_stream(result).await?,
-            };
-
-            Ok(table)
+            let table = session.query(&sql).await?.collect().await?;
+            Ok(PythonMaterializedResultTable { table })
         })?;
 
         Ok(table)

@@ -9,13 +9,13 @@ use rayexec_error::Result;
 use rayexec_execution::{
     datasource::DataSourceRegistry,
     engine::Engine,
-    hybrid::client::{HybridClient, HybridConnectConfig},
     runtime::{Runtime, TokioHandlerProvider},
 };
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_server::serve_with_engine;
+use rayexec_shell::session::SingleUserEngine;
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, time::Duration};
 
 pub fn main() -> Result<()> {
     const PORT: u16 = 8085;
@@ -68,42 +68,40 @@ pub fn main() -> Result<()> {
         tokio_handle.spawn(async move { serve_with_engine(engine, PORT).await });
     }
 
-    // Client engine.
     let rt = NativeRuntime::with_default_tokio()?;
-    let engine = Arc::new(Engine::new_with_registry(
-        ThreadedNativeExecutor::try_new()?,
-        rt.clone(),
-        DataSourceRegistry::default().with_datasource(
-            "local_debug1",
-            Box::new(DebugDataSource::new(DebugDataSourceOptions {
-                preloads: Vec::new(),
-                expected_options: HashMap::new(),
-                discard_format: "discard_local".to_string(),
-            })),
-        )?,
-    )?);
+    let executor = ThreadedNativeExecutor::try_new()?;
 
     let paths = rayexec_slt::find_files(Path::new("../slt/hybrid")).unwrap();
     rayexec_slt::run(
         paths,
         move || {
-            let mut session = engine.new_session()?;
+            let executor = executor.clone();
+            let rt = rt.clone();
+            async move {
+                // Client engine.
+                let engine = SingleUserEngine::try_new(
+                    executor.clone(),
+                    rt.clone(),
+                    DataSourceRegistry::default().with_datasource(
+                        "local_debug1",
+                        Box::new(DebugDataSource::new(DebugDataSourceOptions {
+                            preloads: Vec::new(),
+                            expected_options: HashMap::new(),
+                            discard_format: "discard_local".to_string(),
+                        })),
+                    )?,
+                )?;
 
-            // TODO: This is duplicated with `connect_hybrid` in `rayexec_shell`.
+                let connection_string = format!("http://localhost:{}", PORT);
+                engine.connect_hybrid(connection_string).await?;
 
-            let connection_string = format!("http://localhost:{}", PORT);
-            let config = HybridConnectConfig::try_from_connection_string(&connection_string)?;
-            let client = rt.http_client();
-            let hybrid = HybridClient::new(client, config);
-
-            session.set_hybrid(hybrid);
-
-            Ok(RunConfig {
-                session,
-                vars: ReplacementVars::default(),
-                create_slt_tmp: false,
-                query_timeout: Duration::from_secs(5),
-            })
+                Ok(RunConfig {
+                    engine,
+                    vars: ReplacementVars::default(),
+                    create_slt_tmp: false,
+                    query_timeout: Duration::from_secs(5),
+                })
+            }
         },
         "slt_hybrid",
     )

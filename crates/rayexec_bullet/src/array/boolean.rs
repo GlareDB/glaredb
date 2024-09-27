@@ -47,7 +47,7 @@ impl From<BooleanValuesBuffer> for Bitmap {
 }
 
 /// A logical array for representing bools.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BooleanArray {
     validity: Option<Bitmap>,
     values: Bitmap,

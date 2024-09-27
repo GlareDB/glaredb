@@ -45,7 +45,7 @@ pub struct ExecutionResult {
     pub planning_profile: PlanningProfileData,
     pub output_schema: Schema,
     pub stream: ResultStream,
-    pub handle: Box<dyn QueryHandle>,
+    pub handle: Arc<dyn QueryHandle>,
 }
 
 #[derive(Debug)]

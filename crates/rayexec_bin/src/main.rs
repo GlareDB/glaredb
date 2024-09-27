@@ -88,8 +88,9 @@ async fn inner(
         // TODO: Check if file, read file...
 
         for query in args.queries {
-            let tables = engine.sql(&query).await?;
-            for table in tables {
+            let pending_queries = engine.session().query_many(&query)?;
+            for pending in pending_queries {
+                let table = pending.execute().await?.collect().await?;
                 writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
             }
             stdout.flush()?;

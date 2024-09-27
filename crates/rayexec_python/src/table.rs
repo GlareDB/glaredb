@@ -1,17 +1,17 @@
 use pyo3::{pyclass, pymethods};
-use rayexec_shell::session::ResultTable;
+use rayexec_shell::result_table::MaterializedResultTable;
 
 use crate::errors::Result;
 
 // TODO: Lazy
 #[pyclass]
 #[derive(Debug)]
-pub struct PythonTable {
-    pub(crate) table: ResultTable,
+pub struct PythonMaterializedResultTable {
+    pub(crate) table: MaterializedResultTable,
 }
 
 #[pymethods]
-impl PythonTable {
+impl PythonMaterializedResultTable {
     fn __repr__(&mut self) -> Result<String> {
         let pretty = self.table.pretty_table(80, None)?;
         Ok(format!("{pretty}"))

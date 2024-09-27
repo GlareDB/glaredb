@@ -1,7 +1,7 @@
 use crate::bitmap::Bitmap;
 
 /// A logical array for representing some number of Nulls.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct NullArray {
     validity: Bitmap,
 }

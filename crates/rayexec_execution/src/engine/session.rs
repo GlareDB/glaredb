@@ -12,8 +12,14 @@ use crate::{
         catalog::CatalogTx, memory_catalog::MemoryCatalog, AttachInfo, Database, DatabaseContext,
     },
     execution::{
-        executable::planner::{ExecutablePipelinePlanner, PlanLocationState},
-        intermediate::{planner::IntermediatePipelinePlanner, IntermediateMaterializationGroup},
+        executable::{
+            pipeline::ExecutablePipeline,
+            planner::{ExecutablePipelinePlanner, PlanLocationState},
+        },
+        intermediate::{
+            planner::IntermediatePipelinePlanner, IntermediateMaterializationGroup,
+            IntermediatePipelineGroup,
+        },
     },
     hybrid::client::HybridClient,
     logical::{
@@ -22,7 +28,7 @@ use crate::{
         logical_set::VariableOrAll,
         operator::{LogicalOperator, Node},
         planner::plan_statement::StatementPlanner,
-        resolver::{ResolveMode, Resolver},
+        resolver::{resolve_context::ResolveContext, ResolveMode, ResolvedStatement, Resolver},
     },
     optimizer::Optimizer,
     runtime::{time::Timer, PipelineExecutor, Runtime},
@@ -30,7 +36,7 @@ use crate::{
 
 use super::{
     profiler::PlanningProfileData,
-    result::{new_results_sinks, ExecutionResult},
+    result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream},
     DataSourceRegistry,
 };
 
@@ -89,6 +95,43 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
 }
 
+#[derive(Debug)]
+struct PreparedStatement {
+    statement: RawStatement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExecutionMode {
+    /// Locally only execution.
+    LocalOnly,
+    /// Local and remote execution. Should trigger remote execution prior to
+    /// executing local pipelines.
+    Hybrid,
+}
+
+#[derive(Debug)]
+struct Portal {
+    /// Query id for this query. Used to begin execution on the remote side if
+    /// needed.
+    query_id: Uuid,
+    /// Execution mode of the query.
+    ///
+    /// This may differ from the resolve mode. For example, hybrid resolving may
+    /// result in only local pipelines, which would indicated local-only
+    /// execution.
+    execution_mode: ExecutionMode,
+    /// Pipelines we'll be executing on this node.
+    executable_pipelines: Vec<ExecutablePipeline>,
+    /// Output schema of the query.
+    output_schema: Schema,
+    /// Where results will be sent to.
+    result_stream: ResultStream,
+    /// Where errors will be sent do.
+    error_sink: ResultErrorSink,
+    /// Profile data we've collected during resolving/binding/planning.
+    profile: PlanningProfileData,
+}
+
 impl<P, R> Session<P, R>
 where
     P: PipelineExecutor,
@@ -121,14 +164,14 @@ where
     ///
     /// Uses the unnamed ("") keys for prepared statements and portals.
     pub async fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
-        let stmts = self.parse(sql)?;
+        let stmts = parser::parse(sql)?;
         let mut results = Vec::with_capacity(stmts.len());
 
         const UNNAMED: &str = "";
 
         for stmt in stmts {
             self.prepare(UNNAMED, stmt)?;
-            self.bind(UNNAMED, UNNAMED)?;
+            self.bind(UNNAMED, UNNAMED).await?;
             let result = self.execute(UNNAMED).await?;
             results.push(result);
         }
@@ -136,41 +179,30 @@ where
         Ok(results)
     }
 
-    pub fn parse(&self, sql: &str) -> Result<Vec<RawStatement>> {
-        parser::parse(sql)
-    }
-
-    pub fn prepare(&mut self, name: impl Into<String>, stmt: RawStatement) -> Result<()> {
+    // TODO: Typed parameters at some point.
+    pub fn prepare(&mut self, prepared_name: impl Into<String>, stmt: RawStatement) -> Result<()> {
         self.prepared
-            .insert(name.into(), PreparedStatement { statement: stmt });
+            .insert(prepared_name.into(), PreparedStatement { statement: stmt });
         Ok(())
     }
 
-    pub fn bind(&mut self, stmt: &str, portal: impl Into<String>) -> Result<()> {
-        let stmt = self.prepared.get(stmt).ok_or_else(|| {
-            RayexecError::new(format!("Missing named prepared statement: '{stmt}'"))
+    pub async fn bind(
+        &mut self,
+        prepared_name: &str,
+        portal_name: impl Into<String>,
+    ) -> Result<()> {
+        let stmt = self.prepared.get(prepared_name).ok_or_else(|| {
+            RayexecError::new(format!(
+                "Missing named prepared statement: '{prepared_name}'"
+            ))
         })?;
-        self.portals.insert(
-            portal.into(),
-            Portal {
-                statement: stmt.statement.clone(),
-            },
-        );
-        Ok(())
-    }
-
-    pub async fn execute(&mut self, portal: &str) -> Result<ExecutionResult> {
-        let stmt = self
-            .portals
-            .get(portal)
-            .map(|p| p.statement.clone())
-            .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal}'")))?;
 
         let mut profile = PlanningProfileData::default();
 
+        // TODO: Store tx state on session.
         let tx = CatalogTx::new();
 
-        let bindmode = if self.hybrid_client.is_some() {
+        let resolve_mode = if self.hybrid_client.is_some() {
             ResolveMode::Hybrid
         } else {
             ResolveMode::Normal
@@ -178,34 +210,79 @@ where
 
         let timer = Timer::<R::Instant>::start();
         let (resolved_stmt, resolve_context) = Resolver::new(
-            bindmode,
+            resolve_mode,
             &tx,
             &self.context,
             self.registry.get_file_handlers(),
         )
-        .resolve_statement(stmt)
+        .resolve_statement(stmt.statement.clone())
         .await?;
         profile.resolve_step = Some(timer.stop());
 
+        let (execution_mode, query_id, pipelines, materializations, schema) = self
+            .plan_intermediate(resolved_stmt, resolve_context, resolve_mode, &mut profile)
+            .await?;
+
         let (stream, sink, errors) = new_results_sinks();
 
-        let (pipelines, materializations, output_schema) = match bindmode {
+        let mut planner = ExecutablePipelinePlanner::<R>::new(
+            &self.context,
+            self.vars.executable_plan_config(),
+            PlanLocationState::Client {
+                output_sink: Some(sink),
+                hybrid_client: self.hybrid_client.as_ref(),
+            },
+        );
+
+        let timer = Timer::<R::Instant>::start();
+        let pipelines = planner.plan_from_intermediate(pipelines, materializations)?;
+        profile.plan_executable_step = Some(timer.stop());
+
+        self.portals.insert(
+            portal_name.into(),
+            Portal {
+                query_id,
+                execution_mode,
+                executable_pipelines: pipelines,
+                output_schema: schema,
+                result_stream: stream,
+                error_sink: errors,
+                profile,
+            },
+        );
+        Ok(())
+    }
+
+    /// Plans the intermediate pipelines from a resolved statement.
+    async fn plan_intermediate(
+        &mut self,
+        stmt: ResolvedStatement,
+        resolve_context: ResolveContext,
+        resolve_mode: ResolveMode,
+        profile: &mut PlanningProfileData,
+    ) -> Result<(
+        ExecutionMode,
+        Uuid,
+        IntermediatePipelineGroup,
+        IntermediateMaterializationGroup,
+        Schema,
+    )> {
+        match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
                 // Hybrid planning, send to remote to complete planning.
 
                 let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
                 let resp = hybrid_client
-                    .remote_plan(resolved_stmt, resolve_context, &self.context)
+                    .remote_plan(stmt, resolve_context, &self.context)
                     .await?;
 
-                // Begin executing remote side.
-                hybrid_client.remote_execute(resp.query_id).await?;
-
-                (
+                Ok((
+                    ExecutionMode::Hybrid,
+                    resp.query_id,
                     resp.pipelines,
                     IntermediateMaterializationGroup::default(),
                     resp.schema,
-                )
+                ))
             }
             _ => {
                 // Normal all-local planning.
@@ -215,7 +292,7 @@ where
                     resolve_context: &resolve_context,
                 };
                 let timer = Timer::<R::Instant>::start();
-                let (bound_stmt, mut bind_context) = binder.bind(resolved_stmt)?;
+                let (bound_stmt, mut bind_context) = binder.bind(stmt)?;
                 profile.bind_step = Some(timer.stop());
 
                 let timer = Timer::<R::Instant>::start();
@@ -303,30 +380,38 @@ where
                     ));
                 }
 
-                (pipelines.local, pipelines.materializations, schema)
+                Ok((
+                    ExecutionMode::LocalOnly,
+                    query_id,
+                    pipelines.local,
+                    pipelines.materializations,
+                    schema,
+                ))
             }
-        };
+        }
+    }
 
-        let mut planner = ExecutablePipelinePlanner::<R>::new(
-            &self.context,
-            self.vars.executable_plan_config(),
-            PlanLocationState::Client {
-                output_sink: Some(sink),
-                hybrid_client: self.hybrid_client.as_ref(),
-            },
-        );
+    pub async fn execute(&mut self, portal_name: &str) -> Result<ExecutionResult> {
+        let portal = self
+            .portals
+            .remove(portal_name)
+            .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal_name}'")))?;
 
-        let timer = Timer::<R::Instant>::start();
-        let pipelines = planner.plan_from_intermediate(pipelines, materializations)?;
-        profile.plan_executable_step = Some(timer.stop());
+        if portal.execution_mode == ExecutionMode::Hybrid {
+            // Need to begin execution on the remote side.
+            let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
+            hybrid_client.remote_execute(portal.query_id).await?;
+        }
 
-        let handle = self.executor.spawn_pipelines(pipelines, Arc::new(errors));
+        let handle = self
+            .executor
+            .spawn_pipelines(portal.executable_pipelines, Arc::new(portal.error_sink));
 
         Ok(ExecutionResult {
-            planning_profile: profile,
-            output_schema,
-            stream,
-            handle,
+            planning_profile: portal.profile,
+            output_schema: portal.output_schema,
+            stream: portal.result_stream,
+            handle: handle.into(),
         })
     }
 
@@ -395,14 +480,4 @@ where
     pub fn unset_hybrid(&mut self) {
         self.hybrid_client = None;
     }
-}
-
-#[derive(Debug)]
-struct PreparedStatement {
-    statement: RawStatement,
-}
-
-#[derive(Debug)]
-struct Portal {
-    statement: RawStatement,
 }

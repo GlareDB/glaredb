@@ -1,19 +1,19 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
 use crate::{
     errors::Result,
     runtime::{WasmExecutor, WasmRuntime},
 };
-use rayexec_bullet::{
-    array::Array,
-    format::{FormatOptions, Formatter},
-};
+use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
-use rayexec_error::RayexecError;
+use rayexec_error::OptionExt;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
-use rayexec_shell::session::{ResultTable, SingleUserEngine};
+use rayexec_shell::{
+    result_table::{MaterializedColumn, MaterializedResultTable},
+    session::SingleUserEngine,
+};
 use tracing::trace;
 use wasm_bindgen::prelude::*;
 
@@ -39,15 +39,16 @@ impl WasmSession {
         Ok(WasmSession { runtime, engine })
     }
 
-    pub async fn sql(&self, sql: &str) -> Result<WasmResultTables> {
-        let tables = self
-            .engine
-            .sql(sql)
-            .await?
-            .into_iter()
-            .map(Rc::new)
-            .collect();
-        Ok(WasmResultTables(tables))
+    pub async fn query(&self, sql: &str) -> Result<WasmMaterializedResultTables> {
+        let pending_queries = self.engine.session().query_many(sql)?;
+        let mut tables = Vec::with_capacity(pending_queries.len());
+
+        for pending in pending_queries {
+            let table = pending.execute().await?.collect().await?;
+            tables.push(Rc::new(table));
+        }
+
+        Ok(WasmMaterializedResultTables(tables))
     }
 
     // TODO: This copies `content`. Not sure if there's a good way to get around
@@ -86,14 +87,14 @@ impl WasmSession {
 /// tables directly.
 #[wasm_bindgen]
 #[derive(Debug)]
-pub struct WasmResultTables(pub(crate) Vec<Rc<ResultTable>>);
+pub struct WasmMaterializedResultTables(pub(crate) Vec<Rc<MaterializedResultTable>>);
 
 #[wasm_bindgen]
-impl WasmResultTables {
-    pub fn get_tables(&self) -> Vec<WasmResultTable> {
+impl WasmMaterializedResultTables {
+    pub fn get_tables(&self) -> Vec<WasmMaterializedResultTable> {
         self.0
             .iter()
-            .map(|table| WasmResultTable::new(table.clone()))
+            .map(|table| WasmMaterializedResultTable(table.clone()))
             .collect()
     }
 
@@ -108,24 +109,13 @@ impl WasmResultTables {
 
 #[wasm_bindgen]
 #[derive(Debug)]
-pub struct WasmResultTable {
-    /// Result table for a single query. The result table may contain more than
-    /// one batch.
-    pub(crate) table: Rc<ResultTable>,
-}
+pub struct WasmMaterializedResultTable(pub(crate) Rc<MaterializedResultTable>);
 
 #[wasm_bindgen]
-impl WasmResultTable {
-    /// Wraps a result table for wasm.
-    ///
-    /// Generates first row indices for each batch in the result table.
-    fn new(table: Rc<ResultTable>) -> Self {
-        WasmResultTable { table }
-    }
-
+impl WasmMaterializedResultTable {
     pub fn column_names(&self) -> Vec<String> {
-        self.table
-            .schema
+        self.0
+            .schema()
             .fields
             .iter()
             .map(|f| f.name.clone())
@@ -133,101 +123,60 @@ impl WasmResultTable {
     }
 
     pub fn num_rows(&self) -> usize {
-        self.table.batches.iter().map(|b| b.num_rows()).sum()
+        self.0.num_rows()
     }
 
-    #[inline]
-    fn batch_row(&self, mut row: usize) -> (usize, usize) {
-        for (batch_idx, batch) in self.table.batches.iter().enumerate() {
-            if row < batch.num_rows() {
-                return (batch_idx, row);
-            }
-            row -= batch.num_rows();
-        }
-        (0, 0)
-    }
-
-    pub fn column(&self, column: &str) -> Result<WasmArray> {
-        let col_idx = self
-            .table
-            .schema
-            .fields
-            .iter()
-            .position(|f| f.name == column)
-            .ok_or_else(|| {
-                RayexecError::new(format!(
-                    "Unable to find column with name '{column}' in results table"
-                ))
-            })?;
-
-        let arrays = self
-            .table
-            .batches
-            .iter()
-            .map(|b| b.column(col_idx).expect("column to exist").clone())
-            .collect();
-
-        Ok(WasmArray { arrays })
+    pub fn column(&self, column: &str) -> Result<WasmMaterializedColumn> {
+        Ok(WasmMaterializedColumn(self.0.column_by_name(column)?))
     }
 
     pub fn format_cell(&self, col: usize, row: usize) -> Result<String> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+        let v = self.0.with_cell(
+            |arr, row| {
+                FORMATTER
+                    .format_array_value(arr, row)
+                    .required("row to be in range")
+                    .map(|v| v.to_string())
+            },
+            col,
+            row,
+        )?;
 
-        let (batch_idx, row) = self.batch_row(row);
-
-        let arr = self.table.batches[batch_idx]
-            .column(col)
-            .ok_or_else(|| RayexecError::new(format!("Column index {col} out of range")))?;
-
-        let v = FORMATTER
-            .format_array_value(arr, row)
-            .ok_or_else(|| RayexecError::new(format!("Row index {row} out of range")))?;
-
-        Ok(v.to_string())
+        Ok(v)
     }
 }
 
 #[wasm_bindgen]
-pub struct WasmArray {
-    arrays: Vec<Arc<Array>>,
-}
+pub struct WasmMaterializedColumn(pub(crate) MaterializedColumn);
 
 #[wasm_bindgen]
-impl WasmArray {
+impl WasmMaterializedColumn {
     pub fn len(&self) -> usize {
-        self.arrays.iter().map(|a| a.len()).sum()
+        self.0.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn find_array_for_row(&self, mut row: usize) -> Result<(&Array, usize)> {
-        for array in self.arrays.iter() {
-            if row < array.len() {
-                return Ok((array, row));
-            }
-            row -= array.len();
-        }
-        Err(RayexecError::new(format!("Row index {row} out of bounds")).into())
+        self.0.is_empty()
     }
 
     pub fn value_as_string(&self, row_idx: usize) -> Result<Option<String>> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+        let v = self.0.with_row(
+            |arr, row| {
+                let valid = arr.is_valid(row).expect("row in bounds");
+                if valid {
+                    Ok(Some(
+                        FORMATTER.format_array_value(arr, row).unwrap().to_string(),
+                    ))
+                } else {
+                    Ok(None)
+                }
+            },
+            row_idx,
+        )?;
 
-        let (arr, row_idx) = self.find_array_for_row(row_idx)?;
-        let valid = arr.is_valid(row_idx).expect("row in bounds");
-
-        if valid {
-            Ok(Some(
-                FORMATTER
-                    .format_array_value(arr, row_idx)
-                    .unwrap()
-                    .to_string(),
-            ))
-        } else {
-            Ok(None)
-        }
+        Ok(v)
     }
 }
 
@@ -244,16 +193,17 @@ mod tests {
 
     #[test]
     fn format_cells() {
-        let table = ResultTable {
-            schema: Schema::new([Field::new("c1", DataType::Int32, true)]),
-            batches: vec![
+        let table = MaterializedResultTable::try_new(
+            Schema::new([Field::new("c1", DataType::Int32, true)]),
+            [
                 Batch::try_new([Array::Int32(Int32Array::from_iter([0, 1, 2, 3]))]).unwrap(),
                 Batch::try_new([Array::Int32(Int32Array::from_iter([4, 5]))]).unwrap(),
                 Batch::try_new([Array::Int32(Int32Array::from_iter([6, 7, 8, 9, 10]))]).unwrap(),
             ],
-        };
+        )
+        .unwrap();
 
-        let table = WasmResultTable::new(Rc::new(table));
+        let table = WasmMaterializedResultTable(Rc::new(table));
 
         // From first batch.
         assert_eq!("0", table.format_cell(0, 0).unwrap());

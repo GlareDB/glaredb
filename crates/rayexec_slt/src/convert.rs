@@ -1,14 +1,14 @@
 use rayexec_bullet::{
-    batch::Batch,
     datatype::DataType,
     field::Schema,
     format::{FormatOptions, Formatter},
 };
 use rayexec_error::Result;
+use rayexec_shell::result_table::MaterializedResultTable;
 use sqllogictest::DefaultColumnType;
 
-/// Convert a batch into a vector of rows.
-pub fn batch_to_rows(batch: Batch) -> Result<Vec<Vec<String>>> {
+/// Convert a materialized table to row strings.
+pub fn table_to_rows(table: MaterializedResultTable) -> Result<Vec<Vec<String>>> {
     const OPTS: FormatOptions = FormatOptions {
         null: "NULL",
         empty_string: "(empty)",
@@ -17,9 +17,7 @@ pub fn batch_to_rows(batch: Batch) -> Result<Vec<Vec<String>>> {
 
     let mut rows = Vec::new();
 
-    for row_idx in 0..batch.num_rows() {
-        let row = batch.row(row_idx).expect("row to exist");
-
+    for row in table.iter_rows() {
         let col_strings: Vec<_> = row
             .iter()
             .map(|col| formatter.format_scalar_value(col.clone()).to_string())

@@ -9,6 +9,7 @@ edition.workspace = true
 rayexec_error = { path = '../crates/rayexec_error' }
 rayexec_execution = { path = '../crates/rayexec_execution' }
 rayexec_server = { path = '../crates/rayexec_server' }
+rayexec_shell = { path = '../crates/rayexec_shell' }
 rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_slt = { path = '../crates/rayexec_slt' }
 rayexec_bullet = { path = '../crates/rayexec_bullet' }
@@ -17,6 +18,7 @@ rayexec_parquet = { path = '../crates/rayexec_parquet' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
 rayexec_debug = { path = '../crates/rayexec_debug' }
+tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 
 [[test]]
 harness = false

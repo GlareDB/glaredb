@@ -7,6 +7,7 @@ edition.workspace = true
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_parser = { path = '../rayexec_parser' }
 futures = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
