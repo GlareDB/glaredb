@@ -572,7 +572,7 @@ dependencies = [
  "eventsource-stream",
  "futures",
  "rand",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "reqwest-eventsource",
  "secrecy",
  "serde",
@@ -2959,7 +2959,7 @@ dependencies = [
  "rand",
  "regex",
  "repr",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "ring 0.17.8",
  "rust_decimal",
  "rustls 0.23.13",
@@ -3843,7 +3843,7 @@ dependencies = [
  "log",
  "prost 0.13.1",
  "prost-types 0.13.1",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "serde",
  "serde_json",
  "thiserror",
@@ -6281,7 +6281,7 @@ dependencies = [
  "parser",
  "pgrepr",
  "proxyutil",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "rustls 0.23.13",
  "rustls-pemfile 2.1.3",
  "serde",
@@ -6675,7 +6675,7 @@ version = "0.9.5"
 dependencies = [
  "async-trait",
  "futures",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "serde",
  "serde_json",
  "thiserror",
@@ -7232,9 +7232,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.7"
+version = "0.12.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8f4955649ef5c38cc7f9e8aa41761d48fb9677197daea9984dc54f56aad5e63"
+checksum = "f713147fbe92361e52392c73b8c9e48c04c6625bce969ef54dc901e58e042a7b"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -7256,7 +7256,7 @@ dependencies = [
  "pin-project-lite",
  "quinn",
  "rustls 0.23.13",
- "rustls-native-certs 0.7.0",
+ "rustls-native-certs 0.8.0",
  "rustls-pemfile 2.1.3",
  "rustls-pki-types",
  "serde",
@@ -7288,7 +7288,7 @@ dependencies = [
  "mime",
  "nom",
  "pin-project-lite",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "thiserror",
 ]
 
@@ -7635,6 +7635,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-native-certs"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcaf18a4f2be7326cd874a5fa579fae794320a0f388d365dca7e480e55f83f8a"
+dependencies = [
+ "openssl-probe",
+ "rustls-pemfile 2.1.3",
+ "rustls-pki-types",
+ "schannel",
+ "security-framework",
+]
+
+[[package]]
 name = "rustls-pemfile"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7896,7 +7909,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bdca318192c89bb31bffa2ef8e9e9898bc80f15a78db2fdd41cd051f1b41d01"
 dependencies = [
  "async-trait",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "serde",
  "serde_json",
  "thiserror",
@@ -8274,7 +8287,7 @@ dependencies = [
  "flate2",
  "hex",
  "logutil",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "serde",
  "serde_json",
  "thiserror",
@@ -8345,7 +8358,7 @@ dependencies = [
  "parser",
  "pgrepr",
  "protogen",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "serde_json",
  "siphasher 1.0.1",
  "strum 0.26.3",
@@ -8385,7 +8398,7 @@ dependencies = [
  "prost 0.12.6",
  "protogen",
  "proxyutil",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "rustls 0.23.13",
  "serde",
  "sqlbuiltins",
