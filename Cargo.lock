@@ -2962,7 +2962,7 @@ dependencies = [
  "reqwest 0.12.8",
  "ring 0.17.8",
  "rust_decimal",
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "scylla",
  "serde",
  "serde_json",
@@ -4314,7 +4314,7 @@ dependencies = [
  "http 1.1.0",
  "hyper 1.4.1",
  "hyper-util",
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "rustls-native-certs 0.7.0",
  "rustls-pki-types",
  "tokio",
@@ -5638,8 +5638,8 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "rand",
- "rustls 0.23.13",
  "rustls-pemfile 2.2.0",
+ "rustls 0.23.14",
  "serde",
  "serde_json",
  "socket2",
@@ -6282,8 +6282,8 @@ dependencies = [
  "pgrepr",
  "proxyutil",
  "reqwest 0.12.8",
- "rustls 0.23.13",
  "rustls-pemfile 2.2.0",
+ "rustls 0.23.14",
  "serde",
  "sqlexec",
  "tempfile",
@@ -6943,7 +6943,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.0.0",
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "socket2",
  "thiserror",
  "tokio",
@@ -6960,7 +6960,7 @@ dependencies = [
  "rand",
  "ring 0.17.8",
  "rustc-hash 2.0.0",
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "slab",
  "thiserror",
  "tinyvec",
@@ -7255,9 +7255,9 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.13",
  "rustls-native-certs 0.8.0",
  "rustls-pemfile 2.2.0",
+ "rustls 0.23.14",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -7583,9 +7583,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.13"
+version = "0.23.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
+checksum = "415d9944693cb90382053259f89fbb077ea730ad7273047ec63b19bc9b160ba8"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -8398,7 +8398,7 @@ dependencies = [
  "protogen",
  "proxyutil",
  "reqwest 0.12.8",
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "serde",
  "sqlbuiltins",
  "telemetry",
@@ -9031,7 +9031,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04fb792ccd6bbcd4bba408eb8a292f70fc4a3589e5d793626f45190e6454b6ab"
 dependencies = [
  "ring 0.17.8",
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "tokio",
  "tokio-postgres",
  "tokio-rustls 0.26.0",
@@ -9065,7 +9065,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
 dependencies = [
- "rustls 0.23.13",
+ "rustls 0.23.14",
  "rustls-pki-types",
  "tokio",
 ]
@@ -10151,8 +10151,8 @@ dependencies = [
  "hyper-util",
  "log",
  "percent-encoding",
- "rustls 0.23.13",
  "rustls-pemfile 2.2.0",
+ "rustls 0.23.14",
  "seahash",
  "serde",
  "serde_json",
