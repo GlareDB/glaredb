@@ -25,7 +25,7 @@ fn get_parquet_data_dir() -> PathBuf {
     }
 
     // Otherwise fall back to the default.
-    const MANIFEST_DIR: &'static str = std::env!("CARGO_MANIFEST_DIR"); // Points to root of parquet crate.
+    const MANIFEST_DIR: &str = std::env!("CARGO_MANIFEST_DIR"); // Points to root of parquet crate.
     PathBuf::from(MANIFEST_DIR).join("../../submodules/parquet-testing/data")
 }
 

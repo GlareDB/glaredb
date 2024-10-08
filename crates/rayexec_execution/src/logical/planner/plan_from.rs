@@ -49,6 +49,8 @@ impl FromPlanner {
                         types,
                         names,
                         projection,
+                        did_prune_columns: false,
+                        scan_filters: Vec::new(),
                         source: ScanSource::Table {
                             catalog: table.catalog,
                             schema: table.schema,
@@ -76,6 +78,8 @@ impl FromPlanner {
                         types,
                         names,
                         projection,
+                        did_prune_columns: false,
+                        scan_filters: Vec::new(),
                         source: ScanSource::TableFunction {
                             function: func.function,
                         },
@@ -113,8 +117,6 @@ impl FromPlanner {
                 }))
             }
             BoundFromItem::MaterializedCte(mat_cte) => {
-                // TODO: Have a way of indexing to the CTE directly instead of
-                // searching the scopes again.
                 let cte = bind_context.get_cte(mat_cte.cte_ref)?;
 
                 let mat_ref = match cte.mat_ref {

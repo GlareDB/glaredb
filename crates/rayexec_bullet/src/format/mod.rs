@@ -1,7 +1,11 @@
 pub mod pretty;
 pub mod ugly;
 
-use crate::{array::Array, scalar::ScalarValue};
+use crate::{
+    array::Array,
+    scalar::ScalarValue,
+};
+use rayexec_error::Result;
 use std::fmt;
 
 /// Formatting options for arrays and scalars.
@@ -55,9 +59,9 @@ impl<'a> Formatter<'a> {
         &self,
         array: &'b Array,
         idx: usize,
-    ) -> Option<FormattedScalarValue<'_, 'b>> {
-        let scalar = array.scalar(idx)?;
-        Some(self.format_scalar_value(scalar))
+    ) -> Result<FormattedScalarValue<'_, 'b>> {
+        let scalar = array.logical_value(idx)?;
+        Ok(self.format_scalar_value(scalar))
     }
 }
 
@@ -72,13 +76,6 @@ impl fmt::Display for FormattedScalarValue<'_, '_> {
         match &self.scalar {
             ScalarValue::Null => write!(f, "{}", self.options.null),
             ScalarValue::Utf8(v) => {
-                if v.is_empty() {
-                    write!(f, "{}", self.options.empty_string)
-                } else {
-                    write!(f, "{v}")
-                }
-            }
-            ScalarValue::LargeUtf8(v) => {
                 if v.is_empty() {
                     write!(f, "{}", self.options.empty_string)
                 } else {
@@ -142,11 +139,6 @@ mod tests {
 
         let out = formatter
             .format_scalar_value(ScalarValue::Utf8("".into()))
-            .to_string();
-        assert_eq!("(empty)", out);
-
-        let out = formatter
-            .format_scalar_value(ScalarValue::LargeUtf8("".into()))
             .to_string();
         assert_eq!("(empty)", out);
     }

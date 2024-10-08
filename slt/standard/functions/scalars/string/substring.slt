@@ -46,12 +46,12 @@ SELECT substring('😤🤝👀', 4);
 ----
 (empty)
 
-query T
+query T rowsort
 SELECT substring(a, 2, 1) FROM (VALUES ('😤🤝👀'), (NULL), ('hello')) v(a);
 ----
-🤝
 NULL
 e
+🤝
 
 # FROM/FOR keywords
 

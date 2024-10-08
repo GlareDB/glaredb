@@ -1,4 +1,5 @@
 //! Utilities for testing operator implementations.
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::Result;
 use std::sync::Arc;
 use std::task::Context;
@@ -7,14 +8,16 @@ use std::{
     task::{Wake, Waker},
 };
 
-use rayexec_bullet::array::{Array, Int32Array};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
 
-use super::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush};
+use super::{
+    ComputedBatches, ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
+};
 
 pub fn test_database_context() -> DatabaseContext {
     DatabaseContext::new(Arc::new(
@@ -68,11 +71,14 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: impl Into<Batch>,
     ) -> Result<PollPush> {
-        operator
-            .as_ref()
-            .poll_push(&mut self.context(), partition_state, operator_state, batch)
+        operator.as_ref().poll_push(
+            &mut self.context(),
+            partition_state,
+            operator_state,
+            batch.into(),
+        )
     }
 
     pub fn poll_pull<Operator: ExecutableOperator>(
@@ -96,12 +102,16 @@ impl Wake for TestWakerInner {
 /// Unwraps a batch from the PollPull::Batch variant.
 pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
     match poll {
-        PollPull::Batch(batch) => batch,
+        PollPull::Computed(ComputedBatches::Single(batch)) => batch,
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }
 
+pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
+    batch.column(column).unwrap().logical_value(row).unwrap()
+}
+
 /// Makes a batch with a single column i32 values provided by the iterator.
 pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_new(vec![Array::Int32(Int32Array::from_iter(iter.into_iter()))]).unwrap()
+    Batch::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
 }

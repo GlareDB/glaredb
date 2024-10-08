@@ -35,12 +35,12 @@ SELECT 1 AS three UNION SELECT 2 UNION SELECT 3;
 query TT
 DESCRIBE SELECT 1 AS two UNION ALL SELECT 2;
 ----
-two  Int64
+two  Int32
 
 query TT
 DESCRIBE SELECT 1 AS two UNION SELECT 2;
 ----
-two  Int64
+two  Int32
 
 query I
 select count(*) from (select * from generate_series(1, 10000) union all select * from generate_series(1, 10000));

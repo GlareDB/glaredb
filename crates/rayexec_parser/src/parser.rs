@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
             self.idx = start;
             Ok(RawStatement::CreateView(CreateView::parse(self)?))
         } else {
-            not_implemented!("create");
+            not_implemented!("CREATE: {}", self.sql);
         }
     }
 

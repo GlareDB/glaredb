@@ -1,7 +1,9 @@
 use rayexec_error::{RayexecError, Result};
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
+
+use super::AddressableStorage;
 
 /// Marker trait for a deallocation mechanism for the `PrimitiveStorage::Raw`
 /// variant.
@@ -51,7 +53,7 @@ impl<T> PrimitiveStorage<T> {
     /// A potentially failable conversion to a mutable slice reference.
     ///
     /// This will only succeed for the Vec variant.
-    pub fn try_as_mut(&mut self) -> Result<&mut [T]> {
+    pub fn try_as_vec_mut(&mut self) -> Result<&mut Vec<T>> {
         match self {
             Self::Vec(v) => Ok(v),
             Self::Raw { .. } => Err(RayexecError::new(
@@ -104,6 +106,53 @@ impl<T> PrimitiveStorage<T> {
 
         unsafe { std::slice::from_raw_parts(ptr.cast(), num_bytes) }
     }
+
+    pub fn as_slice(&self) -> &[T] {
+        self.as_ref()
+    }
+
+    pub fn data_size_bytes(&self) -> usize {
+        std::mem::size_of_val(self.as_ref())
+    }
+
+    pub fn len(&self) -> usize {
+        self.as_ref().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Tries to reinterpret cast T to U where both types have the same size
+    /// storage.
+    ///
+    /// # Safety
+    ///
+    /// This should only be used for trivial casts where possible under/overflow
+    /// isn't a concern (e.g. i64 -> u64).
+    pub unsafe fn try_reintepret_cast<U>(&self) -> Result<&PrimitiveStorage<U>> {
+        if std::mem::size_of::<T>() != std::mem::size_of::<U>() {
+            return Err(RayexecError::new(
+                "Cannot reintepret cast to a different sized type",
+            ));
+        }
+
+        Ok(std::mem::transmute::<
+            &PrimitiveStorage<T>,
+            &PrimitiveStorage<U>,
+        >(self))
+    }
+
+    /// Iterate over the primitive values.
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.as_ref().iter()
+    }
+
+    pub fn as_primitive_storage_slice(&self) -> PrimitiveStorageSlice<T> {
+        PrimitiveStorageSlice {
+            slice: self.as_ref(),
+        }
+    }
 }
 
 /// Implementation of equality that compares the actual values regardless of if
@@ -125,11 +174,34 @@ impl<T> From<Vec<T>> for PrimitiveStorage<T> {
 }
 
 impl<T> AsRef<[T]> for PrimitiveStorage<T> {
+    #[inline]
     fn as_ref(&self) -> &[T] {
         match self {
             Self::Vec(v) => v.as_slice(),
             Self::Raw { ptr, len, .. } => unsafe { std::slice::from_raw_parts(*ptr, *len) },
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct PrimitiveStorageSlice<'a, T> {
+    slice: &'a [T],
+}
+
+impl<'a, T: Copy + Debug + Send> AddressableStorage for PrimitiveStorageSlice<'a, T> {
+    type T = T;
+
+    fn len(&self) -> usize {
+        self.slice.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<Self::T> {
+        self.slice.get(idx).copied()
+    }
+
+    #[inline]
+    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
+        *self.slice.get_unchecked(idx)
     }
 }
 

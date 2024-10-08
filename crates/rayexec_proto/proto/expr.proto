@@ -39,31 +39,29 @@ message ListScalar {
 
 message OwnedScalarValue {
     oneof value {
-        EmptyScalar      scalar_null         = 2;
-        bool             scalar_boolean      = 3;
-        int32            scalar_int8         = 4;
-        int32            scalar_int16        = 5;
-        int32            scalar_int32        = 6;
-        int64            scalar_int64        = 7;
-        bytes            scalar_int128       = 8;
-        uint32           scalar_uint8        = 9;
-        uint32           scalar_uint16       = 10;
-        uint32           scalar_uint32       = 11;
-        uint64           scalar_uint64       = 12;
-        bytes            scalar_uint128      = 13;
-        float            scalar_float32      = 14;
-        double           scalar_float64      = 15;
-        Decimal64Scalar  scalar_decimal64    = 16;
-        Decimal128Scalar scalar_decimal128   = 17;
-        TimestampScalar  scalar_timestamp    = 18;
-        int32            scalar_date32       = 19;
-        int64            scalar_date64       = 20;
-        IntervalScalar   scalar_interval     = 21;
-        string           scalar_utf8         = 22;
-        string           scalar_large_utf8   = 23;
-        bytes            scalar_binary       = 24;
-        bytes            scalar_large_binary = 25;
-        StructScalar     scalar_struct       = 26;
-        ListScalar       scalar_list         = 27;
+        EmptyScalar      scalar_null       = 2;
+        bool             scalar_boolean    = 3;
+        int32            scalar_int8       = 4;
+        int32            scalar_int16      = 5;
+        int32            scalar_int32      = 6;
+        int64            scalar_int64      = 7;
+        bytes            scalar_int128     = 8;
+        uint32           scalar_uint8      = 9;
+        uint32           scalar_uint16     = 10;
+        uint32           scalar_uint32     = 11;
+        uint64           scalar_uint64     = 12;
+        bytes            scalar_uint128    = 13;
+        float            scalar_float32    = 14;
+        double           scalar_float64    = 15;
+        Decimal64Scalar  scalar_decimal64  = 16;
+        Decimal128Scalar scalar_decimal128 = 17;
+        TimestampScalar  scalar_timestamp  = 18;
+        int32            scalar_date32     = 19;
+        int64            scalar_date64     = 20;
+        IntervalScalar   scalar_interval   = 21;
+        string           scalar_utf8       = 22;
+        bytes            scalar_binary     = 23;
+        StructScalar     scalar_struct     = 24;
+        ListScalar       scalar_list       = 25;
     }
 }

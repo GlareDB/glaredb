@@ -44,18 +44,7 @@ select * from (select a as c1, b from t1) inner join (select b as c2, a from t1)
 5  6  2  1
 5  6  4  3
 
-# query TT
-# explain select * from (select a as c1, b from t1) inner join (select b as c2, a from t1) on c2 - 1 = c1;
-# ----
-# logical Projection (expressions = [#0, #1, #2, #3])
-# .         AnyJoin (join = INNER, on = CAST(#2, Float32)-CAST(#4, Float32)=CAST(#0, Float32))
-# .           Projection (expressions = [#0, #1])
-# .             Scan (column_types = [Int32, Int32], source = t1)
-# .           Projection (expressions = [#0, #1, 1])
-# .             Projection (expressions = [#1, #0])
-# .               Scan (column_types = [Int32, Int32], source = t1)
-
-query II
+query II rowsort
 select * from (select a as c1, b from t1) inner join (select b as c2, a from t1) on c2 - 1 = c1;
 ----
 1  2  2  1

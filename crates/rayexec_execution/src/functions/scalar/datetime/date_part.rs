@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use rayexec_bullet::{
     array::Array,
-    compute::date::{self, ExtractDatePart},
+    compute::date::{self, extract_date_part},
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
     scalar::decimal::{Decimal64Type, DecimalType},
 };
@@ -12,11 +10,12 @@ use rayexec_parser::ast;
 use crate::{
     expr::Expression,
     functions::{
-        exec_invalid_array_type_err, invalid_input_types_error, plan_check_num_args,
+        invalid_input_types_error, plan_check_num_args,
         scalar::{PlannedScalarFunction, ScalarFunction},
         FunctionInfo, Signature,
     },
-    logical::{binder::bind_context::BindContext, consteval::ConstEval},
+    logical::binder::bind_context::BindContext,
+    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,9 +70,8 @@ impl ScalarFunction for DatePart {
         plan_check_num_args(self, &datatypes, 2)?;
 
         // Requires first argument to be constant (for now)
-        let part = ConstEval::default()
-            .fold(inputs[0].clone())?
-            .try_unwrap_constant()?
+        let part = ConstFold::rewrite(bind_context, inputs[0].clone())?
+            .try_into_scalar()?
             .try_into_string()?;
 
         let part = part.parse::<ast::DatePart>()?;
@@ -109,17 +107,9 @@ impl PlannedScalarFunction for DatePartImpl {
         ))
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         // First input ignored (the constant "part" to extract)
-
-        let dec_arr = match inputs[1].as_ref() {
-            Array::Date32(arr) => arr.extract_date_part(self.part)?,
-            Array::Date64(arr) => arr.extract_date_part(self.part)?,
-            Array::Timestamp(arr) => arr.extract_date_part(self.part)?,
-            other => return Err(exec_invalid_array_type_err(self, other)),
-        };
-
-        Ok(Array::Decimal64(dec_arr))
+        extract_date_part(self.part, inputs[1])
     }
 }
 

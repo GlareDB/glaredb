@@ -1,8 +1,11 @@
 use indexmap::IndexSet;
 
-use crate::expr::{
-    conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-    Expression,
+use crate::{
+    expr::{
+        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
+        Expression,
+    },
+    logical::binder::bind_context::BindContext,
 };
 use rayexec_error::{RayexecError, Result};
 
@@ -15,7 +18,7 @@ use super::ExpressionRewriteRule;
 pub struct DistributiveOrRewrite;
 
 impl ExpressionRewriteRule for DistributiveOrRewrite {
-    fn rewrite(mut expression: Expression) -> Result<Expression> {
+    fn rewrite(_bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
         fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::Or => {
@@ -185,7 +188,8 @@ mod tests {
         // No changes.
         let expected = expr.clone();
 
-        let got = DistributiveOrRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -200,7 +204,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1)]).unwrap();
 
-        let got = DistributiveOrRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -211,7 +216,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1)]).unwrap();
 
-        let got = DistributiveOrRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -232,7 +238,8 @@ mod tests {
         ])
         .unwrap();
 
-        let got = DistributiveOrRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got, "expected: {expected:#?}\n, got: {got:#?}");
     }
 }

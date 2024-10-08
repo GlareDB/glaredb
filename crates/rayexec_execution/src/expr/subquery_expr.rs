@@ -1,9 +1,12 @@
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
-use crate::logical::binder::{
-    bind_context::{BindContext, BindScopeRef},
-    bind_query::BoundQuery,
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    logical::binder::{
+        bind_context::{BindContext, BindScopeRef},
+        bind_query::BoundQuery,
+    },
 };
 use std::{fmt, hash::Hash};
 
@@ -40,13 +43,22 @@ impl SubqueryExpr {
     }
 }
 
-impl fmt::Display for SubqueryExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for SubqueryExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match &self.subquery_type {
             SubqueryType::Scalar => (),
             SubqueryType::Exists { negated: false } => write!(f, "EXISTS ")?,
             SubqueryType::Exists { negated: true } => write!(f, "NOT EXISTS ")?,
-            SubqueryType::Any { expr, op } => write!(f, "{expr} {op} ANY ")?,
+            SubqueryType::Any { expr, op } => write!(
+                f,
+                "{} {} ANY ",
+                ContextDisplayWrapper::with_mode(expr.as_ref(), mode),
+                op
+            )?,
         }
 
         write!(f, "<subquery>")

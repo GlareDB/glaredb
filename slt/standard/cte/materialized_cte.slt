@@ -39,8 +39,8 @@ describe with cte1 as materialized (select 1 as a),
      cte2 as (select * from cte1)
 select * from cte1, cte2;
 ----
-a  Int64
-a  Int64
+a  Int32
+a  Int32
 
 query TT
 with cte1 as materialized (select 1 as a),
@@ -56,6 +56,6 @@ describe with cte1 as materialized (select 1 as a),
      cte3 as materialized (select 3, * from cte2, cte1)
 select * from cte3;
 ----
-?column?  Int64
-a         Int64
-a         Int64
+?column?  Int32
+a         Int32
+a         Int32

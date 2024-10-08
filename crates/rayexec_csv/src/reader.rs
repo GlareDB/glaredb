@@ -22,14 +22,15 @@ use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
 use rayexec_bullet::{
     array::{
-        Array, BooleanArray, OffsetIndex, PrimitiveArray, ValuesBuffer, VarlenArray,
-        VarlenValuesBuffer,
+        Array, ArrayData,
     },
     batch::Batch,
     bitmap::Bitmap,
     compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser},
     datatype::{DataType, TimeUnit, TimestampTypeMeta},
+    executor::builder::{ArrayDataBuffer, GermanVarlenBuffer},
     field::{Field, Schema},
+    storage::{BooleanStorage, PrimitiveStorage},
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileSource;
@@ -456,22 +457,22 @@ impl AsyncCsvStream {
         let mut arrs = Vec::with_capacity(schema.fields.len());
         for (idx, field) in schema.fields.iter().enumerate() {
             let arr = match &field.datatype {
-                DataType::Boolean => {
-                    Array::Boolean(Self::build_boolean(&completed, idx, skip_records)?)
-                }
-                DataType::Int64 => Array::Int64(Self::build_primitive(
+                DataType::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
+                DataType::Int64 => Self::build_primitive(
+                    &field.datatype,
                     &completed,
                     idx,
                     skip_records,
                     Int64Parser::new(),
-                )?),
-                DataType::Float64 => Array::Float64(Self::build_primitive(
+                )?,
+                DataType::Float64 => Self::build_primitive(
+                    &field.datatype,
                     &completed,
                     idx,
                     skip_records,
                     Float64Parser::new(),
-                )?),
-                DataType::Utf8 => Array::Utf8(Self::build_utf8(&completed, idx, skip_records)?),
+                )?,
+                DataType::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
                 other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
             };
 
@@ -485,7 +486,7 @@ impl AsyncCsvStream {
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<BooleanArray> {
+    ) -> Result<Array> {
         let mut values = Bitmap::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -502,18 +503,24 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(BooleanArray::new(values, Some(validity)))
+        Ok(Array::new_with_validity_and_array_data(
+            DataType::Boolean,
+            validity,
+            BooleanStorage::from(values),
+        ))
     }
 
     fn build_primitive<T, P>(
+        datatype: &DataType,
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
         mut parser: P,
-    ) -> Result<PrimitiveArray<T>>
+    ) -> Result<Array>
     where
         T: Default,
         P: Parser<Type = T>,
+        PrimitiveStorage<T>: Into<ArrayData>,
     {
         let mut values = Vec::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());
@@ -533,28 +540,35 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(PrimitiveArray::new(values, Some(validity)))
+        Ok(Array::new_with_validity_and_array_data(
+            datatype.clone(),
+            validity,
+            PrimitiveStorage::from(values),
+        ))
     }
 
-    fn build_utf8<O: OffsetIndex>(
+    fn build_utf8(
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<VarlenArray<str, O>> {
-        let mut values = VarlenValuesBuffer::default();
+    ) -> Result<Array> {
+        let mut values = GermanVarlenBuffer::with_len(completed.num_completed() - skip_records);
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
-        for record in completed.iter().skip(skip_records) {
+        for (idx, record) in completed.iter().skip(skip_records).enumerate() {
             let field = record.get_field(field_idx)?;
             if field.is_empty() {
-                values.push_value("");
                 validity.push(false);
             } else {
-                values.push_value(field);
+                values.put(idx, field);
                 validity.push(true);
             }
         }
 
-        Ok(VarlenArray::new(values, Some(validity)))
+        Ok(Array::new_with_validity_and_array_data(
+            DataType::Utf8,
+            validity,
+            values.into_data(),
+        ))
     }
 }

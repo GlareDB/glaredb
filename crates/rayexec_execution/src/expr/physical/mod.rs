@@ -6,15 +6,16 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-use std::fmt;
-use std::sync::Arc;
+use std::{borrow::Cow, fmt};
 
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, datatype::DataType};
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_bullet::executor::scalar::SelectExecutor;
+use rayexec_bullet::selection::SelectionVector;
+use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType};
+use rayexec_error::{not_implemented, OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
@@ -33,41 +34,27 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    /// Evaluates an expression on a batch using an optional row selection.
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         match self {
-            Self::Case(expr) => expr.eval(batch, selection),
-            Self::Cast(expr) => expr.eval(batch, selection),
-            Self::Column(expr) => expr.eval(batch, selection),
-            Self::Literal(expr) => expr.eval(batch, selection),
-            Self::ScalarFunction(expr) => expr.eval(batch, selection),
+            Self::Case(e) => e.eval(batch),
+            Self::Cast(e) => e.eval(batch),
+            Self::Column(e) => e.eval(batch),
+            Self::Literal(e) => e.eval(batch),
+            Self::ScalarFunction(e) => e.eval(batch),
         }
     }
 
-    pub fn select(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Bitmap> {
-        let arr = self.eval(batch, selection)?;
-        let bitmap = match arr.as_ref() {
-            Array::Boolean(arr) => arr.clone().into_selection_bitmap(),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Expected expression to return bools for select, got {}",
-                    other.datatype()
-                )))
-            }
-        };
+    /// Produce a selection vector for the batch using this expression.
+    ///
+    /// The selection vector will include row indices where the expression
+    /// evaluates to true.
+    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
+        let selected = self.eval(batch)?;
 
-        let selection = match selection {
-            Some(sel) => sel,
-            None => return Ok(bitmap),
-        };
+        let mut selection = SelectionVector::with_capacity(selected.logical_len());
+        SelectExecutor::select(&selected, &mut selection)?;
 
-        let mut zipped = Bitmap::all_false(selection.len());
-
-        for (row_idx, selected) in selection.index_iter().zip(bitmap.iter()) {
-            zipped.set(row_idx, selected);
-        }
-
-        Ok(zipped)
+        Ok(selection)
     }
 }
 
@@ -193,5 +180,56 @@ impl DatabaseProtoConv for PhysicalSortExpression {
             desc: proto.desc,
             nulls_first: proto.nulls_first,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::functions::scalar::comparison::GtImpl;
+
+    use super::*;
+
+    #[test]
+    fn select_some() {
+        let batch = Batch::try_new([
+            Array::from_iter([1, 4, 6, 9, 12]),
+            Array::from_iter([2, 3, 8, 9, 10]),
+        ])
+        .unwrap();
+
+        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+            function: Box::new(GtImpl),
+            inputs: vec![
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+            ],
+        });
+
+        let selection = expr.select(&batch).unwrap();
+        let expected = SelectionVector::from_iter([1, 4]);
+
+        assert_eq!(expected, selection)
+    }
+
+    #[test]
+    fn select_none() {
+        let batch = Batch::try_new([
+            Array::from_iter([1, 2, 6, 9, 9]),
+            Array::from_iter([2, 3, 8, 9, 10]),
+        ])
+        .unwrap();
+
+        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+            function: Box::new(GtImpl),
+            inputs: vec![
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+            ],
+        });
+
+        let selection = expr.select(&batch).unwrap();
+        let expected = SelectionVector::empty();
+
+        assert_eq!(expected, selection)
     }
 }

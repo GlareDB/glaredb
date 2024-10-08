@@ -24,12 +24,13 @@ impl StatelessOperation for ProjectOperation {
         let arrs = self
             .exprs
             .iter()
-            .map(|expr| expr.eval(&batch, None))
+            .map(|expr| {
+                let arr = expr.eval(&batch)?;
+                Ok(arr.into_owned())
+            })
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(arrs)?;
-
-        Ok(batch)
+        Batch::try_new(arrs)
     }
 }
 

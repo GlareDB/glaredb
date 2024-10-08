@@ -3,7 +3,7 @@
 query TT
 DESCRIBE SELECT * FROM (VALUES (4), (NULL));
 ----
-column1  Int64
+column1  Int32
 
 query I rowsort
 SELECT * FROM (VALUES (4), (NULL));
@@ -14,7 +14,7 @@ NULL
 query TT
 DESCRIBE SELECT * FROM (VALUES (NULL), (4));
 ----
-column1  Int64
+column1  Int32
 
 
 query I rowsort

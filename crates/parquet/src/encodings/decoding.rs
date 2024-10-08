@@ -177,7 +177,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// Returns the actual number of values decoded, which should be equal to
     /// `buffer.len()` unless the remaining number of values is less than
     /// `buffer.len()`.
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize>;
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
     /// "spaces" for null values.
@@ -191,7 +191,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// # Panics
     ///
     /// Panics if `null_count` is greater than `buffer.len()`.
-    fn get_spaced(
+    fn read_spaced(
         &mut self,
         buffer: &mut [T::T],
         null_count: usize,
@@ -201,12 +201,12 @@ pub trait Decoder<T: DataType>: Send + Debug {
 
         // TODO: check validity of the input arguments?
         if null_count == 0 {
-            return self.get(buffer);
+            return self.read(buffer);
         }
 
         let num_values = buffer.len();
         let values_to_read = num_values - null_count;
-        let values_read = self.get(buffer)?;
+        let values_read = self.read(buffer)?;
         if values_read != values_to_read {
             return Err(general_err!(
                 "Number of values read: {}, doesn't match expected: {}",
@@ -316,7 +316,7 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     }
 
     #[inline]
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         T::T::decode(buffer, &mut self.inner)
     }
 
@@ -369,7 +369,7 @@ impl<T: DataType> DictDecoder<T> {
     pub fn set_dict(&mut self, mut decoder: Box<dyn Decoder<T>>) -> Result<()> {
         let num_values = decoder.values_left();
         self.dictionary.resize(num_values, T::T::default());
-        let _ = decoder.get(&mut self.dictionary)?;
+        let _ = decoder.read(&mut self.dictionary)?;
         self.has_dictionary = true;
         Ok(())
     }
@@ -386,7 +386,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
         Ok(())
     }
 
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         assert!(self.rle_decoder.is_some());
         assert!(self.has_dictionary, "Must call set_dict() first!");
 
@@ -470,7 +470,7 @@ impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
     }
 
     #[inline]
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         let num_values = cmp::min(buffer.len(), self.values_left);
         let values_read = self.decoder.get_batch(&mut buffer[..num_values])?;
         self.values_left -= values_read;
@@ -696,7 +696,7 @@ where
         Ok(())
     }
 
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         assert!(self.initialized, "Bit reader is not initialized");
         if buffer.is_empty() {
             return Ok(0);
@@ -878,7 +878,7 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 len_decoder.set_data(data.clone(), num_values)?;
                 let num_lengths = len_decoder.values_left();
                 self.lengths.resize(num_lengths, 0);
-                len_decoder.get(&mut self.lengths[..])?;
+                len_decoder.read(&mut self.lengths[..])?;
 
                 self.data = Some(data.slice(len_decoder.get_offset()..));
                 self.offset = 0;
@@ -892,7 +892,7 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
         }
     }
 
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         match T::get_physical_type() {
             Type::BYTE_ARRAY => {
                 assert!(self.data.is_some());
@@ -1012,7 +1012,7 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
                 prefix_len_decoder.set_data(data.clone(), num_values)?;
                 let num_prefixes = prefix_len_decoder.values_left();
                 self.prefix_lengths.resize(num_prefixes, 0);
-                prefix_len_decoder.get(&mut self.prefix_lengths[..])?;
+                prefix_len_decoder.read(&mut self.prefix_lengths[..])?;
 
                 let mut suffix_decoder = DeltaLengthByteArrayDecoder::new();
                 suffix_decoder
@@ -1029,7 +1029,7 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
         }
     }
 
-    fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         match T::get_physical_type() {
             ty @ Type::BYTE_ARRAY | ty @ Type::FIXED_LEN_BYTE_ARRAY => {
                 let num_values = cmp::min(buffer.len(), self.num_values);
@@ -1041,7 +1041,7 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
                         .suffix_decoder
                         .as_mut()
                         .expect("decoder not initialized");
-                    suffix_decoder.get(&mut v[..])?;
+                    suffix_decoder.read(&mut v[..])?;
                     let suffix = v[0].data();
 
                     // Extract current prefix length, can be 0
@@ -1091,7 +1091,7 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
 
     fn skip(&mut self, num_values: usize) -> Result<usize> {
         let mut buffer = vec![T::T::default(); num_values];
-        self.get(&mut buffer)
+        self.read(&mut buffer)
     }
 }
 
@@ -1399,7 +1399,7 @@ mod tests {
         let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
         let result = decoder.set_data(data, num_values);
         assert!(result.is_ok());
-        let result = decoder.get(buffer);
+        let result = decoder.read(buffer);
         assert!(result.is_ok());
         assert_eq!(decoder.values_left(), 0);
         assert_eq!(buffer, expected);
@@ -1421,12 +1421,12 @@ mod tests {
             assert_eq!(skipped, num_values);
 
             let mut buffer = vec![T::T::default(); 1];
-            let remaining = decoder.get(&mut buffer).expect("getting remaining values");
+            let remaining = decoder.read(&mut buffer).expect("getting remaining values");
             assert_eq!(remaining, 0);
         } else {
             assert_eq!(skipped, skip);
             let mut buffer = vec![T::T::default(); num_values - skip];
-            let remaining = decoder.get(&mut buffer).expect("getting remaining values");
+            let remaining = decoder.read(&mut buffer).expect("getting remaining values");
             assert_eq!(remaining, num_values - skip);
             assert_eq!(decoder.values_left(), 0);
             assert_eq!(buffer, expected);
@@ -1445,7 +1445,7 @@ mod tests {
         let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
         let result = decoder.set_data(data, num_values);
         assert!(result.is_ok());
-        let result = decoder.get_spaced(buffer, num_nulls, valid_bits);
+        let result = decoder.read_spaced(buffer, num_nulls, valid_bits);
         assert!(result.is_ok());
         assert_eq!(num_values + num_nulls, result.unwrap());
         assert_eq!(decoder.values_left(), 0);
@@ -1491,7 +1491,7 @@ mod tests {
         // Fail if set_data() is not called before get()
         let mut decoder = DeltaBitPackDecoder::<Int32Type>::new();
         let mut buffer = vec![];
-        decoder.get(&mut buffer).unwrap();
+        decoder.read(&mut buffer).unwrap();
     }
 
     #[test]
@@ -1665,7 +1665,7 @@ mod tests {
         // some data not being read from bit reader
         assert_eq!(decoder.get_offset(), 5);
         let mut result = vec![0, 0, 0];
-        decoder.get(&mut result).unwrap();
+        decoder.read(&mut result).unwrap();
         assert_eq!(decoder.get_offset(), 34);
         assert_eq!(result, vec![29, 43, 89]);
     }
@@ -1734,12 +1734,12 @@ mod tests {
 
         let mut decoder = DeltaBitPackDecoder::<Int32Type>::new();
         decoder.set_data(ptr.clone(), 0).unwrap();
-        assert_eq!(decoder.get(&mut output).unwrap(), 419);
+        assert_eq!(decoder.read(&mut output).unwrap(), 419);
         assert_eq!(decoder.get_offset(), length);
 
         // Test with truncated buffer
         decoder.set_data(ptr.slice(..12), 0).unwrap();
-        let err = decoder.get(&mut output).unwrap_err().to_string();
+        let err = decoder.read(&mut output).unwrap_err().to_string();
         assert!(
             err.contains("Expected to read 64 values from miniblock got 8"),
             "{}",
@@ -1860,7 +1860,7 @@ mod tests {
         let mut result_num_values = 0;
         while decoder.values_left() > 0 {
             result_num_values += decoder
-                .get(&mut result[result_num_values..])
+                .read(&mut result[result_num_values..])
                 .expect("ok to decode");
         }
         assert_eq!(result_num_values, expected.len());
@@ -1896,7 +1896,7 @@ mod tests {
 
             let expected = &data[skip..];
             let mut buffer = vec![T::T::default(); remaining];
-            let fetched = decoder.get(&mut buffer).expect("ok to decode");
+            let fetched = decoder.read(&mut buffer).expect("ok to decode");
             assert_eq!(remaining, fetched);
             assert_eq!(&buffer, expected);
         }

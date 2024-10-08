@@ -151,7 +151,7 @@ impl<T: DataType> ColumnValueDecoder<T> {
         // TODO: Push vec into decoder (#5177)
         let start = out.len();
         out.resize(start + num_values, T::T::default());
-        let read = current_decoder.get(&mut out[start..])?;
+        let read = current_decoder.read(&mut out[start..])?;
         out.truncate(start + read);
         Ok(read)
     }

@@ -72,7 +72,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
         Ok(())
     }
 
-    fn get(&mut self, buffer: &mut [<T as DataType>::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [<T as DataType>::T]) -> Result<usize> {
         let total_remaining_values = self.values_left();
         let num_values = buffer.len().min(total_remaining_values);
         let buffer = &mut buffer[..num_values];

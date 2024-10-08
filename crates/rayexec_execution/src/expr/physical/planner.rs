@@ -1,7 +1,7 @@
 use crate::{
     execution::operators::hash_join::condition::HashJoinCondition,
     expr::{
-        physical::{case_expr::PhyscialWhenThen, PhysicalScalarExpression},
+        physical::{case_expr::PhysicalWhenThen, PhysicalScalarExpression},
         AsScalarFunction, Expression,
     },
     logical::{
@@ -165,7 +165,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                     .map(|when_then| {
                         let when = self.plan_scalar(table_refs, &when_then.when)?;
                         let then = self.plan_scalar(table_refs, &when_then.then)?;
-                        Ok(PhyscialWhenThen { when, then })
+                        Ok(PhysicalWhenThen { when, then })
                     })
                     .collect::<Result<Vec<_>>>()?;
 

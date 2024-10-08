@@ -1104,7 +1104,11 @@ impl<'a> BaseExpressionBinder<'a> {
     pub(crate) fn bind_literal(literal: &ast::Literal<ResolvedMeta>) -> Result<Expression> {
         Ok(match literal {
             ast::Literal::Number(n) => {
-                if let Ok(n) = n.parse::<i64>() {
+                if let Ok(n) = n.parse::<i32>() {
+                    Expression::Literal(LiteralExpr {
+                        literal: OwnedScalarValue::Int32(n),
+                    })
+                } else if let Ok(n) = n.parse::<i64>() {
                     Expression::Literal(LiteralExpr {
                         literal: OwnedScalarValue::Int64(n),
                     })

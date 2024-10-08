@@ -1,7 +1,10 @@
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode},
+    logical::binder::bind_context::{BindContext, TableRef},
+};
 use std::fmt;
 
 /// Reference to a column in a query.
@@ -27,5 +30,23 @@ impl ColumnExpr {
 impl fmt::Display for ColumnExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}", self.table_scope, self.column)
+    }
+}
+
+impl ContextDisplay for ColumnExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match mode {
+            ContextDisplayMode::Enriched(context) => match context.get_table(self.table_scope) {
+                Ok(table) if table.num_columns() > self.column => {
+                    write!(f, "{}", &table.column_names[self.column])
+                }
+                _ => write!(f, "<missing! {self}>"),
+            },
+            ContextDisplayMode::Raw => write!(f, "{self}"),
+        }
     }
 }

@@ -1,13 +1,15 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use rayexec_bullet::array::Array;
-use rayexec_bullet::array::{BooleanArray, BooleanValuesBuffer};
+use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::scalar::UniformExecutor;
-use rayexec_error::{RayexecError, Result};
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
+use rayexec_bullet::executor::physical_type::PhysicalBool;
+use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
+use rayexec_bullet::storage::BooleanStorage;
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
@@ -58,28 +60,42 @@ impl PlannedScalarFunction for AndImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        let first = match inputs.first() {
-            Some(first) => first,
-            None => return Ok(Array::Boolean(BooleanArray::new_nulls(1))),
-        };
-
-        let bool_arrs = inputs
-            .iter()
-            .map(|arr| match arr.as_ref() {
-                Array::Boolean(arr) => Ok(arr),
-                other => Err(RayexecError::new(format!(
-                    "Expected Boolean arrays, got {}",
-                    other.datatype(),
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-        let validity =
-            UniformExecutor::execute(&bool_arrs, |bools| bools.iter().all(|b| *b), &mut buffer)?;
-
-        Ok(Array::Boolean(BooleanArray::new(buffer, validity)))
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        match inputs.len() {
+            0 => {
+                let mut array = Array::new_with_array_data(
+                    DataType::Boolean,
+                    BooleanStorage::from(Bitmap::new_with_val(false, 1)),
+                );
+                array.set_physical_validity(0, false);
+                Ok(array)
+            }
+            1 => Ok(inputs[0].clone()),
+            2 => {
+                let a = inputs[0];
+                let b = inputs[1];
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a && b)),
+                )
+            }
+            _ => {
+                let len = inputs[0].logical_len();
+                UniformExecutor::execute::<PhysicalBool, _, _>(
+                    inputs,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(len),
+                    },
+                    |bools, buf| buf.put(&(bools.iter().all(|b| *b))),
+                )
+            }
+        }
     }
 }
 
@@ -132,68 +148,97 @@ impl PlannedScalarFunction for OrImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        let first = match inputs.first() {
-            Some(first) => first,
-            None => return Ok(Array::Boolean(BooleanArray::new_nulls(1))),
-        };
-
-        let bool_arrs = inputs
-            .iter()
-            .map(|arr| match arr.as_ref() {
-                Array::Boolean(arr) => Ok(arr),
-                other => Err(RayexecError::new(format!(
-                    "Expected Boolean arrays, got {}",
-                    other.datatype(),
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut buffer = BooleanValuesBuffer::with_capacity(first.len());
-        let validity =
-            UniformExecutor::execute(&bool_arrs, |bools| bools.iter().any(|b| *b), &mut buffer)?;
-
-        Ok(Array::Boolean(BooleanArray::new(buffer, validity)))
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        match inputs.len() {
+            0 => {
+                let mut array = Array::new_with_array_data(
+                    DataType::Boolean,
+                    BooleanStorage::from(Bitmap::new_with_val(false, 1)),
+                );
+                array.set_physical_validity(0, false);
+                Ok(array)
+            }
+            1 => Ok(inputs[0].clone()),
+            2 => {
+                let a = inputs[0];
+                let b = inputs[1];
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a || b)),
+                )
+            }
+            _ => {
+                let len = inputs[0].logical_len();
+                UniformExecutor::execute::<PhysicalBool, _, _>(
+                    inputs,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(len),
+                    },
+                    |bools, buf| buf.put(&(bools.iter().any(|b| *b))),
+                )
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::BooleanArray;
+    use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
 
     #[test]
-    fn and_bool() {
-        let a = Arc::new(Array::Boolean(BooleanArray::from_iter([
-            true, false, false,
-        ])));
-        let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
+    fn and_bool_2() {
+        let a = Array::from_iter([true, false, false]);
+        let b = Array::from_iter([true, true, false]);
 
         let specialized = And
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, false, false]));
 
-        assert_eq!(expected, out);
+        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
     }
 
     #[test]
-    fn or_bool() {
-        let a = Arc::new(Array::Boolean(BooleanArray::from_iter([
-            true, false, false,
-        ])));
-        let b = Arc::new(Array::Boolean(BooleanArray::from_iter([true, true, false])));
+    fn and_bool_3() {
+        let a = Array::from_iter([true, true, true]);
+        let b = Array::from_iter([false, true, true]);
+        let c = Array::from_iter([true, true, false]);
+
+        let specialized = And
+            .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
+            .unwrap();
+
+        let out = specialized.execute(&[&a, &b, &c]).unwrap();
+
+        assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+    }
+
+    #[test]
+    fn or_bool_2() {
+        let a = Array::from_iter([true, false, false]);
+        let b = Array::from_iter([true, true, false]);
 
         let specialized = Or
             .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, true, false]));
 
-        assert_eq!(expected, out);
+        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
     }
 }

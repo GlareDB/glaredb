@@ -1,3 +1,5 @@
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+
 use super::Expression;
 use std::fmt;
 
@@ -26,8 +28,17 @@ pub struct IsExpr {
     pub input: Box<Expression>,
 }
 
-impl fmt::Display for IsExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.input, self.op)
+impl ContextDisplay for IsExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} {}",
+            ContextDisplayWrapper::with_mode(self.input.as_ref(), mode),
+            self.op
+        )
     }
 }

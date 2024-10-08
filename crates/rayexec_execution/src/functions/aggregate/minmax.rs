@@ -1,14 +1,20 @@
 use super::{
-    helpers::{
-        create_single_decimal_input_grouped_state, create_single_primitive_input_grouped_state,
-        create_single_timestamp_input_grouped_state,
-    },
-    AggregateFunction, GroupedStates, PlannedAggregateFunction,
+    primitive_finalize, unary_update, AggregateFunction, GroupedStates, PlannedAggregateFunction,
 };
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{
+    aggregate::DefaultGroupedStates, invalid_input_types_error, plan_check_num_args, FunctionInfo,
+    Signature,
+};
 use rayexec_bullet::{
     datatype::{DataType, DataTypeId},
-    executor::aggregate::AggregateState,
+    executor::{
+        aggregate::AggregateState,
+        physical_type::{
+            PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
+            PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32,
+            PhysicalU64, PhysicalU8,
+        },
+    },
     scalar::interval::Interval,
 };
 use rayexec_error::Result;
@@ -136,44 +142,61 @@ impl PlannedAggregateFunction for MinImpl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        match &self.datatype {
-            DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MinState<i8>),
-            DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MinState<i16>),
-            DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MinState<i32>),
-            DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MinState<i64>),
-            DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MinState<u8>),
-            DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MinState<u16>),
-            DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MinState<u32>),
-            DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MinState<u64>),
-            DataType::Float32 => {
-                create_single_primitive_input_grouped_state!(Float32, MinState<f32>)
-            }
-            DataType::Float64 => {
-                create_single_primitive_input_grouped_state!(Float64, MinState<f64>)
-            }
-            DataType::Interval => {
-                create_single_primitive_input_grouped_state!(Interval, MinState<Interval>)
-            }
-            DataType::Timestamp(meta) => {
-                create_single_timestamp_input_grouped_state::<MinState<i64>>(meta.unit)
-            }
-            DataType::Decimal64(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal64,
-                    MinState<i64>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            DataType::Decimal128(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal128,
-                    MinState<i128>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            datatype => panic!("unexpected datatype {datatype}"),
+        let datatype = self.datatype.clone();
+        match self.datatype.physical_type().expect("to get physical type") {
+            PhysicalType::Int8 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<i8>, PhysicalI8, i8>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int16 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<i16>, PhysicalI16, i16>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int32 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<i32>, PhysicalI32, i32>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int64 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<i64>, PhysicalI64, i64>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int128 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<i128>, PhysicalI128, i128>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt8 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<u8>, PhysicalU8, u8>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt16 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<u16>, PhysicalU16, u16>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt32 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<u32>, PhysicalU32, u32>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt64 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<u64>, PhysicalU64, u64>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<u128>, PhysicalU128, u128>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<f32>, PhysicalF32, f32>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Float64 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<f64>, PhysicalF64, f64>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Interval => Box::new(DefaultGroupedStates::new(
+                unary_update::<MinState<Interval>, PhysicalInterval, Interval>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            other => panic!("unexpected physical type {other:?}"),
         }
     }
 }
@@ -197,44 +220,61 @@ impl PlannedAggregateFunction for MaxImpl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        match &self.datatype {
-            DataType::Int8 => create_single_primitive_input_grouped_state!(Int8, MaxState<i8>),
-            DataType::Int16 => create_single_primitive_input_grouped_state!(Int16, MaxState<i16>),
-            DataType::Int32 => create_single_primitive_input_grouped_state!(Int32, MaxState<i32>),
-            DataType::Int64 => create_single_primitive_input_grouped_state!(Int64, MaxState<i64>),
-            DataType::UInt8 => create_single_primitive_input_grouped_state!(UInt8, MaxState<u8>),
-            DataType::UInt16 => create_single_primitive_input_grouped_state!(UInt16, MaxState<u16>),
-            DataType::UInt32 => create_single_primitive_input_grouped_state!(UInt32, MaxState<u32>),
-            DataType::UInt64 => create_single_primitive_input_grouped_state!(UInt64, MaxState<u64>),
-            DataType::Float32 => {
-                create_single_primitive_input_grouped_state!(Float32, MaxState<f32>)
-            }
-            DataType::Float64 => {
-                create_single_primitive_input_grouped_state!(Float64, MaxState<f64>)
-            }
-            DataType::Interval => {
-                create_single_primitive_input_grouped_state!(Interval, MaxState<Interval>)
-            }
-            DataType::Timestamp(meta) => {
-                create_single_timestamp_input_grouped_state::<MaxState<i64>>(meta.unit)
-            }
-            DataType::Decimal64(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal64,
-                    MaxState<i64>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            DataType::Decimal128(meta) => {
-                create_single_decimal_input_grouped_state!(
-                    Decimal128,
-                    MaxState<i128>,
-                    meta.precision,
-                    meta.scale
-                )
-            }
-            datatype => panic!("unexpected datatype {datatype}"),
+        let datatype = self.datatype.clone();
+        match self.datatype.physical_type().expect("to get physical type") {
+            PhysicalType::Int8 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<i8>, PhysicalI8, i8>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int16 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<i16>, PhysicalI16, i16>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int32 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<i32>, PhysicalI32, i32>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int64 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<i64>, PhysicalI64, i64>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Int128 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<i128>, PhysicalI128, i128>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt8 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<u8>, PhysicalU8, u8>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt16 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<u16>, PhysicalU16, u16>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt32 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<u32>, PhysicalU32, u32>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt64 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<u64>, PhysicalU64, u64>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<u128>, PhysicalU128, u128>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<f32>, PhysicalF32, f32>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Float64 => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<f64>, PhysicalF64, f64>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Interval => Box::new(DefaultGroupedStates::new(
+                unary_update::<MaxState<Interval>, PhysicalInterval, Interval>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            other => panic!("unexpected physical type {other:?}"),
         }
     }
 }

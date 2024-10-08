@@ -730,7 +730,6 @@ pub(crate) mod testutil {
                     .iter()
                     .cloned()
                     .zip(t.column_types.iter().cloned())
-                    .into_iter()
             })
             .collect()
     }

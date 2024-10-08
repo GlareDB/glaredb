@@ -20,7 +20,7 @@ INSERT INTO t2 VALUES
   (3, 'rooster'),
   (4, 'gooster');
 
-query IT
+query IT rowsort
 SELECT * FROM t1, t2 WHERE
   (a = b AND a_text = 'dog' AND b_text IN ('goose', 'rooster'))
   OR

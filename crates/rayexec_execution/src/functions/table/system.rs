@@ -5,15 +5,19 @@ use crate::{
         catalog::CatalogTx, catalog_entry::CatalogEntryType, memory_catalog::MemoryCatalog,
         AttachInfo, DatabaseContext,
     },
-    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
+    storage::table_storage::{
+        DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
+    },
 };
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::{
-    array::{Array, Utf8Array, ValuesBuffer, VarlenValuesBuffer},
+    array::Array,
     batch::Batch,
     datatype::DataType,
+    executor::builder::{ArrayDataBuffer, GermanVarlenBuffer},
     field::{Field, Schema},
+    storage::GermanVarlenStorage,
 };
 use rayexec_error::{OptionExt, RayexecError, Result};
 
@@ -45,17 +49,24 @@ impl SystemFunctionImpl for ListDatabasesImpl {
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let mut database_names = VarlenValuesBuffer::default();
-        let mut datasources = VarlenValuesBuffer::default();
+        let len = databases.len();
 
-        for (name, _catalog, info) in databases.drain(..) {
-            database_names.push_value(name);
-            datasources.push_value(info.map(|i| i.datasource).unwrap_or("default".to_string()));
+        let mut database_names = GermanVarlenBuffer::<str>::with_len(len);
+        let mut datasources = GermanVarlenBuffer::<str>::with_len(len);
+
+        for (idx, (name, _catalog, info)) in databases.drain(..).enumerate() {
+            database_names.put(idx, name.as_str());
+            datasources.put(
+                idx,
+                info.map(|i| i.datasource)
+                    .unwrap_or("default".to_string())
+                    .as_str(),
+            );
         }
 
         Batch::try_new([
-            Array::Utf8(Utf8Array::new(database_names, None)),
-            Array::Utf8(Utf8Array::new(datasources, None)),
+            Array::new_with_array_data(DataType::Utf8, database_names.into_data()),
+            Array::new_with_array_data(DataType::Utf8, datasources.into_data()),
         ])
     }
 }
@@ -79,11 +90,11 @@ impl SystemFunctionImpl for ListTablesImpl {
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let mut database_names = VarlenValuesBuffer::default();
-        let mut schema_names = VarlenValuesBuffer::default();
-        let mut table_names = VarlenValuesBuffer::default();
-
         let database = databases.pop_front().required("database")?;
+
+        let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
+        let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
+        let mut table_names = GermanVarlenStorage::with_metadata_capacity(0);
 
         let tx = &CatalogTx {};
 
@@ -93,9 +104,9 @@ impl SystemFunctionImpl for ListTablesImpl {
                     return Ok(());
                 }
 
-                database_names.push_value(&database.0);
-                schema_names.push_value(schema_name);
-                table_names.push_value(&entry.name);
+                database_names.try_push(database.0.as_bytes())?;
+                schema_names.try_push(schema_name.as_bytes())?;
+                table_names.try_push(entry.name.as_bytes())?;
 
                 Ok(())
             })?;
@@ -103,9 +114,9 @@ impl SystemFunctionImpl for ListTablesImpl {
         })?;
 
         Batch::try_new([
-            Array::Utf8(Utf8Array::new(database_names, None)),
-            Array::Utf8(Utf8Array::new(schema_names, None)),
-            Array::Utf8(Utf8Array::new(table_names, None)),
+            Array::new_with_array_data(DataType::Utf8, database_names),
+            Array::new_with_array_data(DataType::Utf8, schema_names),
+            Array::new_with_array_data(DataType::Utf8, table_names),
         ])
     }
 }
@@ -128,22 +139,23 @@ impl SystemFunctionImpl for ListSchemasImpl {
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let mut database_names = VarlenValuesBuffer::default();
-        let mut schema_names = VarlenValuesBuffer::default();
-
         let database = databases.pop_front().required("database")?;
+
+        let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
+        let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
 
         let tx = &CatalogTx {};
 
         database.1.for_each_schema(tx, &mut |schema_name, _| {
-            database_names.push_value(&database.0);
-            schema_names.push_value(schema_name);
+            database_names.try_push(database.0.as_bytes())?;
+            schema_names.try_push(schema_name.as_bytes())?;
+
             Ok(())
         })?;
 
         Batch::try_new([
-            Array::Utf8(Utf8Array::new(database_names, None)),
-            Array::Utf8(Utf8Array::new(schema_names, None)),
+            Array::new_with_array_data(DataType::Utf8, database_names),
+            Array::new_with_array_data(DataType::Utf8, schema_names),
         ])
     }
 }
@@ -233,17 +245,24 @@ struct SystemDataTable<F: SystemFunctionImpl> {
 }
 
 impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let databases = self
             .databases
             .lock()
             .take()
             .ok_or_else(|| RayexecError::new("Scan called multiple times"))?;
 
-        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(SystemDataTableScan {
-            databases,
-            _function: self.function,
-        }) as _];
+        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(ProjectedScan::new(
+            SystemDataTableScan {
+                databases,
+                _function: self.function,
+            },
+            projections,
+        )) as _];
 
         scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
 

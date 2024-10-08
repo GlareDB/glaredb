@@ -31,7 +31,7 @@ pub enum MergeSortedPartitionState {
 
 /// Partition state on the push side.
 #[derive(Debug)]
-pub struct MergeSortedPushPartitionState {
+pub struct GatherSortPushPartitionState {
     /// Index of this partition. Used to emplace buffered batches into the
     /// global state.
     partition_idx: usize,
@@ -42,7 +42,7 @@ pub struct MergeSortedPushPartitionState {
 
 /// Partition state on the pull side.
 #[derive(Debug)]
-pub struct MergeSortedPullPartitionState {
+pub struct GatherSortPullPartitionState {
     /// Partition-local buffers for input batches.
     ///
     /// To avoid taking the global lock too frequently, we try to copy in as
@@ -87,7 +87,7 @@ enum PullMergeState {
 }
 
 #[derive(Debug)]
-pub struct MergeSortedOperatorState {
+pub struct GatherSortOperatorState {
     shared: Mutex<SharedGlobalState>,
 }
 
@@ -139,13 +139,13 @@ impl SharedGlobalState {
 
 /// Merge sorted partitions into a single output partition.
 #[derive(Debug)]
-pub struct PhysicalMergeSortedInputs {
+pub struct PhysicalGatherSort {
     exprs: Vec<PhysicalSortExpression>,
 }
 
-impl PhysicalMergeSortedInputs {
+impl PhysicalGatherSort {
     pub fn new(exprs: Vec<PhysicalSortExpression>) -> Self {
-        PhysicalMergeSortedInputs { exprs }
+        PhysicalGatherSort { exprs }
     }
 
     // TODO: REMOVE
@@ -153,18 +153,18 @@ impl PhysicalMergeSortedInputs {
         &self,
         input_partitions: usize,
     ) -> (
-        MergeSortedOperatorState,
-        Vec<MergeSortedPushPartitionState>,
-        Vec<MergeSortedPullPartitionState>,
+        GatherSortOperatorState,
+        Vec<GatherSortPushPartitionState>,
+        Vec<GatherSortPullPartitionState>,
     ) {
-        let operator_state = MergeSortedOperatorState {
+        let operator_state = GatherSortOperatorState {
             shared: Mutex::new(SharedGlobalState::new(input_partitions)),
         };
 
         let extractor = SortKeysExtractor::new(&self.exprs);
 
         let push_states: Vec<_> = (0..input_partitions)
-            .map(|idx| MergeSortedPushPartitionState {
+            .map(|idx| GatherSortPushPartitionState {
                 partition_idx: idx,
                 extractor: extractor.clone(),
             })
@@ -176,7 +176,7 @@ impl PhysicalMergeSortedInputs {
         // I'm not sure if we care to support multiple output partitions, but
         // extending this a little could provide an interesting repartitioning
         // scheme where we repartition based on the sort key.
-        let pull_states = vec![MergeSortedPullPartitionState {
+        let pull_states = vec![GatherSortPullPartitionState {
             input_buffers: InputBuffers {
                 buffered: (0..input_partitions).map(|_| None).collect(),
                 finished: (0..input_partitions).map(|_| false).collect(),
@@ -188,7 +188,7 @@ impl PhysicalMergeSortedInputs {
     }
 }
 
-impl ExecutableOperator for PhysicalMergeSortedInputs {
+impl ExecutableOperator for PhysicalGatherSort {
     fn create_states(
         &self,
         _context: &DatabaseContext,
@@ -196,7 +196,7 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
     ) -> Result<ExecutionStates> {
         let input_partitions = partitions[0];
 
-        let operator_state = OperatorState::MergeSorted(MergeSortedOperatorState {
+        let operator_state = OperatorState::GatherSort(GatherSortOperatorState {
             shared: Mutex::new(SharedGlobalState::new(input_partitions)),
         });
 
@@ -204,7 +204,7 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
 
         let push_states: Vec<_> = (0..input_partitions)
             .map(|idx| {
-                PartitionState::MergeSortedPush(MergeSortedPushPartitionState {
+                PartitionState::GatherSortPush(GatherSortPushPartitionState {
                     partition_idx: idx,
                     extractor: extractor.clone(),
                 })
@@ -217,8 +217,8 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
         // I'm not sure if we care to support multiple output partitions, but
         // extending this a little could provide an interesting repartitioning
         // scheme where we repartition based on the sort key.
-        let pull_states = vec![PartitionState::MergeSortedPull(
-            MergeSortedPullPartitionState {
+        let pull_states = vec![PartitionState::GatherSortPull(
+            GatherSortPullPartitionState {
                 input_buffers: InputBuffers {
                     buffered: (0..input_partitions).map(|_| None).collect(),
                     finished: (0..input_partitions).map(|_| false).collect(),
@@ -244,15 +244,15 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
         batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
-            PartitionState::MergeSortedPush(state) => state,
-            PartitionState::MergeSortedPull(_) => {
+            PartitionState::GatherSortPush(state) => state,
+            PartitionState::GatherSortPull(_) => {
                 panic!("uses pull state when push state expected")
             }
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let mut shared = match operator_state {
-            OperatorState::MergeSorted(state) => state.shared.lock(),
+            OperatorState::GatherSort(state) => state.shared.lock(),
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -290,15 +290,15 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         let state = match partition_state {
-            PartitionState::MergeSortedPush(state) => state,
-            PartitionState::MergeSortedPull(_) => {
+            PartitionState::GatherSortPush(state) => state,
+            PartitionState::GatherSortPull(_) => {
                 panic!("uses pull state when push state expected")
             }
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let mut shared = match operator_state {
-            OperatorState::MergeSorted(state) => state.shared.lock(),
+            OperatorState::GatherSort(state) => state.shared.lock(),
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -321,15 +321,15 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
         operator_state: &OperatorState,
     ) -> Result<PollPull> {
         let state = match partition_state {
-            PartitionState::MergeSortedPull(state) => state,
-            PartitionState::MergeSortedPush(_) => {
+            PartitionState::GatherSortPull(state) => state,
+            PartitionState::GatherSortPush(_) => {
                 panic!("uses push state when pull state expected")
             }
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let operator_state = match operator_state {
-            OperatorState::MergeSorted(state) => state,
+            OperatorState::GatherSort(state) => state,
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -383,7 +383,7 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
                 loop {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
-                        MergeResult::Batch(batch) => return Ok(PollPull::Batch(batch)),
+                        MergeResult::Batch(batch) => return Ok(PollPull::Computed(batch.into())),
                         MergeResult::NeedsInput(input_idx) => {
                             match state.input_buffers.buffered[input_idx].take() {
                                 Some(batch) => {
@@ -427,7 +427,7 @@ impl ExecutableOperator for PhysicalMergeSortedInputs {
     }
 }
 
-impl PhysicalMergeSortedInputs {
+impl PhysicalGatherSort {
     /// Try to finish the pull-side initialization step.
     ///
     /// This will try to get a batch from each input partition so we can
@@ -441,7 +441,7 @@ impl PhysicalMergeSortedInputs {
     fn try_finish_initialize(
         cx: &mut Context,
         input_buffers: &mut InputBuffers,
-        operator_state: &MergeSortedOperatorState,
+        operator_state: &GatherSortOperatorState,
     ) -> Result<Option<KWayMerger<SortedKeysIter>>> {
         let mut shared = operator_state.shared.lock();
         for (idx, local_buf) in input_buffers.buffered.iter_mut().enumerate() {
@@ -520,7 +520,7 @@ impl PhysicalMergeSortedInputs {
         cx: &mut Context,
         merger: &mut KWayMerger<SortedKeysIter>,
         input_buffers: &mut InputBuffers,
-        operator_state: &MergeSortedOperatorState,
+        operator_state: &GatherSortOperatorState,
         input_idx: usize,
     ) -> Result<bool> {
         // We need to make sure we have a batch from this input. Try from the
@@ -584,13 +584,13 @@ impl PhysicalMergeSortedInputs {
     }
 }
 
-impl Explainable for PhysicalMergeSortedInputs {
+impl Explainable for PhysicalGatherSort {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MergeSorted")
     }
 }
 
-impl DatabaseProtoConv for PhysicalMergeSortedInputs {
+impl DatabaseProtoConv for PhysicalGatherSort {
     type ProtoType = rayexec_proto::generated::execution::PhysicalMergeSortedInputs;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -635,22 +635,20 @@ mod tests {
             make_i32_batch([1, 1, 1]),
         ];
 
-        let operator = Arc::new(PhysicalMergeSortedInputs::new(vec![
-            PhysicalSortExpression {
-                column: PhysicalColumnExpr { idx: 0 },
-                desc: true,
-                nulls_first: true,
-            },
-        ]));
+        let operator = Arc::new(PhysicalGatherSort::new(vec![PhysicalSortExpression {
+            column: PhysicalColumnExpr { idx: 0 },
+            desc: true,
+            nulls_first: true,
+        }]));
         let (operator_state, push_states, pull_states) = operator.create_states_orig(1);
-        let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
+        let operator_state = Arc::new(OperatorState::GatherSort(operator_state));
         let mut push_states: Vec<_> = push_states
             .into_iter()
-            .map(PartitionState::MergeSortedPush)
+            .map(PartitionState::GatherSortPush)
             .collect();
         let mut pull_states: Vec<_> = pull_states
             .into_iter()
-            .map(PartitionState::MergeSortedPull)
+            .map(PartitionState::GatherSortPull)
             .collect();
 
         // Try to pull first. Nothing available yet.
@@ -729,22 +727,20 @@ mod tests {
             make_i32_batch([-1, -2]),
         ];
 
-        let operator = Arc::new(PhysicalMergeSortedInputs::new(vec![
-            PhysicalSortExpression {
-                column: PhysicalColumnExpr { idx: 0 },
-                desc: true,
-                nulls_first: true,
-            },
-        ]));
+        let operator = Arc::new(PhysicalGatherSort::new(vec![PhysicalSortExpression {
+            column: PhysicalColumnExpr { idx: 0 },
+            desc: true,
+            nulls_first: true,
+        }]));
         let (operator_state, push_states, pull_states) = operator.create_states_orig(2);
-        let operator_state = Arc::new(OperatorState::MergeSorted(operator_state));
+        let operator_state = Arc::new(OperatorState::GatherSort(operator_state));
         let mut push_states: Vec<_> = push_states
             .into_iter()
-            .map(PartitionState::MergeSortedPush)
+            .map(PartitionState::GatherSortPush)
             .collect();
         let mut pull_states: Vec<_> = pull_states
             .into_iter()
-            .map(PartitionState::MergeSortedPull)
+            .map(PartitionState::GatherSortPull)
             .collect();
 
         // Pull first, get pending

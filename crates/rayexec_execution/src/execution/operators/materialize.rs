@@ -21,13 +21,17 @@ impl MaterializeOperation {
         let mut sinks = Vec::new();
         let mut sources: Vec<_> = (0..source_scans).map(|_| Vec::new()).collect();
 
-        for _partition in 0..partitions {
+        for partition in 0..partitions {
             let (ch, recvs) = BroadcastChannel::new(source_scans);
 
             sinks.push(MaterializedDataPartitionSink { sender: ch });
 
             for (idx, recv) in recvs.into_iter().enumerate() {
-                sources[idx].push(MaterializedDataPartitionSource { recv })
+                sources[idx].push(MaterializedDataPartitionSource {
+                    _source_idx: idx,
+                    _partition_idx: partition,
+                    recv,
+                })
             }
         }
 
@@ -108,7 +112,8 @@ impl SourceOperation for MaterializeSourceOperation {
     }
 
     fn partition_requirement(&self) -> Option<usize> {
-        Some(self.sources.lock().len())
+        let len = self.sources.lock().len();
+        Some(len)
     }
 }
 
@@ -120,6 +125,8 @@ impl Explainable for MaterializeSourceOperation {
 
 #[derive(Debug)]
 pub struct MaterializedDataPartitionSource {
+    _source_idx: usize,
+    _partition_idx: usize,
     recv: BroadcastReceiver,
 }
 

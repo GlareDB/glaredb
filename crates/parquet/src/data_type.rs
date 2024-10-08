@@ -168,6 +168,20 @@ impl ByteArray {
             .as_ref()
     }
 
+    /// Return the underlying `Bytes`.
+    #[inline]
+    pub fn bytes_data(&self) -> Bytes {
+        self.data.clone().expect("set_data should have been called")
+    }
+
+    /// Return the number of bytes this byte array is taking up.
+    ///
+    /// Return None if data hasn't been set.
+    #[inline]
+    pub fn num_bytes(&self) -> Option<usize> {
+        self.data.as_ref().map(|d| d.len())
+    }
+
     /// Set data from another byte buffer.
     #[inline]
     pub fn set_data(&mut self, data: Bytes) {

@@ -12,7 +12,6 @@ use crate::expr::physical::PhysicalSortExpression;
 pub struct SortKeysExtractor {
     /// Columns that make up the sort key.
     order_by: Vec<usize>,
-
     /// Encoder for producing comparable rows.
     encoder: ComparableRowEncoder,
 }
@@ -48,7 +47,6 @@ impl SortKeysExtractor {
             .map(|idx| {
                 batch
                     .column(*idx)
-                    .map(|col| col.as_ref())
                     .ok_or_else(|| RayexecError::new("Missing column"))
             })
             .collect::<Result<Vec<_>>>()?;

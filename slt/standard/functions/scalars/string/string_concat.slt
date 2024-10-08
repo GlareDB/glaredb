@@ -1,9 +1,11 @@
 # concat (string) function
 
+# Postgres errors on no args. We previously returned an empty string, and now
+# return a NULL. Desired behavior TBD.
 query T
 select concat();
 ----
-(empty)
+NULL
 
 query T
 select concat('a');
@@ -15,17 +17,17 @@ select concat('a', 'b');
 ----
 ab
 
-query T
+query T rowsort
 select concat(a, b) from (values ('mario', 'luigi'), ('peach', 'yoshi')) v(a, b);
 ----
 marioluigi
 peachyoshi
 
-# TODO: ?
-# Not all arrays are of the same length
-# query T
-# select concat('a', null);
-# ----
+# TODO: This should return 'a' to match postgres behavior.
+query T
+select concat('a', null);
+----
+NULL
 
 # Syntactic sugar
 

@@ -1,3 +1,5 @@
+use rayexec_error::Result;
+
 use crate::{
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     expr::Expression,
@@ -33,6 +35,20 @@ impl Explainable for LogicalMaterializationScan {
 impl LogicalNode for Node<LogicalMaterializationScan> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.table_refs.clone()
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }
 
@@ -81,5 +97,25 @@ impl Explainable for LogicalMagicMaterializationScan {
 impl LogicalNode for Node<LogicalMagicMaterializationScan> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         vec![self.node.table_ref]
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for expr in &self.node.projections {
+            func(expr)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for expr in &mut self.node.projections {
+            func(expr)?;
+        }
+        Ok(())
     }
 }

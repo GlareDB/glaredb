@@ -9,17 +9,17 @@ pub mod conjunction_expr;
 pub mod is_expr;
 pub mod literal_expr;
 pub mod negate_expr;
-pub mod scalar;
 pub mod scalar_function_expr;
 pub mod subquery_expr;
 pub mod window_expr;
 
 pub mod physical;
 
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::logical::binder::bind_context::BindContext;
 use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::TableRef};
 use aggregate_expr::AggregateExpr;
-use arith_expr::ArithExpr;
+use arith_expr::{ArithExpr, ArithOperator};
 use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
@@ -30,7 +30,7 @@ use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
 use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::scalar::OwnedScalarValue;
+use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use std::collections::HashSet;
@@ -232,9 +232,11 @@ impl Expression {
         }
     }
 
+    // TODO: Probably remove.
     pub fn is_constant(&self) -> bool {
         match self {
             Self::Literal(_) => true,
+            Self::Column(_) => false,
             _ => {
                 let mut is_constant = true;
                 self.for_each_child(&mut |expr| {
@@ -244,8 +246,43 @@ impl Expression {
                     is_constant = is_constant && expr.is_constant();
                     Ok(())
                 })
-                .expect("constant check to to not fail");
+                .expect("constant check to not fail");
                 is_constant
+            }
+        }
+    }
+
+    pub fn is_const_foldable(&self) -> bool {
+        match self {
+            Self::Literal(v) => {
+                match &v.literal {
+                    ScalarValue::Null => {
+                        // TODO: Not allowing null to be const foldable is
+                        // currently a workaround for not have comprehensive
+                        // support for evaluating null arrays without type
+                        // information.
+                        //
+                        // Once we do, this case should be removed.
+                        false
+                    }
+                    _ => true,
+                }
+            }
+            Self::Column(_) => false,
+            Self::Aggregate(_) => false,
+            Self::Window(_) => false,
+            Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
+            _ => {
+                let mut is_foldable = true;
+                self.for_each_child(&mut |expr| {
+                    if !is_foldable {
+                        return Ok(());
+                    }
+                    is_foldable = is_foldable && expr.is_const_foldable();
+                    Ok(())
+                })
+                .expect("fold check to not fail");
+                is_foldable
             }
         }
     }
@@ -335,6 +372,14 @@ impl Expression {
     }
 }
 
+pub fn add(left: Expression, right: Expression) -> Expression {
+    Expression::Arith(ArithExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ArithOperator::Add,
+    })
+}
+
 pub fn and(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
     let mut exprs: Vec<_> = exprs.into_iter().collect();
     if exprs.is_empty() {
@@ -382,23 +427,40 @@ pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
     })
 }
 
+pub fn cast(expr: Expression, to: DataType) -> Expression {
+    Expression::Cast(CastExpr {
+        to,
+        expr: Box::new(expr),
+    })
+}
+
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_using_context(ContextDisplayMode::Raw, f)
+    }
+}
+
+impl ContextDisplay for Expression {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
-            Self::Aggregate(expr) => write!(f, "{}", expr),
-            Self::Arith(expr) => write!(f, "{}", expr),
-            Self::Between(expr) => write!(f, "{}", expr),
-            Self::Case(expr) => write!(f, "{}", expr),
-            Self::Cast(expr) => write!(f, "{}", expr),
-            Self::Column(expr) => write!(f, "{}", expr),
-            Self::Comparison(expr) => write!(f, "{}", expr),
-            Self::Conjunction(expr) => write!(f, "{}", expr),
-            Self::Is(expr) => write!(f, "{}", expr),
-            Self::Literal(expr) => write!(f, "{}", expr),
-            Self::Negate(expr) => write!(f, "{}", expr),
-            Self::ScalarFunction(expr) => write!(f, "{}", expr),
-            Self::Subquery(expr) => write!(f, "{}", expr),
-            Self::Window(expr) => write!(f, "{}", expr),
+            Self::Aggregate(expr) => expr.fmt_using_context(mode, f),
+            Self::Arith(expr) => expr.fmt_using_context(mode, f),
+            Self::Between(expr) => expr.fmt_using_context(mode, f),
+            Self::Case(expr) => expr.fmt_using_context(mode, f),
+            Self::Cast(expr) => expr.fmt_using_context(mode, f),
+            Self::Column(expr) => expr.fmt_using_context(mode, f),
+            Self::Comparison(expr) => expr.fmt_using_context(mode, f),
+            Self::Conjunction(expr) => expr.fmt_using_context(mode, f),
+            Self::Is(expr) => expr.fmt_using_context(mode, f),
+            Self::Literal(expr) => expr.fmt_using_context(mode, f),
+            Self::Negate(expr) => expr.fmt_using_context(mode, f),
+            Self::ScalarFunction(expr) => expr.fmt_using_context(mode, f),
+            Self::Subquery(expr) => expr.fmt_using_context(mode, f),
+            Self::Window(expr) => expr.fmt_using_context(mode, f),
         }
     }
 }

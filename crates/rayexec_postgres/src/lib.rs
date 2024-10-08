@@ -5,10 +5,7 @@ mod decimal;
 use decimal::PostgresDecimal;
 use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
 use rayexec_bullet::{
-    array::{
-        Array, BooleanArray, Decimal128Array, Int128Array, Int16Array, Int32Array, Int64Array,
-        Int8Array, Utf8Array,
-    },
+    array::Array,
     batch::Batch,
     datatype::{DataType, DecimalTypeMeta},
     field::Field,
@@ -27,7 +24,9 @@ use rayexec_execution::{
     runtime::{Runtime, TokioHandlerProvider},
     storage::{
         catalog_storage::CatalogStorage,
-        table_storage::{DataTable, DataTableScan, EmptyTableScan, TableStorage},
+        table_storage::{
+            DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections, TableStorage,
+        },
     },
 };
 use read_postgres::ReadPostgres;
@@ -164,7 +163,11 @@ pub struct PostgresDataTable {
 }
 
 impl DataTable for PostgresDataTable {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let schema = self.schema.clone();
         let table = self.table.clone();
 
@@ -215,9 +218,12 @@ impl DataTable for PostgresDataTable {
 
         let binary_copy_stream = binary_copy_open.try_flatten_stream().boxed();
 
-        let mut scans = vec![Box::new(PostgresDataTableScan {
-            stream: binary_copy_stream,
-        }) as _];
+        let mut scans = vec![Box::new(ProjectedScan::new(
+            PostgresDataTableScan {
+                stream: binary_copy_stream,
+            },
+            projections,
+        )) as _];
 
         // Extend with empty scans...
         (1..num_partitions).for_each(|_| scans.push(Box::new(EmptyTableScan) as _));
@@ -392,26 +398,35 @@ impl PostgresClient {
         let mut arrays = Vec::with_capacity(typs.len());
         for (idx, typ) in typs.iter().enumerate() {
             let arr = match typ {
-                DataType::Boolean => {
-                    Array::Boolean(BooleanArray::from_iter(row_iter::<bool>(&rows, idx)))
-                }
-                DataType::Int8 => Array::Int8(Int8Array::from_iter(row_iter::<i8>(&rows, idx))),
-                DataType::Int16 => Array::Int16(Int16Array::from_iter(row_iter::<i16>(&rows, idx))),
-                DataType::Int32 => Array::Int32(Int32Array::from_iter(row_iter::<i32>(&rows, idx))),
-                DataType::Int64 => Array::Int64(Int64Array::from_iter(row_iter::<i64>(&rows, idx))),
+                DataType::Boolean => Array::from_iter(row_iter::<bool>(&rows, idx)),
+                DataType::Int8 => Array::from_iter(row_iter::<i8>(&rows, idx)),
+                DataType::Int16 => Array::from_iter(row_iter::<i16>(&rows, idx)),
+                DataType::Int32 => Array::from_iter(row_iter::<i32>(&rows, idx)),
+                DataType::Int64 => Array::from_iter(row_iter::<i64>(&rows, idx)),
                 DataType::Decimal128(m) => {
-                    let primitives = Int128Array::from_iter(rows.iter().map(|row| {
+                    let primitives = Array::from_iter(rows.iter().map(|row| {
                         let decimal = row.try_get::<PostgresDecimal>(idx).ok();
                         // TODO: Rescale
                         decimal.map(|d| d.0.value)
                     }));
-                    Array::Decimal128(Decimal128Array::new(m.precision, m.scale, primitives))
+
+                    match primitives.validity() {
+                        Some(validity) => Array::new_with_validity_and_array_data(
+                            DataType::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
+                            validity.clone(),
+                            primitives.array_data().clone(),
+                        ),
+                        None => Array::new_with_array_data(
+                            DataType::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
+                            primitives.array_data().clone(),
+                        ),
+                    }
                 }
 
-                DataType::Utf8 => Array::Utf8(Utf8Array::from_iter(
+                DataType::Utf8 => Array::from_iter(
                     rows.iter()
                         .map(|row| -> Option<&str> { row.try_get(idx).ok() }),
-                )),
+                ),
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unimplemented data type conversion: {other:?} (postgres)"

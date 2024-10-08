@@ -14,3 +14,5 @@ chrono = "0.4.38"
 textwrap = { version = "0.16.1", default-features = false, features = ["unicode-width"] }
 serde = { workspace = true }
 flatbuffers = "24.3.25"
+bytes = { workspace = true }
+ahash = { workspace = true }

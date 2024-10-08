@@ -154,7 +154,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
                 if let Some(waker) = state.push_waker.take() {
                     waker.wake();
                 }
-                Ok(PollPull::Batch(out))
+                Ok(PollPull::Computed(out.into()))
             }
             None => {
                 if state.exhausted {

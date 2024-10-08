@@ -1,11 +1,17 @@
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use super::{
+    primitive_finalize, unary_update, AggregateFunction, DefaultGroupedStates, GroupedStates,
+    PlannedAggregateFunction,
+};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use num_traits::CheckedAdd;
 use rayexec_bullet::{
-    array::{Array, Decimal128Array, Decimal64Array, PrimitiveArray},
-    bitmap::Bitmap,
+    array::Array,
     datatype::{DataType, DataTypeId, DecimalTypeMeta},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    executor::{
+        aggregate::{AggregateState, RowToStateMapping, StateFinalizer, UnaryNonNullUpdater},
+        builder::{ArrayBuilder, PrimitiveBuffer},
+        physical_type::{PhysicalF64, PhysicalI128, PhysicalI64},
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -155,22 +161,23 @@ pub struct SumInt64Impl;
 
 impl SumInt64Impl {
     fn update(
-        row_selection: &Bitmap,
         arrays: &[&Array],
-        mapping: &[usize],
+        mapping: &[RowToStateMapping],
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
-        match &arrays[0] {
-            Array::Int64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
-            other => panic!("unexpected array type: {other:?}"),
-        }
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
     fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+        let builder = ArrayBuilder {
+            datatype: DataType::Int64,
+            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
@@ -182,27 +189,11 @@ impl SumInt64Impl {
 pub struct SumFloat64Impl;
 
 impl SumFloat64Impl {
-    fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array],
-        mapping: &[usize],
-        states: &mut [SumStateAdd<f64>],
-    ) -> Result<()> {
-        match &arrays[0] {
-            Array::Float64(arr) => UnaryNonNullUpdater::update(row_selection, arr, mapping, states),
-            other => panic!("unexpected array type: {other:?}"),
-        }
-    }
-
-    fn finalize(states: vec::Drain<SumStateAdd<f64>>) -> Result<Array> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Float64(PrimitiveArray::new(buffer, Some(bitmap))))
-    }
-
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(
+            unary_update::<SumStateAdd<f64>, PhysicalF64, f64>,
+            move |states| primitive_finalize(DataType::Float64, states),
+        ))
     }
 }
 
@@ -213,35 +204,12 @@ pub struct SumDecimal64Impl {
 }
 
 impl SumDecimal64Impl {
-    fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array],
-        mapping: &[usize],
-        states: &mut [SumStateCheckedAdd<i64>],
-    ) -> Result<()> {
-        match &arrays[0] {
-            Array::Decimal64(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
-    }
-
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
-    }
-
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let precision = self.precision;
-        let scale = self.scale;
-        let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-            Array::Int64(arr) => Ok(Array::Decimal64(Decimal64Array::new(precision, scale, arr))),
-            other => panic!("unexpected array type: {}", other.datatype()),
-        };
-        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        let datatype = DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale));
+        Box::new(DefaultGroupedStates::new(
+            unary_update::<SumStateCheckedAdd<i64>, PhysicalI64, i64>,
+            move |states| primitive_finalize(datatype.clone(), states),
+        ))
     }
 }
 
@@ -252,37 +220,12 @@ pub struct SumDecimal128Impl {
 }
 
 impl SumDecimal128Impl {
-    fn update(
-        row_selection: &Bitmap,
-        arrays: &[&Array],
-        mapping: &[usize],
-        states: &mut [SumStateCheckedAdd<i128>],
-    ) -> Result<()> {
-        match &arrays[0] {
-            Array::Decimal128(arr) => {
-                UnaryNonNullUpdater::update(row_selection, arr.get_primitive(), mapping, states)
-            }
-            other => panic!("unexpected array type: {other:?}"),
-        }
-    }
-
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i128>>) -> Result<Array> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int128(PrimitiveArray::new(buffer, Some(bitmap))))
-    }
-
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let precision = self.precision;
-        let scale = self.scale;
-        let finalize = move |states: vec::Drain<_>| match Self::finalize(states)? {
-            Array::Int128(arr) => Ok(Array::Decimal128(Decimal128Array::new(
-                precision, scale, arr,
-            ))),
-            other => panic!("unexpected array type: {}", other.datatype()),
-        };
-        Box::new(DefaultGroupedStates::new(Self::update, finalize))
+        let datatype = DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale));
+        Box::new(DefaultGroupedStates::new(
+            unary_update::<SumStateCheckedAdd<i128>, PhysicalI128, i128>,
+            move |states| primitive_finalize(datatype.clone(), states),
+        ))
     }
 }
 
@@ -344,7 +287,7 @@ impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::{Array, Int64Array};
+    use rayexec_bullet::{array::Array, scalar::ScalarValue};
 
     use super::*;
 
@@ -352,8 +295,8 @@ mod tests {
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
-        let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
+        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
@@ -367,14 +310,24 @@ mod tests {
         assert_eq!(0, idx_2);
 
         // All inputs map to the same group (no GROUP BY clause)
-        let mapping_1 = vec![0; partition_1_vals.len()];
-        let mapping_2 = vec![0; partition_2_vals.len()];
+        let mapping_1: Vec<_> = (0..partition_1_vals.logical_len())
+            .map(|row| RowToStateMapping {
+                from_row: row,
+                to_state: 0,
+            })
+            .collect();
+        let mapping_2: Vec<_> = (0..partition_2_vals.logical_len())
+            .map(|row| RowToStateMapping {
+                from_row: row,
+                to_state: 0,
+            })
+            .collect();
 
         states_1
-            .update_states(&Bitmap::all_true(3), &[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], &mapping_1)
             .unwrap();
         states_2
-            .update_states(&Bitmap::all_true(3), &[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], &mapping_2)
             .unwrap();
 
         // Combine states.
@@ -385,9 +338,10 @@ mod tests {
         states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
-        let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([Some(21)]));
-        assert_eq!(expected, out.unwrap());
+        let out = states_1.drain_next(100).unwrap().unwrap();
+
+        assert_eq!(1, out.logical_len());
+        assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
     }
 
     #[test]
@@ -406,8 +360,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3]));
-        let partition_2_vals = &Array::Int64(Int64Array::from_iter([4, 5, 6]));
+        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
@@ -423,14 +377,40 @@ mod tests {
 
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
-        let mapping_1 = vec![0, 0, 1];
-        let mapping_2 = vec![1, 1, 0];
+        let mapping_1 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+        ];
+        let mapping_2 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 0,
+            },
+        ];
 
         states_1
-            .update_states(&Bitmap::all_true(3), &[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], &mapping_1)
             .unwrap();
         states_2
-            .update_states(&Bitmap::all_true(3), &[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], &mapping_2)
             .unwrap();
 
         // Combine states.
@@ -446,9 +426,11 @@ mod tests {
         states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
-        let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([Some(9), Some(12)]));
-        assert_eq!(expected, out.unwrap());
+        let out = states_1.drain_next(100).unwrap().unwrap();
+
+        assert_eq!(2, out.logical_len());
+        assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Int64(12), out.logical_value(1).unwrap());
     }
 
     #[test]
@@ -475,8 +457,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4]));
-        let partition_2_vals = &Array::Int64(Int64Array::from_iter([5, 6, 7, 8]));
+        let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
+        let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
@@ -492,16 +474,50 @@ mod tests {
         states_2.new_group();
         states_2.new_group();
 
-        // For partitions 1: 'x' == 0, 'y' == 1, 'z' == 2
-        let mapping_1 = vec![0, 0, 1, 2];
-        // For partitions 2: 'x' == 0, 'z' == 1
-        let mapping_2 = vec![0, 1, 1, 1];
+        // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
+        let mapping_1 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 3,
+                to_state: 2,
+            },
+        ];
+        // For partition 2: 'x' == 0, 'z' == 1
+        let mapping_2 = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 3,
+                to_state: 1,
+            },
+        ];
 
         states_1
-            .update_states(&Bitmap::all_true(4), &[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], &mapping_1)
             .unwrap();
         states_2
-            .update_states(&Bitmap::all_true(4), &[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], &mapping_2)
             .unwrap();
 
         // Combine states.
@@ -513,16 +529,19 @@ mod tests {
         states_1.try_combine(states_2, &combine_mapping).unwrap();
 
         // Get final output.
-        let out = states_1.drain_finalize_n(100).unwrap();
-        let expected = Array::Int64(Int64Array::from_iter([Some(8), Some(3), Some(25)]));
-        assert_eq!(expected, out.unwrap());
+        let out = states_1.drain_next(100).unwrap().unwrap();
+
+        assert_eq!(3, out.logical_len());
+        assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Int64(3), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::Int64(25), out.logical_value(2).unwrap());
     }
 
     #[test]
     fn sum_i64_drain_multiple() {
         // Three groups, single partition, test that drain can be called
         // multiple times until states are exhausted.
-        let vals = &Array::Int64(Int64Array::from_iter([1, 2, 3, 4, 5, 6]));
+        let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
         let mut states = specialized.new_grouped_state();
@@ -531,20 +550,45 @@ mod tests {
         states.new_group();
         states.new_group();
 
-        let mapping = vec![0, 0, 1, 1, 2, 2];
-        states
-            .update_states(&Bitmap::all_true(6), &[vals], &mapping)
-            .unwrap();
+        let mapping = vec![
+            RowToStateMapping {
+                from_row: 0,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 1,
+                to_state: 0,
+            },
+            RowToStateMapping {
+                from_row: 2,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 3,
+                to_state: 1,
+            },
+            RowToStateMapping {
+                from_row: 4,
+                to_state: 2,
+            },
+            RowToStateMapping {
+                from_row: 5,
+                to_state: 2,
+            },
+        ];
 
-        let expected_1 = Array::Int64(Int64Array::from_iter([Some(3), Some(7)]));
-        let out_1 = states.drain_finalize_n(2).unwrap();
-        assert_eq!(Some(expected_1), out_1);
+        states.update_states(&[vals], &mapping).unwrap();
 
-        let expected_2 = Array::Int64(Int64Array::from_iter([Some(11)]));
-        let out_2 = states.drain_finalize_n(2).unwrap();
-        assert_eq!(Some(expected_2), out_2);
+        let out_1 = states.drain_next(2).unwrap().unwrap();
+        assert_eq!(2, out_1.logical_len());
+        assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
 
-        let out_3 = states.drain_finalize_n(2).unwrap();
+        let out_2 = states.drain_next(2).unwrap().unwrap();
+        assert_eq!(1, out_2.logical_len());
+        assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
+
+        let out_3 = states.drain_next(2).unwrap();
         assert_eq!(None, out_3);
     }
 }

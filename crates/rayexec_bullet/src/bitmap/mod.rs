@@ -1,3 +1,5 @@
+pub mod zip;
+
 use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
 use std::fmt;
@@ -34,11 +36,11 @@ impl Bitmap {
         Self::from_iter(std::iter::repeat(val).take(len))
     }
 
-    pub fn all_true(len: usize) -> Self {
+    pub fn new_with_all_true(len: usize) -> Self {
         Self::new_with_val(true, len)
     }
 
-    pub fn all_false(len: usize) -> Self {
+    pub fn new_with_all_false(len: usize) -> Self {
         Self::new_with_val(false, len)
     }
 
@@ -77,6 +79,10 @@ impl Bitmap {
         count
     }
 
+    pub fn is_all_true(&self) -> bool {
+        self.count_trues() == self.len()
+    }
+
     /// Push a value onto the end of the bitmap.
     pub fn push(&mut self, val: bool) {
         if self.len == self.data.len() * 8 {
@@ -84,20 +90,23 @@ impl Bitmap {
         }
         let idx = self.len;
         self.len += 1;
-        self.set(idx, val);
+        self.set_unchecked(idx, val);
     }
 
     /// Get the value at index.
     ///
     /// Panics if index is out of bounds.
-    pub fn value(&self, idx: usize) -> bool {
-        assert!(idx < self.len);
-        self.data[idx / 8] & (1 << (idx % 8)) != 0
+    #[inline]
+    pub fn value_unchecked(&self, idx: usize) -> bool {
+        let byte = self.data[idx / 8];
+        (byte >> (idx % 8)) & 1 != 0
     }
 
     /// Set a bit at index.
-    pub fn set(&mut self, idx: usize, val: bool) {
-        assert!(idx < self.len);
+    ///
+    /// Panics if index is out of bounds.
+    #[inline]
+    pub fn set_unchecked(&mut self, idx: usize, val: bool) {
         if val {
             // Set bit.
             self.data[idx / 8] |= 1 << (idx % 8)
@@ -109,10 +118,7 @@ impl Bitmap {
 
     /// Get an iterator over the bitmap.
     pub const fn iter(&self) -> BitmapIter {
-        BitmapIter {
-            idx: 0,
-            bitmap: self,
-        }
+        BitmapIter::new(self)
     }
 
     /// Get an iterator over the bitmap returning indexes of the bitmap where
@@ -265,26 +271,53 @@ impl<'a> IntoExtactSizeIterator for &'a Bitmap {
 pub struct BitmapIter<'a> {
     idx: usize,
     bitmap: &'a Bitmap,
+    current_byte: u8, // Cached byte
+    bits_left: u8,    // Number of bits left in the cached byte
+}
+
+impl<'a> BitmapIter<'a> {
+    pub const fn new(bitmap: &'a Bitmap) -> Self {
+        BitmapIter {
+            idx: 0,
+            bitmap,
+            current_byte: 0,
+            bits_left: 0,
+        }
+    }
 }
 
 impl<'a> Iterator for BitmapIter<'a> {
     type Item = bool;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        // If we've iterated over all bits, return None
         if self.idx >= self.bitmap.len() {
             return None;
         }
 
-        let v = self.bitmap.value(self.idx);
+        // If there are no bits left in the cached byte, load a new byte
+        if self.bits_left == 0 {
+            let byte_idx = self.idx / 8;
+            // SAFETY: Bounds checked above.
+            self.current_byte = unsafe { *self.bitmap.data.get_unchecked(byte_idx) };
+            self.bits_left = 8;
+        }
+
+        // Get the value of the current bit
+        let bit_idx = self.idx % 8;
+        let bit = (self.current_byte >> bit_idx) & 1 != 0;
+
+        // Update the index and decrement the bits left in the cache
         self.idx += 1;
-        Some(v)
+        self.bits_left -= 1;
+
+        Some(bit)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (
-            self.bitmap.len() - self.idx,
-            Some(self.bitmap.len() - self.idx),
-        )
+        let remaining = self.bitmap.len() - self.idx;
+        (remaining, Some(remaining))
     }
 }
 
@@ -307,7 +340,7 @@ impl<'a> Iterator for BitmapIndexIter<'a> {
                 return None;
             }
 
-            if self.bitmap.value(self.front) {
+            if self.bitmap.value_unchecked(self.front) {
                 let idx = self.front;
                 self.front += 1;
                 return Some(idx);
@@ -326,7 +359,7 @@ impl<'a> DoubleEndedIterator for BitmapIndexIter<'a> {
                 return None;
             }
 
-            if self.bitmap.value(self.back - 1) {
+            if self.bitmap.value_unchecked(self.back - 1) {
                 let idx = self.back;
                 self.back -= 1;
                 return Some(idx - 1);
@@ -387,11 +420,11 @@ mod tests {
         let bits = [true, false, true, false, true, true, true, true];
         let mut bm = Bitmap::from_iter(bits);
 
-        bm.set(0, false);
-        assert!(!bm.value(0));
+        bm.set_unchecked(0, false);
+        assert!(!bm.value_unchecked(0));
 
-        bm.set(1, true);
-        assert!(bm.value(1));
+        bm.set_unchecked(1, true);
+        assert!(bm.value_unchecked(1));
     }
 
     #[test]

@@ -68,10 +68,8 @@ impl Iterator for SortedKeysIter {
 pub struct IndexSortedBatch {
     /// Indices of rows in sort order.
     pub sort_indices: Vec<usize>,
-
     /// Unsorted keys for the batch.
     pub keys: ComparableRows,
-
     /// The original unsorted batch.
     pub batch: Batch,
 }

@@ -1,4 +1,5 @@
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
@@ -17,9 +18,15 @@ use rayexec_shell::shell::{Shell, ShellSignal};
 #[derive(Parser)]
 #[clap(name = "rayexec_bin")]
 struct Arguments {
+    /// Execute file containing sql statements then exit.
+    #[clap(short = 'f', long)]
+    files: Vec<PathBuf>,
+    #[clap(long)]
+    dump_profile: bool,
     /// Queries to execute.
     ///
-    /// If omitted, an interactive session will be automatically started.
+    /// If omitted, and no files were given via the `files` argument, then an
+    /// interactive session is started.
     #[clap(trailing_var_arg = true)]
     queries: Vec<String>,
 }
@@ -82,11 +89,35 @@ async fn inner(
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());
 
+    if !args.files.is_empty() {
+        // Files provided, read them and execute them in order.
+        for path in args.files {
+            let content = std::fs::read_to_string(path)?;
+
+            let pending_queries = engine.session().query_many(&content)?;
+            for pending in pending_queries {
+                let table = pending
+                    .execute()
+                    .await?
+                    .collect_with_execution_profile()
+                    .await?;
+                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+
+                if args.dump_profile {
+                    writeln!(stdout, "---- PLANNING ----")?;
+                    writeln!(stdout, "{}", table.planning_profile_data().unwrap())?;
+                    writeln!(stdout, "---- EXECUTION ----")?;
+                    writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
+                }
+            }
+            stdout.flush()?;
+        }
+
+        return Ok(());
+    }
+
     if !args.queries.is_empty() {
         // Queries provided directly, run and print them, and exit.
-
-        // TODO: Check if file, read file...
-
         for query in args.queries {
             let pending_queries = engine.session().query_many(&query)?;
             for pending in pending_queries {

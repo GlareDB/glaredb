@@ -1,3 +1,4 @@
+use rayexec_error::Result;
 use std::collections::BTreeSet;
 
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -5,6 +6,7 @@ use crate::expr::Expression;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
+use super::statistics::{Statistics, StatisticsCount};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAggregate {
@@ -35,7 +37,11 @@ pub struct LogicalAggregate {
 
 impl Explainable for LogicalAggregate {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Aggregate").with_values("aggregates", &self.aggregates);
+        let mut ent = ExplainEntry::new("Aggregate").with_values_context(
+            "aggregates",
+            conf,
+            &self.aggregates,
+        );
 
         if conf.verbose {
             ent = ent.with_value("table_ref", self.aggregates_table);
@@ -46,7 +52,7 @@ impl Explainable for LogicalAggregate {
         }
 
         if let Some(group_table) = &self.group_table {
-            ent = ent.with_values("group_expressions", &self.group_exprs);
+            ent = ent.with_values_context("group_expressions", conf, &self.group_exprs);
 
             if conf.verbose {
                 ent = ent.with_value("group_table_ref", group_table);
@@ -67,5 +73,45 @@ impl LogicalNode for Node<LogicalAggregate> {
             refs.push(grouping_set_table);
         }
         refs
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        if self.node.group_exprs.is_empty() {
+            Statistics {
+                cardinality: StatisticsCount::Exact(1),
+                column_stats: None,
+            }
+        } else {
+            Statistics {
+                cardinality: StatisticsCount::Unknown,
+                column_stats: None,
+            }
+        }
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for expr in &self.node.aggregates {
+            func(expr)?;
+        }
+        for expr in &self.node.group_exprs {
+            func(expr)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for expr in &mut self.node.aggregates {
+            func(expr)?;
+        }
+        for expr in &mut self.node.group_exprs {
+            func(expr)?;
+        }
+        Ok(())
     }
 }

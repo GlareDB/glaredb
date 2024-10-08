@@ -1,0 +1,23 @@
+# Comparisons with DATEs
+
+statement ok
+CREATE TEMP TABLE dates (i INT, d DATE);
+
+statement ok
+INSERT INTO dates VALUES
+  (1, DATE '1993-03-15'),
+  (2, DATE '1990-03-15'),
+  (3, DATE '1993-04-15'),
+  (4, DATE '2000-04-15');
+
+query IT rowsort
+SELECT * FROM dates WHERE d > DATE '1993-01-01';
+----
+1  1993-03-15
+3  1993-04-15
+4  2000-04-15
+
+query IT rowsort
+SELECT * FROM dates WHERE d < DATE '1993-01-01';
+----
+2  1990-03-15

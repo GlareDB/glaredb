@@ -1,17 +1,23 @@
-use std::{fmt, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute};
+use rayexec_bullet::{
+    array::Array,
+    batch::Batch,
+    bitmap::Bitmap,
+    executor::scalar::{interleave, SelectExecutor},
+    selection::SelectionVector,
+};
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
 
 #[derive(Debug, Clone)]
-pub struct PhyscialWhenThen {
+pub struct PhysicalWhenThen {
     pub when: PhysicalScalarExpression,
     pub then: PhysicalScalarExpression,
 }
 
-impl fmt::Display for PhyscialWhenThen {
+impl fmt::Display for PhysicalWhenThen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "WHEN {} THEN {}", self.when, self.then)
     }
@@ -19,72 +25,84 @@ impl fmt::Display for PhyscialWhenThen {
 
 #[derive(Debug, Clone)]
 pub struct PhysicalCaseExpr {
-    pub cases: Vec<PhyscialWhenThen>,
+    pub cases: Vec<PhysicalWhenThen>,
     pub else_expr: Box<PhysicalScalarExpression>,
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
-        let mut interleave_indices: Vec<_> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+        let mut arrays = Vec::new();
+        let mut indices: Vec<(usize, usize)> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
-        let mut case_outputs = Vec::new();
+        // Track remaining rows we need to evaluate.
+        //
+        // True bits are rows we still need to consider.
+        let mut remaining = Bitmap::new_with_all_true(batch.num_rows());
 
-        // Determines which rows we need to compute results for. If we already
-        // have a selection, use that, otherwise we'll be looking at all rows.
-        let mut needs_results = match selection {
-            Some(selection) => selection.clone(),
-            None => Bitmap::all_true(batch.num_rows()),
-        };
+        let mut trues_sel = SelectionVector::with_capacity(batch.num_rows());
 
         for case in &self.cases {
-            // No need to evaluate any more cases.
-            if needs_results.count_trues() == 0 {
-                break;
-            }
+            // Generate selection from remaining bitmap.
+            let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
 
-            let mut selected_rows = case.when.select(batch, Some(&needs_results))?;
-            // No cases returned true.
-            if selected_rows.count_trues() == 0 {
+            // Get batch with only remaining rows that we should consider.
+            let selected_batch = batch.select(selection.clone());
+
+            // Execute 'when'.
+            let selected = case.when.eval(&selected_batch)?;
+
+            // Determine which rows should be executed for 'then', and which we
+            // need to fall through on.
+            SelectExecutor::select(&selected, &mut trues_sel)?;
+
+            if trues_sel.num_rows() == 0 {
+                // No rows selected, move to next case.
                 continue;
             }
 
-            // Update when bitmap to evaluate only the rows we haven't computed
-            // results for yet.
-            selected_rows.bit_and_mut(&needs_results)?;
+            // Select rows in batch to execute on based on 'trues'.
+            let execute_batch = selected_batch.select(Arc::new(trues_sel.clone()));
+            let output = case.then.eval(&execute_batch)?;
 
-            let then_result = case.then.eval(batch, Some(&selected_rows))?;
+            // Store array for later interleaving.
+            let array_idx = arrays.len();
+            arrays.push(output.into_owned());
 
-            // Update bitmap to skip these rows in the next case.
-            needs_results.bit_and_not_mut(&selected_rows)?;
+            // Figure out mapping from the 'trues' selection to the original row
+            // index.
+            //
+            // The selection vector locations should index into the full-length
+            // selection vector to get the original row index.
+            for (array_row_idx, selected_row_idx) in trues_sel.iter_locations().enumerate() {
+                // Final output row.
+                let output_row_idx = selection.get_unchecked(selected_row_idx);
+                indices[output_row_idx] = (array_idx, array_row_idx);
 
-            // Store array, update interleave indices to point to these rows.
-            let arr_idx = case_outputs.len();
-            case_outputs.push(then_result);
-
-            for (arr_row_idx, final_row_idx) in selected_rows.index_iter().enumerate() {
-                interleave_indices[final_row_idx] = (arr_idx, arr_row_idx);
+                // Update bitmap, this row was handled.
+                remaining.set_unchecked(output_row_idx, false);
             }
         }
 
-        // Evaluate any remaining rows.
-        if needs_results.count_trues() != 0 {
-            let else_result = self.else_expr.eval(batch, Some(&needs_results))?;
+        // Do all remaining rows.
+        if remaining.count_trues() != 0 {
+            let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
+            let remaining_batch = batch.select(selection.clone());
 
-            let arr_idx = case_outputs.len();
-            case_outputs.push(else_result);
+            let output = self.else_expr.eval(&remaining_batch)?;
+            let array_idx = arrays.len();
+            arrays.push(output.into_owned());
 
-            for (arr_row_idx, final_row_idx) in needs_results.index_iter().enumerate() {
-                interleave_indices[final_row_idx] = (arr_idx, arr_row_idx);
+            // Update indices.
+            for (array_row_idx, output_row_idx) in selection.iter_locations().enumerate() {
+                indices[output_row_idx] = (array_idx, array_row_idx);
             }
         }
 
-        // All rows accounted for, compute 'interleave' indices for building the
-        // final batch.
+        // Interleave.
+        let refs: Vec<_> = arrays.iter().collect();
+        let arr = interleave(&refs, &indices)?;
 
-        let arrs: Vec<_> = case_outputs.iter().map(|arr| arr.as_ref()).collect();
-        let out = compute::interleave::interleave(&arrs, &interleave_indices)?;
-
-        Ok(Arc::new(out))
+        Ok(Cow::Owned(arr))
     }
 }
 
@@ -97,5 +115,83 @@ impl fmt::Display for PhysicalCaseExpr {
         write!(f, "ELSE {}", self.else_expr)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use rayexec_bullet::scalar::ScalarValue;
+
+    use crate::{
+        expr::physical::{
+            column_expr::PhysicalColumnExpr, literal_expr::PhysicalLiteralExpr,
+            scalar_function_expr::PhysicalScalarFunctionExpr,
+        },
+        functions::scalar::comparison::EqImpl,
+    };
+
+    use super::*;
+
+    #[test]
+    fn case_simple() {
+        let batch = Batch::try_new([
+            Array::from_iter([1, 2, 3, 4]),
+            Array::from_iter([12, 13, 14, 15]),
+        ])
+        .unwrap();
+
+        // CASE WHEN a = 2 THEN 'first_case'
+        //      WHEN a = 3 THEN 'second_case'
+        //      ELSE 'else'
+        // END
+        let case = PhysicalCaseExpr {
+            cases: vec![
+                PhysicalWhenThen {
+                    when: PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+                        function: Box::new(EqImpl),
+                        inputs: vec![
+                            PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                            PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                                literal: ScalarValue::from(2),
+                            }),
+                        ],
+                    }),
+                    then: PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                        literal: ScalarValue::from("first_case"),
+                    }),
+                },
+                PhysicalWhenThen {
+                    when: PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+                        function: Box::new(EqImpl),
+                        inputs: vec![
+                            PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                            PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                                literal: ScalarValue::from(3),
+                            }),
+                        ],
+                    }),
+                    then: PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                        literal: ScalarValue::from("second_case"),
+                    }),
+                },
+            ],
+            else_expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                literal: ScalarValue::from("else"),
+            })),
+        };
+
+        let got = case.eval(&batch).unwrap();
+
+        assert_eq!(ScalarValue::from("else"), got.logical_value(0).unwrap());
+        assert_eq!(
+            ScalarValue::from("first_case"),
+            got.logical_value(1).unwrap()
+        );
+        assert_eq!(
+            ScalarValue::from("second_case"),
+            got.logical_value(2).unwrap()
+        );
+        assert_eq!(ScalarValue::from("else"), got.logical_value(3).unwrap());
     }
 }

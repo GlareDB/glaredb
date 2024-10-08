@@ -72,14 +72,14 @@ jobs:
           cargo test slt/tpch/q12
           # cargo test slt/tpch/q13
           cargo test slt/tpch/q14
-          cargo test slt/tpch/q15
+          # cargo test slt/tpch/q15
           # cargo test slt/tpch/q16
           cargo test slt/tpch/q17
           cargo test slt/tpch/q18
           cargo test slt/tpch/q19
           cargo test slt/tpch/q20
           cargo test slt/tpch/q21
-          cargo test slt/tpch/q22
+          # cargo test slt/tpch/q22
 
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings

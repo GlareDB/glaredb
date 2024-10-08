@@ -1,33 +1,38 @@
 pub mod condition;
-pub mod table;
+
+mod global_hash_table;
+mod partition_hash_table;
 
 use condition::HashJoinCondition;
+use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
-use rayexec_bullet::{batch::Batch, compute, datatype::DataType};
-use rayexec_error::{RayexecError, Result};
+use partition_hash_table::PartitionHashTable;
+use rayexec_bullet::{batch::Batch, datatype::DataType, executor::scalar::HashExecutor};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use std::{
     sync::Arc,
     task::{Context, Waker},
 };
-use table::JoinHashTable;
 
 use crate::{
     database::DatabaseContext,
-    execution::operators::util::hash::{AhashHasher, ArrayHasher},
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     logical::logical_join::JoinType,
 };
 
 use super::{
     util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker},
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ComputedBatches, ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState,
+    PartitionState, PollFinalize, PollPull, PollPush,
 };
 
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {
     /// Hash table this partition will be writing to.
-    local_hashtable: JoinHashTable,
+    ///
+    /// Optional to enable moving from the local to global state once this
+    /// partition finishes building.
+    local_hashtable: Option<PartitionHashTable>,
     /// Reusable hashes buffer.
     hash_buf: Vec<u64>,
 }
@@ -38,11 +43,11 @@ pub struct HashJoinProbePartitionState {
     partition_idx: usize,
     /// The final output table. If None, the global state should be checked to
     /// see if it's ready to copy into the partition local state.
-    global: Option<Arc<JoinHashTable>>,
+    global: Option<Arc<GlobalHashTable>>,
     /// Reusable hashes buffer.
     hash_buf: Vec<u64>,
     /// Buffered output batch.
-    buffered_output: Option<Batch>,
+    buffered_output: ComputedBatches,
     /// Waker that's stored from a push if there's already a buffered batch.
     push_waker: Option<Waker>,
     /// Waker that's stored from a pull if there's no batch available.
@@ -66,11 +71,13 @@ pub struct HashJoinOperatorState {
 
 #[derive(Debug)]
 struct SharedState {
-    /// The partially built global hash table.
+    /// Partition local hash tables that have been completed on the build side.
     ///
-    /// Input partitions merge their partition-local hash table into this global
-    /// table once they complete.
-    partial: JoinHashTable,
+    /// Once all partitions have finished building, a single thread will merge
+    /// all tables into a single global table for probing.
+    completed_hash_tables: Vec<PartitionHashTable>,
+    /// Global hash table once it's been built.
+    global_hash_table: Option<Arc<GlobalHashTable>>,
     /// Number of build inputs remaining.
     ///
     /// Initially set to number of build partitions.
@@ -79,10 +86,6 @@ struct SharedState {
     ///
     /// Initially set to number of probe partitions.
     probe_inputs_remaining: usize,
-    /// The shared global hash table once it's been fully built.
-    ///
-    /// This is None if there's still inputs still building.
-    shared_global: Option<Arc<JoinHashTable>>,
     /// Union of all bitmaps across all partitions.
     ///
     /// Referenced with draining unvisited rows in the case of a LEFT join.
@@ -143,6 +146,14 @@ impl PhysicalHashJoin {
             JoinType::Left | JoinType::Full | JoinType::LeftMark { .. }
         )
     }
+
+    const fn is_right_join(&self) -> bool {
+        matches!(self.join_type, JoinType::Full | JoinType::Right)
+    }
+
+    const fn is_mark_join(&self) -> bool {
+        matches!(self.join_type, JoinType::LeftMark { .. })
+    }
 }
 
 impl ExecutableOperator for PhysicalHashJoin {
@@ -155,19 +166,11 @@ impl ExecutableOperator for PhysicalHashJoin {
         let build_partitions = partitions[0];
         let probe_partitions = partitions[0];
 
-        let right_join = matches!(self.join_type, JoinType::Full | JoinType::Right);
-        let mark_join = matches!(self.join_type, JoinType::LeftMark { .. });
-
         let shared = SharedState {
-            partial: JoinHashTable::new(
-                self.left_types.clone(),
-                &self.conditions,
-                right_join,
-                mark_join,
-            ),
+            completed_hash_tables: Vec::with_capacity(build_partitions),
+            global_hash_table: None,
             build_inputs_remaining: build_partitions,
             probe_inputs_remaining: probe_partitions,
-            shared_global: None,
             global_outer_join_tracker: None,
             probe_push_wakers: vec![None; probe_partitions],
         };
@@ -179,12 +182,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         let build_states: Vec<_> = (0..build_partitions)
             .map(|_| {
                 PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
-                    local_hashtable: JoinHashTable::new(
-                        self.left_types.clone(),
-                        &self.conditions,
-                        right_join,
-                        mark_join,
-                    ),
+                    local_hashtable: Some(PartitionHashTable::new(&self.conditions)),
                     hash_buf: Vec::new(),
                 })
             })
@@ -196,7 +194,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                     partition_idx: idx,
                     global: None,
                     hash_buf: Vec::new(),
-                    buffered_output: None,
+                    buffered_output: ComputedBatches::None,
                     push_waker: None,
                     pull_waker: None,
                     input_finished: false,
@@ -225,19 +223,23 @@ impl ExecutableOperator for PhysicalHashJoin {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
                 // Compute left hashes on equality condition.
-                let result = self.equality.left.eval(&batch, None)?;
+                let result = self.equality.left.eval(&batch)?;
                 state.hash_buf.clear();
-                state.hash_buf.resize(result.len(), 0);
-                let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
+                state.hash_buf.resize(result.logical_len(), 0);
+                let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
 
-                state.local_hashtable.insert_batch(batch, hashes)?;
+                state
+                    .local_hashtable
+                    .as_mut()
+                    .required("partition hash table")?
+                    .insert_batch(batch, hashes)?;
 
                 Ok(PollPush::Pushed)
             }
             PartitionState::HashJoinProbe(state) => {
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
-                if state.buffered_output.is_some() {
+                if !state.buffered_output.is_empty() {
                     state.push_waker = Some(cx.waker().clone());
                     return Ok(PollPush::Pending(batch));
                 }
@@ -259,35 +261,37 @@ impl ExecutableOperator for PhysicalHashJoin {
                         return Ok(PollPush::Pending(batch));
                     }
 
-                    // Final partition on the build side should be what sets
-                    // this. So if build_inputs_remaining == 0, then it should
-                    // exist.
-                    let shared_global = shared
-                        .shared_global
-                        .clone()
-                        .expect("shared global table should exist, no inputs remaining");
+                    let global = match shared.global_hash_table.as_ref() {
+                        Some(table) => table.clone(),
+                        None => {
+                            // Table might still be being built up by another
+                            // thread. Come back when it's ready.
+                            shared.probe_push_wakers[state.partition_idx] =
+                                Some(cx.waker().clone());
+                            return Ok(PollPush::Pending(batch));
+                        }
+                    };
 
                     // Create initial visit bitmaps that will be tracked by this
                     // partition.
                     if self.is_left_join() {
-                        state.partition_outer_join_tracker =
-                            Some(LeftOuterJoinTracker::new_for_batches(
-                                shared_global.collected_batches(),
-                            ));
+                        state.partition_outer_join_tracker = Some(
+                            LeftOuterJoinTracker::new_for_batches(global.collected_batches()),
+                        );
                     }
 
                     // Final hash table built, store in our partition local
                     // state.
-                    state.global = Some(shared_global);
+                    state.global = Some(global);
 
                     // Continue on.
                 }
 
                 // Compute right hashes on equality condition.
-                let result = self.equality.right.eval(&batch, None)?;
+                let result = self.equality.right.eval(&batch)?;
                 state.hash_buf.clear();
-                state.hash_buf.resize(result.len(), 0);
-                let hashes = AhashHasher::hash_arrays(&[result.as_ref()], &mut state.hash_buf)?;
+                state.hash_buf.resize(result.logical_len(), 0);
+                let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
 
@@ -300,8 +304,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // TODO: Would be cool not having to do this.
-                let batch = compute::concat::concat_batches(&batches)?;
-                state.buffered_output = Some(batch);
+                state.buffered_output = ComputedBatches::new_multi(batches);
 
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
@@ -326,35 +329,52 @@ impl ExecutableOperator for PhysicalHashJoin {
 
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                // Merge local table into the global table.
-                let local_table = std::mem::replace(
-                    &mut state.local_hashtable,
-                    JoinHashTable::new(Vec::new(), &[], false, false), // TODO: A bit hacky.
-                );
-                shared.partial.merge(local_table)?;
+                // Move local table into global state.
+                match state.local_hashtable.take() {
+                    Some(table) => shared.completed_hash_tables.push(table),
+                    None => return Err(RayexecError::new("Missing partition table")), // Shouldn't happen.
+                }
 
                 shared.build_inputs_remaining -= 1;
 
-                // If we're the last remaining, go ahead and move the 'partial'
-                // table to 'global', and wake up any pending probers.
+                // If we're the last remaining, this thread will be responsible
+                // for building the global hash table and putting it in the
+                // global state.
                 //
                 // Probers will then clone the global hash table (behind an Arc)
                 // into their local states to avoid needing to synchronize.
                 if shared.build_inputs_remaining == 0 {
-                    let global_table = std::mem::replace(
-                        &mut shared.partial,
-                        JoinHashTable::new(Vec::new(), &[], false, false), // TODO: A bit hacky.
+                    let completed = std::mem::take(&mut shared.completed_hash_tables);
+
+                    // Release the lock. Building the table can be
+                    // computationally expensive. Other threads still need
+                    // access to the global state to register wakers.
+                    std::mem::drop(shared);
+
+                    let global = GlobalHashTable::new(
+                        self.left_types.clone(),
+                        self.is_right_join(),
+                        self.is_mark_join(),
+                        completed,
+                        &self.conditions,
                     );
+
+                    // Reacquire, and place in global state.
+                    let mut shared = match operator_state {
+                        OperatorState::HashJoin(state) => state.inner.lock(),
+                        other => panic!("invalid operator state: {other:?}"),
+                    };
 
                     // Init global left tracker too if needed.
                     if self.is_left_join() {
                         shared.global_outer_join_tracker = Some(
-                            LeftOuterJoinTracker::new_for_batches(global_table.collected_batches()),
+                            LeftOuterJoinTracker::new_for_batches(global.collected_batches()),
                         )
                     }
 
-                    shared.shared_global = Some(Arc::new(global_table));
+                    shared.global_hash_table = Some(Arc::new(global));
 
+                    // Wake up probers. They can make progress now.
                     for waker in shared.probe_push_wakers.iter_mut() {
                         if let Some(waker) = waker.take() {
                             waker.wake();
@@ -376,17 +396,22 @@ impl ExecutableOperator for PhysicalHashJoin {
                     return Ok(PollFinalize::Pending);
                 }
 
-                state.input_finished = true;
-
-                // Set partition-local global hash table reference if we don't
-                // have it. It's possible for this partition not have this if we
-                // pushed no batches for this partition.
-                //
-                // We want to ensure this is set no matter the join type.
-                if state.global.is_none() {
-                    state.global = shared.shared_global.clone();
+                // It's possible for this partition not have this if we pushed
+                // no batches for this partition. Ensure we have it (no matter
+                // the join type).
+                match shared.global_hash_table.as_ref() {
+                    Some(table) => {
+                        if state.global.is_none() {
+                            state.global = Some(table.clone());
+                        }
+                    }
+                    None => {
+                        shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
+                        return Ok(PollFinalize::Pending);
+                    }
                 }
 
+                state.input_finished = true;
                 shared.probe_inputs_remaining -= 1;
 
                 if self.is_left_join() {
@@ -420,12 +445,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                         state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
                             global.clone(),
                             shared
-                                .shared_global
+                                .global_hash_table
                                 .as_ref()
                                 .unwrap()
                                 .collected_batches()
                                 .to_vec(),
-                            self.left_types.clone(),
                             self.right_types.clone(),
                         ))
                     }
@@ -457,49 +481,48 @@ impl ExecutableOperator for PhysicalHashJoin {
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        match state.buffered_output.take() {
-            Some(batch) => {
-                // Partition has space available, go ahead an wake a pending
-                // pusher.
-                if let Some(waker) = state.push_waker.take() {
-                    waker.wake();
-                }
-
-                Ok(PollPull::Batch(batch))
+        let computed = state.buffered_output.take();
+        if computed.has_batches() {
+            // Partition has space available, go ahead an wake a pending
+            // pusher.
+            if let Some(waker) = state.push_waker.take() {
+                waker.wake();
             }
-            None => {
-                if state.input_finished {
-                    // Check if we're still draining unvisited left rows.
-                    if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
-                        if matches!(self.join_type, JoinType::LeftMark { .. }) {
-                            // Mark drain
-                            match drain_state.drain_mark_next()? {
-                                Some(batch) => return Ok(PollPull::Batch(batch)),
-                                None => return Ok(PollPull::Exhausted),
-                            }
-                        } else {
-                            // Normal left drain
-                            match drain_state.drain_next()? {
-                                Some(batch) => return Ok(PollPull::Batch(batch)),
-                                None => return Ok(PollPull::Exhausted),
-                            }
+
+            Ok(PollPull::Computed(computed))
+        } else {
+            // No batches computed, check if we're done.
+            if state.input_finished {
+                // Check if we're still draining unvisited left rows.
+                if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
+                    if matches!(self.join_type, JoinType::LeftMark { .. }) {
+                        // Mark drain
+                        match drain_state.drain_mark_next()? {
+                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
+                            None => return Ok(PollPull::Exhausted),
+                        }
+                    } else {
+                        // Normal left drain
+                        match drain_state.drain_next()? {
+                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
+                            None => return Ok(PollPull::Exhausted),
                         }
                     }
-
-                    // We're done.
-                    return Ok(PollPull::Exhausted);
                 }
 
-                // No batch available, come back later.
-                state.pull_waker = Some(cx.waker().clone());
-
-                // Wake up a pusher since there's space available.
-                if let Some(waker) = state.push_waker.take() {
-                    waker.wake();
-                }
-
-                Ok(PollPull::Pending)
+                // We're done.
+                return Ok(PollPull::Exhausted);
             }
+
+            // No batch available, come back later.
+            state.pull_waker = Some(cx.waker().clone());
+
+            // Wake up a pusher since there's space available.
+            if let Some(waker) = state.push_waker.take() {
+                waker.wake();
+            }
+
+            Ok(PollPull::Pending)
         }
     }
 }

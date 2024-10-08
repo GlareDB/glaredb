@@ -94,7 +94,7 @@ impl MaterializedResultTable {
 
             for (col, field) in batch.columns().iter().zip(schema.fields.iter()) {
                 let col_datatype = col.datatype();
-                if col_datatype != field.datatype {
+                if col_datatype != &field.datatype {
                     return Err(RayexecError::new(format!(
                         "Unexpected column datatype, have: {}, want: {}",
                         col_datatype, field.datatype
@@ -159,7 +159,7 @@ impl MaterializedResultTable {
             .column(col)
             .ok_or_else(|| RayexecError::new(format!("Column out of range: {}", col)))?;
 
-        cell_fn(arr.as_ref(), row)
+        cell_fn(arr, row)
     }
 
     pub fn column_by_name(&self, name: &str) -> Result<MaterializedColumn> {
@@ -186,12 +186,12 @@ impl MaterializedResultTable {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterializedColumn {
-    pub(crate) arrays: Vec<Arc<Array>>,
+    pub(crate) arrays: Vec<Array>,
 }
 
 impl MaterializedColumn {
     pub fn len(&self) -> usize {
-        self.arrays.iter().map(|a| a.len()).sum()
+        self.arrays.iter().map(|a| a.logical_len()).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -202,10 +202,11 @@ impl MaterializedColumn {
     where
         F: Fn(&Array, usize) -> Result<T>,
     {
-        let (arr_idx, row) = find_normalized_row(row, self.arrays.iter().map(|arr| arr.len()))
-            .ok_or_else(|| RayexecError::new(format!("Row out of range: {}", row)))?;
+        let (arr_idx, row) =
+            find_normalized_row(row, self.arrays.iter().map(|arr| arr.logical_len()))
+                .ok_or_else(|| RayexecError::new(format!("Row out of range: {}", row)))?;
 
-        let arr = self.arrays[arr_idx].as_ref();
+        let arr = &self.arrays[arr_idx];
         row_fn(arr, row)
     }
 }

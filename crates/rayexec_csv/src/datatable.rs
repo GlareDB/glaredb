@@ -4,7 +4,9 @@ use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_execution::runtime::Runtime;
-use rayexec_execution::storage::table_storage::{DataTable, DataTableScan, EmptyTableScan};
+use rayexec_execution::storage::table_storage::{
+    DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
+};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;
 
@@ -27,15 +29,21 @@ pub struct SingleFileCsvDataTable<R: Runtime> {
 }
 
 impl<R: Runtime> DataTable for SingleFileCsvDataTable<R> {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let reader = self
             .runtime
             .file_provider()
             .file_source(self.location.clone(), &self.conf)?;
         let csv_reader = AsyncCsvReader::new(reader, self.csv_schema.clone(), self.options);
 
-        let mut scans: Vec<Box<dyn DataTableScan>> =
-            vec![Box::new(CsvFileScan { reader: csv_reader })];
+        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(ProjectedScan::new(
+            CsvFileScan { reader: csv_reader },
+            projections,
+        ))];
         // Reset are empty (for now)
         scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
 

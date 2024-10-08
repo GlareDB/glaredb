@@ -20,7 +20,7 @@ use crate::{
             scan::PhysicalScan,
             simple::SimpleOperator,
             sink::SinkOperator,
-            sort::{local_sort::PhysicalLocalSort, merge_sorted::PhysicalMergeSortedInputs},
+            sort::{gather_sort::PhysicalGatherSort, scatter_sort::PhysicalScatterSort},
             table_function::PhysicalTableFunction,
             ungrouped_aggregate::PhysicalUngroupedAggregate,
             union::PhysicalUnion,
@@ -28,7 +28,10 @@ use crate::{
             PhysicalOperator,
         },
     },
-    explain::{explainable::ExplainConfig, formatter::ExplainFormatter},
+    explain::{
+        context_display::ContextDisplayMode, explainable::ExplainConfig,
+        formatter::ExplainFormatter,
+    },
     expr::{
         comparison_expr::ComparisonOperator,
         physical::{
@@ -64,11 +67,11 @@ use crate::{
         logical_setop::{LogicalSetop, SetOpKind},
         operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
     },
+    storage::table_storage::Projections,
 };
 use rayexec_bullet::{
-    array::{Array, Utf8Array},
+    array::Array,
     batch::Batch,
-    compute::concat::concat,
 };
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
 use std::{collections::BTreeSet, sync::Arc};
@@ -745,8 +748,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        // TODO: use this.
-        let _projections = scan.node.projection;
+        // TODO: Split up scan source.
+        let projections = if scan.node.did_prune_columns {
+            Projections {
+                column_indices: Some(scan.node.projection),
+            }
+        } else {
+            Projections::all()
+        };
 
         let operator = match scan.node.source {
             ScanSource::Table {
@@ -755,20 +764,24 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 source,
             } => IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
-                    catalog, schema, source,
+                    catalog,
+                    schema,
+                    source,
+                    projections,
                 ))),
                 partitioning_requirement: None,
             },
             ScanSource::TableFunction { function } => IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
                     function,
+                    projections,
                 ))),
                 partitioning_requirement: None,
             },
             ScanSource::ExpressionList { rows } => {
-                let batch = self.create_batch_for_row_values(rows)?;
+                let batches = self.create_batches_for_row_values(projections, rows)?;
                 IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
+                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(batches))),
                     partitioning_requirement: None,
                 }
             }
@@ -925,12 +938,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let names = Array::Utf8(Utf8Array::from_iter(
-            describe.node.schema.iter().map(|f| f.name.as_str()),
-        ));
-        let datatypes = Array::Utf8(Utf8Array::from_iter(
-            describe.node.schema.iter().map(|f| f.datatype.to_string()),
-        ));
+        let names = Array::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
+        let datatypes =
+            Array::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
         let batch = Batch::try_new(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {
@@ -982,6 +992,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let formatter = ExplainFormatter::new(
             self.bind_context,
             ExplainConfig {
+                context_mode: ContextDisplayMode::Enriched(self.bind_context),
                 verbose: explain.node.verbose,
             },
             explain.node.format,
@@ -1012,9 +1023,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-            Batch::try_new(vec![
-                Array::Utf8(Utf8Array::from(type_strings)),
-                Array::Utf8(Utf8Array::from(plan_strings)),
+            Batch::try_new([
+                Array::from_iter(type_strings),
+                Array::from_iter(plan_strings),
             ])?,
         ])));
 
@@ -1047,11 +1058,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                Batch::try_new(vec![Array::Utf8(Utf8Array::from_iter([show
-                    .var
-                    .value
-                    .to_string()
-                    .as_str()]))])?,
+                Batch::try_new([Array::from_iter([show.var.value.to_string().as_str()])])?,
             ]))),
             partitioning_requirement: Some(1),
         };
@@ -1194,7 +1201,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Partition-local sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalLocalSort::new(
+            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
                 exprs.clone(),
             ))),
             partitioning_requirement: None,
@@ -1203,9 +1210,9 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         // Global sorting.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::MergeSorted(
-                PhysicalMergeSortedInputs::new(exprs),
-            )),
+            operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
+                exprs,
+            ))),
             partitioning_requirement: None,
         };
         self.push_intermediate_operator(operator, location, id_gen)?;
@@ -1658,14 +1665,18 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         Ok(())
     }
 
-    fn create_batch_for_row_values(&self, rows: Vec<Vec<Expression>>) -> Result<Batch> {
+    fn create_batches_for_row_values(
+        &self,
+        projections: Projections,
+        rows: Vec<Vec<Expression>>,
+    ) -> Result<Vec<Batch>> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
         // TODO: This could probably be simplified.
 
-        let mut row_arrs: Vec<Vec<Arc<Array>>> = Vec::new(); // Row oriented.
+        let mut row_arrs: Vec<Vec<Array>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
@@ -1676,32 +1687,27 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
-                .map(|expr| expr.eval(&dummy_batch, None))
+                .map(|expr| {
+                    let arr = expr.eval(&dummy_batch)?;
+                    Ok(arr.into_owned())
+                })
                 .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);
         }
 
-        let num_cols = row_arrs.first().map(|row| row.len()).unwrap_or(0);
-        let mut col_arrs = Vec::with_capacity(num_cols); // Column oriented.
+        let batches = row_arrs
+            .into_iter()
+            .map(|cols| {
+                let batch = Batch::try_new(cols)?;
 
-        // Convert the row-oriented vector into a column oriented one.
-        for _ in 0..num_cols {
-            let cols: Vec<_> = row_arrs.iter_mut().map(|row| row.pop().unwrap()).collect();
-            col_arrs.push(cols);
-        }
+                // TODO: Got lazy, we can just avoid evaluating the expressions above.
+                match &projections.column_indices {
+                    Some(indices) => Ok(batch.project(indices)),
+                    None => Ok(batch),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        // Reverse since we worked from right to left when converting to
-        // column-oriented.
-        col_arrs.reverse();
-
-        // Concat column values into a single array.
-        let mut cols = Vec::with_capacity(col_arrs.len());
-        for arrs in col_arrs {
-            let refs: Vec<&Array> = arrs.iter().map(|a| a.as_ref()).collect();
-            let col = concat(&refs)?;
-            cols.push(col);
-        }
-
-        Batch::try_new(cols)
+        Ok(batches)
     }
 }

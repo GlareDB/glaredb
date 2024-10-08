@@ -6,7 +6,7 @@ CREATE TEMP TABLE ints (i INT);
 statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
-query IT
+query IT rowsort
 SELECT i, EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
 ----
 4     false
@@ -14,7 +14,7 @@ SELECT i, EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
 6     true
 NULL  false
 
-query IT
+query IT rowsort
 SELECT i, NOT EXISTS(SELECT i FROM ints WHERE a1.i > 4) FROM ints a1;
 ----
 4     true

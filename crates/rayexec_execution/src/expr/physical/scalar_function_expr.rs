@@ -1,9 +1,11 @@
-use std::fmt;
-use std::sync::Arc;
+use std::{borrow::Cow, fmt};
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap};
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_bullet::{
+    array::Array,
+    batch::Batch,
+};
+use rayexec_error::{OptionExt, Result};
 
 use crate::{
     database::DatabaseContext, functions::scalar::PlannedScalarFunction, proto::DatabaseProtoConv,
@@ -18,32 +20,27 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval(&self, batch: &Batch, selection: Option<&Bitmap>) -> Result<Arc<Array>> {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         let inputs = self
             .inputs
             .iter()
-            .map(|input| input.eval(batch, selection))
+            .map(|input| input.eval(batch))
             .collect::<Result<Vec<_>>>()?;
-        let refs: Vec<_> = inputs.iter().collect(); // Can I not?
+
+        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
         let mut out = self.function.execute(&refs)?;
 
         // If function is provided no input, it's expected to return an
         // array of length 1. We extend the array here so that it's the
         // same size as the rest.
+        //
+        // TODO: Could just extend the selection vector too.
         if refs.is_empty() {
-            let scalar = out
-                .scalar(0)
-                .ok_or_else(|| RayexecError::new("Missing scalar at index 0"))?;
-
-            // TODO: Probably want to check null, and create the
-            // appropriate array type since this will create a
-            // NullArray, and not the type we're expecting.
-            out = scalar.as_array(batch.num_rows());
+            let scalar = out.logical_value(0)?;
+            out = scalar.as_array(batch.num_rows())?;
         }
 
-        // TODO: Do we want to Arc here? Should we allow batches to be mutable?
-
-        Ok(Arc::new(out))
+        Ok(Cow::Owned(out))
     }
 }
 

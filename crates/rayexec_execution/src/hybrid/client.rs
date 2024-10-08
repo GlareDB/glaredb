@@ -336,7 +336,7 @@ impl ProtoConv for IpcBatch {
             self.0
                 .columns()
                 .iter()
-                .map(|c| Field::new("", c.datatype(), true)),
+                .map(|c| Field::new("", c.datatype().clone(), true)),
         );
 
         let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;

@@ -1,17 +1,21 @@
-use crate::functions::scalar::macros::{
-    primitive_binary_execute, primitive_binary_execute_no_wrap,
+use crate::functions::{
+    invalid_input_types_error, plan_check_num_args, unhandled_physical_types_err, FunctionInfo,
+    Signature,
 };
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
-use rayexec_bullet::array::{Array, Decimal128Array, Decimal64Array};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::{
+    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8,
+};
+use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use rayexec_proto::packed::PackedDecoder;
 use rayexec_proto::{packed::PackedEncoder, ProtoConv};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sub;
@@ -143,83 +147,184 @@ impl PlannedScalarFunction for SubImpl {
         self.datatype.clone()
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let first = arrays[0];
-        let second = arrays[1];
-        Ok(match (first.as_ref(), second.as_ref()) {
-            (Array::Int8(first), Array::Int8(second)) => {
-                primitive_binary_execute!(first, second, Int8, |a, b| a - b)
-            }
-            (Array::Int16(first), Array::Int16(second)) => {
-                primitive_binary_execute!(first, second, Int16, |a, b| a - b)
-            }
-            (Array::Int32(first), Array::Int32(second)) => {
-                primitive_binary_execute!(first, second, Int32, |a, b| a - b)
-            }
-            (Array::Int64(first), Array::Int64(second)) => {
-                primitive_binary_execute!(first, second, Int64, |a, b| a - b)
-            }
-            (Array::UInt8(first), Array::UInt8(second)) => {
-                primitive_binary_execute!(first, second, UInt8, |a, b| a - b)
-            }
-            (Array::UInt16(first), Array::UInt16(second)) => {
-                primitive_binary_execute!(first, second, UInt16, |a, b| a - b)
-            }
-            (Array::UInt32(first), Array::UInt32(second)) => {
-                primitive_binary_execute!(first, second, UInt32, |a, b| a - b)
-            }
-            (Array::UInt64(first), Array::UInt64(second)) => {
-                primitive_binary_execute!(first, second, UInt64, |a, b| a - b)
-            }
-            (Array::Float32(first), Array::Float32(second)) => {
-                primitive_binary_execute!(first, second, Float32, |a, b| a - b)
-            }
-            (Array::Float64(first), Array::Float64(second)) => {
-                primitive_binary_execute!(first, second, Float64, |a, b| a - b)
-            }
-            (Array::Decimal64(first), Array::Decimal64(second)) => {
-                // TODO: Scale
-                Decimal64Array::new(
-                    first.precision(),
-                    first.scale(),
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| a - b
-                    ),
-                )
-                .into()
-            }
-            (Array::Decimal128(first), Array::Decimal128(second)) => {
-                // TODO: Scale
-                Decimal128Array::new(
-                    first.precision(),
-                    first.scale(),
-                    primitive_binary_execute_no_wrap!(
-                        first.get_primitive(),
-                        second.get_primitive(),
-                        |a, b| a - b
-                    ),
-                )
-                .into()
-            }
-            (Array::Date32(first), Array::Int64(second)) => {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+        let b = inputs[1];
+
+        let datatype = self.datatype.clone();
+
+        // Special cases.
+        match (a.datatype(), b.datatype()) {
+            (DataType::Date32, DataType::Int32) => {
                 // Date32 is stored as "days", so just sub the values.
-                primitive_binary_execute!(first, second, Date32, |a, b| a - b as i32)
+                return BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                );
             }
-            other => panic!("unexpected array type: {other:?}"),
-        })
+            (DataType::Date32, DataType::Int64) => {
+                // Same as above.
+                return BinaryExecutor::execute::<PhysicalI32, PhysicalI64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b as i32)),
+                );
+            }
+            _ => (),
+        }
+
+        match (a.physical_type(), b.physical_type()) {
+            (PhysicalType::Int8, PhysicalType::Int8) => {
+                BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::Int16, PhysicalType::Int16) => {
+                BinaryExecutor::execute::<PhysicalI16, PhysicalI16, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::Int32, PhysicalType::Int32) => {
+                BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::Int64, PhysicalType::Int64) => {
+                BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::Int128, PhysicalType::Int128) => {
+                BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+
+            (PhysicalType::UInt8, PhysicalType::UInt8) => {
+                BinaryExecutor::execute::<PhysicalU8, PhysicalU8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::UInt16, PhysicalType::UInt16) => {
+                BinaryExecutor::execute::<PhysicalU16, PhysicalU16, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::UInt32, PhysicalType::UInt32) => {
+                BinaryExecutor::execute::<PhysicalU32, PhysicalU32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::UInt64, PhysicalType::UInt64) => {
+                BinaryExecutor::execute::<PhysicalU64, PhysicalU64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::UInt128, PhysicalType::UInt128) => {
+                BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::Float32, PhysicalType::Float32) => {
+                BinaryExecutor::execute::<PhysicalF32, PhysicalF32, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+            (PhysicalType::Float64, PhysicalType::Float64) => {
+                BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a - b)),
+                )
+            }
+
+            (a, b) => Err(unhandled_physical_types_err(self, [a, b])),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use rayexec_bullet::{
-        array::{Array, Int32Array},
-        datatype::DataType,
-    };
+    use rayexec_bullet::datatype::DataType;
 
     use crate::functions::scalar::ScalarFunction;
 
@@ -227,15 +332,15 @@ mod tests {
 
     #[test]
     fn sub_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([4, 5, 6])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
+        let a = Array::from_iter([4, 5, 6]);
+        let b = Array::from_iter([1, 2, 3]);
 
         let specialized = Sub
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Int32(Int32Array::from_iter([3, 3, 3]));
+        let expected = Array::from_iter([3, 3, 3]);
 
         assert_eq!(expected, out);
     }

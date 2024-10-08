@@ -1,3 +1,4 @@
+use rayexec_error::Result;
 use std::sync::Arc;
 
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -10,8 +11,12 @@ use crate::{
 use super::{
     binder::bind_context::TableRef,
     operator::{LogicalNode, Node},
+    scan_filter::ScanFilter,
+    statistics::{Statistics, StatisticsCount},
 };
 
+// TODO: Probably remove view from this.
+// Maybe just split it all up.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanSource {
     Table {
@@ -32,6 +37,20 @@ pub enum ScanSource {
     },
 }
 
+impl ScanSource {
+    fn statistics(&self) -> Statistics {
+        match self {
+            Self::Table { .. } => Statistics::unknown(),
+            Self::TableFunction { function } => function.statistics(),
+            Self::ExpressionList { rows } => Statistics {
+                cardinality: StatisticsCount::Exact(rows.len()),
+                column_stats: None,
+            },
+            Self::View { .. } => Statistics::unknown(),
+        }
+    }
+}
+
 /// Represents a scan from some source.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalScan {
@@ -43,6 +62,20 @@ pub struct LogicalScan {
     pub names: Vec<String>,
     /// Positional column projections.
     pub projection: Vec<usize>,
+    /// If we've pruned columns.
+    ///
+    /// If we did, that info will be passed into the data table.
+    pub did_prune_columns: bool,
+    /// Scan filters that have been pushed down.
+    ///
+    /// This represents some number of filters logically ANDed together.
+    ///
+    /// Currently scan filters are optional to be applied in the scan. At some
+    /// point we should allow sources to determine what filters they can/can't
+    /// use and push down accordingly. For now, a Filter operator remains in
+    /// place directly above the scan with expressions representing the same
+    /// filters applied here.
+    pub scan_filters: Vec<ScanFilter>,
     /// Source of the scan.
     pub source: ScanSource,
 }
@@ -85,5 +118,37 @@ impl Explainable for LogicalScan {
 impl LogicalNode for Node<LogicalScan> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         vec![self.node.table_ref]
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        self.node.source.statistics()
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        if let ScanSource::ExpressionList { rows } = &self.node.source {
+            for row in rows {
+                for expr in row {
+                    func(expr)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        if let ScanSource::ExpressionList { rows } = &mut self.node.source {
+            for row in rows {
+                for expr in row {
+                    func(expr)?;
+                }
+            }
+        }
+        Ok(())
     }
 }

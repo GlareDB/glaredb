@@ -3,35 +3,35 @@
 query TT
 describe select 1
 ----
-?column?  Int64
+?column?  Int32
 
 query TT
 describe select 1 as a
 ----
-a  Int64
+a  Int32
 
 query TT
 describe select 1 as a, 'hello' as b
 ----
-a  Int64
+a  Int32
 b  Utf8
 
 query TT
 describe select * from (values (1,2.0,3.0::decimal(18,9))) as v(a,b,c);
 ----
-a  Int64
+a  Int32
 b  Float64
 c  Decimal64(18,9)
 
 query TT
 describe select a from (values (1,2.0,3.0::decimal(18,9))) as v(a,b,c);
 ----
-a  Int64
+a  Int32
 
 query TT
 describe select v.a from (values (1,2.0,3.0::decimal(18,9))) as v(a,b,c);
 ----
-a  Int64
+a  Int32
 
 query TT
 describe
@@ -68,12 +68,12 @@ c2  Utf8
 query TT
 describe select * from (values (1,2), (3,4)) l(a, b), (values (4,5)) r(c, d);
 ----
-a  Int64
-b  Int64
-c  Int64
-d  Int64
+a  Int32
+b  Int32
+c  Int32
+d  Int32
 
 query TT
 describe select min(1);
 ----
-min  Int64
+min  Int32

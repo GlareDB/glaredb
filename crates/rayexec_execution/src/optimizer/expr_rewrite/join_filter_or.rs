@@ -5,7 +5,7 @@ use crate::{
         conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
         Expression,
     },
-    logical::binder::bind_context::TableRef,
+    logical::binder::bind_context::{BindContext, TableRef},
 };
 use rayexec_error::Result;
 
@@ -24,7 +24,7 @@ use super::ExpressionRewriteRule;
 pub struct JoinFilterOrRewrite;
 
 impl ExpressionRewriteRule for JoinFilterOrRewrite {
-    fn rewrite(mut expression: Expression) -> Result<Expression> {
+    fn rewrite(_bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
         fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::Or => {

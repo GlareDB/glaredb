@@ -1,6 +1,9 @@
 use fmtutil::IntoDisplayableSlice;
 
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    functions::scalar::PlannedScalarFunction,
+};
 use std::fmt;
 
 use super::Expression;
@@ -11,13 +14,22 @@ pub struct ScalarFunctionExpr {
     pub inputs: Vec<Expression>,
 }
 
-impl fmt::Display for ScalarFunctionExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for ScalarFunctionExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let inputs: Vec<_> = self
+            .inputs
+            .iter()
+            .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
+            .collect();
         write!(
             f,
             "{}({})",
             self.function.scalar_function().name(),
-            self.inputs.display_as_list()
+            inputs.display_as_list()
         )
     }
 }

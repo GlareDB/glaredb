@@ -5,6 +5,7 @@ use rayexec_error::Result;
 use rayexec_execution::{
     database::DatabaseContext,
     functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
+    logical::statistics::{Statistics, StatisticsCount},
     runtime::Runtime,
     storage::table_storage::DataTable,
 };
@@ -131,6 +132,22 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
 
     fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
         self.state.encode(state)
+    }
+
+    fn statistics(&self) -> Statistics {
+        let num_rows = self
+            .state
+            .metadata
+            .decoded_metadata
+            .row_groups()
+            .iter()
+            .map(|g| g.num_rows())
+            .sum::<i64>() as usize;
+
+        Statistics {
+            cardinality: StatisticsCount::Exact(num_rows),
+            column_stats: None,
+        }
     }
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {

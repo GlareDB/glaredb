@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_execution::{
     database::catalog_entry::CatalogEntry,
     execution::operators::sink::PartitionSink,
-    storage::table_storage::{DataTable, DataTableScan, TableStorage},
+    storage::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage},
 };
 
 // Much of the debug table implementation was copied from the memory table
@@ -123,7 +123,11 @@ pub struct DebugDataTable {
 }
 
 impl DataTable for DebugDataTable {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let mut scans: Vec<_> = (0..num_partitions)
             .map(|_| DebugDataTableScan { data: Vec::new() })
             .collect();
@@ -139,7 +143,7 @@ impl DataTable for DebugDataTable {
 
         Ok(scans
             .into_iter()
-            .map(|scan| Box::new(scan) as Box<_>)
+            .map(|scan| Box::new(ProjectedScan::new(scan, projections.clone())) as Box<_>)
             .collect())
     }
 

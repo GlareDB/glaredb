@@ -194,8 +194,8 @@ mod tests {
 
         let cols = columns_in_scope(&bind_context, bind_context.root_scope_ref());
         let expected = vec![
-            ("?column?".to_string(), DataType::Int64),
-            ("my_alias".to_string(), DataType::Int64),
+            ("?column?".to_string(), DataType::Int32),
+            ("my_alias".to_string(), DataType::Int32),
         ];
 
         assert_eq!(expected, cols);

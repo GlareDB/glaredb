@@ -6,7 +6,7 @@ use crate::functions::aggregate::{multi_array_drain, GroupedStates};
 use crate::proto::DatabaseProtoConv;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::executor::aggregate::RowToStateMapping;
 use rayexec_error::{RayexecError, Result};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -132,19 +132,22 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
         match state {
             UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
-                // All rows contribute to computing the aggregate.
-                let row_selection = Bitmap::new_with_val(true, batch.num_rows());
                 // All rows map to the same group (group 0)
-                let mapping = vec![0; batch.num_rows()];
+                let mapping: Vec<_> = (0..batch.num_rows())
+                    .map(|row| RowToStateMapping {
+                        from_row: row,
+                        to_state: 0,
+                    })
+                    .collect();
 
                 for (agg_idx, agg) in self.aggregates.iter().enumerate() {
                     let cols: Vec<_> = agg
                         .columns
                         .iter()
-                        .map(|expr| batch.column(expr.idx).expect("column to exist").as_ref())
+                        .map(|expr| batch.column(expr.idx).expect("column to exist"))
                         .collect();
 
-                    agg_states[agg_idx].update_states(&row_selection, &cols, &mapping)?;
+                    agg_states[agg_idx].update_states(&cols, &mapping)?;
                 }
 
                 // Keep pushing.
@@ -206,7 +209,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     std::mem::drop(shared);
 
                     let mut batches = Vec::new();
-                    while let Some(arrays) = multi_array_drain(&mut final_states, 1000)? {
+                    while let Some(arrays) = multi_array_drain(final_states.iter_mut(), 1000)? {
                         let batch = Batch::try_new(arrays)?;
                         batches.push(batch);
                     }
@@ -242,7 +245,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
         match state {
             UngroupedAggregatePartitionState::Producing { batches, .. } => match batches.pop() {
-                Some(batch) => Ok(PollPull::Batch(batch)),
+                Some(batch) => Ok(PollPull::Computed(batch.into())),
                 None => Ok(PollPull::Exhausted),
             },
             UngroupedAggregatePartitionState::Aggregating { partition_idx, .. } => {

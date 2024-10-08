@@ -1,6 +1,6 @@
 pub mod encoding;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use crate::{array::Array, scalar::ScalarValue};
 
@@ -23,14 +23,12 @@ impl<'a> ScalarRow<'a> {
 
     /// Create a new row representation backed by data from arrays.
     pub fn try_new_from_arrays(arrays: &[&'a Array], row: usize) -> Result<ScalarRow<'a>> {
-        let scalars = arrays
+        let vals = arrays
             .iter()
-            .map(|arr| arr.scalar(row))
-            .collect::<Option<Vec<_>>>();
-        let scalars =
-            scalars.ok_or_else(|| RayexecError::new("Row {idx} does not exist in arrays"))?;
+            .map(|a| a.logical_value(row))
+            .collect::<Result<Vec<_>>>()?;
 
-        Ok(ScalarRow { columns: scalars })
+        Ok(ScalarRow { columns: vals })
     }
 
     /// Return an iterator over all columns in the row.

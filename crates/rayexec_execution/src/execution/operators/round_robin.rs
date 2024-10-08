@@ -214,7 +214,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         match inner.batches.pop_front() {
             Some(batch) => {
                 inner.wake_n_senders(1);
-                Ok(PollPull::Batch(batch))
+                Ok(PollPull::Computed(batch.into()))
             }
             None => {
                 if inner.exhausted {

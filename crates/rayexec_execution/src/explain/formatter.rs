@@ -18,14 +18,14 @@ use super::explainable::{ExplainConfig, ExplainEntry};
 #[derive(Debug)]
 pub struct ExplainFormatter<'a> {
     bind_context: &'a BindContext,
-    config: ExplainConfig,
+    config: ExplainConfig<'a>,
     format: ExplainFormat,
 }
 
 impl<'a> ExplainFormatter<'a> {
     pub fn new(
         bind_context: &'a BindContext,
-        config: ExplainConfig,
+        config: ExplainConfig<'a>,
         format: ExplainFormat,
     ) -> Self {
         ExplainFormatter {

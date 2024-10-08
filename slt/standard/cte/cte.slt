@@ -49,7 +49,7 @@ with cte1 as (select 4 as a) select t1.a + t2.a from cte1 as t1, cte1 as t2;
 query TT
 describe with cte1 as (select 4 as a) select t1.a + t2.a from cte1 as t1, cte1 as t2;
 ----
-?column?  Int64
+?column?  Int32
 
 query I
 with cte1 as (select 4 as a) select c + d from cte1 as t1(c), cte1 as t2(d);

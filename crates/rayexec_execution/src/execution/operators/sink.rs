@@ -2,10 +2,8 @@ use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use futures::{future::BoxFuture, FutureExt};
 use parking_lot::Mutex;
-use rayexec_bullet::{
-    array::{Array, PrimitiveArray},
-    batch::Batch,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use std::sync::Arc;
 use std::task::{Context, Waker};
@@ -366,12 +364,9 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                         let row_count = shared.global_row_count as u64;
 
-                        let row_count_batch =
-                            Batch::try_new([Array::UInt64(PrimitiveArray::from_iter([
-                                row_count,
-                            ]))])?;
+                        let row_count_batch = Batch::try_new([Array::from_iter([row_count])])?;
 
-                        return Ok(PollPull::Batch(row_count_batch));
+                        return Ok(PollPull::Computed(row_count_batch.into()));
                     }
 
                     Ok(PollPull::Exhausted)

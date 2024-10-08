@@ -6,7 +6,7 @@ CREATE TEMP TABLE ints (i INT);
 statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
-query IT
+query IT rowsort
 SELECT i, i IN (SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     true
@@ -14,7 +14,7 @@ SELECT i, i IN (SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 6     true
 NULL  false
 
-query IT
+query IT rowsort
 SELECT i, i + 1 IN (SELECT i FROM ints WHERE i >= a1.i) FROM ints a1;
 ----
 4     true

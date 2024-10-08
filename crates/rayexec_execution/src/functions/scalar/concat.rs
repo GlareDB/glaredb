@@ -1,11 +1,13 @@
-use std::sync::Arc;
-
 use rayexec_bullet::{
-    array::{Array, Utf8Array, VarlenValuesBuffer},
+    array::Array,
     datatype::{DataType, DataTypeId},
-    executor::scalar::UniformExecutor,
+    executor::{
+        builder::{ArrayBuilder, GermanVarlenBuffer},
+        physical_type::PhysicalUtf8,
+        scalar::{BinaryExecutor, UniformExecutor},
+    },
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
@@ -64,27 +66,55 @@ impl PlannedScalarFunction for StringConcatImpl {
         DataType::Utf8
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        if inputs.is_empty() {
-            return Ok(Array::Utf8(Utf8Array::from(vec![String::new()])));
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        match inputs.len() {
+            0 => {
+                let mut array = Array::from_iter([""]);
+                array.set_physical_validity(0, false);
+                Ok(array)
+            }
+            1 => Ok(inputs[0].clone()),
+            2 => {
+                let a = inputs[0];
+                let b = inputs[1];
+
+                let mut string_buf = String::new();
+
+                // TODO: Compute data capacity.
+
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| {
+                        string_buf.clear();
+                        string_buf.push_str(a);
+                        string_buf.push_str(b);
+                        buf.put(string_buf.as_str());
+                    },
+                )
+            }
+            _ => {
+                let mut string_buf = String::new();
+
+                UniformExecutor::execute::<PhysicalUtf8, _, _>(
+                    inputs,
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(inputs[0].logical_len()),
+                    },
+                    |strings, buf| {
+                        string_buf.clear();
+                        for s in strings {
+                            string_buf.push_str(s);
+                        }
+                        buf.put(string_buf.as_str());
+                    },
+                )
+            }
         }
-
-        let string_arrs = inputs
-            .iter()
-            .map(|arr| match arr.as_ref() {
-                Array::Utf8(arr) => Ok(arr),
-                other => Err(RayexecError::new(format!(
-                    "Expected Utf8 arrays, got {}",
-                    other.datatype(),
-                ))),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut values = VarlenValuesBuffer::default();
-
-        // TODO: Reusable buffer?
-        let validity = UniformExecutor::execute(&string_arrs, |strs| strs.join(""), &mut values)?;
-
-        Ok(Array::Utf8(Utf8Array::new(values, validity)))
     }
 }

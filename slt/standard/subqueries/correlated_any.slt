@@ -8,7 +8,7 @@ INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
 # ANY
 
-query IT
+query IT rowsort
 SELECT i, i = ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     true
@@ -16,7 +16,7 @@ SELECT i, i = ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 6     true
 NULL  false
 
-query IT
+query IT rowsort
 SELECT i, i > ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     false
@@ -24,7 +24,7 @@ SELECT i, i > ANY(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 6     false
 NULL  false
 
-query IT
+query IT rowsort
 SELECT i, i > ANY(SELECT i FROM ints WHERE i + 1 = a1.i) FROM ints a1;
 ----
 4     false
@@ -32,13 +32,13 @@ SELECT i, i > ANY(SELECT i FROM ints WHERE i + 1 = a1.i) FROM ints a1;
 6     true
 NULL  false
 
-query I
+query I rowsort
 SELECT * FROM ints a1 WHERE i > ANY(SELECT i FROM ints WHERE i != a1.i);
 ----
 5
 6
 
-query I
+query I rowsort
 SELECT * FROM ints a1 WHERE i < ANY(SELECT i FROM ints WHERE i != a1.i);
 ----
 4
@@ -46,7 +46,7 @@ SELECT * FROM ints a1 WHERE i < ANY(SELECT i FROM ints WHERE i != a1.i);
 
 # ALL
 
-query IT
+query IT rowsort
 SELECT i, i = ALL(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     true
@@ -54,7 +54,7 @@ SELECT i, i = ALL(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 6     true
 NULL  true
 
-query IT
+query IT rowsort
 SELECT i, i != ALL(SELECT i FROM ints WHERE i = a1.i) FROM ints a1;
 ----
 4     false

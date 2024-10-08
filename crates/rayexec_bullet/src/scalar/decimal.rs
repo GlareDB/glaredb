@@ -4,7 +4,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 
-pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Debug + Display {
+pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Default + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.
     ///
     /// This is guaranteed to be called with a non-zero positive number.

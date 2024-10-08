@@ -2,12 +2,8 @@ pub mod decimal;
 pub mod interval;
 pub mod timestamp;
 
-use crate::array::{
-    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal64Array,
-    Float32Array, Float64Array, Int128Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    IntervalArray, LargeBinaryArray, LargeUtf8Array, ListArray, NullArray, TimestampArray,
-    UInt128Array, UInt16Array, UInt32Array, UInt64Array, UInt8Array, Utf8Array,
-};
+use crate::array::{Array, ArrayData};
+use crate::bitmap::Bitmap;
 use crate::compute::cast::format::{
     BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
     Float32Formatter, Float64Formatter, Formatter, Int128Formatter, Int16Formatter, Int32Formatter,
@@ -16,9 +12,11 @@ use crate::compute::cast::format::{
     UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
 };
 use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::selection::SelectionVector;
+use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -50,9 +48,7 @@ pub enum ScalarValue<'a> {
     Timestamp(TimestampScalar),
     Interval(Interval),
     Utf8(Cow<'a, str>),
-    LargeUtf8(Cow<'a, str>),
     Binary(Cow<'a, [u8]>),
-    LargeBinary(Cow<'a, [u8]>),
     Struct(Vec<ScalarValue<'a>>),
     List(Vec<ScalarValue<'a>>),
 }
@@ -85,9 +81,7 @@ impl<'a> Hash for ScalarValue<'a> {
             Self::Timestamp(v) => v.hash(state),
             Self::Interval(v) => v.hash(state),
             Self::Utf8(v) => v.hash(state),
-            Self::LargeUtf8(v) => v.hash(state),
             Self::Binary(v) => v.hash(state),
-            Self::LargeBinary(v) => v.hash(state),
             Self::Struct(v) => v.hash(state),
             Self::List(v) => v.hash(state),
         }
@@ -124,9 +118,7 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::Timestamp(v) => DataType::Timestamp(TimestampTypeMeta::new(v.unit)),
             ScalarValue::Interval(_) => DataType::Interval,
             ScalarValue::Utf8(_) => DataType::Utf8,
-            ScalarValue::LargeUtf8(_) => DataType::LargeUtf8,
             ScalarValue::Binary(_) => DataType::Binary,
-            ScalarValue::LargeBinary(_) => DataType::LargeBinary,
             ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
             Self::List(list) => {
                 let first = list.first().unwrap(); // TODO: Allow empty list scalars?
@@ -160,9 +152,7 @@ impl<'a> ScalarValue<'a> {
             Self::Timestamp(v) => OwnedScalarValue::Timestamp(v),
             Self::Interval(v) => OwnedScalarValue::Interval(v),
             Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
-            Self::LargeUtf8(v) => OwnedScalarValue::LargeUtf8(v.into_owned().into()),
             Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
-            Self::LargeBinary(v) => OwnedScalarValue::LargeBinary(v.into_owned().into()),
             Self::Struct(v) => {
                 OwnedScalarValue::Struct(v.into_iter().map(|v| v.into_owned()).collect())
             }
@@ -173,71 +163,37 @@ impl<'a> ScalarValue<'a> {
     }
 
     /// Create an array of size `n` using the scalar value.
-    pub fn as_array(&self, n: usize) -> Array {
-        match self {
-            Self::Null => Array::Null(NullArray::new(n)),
-            Self::Boolean(v) => {
-                Array::Boolean(BooleanArray::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Float32(v) => {
-                Array::Float32(Float32Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Float64(v) => {
-                Array::Float64(Float64Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Int8(v) => Array::Int8(Int8Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int16(v) => Array::Int16(Int16Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int32(v) => Array::Int32(Int32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int64(v) => Array::Int64(Int64Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Int128(v) => Array::Int128(Int128Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt8(v) => Array::UInt8(UInt8Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt16(v) => Array::UInt16(UInt16Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt32(v) => Array::UInt32(UInt32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt64(v) => Array::UInt64(UInt64Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::UInt128(v) => {
-                Array::UInt128(UInt128Array::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Decimal64(v) => {
-                let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Decimal64(Decimal64Array::new(v.precision, v.scale, primitive))
-            }
-            Self::Decimal128(v) => {
-                let primitive = Int128Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Decimal128(Decimal128Array::new(v.precision, v.scale, primitive))
-            }
-            Self::Date32(v) => Array::Date32(Date32Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Date64(v) => Array::Date64(Date64Array::from_iter(std::iter::repeat(*v).take(n))),
-            Self::Timestamp(v) => {
-                let primitive = Int64Array::from_iter(std::iter::repeat(v.value).take(n));
-                Array::Timestamp(TimestampArray::new(v.unit, primitive))
-            }
-            Self::Interval(v) => {
-                Array::Interval(IntervalArray::from_iter(std::iter::repeat(*v).take(n)))
-            }
-            Self::Utf8(v) => {
-                Array::Utf8(Utf8Array::from_iter(std::iter::repeat(v.as_ref()).take(n)))
-            }
-            Self::LargeUtf8(v) => Array::LargeUtf8(LargeUtf8Array::from_iter(
-                std::iter::repeat(v.as_ref()).take(n),
-            )),
-            Self::Binary(v) => Array::Binary(BinaryArray::from_iter(
-                std::iter::repeat(v.as_ref()).take(n),
-            )),
-            Self::LargeBinary(v) => Array::LargeBinary(LargeBinaryArray::from_iter(
-                std::iter::repeat(v.as_ref()).take(n),
-            )),
-            Self::Struct(_) => unimplemented!("struct into array"),
-            Self::List(v) => {
-                let children: Vec<_> = v.iter().map(|v| v.as_array(n)).collect();
-                let refs: Vec<_> = children.iter().collect();
-                let array = if refs.is_empty() {
-                    ListArray::new_empty_with_n_rows(n)
-                } else {
-                    ListArray::try_from_children(&refs).expect("list array to build")
-                };
-                Array::List(array)
-            }
-        }
+    pub fn as_array(&self, n: usize) -> Result<Array> {
+        let data: ArrayData = match self {
+            Self::Null => return Ok(Array::new_untyped_null_array(n)),
+            Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
+            Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int16(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Int128(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt8(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt16(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::UInt128(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Decimal64(v) => PrimitiveStorage::from(vec![v.value]).into(),
+            Self::Decimal128(v) => PrimitiveStorage::from(vec![v.value]).into(),
+            Self::Date32(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Date64(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Timestamp(v) => PrimitiveStorage::from(vec![v.value]).into(),
+            Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
+            Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
+            Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
+            other => not_implemented!("{other} to array"), // Struct, List
+        };
+
+        let mut array = Array::new_with_array_data(self.datatype(), data);
+        array.selection = Some(SelectionVector::repeated(n, 0).into());
+
+        Ok(array)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {
@@ -315,14 +271,14 @@ impl<'a> ScalarValue<'a> {
 
     pub fn try_as_str(&self) -> Result<&str> {
         match self {
-            Self::Utf8(v) | Self::LargeUtf8(v) => Ok(v.as_ref()),
+            Self::Utf8(v) => Ok(v.as_ref()),
             other => Err(RayexecError::new(format!("Not a string: {other}"))),
         }
     }
 
     pub fn try_into_string(self) -> Result<String> {
         match self {
-            Self::Utf8(v) | Self::LargeUtf8(v) => Ok(v.to_string()),
+            Self::Utf8(v) => Ok(v.to_string()),
             other => Err(RayexecError::new(format!("Not a string: {other}"))),
         }
     }
@@ -363,9 +319,7 @@ impl fmt::Display for ScalarValue<'_> {
             },
             Self::Interval(v) => IntervalFormatter.write(v, f),
             Self::Utf8(v) => write!(f, "{}", v),
-            Self::LargeUtf8(v) => write!(f, "{}", v),
             Self::Binary(v) => write!(f, "{:X?}", v),
-            Self::LargeBinary(v) => write!(f, "{:X?}", v),
             Self::Struct(fields) => write!(
                 f,
                 "{{{}}}",
@@ -453,6 +407,12 @@ impl<'a> From<u64> for ScalarValue<'a> {
     }
 }
 
+impl<'a> From<Interval> for ScalarValue<'a> {
+    fn from(value: Interval) -> Self {
+        ScalarValue::Interval(value)
+    }
+}
+
 impl<'a> From<&'a str> for ScalarValue<'a> {
     fn from(value: &'a str) -> Self {
         ScalarValue::Utf8(Cow::Borrowed(value))
@@ -510,9 +470,7 @@ impl ProtoConv for OwnedScalarValue {
             Self::Date64(v) => Value::ScalarDate64(*v),
             Self::Interval(v) => Value::ScalarInterval(v.to_proto()?),
             Self::Utf8(v) => Value::ScalarUtf8(v.clone().into()),
-            Self::LargeUtf8(v) => Value::ScalarLargeUtf8(v.clone().into()),
             Self::Binary(v) => Value::ScalarBinary(v.clone().into()),
-            Self::LargeBinary(v) => Value::ScalarLargeBinary(v.clone().into()),
             Self::Struct(v) => {
                 let values = v.iter().map(|v| v.to_proto()).collect::<Result<Vec<_>>>()?;
                 Value::ScalarStruct(StructScalar { values })
@@ -556,9 +514,7 @@ impl ProtoConv for OwnedScalarValue {
             Value::ScalarDate64(v) => Self::Date64(v),
             Value::ScalarInterval(v) => Self::Interval(Interval::from_proto(v)?),
             Value::ScalarUtf8(v) => Self::Utf8(v.into()),
-            Value::ScalarLargeUtf8(v) => Self::LargeUtf8(v.into()),
             Value::ScalarBinary(v) => Self::Binary(v.into()),
-            Value::ScalarLargeBinary(v) => Self::LargeBinary(v.into()),
             Value::ScalarStruct(v) => {
                 let values = v
                     .values

@@ -84,6 +84,12 @@ select 'abc' LIKE '%';
 ----
 true
 
+# Constant expression on right side.
+query B
+select 'abc' LIKE ('%b' || 'c%');
+----
+true
+
 # NOT LIKE
 
 query B

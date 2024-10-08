@@ -1,10 +1,14 @@
+use std::sync::Arc;
+
 use crate::{
     database::DatabaseContext,
-    storage::table_storage::{DataTable, DataTableScan, EmptyTableScan},
+    storage::table_storage::{
+        DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
+    },
 };
 use futures::future::BoxFuture;
 use rayexec_bullet::{
-    array::{Array, Int64Array},
+    array::{Array, ArrayData},
     batch::Batch,
     datatype::DataType,
     field::{Field, Schema},
@@ -106,14 +110,21 @@ impl PlannedTableFunction for GenerateSeriesI64 {
 }
 
 impl DataTable for GenerateSeriesI64 {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(GenerateSeriesScan {
-            batch_size: 1024,
-            exhausted: false,
-            curr: self.start,
-            stop: self.stop,
-            step: self.step,
-        })];
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
+        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(ProjectedScan::new(
+            GenerateSeriesScan {
+                batch_size: 1024,
+                exhausted: false,
+                curr: self.start,
+                stop: self.stop,
+                step: self.step,
+            },
+            projections,
+        ))];
         scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
 
         Ok(scans)
@@ -163,7 +174,8 @@ impl GenerateSeriesScan {
             self.curr = *last + self.step;
         }
 
-        let col = Array::Int64(Int64Array::from(series));
+        let col =
+            Array::new_with_array_data(DataType::Int64, ArrayData::Int64(Arc::new(series.into())));
         let batch = Batch::try_new([col]).expect("batch to be valid");
 
         Some(batch)

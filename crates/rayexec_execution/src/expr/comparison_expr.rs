@@ -1,4 +1,7 @@
-use crate::functions::scalar::{comparison, ScalarFunction};
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    functions::scalar::{comparison, ScalarFunction},
+};
 use std::fmt;
 
 use super::{AsScalarFunction, Expression};
@@ -70,8 +73,18 @@ pub struct ComparisonExpr {
     pub op: ComparisonOperator,
 }
 
-impl fmt::Display for ComparisonExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.op, self.right)
+impl ContextDisplay for ComparisonExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            ContextDisplayWrapper::with_mode(self.left.as_ref(), mode),
+            self.op,
+            ContextDisplayWrapper::with_mode(self.right.as_ref(), mode),
+        )
     }
 }

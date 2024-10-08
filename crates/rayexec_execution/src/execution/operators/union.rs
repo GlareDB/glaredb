@@ -204,7 +204,7 @@ impl ExecutableOperator for PhysicalUnion {
                     if let Some(waker) = state.push_waker.take() {
                         waker.wake();
                     }
-                    Ok(PollPull::Batch(batch))
+                    Ok(PollPull::Computed(batch.into()))
                 }
                 None => {
                     let mut shared = match operator_state {
@@ -219,7 +219,7 @@ impl ExecutableOperator for PhysicalUnion {
                         if let Some(waker) = shared.push_waker.take() {
                             waker.wake();
                         }
-                        return Ok(PollPull::Batch(batch));
+                        return Ok(PollPull::Computed(batch.into()));
                     }
 
                     // If not, check if we're finished.

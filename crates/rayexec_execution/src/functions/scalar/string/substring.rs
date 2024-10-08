@@ -1,14 +1,16 @@
-use std::sync::Arc;
-
 use rayexec_bullet::{
-    array::{Array, VarlenArray, VarlenValuesBuffer},
+    array::Array,
     datatype::{DataType, DataTypeId},
-    executor::scalar::{BinaryExecutor, TernaryExecutor},
+    executor::{
+        builder::{ArrayBuilder, GermanVarlenBuffer},
+        physical_type::{PhysicalI64, PhysicalUtf8},
+        scalar::{BinaryExecutor, TernaryExecutor},
+    },
 };
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::functions::{
-    exec_invalid_array_type_err, invalid_input_types_error, plan_check_num_args_one_of,
+    invalid_input_types_error, plan_check_num_args_one_of,
     scalar::{PlannedScalarFunction, ScalarFunction},
     FunctionInfo, Signature,
 };
@@ -81,43 +83,38 @@ impl PlannedScalarFunction for SubstringImpl {
         DataType::Utf8
     }
 
-    fn execute(&self, inputs: &[&Arc<Array>]) -> Result<Array> {
-        if inputs.len() == 2 {
-            let strings = match inputs[0].as_ref() {
-                Array::Utf8(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let from = match inputs[1].as_ref() {
-                Array::Int64(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let mut values = VarlenValuesBuffer::<i32>::default();
-            let validity = BinaryExecutor::execute(strings, from, substring_from, &mut values)?;
-
-            Ok(Array::Utf8(VarlenArray::new(values, validity)))
-        } else {
-            let strings = match inputs[0].as_ref() {
-                Array::Utf8(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let from = match inputs[1].as_ref() {
-                Array::Int64(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let count = match inputs[2].as_ref() {
-                Array::Int64(arr) => arr,
-                other => return Err(exec_invalid_array_type_err(self, other)),
-            };
-
-            let mut values = VarlenValuesBuffer::<i32>::default();
-            let validity =
-                TernaryExecutor::execute(strings, from, count, substring_from_count, &mut values)?;
-
-            Ok(Array::Utf8(VarlenArray::new(values, validity)))
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        // TODO: Capacity
+        // TODO: Also would be possible to use the same underlying storage.
+        match inputs.len() {
+            2 => {
+                let len = inputs[0].logical_len();
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(len),
+                    },
+                    |s, from, buf| buf.put(substring_from(s, from)),
+                )
+            }
+            3 => {
+                let len = inputs[0].logical_len();
+                TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    inputs[2],
+                    ArrayBuilder {
+                        datatype: DataType::Utf8,
+                        buffer: GermanVarlenBuffer::with_len(len),
+                    },
+                    |s, from, count, buf| buf.put(substring_from_count(s, from, count)),
+                )
+            }
+            other => Err(RayexecError::new(format!(
+                "Unexpected array count: {other}"
+            ))),
         }
     }
 }

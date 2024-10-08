@@ -15,9 +15,9 @@ SELECT not(NULL);
 ----
 NULL
 
-query T
-SELECT NOT a FROM (VALUES (true), (false), (NULL)) v(a);
+query TT rowsort
+SELECT a, NOT a FROM (VALUES (true), (false), (NULL)) v(a);
 ----
-false
-true
-NULL
+NULL  NULL
+false true
+true  false

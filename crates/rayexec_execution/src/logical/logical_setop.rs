@@ -1,4 +1,9 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use rayexec_error::Result;
+
+use crate::{
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    expr::Expression,
+};
 use std::fmt;
 
 use super::{
@@ -46,5 +51,19 @@ impl Explainable for LogicalSetop {
 impl LogicalNode for Node<LogicalSetop> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         vec![self.node.table_ref]
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }

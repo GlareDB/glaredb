@@ -1,15 +1,22 @@
+use rayexec_error::Result;
+
 use crate::{
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    explain::{
+        context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+        explainable::{ExplainConfig, ExplainEntry, Explainable},
+    },
     expr::{
         comparison_expr::{ComparisonExpr, ComparisonOperator},
         Expression,
     },
+    logical::statistics::{assumptions::DEFAULT_SELECTIVITY, StatisticsCount},
 };
 use std::fmt;
 
 use super::{
     binder::bind_context::{MaterializationRef, TableRef},
     operator::{LogicalNode, Node},
+    statistics::Statistics,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,6 +61,39 @@ impl JoinType {
             refs
         } else {
             node.get_children_table_refs()
+        }
+    }
+
+    fn statistics<T>(self, node: &Node<T>) -> Statistics {
+        let mut iter = node.iter_child_statistics();
+        let left = iter.next().expect("first child");
+        let right = iter.next().expect("second child");
+
+        let left_card = left.cardinality.value();
+        let right_card = right.cardinality.value();
+
+        let cardinality = match self {
+            Self::Left | Self::LeftMark { .. } => match left_card {
+                Some(v) => StatisticsCount::Estimated(v),
+                _ => StatisticsCount::Unknown,
+            },
+            Self::Right => match right_card {
+                Some(v) => StatisticsCount::Estimated(v),
+                _ => StatisticsCount::Unknown,
+            },
+            Self::Inner => match (left_card, right_card) {
+                (Some(left), Some(right)) => {
+                    let estimated = (left as f64) * (right as f64) * DEFAULT_SELECTIVITY;
+                    StatisticsCount::Estimated(estimated as usize)
+                }
+                _ => StatisticsCount::Unknown,
+            },
+            _ => StatisticsCount::Unknown,
+        };
+
+        Statistics {
+            cardinality,
+            column_stats: None,
         }
     }
 }
@@ -103,6 +143,22 @@ impl fmt::Display for ComparisonCondition {
     }
 }
 
+impl ContextDisplay for ComparisonCondition {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            ContextDisplayWrapper::with_mode(&self.left, mode),
+            self.op,
+            ContextDisplayWrapper::with_mode(&self.right, mode),
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
@@ -110,9 +166,9 @@ pub struct LogicalComparisonJoin {
 }
 
 impl Explainable for LogicalComparisonJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ComparisonJoin")
-            .with_values("conditions", &self.conditions)
+            .with_values_context("conditions", conf, &self.conditions)
             .with_value("join_type", self.join_type)
     }
 }
@@ -120,6 +176,32 @@ impl Explainable for LogicalComparisonJoin {
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        self.node.join_type.statistics(self)
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for condition in &self.node.conditions {
+            func(&condition.left)?;
+            func(&condition.right)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for condition in &mut self.node.conditions {
+            func(&mut condition.left)?;
+            func(&mut condition.right)?;
+        }
+        Ok(())
     }
 }
 
@@ -148,9 +230,9 @@ pub struct LogicalMagicJoin {
 }
 
 impl Explainable for LogicalMagicJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("MagicJoin")
-            .with_values("conditions", &self.conditions)
+            .with_values_context("conditions", conf, &self.conditions)
             .with_value("join_type", self.join_type)
     }
 }
@@ -158,6 +240,32 @@ impl Explainable for LogicalMagicJoin {
 impl LogicalNode for Node<LogicalMagicJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        self.node.join_type.statistics(self)
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        for condition in &self.node.conditions {
+            func(&condition.left)?;
+            func(&condition.right)?;
+        }
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        for condition in &mut self.node.conditions {
+            func(&mut condition.left)?;
+            func(&mut condition.right)?;
+        }
+        Ok(())
     }
 }
 
@@ -168,16 +276,34 @@ pub struct LogicalArbitraryJoin {
 }
 
 impl Explainable for LogicalArbitraryJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("ArbitraryJoin")
             .with_value("join_type", self.join_type)
-            .with_value("condition", &self.condition)
+            .with_value_context("condition", conf, &self.condition)
     }
 }
 
 impl LogicalNode for Node<LogicalArbitraryJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        Statistics::unknown()
+    }
+
+    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        func(&self.node.condition)
+    }
+
+    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        func(&mut self.node.condition)
     }
 }
 
@@ -193,6 +319,39 @@ impl Explainable for LogicalCrossJoin {
 impl LogicalNode for Node<LogicalCrossJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.get_children_table_refs()
+    }
+
+    fn get_statistics(&self) -> Statistics {
+        let mut iter = self.iter_child_statistics();
+        let left = iter.next().expect("first child");
+        let right = iter.next().expect("second child");
+
+        let left_card = left.cardinality.value();
+        let right_card = right.cardinality.value();
+
+        let cardinality = match (left_card, right_card) {
+            (Some(left), Some(right)) => StatisticsCount::Estimated(left.saturating_mul(right)),
+            _ => StatisticsCount::Unknown,
+        };
+
+        Statistics {
+            cardinality,
+            column_stats: None,
+        }
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod column_prune;
 pub mod expr_rewrite;
 pub mod filter_pushdown;
 pub mod join_reorder;
@@ -10,6 +11,7 @@ use crate::{
     logical::{binder::bind_context::BindContext, operator::LogicalOperator},
     runtime::time::{RuntimeInstant, Timer},
 };
+use column_prune::ColumnPrune;
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
 use join_reorder::JoinReorder;
@@ -85,22 +87,32 @@ impl Optimizer {
             .timings
             .push(("limit_pushdown", timer.stop()));
 
+        // Column pruning.
+        let timer = Timer::<I>::start();
+        let mut rule = ColumnPrune::default();
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("column_pruning", timer.stop()));
+
         // DO THE OTHER RULES
+
+        // Second filter pushdown.
+        //
+        // Join order currently has a chance of producing a comparison join
+        // followed by a filter with the comparison not being an equality.
+        // Pushing down again gives us the best chance to get equalities into
+        // the condition (for now, we can probably work on the join order more).
+        let timer = Timer::<I>::start();
+        let mut rule = FilterPushdown::default();
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("filter_pushdown_2", timer.stop()));
 
         // TODO: Location clustering once the rest is done.
         // let rule = LocationRule {};
         // let optimized = rule.optimize(bind_context, optimized)?;
-
-        // TODO: Unsure if we actually want to do this again. We've already done
-        // the first filter pushdown, then the join reordering is essentially
-        // it's own filter push down localized to just trying to create inner joins.
-        // // Filter pushdown again.
-        // let timer = Timer::<I>::start();
-        // let mut rule = FilterPushdown::default();
-        // let plan = rule.optimize(bind_context, plan)?;
-        // self.profile_data
-        //     .timings
-        //     .push(("filter_pushdown_2", timer.stop()));
 
         self.profile_data.total = total.stop();
 

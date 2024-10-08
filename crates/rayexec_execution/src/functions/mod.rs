@@ -10,8 +10,8 @@ use std::{borrow::Borrow, fmt::Display};
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::{
-    array::Array,
     datatype::{DataType, DataTypeId},
+    executor::physical_type::PhysicalType,
 };
 use rayexec_error::{RayexecError, Result};
 use scalar::PlannedScalarFunction;
@@ -322,14 +322,15 @@ pub fn plan_check_num_args_one_of<T, const N: usize>(
     Ok(())
 }
 
-pub fn exec_invalid_array_type_err(
+pub fn unhandled_physical_types_err(
     scalar: &impl PlannedScalarFunction,
-    arr: &Array,
+    types: impl IntoIterator<Item = PhysicalType>,
 ) -> RayexecError {
+    let types: Vec<_> = types.into_iter().collect();
     RayexecError::new(format!(
-        "Invalid array type: {}, function: {}",
-        arr.datatype(),
-        scalar.scalar_function().name()
+        "Unhandled physical types: {:?}, function: {}",
+        types,
+        scalar.scalar_function().name(),
     ))
 }
 

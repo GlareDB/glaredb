@@ -3,7 +3,9 @@ use rayexec_error::Result;
 use std::fmt;
 
 use crate::{
-    functions::aggregate::PlannedAggregateFunction, logical::binder::bind_context::BindContext,
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    functions::aggregate::PlannedAggregateFunction,
+    logical::binder::bind_context::BindContext,
 };
 
 use super::Expression;
@@ -24,19 +26,27 @@ impl AggregateExpr {
     }
 }
 
-impl fmt::Display for AggregateExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for AggregateExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         write!(f, "{}", self.agg.aggregate_function().name())?;
         let inputs = self
             .inputs
             .iter()
-            .map(|e| e.to_string())
+            .map(|e| ContextDisplayWrapper::with_mode(e, mode).to_string())
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "({})", inputs)?;
 
         if let Some(filter) = self.filter.as_ref() {
-            write!(f, "FILTER (WHERE {})", filter)?;
+            write!(
+                f,
+                "FILTER (WHERE {})",
+                ContextDisplayWrapper::with_mode(filter.as_ref(), mode)
+            )?;
         }
 
         Ok(())

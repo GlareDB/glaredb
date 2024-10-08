@@ -1,99 +1,116 @@
 use std::fmt::Debug;
 
 use crate::{
-    array::{validity::union_validities, ArrayAccessor, ValuesBuffer},
+    array::Array,
     bitmap::Bitmap,
+    executor::{
+        builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
+        physical_type::PhysicalStorage,
+        scalar::validate_logical_len,
+    },
+    selection,
+    storage::AddressableStorage,
 };
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
-/// Execute an operation on three arrays.
+use super::check_validity;
+
 #[derive(Debug, Clone, Copy)]
 pub struct TernaryExecutor;
 
 impl TernaryExecutor {
-    pub fn execute<Array1, Type1, Iter1, Array2, Type2, Iter2, Array3, Type3, Iter3, Output>(
-        first: Array1,
-        second: Array2,
-        third: Array3,
-        mut operation: impl FnMut(Type1, Type2, Type3) -> Output,
-        buffer: &mut impl ValuesBuffer<Output>,
-    ) -> Result<Option<Bitmap>>
+    pub fn execute<'a, S1, S2, S3, B, Op>(
+        array1: &'a Array,
+        array2: &'a Array,
+        array3: &'a Array,
+        builder: ArrayBuilder<B>,
+        mut op: Op,
+    ) -> Result<Array>
     where
-        Output: Debug,
-        Array1: ArrayAccessor<Type1, ValueIter = Iter1>,
-        Array2: ArrayAccessor<Type2, ValueIter = Iter2>,
-        Array3: ArrayAccessor<Type3, ValueIter = Iter3>,
-        Iter1: Iterator<Item = Type1>,
-        Iter2: Iterator<Item = Type2>,
-        Iter3: Iterator<Item = Type3>,
+        Op: FnMut(
+            <S1::Storage as AddressableStorage>::T,
+            <S2::Storage as AddressableStorage>::T,
+            <S3::Storage as AddressableStorage>::T,
+            &mut OutputBuffer<B>,
+        ),
+        S1: PhysicalStorage<'a>,
+        S2: PhysicalStorage<'a>,
+        S3: PhysicalStorage<'a>,
+        B: ArrayDataBuffer,
     {
-        if first.len() != second.len() || second.len() != third.len() {
-            return Err(RayexecError::new(format!(
-                "Differing lengths of arrays, got {}, {}, and {}",
-                first.len(),
-                second.len(),
-                third.len(),
-            )));
-        }
+        let len = validate_logical_len(&builder.buffer, array1)?;
+        let _ = validate_logical_len(&builder.buffer, array2)?;
+        let _ = validate_logical_len(&builder.buffer, array3)?;
 
-        let validity = union_validities([first.validity(), second.validity(), third.validity()])?;
+        let selection1 = array1.selection_vector();
+        let selection2 = array2.selection_vector();
+        let selection3 = array3.selection_vector();
 
-        match &validity {
-            Some(validity) => {
-                for ((first, (second, third)), valid) in first
-                    .values_iter()
-                    .zip(second.values_iter().zip(third.values_iter()))
-                    .zip(validity.iter())
-                {
-                    if valid {
-                        let out = operation(first, second, third);
-                        buffer.push_value(out);
-                    } else {
-                        buffer.push_null();
-                    }
-                }
-            }
-            None => {
-                for (first, (second, third)) in first
-                    .values_iter()
-                    .zip(second.values_iter().zip(third.values_iter()))
-                {
-                    let out = operation(first, second, third);
-                    buffer.push_value(out);
-                }
-            }
-        }
+        let validity1 = array1.validity();
+        let validity2 = array2.validity();
+        let validity3 = array3.validity();
 
-        Ok(validity)
-    }
-}
+        let mut out_validity = None;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::array::{Int32Array, Utf8Array, VarlenArray, VarlenValuesBuffer};
-
-    #[test]
-    fn ternary_substr() {
-        let first = Utf8Array::from_iter(["alphabet"]);
-        let second = Int32Array::from_iter([3]);
-        let third = Int32Array::from_iter([2]);
-
-        let mut buffer = VarlenValuesBuffer::default();
-
-        let op = |s: &str, from: i32, count: i32| {
-            s.chars()
-                .skip((from - 1) as usize) // To match postgres' 1-indexing
-                .take(count as usize)
-                .collect::<String>()
+        let mut output_buffer = OutputBuffer {
+            idx: 0,
+            buffer: builder.buffer,
         };
 
-        let validity = TernaryExecutor::execute(&first, &second, &third, op, &mut buffer).unwrap();
+        if validity1.is_some() || validity2.is_some() || validity3.is_some() {
+            let values1 = S1::get_storage(&array1.data)?;
+            let values2 = S2::get_storage(&array2.data)?;
+            let values3 = S3::get_storage(&array3.data)?;
 
-        let got = VarlenArray::new(buffer, validity);
-        let expected = Utf8Array::from_iter(["ph"]);
+            let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
-        assert_eq!(expected, got);
+            for idx in 0..len {
+                let sel1 = selection::get_unchecked(selection1, idx);
+                let sel2 = selection::get_unchecked(selection2, idx);
+                let sel3 = selection::get_unchecked(selection3, idx);
+
+                if check_validity(sel1, validity1)
+                    && check_validity(sel2, validity2)
+                    && check_validity(sel3, validity3)
+                {
+                    let val1 = unsafe { values1.get_unchecked(sel1) };
+                    let val2 = unsafe { values2.get_unchecked(sel2) };
+                    let val3 = unsafe { values3.get_unchecked(sel3) };
+
+                    output_buffer.idx = idx;
+                    op(val1, val2, val3, &mut output_buffer);
+                } else {
+                    out_validity_builder.set_unchecked(idx, false);
+                }
+            }
+
+            out_validity = Some(out_validity_builder)
+        } else {
+            let values1 = S1::get_storage(&array1.data)?;
+            let values2 = S2::get_storage(&array2.data)?;
+            let values3 = S3::get_storage(&array3.data)?;
+
+            for idx in 0..len {
+                let sel1 = selection::get_unchecked(selection1, idx);
+                let sel2 = selection::get_unchecked(selection2, idx);
+                let sel3 = selection::get_unchecked(selection3, idx);
+
+                let val1 = unsafe { values1.get_unchecked(sel1) };
+                let val2 = unsafe { values2.get_unchecked(sel2) };
+                let val3 = unsafe { values3.get_unchecked(sel3) };
+
+                output_buffer.idx = idx;
+                op(val1, val2, val3, &mut output_buffer);
+            }
+        }
+
+        let data = output_buffer.buffer.into_data();
+
+        Ok(Array {
+            datatype: builder.datatype,
+            selection: None,
+            validity: out_validity,
+            data,
+        })
     }
 }

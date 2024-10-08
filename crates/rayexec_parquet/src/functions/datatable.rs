@@ -10,7 +10,7 @@ use rayexec_bullet::{batch::Batch, field::Schema};
 use rayexec_error::Result;
 use rayexec_execution::{
     runtime::Runtime,
-    storage::table_storage::{DataTable, DataTableScan},
+    storage::table_storage::{DataTable, DataTableScan, Projections},
 };
 use rayexec_io::{
     location::{AccessConfig, FileLocation},
@@ -29,7 +29,11 @@ pub struct RowGroupPartitionedDataTable<R: Runtime> {
 }
 
 impl<R: Runtime> DataTable for RowGroupPartitionedDataTable<R> {
-    fn scan(&self, num_partitions: usize) -> Result<Vec<Box<dyn DataTableScan>>> {
+    fn scan(
+        &self,
+        projections: Projections,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn DataTableScan>>> {
         let file_provider = self.runtime.file_provider();
 
         let mut partitioned_row_groups = vec![VecDeque::new(); num_partitions];
@@ -44,13 +48,14 @@ impl<R: Runtime> DataTable for RowGroupPartitionedDataTable<R> {
             .into_iter()
             .map(|row_groups| {
                 let reader = file_provider.file_source(self.location.clone(), &self.conf)?;
-                const BATCH_SIZE: usize = 2048; // TODO
+                const BATCH_SIZE: usize = 4096; // TODO
                 AsyncBatchReader::try_new(
                     reader,
                     row_groups,
                     self.metadata.clone(),
                     &self.schema,
                     BATCH_SIZE,
+                    projections.clone(),
                 )
             })
             .collect::<Result<Vec<_>>>()?;

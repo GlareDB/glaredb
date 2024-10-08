@@ -1,7 +1,9 @@
 use rayexec_bullet::field::Field;
+use rayexec_error::Result;
 
 use crate::database::create::OnConflict;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
@@ -22,6 +24,20 @@ impl Explainable for LogicalCreateSchema {
 impl LogicalNode for Node<LogicalCreateSchema> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         Vec::new()
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }
 
@@ -44,6 +60,20 @@ impl LogicalNode for Node<LogicalCreateTable> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         Vec::new()
     }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -65,5 +95,19 @@ impl Explainable for LogicalCreateView {
 impl LogicalNode for Node<LogicalCreateView> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         Vec::new()
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }

@@ -29,6 +29,8 @@ impl QueryPlanner {
                         types: table.column_types.clone(),
                         names: table.column_names.clone(),
                         projection: (0..table.num_columns()).collect(),
+                        did_prune_columns: false,
+                        scan_filters: Vec::new(),
                         source: ScanSource::ExpressionList { rows: values.rows },
                     },
                     location: LocationRequirement::Any,

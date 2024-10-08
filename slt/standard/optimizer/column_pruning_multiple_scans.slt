@@ -1,0 +1,36 @@
+# Ensure table references are unique within a query.
+#
+# Whena table is referenced, it gets assigned a TableRef. We rely on the
+# uniqueness of table refs in the query during column pruning as column
+# references to a table will get updated.
+#
+# <https://github.com/GlareDB/rayexec/issues/264>
+#
+# The above issue shows a problem where when we reference a single CTE multiple
+# time, we implicitly share table references due to cloning, when we shouldn't.
+
+# TODO: DOENS'T EXHIBIT THE ISSUE!!!!
+
+halt
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b INT);
+
+statement ok
+INSERT INTO t1 VALUES (1, 3), (2, 5);
+
+statement ok
+CREATE TEMP TABLE t2 (a INT, b INT);
+
+statement ok
+INSERT INTO t2 VALUES (1, 3), (2, 5);
+
+
+query II
+WITH my_cte AS (
+    SELECT a, sum(b) AS total FROM t2 GROUP BY a
+)
+SELECT t1.a, t1.b, m1.total
+   FROM t1, my_cte m1
+   WHERE m1.total = (SELECT max(total) FROM my_cte)
+----

@@ -6,8 +6,7 @@ use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
-    BoolType, ByteArrayType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type,
-    Int64Type, Int96Type,
+    BoolType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type, Int64Type, Int96Type,
 };
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
@@ -18,6 +17,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::FileSource;
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
@@ -40,6 +40,7 @@ pub trait ArrayBuilder<P: PageReader>: Send {
 
 /// Create a new array builder based on the provided type.
 pub fn builder_for_type<P>(
+    batch_size: usize,
     datatype: DataType,
     physical: PhysicalType,
     desc: ColumnDescPtr,
@@ -49,41 +50,41 @@ where
 {
     match (&datatype, physical) {
         (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<BoolType, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
         (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
         (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
         (DataType::Timestamp(_), PhysicalType::INT64) => {
             Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
-                datatype, desc,
+                batch_size, datatype, desc,
             )))
         }
         (DataType::Timestamp(_), PhysicalType::INT96) => {
             Ok(Box::new(PrimitiveArrayReader::<Int96Type, P>::new(
-                datatype, desc,
+                batch_size, datatype, desc,
             )))
         }
         (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
         (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
         (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
         (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
-            datatype, desc,
+            batch_size, datatype, desc,
         ))),
-        (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
-            datatype, desc,
+        (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
+            batch_size, datatype, desc,
         ))),
-        (DataType::Binary, _) => Ok(Box::new(VarlenArrayReader::<ByteArrayType, P>::new(
-            datatype, desc,
+        (DataType::Binary, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
+            batch_size, datatype, desc,
         ))),
         other => Err(RayexecError::new(format!(
             "Unimplemented parquet array builder: {other:?}"
@@ -93,7 +94,7 @@ where
 
 /// Trait for converting a buffer of values into an array.
 pub trait IntoArray {
-    fn into_array(self, def_levels: Option<Vec<i16>>) -> Array;
+    fn into_array(self, datatype: DataType, def_levels: Option<Vec<i16>>) -> Array;
 }
 
 pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
@@ -107,26 +108,27 @@ pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
 pub struct AsyncBatchReader<R: FileSource> {
     /// Reader we're reading from.
     reader: R,
-
     /// Row groups we'll be reading for.
     row_groups: VecDeque<usize>,
-
     /// Row group we're currently working.
     ///
     /// Initialized to None
     current_row_group: Option<usize>,
-
     /// Parquet metadata.
     metadata: Arc<Metadata>,
-
     /// Desired batch size.
     batch_size: usize,
+    /// All column states for columns we're reading.
+    column_states: Vec<ColumnState>,
+}
 
-    /// Builders for each column in the batch.
-    builders: Vec<Box<dyn ArrayBuilder<SerializedPageReader<InMemoryColumnChunk>>>>,
-
-    /// Columns chunks we've read.
-    column_chunks: Vec<Option<InMemoryColumnChunk>>,
+struct ColumnState {
+    /// Index of the column in the parquet file.
+    column_idx: usize,
+    /// Builder for this column.
+    builder: Box<dyn ArrayBuilder<SerializedPageReader<InMemoryColumnChunk>>>,
+    /// In-memory buffer for reading this column.
+    column_chunk: Option<InMemoryColumnChunk>,
 }
 
 impl<R: FileSource + 'static> AsyncBatchReader<R> {
@@ -136,19 +138,49 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         metadata: Arc<Metadata>,
         schema: &Schema,
         batch_size: usize,
+        projections: Projections,
     ) -> Result<Self> {
-        let column_chunks = (0..schema.fields.len()).map(|_| None).collect();
-        let mut builders = Vec::with_capacity(schema.fields.len());
+        // Create projection bitmap.
+        //
+        // TODO: This will need to change to accomodate structs in parquet
+        // files.
+        let bitmap = match &projections.column_indices {
+            Some(indices) => {
+                let mut bitmap = Bitmap::new_with_all_false(schema.fields.len());
+                for &idx in indices {
+                    bitmap.set_unchecked(idx, true);
+                }
+                bitmap
+            }
+            None => Bitmap::new_with_all_true(schema.fields.len()),
+        };
 
-        for (datatype, column_chunk_meta) in schema
+        let mut states = Vec::with_capacity(schema.fields.len());
+
+        for (col_idx, ((datatype, column_chunk_meta), projected)) in schema
             .iter()
             .map(|f| f.datatype.clone())
             .zip(metadata.decoded_metadata.row_group(0).columns())
+            .zip(bitmap.iter())
+            .enumerate()
         {
-            let physical = column_chunk_meta.column_type();
-            let builder =
-                builder_for_type(datatype, physical, column_chunk_meta.column_descr_ptr())?;
-            builders.push(builder)
+            if projected {
+                let physical = column_chunk_meta.column_type();
+                let builder = builder_for_type(
+                    batch_size,
+                    datatype,
+                    physical,
+                    column_chunk_meta.column_descr_ptr(),
+                )?;
+
+                let state = ColumnState {
+                    column_idx: col_idx,
+                    builder,
+                    column_chunk: None,
+                };
+
+                states.push(state)
+            }
         }
 
         Ok(AsyncBatchReader {
@@ -157,8 +189,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             current_row_group: None,
             metadata,
             batch_size,
-            column_chunks,
-            builders,
+            column_states: states,
         })
     }
 
@@ -166,6 +197,8 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         if self.current_row_group.is_none() {
             match self.row_groups.pop_front() {
                 Some(group) => {
+                    // DO TABLE FILTERS HERE.
+
                     self.current_row_group = Some(group);
                     self.fetch_column_chunks().await?;
                     self.set_page_readers()?;
@@ -195,14 +228,13 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     ///
     /// Returns Ok(None) when there's nothing left to read.
     fn maybe_read_batch(&mut self) -> Result<Option<Batch>> {
-        for builder in self.builders.iter_mut() {
-            builder.read_rows(self.batch_size)?;
+        for state in self.column_states.iter_mut() {
+            state.builder.read_rows(self.batch_size)?;
         }
-
         let arrays = self
-            .builders
+            .column_states
             .iter_mut()
-            .map(|builder| builder.build())
+            .map(|state| state.builder.build())
             .collect::<Result<Vec<_>>>()?;
 
         let batch = Batch::try_new(arrays)?;
@@ -215,66 +247,55 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     }
 
     fn set_page_readers(&mut self) -> Result<()> {
-        let mut builders = std::mem::take(&mut self.builders);
-        for (idx, builder) in builders.iter_mut().enumerate() {
-            let page_reader = self.take_serialized_page_reader(idx)?;
-            builder.set_page_reader(page_reader)?;
+        for state in self.column_states.iter_mut() {
+            let row_group = self.current_row_group.expect("current row group to be set");
+            let locations = self
+                .metadata
+                .decoded_metadata
+                .offset_index()
+                .map(|row_groups| row_groups[row_group][state.column_idx].clone());
+
+            let row_group_meta = self.metadata.decoded_metadata.row_group(row_group);
+
+            let chunk = match std::mem::take(&mut state.column_chunk) {
+                Some(chunk) => Arc::new(chunk),
+                None => return Err(RayexecError::new("Expected column chunk")),
+            };
+
+            let page_reader = SerializedPageReader::new(
+                chunk,
+                row_group_meta.column(state.column_idx),
+                row_group_meta.num_rows() as usize,
+                locations,
+            )
+            .context("failed to create serialize page reader")?;
+
+            state.builder.set_page_reader(page_reader)?;
         }
-        self.builders = builders;
 
         Ok(())
     }
 
     /// Fetches the column chunks for the current row group.
     async fn fetch_column_chunks(&mut self) -> Result<()> {
-        for (idx, chunk) in self.column_chunks.iter_mut().enumerate() {
+        for state in self.column_states.iter_mut() {
             let col = self
                 .metadata
                 .decoded_metadata
                 .row_group(self.current_row_group.expect("current row group to be set"))
-                .column(idx);
+                .column(state.column_idx);
             let (start, len) = col.byte_range();
 
             // TODO: Parallel reads.
             let buf = self.reader.read_range(start as usize, len as usize).await?;
 
-            *chunk = Some(InMemoryColumnChunk {
+            state.column_chunk = Some(InMemoryColumnChunk {
                 offset: start as usize,
                 buf,
             })
         }
 
         Ok(())
-    }
-
-    /// Take the underlying buffer for a column and convert into a page reader.
-    fn take_serialized_page_reader(
-        &mut self,
-        col: usize,
-    ) -> Result<SerializedPageReader<InMemoryColumnChunk>> {
-        let row_group = self.current_row_group.expect("current row group to be set");
-        let locations = self
-            .metadata
-            .decoded_metadata
-            .offset_index()
-            .map(|row_groups| row_groups[row_group][col].clone());
-
-        let row_group_meta = self.metadata.decoded_metadata.row_group(row_group);
-
-        let chunk = match std::mem::take(&mut self.column_chunks[col]) {
-            Some(chunk) => Arc::new(chunk),
-            None => return Err(RayexecError::new("Expected column chunk")),
-        };
-
-        let page_reader = SerializedPageReader::new(
-            chunk,
-            row_group_meta.column(col),
-            row_group_meta.num_rows() as usize,
-            locations,
-        )
-        .context("failed to create serialize page reader")?;
-
-        Ok(page_reader)
     }
 }
 
@@ -328,7 +349,6 @@ pub struct ValuesReader<T: ParquetDataType, P: PageReader> {
     desc: ColumnDescPtr,
     reader: Option<GenericColumnReader<T, P>>,
 
-    values: Vec<T::T>,
     def_levels: Option<Vec<i16>>,
     rep_levels: Option<Vec<i16>>,
 }
@@ -353,7 +373,6 @@ where
         Self {
             desc,
             reader: None,
-            values: Vec::new(),
             def_levels,
             rep_levels,
         }
@@ -366,7 +385,7 @@ where
         Ok(())
     }
 
-    pub fn read_records(&mut self, num_records: usize) -> Result<usize> {
+    pub fn read_records(&mut self, num_records: usize, values: &mut Vec<T::T>) -> Result<usize> {
         let reader = match &mut self.reader {
             Some(reader) => reader,
             None => return Err(RayexecError::new("Expected reader to be Some")),
@@ -380,7 +399,7 @@ where
                     to_read,
                     self.def_levels.as_mut(),
                     self.rep_levels.as_mut(),
-                    &mut self.values,
+                    values,
                 )
                 .context("read records")?;
 
@@ -388,7 +407,7 @@ where
             if values_read < levels_read {
                 // TODO: Need to revisit how we handle definition
                 // levels/repetition levels and nulls.
-                self.values.resize(levels_read, T::T::default());
+                values.resize(levels_read, T::T::default());
             }
 
             num_read += records_read;
@@ -399,10 +418,6 @@ where
         }
 
         Ok(num_read)
-    }
-
-    pub fn take_values(&mut self) -> Vec<T::T> {
-        std::mem::take(&mut self.values)
     }
 
     pub fn take_def_levels(&mut self) -> Option<Vec<i16>> {

@@ -244,7 +244,6 @@ pub fn cast_scalar(scalar: ScalarValue, to: &DataType) -> Result<OwnedScalarValu
 
         // From Utf8
         (ScalarValue::Utf8(v), datatype) => cast_from_utf8_scalar(v.as_ref(), datatype)?,
-        (ScalarValue::LargeUtf8(v), datatype) => cast_from_utf8_scalar(v.as_ref(), datatype)?,
 
         // To Utf8
         (v, DataType::Utf8) => ScalarValue::Utf8(v.to_string().into()),

@@ -2,6 +2,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
 use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
     functions::scalar::{negate, ScalarFunction},
     logical::binder::bind_context::BindContext,
 };
@@ -43,11 +44,23 @@ impl NegateExpr {
     }
 }
 
-impl fmt::Display for NegateExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for NegateExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self.op {
-            NegateOperator::Not => write!(f, "NOT({})", self.expr),
-            NegateOperator::Negate => write!(f, "-{}", self.expr),
+            NegateOperator::Not => write!(
+                f,
+                "NOT({})",
+                ContextDisplayWrapper::with_mode(self.expr.as_ref(), mode),
+            ),
+            NegateOperator::Negate => write!(
+                f,
+                "-{}",
+                ContextDisplayWrapper::with_mode(self.expr.as_ref(), mode),
+            ),
         }
     }
 }

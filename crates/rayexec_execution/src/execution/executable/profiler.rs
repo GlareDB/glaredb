@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
-use crate::explain::explainable::ExplainConfig;
+use crate::explain::{context_display::ContextDisplayMode, explainable::ExplainConfig};
 
 use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
 
@@ -27,7 +27,10 @@ impl ExecutionProfileData {
                 .iter()
                 .map(|op| {
                     op.physical_operator()
-                        .explain_entry(ExplainConfig { verbose: false })
+                        .explain_entry(ExplainConfig {
+                            context_mode: ContextDisplayMode::Raw,
+                            verbose: false,
+                        })
                         .to_string()
                 })
                 .collect(),

@@ -21,7 +21,7 @@ c  Int32
 b  Int32
 c  Int32
 
-query IIIII
+query IIIII rowsort
 SELECT * FROM t1 RIGHT JOIN t2 USING (a)
 ----
 1  2     3     2  3

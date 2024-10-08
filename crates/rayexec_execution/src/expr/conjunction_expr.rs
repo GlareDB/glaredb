@@ -1,4 +1,7 @@
-use crate::functions::scalar::{boolean, ScalarFunction};
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    functions::scalar::{boolean, ScalarFunction},
+};
 use std::fmt;
 
 use super::{AsScalarFunction, Expression};
@@ -33,18 +36,27 @@ pub struct ConjunctionExpr {
     pub expressions: Vec<Expression>,
 }
 
-impl fmt::Display for ConjunctionExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for ConjunctionExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         let mut iter = self.expressions.iter();
 
         write!(f, "(")?;
         match iter.next() {
-            Some(expr) => write!(f, "{}", expr)?,
+            Some(expr) => write!(f, "{}", ContextDisplayWrapper::with_mode(expr, mode),)?,
             None => return Ok(()),
         }
 
         for expr in iter {
-            write!(f, " {} {}", self.op, expr)?;
+            write!(
+                f,
+                " {} {}",
+                self.op,
+                ContextDisplayWrapper::with_mode(expr, mode),
+            )?;
         }
         write!(f, ")")?;
 

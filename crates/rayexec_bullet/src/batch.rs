@@ -1,12 +1,23 @@
-use crate::{array::Array, row::ScalarRow};
-use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
+use crate::{
+    array::{Array, Selection},
+    bitmap::Bitmap,
+    datatype::DataType,
+    executor::{
+        builder::{
+            ArrayBuilder, ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
+        },
+        physical_type::PhysicalType,
+    },
+    row::ScalarRow,
+    scalar::{interval::Interval, ScalarValue},
+};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 /// A batch of same-length arrays.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Columns that make up this batch.
-    cols: Vec<Arc<Array>>,
+    cols: Vec<Array>,
 
     /// Number of rows in this batch. Needed to allow for a batch that has no
     /// columns but a non-zero number of rows.
@@ -14,7 +25,7 @@ pub struct Batch {
 }
 
 impl Batch {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Batch {
             cols: Vec::new(),
             num_rows: 0,
@@ -30,22 +41,19 @@ impl Batch {
 
     /// Create a new batch from some number of arrays.
     ///
-    /// All arrays should be of the same length.
-    pub fn try_new<A>(cols: impl IntoIterator<Item = A>) -> Result<Self>
-    where
-        A: Into<Arc<Array>>,
-    {
-        let cols: Vec<_> = cols.into_iter().map(|arr| arr.into()).collect();
+    /// All arrays should have the same logical length.
+    pub fn try_new(cols: impl IntoIterator<Item = Array>) -> Result<Self> {
+        let cols: Vec<_> = cols.into_iter().collect();
         let len = match cols.first() {
-            Some(arr) => arr.len(),
+            Some(arr) => arr.logical_len(),
             None => return Ok(Self::empty()),
         };
 
         for (idx, col) in cols.iter().enumerate() {
-            if col.len() != len {
+            if col.logical_len() != len {
                 return Err(RayexecError::new(format!(
                     "Expected column length to be {len}, got {}. Column idx: {idx}",
-                    col.len()
+                    col.logical_len()
                 )));
             }
         }
@@ -56,9 +64,7 @@ impl Batch {
         })
     }
 
-    /// Project a batch using the provided indices.
-    ///
-    /// Panics if any index is out of bounds.
+    // TODO: Owned variant
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
 
@@ -68,30 +74,31 @@ impl Batch {
         }
     }
 
-    /// Try to push a column to the end of the column list.
-    ///
-    /// Errors if the column does not have the same number of rows as in the
-    /// batch.
-    pub fn try_push_column(&mut self, col: impl Into<Arc<Array>>) -> Result<()> {
-        let col = col.into();
-        if col.len() != self.num_rows {
-            return Err(RayexecError::new(format!(
-                "Attempt to push a column with invalid number of rows, expected: {}, got: {}",
-                self.num_rows,
-                col.len()
-            )));
+    pub fn slice(&self, offset: usize, count: usize) -> Self {
+        let cols = self.cols.iter().map(|c| c.slice(offset, count)).collect();
+        Batch {
+            cols,
+            num_rows: count,
         }
-
-        self.cols.push(col);
-
-        Ok(())
     }
 
-    /// Try to pop the right-most column off the batch.
-    pub fn try_pop_column(&mut self) -> Result<Arc<Array>> {
-        self.cols.pop().ok_or_else(|| {
-            RayexecError::new("Attempted to pop a column from a batch with no columns")
-        })
+    /// Selects rows in the batch.
+    pub fn select(&self, selection: impl Into<Selection>) -> Batch {
+        let selection = selection.into();
+        let cols = self
+            .cols
+            .iter()
+            .map(|c| {
+                let mut col = c.clone();
+                col.select_mut(&selection);
+                col
+            })
+            .collect();
+
+        Batch {
+            cols,
+            num_rows: selection.as_ref().num_rows(),
+        }
     }
 
     /// Get the row at some index.
@@ -106,16 +113,27 @@ impl Batch {
             return Some(ScalarRow::empty());
         }
 
-        let row = self.cols.iter().map(|col| col.scalar(idx).unwrap());
+        let row = self.cols.iter().map(|col| col.logical_value(idx).unwrap());
 
         Some(ScalarRow::from_iter(row))
     }
 
-    pub fn column(&self, idx: usize) -> Option<&Arc<Array>> {
+    pub fn try_from_rows(rows: &[ScalarRow], datatypes: &[DataType]) -> Result<Batch> {
+        let mut arrays = Vec::with_capacity(rows.len());
+
+        for (col_idx, datatype) in datatypes.iter().enumerate() {
+            let arr = array_from_rows(datatype, rows, col_idx)?;
+            arrays.push(arr);
+        }
+
+        Batch::try_new(arrays)
+    }
+
+    pub fn column(&self, idx: usize) -> Option<&Array> {
         self.cols.get(idx)
     }
 
-    pub fn columns(&self) -> &[Arc<Array>] {
+    pub fn columns(&self) -> &[Array] {
         &self.cols
     }
 
@@ -126,57 +144,317 @@ impl Batch {
     pub fn num_rows(&self) -> usize {
         self.num_rows
     }
+
+    pub fn into_arrays(self) -> Vec<Array> {
+        self.cols
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        array::{Int32Array, Utf8Array},
-        scalar::ScalarValue,
+fn array_from_rows(datatype: &DataType, rows: &[ScalarRow], col: usize) -> Result<Array> {
+    fn fmt_err(other: &ScalarValue, expected: &DataType) -> RayexecError {
+        RayexecError::new(format!("Unexpected value: {other}, expected: {expected}"))
+    }
+
+    match datatype.physical_type()? {
+        PhysicalType::UntypedNull => {
+            not_implemented!("Scalar value to untyped null")
+        }
+        PhysicalType::Boolean => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: BooleanBuffer::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Boolean(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Int8 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<i8>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Int8(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Int16 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<i16>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Int16(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Int32 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<i32>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Date32(v) => Ok(v),
+                    ScalarValue::Int32(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Int64 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<i64>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Decimal64(v) => Ok(&v.value),
+                    ScalarValue::Date64(v) => Ok(v),
+                    ScalarValue::Int64(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Int128 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<i128>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Decimal128(v) => Ok(&v.value),
+                    ScalarValue::Int128(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::UInt8 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<u8>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::UInt8(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::UInt16 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<u16>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::UInt16(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::UInt32 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<u32>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::UInt32(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::UInt64 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<u64>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::UInt64(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::UInt128 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<u128>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::UInt128(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Float32 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<f32>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Float32(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Float64 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<f64>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Float64(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Interval => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::<Interval>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Interval(v) => Ok(v),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Utf8 => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: GermanVarlenBuffer::<str>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Utf8(v) => Ok(v.as_ref()),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+        PhysicalType::Binary => {
+            let builder = ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: GermanVarlenBuffer::<[u8]>::with_len(rows.len()),
+            };
+            let arr = array_from_row_and_builder(
+                builder,
+                |scalar| match scalar {
+                    ScalarValue::Binary(v) => Ok(v.as_ref()),
+                    other => Err(fmt_err(other, datatype)),
+                },
+                rows,
+                col,
+            )?;
+            Ok(arr)
+        }
+    }
+}
+
+fn array_from_row_and_builder<B, F>(
+    mut builder: ArrayBuilder<B>,
+    get_value: F,
+    rows: &[ScalarRow],
+    col: usize,
+) -> Result<Array>
+where
+    F: for<'a> Fn(&'a ScalarValue) -> Result<&'a B::Type>,
+    B: ArrayDataBuffer,
+{
+    let mut validity = Bitmap::new_with_all_true(rows.len());
+
+    for (idx, row) in rows.iter().enumerate() {
+        let val = &row.columns[col];
+        if val == &ScalarValue::Null {
+            validity.set_unchecked(idx, false);
+            continue;
+        }
+
+        let val = get_value(val)?;
+        builder.buffer.put(idx, val);
+    }
+
+    let validity = if validity.is_all_true() {
+        None
+    } else {
+        Some(validity)
     };
 
-    use super::*;
-
-    #[test]
-    fn get_row_simple() {
-        let batch = Batch::try_new([
-            Array::Int32(Int32Array::from_iter([1, 2, 3])),
-            Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
-        ])
-        .unwrap();
-
-        // Expected rows at index 0, 1, and 2
-        let expected = [
-            ScalarRow::from_iter([ScalarValue::Int32(1), ScalarValue::Utf8("a".into())]),
-            ScalarRow::from_iter([ScalarValue::Int32(2), ScalarValue::Utf8("b".into())]),
-            ScalarRow::from_iter([ScalarValue::Int32(3), ScalarValue::Utf8("c".into())]),
-        ];
-
-        for idx in 0..3 {
-            let got = batch.row(idx).unwrap();
-            assert_eq!(expected[idx], got);
-        }
-    }
-
-    #[test]
-    fn get_row_out_of_bounds() {
-        let batch = Batch::try_new([
-            Array::Int32(Int32Array::from_iter([1, 2, 3])),
-            Array::Utf8(Utf8Array::from_iter(["a", "b", "c"])),
-        ])
-        .unwrap();
-
-        let got = batch.row(3);
-        assert_eq!(None, got);
-    }
-
-    #[test]
-    fn get_row_no_columns_non_zero_rows() {
-        let batch = Batch::empty_with_num_rows(3);
-
-        for idx in 0..3 {
-            let got = batch.row(idx).unwrap();
-            assert_eq!(ScalarRow::empty(), got);
-        }
-    }
+    Ok(Array {
+        datatype: builder.datatype,
+        selection: None,
+        validity,
+        data: builder.buffer.into_data(),
+    })
 }

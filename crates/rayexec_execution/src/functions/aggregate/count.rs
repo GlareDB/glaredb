@@ -1,8 +1,11 @@
 use rayexec_bullet::{
-    array::{Array, PrimitiveArray, UnitArrayAccessor},
-    bitmap::Bitmap,
+    array::Array,
     datatype::{DataType, DataTypeId},
-    executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater},
+    executor::{
+        aggregate::{AggregateState, RowToStateMapping, StateFinalizer, UnaryNonNullUpdater},
+        builder::{ArrayBuilder, PrimitiveBuffer},
+        physical_type::PhysicalAny,
+    },
 };
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
@@ -50,20 +53,23 @@ pub struct CountNonNullImpl;
 
 impl CountNonNullImpl {
     fn update(
-        row_selection: &Bitmap,
         arrays: &[&Array],
-        mapping: &[usize],
+        mapping: &[RowToStateMapping],
         states: &mut [CountNonNullState],
     ) -> Result<()> {
-        let unit_arr = UnitArrayAccessor::new(arrays[0]);
-        UnaryNonNullUpdater::update(row_selection, unit_arr, mapping, states)
+        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(
+            arrays[0],
+            mapping.iter().copied(),
+            states,
+        )
     }
 
     fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
-        let mut buffer = Vec::with_capacity(states.len());
-        let mut bitmap = Bitmap::with_capacity(states.len());
-        StateFinalizer::finalize(states, &mut buffer, &mut bitmap)?;
-        Ok(Array::Int64(PrimitiveArray::new(buffer, Some(bitmap))))
+        let builder = ArrayBuilder {
+            datatype: DataType::Int64,
+            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
+        };
+        StateFinalizer::finalize(states, builder)
     }
 }
 

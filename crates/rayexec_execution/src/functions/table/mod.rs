@@ -17,6 +17,7 @@ use std::{collections::HashMap, fmt::Debug};
 use system::{ListDatabases, ListSchemas, ListTables};
 
 use crate::database::DatabaseContext;
+use crate::logical::statistics::{Statistics, StatisticsCount};
 use crate::storage::table_storage::DataTable;
 
 pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::new(|| {
@@ -156,6 +157,14 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// is a terrible solution. This might change as we implement more data
     /// sources.
     fn schema(&self) -> Schema;
+
+    /// Get the statistics for the table we're scanning.
+    fn statistics(&self) -> Statistics {
+        Statistics {
+            cardinality: StatisticsCount::Unknown,
+            column_stats: None,
+        }
+    }
 
     /// Return a data table representing the function output.
     ///

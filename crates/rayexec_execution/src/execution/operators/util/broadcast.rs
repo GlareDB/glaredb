@@ -151,7 +151,7 @@ mod tests {
     use std::task::Wake;
 
     use futures::FutureExt;
-    use rayexec_bullet::array::{Array, Int64Array};
+    use rayexec_bullet::array::Array;
 
     use super::*;
 
@@ -172,7 +172,7 @@ mod tests {
 
     /// Create a batch with a single int64 value.
     fn test_batch(n: i64) -> Batch {
-        let col = Array::Int64(Int64Array::from_iter([n]));
+        let col = Array::from_iter([n]);
         Batch::try_new([col]).unwrap()
     }
 

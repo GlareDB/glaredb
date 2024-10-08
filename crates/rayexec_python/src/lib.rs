@@ -1,5 +1,6 @@
 mod errors;
 mod event_loop;
+mod print;
 mod session;
 mod table;
 

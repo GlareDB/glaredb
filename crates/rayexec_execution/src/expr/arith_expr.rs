@@ -1,4 +1,7 @@
-use crate::functions::scalar::{arith, ScalarFunction};
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    functions::scalar::{arith, ScalarFunction},
+};
 use std::fmt;
 
 use super::{AsScalarFunction, Expression};
@@ -43,8 +46,18 @@ pub struct ArithExpr {
     pub op: ArithOperator,
 }
 
-impl fmt::Display for ArithExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.op, self.right)
+impl ContextDisplay for ArithExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            ContextDisplayWrapper::with_mode(self.left.as_ref(), mode),
+            self.op,
+            ContextDisplayWrapper::with_mode(self.right.as_ref(), mode)
+        )
     }
 }

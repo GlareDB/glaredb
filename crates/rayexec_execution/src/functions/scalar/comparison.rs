@@ -1,15 +1,21 @@
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_bullet::array::{Array, BooleanArray, BooleanValuesBuffer};
-use rayexec_bullet::compute::cast::array::cast_decimal_to_new_precision_and_scale;
+use rayexec_bullet::array::Array;
+use rayexec_bullet::compute::cast::array::decimal_rescale;
+use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
+use rayexec_bullet::executor::physical_type::{
+    PhysicalBinary, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
+    PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32,
+    PhysicalU64, PhysicalU8, PhysicalUtf8,
+};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use rayexec_error::{not_implemented, Result};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 // TODOs:
 //
@@ -193,155 +199,226 @@ impl ComparisonOperation for GtEqOperation {
     }
 }
 
-fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<BooleanArray> {
-    let mut buffer = BooleanValuesBuffer::with_capacity(left.len());
-    let validity = match (left, right) {
-        (Array::Boolean(left), Array::Boolean(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Int8(left), Array::Int8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Int16(left), Array::Int16(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Int32(left), Array::Int32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Int64(left), Array::Int64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::UInt8(left), Array::UInt8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::UInt16(left), Array::UInt16(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::UInt32(left), Array::UInt32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::UInt64(left), Array::UInt64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Float32(left), Array::Float32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Float64(left), Array::Float64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Decimal64(left), Array::Decimal64(right)) => {
-            match left.scale().cmp(&right.scale()) {
-                Ordering::Greater => {
-                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
-                        right,
-                        Decimal64Type::MAX_PRECISION,
-                        left.scale(),
-                    )?;
-
-                    BinaryExecutor::execute(
-                        left.get_primitive(),
-                        scaled_right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-                Ordering::Less => {
-                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal64Type>(
-                        left,
-                        Decimal64Type::MAX_PRECISION,
-                        right.scale(),
-                    )?;
-
-                    BinaryExecutor::execute(
-                        scaled_left.get_primitive(),
-                        right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-                Ordering::Equal => BinaryExecutor::execute(
-                    left.get_primitive(),
-                    right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?,
-            }
-        }
-        (Array::Decimal128(left), Array::Decimal128(right)) => {
-            match left.scale().cmp(&right.scale()) {
-                Ordering::Greater => {
-                    let scaled_right = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
-                        right,
-                        Decimal128Type::MAX_PRECISION,
-                        left.scale(),
-                    )?;
-
-                    BinaryExecutor::execute(
-                        left.get_primitive(),
-                        scaled_right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-
-                Ordering::Less => {
-                    let scaled_left = cast_decimal_to_new_precision_and_scale::<Decimal128Type>(
-                        left,
-                        Decimal128Type::MAX_PRECISION,
-                        right.scale(),
-                    )?;
-
-                    BinaryExecutor::execute(
-                        scaled_left.get_primitive(),
-                        right.get_primitive(),
-                        O::compare,
-                        &mut buffer,
-                    )?
-                }
-
-                Ordering::Equal => BinaryExecutor::execute(
-                    left.get_primitive(),
-                    right.get_primitive(),
-                    O::compare,
-                    &mut buffer,
-                )?,
-            }
-        }
-        (Array::Timestamp(left), Array::Timestamp(right)) => {
-            // TODO: Unit check
-            BinaryExecutor::execute(
-                left.get_primitive(),
-                right.get_primitive(),
-                O::compare,
-                &mut buffer,
-            )?
-        }
-        (Array::Date32(left), Array::Date32(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Date64(left), Array::Date64(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Utf8(left), Array::Utf8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::LargeUtf8(left), Array::LargeUtf8(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::Binary(left), Array::Binary(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (Array::LargeBinary(left), Array::LargeBinary(right)) => {
-            BinaryExecutor::execute(left, right, O::compare, &mut buffer)?
-        }
-        (left, right) => not_implemented!(
-            "comparison between {} and {}",
-            left.datatype(),
-            right.datatype()
-        ),
+fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Array> {
+    let builder = ArrayBuilder {
+        datatype: DataType::Boolean,
+        buffer: BooleanBuffer::with_len(left.logical_len()),
     };
 
-    Ok(BooleanArray::new(buffer, validity))
+    // Decimal special cases.
+    match (left.datatype(), right.datatype()) {
+        (DataType::Decimal64(a), DataType::Decimal64(b)) => match a.scale.cmp(&b.scale) {
+            Ordering::Greater => {
+                let scaled_right = decimal_rescale::<PhysicalI64, Decimal64Type>(
+                    right,
+                    left.datatype().clone(),
+                    CastFailBehavior::Error,
+                )?;
+
+                return BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                    left,
+                    &scaled_right,
+                    builder,
+                    |a, b, buf| buf.put(&O::compare(a, b)),
+                );
+            }
+            Ordering::Less => {
+                let scaled_left = decimal_rescale::<PhysicalI64, Decimal64Type>(
+                    left,
+                    right.datatype().clone(),
+                    CastFailBehavior::Error,
+                )?;
+
+                return BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                    &scaled_left,
+                    right,
+                    builder,
+                    |a, b, buf| buf.put(&O::compare(a, b)),
+                );
+            }
+            Ordering::Equal => {
+                return BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                    left,
+                    right,
+                    builder,
+                    |a, b, buf| buf.put(&O::compare(a, b)),
+                )
+            }
+        },
+        (DataType::Decimal128(a), DataType::Decimal128(b)) => match a.scale.cmp(&b.scale) {
+            Ordering::Greater => {
+                let scaled_right = decimal_rescale::<PhysicalI128, Decimal128Type>(
+                    right,
+                    left.datatype().clone(),
+                    CastFailBehavior::Error,
+                )?;
+
+                return BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                    left,
+                    &scaled_right,
+                    builder,
+                    |a, b, buf| buf.put(&O::compare(a, b)),
+                );
+            }
+            Ordering::Less => {
+                let scaled_left = decimal_rescale::<PhysicalI128, Decimal128Type>(
+                    left,
+                    right.datatype().clone(),
+                    CastFailBehavior::Error,
+                )?;
+
+                return BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                    &scaled_left,
+                    right,
+                    builder,
+                    |a, b, buf| buf.put(&O::compare(a, b)),
+                );
+            }
+            Ordering::Equal => {
+                return BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                    left,
+                    right,
+                    builder,
+                    |a, b, buf| buf.put(&O::compare(a, b)),
+                )
+            }
+        },
+
+        _ => (), // Continue on.
+    }
+
+    match (
+        left.array_data().physical_type(),
+        right.array_data().physical_type(),
+    ) {
+        (PhysicalType::UntypedNull, PhysicalType::UntypedNull) => Err(RayexecError::new(
+            "Generic binary operation on untyped null not supported",
+        )),
+        (PhysicalType::Int8, PhysicalType::Int8) => {
+            BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Int16, PhysicalType::Int16) => {
+            BinaryExecutor::execute::<PhysicalI16, PhysicalI16, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Int32, PhysicalType::Int32) => {
+            BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Int64, PhysicalType::Int64) => {
+            BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Int128, PhysicalType::Int128) => {
+            BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+
+        (PhysicalType::UInt8, PhysicalType::UInt8) => {
+            BinaryExecutor::execute::<PhysicalU8, PhysicalU8, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::UInt16, PhysicalType::UInt16) => {
+            BinaryExecutor::execute::<PhysicalU16, PhysicalU16, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::UInt32, PhysicalType::UInt32) => {
+            BinaryExecutor::execute::<PhysicalU32, PhysicalU32, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::UInt64, PhysicalType::UInt64) => {
+            BinaryExecutor::execute::<PhysicalU64, PhysicalU64, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::UInt128, PhysicalType::UInt128) => {
+            BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Float32, PhysicalType::Float32) => {
+            BinaryExecutor::execute::<PhysicalF32, PhysicalF32, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Float64, PhysicalType::Float64) => {
+            BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Interval, PhysicalType::Interval) => {
+            BinaryExecutor::execute::<PhysicalInterval, PhysicalInterval, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Utf8, PhysicalType::Utf8) => {
+            BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (PhysicalType::Binary, PhysicalType::Binary) => {
+            BinaryExecutor::execute::<PhysicalBinary, PhysicalBinary, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            )
+        }
+        (a, b) => Err(RayexecError::new(format!(
+            "Unhandled physical types for generic binary operation: {a:?}, {b:?}"
+        ))),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -406,10 +483,8 @@ impl PlannedScalarFunction for EqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute::<EqOperation>(left, right).map(Array::Boolean)
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        execute::<EqOperation>(inputs[0], inputs[1])
     }
 }
 
@@ -479,10 +554,8 @@ impl PlannedScalarFunction for NeqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute::<NotEqOperation>(left, right).map(Array::Boolean)
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        execute::<NotEqOperation>(inputs[0], inputs[1])
     }
 }
 
@@ -548,10 +621,8 @@ impl PlannedScalarFunction for LtImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute::<LtOperation>(left, right).map(Array::Boolean)
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        execute::<LtOperation>(inputs[0], inputs[1])
     }
 }
 
@@ -617,10 +688,8 @@ impl PlannedScalarFunction for LtEqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute::<LtEqOperation>(left, right).map(Array::Boolean)
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        execute::<LtEqOperation>(inputs[0], inputs[1])
     }
 }
 
@@ -686,10 +755,8 @@ impl PlannedScalarFunction for GtImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute::<GtOperation>(left, right).map(Array::Boolean)
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        execute::<GtOperation>(inputs[0], inputs[1])
     }
 }
 
@@ -755,105 +822,102 @@ impl PlannedScalarFunction for GtEqImpl {
         DataType::Boolean
     }
 
-    fn execute(&self, arrays: &[&Arc<Array>]) -> Result<Array> {
-        let left = arrays[0].as_ref();
-        let right = arrays[1].as_ref();
-        execute::<GtEqOperation>(left, right).map(Array::Boolean)
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        execute::<GtEqOperation>(inputs[0], inputs[1])
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::{BooleanArray, Int32Array};
 
     use super::*;
 
     #[test]
     fn eq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
         let specialized = Eq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
+        let expected = Array::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn neq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
         let specialized = Neq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
+        let expected = Array::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn lt_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
         let specialized = Lt
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, false, true]));
+        let expected = Array::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn lt_eq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
         let specialized = LtEq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([true, true, true]));
+        let expected = Array::from_iter([true, true, true]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn gt_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
         let specialized = Gt
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([false, false, false]));
+        let expected = Array::from_iter([false, false, false]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn gt_eq_i32() {
-        let a = Arc::new(Array::Int32(Int32Array::from_iter([1, 2, 3])));
-        let b = Arc::new(Array::Int32(Int32Array::from_iter([2, 2, 6])));
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
         let specialized = GtEq
             .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
             .unwrap();
 
         let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::Boolean(BooleanArray::from_iter([false, true, false]));
+        let expected = Array::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
     }

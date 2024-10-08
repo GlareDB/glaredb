@@ -1,5 +1,5 @@
 use crate::{
-    execution::operators::PollFinalize,
+    execution::{computed_batch::ComputedBatches, operators::PollFinalize},
     explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
     runtime::time::{RuntimeInstant, Timer},
 };
@@ -135,12 +135,8 @@ pub struct ExecutablePartitionPipeline {
     /// will only pushed to.
     operators: Vec<OperatorWithState>,
 
-    /// Index to begin pulling from.
-    ///
-    /// Initially this is 0 (the pipeline source), but as operators become
-    /// exhausted, this will be incremented to avoid pulling from an exhausted
-    /// operator.
-    pull_start_idx: usize,
+    /// Where to begin pulling from.
+    pull_start: PullStart,
 }
 
 impl ExecutablePartitionPipeline {
@@ -150,9 +146,12 @@ impl ExecutablePartitionPipeline {
                 pipeline,
                 partition,
             },
-            state: PipelinePartitionState::PullFrom { operator_idx: 0 },
+            state: PipelinePartitionState::PullFromOperator { operator_idx: 0 },
             operators: Vec::new(),
-            pull_start_idx: 0,
+            pull_start: PullStart {
+                pull_start: 0,
+                pull_stack: Vec::new(),
+            },
         }
     }
 
@@ -174,6 +173,63 @@ impl ExecutablePartitionPipeline {
     pub fn operators(&self) -> &[OperatorWithState] {
         &self.operators
     }
+}
+
+/// Where to begin pulling from after pushing a batch through the pipeline.
+#[derive(Debug, Clone, PartialEq)]
+struct PullStart {
+    /// The true start of the next iteration.
+    pull_start: usize,
+    /// A stack of buffered batches we should pull from before going to the
+    /// start of the pipeline..
+    ///
+    /// Since operators may produce more than one batch, we need to track which
+    /// operators we have to continue to drain from before going to the start of
+    /// the pipeline.
+    pull_stack: Vec<BufferedBatches>,
+}
+
+impl PullStart {
+    /// Generate the next state to use for the next iteration of the pipeline.
+    ///
+    /// This takes into account any buffered batches we might have.
+    fn next_start_state(&mut self) -> Result<PipelinePartitionState> {
+        loop {
+            match self.pull_stack.pop() {
+                Some(mut buffered) => {
+                    let batch = match buffered.buffered.try_next()? {
+                        Some(batch) => batch,
+                        None => {
+                            // Move to next in stack.
+                            continue;
+                        }
+                    };
+
+                    let operator_idx = buffered.operator_idx;
+                    self.pull_stack.push(buffered);
+
+                    return Ok(PipelinePartitionState::PushTo {
+                        batch,
+                        operator_idx: operator_idx + 1,
+                    });
+                }
+                None => {
+                    // No buffered batches, need to pull from start operator.
+                    return Ok(PipelinePartitionState::PullFromOperator {
+                        operator_idx: self.pull_start,
+                    });
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct BufferedBatches {
+    /// Operator these batches are from.
+    operator_idx: usize,
+    /// The buffered batches.
+    buffered: ComputedBatches,
 }
 
 /// Information about a partition pipeline.
@@ -211,14 +267,14 @@ impl OperatorWithState {
 #[derive(Clone)]
 pub enum PipelinePartitionState {
     /// Need to pull from an operator.
-    PullFrom { operator_idx: usize },
-
+    PullFromOperator {
+        /// Index of operator we're pulling from.
+        operator_idx: usize,
+    },
     /// Need to push to an operator.
     PushTo { batch: Batch, operator_idx: usize },
-
     /// Need to finalize a push to an operator.
     FinalizePush { operator_idx: usize },
-
     /// Pipeline is completed.
     Completed,
 }
@@ -226,7 +282,7 @@ pub enum PipelinePartitionState {
 impl fmt::Debug for PipelinePartitionState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PullFrom { operator_idx } => f
+            Self::PullFromOperator { operator_idx, .. } => f
                 .debug_struct("PullFrom")
                 .field("operator_idx", operator_idx)
                 .finish(),
@@ -280,12 +336,13 @@ impl ExecutablePartitionPipeline {
 
         loop {
             match state {
-                PipelinePartitionState::PullFrom { operator_idx } => {
+                PipelinePartitionState::PullFromOperator { operator_idx } => {
                     let operator = self
                         .operators
                         .get_mut(*operator_idx)
                         .expect("operator to exist");
 
+                    // Otherwise do a normal pull.
                     let timer = Timer::<I>::start();
                     let poll_pull = operator.physical.poll_pull(
                         cx,
@@ -296,10 +353,29 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.elapsed += elapsed;
 
                     match poll_pull {
-                        Ok(PollPull::Batch(batch)) => {
-                            // We got a batch, increment operator index to push
+                        Ok(PollPull::Computed(mut computed)) => {
+                            let batch = match computed.try_next()? {
+                                Some(batch) => batch,
+                                None => {
+                                    // TODO: Not sure when this would be None
+                                    // here, or even if we should allow it.
+                                    continue;
+                                }
+                            };
+
+                            if !computed.is_empty() {
+                                // Operator produces multiple batches, we'll
+                                // want to continue to drain these batches
+                                // before moving to the start of the pipeline.
+                                self.pull_start.pull_stack.push(BufferedBatches {
+                                    operator_idx: *operator_idx,
+                                    buffered: computed,
+                                })
+                            }
+
+                            // We got results, increment operator index to push
                             // it into the next operator.
-                            operator.profile_data.rows_emitted += batch.num_rows();
+                            operator.profile_data.rows_emitted += batch.num_rows(); // TODO: We should have something to indicate materialized vs not.
                             *state = PipelinePartitionState::PushTo {
                                 batch,
                                 operator_idx: *operator_idx + 1,
@@ -310,15 +386,16 @@ impl ExecutablePartitionPipeline {
                             return Poll::Pending;
                         }
                         Ok(PollPull::Exhausted) => {
-                            // This operator is exhausted, we're never going to
-                            // pull from it again.
-                            self.pull_start_idx += 1;
-
                             // Finalize the next operator to indicate that it
                             // will no longer be receiving batch inputs.
                             *state = PipelinePartitionState::FinalizePush {
-                                operator_idx: self.pull_start_idx,
+                                operator_idx: self.pull_start.pull_start + 1,
                             };
+
+                            // This operator is exhausted, we're never going to
+                            // pull from it again.
+                            self.pull_start.pull_start += 1;
+                            assert!(self.pull_start.pull_stack.is_empty());
                         }
                         Err(e) => {
                             // We received an error. Currently no way to
@@ -346,7 +423,7 @@ impl ExecutablePartitionPipeline {
 
                     match poll_finalize {
                         Ok(PollFinalize::Finalized) => {
-                            if self.pull_start_idx == self.operators.len() - 1 {
+                            if self.pull_start.pull_start == self.operators.len() - 1 {
                                 // This partition pipeline has been completely exhausted, and
                                 // we've just finalized the "sink" operator. We're done.
                                 *state = PipelinePartitionState::Completed;
@@ -355,9 +432,7 @@ impl ExecutablePartitionPipeline {
 
                             // Otherwise we should now begin pulling from the
                             // next non-exhausted operator.
-                            *state = PipelinePartitionState::PullFrom {
-                                operator_idx: self.pull_start_idx,
-                            };
+                            *state = self.pull_start.next_start_state()?;
                         }
                         Ok(PollFinalize::Pending) => return Poll::Pending,
                         Err(e) => {
@@ -401,13 +476,11 @@ impl ExecutablePartitionPipeline {
                             if *operator_idx == self.operators.len() - 1 {
                                 // Next iteration will pull from the first
                                 // non-exhausted operator.
-                                *state = PipelinePartitionState::PullFrom {
-                                    operator_idx: self.pull_start_idx,
-                                };
+                                *state = self.pull_start.next_start_state()?;
                             } else {
                                 // Otherwise we should just pull from the
                                 // operator we just pushed to.
-                                *state = PipelinePartitionState::PullFrom {
+                                *state = PipelinePartitionState::PullFromOperator {
                                     operator_idx: *operator_idx,
                                 };
                             }
@@ -435,8 +508,11 @@ impl ExecutablePartitionPipeline {
                             // An example use of the Break is the LIMIT
                             // operator. It needs a way to signal that it needs
                             // no more batches.
-                            self.pull_start_idx = *operator_idx;
-                            *state = PipelinePartitionState::PullFrom {
+                            self.pull_start = PullStart {
+                                pull_start: *operator_idx,
+                                pull_stack: Vec::new(),
+                            };
+                            *state = PipelinePartitionState::PullFromOperator {
                                 operator_idx: *operator_idx,
                             };
                             continue;
@@ -448,9 +524,7 @@ impl ExecutablePartitionPipeline {
                             // Reset the state to pull from the start of the
                             // pipline to produce more batches.
                             assert_ne!(0, *operator_idx);
-                            *state = PipelinePartitionState::PullFrom {
-                                operator_idx: self.pull_start_idx,
-                            };
+                            *state = self.pull_start.next_start_state()?;
                             continue;
                         }
                         Err(e) => {

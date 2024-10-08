@@ -1,6 +1,9 @@
-use crate::expr::{
-    conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-    Expression,
+use crate::{
+    expr::{
+        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
+        Expression,
+    },
+    logical::binder::bind_context::BindContext,
 };
 use rayexec_error::Result;
 
@@ -13,7 +16,7 @@ use super::ExpressionRewriteRule;
 pub struct UnnestConjunctionRewrite;
 
 impl ExpressionRewriteRule for UnnestConjunctionRewrite {
-    fn rewrite(mut expression: Expression) -> Result<Expression> {
+    fn rewrite(_bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
         fn inner(expression: &mut Expression) {
             match expression {
                 Expression::Conjunction(ConjunctionExpr { op, expressions }) => {
@@ -75,7 +78,8 @@ mod tests {
         // No change.
         let expected = expr.clone();
 
-        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -86,7 +90,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1), lit(2)]).unwrap();
 
-        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -98,7 +103,8 @@ mod tests {
         // No change.
         let expected = expr.clone();
 
-        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -114,7 +120,8 @@ mod tests {
         // No change.
         let expected = expr.clone();
 
-        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -137,7 +144,8 @@ mod tests {
         ])
         .unwrap();
 
-        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -152,7 +160,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1), lit(2), lit(3)]).unwrap();
 
-        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        let bind_context = BindContext::new();
+        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
         assert_eq!(expected, got);
     }
 }

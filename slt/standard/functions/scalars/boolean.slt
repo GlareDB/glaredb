@@ -15,11 +15,11 @@ select 1 = 1 and 2 = 2;
 ----
 true
 
-query B
-select column1 and 2 = 2 from (values (true, 2), (false, 3));
+query IB rowsort
+select column2, column1 and 2 = 2 from (values (true, 2), (false, 3));
 ----
-true
-false
+2  true
+3  false
 
 # OR
 

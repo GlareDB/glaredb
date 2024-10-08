@@ -51,10 +51,12 @@ pub type Int8Parser = FromStrParser<i8>;
 pub type Int16Parser = FromStrParser<i16>;
 pub type Int32Parser = FromStrParser<i32>;
 pub type Int64Parser = FromStrParser<i64>;
+pub type Int128Parser = FromStrParser<i128>;
 pub type UInt8Parser = FromStrParser<u8>;
 pub type UInt16Parser = FromStrParser<u16>;
 pub type UInt32Parser = FromStrParser<u32>;
 pub type UInt64Parser = FromStrParser<u64>;
+pub type UInt128Parser = FromStrParser<u128>;
 pub type Float32Parser = FromStrParser<f32>;
 pub type Float64Parser = FromStrParser<f64>;
 

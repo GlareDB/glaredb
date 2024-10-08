@@ -7,7 +7,6 @@ use crate::{
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
-use rayexec_error::OptionExt;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::{
@@ -136,7 +135,6 @@ impl WasmMaterializedResultTable {
             |arr, row| {
                 FORMATTER
                     .format_array_value(arr, row)
-                    .required("row to be in range")
                     .map(|v| v.to_string())
             },
             col,
@@ -183,7 +181,7 @@ impl WasmMaterializedColumn {
 #[cfg(test)]
 mod tests {
     use rayexec_bullet::{
-        array::{Array, Int32Array},
+        array::Array,
         batch::Batch,
         datatype::DataType,
         field::{Field, Schema},
@@ -196,9 +194,9 @@ mod tests {
         let table = MaterializedResultTable::try_new(
             Schema::new([Field::new("c1", DataType::Int32, true)]),
             [
-                Batch::try_new([Array::Int32(Int32Array::from_iter([0, 1, 2, 3]))]).unwrap(),
-                Batch::try_new([Array::Int32(Int32Array::from_iter([4, 5]))]).unwrap(),
-                Batch::try_new([Array::Int32(Int32Array::from_iter([6, 7, 8, 9, 10]))]).unwrap(),
+                Batch::try_new([Array::from_iter([0, 1, 2, 3])]).unwrap(),
+                Batch::try_new([Array::from_iter([4, 5])]).unwrap(),
+                Batch::try_new([Array::from_iter([6, 7, 8, 9, 10])]).unwrap(),
             ],
         )
         .unwrap();

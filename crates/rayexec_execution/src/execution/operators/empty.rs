@@ -76,7 +76,7 @@ impl ExecutableOperator for PhysicalEmpty {
                     Ok(PollPull::Exhausted)
                 } else {
                     state.finished = true;
-                    Ok(PollPull::Batch(Batch::empty_with_num_rows(1)))
+                    Ok(PollPull::Computed(Batch::empty_with_num_rows(1).into()))
                 }
             }
             other => panic!("inner join state is not building: {other:?}"),

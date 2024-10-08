@@ -11,3 +11,8 @@ flamegraph.svg
 venv/
 .venv/
 __pycache__
+
+# Benchmark stuff
+**/benchmarks/data/
+**/.tmp
+profile.json

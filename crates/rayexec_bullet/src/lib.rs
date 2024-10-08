@@ -10,6 +10,7 @@ pub mod format;
 pub mod ipc;
 pub mod row;
 pub mod scalar;
+pub mod selection;
 pub mod storage;
 
 mod bitutil;

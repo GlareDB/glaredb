@@ -27,11 +27,11 @@ pub struct JoinReorder {}
 impl OptimizeRule for JoinReorder {
     fn optimize(
         &mut self,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         let mut reorder = InnerJoinReorder::default();
-        reorder.reorder(plan)
+        reorder.reorder(bind_context, plan)
     }
 }
 
@@ -51,8 +51,42 @@ impl InnerJoinReorder {
             .extend(split.into_iter().map(ExtractedFilter::from_expr))
     }
 
-    fn reorder(&mut self, mut root: LogicalOperator) -> Result<LogicalOperator> {
+    fn reorder(
+        &mut self,
+        bind_context: &mut BindContext,
+        mut root: LogicalOperator,
+    ) -> Result<LogicalOperator> {
+        // Note that we're not matching on "magic" materialization scans as the
+        // normal materialization scan should already handle the reorder within
+        // the plan anyways.
         match &root {
+            LogicalOperator::MaterializationScan(scan) => {
+                // Start a new reorder for this materializations.
+                let mut reorder = InnerJoinReorder::default();
+                let mut plan = {
+                    let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                    std::mem::replace(&mut mat.plan, LogicalOperator::Invalid)
+                };
+                plan = reorder.reorder(bind_context, plan)?;
+
+                let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                mat.plan = plan;
+
+                // Since the one or children in the plan might've switched
+                // sides, we need to recompute the table refs to ensure they're
+                // updated to be the correct order.
+                //
+                // "magic" materializations don't need to worry about this,
+                // since they project out of the materialization (and the column
+                // refs don't change).
+                let table_refs = mat.plan.get_output_table_refs();
+                mat.table_refs = table_refs.clone();
+
+                let mut new_scan = scan.clone();
+                new_scan.node.table_refs = table_refs;
+
+                return Ok(LogicalOperator::MaterializationScan(new_scan));
+            }
             LogicalOperator::Filter(_) | LogicalOperator::CrossJoin(_) => {
                 self.extract_filters_and_join_children(root)?;
             }
@@ -64,13 +98,22 @@ impl InnerJoinReorder {
                 // return.
                 root.modify_replace_children(&mut |child| {
                     let mut reorder = Self::default();
-                    reorder.reorder(child)
+                    reorder.reorder(bind_context, child)
                 })?;
                 return Ok(root);
             }
         }
 
-        let mut join_tree = JoinTree::new(self.child_plans.drain(..), self.filters.drain(..));
+        // Before reordering the join tree at this level, go ahead and reorder
+        // nested joins that we're not able to flatten at this level.
+        let mut child_plans = Vec::with_capacity(self.child_plans.len());
+        for child in self.child_plans.drain(..) {
+            let mut reorder = Self::default();
+            let child = reorder.reorder(bind_context, child)?;
+            child_plans.push(child);
+        }
+
+        let mut join_tree = JoinTree::new(child_plans, self.filters.drain(..));
         // Do the magic.
         let plan = join_tree.try_build()?;
 
@@ -286,8 +329,11 @@ impl JoinTree {
                 //
                 // These takes will mark the nodes as invalid for the next call
                 // (via the default impl)
-                let mut left = std::mem::take(&mut self.nodes[node_indices[0]]);
-                let mut right = std::mem::take(&mut self.nodes[node_indices[1]]);
+                let left = std::mem::take(&mut self.nodes[node_indices[0]]);
+                let right = std::mem::take(&mut self.nodes[node_indices[1]]);
+
+                // Swap if needed.
+                let [mut left, mut right] = Self::maybe_swap_using_stats([left, right]);
 
                 let left_refs: Vec<_> = left.output_refs.iter().copied().collect();
                 let right_refs: Vec<_> = right.output_refs.iter().copied().collect();
@@ -346,8 +392,11 @@ impl JoinTree {
                 //
                 // Arbitrarily cross join two of them, and push back the filter
                 // to try again.
-                let mut left = std::mem::take(&mut self.nodes[node_indices[0]]);
-                let mut right = std::mem::take(&mut self.nodes[node_indices[1]]);
+                let left = std::mem::take(&mut self.nodes[node_indices[0]]);
+                let right = std::mem::take(&mut self.nodes[node_indices[1]]);
+
+                // Swap if needed.
+                let [mut left, mut right] = Self::maybe_swap_using_stats([left, right]);
 
                 // Build up left side of join.
                 let mut left_plan = left.plan.take().expect("plan to be some");
@@ -393,5 +442,29 @@ impl JoinTree {
         }
 
         Ok(true)
+    }
+
+    fn maybe_swap_using_stats([left, right]: [JoinTreeNode; 2]) -> [JoinTreeNode; 2] {
+        let left_stats = left
+            .plan
+            .as_ref()
+            .expect("left plan to exist")
+            .get_statistics();
+        let right_stats = right
+            .plan
+            .as_ref()
+            .expect("right plan to exist")
+            .get_statistics();
+
+        match (
+            left_stats.cardinality.value(),
+            right_stats.cardinality.value(),
+        ) {
+            (Some(left_size), Some(right_size)) if right_size < left_size => {
+                // Swap, we want smaller on the left.
+                [right, left]
+            }
+            _ => [left, right], // Unchanged.
+        }
     }
 }

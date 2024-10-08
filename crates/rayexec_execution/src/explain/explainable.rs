@@ -3,6 +3,8 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use super::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+
 /// An entry in an output for explaining a query.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExplainEntry {
@@ -31,6 +33,31 @@ impl ExplainEntry {
         self
     }
 
+    pub fn with_value_context(
+        self,
+        key: impl Into<String>,
+        conf: ExplainConfig,
+        value: impl ContextDisplay,
+    ) -> Self {
+        let key = key.into();
+
+        let mut ent = self.with_value(
+            key.clone(),
+            ContextDisplayWrapper::with_mode(&value, conf.context_mode),
+        );
+
+        // If we're printing out a verbose plan, go ahead and print out the raw
+        // form of the value.
+        if conf.verbose && matches!(conf.context_mode, ContextDisplayMode::Enriched(_)) {
+            ent = ent.with_value(
+                format!("{key}_raw"),
+                ContextDisplayWrapper::with_mode(value, ContextDisplayMode::Raw),
+            )
+        }
+
+        ent
+    }
+
     /// Put a list of values in the explain entry.
     pub fn with_values<S: fmt::Display>(
         mut self,
@@ -41,6 +68,36 @@ impl ExplainEntry {
         let vals = ExplainValue::Values(values.into_iter().map(|s| s.to_string()).collect());
         self.items.insert(key, vals);
         self
+    }
+
+    pub fn with_values_context<S: ContextDisplay>(
+        self,
+        key: impl Into<String>,
+        conf: ExplainConfig,
+        values: impl IntoIterator<Item = S>,
+    ) -> Self {
+        let key = key.into();
+        let values: Vec<_> = values.into_iter().collect();
+
+        let mut ent = self.with_values(
+            key.clone(),
+            values
+                .iter()
+                .map(|v| ContextDisplayWrapper::with_mode(v, conf.context_mode)),
+        );
+
+        // If we're printing out a verbose plan, go ahead and print out the raw
+        // form of the values.
+        if conf.verbose && matches!(conf.context_mode, ContextDisplayMode::Enriched(_)) {
+            ent = ent.with_values(
+                format!("{key}_raw"),
+                values
+                    .into_iter()
+                    .map(|v| ContextDisplayWrapper::with_mode(v, ContextDisplayMode::Raw)),
+            )
+        }
+
+        ent
     }
 
     pub fn with_named_map<S1: fmt::Display, S2: fmt::Display>(
@@ -105,8 +162,9 @@ impl fmt::Display for ExplainValue {
 }
 
 /// Configuration for producing an ExplainEntry for a node in a query.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExplainConfig {
+#[derive(Debug, Clone, Copy)]
+pub struct ExplainConfig<'a> {
+    pub context_mode: ContextDisplayMode<'a>,
     pub verbose: bool,
 }
 

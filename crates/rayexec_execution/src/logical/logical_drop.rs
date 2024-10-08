@@ -1,4 +1,6 @@
-use crate::database::drop::DropInfo;
+use rayexec_error::Result;
+
+use crate::{database::drop::DropInfo, expr::Expression};
 
 use super::{
     binder::bind_context::TableRef,
@@ -21,5 +23,19 @@ impl Explainable for LogicalDrop {
 impl LogicalNode for Node<LogicalDrop> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         Vec::new()
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }

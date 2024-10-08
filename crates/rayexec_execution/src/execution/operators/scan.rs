@@ -1,4 +1,5 @@
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::storage::table_storage::Projections;
 use crate::{
     database::{catalog::CatalogTx, catalog_entry::CatalogEntry, DatabaseContext},
     proto::DatabaseProtoConv,
@@ -6,7 +7,7 @@ use crate::{
 };
 use futures::{future::BoxFuture, FutureExt};
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use std::{fmt, task::Poll};
 use std::{sync::Arc, task::Context};
 
@@ -32,6 +33,7 @@ pub struct PhysicalScan {
     catalog: String,
     schema: String,
     table: Arc<CatalogEntry>,
+    projections: Projections,
 }
 
 impl PhysicalScan {
@@ -39,11 +41,13 @@ impl PhysicalScan {
         catalog: impl Into<String>,
         schema: impl Into<String>,
         table: Arc<CatalogEntry>,
+        projections: Projections,
     ) -> Self {
         PhysicalScan {
             catalog: catalog.into(),
             schema: schema.into(),
             table,
+            projections,
         }
     }
 }
@@ -66,7 +70,7 @@ impl ExecutableOperator for PhysicalScan {
             .data_table(&self.schema, &self.table)?;
 
         // TODO: Pushdown projections, filters
-        let scans = data_table.scan(partitions[0])?;
+        let scans = data_table.scan(self.projections.clone(), partitions[0])?;
 
         let states = scans
             .into_iter()
@@ -112,7 +116,7 @@ impl ExecutableOperator for PhysicalScan {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {
                             state.future = None; // Future complete, next pull with create a new one.
-                            return Ok(PollPull::Batch(batch));
+                            return Ok(PollPull::Computed(batch.into()));
                         }
                         Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
                         Poll::Ready(Err(e)) => return Err(e),
@@ -122,7 +126,7 @@ impl ExecutableOperator for PhysicalScan {
 
                 let mut future = state.scan.pull();
                 match future.poll_unpin(cx) {
-                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Batch(batch)),
+                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
                     Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
                     Poll::Ready(Err(e)) => Err(e),
                     Poll::Pending => {
@@ -156,14 +160,16 @@ impl DatabaseProtoConv for PhysicalScan {
         })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            catalog: proto.catalog,
-            schema: proto.schema,
-            table: Arc::new(DatabaseProtoConv::from_proto_ctx(
-                proto.table.required("table")?,
-                context,
-            )?),
-        })
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        // TODO: https://github.com/GlareDB/rayexec/issues/278
+        unimplemented!()
+        // Ok(Self {
+        //     catalog: proto.catalog,
+        //     schema: proto.schema,
+        //     table: Arc::new(DatabaseProtoConv::from_proto_ctx(
+        //         proto.table.required("table")?,
+        //         context,
+        //     )?),
+        // })
     }
 }

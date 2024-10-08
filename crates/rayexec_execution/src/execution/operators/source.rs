@@ -24,6 +24,8 @@ pub trait SourceOperation: Debug + Send + Sync + Explainable {
     fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>>;
 
     /// Return an optional partitioning requirement for this source.
+    // TODO: This seems to not be used. Currently we're setting partitions
+    // ad-hoc in planning.
     fn partition_requirement(&self) -> Option<usize>;
 }
 
@@ -133,7 +135,7 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {
                             state.future = None; // Future complete, next pull with create a new one.
-                            return Ok(PollPull::Batch(batch));
+                            return Ok(PollPull::Computed(batch.into()));
                         }
                         Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
                         Poll::Ready(Err(e)) => return Err(e),
@@ -143,7 +145,7 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
 
                 let mut future = state.source.pull();
                 match future.poll_unpin(cx) {
-                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Batch(batch)),
+                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
                     Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
                     Poll::Ready(Err(e)) => Err(e),
                     Poll::Pending => {

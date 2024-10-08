@@ -1,6 +1,9 @@
 use fmtutil::IntoDisplayableSlice;
 
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    functions::aggregate::PlannedAggregateFunction,
+};
 use std::fmt;
 
 use super::Expression;
@@ -13,14 +16,22 @@ pub struct WindowExpr {
     pub partition_by: Vec<Expression>,
 }
 
-impl fmt::Display for WindowExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Other fields
+impl ContextDisplay for WindowExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let inputs: Vec<_> = self
+            .inputs
+            .iter()
+            .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
+            .collect();
         write!(
             f,
             "{}({})",
             self.agg.aggregate_function().name(),
-            self.inputs.display_as_list()
+            inputs.display_as_list()
         )
     }
 }

@@ -1,3 +1,5 @@
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+
 use super::Expression;
 use std::fmt;
 
@@ -9,12 +11,18 @@ pub struct BetweenExpr {
     pub input: Box<Expression>,
 }
 
-impl fmt::Display for BetweenExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for BetweenExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         write!(
             f,
             "{} BETWEEN {} AND {}",
-            self.input, self.lower, self.upper
+            ContextDisplayWrapper::with_mode(self.input.as_ref(), mode),
+            ContextDisplayWrapper::with_mode(self.lower.as_ref(), mode),
+            ContextDisplayWrapper::with_mode(self.upper.as_ref(), mode),
         )
     }
 }

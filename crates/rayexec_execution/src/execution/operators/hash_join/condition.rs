@@ -1,7 +1,11 @@
-use rayexec_bullet::{array::Array, batch::Batch, bitmap::Bitmap, compute::take::take};
+use rayexec_bullet::{
+    array::Array,
+    batch::Batch,
+    executor::scalar::SelectExecutor,
+    selection::SelectionVector,
+};
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
-use std::sync::Arc;
 
 use crate::{
     expr::physical::PhysicalScalarExpression,
@@ -42,20 +46,26 @@ impl fmt::Display for HashJoinCondition {
 #[derive(Debug)]
 pub struct LeftPrecomputedJoinCondition {
     /// Precomputed results for left batches.
-    pub left_precomputed: Vec<Arc<Array>>,
+    pub left_precomputed: Vec<Array>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
     pub function: Box<dyn PlannedScalarFunction>,
 }
 
+impl LeftPrecomputedJoinCondition {
+    pub fn from_condition_with_capacity(condition: HashJoinCondition, cap: usize) -> Self {
+        LeftPrecomputedJoinCondition {
+            left_precomputed: Vec::with_capacity(cap),
+            left: condition.left,
+            right: condition.right,
+            function: condition.function,
+        }
+    }
+}
+
 impl From<HashJoinCondition> for LeftPrecomputedJoinCondition {
     fn from(value: HashJoinCondition) -> Self {
-        LeftPrecomputedJoinCondition {
-            left_precomputed: Vec::new(),
-            left: value.left,
-            right: value.right,
-            function: value.function,
-        }
+        Self::from_condition_with_capacity(value, 0)
     }
 }
 
@@ -70,8 +80,8 @@ impl LeftPrecomputedJoinConditions {
     /// input.
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
-            let precomputed = condition.left.eval(left, None)?;
-            condition.left_precomputed.push(precomputed)
+            let precomputed = condition.left.eval(left)?;
+            condition.left_precomputed.push(precomputed.into_owned())
         }
 
         Ok(())
@@ -80,50 +90,57 @@ impl LeftPrecomputedJoinConditions {
     /// Compute the output selection array by ANDing the results of all
     /// conditions.
     ///
-    /// The output array will correspond to the rows to use for both `left_rows`
-    /// and `right`.
+    /// The output is the (left, right) selection vectors to use for the final
+    /// output batch.
     pub fn compute_selection_for_probe(
         &self,
         left_batch_idx: usize,
-        left_rows: &[usize],
+        left_row_sel: SelectionVector,
+        right_row_sel: SelectionVector,
         right: &Batch,
-    ) -> Result<Bitmap> {
-        assert_eq!(left_rows.len(), right.num_rows());
+    ) -> Result<(SelectionVector, SelectionVector)> {
+        assert_eq!(left_row_sel.num_rows(), right_row_sel.num_rows());
 
         let mut results = Vec::with_capacity(self.conditions.len());
 
+        // Select rows from the right batch.
+        let selected_right = right.select(right_row_sel.clone());
+
         for condition in &self.conditions {
-            let left_precomputed =
-                condition
-                    .left_precomputed
-                    .get(left_batch_idx)
-                    .ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Missing left precomputed array: {left_batch_idx}"
-                        ))
-                    })?;
+            let mut left_precomputed = condition
+                .left_precomputed
+                .get(left_batch_idx)
+                .ok_or_else(|| {
+                    RayexecError::new(format!("Missing left precomputed array: {left_batch_idx}"))
+                })?
+                .clone();
 
-            // TODO: Use selection instead of taking for left.
+            // Select relevant rows from the left.
+            left_precomputed.select_mut(&left_row_sel.clone().into());
 
-            let left_input = Arc::new(take(left_precomputed.as_ref(), left_rows)?);
-            let right_input = condition.right.eval(right, None)?;
+            // Eval the right side.
+            let right_arr = condition.right.eval(&selected_right)?;
 
-            let result = condition.function.execute(&[&left_input, &right_input])?;
+            // Compute join condition result.
+            let result = condition
+                .function
+                .execute(&[&left_precomputed, right_arr.as_ref()])?;
 
-            results.push(Arc::new(result));
+            results.push(result);
         }
 
+        // AND the results.
         let refs: Vec<_> = results.iter().collect();
-        let out = match AndImpl.execute(&refs)? {
-            Array::Boolean(arr) => arr.into_selection_bitmap(),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Expect boolean array as result for condition, got {}",
-                    other.datatype()
-                )))
-            }
-        };
+        let out = AndImpl.execute(&refs)?;
 
-        Ok(out)
+        // Generate a selection for the left and right selections.
+        let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());
+        SelectExecutor::select(&out, &mut select_the_selection)?;
+
+        // Filter the original selection vectors only keeping selected indices.
+        let left_row_sel = left_row_sel.select(&select_the_selection);
+        let right_row_sel = right_row_sel.select(&select_the_selection);
+
+        Ok((left_row_sel, right_row_sel))
     }
 }

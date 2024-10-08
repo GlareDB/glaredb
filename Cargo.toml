@@ -4,15 +4,13 @@ default-members = ["crates/*", "test_bin"]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.57"
+version = "0.0.58"
 edition = "2021"
 
 [profile.release]
 lto = "thin"
 opt-level = 3
 codegen-units = 1
-strip = true
-debug = true
 
 [workspace.dependencies]
 ahash = { version = "0.8.11", default-features = false }

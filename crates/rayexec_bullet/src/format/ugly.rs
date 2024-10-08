@@ -6,7 +6,7 @@ use crate::{
 use rayexec_error::Result;
 use std::fmt::Write as _;
 
-pub fn ugly_print_no_schema<'a, I>(batches: I) -> Result<String>
+pub fn ugly_format_no_schema<'a, I>(batches: I) -> Result<String>
 where
     I: IntoIterator<Item = &'a Batch>,
 {
@@ -38,7 +38,7 @@ where
     Ok(buf)
 }
 
-pub fn ugly_print<'a, I>(schema: &Schema, batches: I) -> Result<String>
+pub fn ugly_format<'a, I>(schema: &Schema, batches: I) -> Result<String>
 where
     I: IntoIterator<Item = &'a Batch>,
 {

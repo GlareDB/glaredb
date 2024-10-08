@@ -1,6 +1,10 @@
+use rayexec_error::Result;
 use std::collections::HashMap;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::{
+    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
+    expr::Expression,
+};
 use rayexec_bullet::scalar::OwnedScalarValue;
 
 use super::{
@@ -25,6 +29,20 @@ impl LogicalNode for Node<LogicalAttachDatabase> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         Vec::new()
     }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,5 +59,19 @@ impl Explainable for LogicalDetachDatabase {
 impl LogicalNode for Node<LogicalDetachDatabase> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         Vec::new()
+    }
+
+    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&Expression) -> Result<()>,
+    {
+        Ok(())
+    }
+
+    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    where
+        F: FnMut(&mut Expression) -> Result<()>,
+    {
+        Ok(())
     }
 }

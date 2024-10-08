@@ -2,7 +2,10 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::logical::binder::bind_context::BindContext;
+use crate::{
+    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
+    logical::binder::bind_context::BindContext,
+};
 
 use super::Expression;
 
@@ -15,6 +18,21 @@ pub struct WhenThen {
 impl fmt::Display for WhenThen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "WHEN {} THEN {}", self.when, self.then)
+    }
+}
+
+impl ContextDisplay for WhenThen {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "WHEN {} THEN {}",
+            ContextDisplayWrapper::with_mode(&self.when, mode),
+            ContextDisplayWrapper::with_mode(&self.then, mode),
+        )
     }
 }
 
@@ -51,15 +69,23 @@ impl CaseExpr {
     }
 }
 
-impl fmt::Display for CaseExpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ContextDisplay for CaseExpr {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         write!(f, "CASE ")?;
         for case in &self.cases {
-            write!(f, "{} ", case)?;
+            write!(f, "{} ", ContextDisplayWrapper::with_mode(case, mode),)?;
         }
 
         if let Some(else_expr) = self.else_expr.as_ref() {
-            write!(f, "ELSE {}", else_expr)?;
+            write!(
+                f,
+                "ELSE {}",
+                ContextDisplayWrapper::with_mode(else_expr.as_ref(), mode),
+            )?;
         }
 
         Ok(())

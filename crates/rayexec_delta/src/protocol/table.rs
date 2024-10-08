@@ -8,6 +8,7 @@ use rayexec_bullet::{
     scalar::decimal::{Decimal128Type, DecimalType},
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::{
     location::{AccessConfig, FileLocation},
     FileProvider, FileSource,
@@ -138,7 +139,7 @@ impl Table {
     // TODO: batch size, projection
     // TODO: Reference partition values.
     // TODO: Properly filter based on deletion vector.
-    pub fn scan(&self, num_partitions: usize) -> Result<Vec<TableScan>> {
+    pub fn scan(&self, projections: Projections, num_partitions: usize) -> Result<Vec<TableScan>> {
         // Each partitions gets some subset of files.
         let mut paths: Vec<_> = (0..num_partitions).map(|_| VecDeque::new()).collect();
 
@@ -154,6 +155,7 @@ impl Table {
             .map(|partition_paths| TableScan {
                 root: self.root.clone(),
                 schema: schema.clone(),
+                projections: projections.clone(),
                 paths: partition_paths,
                 provider: self.provider.clone(),
                 conf: self.conf.clone(),
@@ -170,6 +172,8 @@ pub struct TableScan {
     root: FileLocation,
     /// Schema of the table as determined by the metadata action.
     schema: Schema,
+    /// Root column projections.
+    projections: Projections,
     /// Paths to data files this scan should read one after another.
     paths: VecDeque<String>,
     /// File provider for getting the actual file sources.
@@ -198,6 +202,7 @@ impl TableScan {
                         path,
                         self.provider.as_ref(),
                         &self.schema,
+                        self.projections.clone(),
                     )
                     .await?,
                 )
@@ -221,6 +226,7 @@ impl TableScan {
         path: String,
         provider: &dyn FileProvider,
         schema: &Schema,
+        projections: Projections,
     ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
         // TODO: Need to split path into segments.
         let location = root.join([path])?;
@@ -230,8 +236,15 @@ impl TableScan {
         let metadata = Arc::new(Metadata::new_from_source(source.as_mut(), size).await?);
         let row_groups: VecDeque<_> = (0..metadata.decoded_metadata.row_groups().len()).collect();
 
-        const BATCH_SIZE: usize = 2048; // TODO
-        let reader = AsyncBatchReader::try_new(source, row_groups, metadata, schema, BATCH_SIZE)?;
+        const BATCH_SIZE: usize = 4096; // TODO
+        let reader = AsyncBatchReader::try_new(
+            source,
+            row_groups,
+            metadata,
+            schema,
+            BATCH_SIZE,
+            projections,
+        )?;
 
         Ok(reader)
     }
