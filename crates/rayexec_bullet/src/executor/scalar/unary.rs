@@ -115,6 +115,9 @@ impl UnaryExecutor {
         Ok(())
     }
 
+    /// Gets the value some index in the array.
+    ///
+    /// Returns Some if the value is valid, None otherwise.
     pub fn value_at_unchecked<'a, S>(
         array: &'a Array,
         idx: usize,

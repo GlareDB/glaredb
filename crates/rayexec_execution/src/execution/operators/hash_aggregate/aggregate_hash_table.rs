@@ -144,26 +144,15 @@ impl PartitionAggregateHashTable {
         for row_idx in selection.iter_locations() {
             let hash = hashes[row_idx];
 
-            // TODO: This is probably a bit slower than we'd want.
-            //
-            // It's like that replacing this with something that compares
-            // scalars directly to a arrays at an index would be faster.
-            let value = GroupValue {
-                row: ScalarRow::try_new_from_arrays(groups, row_idx)?,
-                group_id,
-            };
+            let maybe_group_idx =
+                self.try_find_group_idx_for_row(groups, row_idx, group_id, hash)?;
 
-            // Look up the entry into the hash table.
-            let ent = self.hash_table.get_mut(hash, |(_hash, group_idx)| {
-                value == self.group_values[*group_idx]
-            });
-
-            match ent {
-                Some((_, group_idx)) => {
+            match maybe_group_idx {
+                Some(group_idx) => {
                     // Group already exists.
                     self.mappings_buffer.push(RowToStateMapping {
                         from_row: row_idx,
-                        to_state: *group_idx,
+                        to_state: group_idx,
                     });
                 }
                 None => {
@@ -180,9 +169,12 @@ impl PartitionAggregateHashTable {
                     self.hash_table
                         .insert(hash, (hash, group_idx), |(hash, _group_idx)| *hash);
 
+                    let row = ScalarRow::try_new_from_arrays(groups, row_idx)?;
+
+
                     self.group_values.push(GroupValue {
-                        row: value.row.into_owned(),
-                        group_id: value.group_id,
+                        row: row.into_owned(),
+                        group_id,
                     });
 
                     self.mappings_buffer.push(RowToStateMapping {
@@ -194,6 +186,56 @@ impl PartitionAggregateHashTable {
         }
 
         Ok(())
+    }
+
+    /// Tries to find an existing group index for a row on the input columns.
+    fn try_find_group_idx_for_row(
+        &self,
+        grouping_cols: &[&Array],
+        row: usize,
+        group_id: u64,
+        hash: u64,
+    ) -> Result<Option<usize>> {
+        fn scalars_are_equal(scalars: &ScalarRow, arrs: &[&Array], row: usize) -> Result<bool> {
+            for (scalar, arr) in scalars.iter().zip(arrs) {
+                if !arr.scalar_value_logically_eq(scalar, row)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+
+        // SAFETY: Iter returned from hash table only lives for the duration of
+        // this function.
+        unsafe {
+            for bucket in self.hash_table.iter_hash(hash) {
+                let val = bucket.as_ref(); // Unsafe
+
+
+                // Check hash first.
+                if val.0 != hash {
+                    continue;
+                }
+
+                let group_values = &self.group_values[val.1];
+
+                // Check that we're comparing for this group.
+                if group_values.group_id != group_id {
+                    continue;
+                }
+
+                // Now compare already collected group values to input
+                // array.
+                if scalars_are_equal(&group_values.row, grouping_cols, row)? {
+                    // We found out group.
+                    return Ok(Some(val.1));
+                }
+
+                // Otherise keep search.
+            }
+        }
+
+        Ok(None)
     }
 
     /// Merge other hash table into self.

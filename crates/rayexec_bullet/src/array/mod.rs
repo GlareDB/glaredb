@@ -7,6 +7,7 @@ use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::executor::physical_type::{
+    PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF32,
@@ -230,10 +231,14 @@ impl Array {
         Some(true)
     }
 
+    /// Returns the array data.
+    ///
+    /// ArrayData can be cheaply cloned.
     pub fn array_data(&self) -> &ArrayData {
         &self.data
     }
 
+    /// Gets the physical type of the array.
     pub fn physical_type(&self) -> PhysicalType {
         match self.data.physical_type() {
             PhysicalType::Binary => match self.datatype {
@@ -566,6 +571,146 @@ impl Array {
             DataType::Struct(_) => not_implemented!("get value: struct"),
             DataType::List(_) => not_implemented!("get value: list"),
         })
+    }
+
+    /// Checks if a scalar value is logically equal to a value in the array.
+    pub fn scalar_value_logically_eq(&self, scalar: &ScalarValue, row: usize) -> Result<bool> {
+        if row >= self.logical_len() {
+            return Err(RayexecError::new("Row out of bounds"));
+        }
+
+        match scalar {
+            ScalarValue::Null => UnaryExecutor::value_at_unchecked::<PhysicalAny>(self, row)
+                .map(|arr_val| arr_val.is_none()), // None == NULL
+            ScalarValue::Boolean(v) => UnaryExecutor::value_at_unchecked::<PhysicalBool>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Int8(v) => {
+                UnaryExecutor::value_at_unchecked::<PhysicalI8>(self, row).map(|arr_val| {
+                    match arr_val {
+                        Some(arr_val) => arr_val == *v,
+                        None => false,
+                    }
+                })
+            }
+            ScalarValue::Int16(v) => UnaryExecutor::value_at_unchecked::<PhysicalI16>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Int32(v) => UnaryExecutor::value_at_unchecked::<PhysicalI32>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Int64(v) => UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Int128(v) => UnaryExecutor::value_at_unchecked::<PhysicalI128>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::UInt8(v) => UnaryExecutor::value_at_unchecked::<PhysicalU8>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::UInt16(v) => UnaryExecutor::value_at_unchecked::<PhysicalU16>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::UInt32(v) => UnaryExecutor::value_at_unchecked::<PhysicalU32>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::UInt64(v) => UnaryExecutor::value_at_unchecked::<PhysicalU64>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::UInt128(v) => UnaryExecutor::value_at_unchecked::<PhysicalU128>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Float32(v) => UnaryExecutor::value_at_unchecked::<PhysicalF32>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Float64(v) => UnaryExecutor::value_at_unchecked::<PhysicalF64>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Date32(v) => UnaryExecutor::value_at_unchecked::<PhysicalI32>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Date64(v) => UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                }),
+            ScalarValue::Interval(v) => {
+                UnaryExecutor::value_at_unchecked::<PhysicalInterval>(self, row).map(|arr_val| {
+                    match arr_val {
+                        Some(arr_val) => arr_val == *v,
+                        None => false,
+                    }
+                })
+            }
+            ScalarValue::Utf8(v) => UnaryExecutor::value_at_unchecked::<PhysicalUtf8>(self, row)
+                .map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == v.as_ref(),
+                    None => false,
+                }),
+            ScalarValue::Binary(v) => {
+                UnaryExecutor::value_at_unchecked::<PhysicalBinary>(self, row).map(|arr_val| {
+                    match arr_val {
+                        Some(arr_val) => arr_val == v.as_ref(),
+                        None => false,
+                    }
+                })
+            }
+            ScalarValue::Timestamp(v) => {
+                UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row).map(|arr_val| {
+                    // Assumes time unit is the same
+                    match arr_val {
+                        Some(arr_val) => arr_val == v.value,
+                        None => false,
+                    }
+                })
+            }
+            ScalarValue::Decimal64(v) => {
+                UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row).map(|arr_val| {
+                    // Assumes precision/scale are the same.
+                    match arr_val {
+                        Some(arr_val) => arr_val == v.value,
+                        None => false,
+                    }
+                })
+            }
+            ScalarValue::Decimal128(v) => {
+                UnaryExecutor::value_at_unchecked::<PhysicalI128>(self, row).map(|arr_val| {
+                    // Assumes precision/scale are the same.
+                    match arr_val {
+                        Some(arr_val) => arr_val == v.value,
+                        None => false,
+                    }
+                })
+            }
+
+            other => not_implemented!("scalar value eq: {other}"),
+        }
     }
 
     pub fn try_slice(&self, offset: usize, count: usize) -> Result<Self> {
@@ -942,5 +1087,23 @@ mod tests {
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
         assert_eq!(ScalarValue::from("a"), arr.logical_value(2).unwrap());
         assert!(arr.logical_value(3).is_err());
+    }
+
+    #[test]
+    fn scalar_value_logical_eq_i32() {
+        let arr = Array::from_iter([1, 2, 3]);
+        let scalar = ScalarValue::Int32(2);
+
+        assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
+        assert!(arr.scalar_value_logically_eq(&scalar, 1).unwrap());
+    }
+
+    #[test]
+    fn scalar_value_logical_eq_null() {
+        let arr = Array::from_iter([Some(1), None, Some(3)]);
+        let scalar = ScalarValue::Null;
+
+        assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
+        assert!(arr.scalar_value_logically_eq(&scalar, 1).unwrap());
     }
 }
