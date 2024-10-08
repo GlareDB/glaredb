@@ -1,13 +1,11 @@
-use crate::{
-    keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::Token,
-};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DistinctModifier, Expr, FromNode, Ident, ObjectReference};
+use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS};
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SelectNode<T: AstMeta> {

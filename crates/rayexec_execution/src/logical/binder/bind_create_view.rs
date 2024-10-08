@@ -1,17 +1,13 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    database::create::OnConflict,
-    logical::{
-        binder::bind_query::QueryBinder,
-        logical_create::LogicalCreateView,
-        operator::{LocationRequirement, Node},
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-
 use super::bind_context::{BindContext, BindScopeRef};
+use crate::database::create::OnConflict;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::logical_create::LogicalCreateView;
+use crate::logical::operator::{LocationRequirement, Node};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 pub struct CreateViewBinder<'a> {
     pub current: BindScopeRef,

@@ -1,13 +1,11 @@
-use crate::{
-    keywords::{Keyword, RESERVED_FOR_TABLE_ALIAS},
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::{Token, TokenWithLocation},
-};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
+use crate::keywords::{Keyword, RESERVED_FOR_TABLE_ALIAS};
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::{Token, TokenWithLocation};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FromNode<T: AstMeta> {
@@ -294,9 +292,11 @@ pub enum JoinCondition<T: AstMeta> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::ast::{testutil::parse_ast, BinaryOperator, FunctionArgExpr, Literal};
     use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::ast::testutil::parse_ast;
+    use crate::ast::{BinaryOperator, FunctionArgExpr, Literal};
 
     #[test]
     fn base_table() {

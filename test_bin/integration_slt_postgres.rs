@@ -1,12 +1,12 @@
+use std::path::Path;
+use std::time::Duration;
+
 use rayexec_error::Result;
-use rayexec_execution::datasource::DataSourceBuilder;
-use rayexec_execution::datasource::DataSourceRegistry;
+use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry};
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::path::Path;
-use std::time::Duration;
 
 pub fn main() -> Result<()> {
     let rt = NativeRuntime::with_default_tokio()?;

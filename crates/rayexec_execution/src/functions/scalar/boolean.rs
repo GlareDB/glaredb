@@ -1,5 +1,5 @@
-use super::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
+use std::fmt::Debug;
+
 use rayexec_bullet::array::Array;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -9,7 +9,9 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+
+use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;

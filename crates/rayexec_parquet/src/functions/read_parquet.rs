@@ -1,25 +1,22 @@
+use std::sync::Arc;
+
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
-use rayexec_execution::{
-    database::DatabaseContext,
-    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    logical::statistics::{Statistics, StatisticsCount},
-    runtime::Runtime,
-    storage::table_storage::DataTable,
-};
+use rayexec_execution::database::DatabaseContext;
+use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use rayexec_execution::logical::statistics::{Statistics, StatisticsCount};
+use rayexec_execution::runtime::Runtime;
+use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;
-use rayexec_proto::{
-    packed::{PackedDecoder, PackedEncoder},
-    ProtoConv,
-};
-use std::sync::Arc;
-
-use crate::{metadata::Metadata, schema::from_parquet_schema};
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_proto::ProtoConv;
 
 use super::datatable::RowGroupPartitionedDataTable;
+use crate::metadata::Metadata;
+use crate::schema::from_parquet_schema;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadParquet<R: Runtime> {

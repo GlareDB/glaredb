@@ -21,7 +21,8 @@ impl ProtoConv for DropObject {
     type ProtoType = rayexec_proto::generated::execution::DropObject;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::execution::{drop_object::Value, EmptyDropObject};
+        use rayexec_proto::generated::execution::drop_object::Value;
+        use rayexec_proto::generated::execution::EmptyDropObject;
 
         Ok(Self::ProtoType {
             value: Some(match self {

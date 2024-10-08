@@ -1,13 +1,9 @@
-use crate::{
-    expr::{
-        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-        Expression,
-    },
-    logical::binder::bind_context::BindContext,
-};
 use rayexec_error::Result;
 
 use super::ExpressionRewriteRule;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 /// Unnest nested AND or OR expressions.
 ///
@@ -66,9 +62,8 @@ fn unnest_op(expr: Expression, search_op: ConjunctionOperator, out: &mut Vec<Exp
 
 #[cfg(test)]
 mod tests {
-    use crate::expr::{and, lit, or};
-
     use super::*;
+    use crate::expr::{and, lit, or};
 
     #[test]
     fn unnest_none() {

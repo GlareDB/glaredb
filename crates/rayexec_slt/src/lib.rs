@@ -5,18 +5,17 @@ pub use vars::*;
 
 mod convert;
 
+use std::fs;
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
 use async_trait::async_trait;
 use convert::{schema_to_types, table_to_rows};
 use libtest_mimic::{Arguments, Trial};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use sqllogictest::DefaultColumnType;
-use std::fs;
-use std::future::Future;
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 

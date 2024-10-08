@@ -1,12 +1,13 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{
-    database::{catalog::CatalogTx, catalog_entry::CatalogEntry, DatabaseContext},
-    proto::DatabaseProtoConv,
-};
-use rayexec_error::{OptionExt, RayexecError, Result};
 use std::sync::Arc;
 
+use rayexec_error::{OptionExt, RayexecError, Result};
+
 use super::sink::{PartitionSink, SinkOperation, SinkOperator};
+use crate::database::catalog::CatalogTx;
+use crate::database::catalog_entry::CatalogEntry;
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 pub type PhysicalInsert = SinkOperator<InsertOperation>;
 

@@ -1,9 +1,9 @@
-use rayexec_bullet::datatype::DataType;
 use std::fmt;
 
-use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use rayexec_bullet::datatype::DataType;
 
 use super::Expression;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {

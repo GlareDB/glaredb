@@ -1,7 +1,8 @@
 use bytes::Bytes;
+use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::data_type::{ByteArray, ByteArrayType, DataType as ParquetDataType};
-use parquet::{basic::Type as PhysicalType, schema::types::ColumnDescPtr};
+use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::storage::SharedHeapStorage;

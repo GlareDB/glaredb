@@ -4,12 +4,13 @@ pub mod time;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::execution::executable::pipeline::ExecutablePipeline;
 use handle::QueryHandle;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use rayexec_io::FileProvider;
 use time::RuntimeInstant;
+
+use crate::execution::executable::pipeline::ExecutablePipeline;
 
 /// How pipelines get executed on a single node.
 ///

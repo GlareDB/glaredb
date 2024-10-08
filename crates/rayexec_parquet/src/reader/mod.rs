@@ -1,12 +1,22 @@
 pub mod primitive;
 pub mod varlen;
 
+use std::collections::VecDeque;
+use std::fmt::{self, Debug};
+use std::sync::Arc;
+
 use bytes::{Buf, Bytes};
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
 use parquet::data_type::{
-    BoolType, DataType as ParquetDataType, DoubleType, FloatType, Int32Type, Int64Type, Int96Type,
+    BoolType,
+    DataType as ParquetDataType,
+    DoubleType,
+    FloatType,
+    Int32Type,
+    Int64Type,
+    Int96Type,
 };
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
@@ -19,9 +29,6 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::FileSource;
-use std::collections::VecDeque;
-use std::fmt::{self, Debug};
-use std::sync::Arc;
 use varlen::VarlenArrayReader;
 
 use crate::metadata::Metadata;

@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
+
 use dyn_clone::DynClone;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -6,8 +9,6 @@ use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Debug;
 
 use crate::execution::operators::sink::PartitionSink;
 

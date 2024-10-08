@@ -1,7 +1,5 @@
-use crate::expr::{
-    conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-    Expression,
-};
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::Expression;
 
 /// Recursively split an expression on AND, putting the split expressions in
 /// `out`.
@@ -23,9 +21,8 @@ pub fn split_conjunction(expr: Expression, out: &mut Vec<Expression>) {
 mod tests {
     use rayexec_bullet::scalar::ScalarValue;
 
-    use crate::expr::literal_expr::LiteralExpr;
-
     use super::*;
+    use crate::expr::literal_expr::LiteralExpr;
 
     #[test]
     fn split_conjunction_none() {

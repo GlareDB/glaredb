@@ -2,18 +2,12 @@ use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    database::create::OnConflict,
-    logical::{
-        binder::bind_query::QueryBinder,
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    bind_query::BoundQuery,
-};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::bind_query::BoundQuery;
+use crate::database::create::OnConflict;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub struct BoundCreateTable {

@@ -1,25 +1,18 @@
-use crate::{
-    expr::Expression,
-    logical::{
-        binder::{
-            bind_context::{BindContext, BindScopeRef},
-            column_binder::DefaultColumnBinder,
-            expr_binder::{BaseExpressionBinder, RecursionContext},
-        },
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::{
-    bind_from::{BoundFrom, FromBinder},
-    bind_group_by::{BoundGroupBy, GroupByBinder},
-    bind_having::HavingBinder,
-    bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder},
-    select_expr_expander::SelectExprExpander,
-    select_list::{BoundSelectList, SelectList},
-};
+use super::bind_from::{BoundFrom, FromBinder};
+use super::bind_group_by::{BoundGroupBy, GroupByBinder};
+use super::bind_having::HavingBinder;
+use super::bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder};
+use super::select_expr_expander::SelectExprExpander;
+use super::select_list::{BoundSelectList, SelectList};
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
+use crate::logical::binder::column_binder::DefaultColumnBinder;
+use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelect {
@@ -156,9 +149,8 @@ impl<'a> SelectBinder<'a> {
 mod tests {
     use rayexec_bullet::datatype::DataType;
 
-    use crate::logical::binder::bind_context::testutil::columns_in_scope;
-
     use super::*;
+    use crate::logical::binder::bind_context::testutil::columns_in_scope;
 
     #[test]
     fn bind_context_projection_in_scope() {

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use crate::ast::{CopyOption, CopyToTarget, DataType, FunctionArg, ObjectReference};
 

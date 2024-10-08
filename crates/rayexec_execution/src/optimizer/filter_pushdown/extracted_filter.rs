@@ -1,6 +1,8 @@
-use std::{collections::HashSet, hash::Hash};
+use std::collections::HashSet;
+use std::hash::Hash;
 
-use crate::{expr::Expression, logical::binder::bind_context::TableRef};
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::TableRef;
 
 /// Holds a filtering expression and all table refs the expression references.
 #[derive(Debug, PartialEq, Eq)]

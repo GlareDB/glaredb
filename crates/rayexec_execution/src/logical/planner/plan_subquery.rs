@@ -1,32 +1,35 @@
-use crate::{
-    expr::{
-        aggregate_expr::AggregateExpr,
-        column_expr::ColumnExpr,
-        comparison_expr::{ComparisonExpr, ComparisonOperator},
-        literal_expr::LiteralExpr,
-        negate_expr::{NegateExpr, NegateOperator},
-        subquery_expr::{SubqueryExpr, SubqueryType},
-        Expression,
-    },
-    functions::aggregate::count::CountNonNullImpl,
-    logical::{
-        binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef},
-        logical_aggregate::LogicalAggregate,
-        logical_join::{
-            ComparisonCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin,
-            LogicalMagicJoin,
-        },
-        logical_limit::LogicalLimit,
-        logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
-        logical_project::LogicalProject,
-        logical_scan::ScanSource,
-        operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
-        planner::plan_query::QueryPlanner,
-    },
-};
-use rayexec_bullet::{datatype::DataType, scalar::ScalarValue};
-use rayexec_error::{not_implemented, RayexecError, Result};
 use std::collections::{BTreeSet, HashMap};
+
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::scalar::ScalarValue;
+use rayexec_error::{not_implemented, RayexecError, Result};
+
+use crate::expr::aggregate_expr::AggregateExpr;
+use crate::expr::column_expr::ColumnExpr;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::literal_expr::LiteralExpr;
+use crate::expr::negate_expr::{NegateExpr, NegateOperator};
+use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
+use crate::expr::Expression;
+use crate::functions::aggregate::count::CountNonNullImpl;
+use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
+use crate::logical::logical_aggregate::LogicalAggregate;
+use crate::logical::logical_join::{
+    ComparisonCondition,
+    JoinType,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+    LogicalMagicJoin,
+};
+use crate::logical::logical_limit::LogicalLimit;
+use crate::logical::logical_materialization::{
+    LogicalMagicMaterializationScan,
+    LogicalMaterializationScan,
+};
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_scan::ScanSource;
+use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::planner::plan_query::QueryPlanner;
 
 #[derive(Debug)]
 pub struct SubqueryPlanner;

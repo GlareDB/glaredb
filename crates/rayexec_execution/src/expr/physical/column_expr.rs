@@ -1,12 +1,12 @@
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
+use std::fmt;
 
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
-use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
+use crate::database::DatabaseContext;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalColumnExpr {

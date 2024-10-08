@@ -1,12 +1,10 @@
-use fmtutil::IntoDisplayableSlice;
-
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    functions::scalar::PlannedScalarFunction,
-};
 use std::fmt;
 
+use fmtutil::IntoDisplayableSlice;
+
 use super::Expression;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::scalar::PlannedScalarFunction;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScalarFunctionExpr {

@@ -1,9 +1,13 @@
 //! Parsing related utilities for casting from a string to other types.
+use std::fmt::Write;
+use std::marker::PhantomData;
+use std::str::FromStr;
+
 use chrono::{Datelike, NaiveDate};
 use num::PrimInt;
-use std::{fmt::Write, marker::PhantomData, str::FromStr};
 
-use crate::{compute::date::EPOCH_DAYS_FROM_CE, scalar::interval::Interval};
+use crate::compute::date::EPOCH_DAYS_FROM_CE;
+use crate::scalar::interval::Interval;
 
 /// Logic for parsing a string into some type.
 pub trait Parser {
@@ -345,9 +349,8 @@ impl Parser for IntervalParser {
 
 #[cfg(test)]
 mod tests {
-    use crate::compute::date::EPOCH_NAIVE_DATE;
-
     use super::*;
+    use crate::compute::date::EPOCH_NAIVE_DATE;
 
     #[test]
     fn epoch_days() {

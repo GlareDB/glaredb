@@ -1,19 +1,27 @@
-use crate::database::create::CreateViewInfo;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{
-    database::{catalog::CatalogTx, DatabaseContext},
-    proto::DatabaseProtoConv,
-};
-use futures::{future::BoxFuture, FutureExt};
+use std::fmt;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::task::{Context, Poll};
-use std::{fmt, sync::Arc};
 
 use super::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::catalog::CatalogTx;
+use crate::database::create::CreateViewInfo;
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 pub struct CreateViewPartitionState {
     create: BoxFuture<'static, Result<()>>,

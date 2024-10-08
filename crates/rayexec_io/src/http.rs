@@ -1,22 +1,17 @@
-use bytes::Bytes;
-use rayexec_error::{RayexecError, Result, ResultExt};
 use std::fmt::Debug;
+
+use bytes::Bytes;
+use futures::future::BoxFuture;
+use futures::stream::{self, BoxStream};
+use futures::{Future, Stream, StreamExt, TryStreamExt};
+use rayexec_error::{RayexecError, Result, ResultExt};
+pub use reqwest;
+use reqwest::header::{HeaderMap, CONTENT_LENGTH, RANGE};
+use reqwest::{Method, Request, StatusCode};
 use tracing::debug;
 use url::Url;
 
-use futures::{
-    future::BoxFuture,
-    stream::{self, BoxStream},
-    Future, Stream, StreamExt, TryStreamExt,
-};
-use reqwest::{
-    header::{HeaderMap, CONTENT_LENGTH, RANGE},
-    Method, Request, StatusCode,
-};
-
 use crate::FileSource;
-
-pub use reqwest;
 
 pub trait HttpClient: Sync + Send + Debug + Clone {
     type Response: HttpResponse + Send;

@@ -1,12 +1,11 @@
 //! Utilities for writing values into strings (and other buffers).
-use std::{
-    fmt::{self, Display, Write as _},
-    marker::PhantomData,
-};
+use std::fmt::{self, Display, Write as _};
+use std::marker::PhantomData;
 
 use chrono::{DateTime, Utc};
 
-use crate::{compute::date::SECONDS_IN_DAY, scalar::interval::Interval};
+use crate::compute::date::SECONDS_IN_DAY;
+use crate::scalar::interval::Interval;
 
 /// Logic for formatting and writing a type to a buffer.
 pub trait Formatter {

@@ -1,9 +1,7 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;

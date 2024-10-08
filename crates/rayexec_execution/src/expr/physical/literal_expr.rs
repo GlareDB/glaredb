@@ -1,14 +1,14 @@
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
+use std::fmt;
 
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    scalar::OwnedScalarValue,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
-use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
+use crate::database::DatabaseContext;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PhysicalLiteralExpr {

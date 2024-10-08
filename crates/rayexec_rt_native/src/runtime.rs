@@ -1,29 +1,30 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use futures::{
-    stream::{self, BoxStream},
-    StreamExt,
-};
+use futures::stream::{self, BoxStream};
+use futures::StreamExt;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use rayexec_execution::{
-    execution::executable::pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
-    runtime::{
-        handle::QueryHandle, ErrorSink, OptionalTokioRuntime, PipelineExecutor, Runtime,
-        TokioHandlerProvider,
-    },
+use rayexec_execution::execution::executable::pipeline::{
+    ExecutablePartitionPipeline,
+    ExecutablePipeline,
 };
-use rayexec_io::{
-    http::HttpClientReader,
-    location::{AccessConfig, FileLocation},
-    s3::{S3Client, S3Location},
-    FileProvider, FileSink, FileSource,
+use rayexec_execution::runtime::handle::QueryHandle;
+use rayexec_execution::runtime::{
+    ErrorSink,
+    OptionalTokioRuntime,
+    PipelineExecutor,
+    Runtime,
+    TokioHandlerProvider,
 };
+use rayexec_io::http::HttpClientReader;
+use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::s3::{S3Client, S3Location};
+use rayexec_io::{FileProvider, FileSink, FileSource};
 
-use crate::{
-    filesystem::LocalFileSystemProvider, http::TokioWrappedHttpClient, threaded::ThreadedScheduler,
-    time::NativeInstant,
-};
+use crate::filesystem::LocalFileSystemProvider;
+use crate::http::TokioWrappedHttpClient;
+use crate::threaded::ThreadedScheduler;
+use crate::time::NativeInstant;
 
 /// Inner behavior of the execution runtime.
 // TODO: Single-threaded scheduler to run our SLTs on to ensure no operators

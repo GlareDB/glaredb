@@ -1,13 +1,11 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::Token,
-};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, Ident, ObjectReference, QueryNode};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToSource<T: AstMeta> {
@@ -79,11 +77,9 @@ impl AstParseable for CopyTo<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{
-        testutil::parse_ast, LimitModifier, Literal, QueryNodeBody, SelectExpr, SelectNode,
-    };
-
     use super::*;
+    use crate::ast::testutil::parse_ast;
+    use crate::ast::{LimitModifier, Literal, QueryNodeBody, SelectExpr, SelectNode};
 
     #[test]
     fn copy_to_from_table() {

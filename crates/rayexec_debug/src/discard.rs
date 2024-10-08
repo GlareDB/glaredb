@@ -1,9 +1,9 @@
 use futures::future::BoxFuture;
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
-use rayexec_execution::{
-    execution::operators::sink::PartitionSink, functions::copy::CopyToFunction,
-};
+use rayexec_execution::execution::operators::sink::PartitionSink;
+use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_io::location::FileLocation;
 
 /// COPY TO function implementation that discards all input.

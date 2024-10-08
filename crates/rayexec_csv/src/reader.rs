@@ -17,25 +17,24 @@
 //!
 //! Determine if there's a header by trying to parse the first record into the
 //! inferred types from the previous step. If it differs, assume a header.
-use crate::decoder::{CompletedRecords, CsvDecoder, DecoderResult, DecoderState};
+use std::fmt;
+
 use bytes::Bytes;
-use futures::{stream::BoxStream, StreamExt};
-use rayexec_bullet::{
-    array::{
-        Array, ArrayData,
-    },
-    batch::Batch,
-    bitmap::Bitmap,
-    compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser},
-    datatype::{DataType, TimeUnit, TimestampTypeMeta},
-    executor::builder::{ArrayDataBuffer, GermanVarlenBuffer},
-    field::{Field, Schema},
-    storage::{BooleanStorage, PrimitiveStorage},
-};
+use futures::stream::BoxStream;
+use futures::StreamExt;
+use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
+use rayexec_bullet::datatype::{DataType, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
+use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::FileSource;
 use serde::{Deserialize, Serialize};
-use std::fmt;
+
+use crate::decoder::{CompletedRecords, CsvDecoder, DecoderResult, DecoderState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialectOptions {

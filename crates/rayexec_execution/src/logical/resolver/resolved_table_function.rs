@@ -1,11 +1,10 @@
-use crate::{
-    database::DatabaseContext,
-    functions::table::{PlannedTableFunction, TableFunctionArgs},
-    proto::DatabaseProtoConv,
-};
 use rayexec_error::{OptionExt, Result};
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
+
+use crate::database::DatabaseContext;
+use crate::functions::table::{PlannedTableFunction, TableFunctionArgs};
+use crate::proto::DatabaseProtoConv;
 
 /// A resolved table function reference.
 #[derive(Debug, Clone, PartialEq)]

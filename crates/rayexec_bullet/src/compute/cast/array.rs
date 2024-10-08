@@ -1,38 +1,75 @@
-use crate::{
-    array::{Array, ArrayData},
-    bitmap::Bitmap,
-    datatype::{DataType, TimeUnit},
-    executor::{
-        builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer},
-        physical_type::{
-            PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32,
-            PhysicalI64, PhysicalI8, PhysicalStorage, PhysicalU128, PhysicalU16, PhysicalU32,
-            PhysicalU64, PhysicalU8, PhysicalUtf8,
-        },
-        scalar::UnaryExecutor,
-    },
-    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
-    storage::{AddressableStorage, PrimitiveStorage},
-};
-use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
-use rayexec_error::{RayexecError, Result};
 use std::ops::Mul;
 
-use super::{
-    behavior::CastFailBehavior,
-    format::{
-        BoolFormatter, Decimal128Formatter, Decimal64Formatter, Float32Formatter, Float64Formatter,
-        Formatter, Int128Formatter, Int16Formatter, Int32Formatter, Int64Formatter, Int8Formatter,
-        TimestampMicrosecondsFormatter, TimestampMillisecondsFormatter,
-        TimestampNanosecondsFormatter, TimestampSecondsFormatter, UInt128Formatter,
-        UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
-    },
-    parse::{
-        BoolParser, Date32Parser, Decimal128Parser, Decimal64Parser, Float32Parser, Float64Parser,
-        Int128Parser, Int16Parser, Int32Parser, Int64Parser, Int8Parser, IntervalParser, Parser,
-        UInt128Parser, UInt16Parser, UInt32Parser, UInt64Parser, UInt8Parser,
-    },
+use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
+use rayexec_error::{RayexecError, Result};
+
+use super::behavior::CastFailBehavior;
+use super::format::{
+    BoolFormatter,
+    Decimal128Formatter,
+    Decimal64Formatter,
+    Float32Formatter,
+    Float64Formatter,
+    Formatter,
+    Int128Formatter,
+    Int16Formatter,
+    Int32Formatter,
+    Int64Formatter,
+    Int8Formatter,
+    TimestampMicrosecondsFormatter,
+    TimestampMillisecondsFormatter,
+    TimestampNanosecondsFormatter,
+    TimestampSecondsFormatter,
+    UInt128Formatter,
+    UInt16Formatter,
+    UInt32Formatter,
+    UInt64Formatter,
+    UInt8Formatter,
 };
+use super::parse::{
+    BoolParser,
+    Date32Parser,
+    Decimal128Parser,
+    Decimal64Parser,
+    Float32Parser,
+    Float64Parser,
+    Int128Parser,
+    Int16Parser,
+    Int32Parser,
+    Int64Parser,
+    Int8Parser,
+    IntervalParser,
+    Parser,
+    UInt128Parser,
+    UInt16Parser,
+    UInt32Parser,
+    UInt64Parser,
+    UInt8Parser,
+};
+use crate::array::{Array, ArrayData};
+use crate::bitmap::Bitmap;
+use crate::datatype::{DataType, TimeUnit};
+use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
+use crate::executor::physical_type::{
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalStorage,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUtf8,
+};
+use crate::executor::scalar::UnaryExecutor;
+use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::storage::{AddressableStorage, PrimitiveStorage};
 
 pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Result<Array> {
     if arr.datatype() == &to {
@@ -509,11 +546,9 @@ pub fn cast_from_utf8(
         DataType::Interval => {
             cast_parse_primitive(arr, datatype, behavior, IntervalParser::default())
         }
-        other => {
-            Err(RayexecError::new(format!(
-                "Unable to cast utf8 array to {other}"
-            )))
-        }
+        other => Err(RayexecError::new(format!(
+            "Unable to cast utf8 array to {other}"
+        ))),
     }
 }
 
@@ -578,11 +613,9 @@ pub fn cast_to_utf8(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
                 behavior,
             ),
         },
-        other => {
-            Err(RayexecError::new(format!(
-                "Unable to cast {other} array to utf8"
-            )))
-        }
+        other => Err(RayexecError::new(format!(
+            "Unable to cast {other} array to utf8"
+        ))),
     }
 }
 
@@ -662,9 +695,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{datatype::DecimalTypeMeta, scalar::ScalarValue};
-
     use super::*;
+    use crate::datatype::DecimalTypeMeta;
+    use crate::scalar::ScalarValue;
 
     #[test]
     fn array_cast_utf8_to_i32() {

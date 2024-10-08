@@ -3,16 +3,15 @@ use std::io::{ErrorKind, Read, Write};
 use flatbuffers::FlatBufferBuilder;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
-use crate::batch::Batch;
-use crate::field::Schema;
-use crate::ipc::batch::ipc_to_batch;
-use crate::ipc::schema::ipc_to_schema;
-
 use super::batch::batch_to_ipc;
 use super::gen::message::{self, MessageBuilder, MessageHeader};
 use super::gen::schema::MetadataVersion;
 use super::schema::schema_to_ipc;
 use super::IpcConfig;
+use crate::batch::Batch;
+use crate::field::Schema;
+use crate::ipc::batch::ipc_to_batch;
+use crate::ipc::schema::ipc_to_schema;
 
 /// Marker at the beginning of an encapsulated message.
 pub(crate) const CONTINUATION_MARKER: u32 = 0xFFFFFFFF;
@@ -228,18 +227,13 @@ fn write_encapsulated_header(writer: &mut impl Write, buf: &[u8]) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        io::{self, Read, Write},
-        sync::{Arc, Mutex},
-    };
-
-    use crate::{
-        batch::Batch,
-        datatype::DataType,
-        field::{Field, Schema},
-    };
+    use std::io::{self, Read, Write};
+    use std::sync::{Arc, Mutex};
 
     use super::*;
+    use crate::batch::Batch;
+    use crate::datatype::DataType;
+    use crate::field::{Field, Schema};
 
     struct SharedVecWriter {
         buf: Arc<Mutex<Vec<u8>>>,

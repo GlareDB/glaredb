@@ -2,27 +2,47 @@ pub mod decimal;
 pub mod interval;
 pub mod timestamp;
 
-use crate::array::{Array, ArrayData};
-use crate::bitmap::Bitmap;
-use crate::compute::cast::format::{
-    BoolFormatter, Date32Formatter, Date64Formatter, Decimal128Formatter, Decimal64Formatter,
-    Float32Formatter, Float64Formatter, Formatter, Int128Formatter, Int16Formatter, Int32Formatter,
-    Int64Formatter, Int8Formatter, IntervalFormatter, TimestampMicrosecondsFormatter,
-    TimestampMillisecondsFormatter, TimestampNanosecondsFormatter, TimestampSecondsFormatter,
-    UInt128Formatter, UInt16Formatter, UInt32Formatter, UInt64Formatter, UInt8Formatter,
-};
-use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
-use crate::selection::SelectionVector;
-use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
+use std::borrow::Cow;
+use std::fmt;
+use std::hash::Hash;
+
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use interval::Interval;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::fmt;
-use std::hash::Hash;
 use timestamp::TimestampScalar;
+
+use crate::array::{Array, ArrayData};
+use crate::bitmap::Bitmap;
+use crate::compute::cast::format::{
+    BoolFormatter,
+    Date32Formatter,
+    Date64Formatter,
+    Decimal128Formatter,
+    Decimal64Formatter,
+    Float32Formatter,
+    Float64Formatter,
+    Formatter,
+    Int128Formatter,
+    Int16Formatter,
+    Int32Formatter,
+    Int64Formatter,
+    Int8Formatter,
+    IntervalFormatter,
+    TimestampMicrosecondsFormatter,
+    TimestampMillisecondsFormatter,
+    TimestampNanosecondsFormatter,
+    TimestampSecondsFormatter,
+    UInt128Formatter,
+    UInt16Formatter,
+    UInt32Formatter,
+    UInt64Formatter,
+    UInt8Formatter,
+};
+use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::selection::SelectionVector;
+use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -444,9 +464,8 @@ impl ProtoConv for OwnedScalarValue {
     type ProtoType = rayexec_proto::generated::expr::OwnedScalarValue;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::expr::{
-            owned_scalar_value::Value, EmptyScalar, ListScalar, StructScalar,
-        };
+        use rayexec_proto::generated::expr::owned_scalar_value::Value;
+        use rayexec_proto::generated::expr::{EmptyScalar, ListScalar, StructScalar};
 
         let value = match self {
             Self::Null => Value::ScalarNull(EmptyScalar {}),

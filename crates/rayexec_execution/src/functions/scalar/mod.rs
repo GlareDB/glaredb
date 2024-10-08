@@ -11,19 +11,18 @@ pub mod random;
 pub mod string;
 pub mod struct_funcs;
 
+use std::fmt::Debug;
+use std::hash::Hash;
+
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
-use std::fmt::Debug;
-use std::hash::Hash;
-
-use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
-
 
 use super::FunctionInfo;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 // List of all scalar functions.
 pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::new(|| {

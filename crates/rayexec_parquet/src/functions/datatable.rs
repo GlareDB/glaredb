@@ -1,21 +1,18 @@
-use std::{
-    collections::VecDeque,
-    fmt::{self, Debug},
-    sync::Arc,
-};
+use std::collections::VecDeque;
+use std::fmt::{self, Debug};
+use std::sync::Arc;
 
-use crate::{metadata::Metadata, reader::AsyncBatchReader};
 use futures::future::BoxFuture;
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
-use rayexec_execution::{
-    runtime::Runtime,
-    storage::table_storage::{DataTable, DataTableScan, Projections},
-};
-use rayexec_io::{
-    location::{AccessConfig, FileLocation},
-    FileProvider, FileSource,
-};
+use rayexec_execution::runtime::Runtime;
+use rayexec_execution::storage::table_storage::{DataTable, DataTableScan, Projections};
+use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::{FileProvider, FileSource};
+
+use crate::metadata::Metadata;
+use crate::reader::AsyncBatchReader;
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.

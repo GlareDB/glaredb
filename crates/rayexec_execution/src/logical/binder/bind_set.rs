@@ -2,20 +2,14 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
-use crate::{
-    config::vars::SessionVars,
-    logical::{
-        binder::expr_binder::{BaseExpressionBinder, RecursionContext},
-        logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll},
-        operator::{LocationRequirement, Node},
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    column_binder::ErroringColumnBinder,
-};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::column_binder::ErroringColumnBinder;
+use crate::config::vars::SessionVars;
+use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll};
+use crate::logical::operator::{LocationRequirement, Node};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub struct SetVarBinder<'a> {
@@ -99,9 +93,8 @@ impl<'a> SetVarBinder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::logical::binder::bind_context::testutil::columns_in_scope;
-
     use super::*;
+    use crate::logical::binder::bind_context::testutil::columns_in_scope;
 
     #[test]
     fn bind_show_has_column() {

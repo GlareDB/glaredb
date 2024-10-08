@@ -1,15 +1,10 @@
 use indexmap::IndexSet;
-
-use crate::{
-    expr::{
-        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-        Expression,
-    },
-    logical::binder::bind_context::BindContext,
-};
 use rayexec_error::{RayexecError, Result};
 
 use super::ExpressionRewriteRule;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 /// Tries to lift up AND expressions through OR expressions
 ///
@@ -172,9 +167,8 @@ fn insert_children_to_common_set<'a>(child: &'a Expression, exprs: &mut IndexSet
 
 #[cfg(test)]
 mod tests {
-    use crate::expr::{and, lit, or};
-
     use super::*;
+    use crate::expr::{and, lit, or};
 
     #[test]
     fn distribute_none() {

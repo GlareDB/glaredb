@@ -1,14 +1,12 @@
-use rayexec_bullet::datatype::DataType;
-use rayexec_error::Result;
 use std::fmt;
 
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    functions::aggregate::PlannedAggregateFunction,
-    logical::binder::bind_context::BindContext,
-};
+use rayexec_bullet::datatype::DataType;
+use rayexec_error::Result;
 
 use super::Expression;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AggregateExpr {

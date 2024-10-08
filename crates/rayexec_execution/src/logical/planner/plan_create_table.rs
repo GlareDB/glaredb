@@ -1,10 +1,10 @@
-use crate::logical::{
-    binder::{bind_context::BindContext, bind_create_table::BoundCreateTable},
-    logical_create::LogicalCreateTable,
-    operator::{LocationRequirement, LogicalOperator, Node},
-    planner::plan_query::QueryPlanner,
-};
 use rayexec_error::Result;
+
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_create_table::BoundCreateTable;
+use crate::logical::logical_create::LogicalCreateTable;
+use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::planner::plan_query::QueryPlanner;
 
 #[derive(Debug)]
 pub struct CreateTablePlanner;

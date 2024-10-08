@@ -1,6 +1,5 @@
-use crate::bitmap::Bitmap;
-
 use super::AddressableStorage;
+use crate::bitmap::Bitmap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanStorage(pub(crate) Bitmap);

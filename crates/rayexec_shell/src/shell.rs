@@ -1,17 +1,13 @@
-use std::{
-    cell::RefCell,
-    io::{self, Write},
-};
+use std::cell::RefCell;
+use std::io::{self, Write};
 
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::runtime::{PipelineExecutor, Runtime};
 use tracing::trace;
 
-use crate::{
-    lineedit::{KeyEvent, LineEditor, Signal},
-    session::SingleUserEngine,
-    vt100::{MODES_OFF, MODE_BOLD},
-};
+use crate::lineedit::{KeyEvent, LineEditor, Signal};
+use crate::session::SingleUserEngine;
+use crate::vt100::{MODES_OFF, MODE_BOLD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellSignal {

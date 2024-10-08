@@ -7,11 +7,9 @@ mod decoder;
 mod read_csv;
 
 use copy_to::CsvCopyToFunction;
-use rayexec_execution::{
-    datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler},
-    functions::table::TableFunction,
-    runtime::Runtime,
-};
+use rayexec_execution::datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler};
+use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::runtime::Runtime;
 use read_csv::ReadCsv;
 use regex::RegexBuilder;
 

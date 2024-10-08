@@ -1,17 +1,13 @@
+use std::sync::Arc;
+
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
 
+use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage};
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::operators::sink::PartitionSink;
-
-use super::table_storage::DataTable;
-use super::table_storage::DataTableScan;
-use super::table_storage::ProjectedScan;
-use super::table_storage::Projections;
-use super::table_storage::TableStorage;
 
 #[derive(Debug, Default)]
 pub struct MemoryTableStorage {

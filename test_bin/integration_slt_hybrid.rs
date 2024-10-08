@@ -1,21 +1,21 @@
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    datatype::DataType,
-    field::Field,
-};
-use rayexec_debug::{table_storage::TablePreload, DebugDataSource, DebugDataSourceOptions};
+use std::collections::HashMap;
+use std::path::Path;
+use std::time::Duration;
+
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::field::Field;
+use rayexec_debug::table_storage::TablePreload;
+use rayexec_debug::{DebugDataSource, DebugDataSourceOptions};
 use rayexec_error::Result;
-use rayexec_execution::{
-    datasource::DataSourceRegistry,
-    engine::Engine,
-    runtime::{Runtime, TokioHandlerProvider},
-};
+use rayexec_execution::datasource::DataSourceRegistry;
+use rayexec_execution::engine::Engine;
+use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_server::serve_with_engine;
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_slt::{ReplacementVars, RunConfig};
-use std::{collections::HashMap, path::Path, time::Duration};
 
 pub fn main() -> Result<()> {
     const PORT: u16 = 8085;

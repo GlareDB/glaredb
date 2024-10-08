@@ -1,12 +1,10 @@
 use rayexec_error::Result;
 
-use crate::{database::drop::DropInfo, expr::Expression};
-
-use super::{
-    binder::bind_context::TableRef,
-    operator::{LogicalNode, Node},
-};
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, Node};
+use crate::database::drop::DropInfo;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalDrop {

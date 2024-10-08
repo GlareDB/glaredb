@@ -1,20 +1,17 @@
-use crate::{
-    array::Array,
-    batch::Batch,
-    datatype::DataType,
-    field::Schema,
-    format::{FormatOptions, Formatter},
-};
+use std::collections::HashMap;
+use std::fmt::{self, Write as _};
+use std::ops::Range;
+
 use rayexec_error::Result;
-use std::{
-    collections::HashMap,
-    fmt::{self, Write as _},
-    ops::Range,
-};
 use textwrap::core::display_width;
 use textwrap::{fill_inplace, wrap};
 
 use super::display::{table_width, Alignment, PrettyFooter, PrettyHeader, PrettyValues};
+use crate::array::Array;
+use crate::batch::Batch;
+use crate::datatype::DataType;
+use crate::field::Schema;
+use crate::format::{FormatOptions, Formatter};
 
 /// How many values to use for the avg width calculation.
 const NUM_VALS_FOR_AVG: usize = 30;
@@ -744,9 +741,8 @@ const fn elide_index<T>(v: &[T]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::field::Field;
-
     use super::*;
+    use crate::field::Field;
 
     #[test]
     fn test_truncate_string() {

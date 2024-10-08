@@ -1,12 +1,10 @@
-use fmtutil::IntoDisplayableSlice;
-
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    functions::aggregate::PlannedAggregateFunction,
-};
 use std::fmt;
 
+use fmtutil::IntoDisplayableSlice;
+
 use super::Expression;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::aggregate::PlannedAggregateFunction;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WindowExpr {

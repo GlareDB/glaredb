@@ -1,22 +1,23 @@
-use crate::{
-    execution::{computed_batch::ComputedBatches, operators::PollFinalize},
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    runtime::time::{RuntimeInstant, Timer},
-};
+use std::fmt;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
-use crate::execution::operators::{
-    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
-};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::{
-    fmt,
-    sync::Arc,
-    task::{Context, Poll},
-};
 use tracing::trace;
 
 use super::profiler::OperatorProfileData;
+use crate::execution::computed_batch::ComputedBatches;
+use crate::execution::operators::{
+    ExecutableOperator,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
+};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::time::{RuntimeInstant, Timer};
 
 // TODO: Include intermedate pipeline to track lineage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
-use crate::explain::{context_display::ContextDisplayMode, explainable::ExplainConfig};
-
 use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
+use crate::explain::context_display::ContextDisplayMode;
+use crate::explain::explainable::ExplainConfig;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExecutionProfileData {

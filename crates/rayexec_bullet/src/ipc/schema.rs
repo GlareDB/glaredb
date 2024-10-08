@@ -1,21 +1,26 @@
 //! Conversion to/from ipc schema.
-use super::{
-    gen::schema::{
-        Field as IpcField, Precision as IpcPrecision, Schema as IpcSchema, Type as IpcType,
-    },
-    IpcConfig,
-};
-use crate::datatype::DecimalTypeMeta;
-use crate::{
-    datatype::DataType,
-    field::{Field, Schema},
-    ipc::gen::schema::{
-        BoolBuilder, DecimalBuilder, FieldBuilder, IntBuilder, LargeUtf8Builder, NullBuilder,
-        SchemaBuilder, Utf8Builder,
-    },
-};
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use rayexec_error::{not_implemented, RayexecError, Result};
+
+use super::gen::schema::{
+    Field as IpcField,
+    Precision as IpcPrecision,
+    Schema as IpcSchema,
+    Type as IpcType,
+};
+use super::IpcConfig;
+use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::field::{Field, Schema};
+use crate::ipc::gen::schema::{
+    BoolBuilder,
+    DecimalBuilder,
+    FieldBuilder,
+    IntBuilder,
+    LargeUtf8Builder,
+    NullBuilder,
+    SchemaBuilder,
+    Utf8Builder,
+};
 
 pub fn ipc_to_schema(schema: IpcSchema, conf: &IpcConfig) -> Result<Schema> {
     let ipc_fields = schema.fields().unwrap();
@@ -228,9 +233,9 @@ pub fn field_to_ipc<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{datatype::DecimalTypeMeta, ipc::gen::schema::root_as_schema};
-
     use super::*;
+    use crate::datatype::DecimalTypeMeta;
+    use crate::ipc::gen::schema::root_as_schema;
 
     fn roundtrip(schema: Schema) {
         let mut builder = FlatBufferBuilder::new();

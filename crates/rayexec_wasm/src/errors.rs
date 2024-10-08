@@ -1,6 +1,7 @@
-use rayexec_error::RayexecError;
 use std::error::Error;
 use std::fmt;
+
+use rayexec_error::RayexecError;
 use wasm_bindgen::JsValue;
 
 pub type Result<T, E = WasmError> = std::result::Result<T, E>;

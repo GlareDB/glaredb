@@ -1,8 +1,6 @@
 use bytes::Bytes;
-use parquet::file::{
-    footer::{decode_footer, decode_metadata},
-    metadata::ParquetMetaData,
-};
+use parquet::file::footer::{decode_footer, decode_metadata};
+use parquet::file::metadata::ParquetMetaData;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::FileSource;
 use tracing::trace;

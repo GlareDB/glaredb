@@ -1,88 +1,88 @@
-use crate::{
-    config::IntermediatePlanConfig,
-    database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo},
-    execution::{
-        intermediate::PipelineSink,
-        operators::{
-            copy_to::CopyToOperation,
-            create_schema::PhysicalCreateSchema,
-            create_table::CreateTableSinkOperation,
-            create_view::PhysicalCreateView,
-            drop::PhysicalDrop,
-            empty::PhysicalEmpty,
-            filter::FilterOperation,
-            hash_aggregate::PhysicalHashAggregate,
-            hash_join::PhysicalHashJoin,
-            insert::InsertOperation,
-            limit::PhysicalLimit,
-            nl_join::PhysicalNestedLoopJoin,
-            project::{PhysicalProject, ProjectOperation},
-            scan::PhysicalScan,
-            simple::SimpleOperator,
-            sink::SinkOperator,
-            sort::{gather_sort::PhysicalGatherSort, scatter_sort::PhysicalScatterSort},
-            table_function::PhysicalTableFunction,
-            ungrouped_aggregate::PhysicalUngroupedAggregate,
-            union::PhysicalUnion,
-            values::PhysicalValues,
-            PhysicalOperator,
-        },
-    },
-    explain::{
-        context_display::ContextDisplayMode, explainable::ExplainConfig,
-        formatter::ExplainFormatter,
-    },
-    expr::{
-        comparison_expr::ComparisonOperator,
-        physical::{
-            column_expr::PhysicalColumnExpr, planner::PhysicalExpressionPlanner,
-            scalar_function_expr::PhysicalScalarFunctionExpr, PhysicalAggregateExpression,
-            PhysicalScalarExpression,
-        },
-        Expression,
-    },
-    functions::scalar::boolean::AndImpl,
-    logical::{
-        binder::bind_context::BindContext,
-        logical_aggregate::LogicalAggregate,
-        logical_copy::LogicalCopyTo,
-        logical_create::{LogicalCreateSchema, LogicalCreateTable, LogicalCreateView},
-        logical_describe::LogicalDescribe,
-        logical_distinct::LogicalDistinct,
-        logical_drop::LogicalDrop,
-        logical_empty::LogicalEmpty,
-        logical_explain::LogicalExplain,
-        logical_filter::LogicalFilter,
-        logical_insert::LogicalInsert,
-        logical_join::{
-            JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
-            LogicalMagicJoin,
-        },
-        logical_limit::LogicalLimit,
-        logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan},
-        logical_order::LogicalOrder,
-        logical_project::LogicalProject,
-        logical_scan::{LogicalScan, ScanSource},
-        logical_set::LogicalShowVar,
-        logical_setop::{LogicalSetop, SetOpKind},
-        operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node},
-    },
-    storage::table_storage::Projections,
-};
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-};
+use std::collections::BTreeSet;
+use std::sync::Arc;
+
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
-use std::{collections::BTreeSet, sync::Arc};
 use tracing::error;
 use uuid::Uuid;
 
 use super::{
-    IntermediateMaterialization, IntermediateMaterializationGroup, IntermediateOperator,
-    IntermediatePipeline, IntermediatePipelineGroup, IntermediatePipelineId, PipelineSource,
+    IntermediateMaterialization,
+    IntermediateMaterializationGroup,
+    IntermediateOperator,
+    IntermediatePipeline,
+    IntermediatePipelineGroup,
+    IntermediatePipelineId,
+    PipelineSource,
     StreamId,
 };
+use crate::config::IntermediatePlanConfig;
+use crate::database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
+use crate::execution::intermediate::PipelineSink;
+use crate::execution::operators::copy_to::CopyToOperation;
+use crate::execution::operators::create_schema::PhysicalCreateSchema;
+use crate::execution::operators::create_table::CreateTableSinkOperation;
+use crate::execution::operators::create_view::PhysicalCreateView;
+use crate::execution::operators::drop::PhysicalDrop;
+use crate::execution::operators::empty::PhysicalEmpty;
+use crate::execution::operators::filter::FilterOperation;
+use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
+use crate::execution::operators::hash_join::PhysicalHashJoin;
+use crate::execution::operators::insert::InsertOperation;
+use crate::execution::operators::limit::PhysicalLimit;
+use crate::execution::operators::nl_join::PhysicalNestedLoopJoin;
+use crate::execution::operators::project::{PhysicalProject, ProjectOperation};
+use crate::execution::operators::scan::PhysicalScan;
+use crate::execution::operators::simple::SimpleOperator;
+use crate::execution::operators::sink::SinkOperator;
+use crate::execution::operators::sort::gather_sort::PhysicalGatherSort;
+use crate::execution::operators::sort::scatter_sort::PhysicalScatterSort;
+use crate::execution::operators::table_function::PhysicalTableFunction;
+use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
+use crate::execution::operators::union::PhysicalUnion;
+use crate::execution::operators::values::PhysicalValues;
+use crate::execution::operators::PhysicalOperator;
+use crate::explain::context_display::ContextDisplayMode;
+use crate::explain::explainable::ExplainConfig;
+use crate::explain::formatter::ExplainFormatter;
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
+use crate::expr::physical::planner::PhysicalExpressionPlanner;
+use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
+use crate::expr::physical::{PhysicalAggregateExpression, PhysicalScalarExpression};
+use crate::expr::Expression;
+use crate::functions::scalar::boolean::AndImpl;
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::logical_aggregate::LogicalAggregate;
+use crate::logical::logical_copy::LogicalCopyTo;
+use crate::logical::logical_create::{LogicalCreateSchema, LogicalCreateTable, LogicalCreateView};
+use crate::logical::logical_describe::LogicalDescribe;
+use crate::logical::logical_distinct::LogicalDistinct;
+use crate::logical::logical_drop::LogicalDrop;
+use crate::logical::logical_empty::LogicalEmpty;
+use crate::logical::logical_explain::LogicalExplain;
+use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_insert::LogicalInsert;
+use crate::logical::logical_join::{
+    JoinType,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+    LogicalMagicJoin,
+};
+use crate::logical::logical_limit::LogicalLimit;
+use crate::logical::logical_materialization::{
+    LogicalMagicMaterializationScan,
+    LogicalMaterializationScan,
+};
+use crate::logical::logical_order::LogicalOrder;
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_scan::{LogicalScan, ScanSource};
+use crate::logical::logical_set::LogicalShowVar;
+use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
+use crate::logical::operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::storage::table_storage::Projections;
 
 /// Planned pipelines grouped into locations for where they should be executed.
 #[derive(Debug)]

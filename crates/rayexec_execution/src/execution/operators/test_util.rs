@@ -1,23 +1,24 @@
 //! Utilities for testing operator implementations.
-use rayexec_bullet::scalar::ScalarValue;
-use rayexec_error::Result;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::Context;
-use std::{
-    sync::atomic::{AtomicUsize, Ordering},
-    task::{Wake, Waker},
-};
+use std::task::{Context, Wake, Waker};
 
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
+use rayexec_bullet::scalar::ScalarValue;
+use rayexec_error::Result;
 
+use super::{
+    ComputedBatches,
+    ExecutableOperator,
+    OperatorState,
+    PartitionState,
+    PollPull,
+    PollPush,
+};
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
-
-use super::{
-    ComputedBatches, ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
-};
 
 pub fn test_database_context() -> DatabaseContext {
     DatabaseContext::new(Arc::new(

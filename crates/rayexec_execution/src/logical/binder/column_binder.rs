@@ -1,15 +1,11 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    expr::{column_expr::ColumnExpr, Expression},
-    logical::resolver::ResolvedMeta,
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias},
-    expr_binder::RecursionContext,
-};
+use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias};
+use super::expr_binder::RecursionContext;
+use crate::expr::column_expr::ColumnExpr;
+use crate::expr::Expression;
+use crate::logical::resolver::ResolvedMeta;
 
 /// Defined behavior of how to bind idents to actual columns.
 ///

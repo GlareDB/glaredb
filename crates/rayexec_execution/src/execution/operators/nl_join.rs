@@ -1,22 +1,28 @@
+use std::sync::Arc;
+use std::task::{Context, Waker};
+
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
-use std::task::Context;
-use std::{sync::Arc, task::Waker};
 
+use super::util::outer_join_tracker::LeftOuterJoinTracker;
+use super::ComputedBatches;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
 use crate::proto::DatabaseProtoConv;
-
-use super::util::outer_join_tracker::LeftOuterJoinTracker;
-use super::ComputedBatches;
 
 /// Partition-local state on the build side.
 #[derive(Debug, Default)]

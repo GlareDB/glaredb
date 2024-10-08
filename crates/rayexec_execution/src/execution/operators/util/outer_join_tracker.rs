@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use rayexec_bullet::{
-    array::{Array, ArrayData},
-    batch::Batch,
-    bitmap::Bitmap,
-    datatype::DataType,
-    selection::SelectionVector,
-};
+use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
 /// Bitmaps corresponding to rows in the batches collected on the left side of

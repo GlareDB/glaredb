@@ -1,17 +1,17 @@
 pub mod planner;
 
-use crate::{
-    database::DatabaseContext,
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    logical::binder::bind_context::MaterializationRef,
-    proto::DatabaseProtoConv,
-};
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
-use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use super::operators::PhysicalOperator;
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::binder::bind_context::MaterializationRef;
+use crate::proto::DatabaseProtoConv;
 
 /// ID of a single intermediate pipeline.
 ///
@@ -103,8 +103,10 @@ impl ProtoConv for PipelineSink {
     type ProtoType = rayexec_proto::generated::execution::PipelineSink;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::execution::pipeline_sink::Value;
         use rayexec_proto::generated::execution::{
-            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkMaterialization,
+            PipelineSinkInGroup,
+            PipelineSinkMaterialization,
             PipelineSinkOtherGroup,
         };
 
@@ -138,8 +140,10 @@ impl ProtoConv for PipelineSink {
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::execution::pipeline_sink::Value;
         use rayexec_proto::generated::execution::{
-            pipeline_sink::Value, PipelineSinkInGroup, PipelineSinkMaterialization,
+            PipelineSinkInGroup,
+            PipelineSinkMaterialization,
             PipelineSinkOtherGroup,
         };
 
@@ -199,8 +203,10 @@ impl ProtoConv for PipelineSource {
     type ProtoType = rayexec_proto::generated::execution::PipelineSource;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::execution::pipeline_source::Value;
         use rayexec_proto::generated::execution::{
-            pipeline_source::Value, PipelineSourceMaterialization, PipelineSourceOtherGroup,
+            PipelineSourceMaterialization,
+            PipelineSourceOtherGroup,
             PipelineSourceOtherPipeline,
         };
 
@@ -227,8 +233,10 @@ impl ProtoConv for PipelineSource {
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        use rayexec_proto::generated::execution::pipeline_source::Value;
         use rayexec_proto::generated::execution::{
-            pipeline_source::Value, PipelineSourceMaterialization, PipelineSourceOtherGroup,
+            PipelineSourceMaterialization,
+            PipelineSourceOtherGroup,
             PipelineSourceOtherPipeline,
         };
 

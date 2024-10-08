@@ -1,10 +1,8 @@
-use crate::logical::{
-    binder::bind_context::BindContext,
-    operator::{LocationRequirement, LogicalOperator},
-};
 use rayexec_error::Result;
 
 use super::OptimizeRule;
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::operator::{LocationRequirement, LogicalOperator};
 
 /// Rule for pushing down and pulling up location requirements for operators.
 ///

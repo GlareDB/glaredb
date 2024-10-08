@@ -1,12 +1,12 @@
-use rayexec_error::Result;
 use std::collections::BTreeSet;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::Expression;
+use rayexec_error::Result;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
 use super::statistics::{Statistics, StatisticsCount};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalAggregate {

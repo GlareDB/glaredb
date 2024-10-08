@@ -1,13 +1,11 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::Token,
-};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateTable<T: AstMeta> {
@@ -100,9 +98,9 @@ impl AstParseable for ColumnDef<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{testutil::parse_ast, Expr, LimitModifier, Literal, QueryNodeBody, Values};
-
     use super::*;
+    use crate::ast::testutil::parse_ast;
+    use crate::ast::{Expr, LimitModifier, Literal, QueryNodeBody, Values};
 
     /// Query node for 'values (1)'
     fn query_node_values_1() -> QueryNode<Raw> {

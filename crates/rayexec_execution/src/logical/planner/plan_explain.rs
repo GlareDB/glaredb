@@ -1,10 +1,10 @@
-use crate::logical::{
-    binder::{bind_context::BindContext, bind_explain::BoundExplain},
-    logical_explain::LogicalExplain,
-    operator::{LocationRequirement, LogicalOperator, Node},
-    planner::plan_query::QueryPlanner,
-};
 use rayexec_error::Result;
+
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_explain::BoundExplain;
+use crate::logical::logical_explain::LogicalExplain;
+use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::planner::plan_query::QueryPlanner;
 
 #[derive(Debug)]
 pub struct ExplainPlanner;

@@ -1,8 +1,9 @@
 pub mod zip;
 
-use rayexec_error::{RayexecError, Result};
 use std::borrow::BorrowMut;
 use std::fmt;
+
+use rayexec_error::{RayexecError, Result};
 
 use crate::compute::util::IntoExtactSizeIterator;
 

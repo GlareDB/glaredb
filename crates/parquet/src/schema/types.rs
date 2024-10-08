@@ -17,14 +17,21 @@
 
 //! Contains structs and methods to build Parquet schema and schema descriptors.
 
-use std::{collections::HashMap, fmt, sync::Arc};
-
-use crate::format::SchemaElement;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
 
 use crate::basic::{
-    ColumnOrder, ConvertedType, LogicalType, Repetition, SortOrder, TimeUnit, Type as PhysicalType,
+    ColumnOrder,
+    ConvertedType,
+    LogicalType,
+    Repetition,
+    SortOrder,
+    TimeUnit,
+    Type as PhysicalType,
 };
 use crate::errors::{ParquetError, Result};
+use crate::format::SchemaElement;
 
 // ----------------------------------------------------------------------
 // Parquet Type definitions
@@ -683,9 +690,9 @@ impl BasicTypeInfo {
 /// # use parquet::schema::types::ColumnPath;
 /// // form path 'a.b.c'
 /// let column_path = ColumnPath::from(vec![
-///   String::from("a"),
-///   String::from("b"),
-///   String::from("c")
+///     String::from("a"),
+///     String::from("b"),
+///     String::from("c"),
 /// ]);
 /// ```
 #[derive(Clone, PartialEq, Debug, Eq, Hash)]
@@ -714,8 +721,7 @@ impl ColumnPath {
     /// ```rust
     /// use parquet::schema::types::ColumnPath;
     ///
-    /// let mut path = ColumnPath::new(vec!["a".to_string(), "b".to_string(), "c"
-    /// .to_string()]);
+    /// let mut path = ColumnPath::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
     /// assert_eq!(&path.string(), "a.b.c");
     ///
     /// path.append(vec!["d".to_string(), "e".to_string()]);
@@ -1277,7 +1283,6 @@ fn to_thrift_helper(schema: &Type, elements: &mut Vec<SchemaElement>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::schema::parser::parse_message_type;
 
     // TODO: add tests for v2 types

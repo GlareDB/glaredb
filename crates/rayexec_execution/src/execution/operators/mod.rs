@@ -31,6 +31,10 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::task::Context;
+
 use copy_to::PhysicalCopyTo;
 use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
 use create_table::PhysicalCreateTable;
@@ -40,7 +44,9 @@ use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
 use hash_join::{
-    HashJoinBuildPartitionState, HashJoinOperatorState, HashJoinProbePartitionState,
+    HashJoinBuildPartitionState,
+    HashJoinOperatorState,
+    HashJoinProbePartitionState,
     PhysicalHashJoin,
 };
 use insert::PhysicalInsert;
@@ -57,39 +63,41 @@ use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
 use sort::gather_sort::PhysicalGatherSort;
 use sort::scatter_sort::PhysicalScatterSort;
 use source::{SourceOperation, SourceOperator, SourcePartitionState};
-use std::fmt::Debug;
-use std::sync::Arc;
-use std::task::Context;
 use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
 use ungrouped_aggregate::{
-    PhysicalUngroupedAggregate, UngroupedAggregateOperatorState, UngroupedAggregatePartitionState,
+    PhysicalUngroupedAggregate,
+    UngroupedAggregateOperatorState,
+    UngroupedAggregatePartitionState,
 };
 use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
 use values::PhysicalValues;
-
-use crate::database::DatabaseContext;
-use crate::engine::result::ResultSink;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::proto::DatabaseProtoConv;
 
 use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
 use self::nl_join::{
-    NestedLoopJoinBuildPartitionState, NestedLoopJoinOperatorState,
+    NestedLoopJoinBuildPartitionState,
+    NestedLoopJoinOperatorState,
     NestedLoopJoinProbePartitionState,
 };
 use self::round_robin::{
-    RoundRobinOperatorState, RoundRobinPullPartitionState, RoundRobinPushPartitionState,
+    RoundRobinOperatorState,
+    RoundRobinPullPartitionState,
+    RoundRobinPushPartitionState,
 };
 use self::simple::SimplePartitionState;
 use self::sort::gather_sort::{
-    GatherSortOperatorState, GatherSortPullPartitionState, GatherSortPushPartitionState,
+    GatherSortOperatorState,
+    GatherSortPullPartitionState,
+    GatherSortPushPartitionState,
 };
 use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
-
 use super::computed_batch::ComputedBatches;
+use crate::database::DatabaseContext;
+use crate::engine::result::ResultSink;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 /// States local to a partition within a single operator.
 // Current size: 240 bytes

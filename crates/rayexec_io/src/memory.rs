@@ -1,18 +1,15 @@
+use std::collections::HashMap;
+use std::path::{Component, Path};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
 use bytes::Bytes;
-use futures::{
-    future::{BoxFuture, FutureExt},
-    stream::BoxStream,
-    Stream, StreamExt,
-};
+use futures::future::{BoxFuture, FutureExt};
+use futures::stream::BoxStream;
+use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use std::{
-    collections::HashMap,
-    path::{Component, Path},
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
 
 use crate::{FileSink, FileSource};
 

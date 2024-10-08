@@ -1,17 +1,13 @@
-use crate::{
-    array::Array,
-    bitmap::Bitmap,
-    executor::{
-        builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
-        physical_type::PhysicalStorage,
-        scalar::validate_logical_len,
-    },
-    selection,
-    storage::AddressableStorage,
-};
 use rayexec_error::Result;
 
 use super::check_validity;
+use crate::array::Array;
+use crate::bitmap::Bitmap;
+use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
+use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::scalar::validate_logical_len;
+use crate::selection;
+use crate::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryExecutor;
@@ -102,16 +98,11 @@ impl BinaryExecutor {
 mod tests {
     use selection::SelectionVector;
 
-    use crate::{
-        datatype::DataType,
-        executor::{
-            builder::{GermanVarlenBuffer, PrimitiveBuffer},
-            physical_type::{PhysicalI32, PhysicalUtf8},
-        },
-        scalar::ScalarValue,
-    };
-
     use super::*;
+    use crate::datatype::DataType;
+    use crate::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
+    use crate::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::scalar::ScalarValue;
 
     #[test]
     fn binary_simple_add() {

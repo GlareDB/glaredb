@@ -1,25 +1,21 @@
 use std::sync::Arc;
 
-use crate::{
-    database::{
-        catalog::CatalogTx,
-        catalog_entry::{CatalogEntry, CatalogEntryType},
-        create::{CreateSchemaInfo, CreateTableInfo, OnConflict},
-        memory_catalog::MemorySchema,
-        Database, DatabaseContext,
-    },
-    functions::table::TableFunction,
-};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 use tracing::error;
 
-use super::{
-    resolved_table::{
-        ResolvedTableOrCteReference, ResolvedTableReference, UnresolvedTableReference,
-    },
-    ResolveContext,
+use super::resolved_table::{
+    ResolvedTableOrCteReference,
+    ResolvedTableReference,
+    UnresolvedTableReference,
 };
+use super::ResolveContext;
+use crate::database::catalog::CatalogTx;
+use crate::database::catalog_entry::{CatalogEntry, CatalogEntryType};
+use crate::database::create::{CreateSchemaInfo, CreateTableInfo, OnConflict};
+use crate::database::memory_catalog::MemorySchema;
+use crate::database::{Database, DatabaseContext};
+use crate::functions::table::TableFunction;
 
 pub fn create_user_facing_resolve_err(
     tx: &CatalogTx,

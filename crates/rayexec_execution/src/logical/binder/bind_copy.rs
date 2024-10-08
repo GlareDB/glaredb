@@ -1,23 +1,17 @@
-use rayexec_bullet::{
-    datatype::DataType,
-    field::{Field, Schema},
-};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast;
 
-use crate::{
-    functions::copy::CopyToFunction,
-    logical::{
-        binder::bind_query::{bind_from::FromBinder, QueryBinder},
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    bind_query::{bind_from::BoundFrom, BoundQuery},
-};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::bind_query::bind_from::BoundFrom;
+use super::bind_query::BoundQuery;
+use crate::functions::copy::CopyToFunction;
+use crate::logical::binder::bind_query::bind_from::FromBinder;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub enum BoundCopyToSource {

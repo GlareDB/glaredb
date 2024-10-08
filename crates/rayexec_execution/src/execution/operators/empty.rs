@@ -1,17 +1,22 @@
-use crate::{
-    database::DatabaseContext,
-    execution::operators::InputOutputStates,
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    proto::DatabaseProtoConv,
-};
+use std::sync::Arc;
+use std::task::Context;
+
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::{sync::Arc, task::Context};
 
 use super::{
-    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
+    ExecutableOperator,
+    ExecutionStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
     PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::execution::operators::InputOutputStates;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Default)]
 pub struct EmptyPartitionState {

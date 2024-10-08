@@ -1,16 +1,14 @@
+use std::fmt;
+use std::hash::Hash;
+
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    logical::binder::{
-        bind_context::{BindContext, BindScopeRef},
-        bind_query::BoundQuery,
-    },
-};
-use std::{fmt, hash::Hash};
-
-use super::{comparison_expr::ComparisonOperator, Expression};
+use super::comparison_expr::ComparisonOperator;
+use super::Expression;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
+use crate::logical::binder::bind_query::BoundQuery;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubqueryType {

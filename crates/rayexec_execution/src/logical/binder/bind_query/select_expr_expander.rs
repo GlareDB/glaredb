@@ -1,14 +1,11 @@
 use std::collections::HashSet;
 
-use crate::{
-    expr::column_expr::ColumnExpr,
-    logical::{
-        binder::bind_context::{BindContext, BindScopeRef, TableAlias},
-        resolver::ResolvedMeta,
-    },
-};
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
+
+use crate::expr::column_expr::ColumnExpr;
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableAlias};
+use crate::logical::resolver::ResolvedMeta;
 
 /// An expanded select expression.
 #[derive(Debug, Clone, PartialEq)]

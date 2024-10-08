@@ -1,14 +1,12 @@
+use std::fmt;
+
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    functions::scalar::{negate, ScalarFunction},
-    logical::binder::bind_context::BindContext,
-};
-
 use super::{AsScalarFunction, Expression};
-use std::fmt;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::scalar::{negate, ScalarFunction};
+use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NegateOperator {

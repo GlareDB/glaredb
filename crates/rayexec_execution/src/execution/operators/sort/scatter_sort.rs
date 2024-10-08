@@ -1,21 +1,26 @@
-use crate::database::DatabaseContext;
-use crate::execution::operators::{ExecutionStates, InputOutputStates, PollFinalize};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::proto::DatabaseProtoConv;
-use crate::{
-    execution::operators::{ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush},
-    expr::physical::PhysicalSortExpression,
-};
-use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use super::util::{
-    merger::{IterState, KWayMerger, MergeResult},
-    sort_keys::SortKeysExtractor,
-    sorted_batch::{IndexSortedBatch, SortedIndicesIter},
+use rayexec_bullet::batch::Batch;
+use rayexec_error::Result;
+
+use super::util::merger::{IterState, KWayMerger, MergeResult};
+use super::util::sort_keys::SortKeysExtractor;
+use super::util::sorted_batch::{IndexSortedBatch, SortedIndicesIter};
+use crate::database::DatabaseContext;
+use crate::execution::operators::{
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::physical::PhysicalSortExpression;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub enum ScatterSortPartitionState {
@@ -243,15 +248,16 @@ impl DatabaseProtoConv for PhysicalScatterSort {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        execution::operators::test_util::{
-            make_i32_batch, test_database_context, unwrap_poll_pull_batch, TestWakerContext,
-        },
-        expr::physical::column_expr::PhysicalColumnExpr,
-    };
     use std::sync::Arc;
 
     use super::*;
+    use crate::execution::operators::test_util::{
+        make_i32_batch,
+        test_database_context,
+        unwrap_poll_pull_batch,
+        TestWakerContext,
+    };
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
     fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionState> {
         let context = test_database_context();

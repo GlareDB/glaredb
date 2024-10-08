@@ -1,5 +1,6 @@
-use rayexec_error::Result;
 use std::fmt::Debug;
+
+use rayexec_error::Result;
 
 use super::{AddressableStorage, PrimitiveStorage};
 

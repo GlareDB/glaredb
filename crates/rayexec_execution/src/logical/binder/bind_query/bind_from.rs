@@ -1,35 +1,31 @@
+use std::sync::Arc;
+
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
-use std::sync::Arc;
-
-use crate::{
-    database::catalog_entry::CatalogEntry,
-    expr::{
-        column_expr::ColumnExpr,
-        comparison_expr::{ComparisonExpr, ComparisonOperator},
-        Expression,
-    },
-    functions::table::PlannedTableFunction,
-    logical::{
-        binder::{
-            bind_context::{
-                BindContext, BindScopeRef, CorrelatedColumn, CteRef, TableAlias, TableRef,
-                UsingColumn,
-            },
-            column_binder::DefaultColumnBinder,
-            expr_binder::{BaseExpressionBinder, RecursionContext},
-        },
-        logical_join::JoinType,
-        operator::LocationRequirement,
-        resolver::{
-            resolve_context::ResolveContext, resolved_table::ResolvedTableOrCteReference,
-            ResolvedMeta, ResolvedSubqueryOptions,
-        },
-    },
-};
 
 use super::{BoundQuery, QueryBinder};
+use crate::database::catalog_entry::CatalogEntry;
+use crate::expr::column_expr::ColumnExpr;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::Expression;
+use crate::functions::table::PlannedTableFunction;
+use crate::logical::binder::bind_context::{
+    BindContext,
+    BindScopeRef,
+    CorrelatedColumn,
+    CteRef,
+    TableAlias,
+    TableRef,
+    UsingColumn,
+};
+use crate::logical::binder::column_binder::DefaultColumnBinder;
+use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::logical_join::JoinType;
+use crate::logical::operator::LocationRequirement;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::resolved_table::ResolvedTableOrCteReference;
+use crate::logical::resolver::{ResolvedMeta, ResolvedSubqueryOptions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundFrom {

@@ -16,8 +16,9 @@
 // under the License.
 
 //! Configuration via [`WriterProperties`] and [`ReaderProperties`]
+use std::collections::HashMap;
 use std::str::FromStr;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::basic::{Compression, Encoding};
 use crate::compression::{CodecOptions, CodecOptionsBuilder};
@@ -97,11 +98,9 @@ pub type WriterPropertiesPtr = Arc<WriterProperties>;
 /// # Example
 ///
 /// ```rust
-/// use parquet::{
-///     basic::{Compression, Encoding},
-///     file::properties::*,
-///     schema::types::ColumnPath,
-/// };
+/// use parquet::basic::{Compression, Encoding};
+/// use parquet::file::properties::*;
+/// use parquet::schema::types::ColumnPath;
 ///
 /// // Create properties with default configuration.
 /// let props = WriterProperties::default();

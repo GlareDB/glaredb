@@ -1,34 +1,37 @@
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
+
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
-use std::{collections::HashMap, collections::VecDeque, sync::Arc};
-
-use crate::{
-    config::ExecutablePlanConfig,
-    database::DatabaseContext,
-    engine::result::ResultSink,
-    execution::{
-        intermediate::{
-            IntermediateMaterializationGroup, IntermediateOperator, IntermediatePipelineGroup,
-            IntermediatePipelineId, PipelineSink, PipelineSource,
-        },
-        operators::{
-            materialize::MaterializeOperation,
-            round_robin::PhysicalRoundRobinRepartition,
-            sink::{SinkOperation, SinkOperator},
-            source::{SourceOperation, SourceOperator},
-            ExecutableOperator, InputOutputStates, OperatorState, PartitionState, PhysicalOperator,
-        },
-    },
-    hybrid::{
-        buffer::ServerStreamBuffers,
-        client::HybridClient,
-        stream::{ClientToServerStream, ServerToClientStream},
-    },
-    logical::binder::bind_context::MaterializationRef,
-    runtime::Runtime,
-};
 
 use super::pipeline::{ExecutablePipeline, PipelineId};
+use crate::config::ExecutablePlanConfig;
+use crate::database::DatabaseContext;
+use crate::engine::result::ResultSink;
+use crate::execution::intermediate::{
+    IntermediateMaterializationGroup,
+    IntermediateOperator,
+    IntermediatePipelineGroup,
+    IntermediatePipelineId,
+    PipelineSink,
+    PipelineSource,
+};
+use crate::execution::operators::materialize::MaterializeOperation;
+use crate::execution::operators::round_robin::PhysicalRoundRobinRepartition;
+use crate::execution::operators::sink::{SinkOperation, SinkOperator};
+use crate::execution::operators::source::{SourceOperation, SourceOperator};
+use crate::execution::operators::{
+    ExecutableOperator,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PhysicalOperator,
+};
+use crate::hybrid::buffer::ServerStreamBuffers;
+use crate::hybrid::client::HybridClient;
+use crate::hybrid::stream::{ClientToServerStream, ServerToClientStream};
+use crate::logical::binder::bind_context::MaterializationRef;
+use crate::runtime::Runtime;
 
 /// Used for ensuring every pipeline in a query has a unique id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

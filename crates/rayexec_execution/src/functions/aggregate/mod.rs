@@ -5,29 +5,31 @@ pub mod first;
 pub mod minmax;
 pub mod sum;
 
+use std::any::Any;
+use std::fmt::{self, Debug};
+use std::hash::Hash;
+use std::marker::PhantomData;
+use std::vec;
+
 use dyn_clone::DynClone;
 use once_cell::sync::Lazy;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{
-    AggregateState, RowToStateMapping, StateCombiner, StateFinalizer, UnaryNonNullUpdater,
+    AggregateState,
+    RowToStateMapping,
+    StateCombiner,
+    StateFinalizer,
+    UnaryNonNullUpdater,
 };
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
 use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
-use std::any::Any;
-use std::hash::Hash;
-use std::{
-    fmt::{self, Debug},
-    marker::PhantomData,
-    vec,
-};
-
-use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
 
 use super::FunctionInfo;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = Lazy::new(|| {
     vec![

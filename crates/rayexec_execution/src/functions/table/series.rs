@@ -1,23 +1,23 @@
 use std::sync::Arc;
 
-use crate::{
-    database::DatabaseContext,
-    storage::table_storage::{
-        DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
-    },
-};
 use futures::future::BoxFuture;
-use rayexec_bullet::{
-    array::{Array, ArrayData},
-    batch::Batch,
-    datatype::DataType,
-    field::{Field, Schema},
-};
+use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use crate::database::DatabaseContext;
+use crate::storage::table_storage::{
+    DataTable,
+    DataTableScan,
+    EmptyTableScan,
+    ProjectedScan,
+    Projections,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;

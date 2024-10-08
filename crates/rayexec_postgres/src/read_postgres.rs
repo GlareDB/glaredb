@@ -1,12 +1,10 @@
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{OptionExt, RayexecError, Result};
-use rayexec_execution::{
-    database::DatabaseContext,
-    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::Runtime,
-    storage::table_storage::DataTable,
-};
+use rayexec_execution::database::DatabaseContext;
+use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use rayexec_execution::runtime::Runtime;
+use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};

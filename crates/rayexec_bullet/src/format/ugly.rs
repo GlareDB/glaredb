@@ -1,10 +1,10 @@
-use crate::{
-    batch::Batch,
-    field::Schema,
-    format::{FormatOptions, Formatter},
-};
-use rayexec_error::Result;
 use std::fmt::Write as _;
+
+use rayexec_error::Result;
+
+use crate::batch::Batch;
+use crate::field::Schema;
+use crate::format::{FormatOptions, Formatter};
 
 pub fn ugly_format_no_schema<'a, I>(batches: I) -> Result<String>
 where

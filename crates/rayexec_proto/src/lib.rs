@@ -3,7 +3,6 @@ pub mod packed;
 pub mod util_types;
 
 pub use prost;
-
 use rayexec_error::Result;
 
 /// Convert type to/from their protobuf representations.
@@ -22,8 +21,9 @@ pub trait ProtoConv: Sized {
 //
 // See: <https://github.com/rust-lang/cargo/issues/8379>
 pub mod testutil {
-    use crate::ProtoConv;
     use std::fmt::Debug;
+
+    use crate::ProtoConv;
 
     /// Assert that a value roundtrips correctly through the conversion to and
     /// from a protobuf value.
@@ -36,9 +36,10 @@ pub mod testutil {
 }
 
 pub mod foreign_impls {
-    use crate::ProtoConv;
     use rayexec_error::{Result, ResultExt};
     use uuid::Uuid;
+
+    use crate::ProtoConv;
 
     impl ProtoConv for Uuid {
         type ProtoType = crate::generated::foreign::Uuid;
@@ -56,9 +57,8 @@ pub mod foreign_impls {
 
     #[cfg(test)]
     mod tests {
-        use crate::testutil::assert_proto_roundtrip;
-
         use super::*;
+        use crate::testutil::assert_proto_roundtrip;
 
         #[test]
         fn uuid() {

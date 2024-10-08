@@ -1,10 +1,16 @@
+use std::task::Context;
+
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::task::Context;
 
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
+    ExecutableOperator,
+    ExecutionStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
     PollPush,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

@@ -19,21 +19,20 @@
 //! readers to read individual column chunks, or access record
 //! iterator.
 
-use bytes::{Buf, Bytes};
 use std::fs::File;
-use std::io::{BufReader, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
-use std::{io::Read, sync::Arc};
+use std::sync::Arc;
 
+use bytes::{Buf, Bytes};
+
+use crate::basic::Type;
 use crate::bloom_filter::Sbbf;
-use crate::column::{page::PageReader, reader::ColumnReader};
+use crate::column::page::PageReader;
+use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::errors::{ParquetError, Result};
 use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};
-
-use crate::basic::Type;
-
-use crate::column::reader::GenericColumnReader;
 
 /// Length should return the total number of bytes in the input source.
 /// It's mainly used to read the metadata, which is at the end of the source.

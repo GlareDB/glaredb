@@ -1,23 +1,21 @@
-use std::{
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 
-use futures::{future::BoxFuture, Future, Stream};
+use futures::future::BoxFuture;
+use futures::{Future, Stream};
 use parking_lot::Mutex;
-use rayexec_bullet::{batch::Batch, field::Schema};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{
-    database::DatabaseContext,
-    execution::operators::sink::{PartitionSink, SinkOperation},
-    runtime::{handle::QueryHandle, ErrorSink},
-};
-
 use super::profiler::PlanningProfileData;
+use crate::database::DatabaseContext;
+use crate::execution::operators::sink::{PartitionSink, SinkOperation};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::handle::QueryHandle;
+use crate::runtime::ErrorSink;
 
 /// Create sinks and streams for sending query output to a client.
 pub fn new_results_sinks() -> (ResultStream, ResultSink, ResultErrorSink) {

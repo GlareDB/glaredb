@@ -1,32 +1,28 @@
-use futures::{
-    future::BoxFuture,
-    stream::{self, BoxStream},
-    StreamExt,
-};
+use std::sync::Arc;
+use std::task::{Context, Poll, Wake, Waker};
+
+use futures::future::BoxFuture;
+use futures::stream::{self, BoxStream};
+use futures::StreamExt;
 use parking_lot::Mutex;
 use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_execution::{
-    execution::executable::{
-        pipeline::{ExecutablePartitionPipeline, ExecutablePipeline},
-        profiler::ExecutionProfileData,
-    },
-    runtime::{handle::QueryHandle, ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider},
+use rayexec_execution::execution::executable::pipeline::{
+    ExecutablePartitionPipeline,
+    ExecutablePipeline,
 };
-use rayexec_io::{
-    http::HttpClientReader,
-    location::{AccessConfig, FileLocation},
-    memory::MemoryFileSystem,
-    s3::{S3Client, S3Location},
-    FileProvider, FileSink, FileSource,
-};
-use std::{
-    sync::Arc,
-    task::{Context, Poll, Wake, Waker},
-};
+use rayexec_execution::execution::executable::profiler::ExecutionProfileData;
+use rayexec_execution::runtime::handle::QueryHandle;
+use rayexec_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
+use rayexec_io::http::HttpClientReader;
+use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::memory::MemoryFileSystem;
+use rayexec_io::s3::{S3Client, S3Location};
+use rayexec_io::{FileProvider, FileSink, FileSource};
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{http::WasmHttpClient, time::PerformanceInstant};
+use crate::http::WasmHttpClient;
+use crate::time::PerformanceInstant;
 
 #[derive(Debug, Clone)]
 pub struct WasmRuntime {

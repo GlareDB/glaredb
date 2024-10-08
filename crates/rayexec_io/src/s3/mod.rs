@@ -4,24 +4,18 @@ pub mod list;
 use bytes::{Buf, Bytes};
 use chrono::Utc;
 use credentials::{AwsCredentials, AwsRequestAuthorizer};
-use futures::{
-    future::BoxFuture,
-    stream::{self, BoxStream},
-    Stream, StreamExt, TryStreamExt,
-};
+use futures::future::BoxFuture;
+use futures::stream::{self, BoxStream};
+use futures::{Stream, StreamExt, TryStreamExt};
 use list::{S3ListContents, S3ListResponse};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use reqwest::{
-    header::{CONTENT_LENGTH, RANGE},
-    Method, Request, StatusCode,
-};
+use reqwest::header::{CONTENT_LENGTH, RANGE};
+use reqwest::{Method, Request, StatusCode};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{
-    http::{format_range_header, read_text, HttpClient, HttpResponse},
-    FileSource,
-};
+use crate::http::{format_range_header, read_text, HttpClient, HttpResponse};
+use crate::FileSource;
 
 // TODO: Lots of cloning...
 

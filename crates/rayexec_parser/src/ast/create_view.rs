@@ -1,12 +1,10 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Ident, ObjectReference, QueryNode};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateView<T: AstMeta> {

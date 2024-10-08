@@ -1,12 +1,10 @@
-use crate::{
-    expr::{comparison_expr::ComparisonExpr, Expression},
-    logical::{
-        binder::bind_context::TableRef,
-        logical_join::{ComparisonCondition, JoinType},
-    },
-    optimizer::filter_pushdown::split::split_conjunction,
-};
 use rayexec_error::{not_implemented, RayexecError, Result};
+
+use crate::expr::comparison_expr::ComparisonExpr;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::TableRef;
+use crate::logical::logical_join::{ComparisonCondition, JoinType};
+use crate::optimizer::filter_pushdown::split::split_conjunction;
 
 #[derive(Debug, Default)]
 pub struct ExtractedConditions {

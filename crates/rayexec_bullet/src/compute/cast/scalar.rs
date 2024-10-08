@@ -1,20 +1,27 @@
-use num::{NumCast, ToPrimitive};
-use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::{
-    compute::cast::parse::{BoolParser, Date32Parser, IntervalParser},
-    datatype::DataType,
-    scalar::{
-        decimal::{Decimal128Scalar, Decimal64Scalar},
-        OwnedScalarValue, ScalarValue,
-    },
-};
+use num::{NumCast, ToPrimitive};
+use rayexec_error::{RayexecError, Result};
 
 use super::parse::{
-    Decimal128Parser, Decimal64Parser, Float32Parser, Float64Parser, Int16Parser, Int32Parser,
-    Int64Parser, Int8Parser, Parser, UInt16Parser, UInt32Parser, UInt64Parser, UInt8Parser,
+    Decimal128Parser,
+    Decimal64Parser,
+    Float32Parser,
+    Float64Parser,
+    Int16Parser,
+    Int32Parser,
+    Int64Parser,
+    Int8Parser,
+    Parser,
+    UInt16Parser,
+    UInt32Parser,
+    UInt64Parser,
+    UInt8Parser,
 };
+use crate::compute::cast::parse::{BoolParser, Date32Parser, IntervalParser};
+use crate::datatype::DataType;
+use crate::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
+use crate::scalar::{OwnedScalarValue, ScalarValue};
 
 pub fn cast_scalar(scalar: ScalarValue, to: &DataType) -> Result<OwnedScalarValue> {
     if &scalar.datatype() == to {

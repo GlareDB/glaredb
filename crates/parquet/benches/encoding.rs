@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use criterion::*;
 use parquet::basic::Encoding;
 use parquet::data_type::{DataType, DoubleType, FloatType};
@@ -22,7 +24,6 @@ use parquet::decoding::{get_decoder, Decoder};
 use parquet::encoding::get_encoder;
 use parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
 use rand::prelude::*;
-use std::sync::Arc;
 
 fn bench_typed<T: DataType>(c: &mut Criterion, values: &[T::T], encoding: Encoding) {
     let name = format!(

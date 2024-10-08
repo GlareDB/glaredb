@@ -3,11 +3,9 @@ pub mod protocol;
 mod datatable;
 mod read_delta;
 
-use rayexec_execution::{
-    datasource::{DataSource, DataSourceBuilder, FileHandler},
-    functions::table::TableFunction,
-    runtime::Runtime,
-};
+use rayexec_execution::datasource::{DataSource, DataSourceBuilder, FileHandler};
+use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::runtime::Runtime;
 use read_delta::ReadDelta;
 
 // TODO: How do we want to handle catalogs that provide data sources? Do we want

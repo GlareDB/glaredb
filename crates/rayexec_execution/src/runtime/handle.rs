@@ -1,6 +1,7 @@
+use std::fmt::Debug;
+
 use futures::future::BoxFuture;
 use rayexec_error::Result;
-use std::fmt::Debug;
 
 use crate::execution::executable::profiler::ExecutionProfileData;
 

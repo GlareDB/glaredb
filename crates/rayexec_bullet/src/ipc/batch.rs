@@ -1,29 +1,28 @@
 //! Conversion to/from ipc for batches.
 use std::collections::VecDeque;
 
-use crate::{
-    array::{Array, ArrayData, BinaryData},
-    batch::Batch,
-    bitmap::Bitmap,
-    bitutil::byte_ceil,
-    datatype::DataType,
-    executor::physical_type::PhysicalType,
-    field::Schema,
-    ipc::gen::message::RecordBatchBuilder,
-    scalar::interval::Interval,
-    storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata},
-};
-
-use super::{
-    compression::CompressionType,
-    gen::{
-        message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBatch},
-        schema::Buffer as IpcBuffer,
-    },
-    IpcConfig,
-};
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+
+use super::compression::CompressionType;
+use super::gen::message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBatch};
+use super::gen::schema::Buffer as IpcBuffer;
+use super::IpcConfig;
+use crate::array::{Array, ArrayData, BinaryData};
+use crate::batch::Batch;
+use crate::bitmap::Bitmap;
+use crate::bitutil::byte_ceil;
+use crate::datatype::DataType;
+use crate::executor::physical_type::PhysicalType;
+use crate::field::Schema;
+use crate::ipc::gen::message::RecordBatchBuilder;
+use crate::scalar::interval::Interval;
+use crate::storage::{
+    BooleanStorage,
+    GermanVarlenStorage,
+    PrimitiveStorage,
+    UnionedGermanMetadata,
+};
 
 pub fn ipc_to_batch(
     batch: IpcRecordBatch,
@@ -305,9 +304,9 @@ fn encode_primitive_values<T>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{datatype::DecimalTypeMeta, field::Field};
-
     use super::*;
+    use crate::datatype::DecimalTypeMeta;
+    use crate::field::Field;
 
     fn roundtrip(schema: Schema, batch: Batch) {
         let mut builder = FlatBufferBuilder::new();

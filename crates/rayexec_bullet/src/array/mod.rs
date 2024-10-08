@@ -1,26 +1,45 @@
+use std::fmt::Debug;
+use std::sync::Arc;
+
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::executor::physical_type::{
-    PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32,
-    PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16,
-    PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUtf8,
 };
 use crate::executor::scalar::UnaryExecutor;
+use crate::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::scalar::interval::Interval;
 use crate::scalar::timestamp::TimestampScalar;
-use crate::scalar::{
-    decimal::{Decimal128Scalar, Decimal64Scalar},
-    ScalarValue,
-};
+use crate::scalar::ScalarValue;
 use crate::selection::SelectionVector;
 use crate::storage::{
-    AddressableStorage, BooleanStorage, ContiguousVarlenStorage, GermanVarlenStorage,
-    PrimitiveStorage, SharedHeapStorage, UntypedNullStorage,
+    AddressableStorage,
+    BooleanStorage,
+    ContiguousVarlenStorage,
+    GermanVarlenStorage,
+    PrimitiveStorage,
+    SharedHeapStorage,
+    UntypedNullStorage,
 };
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use std::fmt::Debug;
-use std::sync::Arc;
 
 /// Wrapper around a selection vector allowing for owned or shared vectors.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Display};
+
 use num::{FromPrimitive, PrimInt, Signed, Zero};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Display};
 
 pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Default + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.

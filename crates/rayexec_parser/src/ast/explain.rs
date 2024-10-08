@@ -1,11 +1,12 @@
-use crate::meta::{AstMeta, Raw};
-use crate::statement::Statement;
-use crate::tokens::Token;
-use crate::{keywords::Keyword, parser::Parser};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, QueryNode};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::statement::Statement;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ExplainOutput {
@@ -69,11 +70,9 @@ impl AstParseable for ExplainNode<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{
-        testutil::parse_ast, Expr, LimitModifier, Literal, QueryNodeBody, SelectExpr, SelectNode,
-    };
-
     use super::*;
+    use crate::ast::testutil::parse_ast;
+    use crate::ast::{Expr, LimitModifier, Literal, QueryNodeBody, SelectExpr, SelectNode};
 
     /// Query node for 'select 1'
     fn query_node_select_1() -> QueryNode<Raw> {

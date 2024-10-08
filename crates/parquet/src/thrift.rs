@@ -18,8 +18,15 @@
 //! Custom thrift definitions
 
 use thrift::protocol::{
-    TFieldIdentifier, TInputProtocol, TListIdentifier, TMapIdentifier, TMessageIdentifier,
-    TOutputProtocol, TSetIdentifier, TStructIdentifier, TType,
+    TFieldIdentifier,
+    TInputProtocol,
+    TListIdentifier,
+    TMapIdentifier,
+    TMessageIdentifier,
+    TOutputProtocol,
+    TSetIdentifier,
+    TStructIdentifier,
+    TType,
 };
 
 /// Reads and writes the struct to Thrift protocols.

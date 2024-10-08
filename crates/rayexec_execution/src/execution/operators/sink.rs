@@ -1,21 +1,27 @@
-use crate::database::DatabaseContext;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use futures::{future::BoxFuture, FutureExt};
+use std::fmt::{self, Debug};
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
+
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::sync::Arc;
-use std::task::{Context, Waker};
-use std::{
-    fmt::{self, Debug},
-    task::Poll,
-};
 
+use super::util::futures::make_static;
 use super::{
-    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
-    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Operation for sending batches somewhere.
 pub trait SinkOperation: Debug + Send + Sync + Explainable {

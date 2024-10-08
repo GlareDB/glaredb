@@ -1,17 +1,17 @@
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
+use std::fmt;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::{
-    batch::Batch,
-    compute::cast::{array::cast_array, behavior::CastFailBehavior},
-    datatype::DataType,
-};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::compute::cast::array::cast_array;
+use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
-use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
-
 use super::PhysicalScalarExpression;
+use crate::database::DatabaseContext;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalCastExpr {

@@ -5,19 +5,12 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{
-    database::DatabaseContext,
-    execution::{
-        intermediate::StreamId,
-        operators::{
-            sink::{PartitionSink, SinkOperation},
-            source::{PartitionSource, SourceOperation},
-        },
-    },
-};
-
 use super::client::{HybridClient, PullStatus};
+use crate::database::DatabaseContext;
+use crate::execution::intermediate::StreamId;
+use crate::execution::operators::sink::{PartitionSink, SinkOperation};
+use crate::execution::operators::source::{PartitionSource, SourceOperation};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Client-side stream for sending batches from the client to the server (push).
 ///

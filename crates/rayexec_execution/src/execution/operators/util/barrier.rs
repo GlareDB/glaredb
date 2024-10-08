@@ -1,10 +1,9 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
+
 use parking_lot::Mutex;
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
 
 /// A barrier which hands out per-partition futures that resolve to Option<T>
 /// only when the barrier is explicitly unblocked.
@@ -94,10 +93,8 @@ impl<T> Future for PartitionBarrierFut<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::atomic::{AtomicUsize, Ordering},
-        task::Wake,
-    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::Wake;
 
     use futures::FutureExt;
 

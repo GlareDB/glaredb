@@ -1,18 +1,13 @@
-use rayexec_bullet::{
-    array::Array,
-    datatype::{DataType, DataTypeId},
-    executor::{
-        builder::{ArrayBuilder, GermanVarlenBuffer},
-        physical_type::PhysicalUtf8,
-        scalar::{BinaryExecutor, UniformExecutor},
-    },
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-
 use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and

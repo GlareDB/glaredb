@@ -1,18 +1,14 @@
 use rayexec_error::Result;
 
-use crate::logical::{
-    binder::{
-        bind_attach::{BoundAttach, BoundDetach},
-        bind_context::BindContext,
-        bind_statement::BoundStatement,
-    },
-    operator::LogicalOperator,
-};
-
-use super::{
-    plan_copy::CopyPlanner, plan_create_table::CreateTablePlanner, plan_explain::ExplainPlanner,
-    plan_insert::InsertPlanner, plan_query::QueryPlanner,
-};
+use super::plan_copy::CopyPlanner;
+use super::plan_create_table::CreateTablePlanner;
+use super::plan_explain::ExplainPlanner;
+use super::plan_insert::InsertPlanner;
+use super::plan_query::QueryPlanner;
+use crate::logical::binder::bind_attach::{BoundAttach, BoundDetach};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_statement::BoundStatement;
+use crate::logical::operator::LogicalOperator;
 
 #[derive(Debug)]
 pub struct StatementPlanner;

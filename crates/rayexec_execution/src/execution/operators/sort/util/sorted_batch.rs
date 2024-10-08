@@ -1,9 +1,9 @@
-use rayexec_bullet::{
-    batch::Batch,
-    row::encoding::{ComparableRow, ComparableRows},
-};
+use std::cmp::Ordering;
 use std::fmt;
-use std::{cmp::Ordering, sync::Arc};
+use std::sync::Arc;
+
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::row::encoding::{ComparableRow, ComparableRows};
 
 /// A batch that's been physically sorted.
 ///

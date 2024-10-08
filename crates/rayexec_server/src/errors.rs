@@ -1,9 +1,8 @@
-use std::{error::Error, fmt};
+use std::error::Error;
+use std::fmt;
 
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use rayexec_error::RayexecError;
 
 pub type ServerResult<T, E = ServerError> = std::result::Result<T, E>;

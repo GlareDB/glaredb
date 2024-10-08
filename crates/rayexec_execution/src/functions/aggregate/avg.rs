@@ -1,25 +1,28 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::ops::AddAssign;
+use std::vec;
+
 use num_traits::AsPrimitive;
-use rayexec_bullet::{
-    array::Array,
-    bitmap::Bitmap,
-    datatype::{DataType, DataTypeId},
-    executor::{
-        aggregate::AggregateState,
-        builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer},
-        physical_type::{PhysicalF64, PhysicalI128, PhysicalI64},
-    },
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::aggregate::AggregateState;
+use rayexec_bullet::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI128, PhysicalI64};
+use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    primitive_finalize, unary_update, AggregateFunction, DefaultGroupedStates, GroupedStates,
+    primitive_finalize,
+    unary_update,
+    AggregateFunction,
+    DefaultGroupedStates,
+    GroupedStates,
     PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use rayexec_error::{RayexecError, Result};
-use std::{fmt::Debug, ops::AddAssign};
-use std::{marker::PhantomData, vec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Avg;

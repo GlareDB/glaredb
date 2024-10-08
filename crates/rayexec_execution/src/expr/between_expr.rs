@@ -1,7 +1,7 @@
-use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use std::fmt;
 
 use super::Expression;
-use std::fmt;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 
 /// <input> BETWEEN <lower> AND <upper>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

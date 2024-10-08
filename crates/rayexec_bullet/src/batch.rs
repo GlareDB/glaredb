@@ -1,17 +1,19 @@
-use crate::{
-    array::{Array, Selection},
-    bitmap::Bitmap,
-    datatype::DataType,
-    executor::{
-        builder::{
-            ArrayBuilder, ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
-        },
-        physical_type::PhysicalType,
-    },
-    row::ScalarRow,
-    scalar::{interval::Interval, ScalarValue},
-};
 use rayexec_error::{not_implemented, RayexecError, Result};
+
+use crate::array::{Array, Selection};
+use crate::bitmap::Bitmap;
+use crate::datatype::DataType;
+use crate::executor::builder::{
+    ArrayBuilder,
+    ArrayDataBuffer,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
+};
+use crate::executor::physical_type::PhysicalType;
+use crate::row::ScalarRow;
+use crate::scalar::interval::Interval;
+use crate::scalar::ScalarValue;
 
 /// A batch of same-length arrays.
 #[derive(Debug, Clone, PartialEq)]

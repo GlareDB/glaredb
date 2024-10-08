@@ -2,22 +2,37 @@ use std::borrow::Borrow;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::{
-    array::Array,
-    bitmap::Bitmap,
-    executor::{
-        builder::{
-            ArrayBuilder, ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer,
-        },
-        physical_type::{
-            PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
-            PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalType,
-            PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUtf8,
-        },
-    },
-    selection,
-    storage::{AddressableStorage, UntypedNullStorage},
+use crate::array::Array;
+use crate::bitmap::Bitmap;
+use crate::executor::builder::{
+    ArrayBuilder,
+    ArrayDataBuffer,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
 };
+use crate::executor::physical_type::{
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalStorage,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUtf8,
+};
+use crate::selection;
+use crate::storage::{AddressableStorage, UntypedNullStorage};
 
 /// Singular mapping of a `from` index to a `to` index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -282,13 +297,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        datatype::DataType,
-        executor::{builder::PrimitiveBuffer, physical_type::PhysicalI32},
-        scalar::ScalarValue,
-    };
-
     use super::*;
+    use crate::datatype::DataType;
+    use crate::executor::builder::PrimitiveBuffer;
+    use crate::executor::physical_type::PhysicalI32;
+    use crate::scalar::ScalarValue;
 
     #[test]
     fn fill_simple_linear() {

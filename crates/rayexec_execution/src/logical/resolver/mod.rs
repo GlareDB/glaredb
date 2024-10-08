@@ -11,21 +11,15 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use rayexec_bullet::{
-    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
-    scalar::{
-        decimal::{Decimal128Type, Decimal64Type, DecimalType},
-        OwnedScalarValue, ScalarValue,
-    },
-};
+use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
-use rayexec_parser::{
-    ast::{self, ColumnDef, ObjectReference},
-    meta::{AstMeta, Raw},
-    parser,
-    statement::{RawStatement, Statement},
-};
+use rayexec_parser::ast::{self, ColumnDef, ObjectReference};
+use rayexec_parser::meta::{AstMeta, Raw};
+use rayexec_parser::parser;
+use rayexec_parser::statement::{RawStatement, Statement};
 use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_copy_to::ResolvedCopyTo;
@@ -34,18 +28,15 @@ use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    database::{
-        catalog::CatalogTx,
-        catalog_entry::{CatalogEntryInner, CatalogEntryType},
-        DatabaseContext,
-    },
-    datasource::FileHandlers,
-    functions::{copy::CopyToArgs, proto::FUNCTION_LOOKUP_CATALOG, table::TableFunctionArgs},
-    logical::operator::LocationRequirement,
-};
-
 use super::binder::expr_binder::BaseExpressionBinder;
+use crate::database::catalog::CatalogTx;
+use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
+use crate::database::DatabaseContext;
+use crate::datasource::FileHandlers;
+use crate::functions::copy::CopyToArgs;
+use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
+use crate::functions::table::TableFunctionArgs;
+use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
 pub type ResolvedStatement = Statement<ResolvedMeta>;

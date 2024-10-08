@@ -1,17 +1,17 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::{
-    array::{ArrayData, BinaryData},
-    bitmap::Bitmap,
-    datatype::DataType,
-    storage::{
-        BooleanStorage, GermanVarlenStorage, PrimitiveStorage, UnionedGermanMetadata,
-        INLINE_THRESHOLD,
-    },
-};
-
 use super::physical_type::VarlenType;
+use crate::array::{ArrayData, BinaryData};
+use crate::bitmap::Bitmap;
+use crate::datatype::DataType;
+use crate::storage::{
+    BooleanStorage,
+    GermanVarlenStorage,
+    PrimitiveStorage,
+    UnionedGermanMetadata,
+    INLINE_THRESHOLD,
+};
 
 #[derive(Debug)]
 pub struct ArrayBuilder<B> {

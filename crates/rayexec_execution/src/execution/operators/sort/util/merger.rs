@@ -1,11 +1,11 @@
+use std::cmp::{Ordering, Reverse};
+use std::collections::BinaryHeap;
+
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::{
-    cmp::{Ordering, Reverse},
-    collections::BinaryHeap,
-};
 
-use super::{accumulator::IndicesAccumulator, sorted_batch::RowReference};
+use super::accumulator::IndicesAccumulator;
+use super::sorted_batch::RowReference;
 
 #[derive(Debug)]
 pub enum MergeResult {

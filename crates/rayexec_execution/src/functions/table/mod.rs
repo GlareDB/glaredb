@@ -1,6 +1,9 @@
 pub mod series;
 pub mod system;
 
+use std::collections::HashMap;
+use std::fmt::Debug;
+
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -13,7 +16,6 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
-use std::{collections::HashMap, fmt::Debug};
 use system::{ListDatabases, ListSchemas, ListTables};
 
 use crate::database::DatabaseContext;

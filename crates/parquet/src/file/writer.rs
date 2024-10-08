@@ -18,25 +18,31 @@
 //! Contains file writer API, and provides methods to write row groups and columns by
 //! using row group writers and column writers respectively.
 
-use crate::bloom_filter::Sbbf;
-use crate::format as parquet;
-use crate::format::{ColumnIndex, OffsetIndex, RowGroup};
-use crate::thrift::TSerializable;
 use std::fmt::Debug;
-use std::io::{self, IoSlice, Read};
-use std::{io::Write, sync::Arc};
+use std::io::{self, IoSlice, Read, Write};
+use std::sync::Arc;
+
 use thrift::protocol::TCompactOutputProtocol;
 
-use crate::column::writer::{get_typed_column_writer_mut, ColumnCloseResult, GenericColumnWriter};
-use crate::column::{
-    page::{CompressedPage, PageWriteSpec, PageWriter},
-    writer::{get_column_writer, ColumnWriter},
+use crate::bloom_filter::Sbbf;
+use crate::column::page::{CompressedPage, PageWriteSpec, PageWriter};
+use crate::column::writer::{
+    get_column_writer,
+    get_typed_column_writer_mut,
+    ColumnCloseResult,
+    ColumnWriter,
+    GenericColumnWriter,
 };
 use crate::data_type::DataType;
 use crate::errors::{ParquetError, Result};
+use crate::file::metadata::*;
+use crate::file::properties::WriterPropertiesPtr;
 use crate::file::reader::ChunkReader;
-use crate::file::{metadata::*, properties::WriterPropertiesPtr, PARQUET_MAGIC};
+use crate::file::PARQUET_MAGIC;
+use crate::format as parquet;
+use crate::format::{ColumnIndex, OffsetIndex, RowGroup};
 use crate::schema::types::{self, ColumnDescPtr, SchemaDescPtr, SchemaDescriptor, TypePtr};
+use crate::thrift::TSerializable;
 
 /// A wrapper around a [`Write`] that keeps track of the number of bytes that
 /// have been written.
@@ -793,25 +799,38 @@ fn serialize_page_header(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use bytes::Bytes;
 
+    use super::*;
     use crate::basic::{
-        ColumnOrder, Compression, ConvertedType, Encoding, LogicalType, Repetition, SortOrder, Type,
+        ColumnOrder,
+        Compression,
+        ConvertedType,
+        Encoding,
+        LogicalType,
+        Repetition,
+        SortOrder,
+        Type,
     };
     use crate::column::page::{Page, PageReader};
     use crate::column::reader::get_typed_column_reader;
     use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
     use crate::data_type::Int32Type;
     use crate::file::page_index::index::Index;
-    use crate::file::properties::EnabledStatistics;
-    use crate::file::serialized_reader::ReadOptionsBuilder;
-    use crate::file::{
-        properties::{ReaderProperties, WriterProperties, WriterVersion},
-        reader::{FileReader, RowGroupReader, SerializedFileReader, SerializedPageReader},
-        statistics::{from_thrift, to_thrift, Statistics},
+    use crate::file::properties::{
+        EnabledStatistics,
+        ReaderProperties,
+        WriterProperties,
+        WriterVersion,
     };
+    use crate::file::reader::{
+        FileReader,
+        RowGroupReader,
+        SerializedFileReader,
+        SerializedPageReader,
+    };
+    use crate::file::serialized_reader::ReadOptionsBuilder;
+    use crate::file::statistics::{from_thrift, to_thrift, Statistics};
     use crate::format::SortingColumn;
     use crate::schema::parser::parse_message_type;
     use crate::schema::types::{ColumnDescriptor, ColumnPath};

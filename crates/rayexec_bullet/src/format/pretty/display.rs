@@ -1,7 +1,7 @@
-use crate::format::pretty::components::DEFAULT_COMPONENTS;
 use std::fmt::{self, Write as _};
 
 use super::table::ColumnValues;
+use crate::format::pretty::components::DEFAULT_COMPONENTS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrettyHeader {

@@ -1,14 +1,14 @@
 use std::fmt;
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::execution::operators::sink::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
-use rayexec_io::location::AccessConfig;
-use rayexec_io::location::FileLocation;
+use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;
 
 use crate::writer::AsyncBatchWriter;

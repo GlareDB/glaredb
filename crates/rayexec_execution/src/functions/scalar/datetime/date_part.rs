@@ -1,22 +1,16 @@
-use rayexec_bullet::{
-    array::Array,
-    compute::date::{self, extract_date_part},
-    datatype::{DataType, DataTypeId, DecimalTypeMeta},
-    scalar::decimal::{Decimal64Type, DecimalType},
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::compute::date::{self, extract_date_part};
+use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
 use rayexec_error::{not_implemented, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    expr::Expression,
-    functions::{
-        invalid_input_types_error, plan_check_num_args,
-        scalar::{PlannedScalarFunction, ScalarFunction},
-        FunctionInfo, Signature,
-    },
-    logical::binder::bind_context::BindContext,
-    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
-};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::bind_context::BindContext;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DatePart;

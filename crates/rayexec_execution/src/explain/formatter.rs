@@ -1,18 +1,18 @@
-use crate::{
-    execution::intermediate::{
-        IntermediatePipeline, IntermediatePipelineGroup, PipelineSink, PipelineSource,
-    },
-    explain::explainable::Explainable,
-    logical::{
-        binder::bind_context::BindContext, logical_explain::ExplainFormat,
-        operator::LogicalOperator,
-    },
-};
 use rayexec_error::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::explainable::{ExplainConfig, ExplainEntry};
+use crate::execution::intermediate::{
+    IntermediatePipeline,
+    IntermediatePipelineGroup,
+    PipelineSink,
+    PipelineSource,
+};
+use crate::explain::explainable::Explainable;
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::logical_explain::ExplainFormat;
+use crate::logical::operator::LogicalOperator;
 
 /// Formats explain output for various plan stages.
 #[derive(Debug)]

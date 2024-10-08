@@ -1,49 +1,35 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::{
-    datatype::DataType,
-    scalar::{interval::Interval, OwnedScalarValue, ScalarValue},
-};
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::scalar::interval::Interval;
+use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 
-use crate::{
-    expr::{
-        aggregate_expr::AggregateExpr,
-        arith_expr::{ArithExpr, ArithOperator},
-        case_expr::{CaseExpr, WhenThen},
-        cast_expr::CastExpr,
-        comparison_expr::{ComparisonExpr, ComparisonOperator},
-        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-        literal_expr::LiteralExpr,
-        negate_expr::{NegateExpr, NegateOperator},
-        scalar_function_expr::ScalarFunctionExpr,
-        subquery_expr::{SubqueryExpr, SubqueryType},
-        AsScalarFunction, Expression,
-    },
-    functions::{
-        aggregate::AggregateFunction,
-        scalar::{
-            concat::Concat,
-            datetime::DatePart,
-            like::{self, StartsWith},
-            list::{ListExtract, ListValues},
-            string::Substring,
-            ScalarFunction,
-        },
-        CastType,
-    },
-    logical::{
-        binder::bind_query::QueryBinder,
-        resolver::{
-            resolve_context::ResolveContext, resolved_function::ResolvedFunction, ResolvedMeta,
-        },
-    },
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    column_binder::ExpressionColumnBinder,
-};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::column_binder::ExpressionColumnBinder;
+use crate::expr::aggregate_expr::AggregateExpr;
+use crate::expr::arith_expr::{ArithExpr, ArithOperator};
+use crate::expr::case_expr::{CaseExpr, WhenThen};
+use crate::expr::cast_expr::CastExpr;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::literal_expr::LiteralExpr;
+use crate::expr::negate_expr::{NegateExpr, NegateOperator};
+use crate::expr::scalar_function_expr::ScalarFunctionExpr;
+use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
+use crate::expr::{AsScalarFunction, Expression};
+use crate::functions::aggregate::AggregateFunction;
+use crate::functions::scalar::concat::Concat;
+use crate::functions::scalar::datetime::DatePart;
+use crate::functions::scalar::like::{self, StartsWith};
+use crate::functions::scalar::list::{ListExtract, ListValues};
+use crate::functions::scalar::string::Substring;
+use crate::functions::scalar::ScalarFunction;
+use crate::functions::CastType;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::resolved_function::ResolvedFunction;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {

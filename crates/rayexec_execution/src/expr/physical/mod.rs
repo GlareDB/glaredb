@@ -6,23 +6,25 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
+use std::fmt;
 
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
-use rayexec_bullet::{array::Array, batch::Batch, datatype::DataType};
 use rayexec_error::{not_implemented, OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
-use crate::{
-    database::DatabaseContext, functions::aggregate::PlannedAggregateFunction,
-    proto::DatabaseProtoConv,
-};
+use crate::database::DatabaseContext;
+use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {
@@ -185,9 +187,8 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 
 #[cfg(test)]
 mod tests {
-    use crate::functions::scalar::comparison::GtImpl;
-
     use super::*;
+    use crate::functions::scalar::comparison::GtImpl;
 
     #[test]
     fn select_some() {

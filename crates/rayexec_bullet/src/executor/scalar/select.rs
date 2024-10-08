@@ -1,11 +1,9 @@
 use rayexec_error::Result;
 
-use crate::{
-    array::Array,
-    executor::physical_type::{PhysicalBool, PhysicalStorage},
-    selection::{self, SelectionVector},
-    storage::AddressableStorage,
-};
+use crate::array::Array;
+use crate::executor::physical_type::{PhysicalBool, PhysicalStorage};
+use crate::selection::{self, SelectionVector};
+use crate::storage::AddressableStorage;
 
 #[derive(Debug, Clone)]
 pub struct SelectExecutor;

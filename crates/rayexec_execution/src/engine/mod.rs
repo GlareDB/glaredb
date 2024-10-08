@@ -3,16 +3,17 @@ pub mod result;
 pub mod server_state;
 pub mod session;
 
+use std::sync::Arc;
+
 use rayexec_error::Result;
 use server_state::ServerState;
 use session::Session;
-use std::sync::Arc;
 
-use crate::{
-    database::{memory_catalog::MemoryCatalog, system::new_system_catalog, DatabaseContext},
-    datasource::{DataSourceRegistry, MemoryDataSource},
-    runtime::{PipelineExecutor, Runtime},
-};
+use crate::database::memory_catalog::MemoryCatalog;
+use crate::database::system::new_system_catalog;
+use crate::database::DatabaseContext;
+use crate::datasource::{DataSourceRegistry, MemoryDataSource};
+use crate::runtime::{PipelineExecutor, Runtime};
 
 #[derive(Debug)]
 pub struct Engine<P: PipelineExecutor, R: Runtime> {

@@ -2,16 +2,12 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
-use crate::logical::{
-    binder::bind_query::QueryBinder,
-    logical_explain::ExplainFormat,
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    bind_query::BoundQuery,
-};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::bind_query::BoundQuery;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::logical_explain::ExplainFormat;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub struct BoundExplain {

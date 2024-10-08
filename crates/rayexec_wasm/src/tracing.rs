@@ -1,10 +1,12 @@
 use std::io::{self, Write};
+
 use tracing::Level;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::FmtSubscriber;
 use wasm_bindgen::prelude::*;
-use web_sys::{console, js_sys::Array};
+use web_sys::console;
+use web_sys::js_sys::Array;
 
 #[wasm_bindgen]
 pub fn init_console_tracing() {

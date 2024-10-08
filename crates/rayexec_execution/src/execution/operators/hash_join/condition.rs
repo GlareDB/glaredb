@@ -1,16 +1,14 @@
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    executor::scalar::SelectExecutor,
-    selection::SelectionVector,
-};
-use rayexec_error::{RayexecError, Result};
 use std::fmt;
 
-use crate::{
-    expr::physical::PhysicalScalarExpression,
-    functions::scalar::{boolean::AndImpl, PlannedScalarFunction},
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::executor::scalar::SelectExecutor;
+use rayexec_bullet::selection::SelectionVector;
+use rayexec_error::{RayexecError, Result};
+
+use crate::expr::physical::PhysicalScalarExpression;
+use crate::functions::scalar::boolean::AndImpl;
+use crate::functions::scalar::PlannedScalarFunction;
 
 #[derive(Debug, Clone)]
 pub struct HashJoinCondition {

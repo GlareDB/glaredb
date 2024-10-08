@@ -1,17 +1,14 @@
-use rayexec_server::serve_with_engine;
-
 use clap::{Parser, ValueEnum};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
-use rayexec_execution::{
-    datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource},
-    engine::Engine,
-    runtime::{Runtime, TokioHandlerProvider},
-};
+use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::engine::Engine;
+use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use rayexec_server::serve_with_engine;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_server")]

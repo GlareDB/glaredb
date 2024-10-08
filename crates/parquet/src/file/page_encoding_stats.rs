@@ -20,7 +20,9 @@
 use crate::basic::{Encoding, PageType};
 use crate::errors::Result;
 use crate::format::{
-    Encoding as TEncoding, PageEncodingStats as TPageEncodingStats, PageType as TPageType,
+    Encoding as TEncoding,
+    PageEncodingStats as TPageEncodingStats,
+    PageType as TPageType,
 };
 
 /// PageEncodingStats for a column chunk and data page.

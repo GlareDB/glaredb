@@ -1,9 +1,11 @@
+use std::fmt::Debug;
+
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::fmt::Debug;
 
-use crate::{database::catalog_entry::CatalogEntry, execution::operators::sink::PartitionSink};
+use crate::database::catalog_entry::CatalogEntry;
+use crate::execution::operators::sink::PartitionSink;
 
 /// Scan projections.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,10 +1,10 @@
+use std::sync::Arc;
+
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::Result;
-use rayexec_execution::{
-    execution::executable::profiler::ExecutionProfileData, runtime::handle::QueryHandle,
-};
-use std::sync::Arc;
+use rayexec_execution::execution::executable::profiler::ExecutionProfileData;
+use rayexec_execution::runtime::handle::QueryHandle;
 
 use super::task::{PartitionPipelineTask, TaskState};
 

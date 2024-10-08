@@ -1,10 +1,9 @@
-use once_cell::sync::Lazy;
-use rayexec_bullet::{
-    compute::cast::scalar::cast_scalar,
-    scalar::{OwnedScalarValue, ScalarValue},
-};
-use rayexec_error::{RayexecError, Result};
 use std::collections::HashMap;
+
+use once_cell::sync::Lazy;
+use rayexec_bullet::compute::cast::scalar::cast_scalar;
+use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
+use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutablePlanConfig, IntermediatePlanConfig};
 

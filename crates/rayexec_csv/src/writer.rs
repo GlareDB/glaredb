@@ -1,11 +1,10 @@
-use csv::ByteRecord;
-use rayexec_bullet::{
-    batch::Batch,
-    field::Schema,
-    format::{FormatOptions, Formatter},
-};
-use rayexec_error::{Result, ResultExt};
 use std::io::Write as _;
+
+use csv::ByteRecord;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::Schema;
+use rayexec_bullet::format::{FormatOptions, Formatter};
+use rayexec_error::{Result, ResultExt};
 
 use crate::reader::DialectOptions;
 

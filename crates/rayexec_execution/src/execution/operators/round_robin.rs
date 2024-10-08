@@ -1,19 +1,23 @@
-use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use crate::database::DatabaseContext;
-use crate::execution::operators::{
-    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
-};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use parking_lot::Mutex;
+use rayexec_bullet::batch::Batch;
+use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use crate::database::DatabaseContext;
+use crate::execution::operators::{
+    ExecutableOperator,
+    OperatorState,
+    PartitionState,
+    PollPull,
+    PollPush,
+};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Partition state on the pull side.
 #[derive(Debug)]

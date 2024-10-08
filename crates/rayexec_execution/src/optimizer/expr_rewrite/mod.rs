@@ -3,13 +3,6 @@ pub mod distributive_or;
 pub mod join_filter_or;
 pub mod unnest_conjunction;
 
-use crate::{
-    expr::{self, Expression},
-    logical::{
-        binder::bind_context::BindContext,
-        operator::{LogicalNode, LogicalOperator},
-    },
-};
 use const_fold::ConstFold;
 use distributive_or::DistributiveOrRewrite;
 use join_filter_or::JoinFilterOrRewrite;
@@ -17,6 +10,9 @@ use rayexec_error::Result;
 use unnest_conjunction::UnnestConjunctionRewrite;
 
 use super::OptimizeRule;
+use crate::expr::{self, Expression};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 pub trait ExpressionRewriteRule {
     /// Rewrite a single expression.

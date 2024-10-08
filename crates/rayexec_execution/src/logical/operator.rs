@@ -1,3 +1,8 @@
+use std::fmt;
+
+use rayexec_error::{RayexecError, Result};
+use rayexec_proto::ProtoConv;
+
 use super::binder::bind_context::TableRef;
 use super::logical_aggregate::LogicalAggregate;
 use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
@@ -11,7 +16,10 @@ use super::logical_explain::LogicalExplain;
 use super::logical_filter::LogicalFilter;
 use super::logical_insert::LogicalInsert;
 use super::logical_join::{
-    LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+    LogicalMagicJoin,
 };
 use super::logical_limit::LogicalLimit;
 use super::logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan};
@@ -23,9 +31,6 @@ use super::logical_setop::LogicalSetop;
 use super::statistics::{Statistics, StatisticsCount};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use rayexec_error::{RayexecError, Result};
-use rayexec_proto::ProtoConv;
-use std::fmt;
 
 /// Requirement for where a node in the plan needs to be executed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

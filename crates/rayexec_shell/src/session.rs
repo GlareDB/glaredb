@@ -1,13 +1,14 @@
-use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
-use rayexec_parser::parser;
-use rayexec_parser::statement::RawStatement;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::datasource::DataSourceRegistry;
-use rayexec_execution::engine::{session::Session, Engine};
+use rayexec_execution::engine::session::Session;
+use rayexec_execution::engine::Engine;
+use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
 use rayexec_execution::runtime::{PipelineExecutor, Runtime};
+use rayexec_parser::parser;
+use rayexec_parser::statement::RawStatement;
 use tokio::sync::Mutex;
 
 use crate::result_table::StreamingTable;

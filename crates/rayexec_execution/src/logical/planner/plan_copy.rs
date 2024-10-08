@@ -1,13 +1,11 @@
-use crate::logical::{
-    binder::{
-        bind_context::BindContext,
-        bind_copy::{BoundCopyTo, BoundCopyToSource},
-    },
-    logical_copy::LogicalCopyTo,
-    operator::{LocationRequirement, LogicalOperator, Node},
-    planner::{plan_from::FromPlanner, plan_query::QueryPlanner},
-};
 use rayexec_error::Result;
+
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_copy::{BoundCopyTo, BoundCopyToSource};
+use crate::logical::logical_copy::LogicalCopyTo;
+use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::planner::plan_from::FromPlanner;
+use crate::logical::planner::plan_query::QueryPlanner;
 
 #[derive(Debug)]
 pub struct CopyPlanner;

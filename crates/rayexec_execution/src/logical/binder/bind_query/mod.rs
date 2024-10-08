@@ -9,18 +9,16 @@ pub mod bind_values;
 pub mod select_expr_expander;
 pub mod select_list;
 
+use bind_select::{BoundSelect, SelectBinder};
 use bind_setop::{BoundSetOp, SetOpBinder};
 use bind_values::{BoundValues, ValuesBinder};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::logical::{
-    binder::bind_context::BoundCte,
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
-};
-use bind_select::{BoundSelect, SelectBinder};
-
 use super::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::bind_context::BoundCte;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundQuery {

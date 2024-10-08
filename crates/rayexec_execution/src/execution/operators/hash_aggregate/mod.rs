@@ -1,5 +1,10 @@
 pub mod aggregate_hash_table;
 
+use std::collections::BTreeSet;
+use std::sync::Arc;
+use std::task::{Context, Waker};
+
+use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
@@ -8,21 +13,19 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
-use std::collections::BTreeSet;
-use std::sync::Arc;
-use std::task::{Context, Waker};
 
+use super::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::database::DatabaseContext;
 use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
-    ExecutableOperator, OperatorState, PartitionState, PollPull, PollPush,
+    ExecutableOperator,
+    OperatorState,
+    PartitionState,
+    PollPull,
+    PollPush,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-
-use aggregate_hash_table::{AggregateHashTableDrain, AggregateStates, PartitionAggregateHashTable};
-
-use super::{ExecutionStates, InputOutputStates, PollFinalize};
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {

@@ -34,11 +34,11 @@
 //! # Example
 //!
 //! ```rust
-//! use parquet::{
-//!     basic::{ConvertedType, Repetition, Type as PhysicalType},
-//!     schema::{parser, printer, types::Type},
-//! };
 //! use std::sync::Arc;
+//!
+//! use parquet::basic::{ConvertedType, Repetition, Type as PhysicalType};
+//! use parquet::schema::types::Type;
+//! use parquet::schema::{parser, printer};
 //!
 //! // Create the following schema:
 //! //

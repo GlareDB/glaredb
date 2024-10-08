@@ -2,12 +2,17 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::{batch::Batch, field::Field};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::{
-    database::catalog_entry::CatalogEntry,
-    execution::operators::sink::PartitionSink,
-    storage::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage},
+use rayexec_execution::database::catalog_entry::CatalogEntry;
+use rayexec_execution::execution::operators::sink::PartitionSink;
+use rayexec_execution::storage::table_storage::{
+    DataTable,
+    DataTableScan,
+    ProjectedScan,
+    Projections,
+    TableStorage,
 };
 
 // Much of the debug table implementation was copied from the memory table

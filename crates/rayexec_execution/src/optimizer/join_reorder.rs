@@ -1,21 +1,16 @@
 use std::collections::{HashSet, VecDeque};
 
-use crate::{
-    expr::{self, Expression},
-    logical::{
-        binder::bind_context::{BindContext, TableRef},
-        logical_filter::LogicalFilter,
-        logical_join::{JoinType, LogicalComparisonJoin, LogicalCrossJoin},
-        operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
-    },
-    optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor,
-};
 use rayexec_error::{RayexecError, Result};
 
-use super::{
-    filter_pushdown::{extracted_filter::ExtractedFilter, split::split_conjunction},
-    OptimizeRule,
-};
+use super::filter_pushdown::extracted_filter::ExtractedFilter;
+use super::filter_pushdown::split::split_conjunction;
+use super::OptimizeRule;
+use crate::expr::{self, Expression};
+use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_join::{JoinType, LogicalComparisonJoin, LogicalCrossJoin};
+use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
 
 /// Reorders joins in the plan.
 ///

@@ -1,20 +1,26 @@
-use futures::{future::BoxFuture, FutureExt};
+use std::fmt;
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::{
-    fmt,
-    sync::Arc,
-    task::{Context, Poll},
-};
 
+use super::util::futures::make_static;
+use super::{
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
+};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use std::fmt::Debug;
-
-use super::{
-    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
-    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
-};
 
 /// Operation for reading batches from somewhere.
 pub trait SourceOperation: Debug + Send + Sync + Explainable {

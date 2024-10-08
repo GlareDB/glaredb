@@ -1,17 +1,15 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use bytes::Bytes;
-use futures::{
-    future::{BoxFuture, FutureExt},
-    stream::{BoxStream, StreamExt},
-    Stream,
-};
+use futures::future::{BoxFuture, FutureExt};
+use futures::stream::{BoxStream, StreamExt};
+use futures::Stream;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
-use reqwest::{header::HeaderMap, Request, StatusCode};
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use reqwest::header::HeaderMap;
+use reqwest::{Request, StatusCode};
 
 #[derive(Debug, Clone)]
 pub struct WasmHttpClient {

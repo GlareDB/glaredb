@@ -1,16 +1,16 @@
-use crate::functions::aggregate::GroupedStates;
-use hashbrown::raw::RawTable;
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    bitmap::Bitmap,
-    datatype::DataType,
-    executor::aggregate::RowToStateMapping,
-    row::{OwnedScalarRow, ScalarRow},
-    selection::SelectionVector,
-};
-use rayexec_error::{RayexecError, Result};
 use std::fmt;
+
+use hashbrown::raw::RawTable;
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::aggregate::RowToStateMapping;
+use rayexec_bullet::row::{OwnedScalarRow, ScalarRow};
+use rayexec_bullet::selection::SelectionVector;
+use rayexec_error::{RayexecError, Result};
+
+use crate::functions::aggregate::GroupedStates;
 
 /// States for a single aggregation.
 #[derive(Debug)]

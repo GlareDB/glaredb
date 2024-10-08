@@ -1,14 +1,15 @@
-use crate::logical::{
-    binder::{bind_context::BindContext, bind_query::bind_select::BoundSelect},
-    logical_aggregate::LogicalAggregate,
-    logical_filter::LogicalFilter,
-    logical_limit::LogicalLimit,
-    logical_order::LogicalOrder,
-    logical_project::LogicalProject,
-    operator::{LocationRequirement, LogicalOperator, Node},
-    planner::{plan_from::FromPlanner, plan_subquery::SubqueryPlanner},
-};
 use rayexec_error::Result;
+
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_query::bind_select::BoundSelect;
+use crate::logical::logical_aggregate::LogicalAggregate;
+use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_limit::LogicalLimit;
+use crate::logical::logical_order::LogicalOrder;
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::planner::plan_from::FromPlanner;
+use crate::logical::planner::plan_subquery::SubqueryPlanner;
 
 #[derive(Debug)]
 pub struct SelectPlanner;

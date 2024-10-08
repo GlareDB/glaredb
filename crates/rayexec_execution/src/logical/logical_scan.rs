@@ -1,19 +1,16 @@
-use rayexec_error::Result;
 use std::sync::Arc;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use rayexec_bullet::datatype::DataType;
+use rayexec_error::Result;
 
-use crate::{
-    database::catalog_entry::CatalogEntry, expr::Expression, functions::table::PlannedTableFunction,
-};
-
-use super::{
-    binder::bind_context::TableRef,
-    operator::{LogicalNode, Node},
-    scan_filter::ScanFilter,
-    statistics::{Statistics, StatisticsCount},
-};
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, Node};
+use super::scan_filter::ScanFilter;
+use super::statistics::{Statistics, StatisticsCount};
+use crate::database::catalog_entry::CatalogEntry;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
+use crate::functions::table::PlannedTableFunction;
 
 // TODO: Probably remove view from this.
 // Maybe just split it all up.

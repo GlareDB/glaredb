@@ -1,20 +1,19 @@
+use std::pin::Pin;
 use std::sync::Arc;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
 
-use futures::{stream::Stream, StreamExt, TryStreamExt};
+use futures::stream::Stream;
+use futures::{StreamExt, TryStreamExt};
 use rayexec_bullet::array::Array;
-use rayexec_bullet::{
-    batch::Batch, field::Schema, format::pretty::table::PrettyTable, row::ScalarRow,
-};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::Schema;
+use rayexec_bullet::format::pretty::table::PrettyTable;
+use rayexec_bullet::row::ScalarRow;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::{
-    engine::{profiler::PlanningProfileData, result::ExecutionResult},
-    execution::executable::profiler::ExecutionProfileData,
-    runtime::handle::QueryHandle,
-};
+use rayexec_execution::engine::profiler::PlanningProfileData;
+use rayexec_execution::engine::result::ExecutionResult;
+use rayexec_execution::execution::executable::profiler::ExecutionProfileData;
+use rayexec_execution::runtime::handle::QueryHandle;
 
 #[derive(Debug)]
 pub struct StreamingTable {

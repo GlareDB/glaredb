@@ -8,9 +8,8 @@ pub struct OptionalString {
 
 #[cfg(test)]
 mod tests {
-    use crate::packed::{PackedDecoder, PackedEncoder};
-
     use super::*;
+    use crate::packed::{PackedDecoder, PackedEncoder};
 
     #[test]
     fn packed_optional_string_none() {

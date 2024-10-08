@@ -1,14 +1,15 @@
 use pyo3::{pyclass, pyfunction, pymethods, Python};
-use rayexec_error::RayexecError;
-
-use crate::{errors::Result, event_loop::run_until_complete, table::PythonMaterializedResultTable};
-
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
+use rayexec_error::RayexecError;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;
+
+use crate::errors::Result;
+use crate::event_loop::run_until_complete;
+use crate::table::PythonMaterializedResultTable;
 
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {

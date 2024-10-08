@@ -1,13 +1,11 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::Token,
-};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Ident, QueryNode};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommonTableExprs<T: AstMeta> {

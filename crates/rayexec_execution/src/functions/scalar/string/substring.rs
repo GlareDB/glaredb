@@ -1,18 +1,16 @@
-use rayexec_bullet::{
-    array::Array,
-    datatype::{DataType, DataTypeId},
-    executor::{
-        builder::{ArrayBuilder, GermanVarlenBuffer},
-        physical_type::{PhysicalI64, PhysicalUtf8},
-        scalar::{BinaryExecutor, TernaryExecutor},
-    },
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
+use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::{RayexecError, Result};
 
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{
-    invalid_input_types_error, plan_check_num_args_one_of,
-    scalar::{PlannedScalarFunction, ScalarFunction},
-    FunctionInfo, Signature,
+    invalid_input_types_error,
+    plan_check_num_args_one_of,
+    FunctionInfo,
+    Signature,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

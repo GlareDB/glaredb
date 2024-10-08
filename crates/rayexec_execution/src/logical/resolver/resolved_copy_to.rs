@@ -1,5 +1,8 @@
-use crate::{database::DatabaseContext, functions::copy::CopyToFunction, proto::DatabaseProtoConv};
 use rayexec_error::{OptionExt, Result};
+
+use crate::database::DatabaseContext;
+use crate::functions::copy::CopyToFunction;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedCopyTo {

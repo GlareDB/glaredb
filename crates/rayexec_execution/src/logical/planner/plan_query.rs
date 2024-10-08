@@ -1,12 +1,11 @@
-use crate::logical::{
-    binder::{bind_context::BindContext, bind_query::BoundQuery},
-    logical_scan::{LogicalScan, ScanSource},
-    operator::{LocationRequirement, LogicalOperator, Node},
-    planner::plan_select::SelectPlanner,
-};
 use rayexec_error::Result;
 
 use super::plan_setop::SetOpPlanner;
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_query::BoundQuery;
+use crate::logical::logical_scan::{LogicalScan, ScanSource};
+use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::planner::plan_select::SelectPlanner;
 
 #[derive(Debug)]
 pub struct QueryPlanner;

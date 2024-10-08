@@ -1,20 +1,26 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
-use rayexec_bullet::{
-    batch::Batch,
-    field::{Field, Schema},
-    ipc::{
-        stream::{StreamReader, StreamWriter},
-        IpcConfig,
-    },
-};
+use std::io::Cursor;
+use std::sync::Arc;
+use std::task::Context;
+
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
+use rayexec_bullet::ipc::IpcConfig;
 use rayexec_error::{OptionExt, RayexecError, Result};
-use std::{io::Cursor, sync::Arc, task::Context};
 
 use super::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {

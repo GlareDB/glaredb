@@ -1,8 +1,10 @@
-use rayexec_error::{RayexecError, Result};
-use scc::ebr::Guard;
 use std::sync::Arc;
 
-use super::{catalog::CatalogTx, catalog_entry::CatalogEntry};
+use rayexec_error::{RayexecError, Result};
+use scc::ebr::Guard;
+
+use super::catalog::CatalogTx;
+use super::catalog_entry::CatalogEntry;
 
 /// Maps a name to some catalog entry.
 #[derive(Debug, Default)]

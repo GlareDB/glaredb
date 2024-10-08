@@ -29,11 +29,11 @@ pub use hash::*;
 
 mod fill;
 pub use fill::*;
-
-use crate::{array::Array, bitmap::Bitmap};
 use rayexec_error::{RayexecError, Result};
 
 use super::builder::ArrayDataBuffer;
+use crate::array::Array;
+use crate::bitmap::Bitmap;
 
 #[inline]
 pub(crate) fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {

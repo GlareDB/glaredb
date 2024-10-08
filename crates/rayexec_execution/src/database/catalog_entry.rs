@@ -5,15 +5,12 @@ use rayexec_bullet::field::Field;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use crate::{
-    functions::{
-        aggregate::AggregateFunction, copy::CopyToFunction, scalar::ScalarFunction,
-        table::TableFunction,
-    },
-    proto::DatabaseProtoConv,
-};
-
 use super::DatabaseContext;
+use crate::functions::aggregate::AggregateFunction;
+use crate::functions::copy::CopyToFunction;
+use crate::functions::scalar::ScalarFunction;
+use crate::functions::table::TableFunction;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogEntryType {

@@ -15,17 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{io::Read, sync::Arc};
-
-use crate::format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};
-use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
+use std::io::Read;
+use std::sync::Arc;
 
 use crate::basic::ColumnOrder;
-
 use crate::errors::{ParquetError, Result};
-use crate::file::{metadata::*, reader::ChunkReader, FOOTER_SIZE, PARQUET_MAGIC};
-
+use crate::file::metadata::*;
+use crate::file::reader::ChunkReader;
+use crate::file::{FOOTER_SIZE, PARQUET_MAGIC};
+use crate::format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};
 use crate::schema::types::{self, SchemaDescriptor};
+use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 
 /// Reads the [ParquetMetaData] from the footer of the parquet file.
 ///
@@ -170,11 +170,10 @@ fn parse_column_orders(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
 
-    use crate::basic::SortOrder;
-    use crate::basic::Type;
+    use super::*;
+    use crate::basic::{SortOrder, Type};
     use crate::format::TypeDefinedOrder;
     use crate::schema::types::Type as SchemaType;
 

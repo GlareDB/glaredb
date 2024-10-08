@@ -1,12 +1,12 @@
 pub mod pretty;
 pub mod ugly;
 
-use crate::{
-    array::Array,
-    scalar::ScalarValue,
-};
-use rayexec_error::Result;
 use std::fmt;
+
+use rayexec_error::Result;
+
+use crate::array::Array;
+use crate::scalar::ScalarValue;
 
 /// Formatting options for arrays and scalars.
 #[derive(Debug, Clone, PartialEq, Eq)]

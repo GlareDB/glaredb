@@ -1,11 +1,11 @@
-use crate::{
-    expr::{literal_expr::LiteralExpr, physical::planner::PhysicalExpressionPlanner, Expression},
-    logical::binder::bind_context::BindContext,
-};
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::ExpressionRewriteRule;
+use crate::expr::literal_expr::LiteralExpr;
+use crate::expr::physical::planner::PhysicalExpressionPlanner;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::BindContext;
 
 /// Pre-compute constant expressions.
 #[derive(Debug)]
@@ -60,9 +60,8 @@ fn maybe_fold(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
 mod tests {
     use rayexec_bullet::datatype::DataType;
 
-    use crate::expr::{add, and, cast, col_ref, lit};
-
     use super::*;
+    use crate::expr::{add, and, cast, col_ref, lit};
 
     #[test]
     fn no_fold_literal() {

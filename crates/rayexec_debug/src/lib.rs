@@ -1,17 +1,18 @@
 pub mod discard;
 pub mod table_storage;
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use discard::DiscardCopyToFunction;
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::{
-    database::{catalog_entry::TableEntry, memory_catalog::MemoryCatalog},
-    datasource::{DataSource, DataSourceConnection, DataSourceCopyTo},
-    functions::table::TableFunction,
-    storage::catalog_storage::CatalogStorage,
-};
-use std::{collections::HashMap, sync::Arc};
+use rayexec_execution::database::catalog_entry::TableEntry;
+use rayexec_execution::database::memory_catalog::MemoryCatalog;
+use rayexec_execution::datasource::{DataSource, DataSourceConnection, DataSourceCopyTo};
+use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::storage::catalog_storage::CatalogStorage;
 use table_storage::{DebugTableStorage, TablePreload};
 
 // TODO: Some weirdness with interaction between catalog storage and table

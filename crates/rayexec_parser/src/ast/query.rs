@@ -1,15 +1,19 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::Token,
-};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AstParseable, CommonTableExprs, Expr, LimitModifier, OrderByModifier, OrderByNode, SelectNode,
+    AstParseable,
+    CommonTableExprs,
+    Expr,
+    LimitModifier,
+    OrderByModifier,
+    OrderByNode,
+    SelectNode,
 };
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryNode<T: AstMeta> {
@@ -157,9 +161,11 @@ impl AstParseable for Values<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::ast::{testutil::parse_ast, Literal};
     use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::ast::testutil::parse_ast;
+    use crate::ast::Literal;
 
     #[test]
     fn values_one_row() {

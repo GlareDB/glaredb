@@ -2,23 +2,20 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    expr::{cast_expr::CastExpr, column_expr::ColumnExpr, Expression},
-    logical::{
-        binder::{bind_context::TableRef, bind_query::QueryBinder},
-        operator::LocationRequirement,
-        resolver::{
-            resolve_context::ResolveContext,
-            resolved_table::{ResolvedTableOrCteReference, ResolvedTableReference},
-            ResolvedMeta,
-        },
-    },
+use super::bind_context::{BindContext, BindScopeRef};
+use super::bind_query::BoundQuery;
+use crate::expr::cast_expr::CastExpr;
+use crate::expr::column_expr::ColumnExpr;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::TableRef;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::operator::LocationRequirement;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::resolved_table::{
+    ResolvedTableOrCteReference,
+    ResolvedTableReference,
 };
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    bind_query::BoundQuery,
-};
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InsertProjections {

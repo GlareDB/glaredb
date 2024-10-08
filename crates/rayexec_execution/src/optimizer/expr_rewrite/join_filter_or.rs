@@ -1,15 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{
-    expr::{
-        conjunction_expr::{ConjunctionExpr, ConjunctionOperator},
-        Expression,
-    },
-    logical::binder::bind_context::{BindContext, TableRef},
-};
 use rayexec_error::Result;
 
 use super::ExpressionRewriteRule;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 
 /// Rewrites join filter expressions containing ORs that reference both sides of
 /// a join to an AND expression with the OR distributed.

@@ -1,8 +1,9 @@
+use std::fmt;
+use std::path::{Path, PathBuf};
+
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::path::{Path, PathBuf};
 use url::Url;
 
 use crate::s3::credentials::AwsCredentials;
@@ -23,9 +24,8 @@ impl ProtoConv for AccessConfig {
     type ProtoType = rayexec_proto::generated::access::AccessConfig;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::access::{
-            access_config::Value, AwsCredentials, EmptyAccessConfig, S3AccessConfig,
-        };
+        use rayexec_proto::generated::access::access_config::Value;
+        use rayexec_proto::generated::access::{AwsCredentials, EmptyAccessConfig, S3AccessConfig};
 
         let value = match self {
             Self::S3 {

@@ -3,17 +3,13 @@ use std::collections::HashMap;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::logical::{
-    logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase},
-    operator::{LocationRequirement, Node},
-    resolver::{resolve_context::ResolveContext, ResolvedMeta},
-};
-
-use super::{
-    bind_context::{BindContext, BindScopeRef},
-    column_binder::ErroringColumnBinder,
-    expr_binder::{BaseExpressionBinder, RecursionContext},
-};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::column_binder::ErroringColumnBinder;
+use super::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
+use crate::logical::operator::{LocationRequirement, Node};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub enum BoundAttach {

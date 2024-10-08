@@ -1,19 +1,28 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::storage::table_storage::Projections;
-use crate::{
-    database::DatabaseContext, functions::table::PlannedTableFunction, proto::DatabaseProtoConv,
-    storage::table_storage::DataTableScan,
-};
-use futures::{future::BoxFuture, FutureExt};
+use std::fmt;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
-use std::{fmt, task::Poll};
-use std::{sync::Arc, task::Context};
 
+use super::util::futures::make_static;
 use super::{
-    util::futures::make_static, ExecutableOperator, ExecutionStates, InputOutputStates,
-    OperatorState, PartitionState, PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::functions::table::PlannedTableFunction;
+use crate::proto::DatabaseProtoConv;
+use crate::storage::table_storage::{DataTableScan, Projections};
 
 pub struct TableFunctionPartitionState {
     scan: Box<dyn DataTableScan>,

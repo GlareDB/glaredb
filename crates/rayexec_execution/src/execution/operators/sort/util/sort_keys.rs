@@ -1,8 +1,6 @@
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows},
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows};
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::physical::PhysicalSortExpression;

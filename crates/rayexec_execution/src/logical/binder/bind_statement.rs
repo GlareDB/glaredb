@@ -1,33 +1,27 @@
 use rayexec_error::Result;
 use rayexec_parser::statement::Statement;
 
-use crate::{
-    config::vars::SessionVars,
-    logical::{
-        binder::bind_query::QueryBinder,
-        logical_create::{LogicalCreateSchema, LogicalCreateView},
-        logical_describe::LogicalDescribe,
-        logical_drop::LogicalDrop,
-        logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar},
-        operator::Node,
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-
-use super::{
-    bind_attach::{AttachBinder, BoundAttach, BoundDetach},
-    bind_context::BindContext,
-    bind_copy::{BoundCopyTo, CopyBinder},
-    bind_create_schema::CreateSchemaBinder,
-    bind_create_table::{BoundCreateTable, CreateTableBinder},
-    bind_create_view::CreateViewBinder,
-    bind_describe::DescribeBinder,
-    bind_drop::DropBinder,
-    bind_explain::{BoundExplain, ExplainBinder},
-    bind_insert::{BoundInsert, InsertBinder},
-    bind_query::BoundQuery,
-    bind_set::SetVarBinder,
-};
+use super::bind_attach::{AttachBinder, BoundAttach, BoundDetach};
+use super::bind_context::BindContext;
+use super::bind_copy::{BoundCopyTo, CopyBinder};
+use super::bind_create_schema::CreateSchemaBinder;
+use super::bind_create_table::{BoundCreateTable, CreateTableBinder};
+use super::bind_create_view::CreateViewBinder;
+use super::bind_describe::DescribeBinder;
+use super::bind_drop::DropBinder;
+use super::bind_explain::{BoundExplain, ExplainBinder};
+use super::bind_insert::{BoundInsert, InsertBinder};
+use super::bind_query::BoundQuery;
+use super::bind_set::SetVarBinder;
+use crate::config::vars::SessionVars;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::logical_create::{LogicalCreateSchema, LogicalCreateView};
+use crate::logical::logical_describe::LogicalDescribe;
+use crate::logical::logical_drop::LogicalDrop;
+use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
+use crate::logical::operator::Node;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 /// "Bound" variants for SQL statements that we support.
 ///

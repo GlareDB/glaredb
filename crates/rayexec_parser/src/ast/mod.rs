@@ -32,15 +32,15 @@ pub use cte::*;
 pub mod drop;
 pub use drop::*;
 pub mod attach;
-pub use attach::*;
+use std::fmt;
+use std::hash::Hash;
 
-use crate::parser::Parser;
-use crate::tokens::{Token, Word};
+pub use attach::*;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use std::fmt;
-use std::hash::Hash;
+use crate::parser::Parser;
+use crate::tokens::{Token, Word};
 
 pub trait AstParseable: Sized {
     /// Parse an instance of Self from the provided parser.
@@ -52,9 +52,8 @@ pub trait AstParseable: Sized {
 
 #[cfg(test)]
 mod testutil {
-    use crate::tokens::Tokenizer;
-
     use super::*;
+    use crate::tokens::Tokenizer;
 
     /// Parse an AST node directly from a string.
     pub(crate) fn parse_ast<A: AstParseable>(s: &str) -> Result<A> {

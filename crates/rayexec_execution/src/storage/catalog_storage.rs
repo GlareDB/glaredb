@@ -1,8 +1,10 @@
-use futures::future::BoxFuture;
-use rayexec_error::Result;
 use std::fmt::Debug;
 
-use crate::database::{catalog_entry::TableEntry, memory_catalog::MemoryCatalog};
+use futures::future::BoxFuture;
+use rayexec_error::Result;
+
+use crate::database::catalog_entry::TableEntry;
+use crate::database::memory_catalog::MemoryCatalog;
 
 pub trait CatalogStorage: Debug + Sync + Send {
     fn initial_load(&self, catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>>;

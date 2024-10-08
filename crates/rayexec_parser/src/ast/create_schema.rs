@@ -1,12 +1,10 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, ObjectReference};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateSchema<T: AstMeta> {
@@ -33,9 +31,8 @@ impl AstParseable for CreateSchema<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::testutil::parse_ast;
-
     use super::*;
+    use crate::ast::testutil::parse_ast;
 
     #[test]
     fn basic() {

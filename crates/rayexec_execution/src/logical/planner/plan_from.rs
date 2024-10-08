@@ -1,31 +1,27 @@
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::{
-    expr::{
-        self, column_expr::ColumnExpr, comparison_expr::ComparisonExpr, literal_expr::LiteralExpr,
-        Expression,
-    },
-    logical::{
-        binder::{
-            bind_context::BindContext,
-            bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin},
-        },
-        logical_empty::LogicalEmpty,
-        logical_filter::LogicalFilter,
-        logical_join::{
-            ComparisonCondition, JoinType, LogicalArbitraryJoin, LogicalComparisonJoin,
-            LogicalCrossJoin,
-        },
-        logical_materialization::LogicalMaterializationScan,
-        logical_project::LogicalProject,
-        logical_scan::{LogicalScan, ScanSource},
-        operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
-    },
-    optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor,
-};
-
 use super::plan_query::QueryPlanner;
+use crate::expr::column_expr::ColumnExpr;
+use crate::expr::comparison_expr::ComparisonExpr;
+use crate::expr::literal_expr::LiteralExpr;
+use crate::expr::{self, Expression};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
+use crate::logical::logical_empty::LogicalEmpty;
+use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_join::{
+    ComparisonCondition,
+    JoinType,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+};
+use crate::logical::logical_materialization::LogicalMaterializationScan;
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_scan::{LogicalScan, ScanSource};
+use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
 
 #[derive(Debug)]
 pub struct FromPlanner;

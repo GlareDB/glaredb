@@ -33,18 +33,27 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use crate::format::{
-    BoundaryOrder, ColumnChunk, ColumnIndex, ColumnMetaData, OffsetIndex, PageLocation, RowGroup,
-    SortingColumn,
-};
-
 use crate::basic::{ColumnOrder, Compression, Encoding, Type};
 use crate::errors::{ParquetError, Result};
 use crate::file::page_encoding_stats::{self, PageEncodingStats};
 use crate::file::page_index::index::Index;
 use crate::file::statistics::{self, Statistics};
+use crate::format::{
+    BoundaryOrder,
+    ColumnChunk,
+    ColumnIndex,
+    ColumnMetaData,
+    OffsetIndex,
+    PageLocation,
+    RowGroup,
+    SortingColumn,
+};
 use crate::schema::types::{
-    ColumnDescPtr, ColumnDescriptor, ColumnPath, SchemaDescPtr, SchemaDescriptor,
+    ColumnDescPtr,
+    ColumnDescriptor,
+    ColumnPath,
+    SchemaDescPtr,
+    SchemaDescriptor,
     Type as SchemaType,
 };
 

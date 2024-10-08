@@ -1,19 +1,18 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{
-    database::{catalog::CatalogTx, create::CreateTableInfo, DatabaseContext},
-    proto::DatabaseProtoConv,
-    storage::table_storage::DataTable,
-};
+use std::fmt;
+
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
-use std::fmt;
 
-use super::{
-    sink::{PartitionSink, SinkOperation, SinkOperator},
-    util::barrier::PartitionBarrier,
-};
+use super::sink::{PartitionSink, SinkOperation, SinkOperator};
+use super::util::barrier::PartitionBarrier;
+use crate::database::catalog::CatalogTx;
+use crate::database::create::CreateTableInfo;
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
+use crate::storage::table_storage::DataTable;
 
 pub type PhysicalCreateTable = SinkOperator<CreateTableSinkOperation>;
 

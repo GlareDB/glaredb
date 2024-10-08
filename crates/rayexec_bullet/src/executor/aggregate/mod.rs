@@ -1,17 +1,15 @@
 //! Vectorized aggregate executors.
 
 mod unary;
-pub use unary::*;
+use std::borrow::Borrow;
+use std::fmt::Debug;
 
 use rayexec_error::Result;
-use std::{borrow::Borrow, fmt::Debug};
-
-use crate::{
-    array::Array,
-    bitmap::Bitmap,
-};
+pub use unary::*;
 
 use super::builder::{ArrayBuilder, ArrayDataBuffer};
+use crate::array::Array;
+use crate::bitmap::Bitmap;
 
 /// State for a single group's aggregate.
 ///

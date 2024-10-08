@@ -5,11 +5,13 @@ pub mod s3;
 
 mod util;
 
+use std::fmt::Debug;
+
 use bytes::Bytes;
-use futures::{future::BoxFuture, stream::BoxStream};
+use futures::future::BoxFuture;
+use futures::stream::BoxStream;
 use location::{AccessConfig, FileLocation};
 use rayexec_error::Result;
-use std::fmt::Debug;
 
 /// Provide file sources and sinks.
 ///

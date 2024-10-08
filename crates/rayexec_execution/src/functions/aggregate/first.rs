@@ -1,28 +1,45 @@
-use rayexec_bullet::{
-    datatype::{DataType, DataTypeId},
-    executor::{
-        aggregate::{AggregateState, StateFinalizer},
-        builder::{ArrayBuilder, GermanVarlenBuffer},
-        physical_type::{
-            PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
-            PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalType, PhysicalU128,
-            PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUntypedNull, PhysicalUtf8,
-        },
-    },
-    scalar::interval::Interval,
-    storage::UntypedNull,
+use std::fmt::Debug;
+
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
+use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use rayexec_bullet::executor::physical_type::{
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
 };
+use rayexec_bullet::scalar::interval::Interval;
+use rayexec_bullet::storage::UntypedNull;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
-use std::fmt::Debug;
-
-use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
 use super::{
-    boolean_finalize, primitive_finalize, unary_update, untyped_null_finalize, AggregateFunction,
-    DefaultGroupedStates, GroupedStates, PlannedAggregateFunction,
+    boolean_finalize,
+    primitive_finalize,
+    unary_update,
+    untyped_null_finalize,
+    AggregateFunction,
+    DefaultGroupedStates,
+    GroupedStates,
+    PlannedAggregateFunction,
 };
+use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct First;

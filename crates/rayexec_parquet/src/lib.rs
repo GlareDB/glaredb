@@ -8,11 +8,9 @@ mod schema;
 
 use copy_to::ParquetCopyToFunction;
 use functions::read_parquet::ReadParquet;
-use rayexec_execution::{
-    datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler},
-    functions::table::TableFunction,
-    runtime::Runtime,
-};
+use rayexec_execution::datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler};
+use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::runtime::Runtime;
 use regex::{Regex, RegexBuilder};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

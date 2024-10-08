@@ -1,17 +1,23 @@
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{database::DatabaseContext, proto::DatabaseProtoConv};
+use std::sync::Arc;
+use std::task::{Context, Waker};
+
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
-use std::{
-    sync::Arc,
-    task::{Context, Waker},
-};
 
 use super::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct UnionTopPartitionState {

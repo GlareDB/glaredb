@@ -1,13 +1,10 @@
 use rayexec_error::Result;
 
-use super::{
-    binder::{bind_context::TableRef, bind_query::bind_modifier::BoundOrderByExpr},
-    operator::{LogicalNode, Node},
-};
-use crate::{
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    expr::Expression,
-};
+use super::binder::bind_context::TableRef;
+use super::binder::bind_query::bind_modifier::BoundOrderByExpr;
+use super::operator::{LogicalNode, Node};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalOrder {

@@ -1,8 +1,8 @@
 use rayexec_error::Result;
 
-use crate::logical::{binder::bind_context::BindContext, operator::LogicalOperator};
-
 use super::OptimizeRule;
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::operator::LogicalOperator;
 
 /// Push down a limit below a project.
 #[derive(Debug)]

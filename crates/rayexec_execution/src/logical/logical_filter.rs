@@ -1,12 +1,11 @@
 use rayexec_error::Result;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::Expression;
-
-use super::operator::LogicalNode;
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, Node};
 use super::statistics::assumptions::DEFAULT_SELECTIVITY;
 use super::statistics::{Statistics, StatisticsCount};
-use super::{binder::bind_context::TableRef, operator::Node};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalFilter {

@@ -1,12 +1,10 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrderByModifier<T: AstMeta> {

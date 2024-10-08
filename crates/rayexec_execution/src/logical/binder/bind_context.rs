@@ -1,15 +1,12 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
-use std::fmt;
-
-use crate::{
-    expr::Expression,
-    logical::operator::{LogicalNode, LogicalOperator},
-};
 
 use super::bind_query::BoundQuery;
+use crate::expr::Expression;
+use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,20 +1,19 @@
-use crate::{
-    database::{
-        catalog::CatalogTx,
-        create::{
-            CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
-            CreateTableFunctionInfo, OnConflict,
-        },
-    },
-    datasource::DataSourceRegistry,
-    functions::{
-        aggregate::BUILTIN_AGGREGATE_FUNCTIONS, scalar::BUILTIN_SCALAR_FUNCTIONS,
-        table::BUILTIN_TABLE_FUNCTIONS,
-    },
-};
 use rayexec_error::Result;
 
-use super::{create::CreateCopyToFunctionInfo, memory_catalog::MemoryCatalog};
+use super::create::CreateCopyToFunctionInfo;
+use super::memory_catalog::MemoryCatalog;
+use crate::database::catalog::CatalogTx;
+use crate::database::create::{
+    CreateAggregateFunctionInfo,
+    CreateScalarFunctionInfo,
+    CreateSchemaInfo,
+    CreateTableFunctionInfo,
+    OnConflict,
+};
+use crate::datasource::DataSourceRegistry;
+use crate::functions::aggregate::BUILTIN_AGGREGATE_FUNCTIONS;
+use crate::functions::scalar::BUILTIN_SCALAR_FUNCTIONS;
+use crate::functions::table::BUILTIN_TABLE_FUNCTIONS;
 
 /// Create a new system catalog with builtin functions.
 ///

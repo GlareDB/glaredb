@@ -4,11 +4,8 @@ mod print;
 mod session;
 mod table;
 
-use pyo3::{
-    pymodule,
-    types::{PyModule, PyModuleMethods},
-    wrap_pyfunction, Bound, PyResult,
-};
+use pyo3::types::{PyModule, PyModuleMethods};
+use pyo3::{pymodule, wrap_pyfunction, Bound, PyResult};
 
 /// Defines the root python module.
 ///

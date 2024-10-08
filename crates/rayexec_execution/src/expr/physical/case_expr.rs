@@ -1,12 +1,12 @@
-use std::{borrow::Cow, fmt, sync::Arc};
+use std::borrow::Cow;
+use std::fmt;
+use std::sync::Arc;
 
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    bitmap::Bitmap,
-    executor::scalar::{interleave, SelectExecutor},
-    selection::SelectionVector,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::executor::scalar::{interleave, SelectExecutor};
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
@@ -123,15 +123,11 @@ mod tests {
 
     use rayexec_bullet::scalar::ScalarValue;
 
-    use crate::{
-        expr::physical::{
-            column_expr::PhysicalColumnExpr, literal_expr::PhysicalLiteralExpr,
-            scalar_function_expr::PhysicalScalarFunctionExpr,
-        },
-        functions::scalar::comparison::EqImpl,
-    };
-
     use super::*;
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
+    use crate::functions::scalar::comparison::EqImpl;
 
     #[test]
     fn case_simple() {

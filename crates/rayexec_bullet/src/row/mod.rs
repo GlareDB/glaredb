@@ -2,7 +2,8 @@ pub mod encoding;
 
 use rayexec_error::Result;
 
-use crate::{array::Array, scalar::ScalarValue};
+use crate::array::Array;
+use crate::scalar::ScalarValue;
 
 /// Scalar representation of a single row.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -7,15 +7,16 @@ pub mod system;
 
 mod catalog_map;
 
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use catalog::CatalogTx;
 use create::{CreateSchemaInfo, OnConflict};
 use memory_catalog::MemoryCatalog;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::sync::Arc;
 
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::memory::MemoryTableStorage;

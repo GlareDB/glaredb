@@ -3,42 +3,32 @@ use std::sync::Arc;
 use hashbrown::HashMap;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{OptionExt, RayexecError, Result};
-use rayexec_parser::{parser, statement::RawStatement};
+use rayexec_parser::parser;
+use rayexec_parser::statement::RawStatement;
 use uuid::Uuid;
 
-use crate::{
-    config::vars::SessionVars,
-    database::{
-        catalog::CatalogTx, memory_catalog::MemoryCatalog, AttachInfo, Database, DatabaseContext,
-    },
-    execution::{
-        executable::{
-            pipeline::ExecutablePipeline,
-            planner::{ExecutablePipelinePlanner, PlanLocationState},
-        },
-        intermediate::{
-            planner::IntermediatePipelinePlanner, IntermediateMaterializationGroup,
-            IntermediatePipelineGroup,
-        },
-    },
-    hybrid::client::HybridClient,
-    logical::{
-        binder::bind_statement::StatementBinder,
-        logical_attach::LogicalAttachDatabase,
-        logical_set::VariableOrAll,
-        operator::{LogicalOperator, Node},
-        planner::plan_statement::StatementPlanner,
-        resolver::{resolve_context::ResolveContext, ResolveMode, ResolvedStatement, Resolver},
-    },
-    optimizer::Optimizer,
-    runtime::{time::Timer, PipelineExecutor, Runtime},
-};
-
-use super::{
-    profiler::PlanningProfileData,
-    result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream},
-    DataSourceRegistry,
-};
+use super::profiler::PlanningProfileData;
+use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream};
+use super::DataSourceRegistry;
+use crate::config::vars::SessionVars;
+use crate::database::catalog::CatalogTx;
+use crate::database::memory_catalog::MemoryCatalog;
+use crate::database::{AttachInfo, Database, DatabaseContext};
+use crate::execution::executable::pipeline::ExecutablePipeline;
+use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
+use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
+use crate::execution::intermediate::{IntermediateMaterializationGroup, IntermediatePipelineGroup};
+use crate::hybrid::client::HybridClient;
+use crate::logical::binder::bind_statement::StatementBinder;
+use crate::logical::logical_attach::LogicalAttachDatabase;
+use crate::logical::logical_set::VariableOrAll;
+use crate::logical::operator::{LogicalOperator, Node};
+use crate::logical::planner::plan_statement::StatementPlanner;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::{ResolveMode, ResolvedStatement, Resolver};
+use crate::optimizer::Optimizer;
+use crate::runtime::time::Timer;
+use crate::runtime::{PipelineExecutor, Runtime};
 
 /// A "client" session capable of executing queries from arbitrary sql
 /// statements.

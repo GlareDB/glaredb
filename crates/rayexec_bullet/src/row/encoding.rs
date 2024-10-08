@@ -1,17 +1,28 @@
-use crate::{
-    array::{Array, ArrayData, BinaryData},
-    executor::{
-        physical_type::{
-            PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
-            PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalU128,
-            PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, VarlenType,
-        },
-        scalar::UnaryExecutor,
-    },
-    scalar::interval::Interval,
-    storage::AddressableStorage,
-};
 use rayexec_error::{not_implemented, RayexecError, Result};
+
+use crate::array::{Array, ArrayData, BinaryData};
+use crate::executor::physical_type::{
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalStorage,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    VarlenType,
+};
+use crate::executor::scalar::UnaryExecutor;
+use crate::scalar::interval::Interval;
+use crate::storage::AddressableStorage;
 
 /// Binary-encoded rows suitable for comparisons.
 #[derive(Debug)]

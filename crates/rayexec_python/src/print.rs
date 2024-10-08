@@ -1,9 +1,9 @@
-use crate::errors::Result;
-
 use std::fmt::Display;
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+
+use crate::errors::Result;
 
 /// Use python's builtin `print` to display an item.
 // TODO: Grab stdio/err directly instead of needing to convert to a string and

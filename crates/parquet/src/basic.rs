@@ -22,14 +22,24 @@ use std::str::FromStr;
 use std::{fmt, str};
 
 pub use crate::compression::{BrotliLevel, GzipLevel, ZstdLevel};
-use crate::format as parquet;
-
 use crate::errors::{ParquetError, Result};
-
+use crate::format as parquet;
 // Re-export crate::format types used in this module
 pub use crate::format::{
-    BsonType, DateType, DecimalType, EnumType, IntType, JsonType, ListType, MapType, NullType,
-    StringType, TimeType, TimeUnit, TimestampType, UUIDType,
+    BsonType,
+    DateType,
+    DecimalType,
+    EnumType,
+    IntType,
+    JsonType,
+    ListType,
+    MapType,
+    NullType,
+    StringType,
+    TimeType,
+    TimeUnit,
+    TimestampType,
+    UUIDType,
 };
 
 // ----------------------------------------------------------------------

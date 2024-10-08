@@ -1,40 +1,34 @@
+use std::sync::Arc;
+
 use dashmap::DashMap;
-use rayexec_bullet::{
-    batch::Batch,
-    field::{Field, Schema},
-};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
-use crate::{
-    config::{vars::SessionVars, ExecutablePlanConfig, IntermediatePlanConfig},
-    database::{catalog::CatalogTx, DatabaseContext},
-    datasource::DataSourceRegistry,
-    execution::{
-        executable::planner::{ExecutablePipelinePlanner, PlanLocationState},
-        intermediate::{
-            planner::IntermediatePipelinePlanner, IntermediateMaterializationGroup,
-            IntermediatePipelineGroup, StreamId,
-        },
-    },
-    hybrid::{
-        buffer::ServerStreamBuffers,
-        client::{HybridPlanResponse, PullStatus},
-    },
-    logical::{
-        binder::bind_statement::StatementBinder,
-        operator::LogicalOperator,
-        planner::plan_statement::StatementPlanner,
-        resolver::{
-            resolve_context::ResolveContext,
-            resolve_hybrid::{HybridContextExtender, HybridResolver},
-            ResolvedStatement,
-        },
-    },
-    optimizer::Optimizer,
-    runtime::{handle::QueryHandle, PipelineExecutor, Runtime},
+use crate::config::vars::SessionVars;
+use crate::config::{ExecutablePlanConfig, IntermediatePlanConfig};
+use crate::database::catalog::CatalogTx;
+use crate::database::DatabaseContext;
+use crate::datasource::DataSourceRegistry;
+use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
+use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
+use crate::execution::intermediate::{
+    IntermediateMaterializationGroup,
+    IntermediatePipelineGroup,
+    StreamId,
 };
-use std::sync::Arc;
+use crate::hybrid::buffer::ServerStreamBuffers;
+use crate::hybrid::client::{HybridPlanResponse, PullStatus};
+use crate::logical::binder::bind_statement::StatementBinder;
+use crate::logical::operator::LogicalOperator;
+use crate::logical::planner::plan_statement::StatementPlanner;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::resolve_hybrid::{HybridContextExtender, HybridResolver};
+use crate::logical::resolver::ResolvedStatement;
+use crate::optimizer::Optimizer;
+use crate::runtime::handle::QueryHandle;
+use crate::runtime::{PipelineExecutor, Runtime};
 
 /// Server state for planning and executing user queries on a remote server.
 ///

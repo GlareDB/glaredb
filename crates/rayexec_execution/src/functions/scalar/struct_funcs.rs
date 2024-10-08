@@ -1,9 +1,11 @@
-use super::{PlannedScalarFunction, ScalarFunction};
-use crate::functions::{FunctionInfo, Signature};
+use std::fmt::Debug;
+
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
-use std::fmt::Debug;
+
+use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructPack;

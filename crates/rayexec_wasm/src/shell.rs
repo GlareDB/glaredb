@@ -1,17 +1,19 @@
-use crate::errors::Result;
-use crate::runtime::{WasmExecutor, WasmRuntime};
+use std::io::{self, BufWriter};
+use std::rc::Rc;
+
 use js_sys::Function;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
+use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;
-use rayexec_shell::shell::ShellSignal;
-use rayexec_shell::{lineedit::KeyEvent, shell::Shell};
-use std::io::{self, BufWriter};
-use std::rc::Rc;
+use rayexec_shell::shell::{Shell, ShellSignal};
 use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::KeyboardEvent;
+
+use crate::errors::Result;
+use crate::runtime::{WasmExecutor, WasmRuntime};
 
 #[wasm_bindgen]
 extern "C" {

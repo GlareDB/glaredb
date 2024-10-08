@@ -1,14 +1,15 @@
+use std::collections::BTreeMap;
+use std::fmt;
+use std::fmt::Write as _;
+
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use rayexec_error::{not_implemented, Result};
-use reqwest::{
-    header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, HOST},
-    Request,
-};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, HOST};
+use reqwest::Request;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt, fmt::Write as _};
 use url::Url;
 
 use crate::util::hex;

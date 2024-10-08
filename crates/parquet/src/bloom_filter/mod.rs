@@ -72,21 +72,28 @@
 //! [sbbf-paper]: https://arxiv.org/pdf/2101.01719
 //! [bf-formulae]: http://tfk.mit.edu/pdf/bloom.pdf
 
+use std::hash::Hasher;
+use std::io::Write;
+use std::sync::Arc;
+
+use bytes::Bytes;
+use thrift::protocol::{TCompactOutputProtocol, TOutputProtocol};
+use twox_hash::XxHash64;
+
 use crate::data_type::AsBytes;
 use crate::errors::ParquetError;
 use crate::file::metadata::ColumnChunkMetaData;
 use crate::file::reader::ChunkReader;
 use crate::format::{
-    BloomFilterAlgorithm, BloomFilterCompression, BloomFilterHash, BloomFilterHeader,
-    SplitBlockAlgorithm, Uncompressed, XxHash,
+    BloomFilterAlgorithm,
+    BloomFilterCompression,
+    BloomFilterHash,
+    BloomFilterHeader,
+    SplitBlockAlgorithm,
+    Uncompressed,
+    XxHash,
 };
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
-use bytes::Bytes;
-use std::hash::Hasher;
-use std::io::Write;
-use std::sync::Arc;
-use thrift::protocol::{TCompactOutputProtocol, TOutputProtocol};
-use twox_hash::XxHash64;
 
 /// Salt as defined in the [spec](https://github.com/apache/parquet-format/blob/master/BloomFilter.md#technical-approach).
 const SALT: [u32; 8] = [

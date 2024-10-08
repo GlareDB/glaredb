@@ -15,9 +15,9 @@ pub mod window_expr;
 
 pub mod physical;
 
-use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::logical::binder::bind_context::BindContext;
-use crate::{functions::scalar::ScalarFunction, logical::binder::bind_context::TableRef};
+use std::collections::HashSet;
+use std::fmt::{self, Debug};
+
 use aggregate_expr::AggregateExpr;
 use arith_expr::{ArithExpr, ArithOperator};
 use between_expr::BetweenExpr;
@@ -33,10 +33,12 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
-use std::collections::HashSet;
-use std::fmt::{self, Debug};
 use subquery_expr::SubqueryExpr;
 use window_expr::WindowExpr;
+
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+use crate::functions::scalar::ScalarFunction;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {

@@ -1,7 +1,8 @@
 use pyo3::{pyclass, pymethods, Python};
 use rayexec_shell::result_table::MaterializedResultTable;
 
-use crate::{errors::Result, print::pyprint};
+use crate::errors::Result;
+use crate::print::pyprint;
 
 const DEFAULT_TABLE_WIDTH: usize = 100;
 

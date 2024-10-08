@@ -2,17 +2,13 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    expr::{cast_expr::CastExpr, Expression},
-    logical::{
-        binder::{
-            bind_context::{BindContext, BindScopeRef, TableRef},
-            column_binder::DefaultColumnBinder,
-            expr_binder::{BaseExpressionBinder, RecursionContext},
-        },
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
+use crate::expr::cast_expr::CastExpr;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::column_binder::DefaultColumnBinder;
+use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundValues {

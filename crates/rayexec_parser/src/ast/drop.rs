@@ -1,12 +1,10 @@
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, ObjectReference};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DropType {
@@ -71,9 +69,8 @@ impl AstParseable for DropStatement<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::testutil::parse_ast;
-
     use super::*;
+    use crate::ast::testutil::parse_ast;
 
     #[test]
     fn basic() {

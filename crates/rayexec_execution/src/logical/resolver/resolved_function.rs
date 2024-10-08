@@ -1,9 +1,9 @@
-use crate::{
-    database::DatabaseContext,
-    functions::{aggregate::AggregateFunction, scalar::ScalarFunction},
-    proto::DatabaseProtoConv,
-};
 use rayexec_error::{OptionExt, Result};
+
+use crate::database::DatabaseContext;
+use crate::functions::aggregate::AggregateFunction;
+use crate::functions::scalar::ScalarFunction;
+use crate::proto::DatabaseProtoConv;
 
 /// A resolved aggregate or scalar function.
 #[derive(Debug, Clone, PartialEq)]

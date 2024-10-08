@@ -1,14 +1,12 @@
-use rayexec_error::{RayexecError, Result};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{
-    keywords::Keyword,
-    meta::{AstMeta, Raw},
-    parser::Parser,
-};
+use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, Ident, ObjectReference};
+use crate::keywords::Keyword;
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachType {
@@ -89,10 +87,11 @@ impl AstParseable for Detach<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{testutil::parse_ast, Literal};
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::ast::testutil::parse_ast;
+    use crate::ast::Literal;
 
     #[test]
     fn attach_pg_database() {

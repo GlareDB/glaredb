@@ -1,16 +1,28 @@
-use crate::{
-    ast::{
-        AstParseable, Attach, CopyTo, CreateSchema, CreateTable, CreateView, Describe, Detach,
-        DropStatement, ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable,
-        ShowVariable,
-    },
-    keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS},
-    meta::Raw,
-    statement::{RawStatement, Statement},
-    tokens::{Token, TokenWithLocation, Tokenizer},
-};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use tracing::trace;
+
+use crate::ast::{
+    AstParseable,
+    Attach,
+    CopyTo,
+    CreateSchema,
+    CreateTable,
+    CreateView,
+    Describe,
+    Detach,
+    DropStatement,
+    ExplainNode,
+    Ident,
+    Insert,
+    QueryNode,
+    ResetVariable,
+    SetVariable,
+    ShowVariable,
+};
+use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS};
+use crate::meta::Raw;
+use crate::statement::{RawStatement, Statement};
+use crate::tokens::{Token, TokenWithLocation, Tokenizer};
 
 /// Parse a sql query into statements.
 pub fn parse(sql: &str) -> Result<Vec<Statement<Raw>>> {

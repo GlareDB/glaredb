@@ -1,8 +1,10 @@
-use super::{AstParseable, Expr};
-use crate::parser::Parser;
-use crate::{keywords::Keyword, tokens::Token};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
+
+use super::{AstParseable, Expr};
+use crate::keywords::Keyword;
+use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DataType {
@@ -84,9 +86,8 @@ impl DataType {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::testutil::parse_ast;
-
     use super::*;
+    use crate::ast::testutil::parse_ast;
 
     fn assert_ast_eq(expected: DataType, s: &str) {
         assert_eq!(expected, parse_ast(s).unwrap())

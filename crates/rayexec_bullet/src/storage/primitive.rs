@@ -1,7 +1,8 @@
-use rayexec_error::{RayexecError, Result};
 use std::fmt::{self, Debug};
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
+
+use rayexec_error::{RayexecError, Result};
 
 use super::AddressableStorage;
 

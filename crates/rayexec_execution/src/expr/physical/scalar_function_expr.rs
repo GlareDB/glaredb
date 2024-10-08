@@ -1,17 +1,15 @@
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
+use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
 use rayexec_error::{OptionExt, Result};
 
-use crate::{
-    database::DatabaseContext, functions::scalar::PlannedScalarFunction, proto::DatabaseProtoConv,
-};
-
 use super::PhysicalScalarExpression;
+use crate::database::DatabaseContext;
+use crate::functions::scalar::PlannedScalarFunction;
+use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalScalarFunctionExpr {

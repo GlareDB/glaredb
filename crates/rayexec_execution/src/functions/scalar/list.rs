@@ -1,22 +1,18 @@
 use std::ops::Deref;
 
-use rayexec_bullet::{
-    array::Array,
-    datatype::{DataType, DataTypeId, ListTypeMeta},
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    expr::Expression,
-    functions::{plan_check_num_args, FunctionInfo, Signature},
-    logical::binder::bind_context::BindContext,
-    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
-};
-
 use super::{PlannedScalarFunction, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::bind_context::BindContext;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ListExtract;

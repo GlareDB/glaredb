@@ -1,23 +1,33 @@
 use std::sync::Arc;
 
-use crate::database::create::OnConflict;
-
-use super::{
-    catalog::CatalogTx,
-    catalog_entry::{
-        AggregateFunctionEntry, CatalogEntry, CatalogEntryInner, CatalogEntryType,
-        CopyToFunctionEntry, ScalarFunctionEntry, SchemaEntry, TableEntry, TableFunctionEntry,
-        ViewEntry,
-    },
-    catalog_map::CatalogMap,
-    create::{
-        CreateAggregateFunctionInfo, CreateCopyToFunctionInfo, CreateScalarFunctionInfo,
-        CreateSchemaInfo, CreateTableFunctionInfo, CreateTableInfo, CreateViewInfo,
-    },
-    drop::{DropInfo, DropObject},
-};
 use rayexec_error::{RayexecError, Result};
 use scc::ebr::Guard;
+
+use super::catalog::CatalogTx;
+use super::catalog_entry::{
+    AggregateFunctionEntry,
+    CatalogEntry,
+    CatalogEntryInner,
+    CatalogEntryType,
+    CopyToFunctionEntry,
+    ScalarFunctionEntry,
+    SchemaEntry,
+    TableEntry,
+    TableFunctionEntry,
+    ViewEntry,
+};
+use super::catalog_map::CatalogMap;
+use super::create::{
+    CreateAggregateFunctionInfo,
+    CreateCopyToFunctionInfo,
+    CreateScalarFunctionInfo,
+    CreateSchemaInfo,
+    CreateTableFunctionInfo,
+    CreateTableInfo,
+    CreateViewInfo,
+};
+use super::drop::{DropInfo, DropObject};
+use crate::database::create::OnConflict;
 
 // Using `scc` package for concurrent datastructures.
 //
@@ -508,9 +518,9 @@ impl SimilarEntry {
 
 #[cfg(test)]
 mod tests {
-    use crate::{database::create::CreateAggregateFunctionInfo, functions::aggregate::sum::Sum};
-
     use super::*;
+    use crate::database::create::CreateAggregateFunctionInfo;
+    use crate::functions::aggregate::sum::Sum;
 
     fn create_test_catalog() -> MemoryCatalog {
         let catalog = MemoryCatalog::default();

@@ -1,10 +1,10 @@
 use rayexec_error::Result;
 
-use crate::{
-    array::Array, executor::physical_type::PhysicalStorage, selection, storage::AddressableStorage,
-};
-
 use super::{AggregateState, RowToStateMapping};
+use crate::array::Array;
+use crate::executor::physical_type::PhysicalStorage;
+use crate::selection;
+use crate::storage::AddressableStorage;
 
 /// Updates aggregate states for an aggregate that accepts one input.
 #[derive(Debug, Clone, Copy)]
@@ -59,9 +59,8 @@ impl UnaryNonNullUpdater {
 
 #[cfg(test)]
 mod tests {
-    use crate::executor::physical_type::{PhysicalI32, PhysicalUtf8};
-
     use super::*;
+    use crate::executor::physical_type::{PhysicalI32, PhysicalUtf8};
 
     #[derive(Debug, Default)]
     struct TestSumState {

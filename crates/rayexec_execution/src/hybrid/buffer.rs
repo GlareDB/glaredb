@@ -1,10 +1,8 @@
-use std::{
-    collections::VecDeque,
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::collections::VecDeque;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
 
 use dashmap::DashMap;
 use futures::future::BoxFuture;
@@ -14,20 +12,13 @@ use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::{
-    database::DatabaseContext,
-    execution::{
-        intermediate::StreamId,
-        operators::{
-            sink::{PartitionSink, SinkOperation},
-            source::{PartitionSource, SourceOperation},
-        },
-    },
-    runtime::ErrorSink,
-};
-
 use super::client::{IpcBatch, PullStatus};
+use crate::database::DatabaseContext;
+use crate::execution::intermediate::StreamId;
+use crate::execution::operators::sink::{PartitionSink, SinkOperation};
+use crate::execution::operators::source::{PartitionSource, SourceOperation};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::ErrorSink;
 
 /// Holds streams used for hybrid execution.
 // TODO: Remove old streams.

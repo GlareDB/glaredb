@@ -1,19 +1,16 @@
-use crate::{
-    expr::{cast_expr::CastExpr, column_expr::ColumnExpr, Expression},
-    logical::{
-        binder::{
-            bind_context::{BindContext, BindScopeRef, Table, TableRef},
-            bind_query::bind_setop::{BoundSetOp, SetOpCastRequirement},
-        },
-        logical_limit::LogicalLimit,
-        logical_order::LogicalOrder,
-        logical_project::LogicalProject,
-        logical_setop::LogicalSetop,
-        operator::{LocationRequirement, LogicalOperator, Node},
-        planner::plan_query::QueryPlanner,
-    },
-};
 use rayexec_error::{RayexecError, Result};
+
+use crate::expr::cast_expr::CastExpr;
+use crate::expr::column_expr::ColumnExpr;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef, Table, TableRef};
+use crate::logical::binder::bind_query::bind_setop::{BoundSetOp, SetOpCastRequirement};
+use crate::logical::logical_limit::LogicalLimit;
+use crate::logical::logical_order::LogicalOrder;
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_setop::LogicalSetop;
+use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::planner::plan_query::QueryPlanner;
 
 #[derive(Debug)]
 pub struct SetOpPlanner;

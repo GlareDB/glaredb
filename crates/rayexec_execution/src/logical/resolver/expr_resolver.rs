@@ -1,20 +1,16 @@
 use std::collections::HashMap;
 
-use crate::{
-    database::catalog_entry::CatalogEntryType,
-    functions::table::TableFunctionArgs,
-    logical::{binder::expr_binder::BaseExpressionBinder, operator::LocationRequirement},
-};
 use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::{
-    ast::{self, FunctionArg, ReplaceColumn},
-    meta::Raw,
-};
+use rayexec_parser::ast::{self, FunctionArg, ReplaceColumn};
+use rayexec_parser::meta::Raw;
 
-use super::{
-    resolve_normal::create_user_facing_resolve_err, resolved_function::ResolvedFunction,
-    ResolveContext, ResolvedMeta, Resolver,
-};
+use super::resolve_normal::create_user_facing_resolve_err;
+use super::resolved_function::ResolvedFunction;
+use super::{ResolveContext, ResolvedMeta, Resolver};
+use crate::database::catalog_entry::CatalogEntryType;
+use crate::functions::table::TableFunctionArgs;
+use crate::logical::binder::expr_binder::BaseExpressionBinder;
+use crate::logical::operator::LocationRequirement;
 
 pub struct ExpressionResolver<'a> {
     resolver: &'a Resolver<'a>,

@@ -21,7 +21,12 @@ use half::f16;
 use crate::basic::{ConvertedType, Encoding, LogicalType, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::writer::{
-    compare_greater, fallback_encoding, has_dictionary_support, is_nan, update_max, update_min,
+    compare_greater,
+    fallback_encoding,
+    has_dictionary_support,
+    is_nan,
+    update_max,
+    update_min,
 };
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::DataType;

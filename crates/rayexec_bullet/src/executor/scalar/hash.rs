@@ -1,16 +1,30 @@
-use crate::{
-    array::Array,
-    executor::physical_type::{
-        PhysicalBinary, PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16,
-        PhysicalI32, PhysicalI64, PhysicalI8, PhysicalInterval, PhysicalStorage, PhysicalType,
-        PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU8, PhysicalUntypedNull, PhysicalUtf8,
-    },
-    scalar::interval::Interval,
-    selection,
-    storage::{AddressableStorage, UntypedNull},
-};
 use ahash::RandomState;
 use rayexec_error::Result;
+
+use crate::array::Array;
+use crate::executor::physical_type::{
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalStorage,
+    PhysicalType,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
+};
+use crate::scalar::interval::Interval;
+use crate::selection;
+use crate::storage::{AddressableStorage, UntypedNull};
 
 /// State used for all hashing operations during physical execution.
 pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);

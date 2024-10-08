@@ -17,15 +17,14 @@
 
 //! Contains column writer API.
 
-use bytes::Bytes;
-use half::f16;
-
-use crate::bloom_filter::Sbbf;
-use crate::format::{BoundaryOrder, ColumnIndex, OffsetIndex};
 use std::collections::{BTreeSet, VecDeque};
 use std::str;
 
+use bytes::Bytes;
+use half::f16;
+
 use crate::basic::{Compression, ConvertedType, Encoding, LogicalType, PageType, Type};
+use crate::bloom_filter::Sbbf;
 use crate::column::page::{CompressedPage, Page, PageWriteSpec, PageWriter};
 use crate::column::writer::encoder::ColumnValueEncoder;
 use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
@@ -33,13 +32,15 @@ use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::levels::LevelEncoder;
 use crate::errors::{ParquetError, Result};
-use crate::file::metadata::{ColumnIndexBuilder, OffsetIndexBuilder};
-use crate::file::properties::EnabledStatistics;
-use crate::file::statistics::{Statistics, ValueStatistics};
-use crate::file::{
-    metadata::ColumnChunkMetaData,
-    properties::{WriterProperties, WriterPropertiesPtr, WriterVersion},
+use crate::file::metadata::{ColumnChunkMetaData, ColumnIndexBuilder, OffsetIndexBuilder};
+use crate::file::properties::{
+    EnabledStatistics,
+    WriterProperties,
+    WriterPropertiesPtr,
+    WriterVersion,
 };
+use crate::file::statistics::{Statistics, ValueStatistics};
+use crate::format::{BoundaryOrder, ColumnIndex, OffsetIndex};
 use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
 
 pub(crate) mod encoder;
@@ -1265,22 +1266,18 @@ fn increment_utf8(mut data: Vec<u8>) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::file::properties::DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH;
-    use rand::distributions::uniform::SampleUniform;
     use std::sync::Arc;
 
-    use crate::column::{
-        page::PageReader,
-        reader::{get_column_reader, get_typed_column_reader, GenericColumnReader},
-    };
-    use crate::file::writer::TrackedWrite;
-    use crate::file::{
-        properties::ReaderProperties, reader::SerializedPageReader, writer::SerializedPageWriter,
-    };
-    use crate::schema::types::{ColumnPath, Type as SchemaType};
-    use crate::util::test_common::rand_gen::random_numbers_range;
+    use rand::distributions::uniform::SampleUniform;
 
     use super::*;
+    use crate::column::page::PageReader;
+    use crate::column::reader::{get_column_reader, get_typed_column_reader, GenericColumnReader};
+    use crate::file::properties::{ReaderProperties, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH};
+    use crate::file::reader::SerializedPageReader;
+    use crate::file::writer::{SerializedPageWriter, TrackedWrite};
+    use crate::schema::types::{ColumnPath, Type as SchemaType};
+    use crate::util::test_common::rand_gen::random_numbers_range;
 
     #[test]
     fn test_column_writer_inconsistent_def_rep_length() {

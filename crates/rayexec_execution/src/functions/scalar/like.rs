@@ -1,27 +1,20 @@
-use rayexec_bullet::{
-    array::Array,
-    datatype::{DataType, DataTypeId},
-    executor::{
-        builder::{ArrayBuilder, BooleanBuffer},
-        physical_type::PhysicalUtf8,
-        scalar::{BinaryExecutor, UnaryExecutor},
-    },
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
+use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_proto::{
-    packed::{PackedDecoder, PackedEncoder},
-    util_types,
-};
+use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_proto::util_types;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    expr::Expression,
-    functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature},
-    logical::binder::bind_context::BindContext,
-    optimizer::expr_rewrite::{const_fold::ConstFold, ExpressionRewriteRule},
-};
-
-use super::{comparison::EqImpl, PlannedScalarFunction, ScalarFunction};
+use super::comparison::EqImpl;
+use super::{PlannedScalarFunction, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::bind_context::BindContext;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Like;

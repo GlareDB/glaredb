@@ -1,23 +1,16 @@
-use rayexec_error::Result;
-
-use crate::{
-    explain::{
-        context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-        explainable::{ExplainConfig, ExplainEntry, Explainable},
-    },
-    expr::{
-        comparison_expr::{ComparisonExpr, ComparisonOperator},
-        Expression,
-    },
-    logical::statistics::{assumptions::DEFAULT_SELECTIVITY, StatisticsCount},
-};
 use std::fmt;
 
-use super::{
-    binder::bind_context::{MaterializationRef, TableRef},
-    operator::{LogicalNode, Node},
-    statistics::Statistics,
-};
+use rayexec_error::Result;
+
+use super::binder::bind_context::{MaterializationRef, TableRef};
+use super::operator::{LogicalNode, Node};
+use super::statistics::Statistics;
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::Expression;
+use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
+use crate::logical::statistics::StatisticsCount;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
@@ -359,9 +352,8 @@ impl LogicalNode for Node<LogicalCrossJoin> {
 mod tests {
     use rayexec_bullet::scalar::ScalarValue;
 
-    use crate::expr::literal_expr::LiteralExpr;
-
     use super::*;
+    use crate::expr::literal_expr::LiteralExpr;
 
     #[test]
     fn flip_comparison() {

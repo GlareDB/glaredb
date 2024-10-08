@@ -1,13 +1,19 @@
-use crate::database::DatabaseContext;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
 use std::task::Context;
 
+use rayexec_bullet::batch::Batch;
+use rayexec_error::Result;
+
 use super::{
-    ExecutableOperator, ExecutionStates, OperatorState, PartitionState, PollFinalize, PollPull,
+    ExecutableOperator,
+    ExecutionStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
     PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Physical operator for EXPLAIN ANALYZE.
 #[derive(Debug)]

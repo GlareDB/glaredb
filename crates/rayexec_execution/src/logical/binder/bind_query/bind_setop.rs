@@ -1,22 +1,16 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
-use crate::{
-    functions::implicit::implicit_cast_score,
-    logical::{
-        binder::{
-            bind_context::{BindContext, BindScopeRef, TableRef},
-            bind_query::{bind_modifier::ModifierBinder, select_list::SelectList, QueryBinder},
-        },
-        logical_setop::SetOpKind,
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-
-use super::{
-    bind_modifier::{BoundLimit, BoundOrderBy},
-    BoundQuery,
-};
+use super::bind_modifier::{BoundLimit, BoundOrderBy};
+use super::BoundQuery;
+use crate::functions::implicit::implicit_cast_score;
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
+use crate::logical::binder::bind_query::select_list::SelectList;
+use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::logical_setop::SetOpKind;
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 /// Cast requirements for the set operation.
 ///

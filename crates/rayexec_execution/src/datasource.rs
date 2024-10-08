@@ -1,10 +1,11 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use regex::Regex;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::sync::Arc;
 
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;

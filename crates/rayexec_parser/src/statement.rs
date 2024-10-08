@@ -1,12 +1,22 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ast::{
-        Attach, CopyTo, CreateSchema, CreateTable, CreateView, Describe, Detach, DropStatement,
-        ExplainNode, Insert, QueryNode, ResetVariable, SetVariable, ShowVariable,
-    },
-    meta::{AstMeta, Raw},
+use crate::ast::{
+    Attach,
+    CopyTo,
+    CreateSchema,
+    CreateTable,
+    CreateView,
+    Describe,
+    Detach,
+    DropStatement,
+    ExplainNode,
+    Insert,
+    QueryNode,
+    ResetVariable,
+    SetVariable,
+    ShowVariable,
 };
+use crate::meta::{AstMeta, Raw};
 
 pub type RawStatement = Statement<Raw>;
 

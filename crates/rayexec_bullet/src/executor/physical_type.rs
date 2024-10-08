@@ -2,17 +2,18 @@ use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::{
-    array::{ArrayData, BinaryData},
-    scalar::interval::Interval,
-    storage::{
-        AddressableStorage, BooleanStorageRef, ContiguousVarlenStorageSlice,
-        GermanVarlenStorageSlice, PrimitiveStorageSlice, SharedHeapStorageSlice,
-        UntypedNullStorage,
-    },
-};
-
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
+use crate::array::{ArrayData, BinaryData};
+use crate::scalar::interval::Interval;
+use crate::storage::{
+    AddressableStorage,
+    BooleanStorageRef,
+    ContiguousVarlenStorageSlice,
+    GermanVarlenStorageSlice,
+    PrimitiveStorageSlice,
+    SharedHeapStorageSlice,
+    UntypedNullStorage,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {

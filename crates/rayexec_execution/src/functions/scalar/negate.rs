@@ -1,13 +1,16 @@
-use crate::functions::{
-    invalid_input_types_error, plan_check_num_args, unhandled_physical_types_err, FunctionInfo,
-    Signature,
-};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalBool, PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64,
-    PhysicalI8, PhysicalType,
+    PhysicalBool,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalType,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
@@ -16,6 +19,13 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::{
+    invalid_input_types_error,
+    plan_check_num_args,
+    unhandled_physical_types_err,
+    FunctionInfo,
+    Signature,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Negate;

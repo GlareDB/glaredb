@@ -1,10 +1,8 @@
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    functions::scalar::{arith, ScalarFunction},
-};
 use std::fmt;
 
 use super::{AsScalarFunction, Expression};
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::scalar::{arith, ScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArithOperator {

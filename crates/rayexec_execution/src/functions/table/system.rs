@@ -1,27 +1,30 @@
-use std::{collections::VecDeque, fmt::Debug, marker::PhantomData, sync::Arc};
+use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
-use crate::{
-    database::{
-        catalog::CatalogTx, catalog_entry::CatalogEntryType, memory_catalog::MemoryCatalog,
-        AttachInfo, DatabaseContext,
-    },
-    storage::table_storage::{
-        DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
-    },
-};
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    datatype::DataType,
-    executor::builder::{ArrayDataBuffer, GermanVarlenBuffer},
-    field::{Field, Schema},
-    storage::GermanVarlenStorage,
-};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
+use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::storage::GermanVarlenStorage;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use crate::database::catalog::CatalogTx;
+use crate::database::catalog_entry::CatalogEntryType;
+use crate::database::memory_catalog::MemoryCatalog;
+use crate::database::{AttachInfo, DatabaseContext};
+use crate::storage::table_storage::{
+    DataTable,
+    DataTableScan,
+    EmptyTableScan,
+    ProjectedScan,
+    Projections,
+};
 
 pub trait SystemFunctionImpl: Debug + Sync + Send + Copy + 'static {
     const NAME: &'static str;

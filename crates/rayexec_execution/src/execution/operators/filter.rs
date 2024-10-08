@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use rayexec_bullet::batch::Batch;
+use rayexec_error::{OptionExt, Result};
+
 use super::simple::{SimpleOperator, StatelessOperation};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
-use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, Result};
 
 pub type PhysicalFilter = SimpleOperator<FilterOperation>;
 

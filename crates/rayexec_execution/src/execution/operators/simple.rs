@@ -1,16 +1,22 @@
-use crate::database::DatabaseContext;
-use rayexec_bullet::batch::Batch;
-use rayexec_error::Result;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use rayexec_bullet::batch::Batch;
+use rayexec_error::Result;
 
 use super::{
-    ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState, PartitionState,
-    PollFinalize, PollPull, PollPush,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct SimplePartitionState {

@@ -1,20 +1,21 @@
+use std::fmt;
+
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_parser::ast::{self};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
-use crate::{
-    database::DatabaseContext, logical::operator::LocationRequirement, proto::DatabaseProtoConv,
+use super::resolved_copy_to::ResolvedCopyTo;
+use super::resolved_cte::ResolvedCte;
+use super::resolved_function::ResolvedFunction;
+use super::resolved_table::{ResolvedTableOrCteReference, UnresolvedTableReference};
+use super::resolved_table_function::{
+    ResolvedTableFunctionReference,
+    UnresolvedTableFunctionReference,
 };
-
-use super::{
-    resolved_copy_to::ResolvedCopyTo,
-    resolved_cte::ResolvedCte,
-    resolved_function::ResolvedFunction,
-    resolved_table::{ResolvedTableOrCteReference, UnresolvedTableReference},
-    resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference},
-};
+use crate::database::DatabaseContext;
+use crate::logical::operator::LocationRequirement;
+use crate::proto::DatabaseProtoConv;
 
 /// Context containing resolved database objects.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -244,8 +245,9 @@ impl DatabaseProtoConv for ResolveList<ResolvedTableOrCteReference, UnresolvedTa
     type ProtoType = rayexec_proto::generated::resolver::TablesResolveList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::resolver::maybe_resolved_table::Value;
         use rayexec_proto::generated::resolver::{
-            maybe_resolved_table::Value, MaybeResolvedTable,
+            MaybeResolvedTable,
             ResolvedTableOrCteReferenceWithLocation,
         };
 
@@ -297,8 +299,9 @@ impl DatabaseProtoConv for ResolveList<ResolvedFunction, ast::ObjectReference> {
     type ProtoType = rayexec_proto::generated::resolver::FunctionsResolveList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::resolver::maybe_resolved_function::Value;
         use rayexec_proto::generated::resolver::{
-            maybe_resolved_function::Value, MaybeResolvedFunction,
+            MaybeResolvedFunction,
             ResolvedFunctionReferenceWithLocation,
         };
 
@@ -350,8 +353,9 @@ impl DatabaseProtoConv
     type ProtoType = rayexec_proto::generated::resolver::TableFunctionsResolveList;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::resolver::maybe_resolved_table_function::Value;
         use rayexec_proto::generated::resolver::{
-            maybe_resolved_table_function::Value, MaybeResolvedTableFunction,
+            MaybeResolvedTableFunction,
             ResolvedTableFunctionReferenceWithLocation,
         };
 

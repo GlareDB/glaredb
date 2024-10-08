@@ -1,4 +1,5 @@
-use rayexec_bullet::{batch::Batch, executor::scalar::interleave};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::executor::scalar::interleave;
 use rayexec_error::{RayexecError, Result};
 
 /// Tracks the state per input into the merge.

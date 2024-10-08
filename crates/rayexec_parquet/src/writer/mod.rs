@@ -1,30 +1,24 @@
+use std::fmt;
+use std::sync::Arc;
+
 use bytes::Bytes;
-use parquet::{
-    column::{
-        page::{CompressedPage, PageWriteSpec, PageWriter},
-        writer::{get_column_writer, ColumnCloseResult, ColumnWriter},
-    },
-    data_type::ByteArray,
-    errors::ParquetError,
-    file::{
-        metadata::ColumnChunkMetaData,
-        properties::{WriterProperties, WriterPropertiesPtr},
-        writer::{write_page, SerializedFileWriter},
-    },
-    format::FileMetaData,
-    schema::types::SchemaDescriptor,
-};
-use rayexec_bullet::{
-    array::{Array, ArrayData},
-    batch::Batch,
-    datatype::DataType,
-    executor::physical_type::{PhysicalBinary, PhysicalStorage},
-    field::Schema,
-    storage::AddressableStorage,
-};
+use parquet::column::page::{CompressedPage, PageWriteSpec, PageWriter};
+use parquet::column::writer::{get_column_writer, ColumnCloseResult, ColumnWriter};
+use parquet::data_type::ByteArray;
+use parquet::errors::ParquetError;
+use parquet::file::metadata::ColumnChunkMetaData;
+use parquet::file::properties::{WriterProperties, WriterPropertiesPtr};
+use parquet::file::writer::{write_page, SerializedFileWriter};
+use parquet::format::FileMetaData;
+use parquet::schema::types::SchemaDescriptor;
+use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalStorage};
+use rayexec_bullet::field::Schema;
+use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::FileSink;
-use std::{fmt, sync::Arc};
 
 use crate::schema::to_parquet_schema;
 

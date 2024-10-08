@@ -1,10 +1,8 @@
-use crate::{
-    explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper},
-    functions::scalar::{comparison, ScalarFunction},
-};
 use std::fmt;
 
 use super::{AsScalarFunction, Expression};
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::scalar::{comparison, ScalarFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComparisonOperator {

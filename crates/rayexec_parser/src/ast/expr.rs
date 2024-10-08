@@ -1,16 +1,14 @@
-use std::{ops::Neg, str::FromStr};
+use std::ops::Neg;
+use std::str::FromStr;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    keywords::{keyword_from_str, Keyword},
-    meta::{AstMeta, Raw},
-    parser::Parser,
-    tokens::{Token, Word},
-};
-
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
+use crate::keywords::{keyword_from_str, Keyword};
+use crate::meta::{AstMeta, Raw};
+use crate::parser::Parser;
+use crate::tokens::{Token, Word};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOperator {
@@ -1161,10 +1159,10 @@ impl AstParseable for ArraySubscript<Raw> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::testutil::parse_ast;
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::ast::testutil::parse_ast;
 
     #[test]
     fn literal() {

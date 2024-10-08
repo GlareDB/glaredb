@@ -1,4 +1,5 @@
 use std::fs::{self, File, OpenOptions};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -9,7 +10,6 @@ use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::{FileSink, FileSource};
-use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 
 /// Standard file system access, nothing special.
 #[derive(Debug, Clone, Copy)]

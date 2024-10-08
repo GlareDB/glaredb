@@ -1,16 +1,11 @@
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
-use crate::{
-    database::create::OnConflict,
-    logical::{
-        logical_create::LogicalCreateSchema,
-        operator::{LocationRequirement, Node},
-        resolver::ResolvedMeta,
-    },
-};
-
 use super::bind_context::{BindContext, BindScopeRef};
+use crate::database::create::OnConflict;
+use crate::logical::logical_create::LogicalCreateSchema;
+use crate::logical::operator::{LocationRequirement, Node};
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub struct CreateSchemaBinder {

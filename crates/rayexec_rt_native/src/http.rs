@@ -1,17 +1,14 @@
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::{
-    future::{BoxFuture, FutureExt},
-    stream::{BoxStream, StreamExt},
-    Future,
-};
+use futures::future::{BoxFuture, FutureExt};
+use futures::stream::{BoxStream, StreamExt};
+use futures::Future;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
-use reqwest::{header::HeaderMap, Request, StatusCode};
+use reqwest::header::HeaderMap;
+use reqwest::{Request, StatusCode};
 use tokio::task::JoinHandle;
 
 /// Wrapper around a reqwest client that ensures are request are done in a tokio

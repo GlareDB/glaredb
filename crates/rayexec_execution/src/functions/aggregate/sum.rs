@@ -1,22 +1,31 @@
-use super::{
-    primitive_finalize, unary_update, AggregateFunction, DefaultGroupedStates, GroupedStates,
-    PlannedAggregateFunction,
-};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use std::fmt::Debug;
+use std::ops::AddAssign;
+use std::vec;
+
 use num_traits::CheckedAdd;
-use rayexec_bullet::{
-    array::Array,
-    datatype::{DataType, DataTypeId, DecimalTypeMeta},
-    executor::{
-        aggregate::{AggregateState, RowToStateMapping, StateFinalizer, UnaryNonNullUpdater},
-        builder::{ArrayBuilder, PrimitiveBuffer},
-        physical_type::{PhysicalF64, PhysicalI128, PhysicalI64},
-    },
+use rayexec_bullet::array::Array;
+use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use rayexec_bullet::executor::aggregate::{
+    AggregateState,
+    RowToStateMapping,
+    StateFinalizer,
+    UnaryNonNullUpdater,
 };
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI128, PhysicalI64};
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, ops::AddAssign, vec};
+
+use super::{
+    primitive_finalize,
+    unary_update,
+    AggregateFunction,
+    DefaultGroupedStates,
+    GroupedStates,
+    PlannedAggregateFunction,
+};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sum;
@@ -287,7 +296,8 @@ impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::{array::Array, scalar::ScalarValue};
+    use rayexec_bullet::array::Array;
+    use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
 

@@ -1,11 +1,12 @@
 //! Various create messages/structs.
-use crate::functions::{
-    aggregate::AggregateFunction, copy::CopyToFunction, scalar::ScalarFunction,
-    table::TableFunction,
-};
 use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
+
+use crate::functions::aggregate::AggregateFunction;
+use crate::functions::copy::CopyToFunction;
+use crate::functions::scalar::ScalarFunction;
+use crate::functions::table::TableFunction;
 
 /// Behavior on create conflict.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

@@ -21,7 +21,8 @@ use bytes::Bytes;
 
 use crate::basic::{Encoding, PageType};
 use crate::errors::{ParquetError, Result};
-use crate::file::{metadata::ColumnChunkMetaData, statistics::Statistics};
+use crate::file::metadata::ColumnChunkMetaData;
+use crate::file::statistics::Statistics;
 use crate::format::PageHeader;
 
 /// Parquet Page definition.

@@ -1,20 +1,18 @@
-use std::{path::PathBuf, rc::Rc};
+use std::path::PathBuf;
+use std::rc::Rc;
 
-use crate::{
-    errors::Result,
-    runtime::{WasmExecutor, WasmRuntime},
-};
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_parquet::ParquetDataSource;
-use rayexec_shell::{
-    result_table::{MaterializedColumn, MaterializedResultTable},
-    session::SingleUserEngine,
-};
+use rayexec_shell::result_table::{MaterializedColumn, MaterializedResultTable};
+use rayexec_shell::session::SingleUserEngine;
 use tracing::trace;
 use wasm_bindgen::prelude::*;
+
+use crate::errors::Result;
+use crate::runtime::{WasmExecutor, WasmRuntime};
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -180,12 +178,10 @@ impl WasmMaterializedColumn {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::{
-        array::Array,
-        batch::Batch,
-        datatype::DataType,
-        field::{Field, Schema},
-    };
+    use rayexec_bullet::array::Array;
+    use rayexec_bullet::batch::Batch;
+    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::field::{Field, Schema};
 
     use super::*;
 

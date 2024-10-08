@@ -2,41 +2,44 @@ pub mod read_postgres;
 
 mod decimal;
 
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
 use decimal::PostgresDecimal;
-use futures::{future::BoxFuture, stream::BoxStream, StreamExt, TryFutureExt};
-use rayexec_bullet::{
-    array::Array,
-    batch::Batch,
-    datatype::{DataType, DecimalTypeMeta},
-    field::Field,
-    scalar::OwnedScalarValue,
-};
+use futures::future::BoxFuture;
+use futures::stream::BoxStream;
+use futures::{StreamExt, TryFutureExt};
+use rayexec_bullet::array::Array;
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::{DataType, DecimalTypeMeta};
+use rayexec_bullet::field::Field;
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::{
-    database::{
-        catalog_entry::{CatalogEntry, TableEntry},
-        memory_catalog::MemoryCatalog,
-    },
-    datasource::{
-        check_options_empty, take_option, DataSource, DataSourceBuilder, DataSourceConnection,
-    },
-    functions::table::TableFunction,
-    runtime::{Runtime, TokioHandlerProvider},
-    storage::{
-        catalog_storage::CatalogStorage,
-        table_storage::{
-            DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections, TableStorage,
-        },
-    },
+use rayexec_execution::database::catalog_entry::{CatalogEntry, TableEntry};
+use rayexec_execution::database::memory_catalog::MemoryCatalog;
+use rayexec_execution::datasource::{
+    check_options_empty,
+    take_option,
+    DataSource,
+    DataSourceBuilder,
+    DataSourceConnection,
+};
+use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};
+use rayexec_execution::storage::catalog_storage::CatalogStorage;
+use rayexec_execution::storage::table_storage::{
+    DataTable,
+    DataTableScan,
+    EmptyTableScan,
+    ProjectedScan,
+    Projections,
+    TableStorage,
 };
 use read_postgres::ReadPostgres;
-use std::fmt;
-use std::{collections::HashMap, sync::Arc};
-use tokio_postgres::{
-    binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream},
-    types::Type as PostgresType,
-};
-use tokio_postgres::{types::FromSql, NoTls};
+use tokio_postgres::binary_copy::{BinaryCopyOutRow, BinaryCopyOutStream};
+use tokio_postgres::types::{FromSql, Type as PostgresType};
+use tokio_postgres::NoTls;
 use tracing::debug;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

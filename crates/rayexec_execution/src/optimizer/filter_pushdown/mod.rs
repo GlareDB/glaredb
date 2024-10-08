@@ -2,32 +2,29 @@ pub mod condition_extractor;
 pub mod extracted_filter;
 pub mod split;
 
-use extracted_filter::ExtractedFilter;
-
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
+use extracted_filter::ExtractedFilter;
 use rayexec_error::{RayexecError, Result};
 use split::split_conjunction;
 
-use crate::{
-    expr::{self, Expression},
-    logical::{
-        binder::bind_context::{BindContext, TableRef},
-        logical_aggregate::LogicalAggregate,
-        logical_distinct::LogicalDistinct,
-        logical_filter::LogicalFilter,
-        logical_join::{
-            JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
-            LogicalMagicJoin,
-        },
-        logical_materialization::LogicalMaterializationScan,
-        logical_order::LogicalOrder,
-        logical_project::LogicalProject,
-        operator::{LocationRequirement, LogicalNode, LogicalOperator, Node},
-        planner::plan_from::FromPlanner,
-    },
-};
-
 use super::OptimizeRule;
+use crate::expr::{self, Expression};
+use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::logical_aggregate::LogicalAggregate;
+use crate::logical::logical_distinct::LogicalDistinct;
+use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_join::{
+    JoinType,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+    LogicalMagicJoin,
+};
+use crate::logical::logical_materialization::LogicalMaterializationScan;
+use crate::logical::logical_order::LogicalOrder;
+use crate::logical::logical_project::LogicalProject;
+use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::planner::plan_from::FromPlanner;
 
 #[derive(Debug, Default)]
 pub struct FilterPushdown {

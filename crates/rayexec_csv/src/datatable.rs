@@ -5,7 +5,11 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{
-    DataTable, DataTableScan, EmptyTableScan, ProjectedScan, Projections,
+    DataTable,
+    DataTableScan,
+    EmptyTableScan,
+    ProjectedScan,
+    Projections,
 };
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::FileProvider;

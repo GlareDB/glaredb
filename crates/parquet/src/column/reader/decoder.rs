@@ -21,10 +21,8 @@ use bytes::Bytes;
 
 use crate::basic::Encoding;
 use crate::data_type::DataType;
-use crate::encodings::{
-    decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder},
-    rle::RleDecoder,
-};
+use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+use crate::encodings::rle::RleDecoder;
 use crate::errors::{ParquetError, Result};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{num_required_bits, BitReader};
@@ -432,9 +430,10 @@ impl ColumnLevelDecoder for RepetitionLevelDecoder {
 
 #[cfg(test)]
 mod tests {
+    use rand::prelude::*;
+
     use super::*;
     use crate::encodings::rle::RleEncoder;
-    use rand::prelude::*;
 
     #[test]
     fn test_skip_padding() {

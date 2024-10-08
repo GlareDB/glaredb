@@ -1,13 +1,10 @@
 use rayexec_error::Result;
 
-use crate::expr::Expression;
-
-use super::{
-    binder::bind_context::TableRef,
-    operator::{LogicalNode, Node},
-    statistics::Statistics,
-};
+use super::binder::bind_context::TableRef;
+use super::operator::{LogicalNode, Node};
+use super::statistics::Statistics;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalProject {

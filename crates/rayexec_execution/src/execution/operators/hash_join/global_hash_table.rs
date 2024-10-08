@@ -1,15 +1,21 @@
+use std::collections::HashMap;
+use std::fmt;
+
 use hashbrown::raw::RawTable;
-use rayexec_bullet::{batch::Batch, datatype::DataType, selection::SelectionVector};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
-use std::{collections::HashMap, fmt};
 
-use crate::execution::operators::util::outer_join_tracker::{
-    LeftOuterJoinTracker, RightOuterJoinTracker,
+use super::condition::{
+    HashJoinCondition,
+    LeftPrecomputedJoinCondition,
+    LeftPrecomputedJoinConditions,
 };
-
-use super::{
-    condition::{HashJoinCondition, LeftPrecomputedJoinCondition, LeftPrecomputedJoinConditions},
-    partition_hash_table::{PartitionHashTable, RowKey},
+use super::partition_hash_table::{PartitionHashTable, RowKey};
+use crate::execution::operators::util::outer_join_tracker::{
+    LeftOuterJoinTracker,
+    RightOuterJoinTracker,
 };
 
 /// Global hash table shared across all partitions for a single instance of a

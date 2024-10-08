@@ -24,7 +24,10 @@ use bytes::Bytes;
 use super::page::{Page, PageReader};
 use crate::basic::*;
 use crate::column::reader::decoder::{
-    ColumnLevelDecoder, ColumnValueDecoder, DefinitionLevelDecoder, RepetitionLevelDecoder,
+    ColumnLevelDecoder,
+    ColumnValueDecoder,
+    DefinitionLevelDecoder,
+    RepetitionLevelDecoder,
 };
 use crate::data_type::*;
 use crate::errors::{ParquetError, Result};
@@ -561,11 +564,12 @@ fn parse_v1_level(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
 
     use rand::distributions::uniform::SampleUniform;
-    use std::{collections::VecDeque, sync::Arc};
 
+    use super::*;
     use crate::basic::Type as PhysicalType;
     use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::test_common::page_util::InMemoryPageReader;

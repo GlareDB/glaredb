@@ -1,19 +1,15 @@
 use std::fmt::Debug;
 
-use crate::{
-    array::Array,
-    bitmap::Bitmap,
-    executor::{
-        builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer},
-        physical_type::PhysicalStorage,
-        scalar::validate_logical_len,
-    },
-    selection,
-    storage::AddressableStorage,
-};
 use rayexec_error::Result;
 
 use super::check_validity;
+use crate::array::Array;
+use crate::bitmap::Bitmap;
+use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
+use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::scalar::validate_logical_len;
+use crate::selection;
+use crate::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TernaryExecutor;

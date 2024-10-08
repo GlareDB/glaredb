@@ -3,14 +3,14 @@ pub mod handlers;
 
 use std::sync::Arc;
 
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use axum::routing::{get, post};
+use axum::Router;
 use rayexec_error::{Result, ResultExt};
-use rayexec_execution::{engine::Engine, hybrid::client::REMOTE_ENDPOINTS};
+use rayexec_execution::engine::Engine;
+use rayexec_execution::hybrid::client::REMOTE_ENDPOINTS;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
 use tracing::info;
 
 /// Starts the server portion for an engine on the given port.

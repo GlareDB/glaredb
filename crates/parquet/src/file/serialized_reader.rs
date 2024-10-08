@@ -19,26 +19,27 @@
 //! Also contains implementations of the ChunkReader for files (with buffering) and byte arrays (RAM)
 
 use std::collections::VecDeque;
+use std::fs::File;
+use std::io::Read;
 use std::iter;
-use std::{fs::File, io::Read, path::Path, sync::Arc};
+use std::path::Path;
+use std::sync::Arc;
+
+use bytes::Bytes;
+use thrift::protocol::TCompactInputProtocol;
 
 use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
 use crate::compression::{create_codec, Codec};
 use crate::errors::{ParquetError, Result};
+use crate::file::metadata::*;
 use crate::file::page_index::index_reader;
-use crate::file::{
-    footer,
-    metadata::*,
-    properties::{ReaderProperties, ReaderPropertiesPtr},
-    reader::*,
-    statistics,
-};
+use crate::file::properties::{ReaderProperties, ReaderPropertiesPtr};
+use crate::file::reader::*;
+use crate::file::{footer, statistics};
 use crate::format::{PageHeader, PageLocation, PageType};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
-use bytes::Bytes;
-use thrift::protocol::TCompactInputProtocol;
 
 impl TryFrom<File> for SerializedFileReader<File> {
     type Error = ParquetError;
@@ -754,8 +755,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::format::BoundaryOrder;
-
+    use super::*;
     use crate::basic::{self, ColumnOrder};
     use crate::column::reader::ColumnReader;
     use crate::data_type::private::ParquetValueType;
@@ -763,11 +763,10 @@ mod tests {
     use crate::file::page_index::index::{Index, NativeIndex};
     use crate::file::page_index::index_reader::{read_columns_indexes, read_pages_locations};
     use crate::file::writer::SerializedFileWriter;
+    use crate::format::BoundaryOrder;
     use crate::schema::parser::parse_message_type;
     use crate::util::bit_util::from_le_slice;
     use crate::util::test_common::file_util::{get_test_file, get_test_path};
-
-    use super::*;
 
     // #[test]
     // fn test_cursor_and_file_has_the_same_behaviour() {

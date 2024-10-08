@@ -1,12 +1,12 @@
+use std::sync::Arc;
+
 use rayexec_error::{OptionExt, Result};
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
-use std::sync::Arc;
 
-use crate::{
-    database::{catalog_entry::CatalogEntry, AttachInfo, DatabaseContext},
-    proto::DatabaseProtoConv,
-};
+use crate::database::catalog_entry::CatalogEntry;
+use crate::database::{AttachInfo, DatabaseContext};
+use crate::proto::DatabaseProtoConv;
 
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone, PartialEq)]
@@ -31,8 +31,9 @@ impl DatabaseProtoConv for ResolvedTableOrCteReference {
     type ProtoType = rayexec_proto::generated::resolver::ResolvedTableOrCteReference;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+        use rayexec_proto::generated::resolver::resolved_table_or_cte_reference::Value;
         use rayexec_proto::generated::resolver::{
-            resolved_table_or_cte_reference::Value, ResolvedCteReference,
+            ResolvedCteReference,
             ResolvedTableReference as ProtoResolvedTableReference,
         };
 

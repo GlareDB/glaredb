@@ -4,11 +4,9 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt}
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    executor::physical_type::PhysicalType,
-    field::Field,
-    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
-};
+use crate::executor::physical_type::PhysicalType;
+use crate::field::Field;
+use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
@@ -537,7 +535,8 @@ impl ProtoConv for DataType {
     type ProtoType = rayexec_proto::generated::schema::DataType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::schema::{data_type::Value, EmptyMeta};
+        use rayexec_proto::generated::schema::data_type::Value;
+        use rayexec_proto::generated::schema::EmptyMeta;
 
         let value = match self {
             DataType::Null => Value::TypeNull(EmptyMeta {}),

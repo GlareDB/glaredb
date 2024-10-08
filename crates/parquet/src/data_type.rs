@@ -17,17 +17,16 @@
 
 //! Data types that connect Parquet physical types with their Rust-specific
 //! representations.
-use bytes::Bytes;
-use half::f16;
 use std::cmp::Ordering;
-use std::fmt;
-use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::str::from_utf8;
+use std::{fmt, mem};
+
+use bytes::Bytes;
+use half::f16;
 
 use crate::basic::Type;
-use crate::column::page::PageReader;
-use crate::column::page::PageWriter;
+use crate::column::page::{PageReader, PageWriter};
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::errors::{ParquetError, Result};
@@ -599,12 +598,10 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
+    use super::{ParquetError, Result, SliceAsBytes};
+    use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
-
-    use crate::basic::Type;
-
-    use super::{ParquetError, Result, SliceAsBytes};
 
     /// Sealed trait to start to remove specialisation from implementations
     ///

@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use parquet::{
-    basic::{
-        ConvertedType, LogicalType, Repetition, TimeUnit as ParquetTimeUnit, Type as PhysicalType,
-    },
-    format::{MicroSeconds, MilliSeconds, NanoSeconds},
-    schema::types::{BasicTypeInfo, SchemaDescriptor, Type},
+use parquet::basic::{
+    ConvertedType,
+    LogicalType,
+    Repetition,
+    TimeUnit as ParquetTimeUnit,
+    Type as PhysicalType,
 };
-use rayexec_bullet::{
-    datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta},
-    field::{Field, Schema},
-    scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType},
-};
+use parquet::format::{MicroSeconds, MilliSeconds, NanoSeconds};
+use parquet::schema::types::{BasicTypeInfo, SchemaDescriptor, Type};
+use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 /// Converts a parquet schema to a bullet schema.

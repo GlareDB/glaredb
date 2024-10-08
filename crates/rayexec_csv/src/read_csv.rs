@@ -1,25 +1,20 @@
-use futures::{future::BoxFuture, StreamExt};
+use futures::future::BoxFuture;
+use futures::StreamExt;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::{
-    database::DatabaseContext,
-    functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs},
-    runtime::Runtime,
-    storage::table_storage::DataTable,
-};
-use rayexec_io::{
-    location::{AccessConfig, FileLocation},
-    FileProvider, FileSource,
-};
+use rayexec_execution::database::DatabaseContext;
+use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use rayexec_execution::runtime::Runtime;
+use rayexec_execution::storage::table_storage::DataTable;
+use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::{FileProvider, FileSource};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    datatable::SingleFileCsvDataTable,
-    decoder::{CsvDecoder, DecoderState},
-    reader::{CsvSchema, DialectOptions},
-};
+use crate::datatable::SingleFileCsvDataTable;
+use crate::decoder::{CsvDecoder, DecoderState};
+use crate::reader::{CsvSchema, DialectOptions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadCsv<R: Runtime> {

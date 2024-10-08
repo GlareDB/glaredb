@@ -1,19 +1,15 @@
-use crate::{
-    expr::Expression,
-    logical::{
-        binder::{
-            bind_context::{BindContext, BindScopeRef, TableRef},
-            column_binder::{DefaultColumnBinder, ExpressionColumnBinder},
-            expr_binder::{BaseExpressionBinder, RecursionContext},
-        },
-        resolver::{resolve_context::ResolveContext, ResolvedMeta},
-    },
-};
-use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast;
 use std::collections::BTreeSet;
 
+use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_parser::ast;
+
 use super::select_list::SelectList;
+use crate::expr::Expression;
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
+use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundGroupBy {

@@ -1,10 +1,10 @@
-use parking_lot::Mutex;
-use pyo3::types::PyAnyMethods;
-use rayexec_error::RayexecError;
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
+use parking_lot::Mutex;
+use pyo3::types::PyAnyMethods;
 use pyo3::{pyclass, pymethods, Py, PyAny, Python};
+use rayexec_error::RayexecError;
 
 use crate::errors::Result;
 

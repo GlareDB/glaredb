@@ -42,10 +42,9 @@ pub trait TypeVisitor<R, C> {
     //    }
     //  }
     /// ```
-    ///
+    /// 
     /// In such a case, [`Self::visit_list_with_item`] will be called with `my_list` as the list
     /// type, and `element` as the `item_type`
-    ///
     fn visit_list(&mut self, list_type: TypePtr, context: C) -> Result<R> {
         match list_type.as_ref() {
             Type::PrimitiveType { .. } => {
@@ -124,12 +123,13 @@ pub trait TypeVisitor<R, C> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::TypeVisitor;
     use crate::basic::Type as PhysicalType;
     use crate::errors::Result;
     use crate::schema::parser::parse_message_type;
     use crate::schema::types::TypePtr;
-    use std::sync::Arc;
 
     struct TestVisitorContext {}
     struct TestVisitor {

@@ -3,28 +3,33 @@ pub mod condition;
 mod global_hash_table;
 mod partition_hash_table;
 
+use std::sync::Arc;
+use std::task::{Context, Waker};
+
 use condition::HashJoinCondition;
 use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
-use rayexec_bullet::{batch::Batch, datatype::DataType, executor::scalar::HashExecutor};
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
-use std::{
-    sync::Arc,
-    task::{Context, Waker},
-};
 
-use crate::{
-    database::DatabaseContext,
-    explain::explainable::{ExplainConfig, ExplainEntry, Explainable},
-    logical::logical_join::JoinType,
-};
-
+use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
 use super::{
-    util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker},
-    ComputedBatches, ExecutableOperator, ExecutionStates, InputOutputStates, OperatorState,
-    PartitionState, PollFinalize, PollPull, PollPush,
+    ComputedBatches,
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
 };
+use crate::database::DatabaseContext;
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {

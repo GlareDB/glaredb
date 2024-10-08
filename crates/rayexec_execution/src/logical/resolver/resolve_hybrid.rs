@@ -1,17 +1,18 @@
 use std::sync::Arc;
 
-use crate::{
-    database::{catalog::CatalogTx, memory_catalog::MemoryCatalog, Database, DatabaseContext},
-    datasource::{DataSourceRegistry, FileHandlers},
-    logical::{operator::LocationRequirement, resolver::ResolveMode},
-};
 use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 
-use super::{
-    resolve_context::MaybeResolved, resolve_normal::NormalResolver,
-    resolved_table_function::ResolvedTableFunctionReference, ResolveContext, Resolver,
-};
+use super::resolve_context::MaybeResolved;
+use super::resolve_normal::NormalResolver;
+use super::resolved_table_function::ResolvedTableFunctionReference;
+use super::{ResolveContext, Resolver};
+use crate::database::catalog::CatalogTx;
+use crate::database::memory_catalog::MemoryCatalog;
+use crate::database::{Database, DatabaseContext};
+use crate::datasource::{DataSourceRegistry, FileHandlers};
+use crate::logical::operator::LocationRequirement;
+use crate::logical::resolver::ResolveMode;
 
 /// Extends a context by attaching additional databases using information
 /// provided by partially bound objects supplied by the client.

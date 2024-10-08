@@ -1,34 +1,25 @@
-use crate::{
-    execution::intermediate::{IntermediatePipelineGroup, StreamId},
-    logical::resolver::resolve_context::ResolveContext,
-    proto::DatabaseProtoConv,
-};
-use rayexec_bullet::{
-    batch::Batch,
-    field::{Field, Schema},
-    ipc::{
-        stream::{StreamReader, StreamWriter},
-        IpcConfig,
-    },
-};
+use std::fmt::Debug;
+use std::io::Cursor;
+
+use rayexec_bullet::batch::Batch;
+use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
+use rayexec_bullet::ipc::IpcConfig;
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
-use rayexec_io::http::{
-    read_text,
-    reqwest::{
-        header::{HeaderValue, CONTENT_TYPE},
-        Method, Request, StatusCode,
-    },
-    HttpClient, HttpResponse,
-};
+use rayexec_io::http::reqwest::header::{HeaderValue, CONTENT_TYPE};
+use rayexec_io::http::reqwest::{Method, Request, StatusCode};
+use rayexec_io::http::{read_text, HttpClient, HttpResponse};
 use rayexec_proto::prost::Message;
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::io::Cursor;
 use url::{Host, Url};
 use uuid::Uuid;
 
-use crate::{database::DatabaseContext, logical::resolver::ResolvedStatement};
+use crate::database::DatabaseContext;
+use crate::execution::intermediate::{IntermediatePipelineGroup, StreamId};
+use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedStatement;
+use crate::proto::DatabaseProtoConv;
 
 pub const API_VERSION: usize = 0;
 
@@ -292,7 +283,8 @@ impl ProtoConv for PullStatus {
     type ProtoType = rayexec_proto::generated::hybrid::PullStatus;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::hybrid::{pull_status::Value, PullStatusBatch};
+        use rayexec_proto::generated::hybrid::pull_status::Value;
+        use rayexec_proto::generated::hybrid::PullStatusBatch;
 
         let value = match self {
             Self::Batch(batch) => Value::Batch(PullStatusBatch {

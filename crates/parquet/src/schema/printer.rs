@@ -21,11 +21,11 @@
 //! # Example
 //!
 //! ```rust
-//! use parquet::{
-//!     file::reader::{FileReader, SerializedFileReader},
-//!     schema::printer::{print_file_metadata, print_parquet_metadata, print_schema},
-//! };
-//! use std::{fs::File, path::Path};
+//! use std::fs::File;
+//! use std::path::Path;
+//!
+//! use parquet::file::reader::{FileReader, SerializedFileReader};
+//! use parquet::schema::printer::{print_file_metadata, print_parquet_metadata, print_schema};
 //!
 //! // Open a file
 //! let path = Path::new("test.parquet");
@@ -380,10 +380,9 @@ impl<'a> Printer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::sync::Arc;
 
+    use super::*;
     use crate::basic::{Repetition, Type as PhysicalType};
     use crate::errors::Result;
     use crate::schema::parser::parse_message_type;

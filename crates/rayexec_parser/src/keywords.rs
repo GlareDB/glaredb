@@ -300,8 +300,9 @@ pub const RESERVED_FOR_COLUMN_ALIAS: &[Keyword] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::cmp::Ordering;
+
+    use super::*;
 
     #[test]
     fn keywords_sorted() {

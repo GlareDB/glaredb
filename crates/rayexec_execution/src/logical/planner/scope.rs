@@ -1,8 +1,8 @@
-use rayexec_error::{RayexecError, Result};
-
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
+
+use rayexec_error::{RayexecError, Result};
 
 /// Reference to a column in some scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
