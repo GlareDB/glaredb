@@ -12,6 +12,7 @@ use crate::execution::operators::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
+    PhysicalOperator,
     PollFinalize,
     PollPull,
     PollPush,
@@ -79,7 +80,7 @@ impl ExecutablePipeline {
     /// the number of partitions in this pipeline.
     pub(crate) fn push_operator(
         &mut self,
-        physical: Arc<dyn ExecutableOperator>,
+        physical: Arc<PhysicalOperator>,
         operator_state: Arc<OperatorState>,
         partition_states: Vec<PartitionState>,
     ) -> Result<()> {
@@ -243,7 +244,7 @@ pub struct PartitionPipelineInfo {
 #[derive(Debug)]
 pub struct OperatorWithState {
     /// The underlying physical operator.
-    physical: Arc<dyn ExecutableOperator>,
+    physical: Arc<PhysicalOperator>,
 
     /// The state that's shared across all partitions for this operator.
     operator_state: Arc<OperatorState>,

@@ -425,7 +425,7 @@ impl PendingQuery {
                 }
 
                 pipeline.push_operator(
-                    Arc::new(operator),
+                    Arc::new(PhysicalOperator::DynSink(operator)),
                     states.operator_state,
                     partition_states,
                 )?;
@@ -540,7 +540,7 @@ impl PendingQuery {
 
                 let mut pipeline = ExecutablePipeline::new(id_gen.next(), partitions);
                 pipeline.push_operator(
-                    Arc::new(operator),
+                    Arc::new(PhysicalOperator::DynSource(operator)),
                     states.operator_state,
                     partition_states,
                 )?;
@@ -587,7 +587,7 @@ impl PendingQuery {
         output_partitions: usize,
         pipelines: &mut Vec<ExecutablePipeline>,
     ) -> Result<ExecutablePipeline> {
-        let rr_operator = Arc::new(PhysicalRoundRobinRepartition);
+        let rr_operator = Arc::new(PhysicalOperator::RoundRobin(PhysicalRoundRobinRepartition));
         let states = rr_operator
             .create_states(context, vec![pipeline.num_partitions(), output_partitions])?;
 
