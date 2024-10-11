@@ -20,7 +20,7 @@ wildcard_imports = "deny"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(release)'] }
 
 [workspace.dependencies]
-clap = { version = "4.5.19", features = ["derive"] }
+clap = { version = "4.5.20", features = ["derive"] }
 datafusion = { version = "36.0.0", features = ["avro"] }
 arrow-flight = { version = "50.0.0", features = ["flight-sql-experimental"] }
 datafusion-proto = { version = "36.0.0" }
