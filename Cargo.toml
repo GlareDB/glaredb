@@ -34,7 +34,7 @@ tonic = { version = "0.10", features = ["transport", "tls", "tls-roots"] }
 anyhow = "1.0.89"
 async-trait = "0.1.83"
 chrono = "0.4.38"
-futures = "0.3.30"
+futures = "0.3.31"
 object_store = "0.9"
 prost = "0.12"
 prost-build = "0.12"
