@@ -171,7 +171,6 @@ impl PartitionAggregateHashTable {
 
                     let row = ScalarRow::try_new_from_arrays(groups, row_idx)?;
 
-
                     self.group_values.push(GroupValue {
                         row: row.into_owned(),
                         group_id,
@@ -210,7 +209,6 @@ impl PartitionAggregateHashTable {
         unsafe {
             for bucket in self.hash_table.iter_hash(hash) {
                 let val = bucket.as_ref(); // Unsafe
-
 
                 // Check hash first.
                 if val.0 != hash {
