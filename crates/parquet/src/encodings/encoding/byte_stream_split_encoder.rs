@@ -15,16 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::basic::{Encoding, Type};
-use crate::data_type::DataType;
-use crate::data_type::SliceAsBytes;
-
-use crate::errors::{ParquetError, Result};
-
-use super::Encoder;
+use std::marker::PhantomData;
 
 use bytes::Bytes;
-use std::marker::PhantomData;
+
+use super::Encoder;
+use crate::basic::{Encoding, Type};
+use crate::data_type::{DataType, SliceAsBytes};
+use crate::errors::{ParquetError, Result};
 
 pub struct ByteStreamSplitEncoder<T> {
     buffer: Vec<u8>,
@@ -59,7 +57,7 @@ impl<T: DataType> Encoder<T> for ByteStreamSplitEncoder<T> {
             .extend(<T as DataType>::T::slice_as_bytes(values));
         ensure_phys_ty!(
             Type::FLOAT | Type::DOUBLE,
-            "ByteStreamSplitEncoder only supports FloatType or DoubleType"
+            "ByteStreamSplitEncoder only supports f32 or f64"
         );
 
         Ok(())

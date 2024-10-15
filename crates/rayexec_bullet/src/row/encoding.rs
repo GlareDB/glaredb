@@ -2,6 +2,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::array::{Array, ArrayData, BinaryData};
 use crate::executor::physical_type::{
+    AsBytes,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF32,
@@ -18,7 +19,6 @@ use crate::executor::physical_type::{
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
-    VarlenType,
 };
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::interval::Interval;
@@ -300,7 +300,7 @@ impl ComparableRowEncoder {
     ) -> Result<usize>
     where
         S: PhysicalStorage<'a>,
-        <S::Storage as AddressableStorage>::T: ComparableEncode + VarlenType,
+        <S::Storage as AddressableStorage>::T: ComparableEncode + AsBytes,
     {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();

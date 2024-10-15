@@ -36,14 +36,14 @@ use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
 /// Column reader for a Parquet type.
 pub enum ColumnReader<P: PageReader> {
-    BoolColumnReader(GenericColumnReader<BoolType, P>),
-    Int32ColumnReader(GenericColumnReader<Int32Type, P>),
-    Int64ColumnReader(GenericColumnReader<Int64Type, P>),
-    Int96ColumnReader(GenericColumnReader<Int96Type, P>),
-    FloatColumnReader(GenericColumnReader<FloatType, P>),
-    DoubleColumnReader(GenericColumnReader<DoubleType, P>),
-    ByteArrayColumnReader(GenericColumnReader<ByteArrayType, P>),
-    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArrayType, P>),
+    BoolColumnReader(GenericColumnReader<bool, P>),
+    Int32ColumnReader(GenericColumnReader<i32, P>),
+    Int64ColumnReader(GenericColumnReader<i64, P>),
+    Int96ColumnReader(GenericColumnReader<Int96, P>),
+    FloatColumnReader(GenericColumnReader<f32, P>),
+    DoubleColumnReader(GenericColumnReader<f64, P>),
+    ByteArrayColumnReader(GenericColumnReader<ByteArray, P>),
+    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArray, P>),
 }
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
@@ -587,7 +587,7 @@ mod tests {
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
             test_internal!(
                 $test_func,
-                Int32Type,
+                i32,
                 get_test_int32_type,
                 $func,
                 $def_level,
@@ -604,7 +604,7 @@ mod tests {
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
             test_internal!(
                 $test_func,
-                Int64Type,
+                i64,
                 get_test_int64_type,
                 $func,
                 $def_level,
@@ -1003,7 +1003,7 @@ mod tests {
         let num_levels = 4;
         let batch_size = 5;
 
-        let mut tester = ColumnReaderTester::<Int32Type>::new();
+        let mut tester = ColumnReaderTester::<i32>::new();
         tester.test_read_batch(
             desc,
             Encoding::RLE_DICTIONARY,
@@ -1094,7 +1094,7 @@ mod tests {
             ColumnPath::new(Vec::new()),
         ));
 
-        let mut tester = ColumnReaderTester::<Int32Type>::new();
+        let mut tester = ColumnReaderTester::<i32>::new();
         tester.test_read_batch(
             desc,
             Encoding::RLE_DICTIONARY,

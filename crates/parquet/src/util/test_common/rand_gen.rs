@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::basic::Encoding;
-use crate::column::page::Page;
-use bytes::Bytes;
-use rand::{
-    distributions::{uniform::SampleUniform, Distribution, Standard},
-    thread_rng, Rng,
-};
 use std::collections::VecDeque;
 
+use bytes::Bytes;
+use rand::distributions::uniform::SampleUniform;
+use rand::distributions::{Distribution, Standard};
+use rand::{thread_rng, Rng};
+
+use crate::basic::Encoding;
+use crate::column::page::Page;
 use crate::data_type::*;
 use crate::encodings::encoding::{DictEncoder, Encoder};
 use crate::schema::types::ColumnDescPtr;
@@ -42,25 +42,25 @@ pub trait RandGen<T: DataType> {
     }
 }
 
-impl RandGen<BoolType> for BoolType {
+impl RandGen<bool> for bool {
     fn gen(_: i32) -> bool {
         thread_rng().gen::<bool>()
     }
 }
 
-impl RandGen<Int32Type> for Int32Type {
+impl RandGen<i32> for i32 {
     fn gen(_: i32) -> i32 {
         thread_rng().gen::<i32>()
     }
 }
 
-impl RandGen<Int64Type> for Int64Type {
+impl RandGen<i64> for i64 {
     fn gen(_: i32) -> i64 {
         thread_rng().gen::<i64>()
     }
 }
 
-impl RandGen<Int96Type> for Int96Type {
+impl RandGen<Int96> for Int96 {
     fn gen(_: i32) -> Int96 {
         let mut rng = thread_rng();
         let mut result = Int96::new();
@@ -69,19 +69,19 @@ impl RandGen<Int96Type> for Int96Type {
     }
 }
 
-impl RandGen<FloatType> for FloatType {
+impl RandGen<f32> for f32 {
     fn gen(_: i32) -> f32 {
         thread_rng().gen::<f32>()
     }
 }
 
-impl RandGen<DoubleType> for DoubleType {
+impl RandGen<f64> for f64 {
     fn gen(_: i32) -> f64 {
         thread_rng().gen::<f64>()
     }
 }
 
-impl RandGen<ByteArrayType> for ByteArrayType {
+impl RandGen<ByteArray> for ByteArray {
     fn gen(_: i32) -> ByteArray {
         let mut rng = thread_rng();
         let mut result = ByteArray::new();
@@ -95,7 +95,7 @@ impl RandGen<ByteArrayType> for ByteArrayType {
     }
 }
 
-impl RandGen<FixedLenByteArrayType> for FixedLenByteArrayType {
+impl RandGen<FixedLenByteArray> for FixedLenByteArray {
     fn gen(len: i32) -> FixedLenByteArray {
         assert!(len >= 0);
         let value = random_bytes(len as usize);
@@ -173,8 +173,7 @@ pub fn make_pages<T: DataType>(
 
         // Generate the current page
 
-        let mut pb =
-            DataPageBuilderImpl::new(desc.clone(), num_values_cur_page as u32, use_v2);
+        let mut pb = DataPageBuilderImpl::new(desc.clone(), num_values_cur_page as u32, use_v2);
         if max_rep_level > 0 {
             pb.add_rep_levels(max_rep_level, &rep_levels[level_range.clone()]);
         }

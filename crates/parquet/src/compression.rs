@@ -19,7 +19,6 @@
 //!
 //! See [`Compression`](crate::basic::Compression) enum for all available compression
 //! algorithms.
-//!
 #[cfg_attr(
     feature = "experimental",
     doc = r##"
@@ -259,10 +258,9 @@ mod gzip_codec {
 
     use flate2::{read, write, Compression};
 
+    use super::GzipLevel;
     use crate::compression::Codec;
     use crate::errors::Result;
-
-    use super::GzipLevel;
 
     /// Codec for GZIP compression algorithm.
     pub struct GZipCodec {
@@ -333,10 +331,9 @@ mod brotli_codec {
 
     use std::io::{Read, Write};
 
+    use super::BrotliLevel;
     use crate::compression::Codec;
     use crate::errors::Result;
-
-    use super::BrotliLevel;
 
     const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
     const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
@@ -469,8 +466,9 @@ mod lz4_codec {
     }
 }
 
-#[cfg(all(feature = "experimental", any(feature = "lz4", test)))]
-pub use lz4_codec::*;
+// TODO: ?
+// #[cfg(all(feature = "experimental", any(feature = "lz4", test)))]
+// pub use lz4_codec::*;
 
 #[cfg(any(feature = "zstd", test))]
 mod zstd_codec {
@@ -552,8 +550,7 @@ impl Default for ZstdLevel {
 #[cfg(any(feature = "lz4", test))]
 mod lz4_raw_codec {
     use crate::compression::Codec;
-    use crate::errors::ParquetError;
-    use crate::errors::Result;
+    use crate::errors::{ParquetError, Result};
 
     /// Codec for LZ4 Raw compression algorithm.
     pub struct LZ4RawCodec {}
@@ -614,11 +611,12 @@ pub use lz4_raw_codec::*;
 
 #[cfg(any(feature = "lz4", test))]
 mod lz4_hadoop_codec {
+    use std::io;
+
     use crate::compression::lz4_codec::LZ4Codec;
     use crate::compression::lz4_raw_codec::LZ4RawCodec;
     use crate::compression::Codec;
     use crate::errors::{ParquetError, Result};
-    use std::io;
 
     /// Size of u32 type.
     const SIZE_U32: usize = std::mem::size_of::<u32>();
@@ -785,7 +783,6 @@ pub use lz4_hadoop_codec::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::util::test_common::rand_gen::random_bytes;
 
     fn test_roundtrip(c: CodecType, data: &[u8], uncompress_size: Option<usize>) {

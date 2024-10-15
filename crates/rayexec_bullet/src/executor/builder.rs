@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use super::physical_type::VarlenType;
+use super::physical_type::{AsBytes, VarlenType};
 use crate::array::{ArrayData, BinaryData};
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
@@ -152,7 +152,7 @@ where
 
 impl<T> ArrayDataBuffer for GermanVarlenBuffer<T>
 where
-    T: VarlenType + ?Sized,
+    T: AsBytes + ?Sized,
 {
     type Type = T;
 

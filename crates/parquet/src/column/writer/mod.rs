@@ -47,14 +47,14 @@ pub(crate) mod encoder;
 
 /// Column writer for a Parquet type.
 pub enum ColumnWriter<P: PageWriter> {
-    BoolColumnWriter(GenericColumnWriter<BoolType, P>),
-    Int32ColumnWriter(GenericColumnWriter<Int32Type, P>),
-    Int64ColumnWriter(GenericColumnWriter<Int64Type, P>),
-    Int96ColumnWriter(GenericColumnWriter<Int96Type, P>),
-    FloatColumnWriter(GenericColumnWriter<FloatType, P>),
-    DoubleColumnWriter(GenericColumnWriter<DoubleType, P>),
-    ByteArrayColumnWriter(GenericColumnWriter<ByteArrayType, P>),
-    FixedLenByteArrayColumnWriter(GenericColumnWriter<FixedLenByteArrayType, P>),
+    BoolColumnWriter(GenericColumnWriter<bool, P>),
+    Int32ColumnWriter(GenericColumnWriter<i32, P>),
+    Int64ColumnWriter(GenericColumnWriter<i64, P>),
+    Int96ColumnWriter(GenericColumnWriter<Int96, P>),
+    FloatColumnWriter(GenericColumnWriter<f32, P>),
+    DoubleColumnWriter(GenericColumnWriter<f64, P>),
+    ByteArrayColumnWriter(GenericColumnWriter<ByteArray, P>),
+    FixedLenByteArrayColumnWriter(GenericColumnWriter<FixedLenByteArray, P>),
 }
 
 impl<P: PageWriter> ColumnWriter<P> {
@@ -1283,7 +1283,7 @@ mod tests {
     fn test_column_writer_inconsistent_def_rep_length() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 1, 1, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 1, 1, props);
         let res = writer.write_batch(&[1, 2, 3, 4], Some(&[1, 1, 1]), Some(&[0, 0]));
         assert!(res.is_err());
         if let Err(err) = res {
@@ -1298,7 +1298,7 @@ mod tests {
     fn test_column_writer_invalid_def_levels() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 1, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 1, 0, props);
         let res = writer.write_batch(&[1, 2, 3, 4], None, None);
         assert!(res.is_err());
         if let Err(err) = res {
@@ -1313,7 +1313,7 @@ mod tests {
     fn test_column_writer_invalid_rep_levels() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 1, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 1, props);
         let res = writer.write_batch(&[1, 2, 3, 4], None, None);
         assert!(res.is_err());
         if let Err(err) = res {
@@ -1328,7 +1328,7 @@ mod tests {
     fn test_column_writer_not_enough_values_to_write() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 1, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 1, 0, props);
         let res = writer.write_batch(&[1, 2], Some(&[1, 1, 1, 1]), None);
         assert!(res.is_err());
         if let Err(err) = res {
@@ -1343,7 +1343,7 @@ mod tests {
     fn test_column_writer_write_only_one_dictionary_page() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
         writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
         // First page should be correctly written.
         writer.add_data_page().unwrap();
@@ -1360,7 +1360,7 @@ mod tests {
                 .set_dictionary_enabled(false)
                 .build(),
         );
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
         writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
         let err = writer.write_dictionary_page().unwrap_err().to_string();
         assert_eq!(err, "Parquet error: Dictionary encoder is not set");
@@ -1374,7 +1374,7 @@ mod tests {
                 .set_dictionary_enabled(true)
                 .build(),
         );
-        let mut writer = get_test_column_writer::<BoolType, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<bool, _>(page_writer, 0, 0, props);
         writer
             .write_batch(&[true, false, true, false], None, None)
             .unwrap();
@@ -1393,28 +1393,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_bool() {
-        check_encoding_write_support::<BoolType>(
+        check_encoding_write_support::<bool>(
             WriterVersion::PARQUET_1_0,
             true,
             &[true, false],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<BoolType>(
+        check_encoding_write_support::<bool>(
             WriterVersion::PARQUET_1_0,
             false,
             &[true, false],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<BoolType>(
+        check_encoding_write_support::<bool>(
             WriterVersion::PARQUET_2_0,
             true,
             &[true, false],
             None,
             &[Encoding::RLE],
         );
-        check_encoding_write_support::<BoolType>(
+        check_encoding_write_support::<bool>(
             WriterVersion::PARQUET_2_0,
             false,
             &[true, false],
@@ -1425,28 +1425,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_int32() {
-        check_encoding_write_support::<Int32Type>(
+        check_encoding_write_support::<i32>(
             WriterVersion::PARQUET_1_0,
             true,
             &[1, 2],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<Int32Type>(
+        check_encoding_write_support::<i32>(
             WriterVersion::PARQUET_1_0,
             false,
             &[1, 2],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<Int32Type>(
+        check_encoding_write_support::<i32>(
             WriterVersion::PARQUET_2_0,
             true,
             &[1, 2],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<Int32Type>(
+        check_encoding_write_support::<i32>(
             WriterVersion::PARQUET_2_0,
             false,
             &[1, 2],
@@ -1457,28 +1457,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_int64() {
-        check_encoding_write_support::<Int64Type>(
+        check_encoding_write_support::<i64>(
             WriterVersion::PARQUET_1_0,
             true,
             &[1, 2],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<Int64Type>(
+        check_encoding_write_support::<i64>(
             WriterVersion::PARQUET_1_0,
             false,
             &[1, 2],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<Int64Type>(
+        check_encoding_write_support::<i64>(
             WriterVersion::PARQUET_2_0,
             true,
             &[1, 2],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<Int64Type>(
+        check_encoding_write_support::<i64>(
             WriterVersion::PARQUET_2_0,
             false,
             &[1, 2],
@@ -1489,28 +1489,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_int96() {
-        check_encoding_write_support::<Int96Type>(
+        check_encoding_write_support::<Int96>(
             WriterVersion::PARQUET_1_0,
             true,
             &[Int96::from(vec![1, 2, 3])],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<Int96Type>(
+        check_encoding_write_support::<Int96>(
             WriterVersion::PARQUET_1_0,
             false,
             &[Int96::from(vec![1, 2, 3])],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<Int96Type>(
+        check_encoding_write_support::<Int96>(
             WriterVersion::PARQUET_2_0,
             true,
             &[Int96::from(vec![1, 2, 3])],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<Int96Type>(
+        check_encoding_write_support::<Int96>(
             WriterVersion::PARQUET_2_0,
             false,
             &[Int96::from(vec![1, 2, 3])],
@@ -1521,28 +1521,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_float() {
-        check_encoding_write_support::<FloatType>(
+        check_encoding_write_support::<f32>(
             WriterVersion::PARQUET_1_0,
             true,
             &[1.0, 2.0],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<FloatType>(
+        check_encoding_write_support::<f32>(
             WriterVersion::PARQUET_1_0,
             false,
             &[1.0, 2.0],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<FloatType>(
+        check_encoding_write_support::<f32>(
             WriterVersion::PARQUET_2_0,
             true,
             &[1.0, 2.0],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<FloatType>(
+        check_encoding_write_support::<f32>(
             WriterVersion::PARQUET_2_0,
             false,
             &[1.0, 2.0],
@@ -1553,28 +1553,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_double() {
-        check_encoding_write_support::<DoubleType>(
+        check_encoding_write_support::<f64>(
             WriterVersion::PARQUET_1_0,
             true,
             &[1.0, 2.0],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<DoubleType>(
+        check_encoding_write_support::<f64>(
             WriterVersion::PARQUET_1_0,
             false,
             &[1.0, 2.0],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<DoubleType>(
+        check_encoding_write_support::<f64>(
             WriterVersion::PARQUET_2_0,
             true,
             &[1.0, 2.0],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<DoubleType>(
+        check_encoding_write_support::<f64>(
             WriterVersion::PARQUET_2_0,
             false,
             &[1.0, 2.0],
@@ -1585,28 +1585,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_byte_array() {
-        check_encoding_write_support::<ByteArrayType>(
+        check_encoding_write_support::<ByteArray>(
             WriterVersion::PARQUET_1_0,
             true,
             &[ByteArray::from(vec![1u8])],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<ByteArrayType>(
+        check_encoding_write_support::<ByteArray>(
             WriterVersion::PARQUET_1_0,
             false,
             &[ByteArray::from(vec![1u8])],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<ByteArrayType>(
+        check_encoding_write_support::<ByteArray>(
             WriterVersion::PARQUET_2_0,
             true,
             &[ByteArray::from(vec![1u8])],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<ByteArrayType>(
+        check_encoding_write_support::<ByteArray>(
             WriterVersion::PARQUET_2_0,
             false,
             &[ByteArray::from(vec![1u8])],
@@ -1617,28 +1617,28 @@ mod tests {
 
     #[test]
     fn test_column_writer_default_encoding_support_fixed_len_byte_array() {
-        check_encoding_write_support::<FixedLenByteArrayType>(
+        check_encoding_write_support::<FixedLenByteArray>(
             WriterVersion::PARQUET_1_0,
             true,
             &[ByteArray::from(vec![1u8]).into()],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<FixedLenByteArrayType>(
+        check_encoding_write_support::<FixedLenByteArray>(
             WriterVersion::PARQUET_1_0,
             false,
             &[ByteArray::from(vec![1u8]).into()],
             None,
             &[Encoding::PLAIN, Encoding::RLE],
         );
-        check_encoding_write_support::<FixedLenByteArrayType>(
+        check_encoding_write_support::<FixedLenByteArray>(
             WriterVersion::PARQUET_2_0,
             true,
             &[ByteArray::from(vec![1u8]).into()],
             Some(0),
             &[Encoding::PLAIN, Encoding::RLE, Encoding::RLE_DICTIONARY],
         );
-        check_encoding_write_support::<FixedLenByteArrayType>(
+        check_encoding_write_support::<FixedLenByteArray>(
             WriterVersion::PARQUET_2_0,
             false,
             &[ByteArray::from(vec![1u8]).into()],
@@ -1651,7 +1651,7 @@ mod tests {
     fn test_column_writer_check_metadata() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
         writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
 
         let r = writer.close().unwrap();
@@ -1687,8 +1687,7 @@ mod tests {
     fn test_column_writer_check_byte_array_min_max() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer =
-            get_test_decimals_column_writer::<ByteArrayType, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_decimals_column_writer::<ByteArray, _>(page_writer, 0, 0, props);
         writer
             .write_batch(
                 &[
@@ -1743,7 +1742,7 @@ mod tests {
     fn test_column_writer_uint32_converted_type_min_max() {
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_unsigned_int_given_as_converted_column_writer::<Int32Type, _>(
+        let mut writer = get_test_unsigned_int_given_as_converted_column_writer::<i32, _>(
             page_writer,
             0,
             0,
@@ -1772,7 +1771,7 @@ mod tests {
                 .set_statistics_enabled(EnabledStatistics::Chunk)
                 .build(),
         );
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
         writer
             .write_batch_with_statistics(
                 &[1, 2, 3, 4],
@@ -1819,7 +1818,7 @@ mod tests {
         let mut write = TrackedWrite::new(&mut buf);
         let page_writer = SerializedPageWriter::new(&mut write);
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
 
         writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
         writer
@@ -1870,7 +1869,7 @@ mod tests {
             .build();
         let props = Arc::new(props);
 
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 1, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 1, 0, props);
         writer
             .write_batch(&[1, 2, 3, 4], Some(&[1, 0, 0, 1, 1, 1]), None)
             .unwrap();
@@ -1916,25 +1915,25 @@ mod tests {
     #[test]
     fn test_column_writer_empty_column_roundtrip() {
         let props = Default::default();
-        column_roundtrip::<Int32Type>(props, &[], None, None);
+        column_roundtrip::<i32>(props, &[], None, None);
     }
 
     #[test]
     fn test_column_writer_non_nullable_values_roundtrip() {
         let props = Default::default();
-        column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 0, 0);
+        column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 0, 0);
     }
 
     #[test]
     fn test_column_writer_nullable_non_repeated_values_roundtrip() {
         let props = Default::default();
-        column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 10, 0);
+        column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 10, 0);
     }
 
     #[test]
     fn test_column_writer_nullable_repeated_values_roundtrip() {
         let props = Default::default();
-        column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 10, 10);
+        column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 10, 10);
     }
 
     #[test]
@@ -1943,7 +1942,7 @@ mod tests {
             .set_dictionary_page_size_limit(32)
             .set_data_page_size_limit(32)
             .build();
-        column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 10, 10);
+        column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 10, 10);
     }
 
     #[test]
@@ -1951,7 +1950,7 @@ mod tests {
         for i in &[1usize, 2, 5, 10, 11, 1023] {
             let props = WriterProperties::builder().set_write_batch_size(*i).build();
 
-            column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 10, 10);
+            column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 10, 10);
         }
     }
 
@@ -1961,7 +1960,7 @@ mod tests {
             .set_writer_version(WriterVersion::PARQUET_1_0)
             .set_dictionary_enabled(false)
             .build();
-        column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 10, 10);
+        column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 10, 10);
     }
 
     #[test]
@@ -1970,7 +1969,7 @@ mod tests {
             .set_writer_version(WriterVersion::PARQUET_2_0)
             .set_dictionary_enabled(false)
             .build();
-        column_roundtrip_random::<Int32Type>(props, 1024, i32::MIN, i32::MAX, 10, 10);
+        column_roundtrip_random::<i32>(props, 1024, i32::MIN, i32::MAX, 10, 10);
     }
 
     #[test]
@@ -1979,7 +1978,7 @@ mod tests {
             .set_writer_version(WriterVersion::PARQUET_1_0)
             .set_compression(Compression::SNAPPY)
             .build();
-        column_roundtrip_random::<Int32Type>(props, 2048, i32::MIN, i32::MAX, 10, 10);
+        column_roundtrip_random::<i32>(props, 2048, i32::MIN, i32::MAX, 10, 10);
     }
 
     #[test]
@@ -1988,7 +1987,7 @@ mod tests {
             .set_writer_version(WriterVersion::PARQUET_2_0)
             .set_compression(Compression::SNAPPY)
             .build();
-        column_roundtrip_random::<Int32Type>(props, 2048, i32::MIN, i32::MAX, 10, 10);
+        column_roundtrip_random::<i32>(props, 2048, i32::MIN, i32::MAX, 10, 10);
     }
 
     #[test]
@@ -2005,7 +2004,7 @@ mod tests {
                 .build(),
         );
         let data = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
         writer.write_batch(data, None, None).unwrap();
         let (r, _) = writer.close().unwrap();
 
@@ -2039,7 +2038,7 @@ mod tests {
 
     #[test]
     fn test_bool_statistics() {
-        let stats = statistics_roundtrip::<BoolType>(&[true, false, false, true]);
+        let stats = statistics_roundtrip::<bool>(&[true, false, false, true]);
         assert!(stats.has_min_max_set());
         // Booleans have an unsigned sort order and so are not compatible
         // with the deprecated `min` and `max` statistics
@@ -2054,7 +2053,7 @@ mod tests {
 
     #[test]
     fn test_int32_statistics() {
-        let stats = statistics_roundtrip::<Int32Type>(&[-1, 3, -2, 2]);
+        let stats = statistics_roundtrip::<i32>(&[-1, 3, -2, 2]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Int32(stats) = stats {
@@ -2067,7 +2066,7 @@ mod tests {
 
     #[test]
     fn test_int64_statistics() {
-        let stats = statistics_roundtrip::<Int64Type>(&[-1, 3, -2, 2]);
+        let stats = statistics_roundtrip::<i64>(&[-1, 3, -2, 2]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Int64(stats) = stats {
@@ -2089,7 +2088,7 @@ mod tests {
         .into_iter()
         .collect::<Vec<Int96>>();
 
-        let stats = statistics_roundtrip::<Int96Type>(&input);
+        let stats = statistics_roundtrip::<Int96>(&input);
         assert!(stats.has_min_max_set());
         assert!(!stats.is_min_max_backwards_compatible());
         if let Statistics::Int96(stats) = stats {
@@ -2102,7 +2101,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics() {
-        let stats = statistics_roundtrip::<FloatType>(&[-1.0, 3.0, -2.0, 2.0]);
+        let stats = statistics_roundtrip::<f32>(&[-1.0, 3.0, -2.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2115,7 +2114,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics() {
-        let stats = statistics_roundtrip::<DoubleType>(&[-1.0, 3.0, -2.0, 2.0]);
+        let stats = statistics_roundtrip::<f64>(&[-1.0, 3.0, -2.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2133,7 +2132,7 @@ mod tests {
             .map(|&s| s.into())
             .collect::<Vec<_>>();
 
-        let stats = statistics_roundtrip::<ByteArrayType>(&input);
+        let stats = statistics_roundtrip::<ByteArray>(&input);
         assert!(!stats.is_min_max_backwards_compatible());
         assert!(stats.has_min_max_set());
         if let Statistics::ByteArray(stats) = stats {
@@ -2151,7 +2150,7 @@ mod tests {
             .map(|&s| ByteArray::from(s).into())
             .collect::<Vec<_>>();
 
-        let stats = statistics_roundtrip::<FixedLenByteArrayType>(&input);
+        let stats = statistics_roundtrip::<FixedLenByteArray>(&input);
         assert!(stats.has_min_max_set());
         assert!(!stats.is_min_max_backwards_compatible());
         if let Statistics::FixedLenByteArray(stats) = stats {
@@ -2295,7 +2294,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_nan_middle() {
-        let stats = statistics_roundtrip::<FloatType>(&[1.0, f32::NAN, 2.0]);
+        let stats = statistics_roundtrip::<f32>(&[1.0, f32::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2308,7 +2307,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_nan_start() {
-        let stats = statistics_roundtrip::<FloatType>(&[f32::NAN, 1.0, 2.0]);
+        let stats = statistics_roundtrip::<f32>(&[f32::NAN, 1.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2321,7 +2320,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_nan_only() {
-        let stats = statistics_roundtrip::<FloatType>(&[f32::NAN, f32::NAN]);
+        let stats = statistics_roundtrip::<f32>(&[f32::NAN, f32::NAN]);
         assert!(!stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         assert!(matches!(stats, Statistics::Float(_)));
@@ -2329,7 +2328,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_zero_only() {
-        let stats = statistics_roundtrip::<FloatType>(&[0.0]);
+        let stats = statistics_roundtrip::<f32>(&[0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2344,7 +2343,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_neg_zero_only() {
-        let stats = statistics_roundtrip::<FloatType>(&[-0.0]);
+        let stats = statistics_roundtrip::<f32>(&[-0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2359,7 +2358,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_zero_min() {
-        let stats = statistics_roundtrip::<FloatType>(&[0.0, 1.0, f32::NAN, 2.0]);
+        let stats = statistics_roundtrip::<f32>(&[0.0, 1.0, f32::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2373,7 +2372,7 @@ mod tests {
 
     #[test]
     fn test_float_statistics_neg_zero_max() {
-        let stats = statistics_roundtrip::<FloatType>(&[-0.0, -1.0, f32::NAN, -2.0]);
+        let stats = statistics_roundtrip::<f32>(&[-0.0, -1.0, f32::NAN, -2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Float(stats) = stats {
@@ -2387,7 +2386,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_nan_middle() {
-        let stats = statistics_roundtrip::<DoubleType>(&[1.0, f64::NAN, 2.0]);
+        let stats = statistics_roundtrip::<f64>(&[1.0, f64::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2400,7 +2399,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_nan_start() {
-        let stats = statistics_roundtrip::<DoubleType>(&[f64::NAN, 1.0, 2.0]);
+        let stats = statistics_roundtrip::<f64>(&[f64::NAN, 1.0, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2413,7 +2412,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_nan_only() {
-        let stats = statistics_roundtrip::<DoubleType>(&[f64::NAN, f64::NAN]);
+        let stats = statistics_roundtrip::<f64>(&[f64::NAN, f64::NAN]);
         assert!(!stats.has_min_max_set());
         assert!(matches!(stats, Statistics::Double(_)));
         assert!(stats.is_min_max_backwards_compatible());
@@ -2421,7 +2420,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_zero_only() {
-        let stats = statistics_roundtrip::<DoubleType>(&[0.0]);
+        let stats = statistics_roundtrip::<f64>(&[0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2436,7 +2435,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_neg_zero_only() {
-        let stats = statistics_roundtrip::<DoubleType>(&[-0.0]);
+        let stats = statistics_roundtrip::<f64>(&[-0.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2451,7 +2450,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_zero_min() {
-        let stats = statistics_roundtrip::<DoubleType>(&[0.0, 1.0, f64::NAN, 2.0]);
+        let stats = statistics_roundtrip::<f64>(&[0.0, 1.0, f64::NAN, 2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2465,7 +2464,7 @@ mod tests {
 
     #[test]
     fn test_double_statistics_neg_zero_max() {
-        let stats = statistics_roundtrip::<DoubleType>(&[-0.0, -1.0, f64::NAN, -2.0]);
+        let stats = statistics_roundtrip::<f64>(&[-0.0, -1.0, f64::NAN, -2.0]);
         assert!(stats.has_min_max_set());
         assert!(stats.is_min_max_backwards_compatible());
         if let Statistics::Double(stats) = stats {
@@ -2505,7 +2504,7 @@ mod tests {
         // and check the offset index and column index
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer = get_test_column_writer::<Int32Type, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<i32, _>(page_writer, 0, 0, props);
         writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
         // first page
         writer.flush_data_pages().unwrap();
@@ -2556,8 +2555,7 @@ mod tests {
         // and check the offset index and column index
         let page_writer = get_test_page_writer();
         let props = Default::default();
-        let mut writer =
-            get_test_column_writer::<FixedLenByteArrayType, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<FixedLenByteArray, _>(page_writer, 0, 0, props);
 
         let mut data = vec![FixedLenByteArray::default(); 3];
         // This is the expected min value - "aaa..."
@@ -2627,8 +2625,7 @@ mod tests {
         // Truncate values at 1 byte
         let builder = WriterProperties::builder().set_column_index_truncate_length(Some(1));
         let props = Arc::new(builder.build());
-        let mut writer =
-            get_test_column_writer::<FixedLenByteArrayType, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<FixedLenByteArray, _>(page_writer, 0, 0, props);
 
         let mut data = vec![FixedLenByteArray::default(); 1];
         // This is the expected min value
@@ -2718,7 +2715,7 @@ mod tests {
         let props = Arc::new(builder.build());
         let page_writer = get_test_page_writer();
         let mut writer =
-            get_test_decimals_column_writer::<FixedLenByteArrayType, _>(page_writer, 0, 0, props);
+            get_test_decimals_column_writer::<FixedLenByteArray, _>(page_writer, 0, 0, props);
 
         let expected_value = vec![
             255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 179u8, 172u8, 19u8, 35u8,
@@ -2761,7 +2758,7 @@ mod tests {
         let builder =
             WriterProperties::builder().set_statistics_truncate_length(Some(TEST_TRUNCATE_LENGTH));
         let props = Arc::new(builder.build());
-        let mut writer = get_test_column_writer::<ByteArrayType, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<ByteArray, _>(page_writer, 0, 0, props);
 
         let mut data = vec![ByteArray::default(); 1];
         // This is the expected min value
@@ -2806,8 +2803,7 @@ mod tests {
         let builder =
             WriterProperties::builder().set_statistics_truncate_length(Some(TEST_TRUNCATE_LENGTH));
         let props = Arc::new(builder.build());
-        let mut writer =
-            get_test_column_writer::<FixedLenByteArrayType, _>(page_writer, 0, 0, props);
+        let mut writer = get_test_column_writer::<FixedLenByteArray, _>(page_writer, 0, 0, props);
 
         let mut data = vec![FixedLenByteArray::default(); 1];
 
@@ -2897,7 +2893,7 @@ mod tests {
     #[test]
     fn test_send() {
         fn test<T: Send>() {}
-        test::<GenericColumnWriter<Int32Type, TestPageWriter>>();
+        test::<GenericColumnWriter<i32, TestPageWriter>>();
     }
 
     #[test]
@@ -2981,9 +2977,9 @@ mod tests {
 
     #[test]
     fn test_boundary_order() -> Result<()> {
-        let descr = Arc::new(get_test_column_descr::<Int32Type>(1, 0));
+        let descr = Arc::new(get_test_column_descr::<i32>(1, 0));
         // min max both ascending
-        let column_close_result = write_multiple_pages::<Int32Type>(
+        let column_close_result = write_multiple_pages::<i32>(
             &descr,
             &[
                 &[Some(-10), Some(10)],
@@ -2996,7 +2992,7 @@ mod tests {
         assert_eq!(boundary_order, BoundaryOrder::ASCENDING);
 
         // min max both descending
-        let column_close_result = write_multiple_pages::<Int32Type>(
+        let column_close_result = write_multiple_pages::<i32>(
             &descr,
             &[
                 &[Some(10), Some(11)],
@@ -3009,7 +3005,7 @@ mod tests {
         assert_eq!(boundary_order, BoundaryOrder::DESCENDING);
 
         // min max both equal
-        let column_close_result = write_multiple_pages::<Int32Type>(
+        let column_close_result = write_multiple_pages::<i32>(
             &descr,
             &[&[Some(10), Some(11)], &[None], &[Some(10), Some(11)]],
         )?;
@@ -3018,24 +3014,23 @@ mod tests {
 
         // only nulls
         let column_close_result =
-            write_multiple_pages::<Int32Type>(&descr, &[&[None], &[None], &[None]])?;
+            write_multiple_pages::<i32>(&descr, &[&[None], &[None], &[None]])?;
         let boundary_order = column_close_result.column_index.unwrap().boundary_order;
         assert_eq!(boundary_order, BoundaryOrder::ASCENDING);
 
         // one page
-        let column_close_result =
-            write_multiple_pages::<Int32Type>(&descr, &[&[Some(-10), Some(10)]])?;
+        let column_close_result = write_multiple_pages::<i32>(&descr, &[&[Some(-10), Some(10)]])?;
         let boundary_order = column_close_result.column_index.unwrap().boundary_order;
         assert_eq!(boundary_order, BoundaryOrder::ASCENDING);
 
         // one non-null page
         let column_close_result =
-            write_multiple_pages::<Int32Type>(&descr, &[&[Some(-10), Some(10)], &[None]])?;
+            write_multiple_pages::<i32>(&descr, &[&[Some(-10), Some(10)], &[None]])?;
         let boundary_order = column_close_result.column_index.unwrap().boundary_order;
         assert_eq!(boundary_order, BoundaryOrder::ASCENDING);
 
         // min max both unordered
-        let column_close_result = write_multiple_pages::<Int32Type>(
+        let column_close_result = write_multiple_pages::<i32>(
             &descr,
             &[
                 &[Some(10), Some(11)],
@@ -3048,7 +3043,7 @@ mod tests {
         assert_eq!(boundary_order, BoundaryOrder::UNORDERED);
 
         // min max both ordered in different orders
-        let column_close_result = write_multiple_pages::<Int32Type>(
+        let column_close_result = write_multiple_pages::<i32>(
             &descr,
             &[
                 &[Some(1), Some(9)],
@@ -3069,12 +3064,10 @@ mod tests {
         // physical type representation
         let f16_descr = Arc::new(get_test_float16_column_descr(1, 0));
         let fba_descr = {
-            let tpe = SchemaType::primitive_type_builder(
-                "col",
-                FixedLenByteArrayType::get_physical_type(),
-            )
-            .with_length(2)
-            .build()?;
+            let tpe =
+                SchemaType::primitive_type_builder("col", FixedLenByteArray::get_physical_type())
+                    .with_length(2)
+                    .build()?;
             Arc::new(ColumnDescriptor::new(
                 Arc::new(tpe),
                 1,
@@ -3093,14 +3086,12 @@ mod tests {
         ];
 
         // f16 descending
-        let column_close_result =
-            write_multiple_pages::<FixedLenByteArrayType>(&f16_descr, values)?;
+        let column_close_result = write_multiple_pages::<FixedLenByteArray>(&f16_descr, values)?;
         let boundary_order = column_close_result.column_index.unwrap().boundary_order;
         assert_eq!(boundary_order, BoundaryOrder::DESCENDING);
 
         // same bytes, but fba unordered
-        let column_close_result =
-            write_multiple_pages::<FixedLenByteArrayType>(&fba_descr, values)?;
+        let column_close_result = write_multiple_pages::<FixedLenByteArray>(&fba_descr, values)?;
         let boundary_order = column_close_result.column_index.unwrap().boundary_order;
         assert_eq!(boundary_order, BoundaryOrder::UNORDERED);
 
@@ -3460,39 +3451,37 @@ mod tests {
     fn get_test_float16_column_writer<P: PageWriter>(
         page_writer: P,
         props: WriterPropertiesPtr,
-    ) -> GenericColumnWriter<FixedLenByteArrayType, P> {
+    ) -> GenericColumnWriter<FixedLenByteArray, P> {
         let descr = Arc::new(get_test_float16_column_descr(0, 0));
         let column_writer = get_column_writer(descr, props, page_writer);
-        get_typed_column_writer::<FixedLenByteArrayType, _>(column_writer)
+        get_typed_column_writer::<FixedLenByteArray, _>(column_writer)
     }
 
     fn get_test_float16_column_descr(max_def_level: i16, max_rep_level: i16) -> ColumnDescriptor {
         let path = ColumnPath::from("col");
-        let tpe =
-            SchemaType::primitive_type_builder("col", FixedLenByteArrayType::get_physical_type())
-                .with_length(2)
-                .with_logical_type(Some(LogicalType::Float16))
-                .build()
-                .unwrap();
+        let tpe = SchemaType::primitive_type_builder("col", FixedLenByteArray::get_physical_type())
+            .with_length(2)
+            .with_logical_type(Some(LogicalType::Float16))
+            .build()
+            .unwrap();
         ColumnDescriptor::new(Arc::new(tpe), max_def_level, max_rep_level, path)
     }
 
     fn get_test_interval_column_writer<P: PageWriter>(
         page_writer: P,
-    ) -> GenericColumnWriter<FixedLenByteArrayType, P> {
+    ) -> GenericColumnWriter<FixedLenByteArray, P> {
         let descr = Arc::new(get_test_interval_column_descr());
         let column_writer = get_column_writer(descr, Default::default(), page_writer);
-        get_typed_column_writer::<FixedLenByteArrayType, _>(column_writer)
+        get_typed_column_writer::<FixedLenByteArray, _>(column_writer)
     }
 
     fn get_test_interval_column_descr() -> ColumnDescriptor {
         let path = ColumnPath::from("col");
-        let tpe =
-            SchemaType::primitive_type_builder("col", FixedLenByteArrayType::get_physical_type())
-                .with_length(12)
-                .with_converted_type(ConvertedType::INTERVAL)
-                .build()
-                .unwrap();
+        let tpe = SchemaType::primitive_type_builder("col", FixedLenByteArray::get_physical_type())
+            .with_length(12)
+            .with_converted_type(ConvertedType::INTERVAL)
+            .build()
+            .unwrap();
         ColumnDescriptor::new(Arc::new(tpe), 0, 0, path)
     }
 

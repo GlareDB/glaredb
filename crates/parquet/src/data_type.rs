@@ -1122,12 +1122,9 @@ where
 {
 }
 
-macro_rules! make_type {
-    ($name:ident, $reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
-        #[derive(Debug, Clone)]
-        pub struct $name {}
-
-        impl DataType for $name {
+macro_rules! impl_data_type {
+    ($reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
+        impl DataType for $native_ty {
             type T = $native_ty;
 
             fn get_type_size() -> usize {
@@ -1175,27 +1172,24 @@ macro_rules! make_type {
 
 // Generate struct definitions for all physical types
 
-make_type!(BoolType, BoolColumnReader, BoolColumnWriter, bool, 1);
-make_type!(Int32Type, Int32ColumnReader, Int32ColumnWriter, i32, 4);
-make_type!(Int64Type, Int64ColumnReader, Int64ColumnWriter, i64, 8);
-make_type!(
-    Int96Type,
+impl_data_type!(BoolColumnReader, BoolColumnWriter, bool, 1);
+impl_data_type!(Int32ColumnReader, Int32ColumnWriter, i32, 4);
+impl_data_type!(Int64ColumnReader, Int64ColumnWriter, i64, 8);
+impl_data_type!(
     Int96ColumnReader,
     Int96ColumnWriter,
     Int96,
     mem::size_of::<Int96>()
 );
-make_type!(FloatType, FloatColumnReader, FloatColumnWriter, f32, 4);
-make_type!(DoubleType, DoubleColumnReader, DoubleColumnWriter, f64, 8);
-make_type!(
-    ByteArrayType,
+impl_data_type!(FloatColumnReader, FloatColumnWriter, f32, 4);
+impl_data_type!(DoubleColumnReader, DoubleColumnWriter, f64, 8);
+impl_data_type!(
     ByteArrayColumnReader,
     ByteArrayColumnWriter,
     ByteArray,
     mem::size_of::<ByteArray>()
 );
-make_type!(
-    FixedLenByteArrayType,
+impl_data_type!(
     FixedLenByteArrayColumnReader,
     FixedLenByteArrayColumnWriter,
     FixedLenByteArray,

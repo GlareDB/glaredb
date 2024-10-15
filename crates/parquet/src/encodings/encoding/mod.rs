@@ -17,7 +17,11 @@
 
 //! Contains all supported encoders for Parquet.
 
-use std::{cmp, marker::PhantomData};
+use std::cmp;
+use std::marker::PhantomData;
+
+use bytes::Bytes;
+pub use dict_encoder::DictEncoder;
 
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
@@ -25,9 +29,6 @@ use crate::data_type::*;
 use crate::encodings::rle::RleEncoder;
 use crate::errors::{ParquetError, Result};
 use crate::util::bit_util::{num_required_bits, BitWriter};
-
-use bytes::Bytes;
-pub use dict_encoder::DictEncoder;
 
 mod byte_stream_split_encoder;
 mod dict_encoder;
@@ -193,7 +194,7 @@ impl<T: DataType> RleValueEncoder<T> {
 impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
     #[inline]
     fn put(&mut self, values: &[T::T]) -> Result<()> {
-        ensure_phys_ty!(Type::BOOLEAN, "RleValueEncoder only supports BoolType");
+        ensure_phys_ty!(Type::BOOLEAN, "RleValueEncoder only supports bool");
 
         let rle_encoder = self.encoder.get_or_insert_with(|| {
             let mut buffer = Vec::with_capacity(DEFAULT_RLE_BUFFER_LEN);
@@ -227,7 +228,7 @@ impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
 
     #[inline]
     fn flush_buffer(&mut self) -> Result<Bytes> {
-        ensure_phys_ty!(Type::BOOLEAN, "RleValueEncoder only supports BoolType");
+        ensure_phys_ty!(Type::BOOLEAN, "RleValueEncoder only supports bool");
         let rle_encoder = self
             .encoder
             .take()
@@ -412,7 +413,7 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
     }
 }
 
-// Implementation is shared between Int32Type and Int64Type,
+// Implementation is shared between i32 and i64,
 // see `DeltaBitPackEncoderConversion` below for specifics.
 impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     fn put(&mut self, values: &[T::T]) -> Result<()> {
@@ -496,7 +497,7 @@ impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
     fn assert_supported_type() {
         ensure_phys_ty!(
             Type::INT32 | Type::INT64,
-            "DeltaBitPackDecoder only supports Int32Type and Int64Type"
+            "DeltaBitPackDecoder only supports i32 and i64"
         );
     }
 
@@ -504,7 +505,7 @@ impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
     fn as_i64(&self, values: &[T::T], index: usize) -> i64 {
         values[index]
             .as_i64()
-            .expect("DeltaBitPackDecoder only supports Int32Type and Int64Type")
+            .expect("DeltaBitPackDecoder only supports i32 and i64")
     }
 
     #[inline]
@@ -513,7 +514,7 @@ impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
         match T::get_physical_type() {
             Type::INT32 => (left as i32).wrapping_sub(right as i32) as i64,
             Type::INT64 => left.wrapping_sub(right),
-            _ => panic!("DeltaBitPackDecoder only supports Int32Type and Int64Type"),
+            _ => panic!("DeltaBitPackDecoder only supports i32 and i64"),
         }
     }
 
@@ -523,7 +524,7 @@ impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
             // Conversion of i32 -> u32 -> u64 is to avoid non-zero left most bytes in int repr
             Type::INT32 => (left as i32).wrapping_sub(right as i32) as u32 as u64,
             Type::INT64 => left.wrapping_sub(right) as u64,
-            _ => panic!("DeltaBitPackDecoder only supports Int32Type and Int64Type"),
+            _ => panic!("DeltaBitPackDecoder only supports i32 and i64"),
         }
     }
 }
@@ -536,7 +537,7 @@ impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
 /// stored as raw bytes.
 pub struct DeltaLengthByteArrayEncoder<T: DataType> {
     // length encoder
-    len_encoder: DeltaBitPackEncoder<Int32Type>,
+    len_encoder: DeltaBitPackEncoder<i32>,
     // byte array data
     data: Vec<ByteArray>,
     // data size in bytes of encoded values
@@ -566,7 +567,7 @@ impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
     fn put(&mut self, values: &[T::T]) -> Result<()> {
         ensure_phys_ty!(
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY,
-            "DeltaLengthByteArrayEncoder only supports ByteArrayType"
+            "DeltaLengthByteArrayEncoder only supports ByteArray"
         );
 
         let val_it = || {
@@ -600,7 +601,7 @@ impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
     fn flush_buffer(&mut self) -> Result<Bytes> {
         ensure_phys_ty!(
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY,
-            "DeltaLengthByteArrayEncoder only supports ByteArrayType"
+            "DeltaLengthByteArrayEncoder only supports ByteArray"
         );
 
         let mut total_bytes = vec![];
@@ -622,8 +623,8 @@ impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
 /// Encoding for byte arrays, prefix lengths are encoded using DELTA_BINARY_PACKED
 /// encoding, followed by suffixes with DELTA_LENGTH_BYTE_ARRAY encoding.
 pub struct DeltaByteArrayEncoder<T: DataType> {
-    prefix_len_encoder: DeltaBitPackEncoder<Int32Type>,
-    suffix_writer: DeltaLengthByteArrayEncoder<ByteArrayType>,
+    prefix_len_encoder: DeltaBitPackEncoder<i32>,
+    suffix_writer: DeltaLengthByteArrayEncoder<ByteArray>,
     previous: Vec<u8>,
     _phantom: PhantomData<T>,
 }
@@ -657,9 +658,7 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
             .map(|x| match T::get_physical_type() {
                 Type::BYTE_ARRAY => x.downcast_ref::<ByteArray>().unwrap(),
                 Type::FIXED_LEN_BYTE_ARRAY => x.downcast_ref::<FixedLenByteArray>().unwrap(),
-                _ => panic!(
-                    "DeltaByteArrayEncoder only supports ByteArrayType and FixedLenByteArrayType"
-                ),
+                _ => panic!("DeltaByteArrayEncoder only supports ByteArray and FixedLenByteArray"),
             });
 
         for byte_array in values {
@@ -712,19 +711,16 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
                 self.previous.clear();
                 Ok(total_bytes.into())
             }
-            _ => panic!(
-                "DeltaByteArrayEncoder only supports ByteArrayType and FixedLenByteArrayType"
-            ),
+            _ => panic!("DeltaByteArrayEncoder only supports ByteArray and FixedLenByteArray"),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::sync::Arc;
 
+    use super::*;
     use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
@@ -735,20 +731,20 @@ mod tests {
     #[test]
     fn test_get_encoders() {
         // supported encodings
-        create_and_check_encoder::<Int32Type>(Encoding::PLAIN, None);
-        create_and_check_encoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
-        create_and_check_encoder::<Int32Type>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
-        create_and_check_encoder::<Int32Type>(Encoding::DELTA_BYTE_ARRAY, None);
-        create_and_check_encoder::<BoolType>(Encoding::RLE, None);
+        create_and_check_encoder::<i32>(Encoding::PLAIN, None);
+        create_and_check_encoder::<i32>(Encoding::DELTA_BINARY_PACKED, None);
+        create_and_check_encoder::<i32>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
+        create_and_check_encoder::<i32>(Encoding::DELTA_BYTE_ARRAY, None);
+        create_and_check_encoder::<bool>(Encoding::RLE, None);
 
         // error when initializing
-        create_and_check_encoder::<Int32Type>(
+        create_and_check_encoder::<i32>(
             Encoding::RLE_DICTIONARY,
             Some(general_err!(
                 "Cannot initialize this encoding through this function"
             )),
         );
-        create_and_check_encoder::<Int32Type>(
+        create_and_check_encoder::<i32>(
             Encoding::PLAIN_DICTIONARY,
             Some(general_err!(
                 "Cannot initialize this encoding through this function"
@@ -757,7 +753,7 @@ mod tests {
 
         // unsupported
         #[allow(deprecated)]
-        create_and_check_encoder::<Int32Type>(
+        create_and_check_encoder::<i32>(
             Encoding::BIT_PACKED,
             Some(nyi_err!("Encoding BIT_PACKED is not supported")),
         );
@@ -765,58 +761,58 @@ mod tests {
 
     #[test]
     fn test_bool() {
-        BoolType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        BoolType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
-        BoolType::test(Encoding::RLE, TEST_SET_SIZE, -1);
+        bool::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        bool::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        bool::test(Encoding::RLE, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_i32() {
-        Int32Type::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        Int32Type::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
-        Int32Type::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
+        i32::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        i32::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        i32::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_i64() {
-        Int64Type::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        Int64Type::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
-        Int64Type::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
+        i64::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        i64::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        i64::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_i96() {
-        Int96Type::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        Int96Type::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        Int96::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        Int96::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_float() {
-        FloatType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        FloatType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
-        FloatType::test(Encoding::BYTE_STREAM_SPLIT, TEST_SET_SIZE, -1);
+        f32::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        f32::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        f32::test(Encoding::BYTE_STREAM_SPLIT, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_double() {
-        DoubleType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        DoubleType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
-        DoubleType::test(Encoding::BYTE_STREAM_SPLIT, TEST_SET_SIZE, -1);
+        f64::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        f64::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        f64::test(Encoding::BYTE_STREAM_SPLIT, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_byte_array() {
-        ByteArrayType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
-        ByteArrayType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
-        ByteArrayType::test(Encoding::DELTA_LENGTH_BYTE_ARRAY, TEST_SET_SIZE, -1);
-        ByteArrayType::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, -1);
+        ByteArray::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
+        ByteArray::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+        ByteArray::test(Encoding::DELTA_LENGTH_BYTE_ARRAY, TEST_SET_SIZE, -1);
+        ByteArray::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_fixed_lenbyte_array() {
-        FixedLenByteArrayType::test(Encoding::PLAIN, TEST_SET_SIZE, 100);
-        FixedLenByteArrayType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, 100);
-        FixedLenByteArrayType::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, 100);
+        FixedLenByteArray::test(Encoding::PLAIN, TEST_SET_SIZE, 100);
+        FixedLenByteArray::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, 100);
+        FixedLenByteArray::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, 100);
     }
 
     #[test]
@@ -832,19 +828,19 @@ mod tests {
         }
 
         // Only 2 variations of values 1 byte each
-        run_test::<BoolType>(-1, &[true, false, true, false, true], 2);
-        run_test::<Int32Type>(-1, &[1i32, 2i32, 3i32, 4i32, 5i32], 20);
-        run_test::<Int64Type>(-1, &[1i64, 2i64, 3i64, 4i64, 5i64], 40);
-        run_test::<FloatType>(-1, &[1f32, 2f32, 3f32, 4f32, 5f32], 20);
-        run_test::<DoubleType>(-1, &[1f64, 2f64, 3f64, 4f64, 5f64], 40);
+        run_test::<bool>(-1, &[true, false, true, false, true], 2);
+        run_test::<i32>(-1, &[1i32, 2i32, 3i32, 4i32, 5i32], 20);
+        run_test::<i64>(-1, &[1i64, 2i64, 3i64, 4i64, 5i64], 40);
+        run_test::<f32>(-1, &[1f32, 2f32, 3f32, 4f32, 5f32], 20);
+        run_test::<f64>(-1, &[1f64, 2f64, 3f64, 4f64, 5f64], 40);
         // Int96: len + reference
-        run_test::<Int96Type>(
+        run_test::<Int96>(
             -1,
             &[Int96::from(vec![1, 2, 3]), Int96::from(vec![2, 3, 4])],
             24,
         );
-        run_test::<ByteArrayType>(-1, &[ByteArray::from("abcd"), ByteArray::from("efj")], 15);
-        run_test::<FixedLenByteArrayType>(
+        run_test::<ByteArray>(-1, &[ByteArray::from("abcd"), ByteArray::from("efj")], 15);
+        run_test::<FixedLenByteArray>(
             2,
             &[ByteArray::from("ab").into(), ByteArray::from("bc").into()],
             4,
@@ -877,24 +873,24 @@ mod tests {
         }
 
         // PLAIN
-        run_test::<Int32Type>(Encoding::PLAIN, -1, &[123; 1024], 0, 4096, 0);
+        run_test::<i32>(Encoding::PLAIN, -1, &[123; 1024], 0, 4096, 0);
 
         // DICTIONARY
         // NOTE: The final size is almost the same because the dictionary entries are
         // preserved after encoded values have been written.
-        run_test::<Int32Type>(Encoding::RLE_DICTIONARY, -1, &[123, 1024], 0, 2, 0);
+        run_test::<i32>(Encoding::RLE_DICTIONARY, -1, &[123, 1024], 0, 2, 0);
 
         // DELTA_BINARY_PACKED
-        run_test::<Int32Type>(Encoding::DELTA_BINARY_PACKED, -1, &[123; 1024], 0, 35, 0);
+        run_test::<i32>(Encoding::DELTA_BINARY_PACKED, -1, &[123; 1024], 0, 35, 0);
 
         // RLE
         let mut values = vec![];
         values.extend_from_slice(&[true; 16]);
         values.extend_from_slice(&[false; 16]);
-        run_test::<BoolType>(Encoding::RLE, -1, &values, 0, 6, 0);
+        run_test::<bool>(Encoding::RLE, -1, &values, 0, 6, 0);
 
         // DELTA_LENGTH_BYTE_ARRAY
-        run_test::<ByteArrayType>(
+        run_test::<ByteArray>(
             Encoding::DELTA_LENGTH_BYTE_ARRAY,
             -1,
             &[ByteArray::from("ab"), ByteArray::from("abc")],
@@ -904,7 +900,7 @@ mod tests {
         );
 
         // DELTA_BYTE_ARRAY
-        run_test::<ByteArrayType>(
+        run_test::<ByteArray>(
             Encoding::DELTA_BYTE_ARRAY,
             -1,
             &[ByteArray::from("ab"), ByteArray::from("abc")],
@@ -914,14 +910,14 @@ mod tests {
         );
 
         // BYTE_STREAM_SPLIT
-        run_test::<FloatType>(Encoding::BYTE_STREAM_SPLIT, -1, &[0.1, 0.2], 0, 8, 0);
+        run_test::<f32>(Encoding::BYTE_STREAM_SPLIT, -1, &[0.1, 0.2], 0, 8, 0);
     }
 
     #[test]
     fn test_byte_stream_split_example_f32() {
         // Test data from https://github.com/apache/parquet-format/blob/2a481fe1aad64ff770e21734533bb7ef5a057dac/Encodings.md#byte-stream-split-byte_stream_split--9
-        let mut encoder = create_test_encoder::<FloatType>(Encoding::BYTE_STREAM_SPLIT);
-        let mut decoder = create_test_decoder::<FloatType>(0, Encoding::BYTE_STREAM_SPLIT);
+        let mut encoder = create_test_encoder::<f32>(Encoding::BYTE_STREAM_SPLIT);
+        let mut decoder = create_test_decoder::<f32>(0, Encoding::BYTE_STREAM_SPLIT);
 
         let input = vec![
             f32::from_le_bytes([0xAA, 0xBB, 0xCC, 0xDD]),
@@ -949,8 +945,8 @@ mod tests {
     // See: https://github.com/sunchao/parquet-rs/issues/47
     #[test]
     fn test_issue_47() {
-        let mut encoder = create_test_encoder::<ByteArrayType>(Encoding::DELTA_BYTE_ARRAY);
-        let mut decoder = create_test_decoder::<ByteArrayType>(0, Encoding::DELTA_BYTE_ARRAY);
+        let mut encoder = create_test_encoder::<ByteArray>(Encoding::DELTA_BYTE_ARRAY);
+        let mut decoder = create_test_decoder::<ByteArray>(0, Encoding::DELTA_BYTE_ARRAY);
 
         let input = vec![
             ByteArray::from("aa"),

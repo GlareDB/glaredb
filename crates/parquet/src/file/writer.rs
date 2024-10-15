@@ -815,7 +815,6 @@ mod tests {
     use crate::column::page::{Page, PageReader};
     use crate::column::reader::get_typed_column_reader;
     use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
-    use crate::data_type::Int32Type;
     use crate::file::page_index::index::Index;
     use crate::file::properties::{
         EnabledStatistics,
@@ -889,14 +888,14 @@ mod tests {
 
         let mut col_writer = row_group_writer.next_column().unwrap().unwrap();
         col_writer
-            .typed::<Int32Type>()
+            .typed::<i32>()
             .write_batch(&[1, 2, 3], None, None)
             .unwrap();
         col_writer.close().unwrap();
 
         let mut col_writer = row_group_writer.next_column().unwrap().unwrap();
         col_writer
-            .typed::<Int32Type>()
+            .typed::<i32>()
             .write_batch(&[1, 2], None, None)
             .unwrap();
 
@@ -1412,7 +1411,7 @@ mod tests {
     //     W: Write + Send,
     //     R: ChunkReader + From<W> + 'static,
     // {
-    //     test_roundtrip::<W, R, Int32Type, _>(file, data, |r| r.get_int(0).unwrap(), compression)
+    //     test_roundtrip::<W, R, i32, _>(file, data, |r| r.get_int(0).unwrap(), compression)
     // }
 
     // /// Tests roundtrip of data of type `D` written using `W` and read using `R`
@@ -1545,7 +1544,7 @@ mod tests {
     // #[test]
     // fn test_boolean_roundtrip() {
     //     let my_bool_values: Vec<_> = (0..2049).map(|idx| idx % 2 == 0).collect();
-    //     test_roundtrip::<Vec<u8>, Bytes, BoolType, _>(
+    //     test_roundtrip::<Vec<u8>, Bytes, bool, _>(
     //         Vec::with_capacity(1024),
     //         vec![my_bool_values],
     //         |r| r.get_bool(0).unwrap(),
@@ -1556,7 +1555,7 @@ mod tests {
     // #[test]
     // fn test_boolean_compressed_roundtrip() {
     //     let my_bool_values: Vec<_> = (0..2049).map(|idx| idx % 2 == 0).collect();
-    //     test_roundtrip::<Vec<u8>, Bytes, BoolType, _>(
+    //     test_roundtrip::<Vec<u8>, Bytes, bool, _>(
     //         Vec::with_capacity(1024),
     //         vec![my_bool_values],
     //         |r| r.get_bool(0).unwrap(),
@@ -1659,7 +1658,7 @@ mod tests {
         for _ in 0..3 {
             let mut writer = row_group_writer.next_column().unwrap().unwrap();
             writer
-                .typed::<Int32Type>()
+                .typed::<i32>()
                 .write_batch(&[1, 2, 3], None, None)
                 .unwrap();
             writer.close().unwrap();
@@ -1737,7 +1736,7 @@ mod tests {
 
         // Interleaved writing to the column writers
         for (writer, batch) in column_writers.iter_mut().zip(column_data) {
-            let writer = writer.typed::<Int32Type>();
+            let writer = writer.typed::<i32>();
             writer.write_batch(&batch, None, None).unwrap();
         }
 
@@ -1764,14 +1763,14 @@ mod tests {
 
             let mut out = Vec::with_capacity(4);
             let c1 = row_group.get_column_reader(0).unwrap();
-            let mut c1 = get_typed_column_reader::<Int32Type, _>(c1);
+            let mut c1 = get_typed_column_reader::<i32, _>(c1);
             c1.read_records(4, None, None, &mut out).unwrap();
             assert_eq!(out, column_data[0]);
 
             out.clear();
 
             let c2 = row_group.get_column_reader(1).unwrap();
-            let mut c2 = get_typed_column_reader::<Int32Type, _>(c2);
+            let mut c2 = get_typed_column_reader::<i32, _>(c2);
             c2.read_records(4, None, None, &mut out).unwrap();
             assert_eq!(out, column_data[1]);
         };
@@ -1803,12 +1802,12 @@ mod tests {
 
         let mut row_group_writer = file_writer.next_row_group().unwrap();
         let mut a_writer = row_group_writer.next_column().unwrap().unwrap();
-        let col_writer = a_writer.typed::<Int32Type>();
+        let col_writer = a_writer.typed::<i32>();
         col_writer.write_batch(&[1, 2, 3], None, None).unwrap();
         a_writer.close().unwrap();
 
         let mut b_writer = row_group_writer.next_column().unwrap().unwrap();
-        let col_writer = b_writer.typed::<Int32Type>();
+        let col_writer = b_writer.typed::<i32>();
         col_writer.write_batch(&[4, 5, 6], None, None).unwrap();
         b_writer.close().unwrap();
         row_group_writer.close().unwrap();

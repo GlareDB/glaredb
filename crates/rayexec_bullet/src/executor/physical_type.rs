@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::array::{ArrayData, BinaryData};
@@ -60,41 +60,51 @@ impl PhysicalType {
     }
 }
 
-pub trait VarlenType: Debug + PartialEq + Eq {
-    type Owned: Debug + Default + PartialEq + Eq;
-
+/// Types able to convert themselves to byte slices.
+pub trait AsBytes {
     fn as_bytes(&self) -> &[u8];
 }
 
-impl VarlenType for str {
-    type Owned = String;
-
+impl AsBytes for str {
     fn as_bytes(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl VarlenType for [u8] {
-    type Owned = Vec<u8>;
-
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-impl VarlenType for &str {
-    type Owned = String;
-
+impl AsBytes for &str {
     fn as_bytes(&self) -> &[u8] {
         (*self).as_bytes()
     }
 }
 
-impl VarlenType for &[u8] {
-    type Owned = Vec<u8>;
-
+impl AsBytes for [u8] {
     fn as_bytes(&self) -> &[u8] {
         self
+    }
+}
+
+impl AsBytes for &[u8] {
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+/// Types that can be converted from bytes.
+///
+/// This should not be implemented for `&str`/`&[u8]`.
+pub trait VarlenType: Debug + PartialEq + Eq {
+    fn try_from_bytes(bytes: &[u8]) -> Result<&Self>;
+}
+
+impl VarlenType for str {
+    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
+        std::str::from_utf8(bytes).context("Bytes not valid utf8")
+    }
+}
+
+impl VarlenType for [u8] {
+    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
+        Ok(bytes)
     }
 }
 

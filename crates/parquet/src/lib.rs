@@ -82,29 +82,6 @@
 //! [Logical Types]: https://github.com/apache/parquet-format/blob/master/LogicalTypes.md
 //! [object_store]: https://docs.rs/object_store/latest/object_store/
 
-/// Defines a an item with an experimental public API
-///
-/// The module will not be documented, and will only be public if the
-/// experimental feature flag is enabled
-///
-/// Experimental components have no stability guarantees
-#[cfg(feature = "experimental")]
-macro_rules! experimental {
-    ($(#[$meta:meta])* $vis:vis mod $module:ident) => {
-        #[doc(hidden)]
-        $(#[$meta])*
-        pub mod $module;
-    }
-}
-
-#[cfg(not(feature = "experimental"))]
-macro_rules! experimental {
-    ($(#[$meta:meta])* $vis:vis mod $module:ident) => {
-        $(#[$meta])*
-        $vis mod $module;
-    }
-}
-
 #[macro_use]
 pub mod errors;
 pub mod basic;
@@ -119,16 +96,15 @@ pub mod format;
 #[macro_use]
 pub mod data_type;
 
-// Exported for external use, such as benchmarks
-#[cfg(feature = "experimental")]
-#[doc(hidden)]
 pub use self::encodings::{decoding, encoding};
 
-experimental!(#[macro_use] mod util);
-pub mod column;
-experimental!(mod compression);
-experimental!(mod encodings);
+#[macro_use]
+mod util;
+
 pub mod bloom_filter;
+pub mod column;
+mod compression;
+mod encodings;
 pub mod file;
 pub mod schema;
 

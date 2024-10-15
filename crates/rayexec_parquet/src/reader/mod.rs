@@ -9,15 +9,7 @@ use bytes::{Buf, Bytes};
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
 use parquet::column::reader::GenericColumnReader;
-use parquet::data_type::{
-    BoolType,
-    DataType as ParquetDataType,
-    DoubleType,
-    FloatType,
-    Int32Type,
-    Int64Type,
-    Int96Type,
-};
+use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
@@ -56,35 +48,33 @@ where
     P: PageReader + 'static,
 {
     match (&datatype, physical) {
-        (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<BoolType, P>::new(
+        (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<bool, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+        (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+        (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Timestamp(_), PhysicalType::INT64) => {
-            Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
-                batch_size, datatype, desc,
-            )))
-        }
+        (DataType::Timestamp(_), PhysicalType::INT64) => Ok(Box::new(
+            PrimitiveArrayReader::<i64, P>::new(batch_size, datatype, desc),
+        )),
         (DataType::Timestamp(_), PhysicalType::INT96) => {
-            Ok(Box::new(PrimitiveArrayReader::<Int96Type, P>::new(
+            Ok(Box::new(PrimitiveArrayReader::<Int96, P>::new(
                 batch_size, datatype, desc,
             )))
         }
-        (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<FloatType, P>::new(
+        (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<f32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<DoubleType, P>::new(
+        (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<f64, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<Int32Type, P>::new(
+        (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<Int64Type, P>::new(
+        (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),
         (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<P>::new(

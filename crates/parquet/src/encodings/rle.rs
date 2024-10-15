@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{cmp, mem::size_of};
+use std::cmp;
+use std::mem::size_of;
 
 use bytes::Bytes;
 
 use crate::errors::{ParquetError, Result};
-use crate::util::bit_util::from_le_slice;
-use crate::util::bit_util::{self, BitReader, BitWriter, FromBytes};
+use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Rle/Bit-Packing Hybrid Encoding
 /// The grammar for this encoding looks like the following (copied verbatim
@@ -48,31 +48,31 @@ const MAX_GROUPS_PER_BIT_PACKED_RUN: usize = 1 << 6;
 /// A RLE/Bit-Packing hybrid encoder.
 // TODO: tracking memory usage
 pub struct RleEncoder {
-    // Number of bits needed to encode the value. Must be in the range of [0, 64].
+    /// Number of bits needed to encode the value. Must be in the range of [0, 64].
     bit_width: u8,
 
-    // Underlying writer which holds an internal buffer.
+    /// Underlying writer which holds an internal buffer.
     bit_writer: BitWriter,
 
-    // Buffered values for bit-packed runs.
+    /// Buffered values for bit-packed runs.
     buffered_values: [u64; 8],
 
-    // Number of current buffered values. Must be less than 8.
+    /// Number of current buffered values. Must be less than 8.
     num_buffered_values: usize,
 
-    // The current (also last) value that was written and the count of how many
-    // times in a row that value has been seen.
+    /// The current (also last) value that was written and the count of how many
+    /// times in a row that value has been seen.
     current_value: u64,
 
-    // The number of repetitions for `current_value`. If this gets too high we'd
-    // switch to use RLE encoding.
+    /// The number of repetitions for `current_value`. If this gets too high we'd
+    /// switch to use RLE encoding.
     repeat_count: usize,
 
-    // Number of bit-packed values in the current run. This doesn't include values
-    // in `buffered_values`.
+    /// Number of bit-packed values in the current run. This doesn't include values
+    /// in `buffered_values`.
     bit_packed_count: usize,
 
-    // The position of the indicator byte in the `bit_writer`.
+    /// The position of the indicator byte in the `bit_writer`.
     indicator_byte_pos: i64,
 }
 
@@ -522,10 +522,11 @@ impl RleDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rand::distributions::Standard;
+    use rand::{self, thread_rng, Rng, SeedableRng};
 
+    use super::*;
     use crate::util::bit_util::ceil;
-    use rand::{self, distributions::Standard, thread_rng, Rng, SeedableRng};
 
     const MAX_WIDTH: usize = 32;
 

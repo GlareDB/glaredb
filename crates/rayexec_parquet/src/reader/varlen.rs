@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
-use parquet::data_type::{ByteArray, ByteArrayType, DataType as ParquetDataType};
+use parquet::data_type::{ByteArray, DataType as ParquetDataType};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
@@ -13,7 +13,7 @@ use super::{def_levels_into_bitmap, ArrayBuilder, ValuesReader};
 #[derive(Debug)]
 pub struct VarlenArrayReader<P: PageReader> {
     datatype: DataType,
-    values_reader: ValuesReader<ByteArrayType, P>,
+    values_reader: ValuesReader<ByteArray, P>,
     // TODO: Change varlen decoding to not use this type and instead write into
     // a contiguous buffer that we can construct array data out of.
     values_buffer: Vec<ByteArray>,
@@ -35,7 +35,7 @@ where
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
-        let arr = match (ByteArrayType::get_physical_type(), &self.datatype) {
+        let arr = match (ByteArray::get_physical_type(), &self.datatype) {
             (PhysicalType::BYTE_ARRAY, _) => {
                 match def_levels {
                     Some(levels) => {

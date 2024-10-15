@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use criterion::*;
 use parquet::basic::Encoding;
-use parquet::data_type::{DataType, DoubleType, FloatType};
+use parquet::data_type::{f32, f64, DataType};
 use parquet::decoding::{get_decoder, Decoder};
 use parquet::encoding::get_encoder;
 use parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
@@ -76,8 +76,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         f64s.push(rng.gen::<f64>());
     }
 
-    bench_typed::<FloatType>(c, &f32s, Encoding::BYTE_STREAM_SPLIT);
-    bench_typed::<DoubleType>(c, &f64s, Encoding::BYTE_STREAM_SPLIT);
+    bench_typed::<f32>(c, &f32s, Encoding::BYTE_STREAM_SPLIT);
+    bench_typed::<f64>(c, &f64s, Encoding::BYTE_STREAM_SPLIT);
 }
 
 criterion_group!(benches, criterion_benchmark);
