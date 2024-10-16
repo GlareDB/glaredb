@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use ahash::RandomState;
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 
 use crate::data_type::AsBytes;
 
 const DEFAULT_DEDUP_CAPACITY: usize = 4096;
+
+/// State to use when hashing key bytes.
+const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
 
 /// Storage trait for [`Interner`]
 pub trait Storage {
@@ -38,8 +42,6 @@ pub trait Storage {
 /// A generic value interner supporting various different [`Storage`]
 #[derive(Debug, Default)]
 pub struct Interner<S: Storage> {
-    state: ahash::RandomState,
-
     /// Used to provide a lookup from value to unique value
     ///
     /// Note: `S::Key`'s hash implementation is not used, instead the raw entry
@@ -53,7 +55,6 @@ impl<S: Storage> Interner<S> {
     /// Create a new `Interner` with the provided storage
     pub fn new(storage: S) -> Self {
         Self {
-            state: Default::default(),
             dedup: HashMap::with_capacity_and_hasher(DEFAULT_DEDUP_CAPACITY, ()),
             storage,
         }
@@ -61,7 +62,7 @@ impl<S: Storage> Interner<S> {
 
     /// Intern the value, returning the interned key, and if this was a new value
     pub fn intern(&mut self, value: &S::Value) -> S::Key {
-        let hash = self.state.hash_one(value.as_bytes());
+        let hash = HASH_RANDOM_STATE.hash_one(value.as_bytes());
 
         let entry = self
             .dedup
@@ -75,7 +76,7 @@ impl<S: Storage> Interner<S> {
 
                 *entry
                     .insert_with_hasher(hash, key, (), |key| {
-                        self.state.hash_one(self.storage.get(*key).as_bytes())
+                        HASH_RANDOM_STATE.hash_one(self.storage.get(*key).as_bytes())
                     })
                     .0
             }
