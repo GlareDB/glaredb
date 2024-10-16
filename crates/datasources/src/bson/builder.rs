@@ -30,7 +30,7 @@ use datafusion::arrow::array::{
     TimestampNanosecondBuilder,
     TimestampSecondBuilder,
 };
-use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit, ToByteSlice};
 use mysql_common::bigdecimal::{FromPrimitive, ToPrimitive};
 
 use crate::bson::errors::{BsonError, Result};
@@ -271,10 +271,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(LargeStringBuilder, col, v.to_string())
         }
         (RawBsonRef::Boolean(v), DataType::Binary) => {
-            append_scalar!(BinaryBuilder, col, v.into())
+            append_scalar!(BinaryBuilder, col, [i32::from(v) as u8])
         }
         (RawBsonRef::Boolean(v), DataType::LargeBinary) => {
-            append_scalar!(LargeBinaryBuilder, col, v.into())
+            append_scalar!(BinaryBuilder, col, [i32::from(v) as u8])
         }
 
         // Double
@@ -308,10 +308,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(LargeStringBuilder, col, v.to_string())
         }
         (RawBsonRef::Double(v), DataType::Binary) => {
-            append_scalar!(BinaryBuilder, col, v.into())
+            append_scalar!(BinaryBuilder, col, v.to_byte_slice())
         }
         (RawBsonRef::Double(v), DataType::LargeBinary) => {
-            append_scalar!(LargeBinaryBuilder, col, v.into())
+            append_scalar!(LargeBinaryBuilder, col, v.to_byte_slice())
         }
 
         // Int32
@@ -336,17 +336,17 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(LargeStringBuilder, col, v.to_string())
         }
         (RawBsonRef::Int32(v), DataType::Binary) => {
-            append_scalar!(BinaryBuilder, col, v.into())
+            append_scalar!(BinaryBuilder, col, v.to_byte_slice())
         }
         (RawBsonRef::Int32(v), DataType::LargeBinary) => {
-            append_scalar!(LargeBinaryBuilder, col, v.into())
+            append_scalar!(LargeBinaryBuilder, col, v.to_byte_slice())
         }
 
         // Int64
         (RawBsonRef::Int64(v), DataType::Int8) => append_scalar!(Int8Builder, col, v as i8),
         (RawBsonRef::Int64(v), DataType::Int16) => append_scalar!(Int16Builder, col, v as i16),
-        (RawBsonRef::Int64(v), DataType::Int32) => append_scalar!(Int32Builder, col, v),
-        (RawBsonRef::Int64(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Int64(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
+        (RawBsonRef::Int64(v), DataType::Int64) => append_scalar!(Int64Builder, col, v),
         (RawBsonRef::Int64(v), DataType::Float16) => {
             append_scalar!(
                 Float16Builder,
@@ -364,10 +364,10 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
             append_scalar!(LargeStringBuilder, col, v.to_string())
         }
         (RawBsonRef::Int64(v), DataType::Binary) => {
-            append_scalar!(BinaryBuilder, col, v.into())
+            append_scalar!(BinaryBuilder, col, v.to_byte_slice())
         }
         (RawBsonRef::Int64(v), DataType::LargeBinary) => {
-            append_scalar!(LargeBinaryBuilder, col, v.into())
+            append_scalar!(LargeBinaryBuilder, col, v.to_byte_slice())
         }
 
         // String
@@ -683,7 +683,7 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .append_null(),
         &DataType::Float16 => col
             .as_any_mut()
-            .downcast_mut::<Float165Builder>()
+            .downcast_mut::<Float16Builder>()
             .unwrap()
             .append_null(),
         &DataType::Timestamp(TimeUnit::Nanosecond, _) => col
