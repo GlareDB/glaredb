@@ -1655,6 +1655,8 @@ dependencies = [
  "num-bigint",
  "paste",
  "rand",
+ "rayexec_bullet",
+ "rayexec_error",
  "seq-macro",
  "serde",
  "serde_json",

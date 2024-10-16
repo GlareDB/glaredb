@@ -15,16 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use bytes::Bytes;
 
 use crate::basic::Encoding;
-use crate::data_type::DataType;
-use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
 use crate::encodings::rle::RleDecoder;
-use crate::errors::{ParquetError, Result};
-use crate::schema::types::ColumnDescPtr;
+use crate::errors::Result;
 use crate::util::bit_util::{num_required_bits, BitReader};
 
 /// Decodes level data
@@ -35,57 +30,19 @@ pub trait ColumnLevelDecoder {
     fn set_data(&mut self, encoding: Encoding, data: Bytes);
 }
 
-/// Decodes value data.
-#[derive(Debug)]
-pub struct ColumnValueDecoder<T: DataType> {
-    descr: ColumnDescPtr,
-    current_encoding: Option<Encoding>,
-
-    // Cache of decoders for existing encodings
-    decoders: HashMap<Encoding, Box<dyn Decoder<T>>>,
-}
-
-impl<T: DataType> ColumnValueDecoder<T> {
-    /// Create a new decoder for a column.
-    pub fn new(descr: &ColumnDescPtr) -> Self {
-        Self {
-            descr: descr.clone(),
-            current_encoding: None,
-            decoders: Default::default(),
-        }
-    }
+/// Decode column value data.
+pub trait ColumnValueDecoder {
+    /// Buffer passed into `read` for filling up buffer values.
+    type Buffer;
 
     /// Set the current dictionary page
-    pub fn set_dict(
+    fn set_dict(
         &mut self,
         buf: Bytes,
         num_values: u32,
-        mut encoding: Encoding,
+        encoding: Encoding,
         _is_sorted: bool,
-    ) -> Result<()> {
-        if encoding == Encoding::PLAIN || encoding == Encoding::PLAIN_DICTIONARY {
-            encoding = Encoding::RLE_DICTIONARY
-        }
-
-        if self.decoders.contains_key(&encoding) {
-            return Err(general_err!("Column cannot have more than one dictionary"));
-        }
-
-        if encoding == Encoding::RLE_DICTIONARY {
-            let mut dictionary = PlainDecoder::<T>::new(self.descr.type_length());
-            dictionary.set_data(buf, num_values as usize)?;
-
-            let mut decoder = DictDecoder::new();
-            decoder.set_dict(Box::new(dictionary))?;
-            self.decoders.insert(encoding, Box::new(decoder));
-            Ok(())
-        } else {
-            Err(nyi_err!(
-                "Invalid/Unsupported encoding type for dictionary: {}",
-                encoding
-            ))
-        }
-    }
+    ) -> Result<()>;
 
     /// Set the current data page
     ///
@@ -98,77 +55,21 @@ impl<T: DataType> ColumnValueDecoder<T> {
     /// run may be zero-padded. As such if `num_values` is not provided (i.e. `None`),
     /// subsequent calls to `ColumnValueDecoder::read` may yield more values than
     /// non-null definition levels within the page
-    pub fn set_data(
+    fn set_data(
         &mut self,
-        mut encoding: Encoding,
+        encoding: Encoding,
         data: Bytes,
         num_levels: usize,
         num_values: Option<usize>,
-    ) -> Result<()> {
-        use std::collections::hash_map::Entry;
-
-        if encoding == Encoding::PLAIN_DICTIONARY {
-            encoding = Encoding::RLE_DICTIONARY;
-        }
-
-        let decoder = if encoding == Encoding::RLE_DICTIONARY {
-            self.decoders
-                .get_mut(&encoding)
-                .expect("Decoder for dict should have been set")
-        } else {
-            // Search cache for data page decoder
-            match self.decoders.entry(encoding) {
-                Entry::Occupied(e) => e.into_mut(),
-                Entry::Vacant(v) => {
-                    let data_decoder = get_decoder::<T>(self.descr.clone(), encoding)?;
-                    v.insert(data_decoder)
-                }
-            }
-        };
-
-        decoder.set_data(data, num_values.unwrap_or(num_levels))?;
-        self.current_encoding = Some(encoding);
-        Ok(())
-    }
+    ) -> Result<()>;
 
     /// Read up to `num_values` values into `out`
-    ///
-    /// # Panics
-    ///
-    /// Implementations may panic if `range` overlaps with already written data
-    pub fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> Result<usize> {
-        let encoding = self
-            .current_encoding
-            .expect("current_encoding should be set");
-
-        let current_decoder = self
-            .decoders
-            .get_mut(&encoding)
-            .unwrap_or_else(|| panic!("decoder for encoding {encoding} should be set"));
-
-        // TODO: Push vec into decoder (#5177)
-        let start = out.len();
-        out.resize(start + num_values, T::T::default());
-        let read = current_decoder.read(&mut out[start..])?;
-        out.truncate(start + read);
-        Ok(read)
-    }
+    fn read(&mut self, out: &mut Self::Buffer, num_values: usize) -> Result<usize>;
 
     /// Skips over `num_values` values
     ///
     /// Returns the number of values skipped
-    pub fn skip_values(&mut self, num_values: usize) -> Result<usize> {
-        let encoding = self
-            .current_encoding
-            .expect("current_encoding should be set");
-
-        let current_decoder = self
-            .decoders
-            .get_mut(&encoding)
-            .unwrap_or_else(|| panic!("decoder for encoding {encoding} should be set"));
-
-        current_decoder.skip(num_values)
-    }
+    fn skip_values(&mut self, num_values: usize) -> Result<usize>;
 }
 
 const SKIP_BUFFER_SIZE: usize = 1024;

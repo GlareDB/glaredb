@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::data_type::AsBytes;
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
+
+use crate::data_type::AsBytes;
 
 const DEFAULT_DEDUP_CAPACITY: usize = 4096;
 
@@ -43,7 +44,6 @@ pub struct Interner<S: Storage> {
     ///
     /// Note: `S::Key`'s hash implementation is not used, instead the raw entry
     /// API is used to store keys w.r.t the hash of the strings themselves
-    ///
     dedup: HashMap<S::Key, (), ()>,
 
     storage: S,

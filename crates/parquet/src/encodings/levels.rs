@@ -18,7 +18,6 @@
 use std::mem;
 
 use super::rle::RleEncoder;
-
 use crate::basic::Encoding;
 use crate::data_type::AsBytes;
 use crate::util::bit_util::{ceil, num_required_bits, BitWriter};
@@ -27,11 +26,7 @@ use crate::util::bit_util::{ceil, num_required_bits, BitWriter};
 /// repetition/definition level and number of total buffered values (includes null
 /// values).
 #[inline]
-pub fn max_buffer_size(
-    encoding: Encoding,
-    max_level: i16,
-    num_buffered_values: usize,
-) -> usize {
+pub fn max_buffer_size(encoding: Encoding, max_level: i16, num_buffered_values: usize) -> usize {
     let bit_width = num_required_bits(max_level as u64);
     match encoding {
         Encoding::RLE => RleEncoder::max_buffer_size(bit_width, num_buffered_values),

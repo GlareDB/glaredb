@@ -27,7 +27,7 @@ use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::rle::RleEncoder;
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::util::bit_util::{num_required_bits, BitWriter};
 
 mod byte_stream_split_encoder;
@@ -722,6 +722,7 @@ mod tests {
 
     use super::*;
     use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+    use crate::errors::ParquetError;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::bit_util;
     use crate::util::test_common::rand_gen::{random_bytes, RandGen};

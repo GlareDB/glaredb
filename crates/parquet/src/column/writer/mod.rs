@@ -31,7 +31,7 @@ use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::levels::LevelEncoder;
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::file::metadata::{ColumnChunkMetaData, ColumnIndexBuilder, OffsetIndexBuilder};
 use crate::file::properties::{
     EnabledStatistics,
@@ -1272,6 +1272,7 @@ mod tests {
 
     use super::*;
     use crate::column::page::PageReader;
+    use crate::column::reader::basic::BasicColumnValueDecoder;
     use crate::column::reader::{get_column_reader, get_typed_column_reader, GenericColumnReader};
     use crate::file::properties::{ReaderProperties, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH};
     use crate::file::reader::SerializedPageReader;
@@ -3334,7 +3335,7 @@ mod tests {
         page_reader: P,
         max_def_level: i16,
         max_rep_level: i16,
-    ) -> GenericColumnReader<T, P> {
+    ) -> GenericColumnReader<BasicColumnValueDecoder<T>, P> {
         let descr = Arc::new(get_test_column_descr::<T>(max_def_level, max_rep_level));
         let column_reader = get_column_reader(descr, page_reader);
         get_typed_column_reader::<T, _>(column_reader)

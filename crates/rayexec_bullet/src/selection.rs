@@ -114,6 +114,12 @@ impl SelectionVector {
     }
 }
 
+impl From<Vec<usize>> for SelectionVector {
+    fn from(value: Vec<usize>) -> Self {
+        SelectionVector { indices: value }
+    }
+}
+
 impl FromIterator<usize> for SelectionVector {
     fn from_iter<T: IntoIterator<Item = usize>>(iter: T) -> Self {
         SelectionVector {

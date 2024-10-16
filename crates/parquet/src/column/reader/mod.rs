@@ -17,15 +17,18 @@
 
 //! Contains column reader API.
 
+pub mod basic;
 pub mod decoder;
+pub mod view;
 
+use basic::BasicColumnValueDecoder;
 use bytes::Bytes;
+use decoder::ColumnValueDecoder;
 
 use super::page::{Page, PageReader};
 use crate::basic::*;
 use crate::column::reader::decoder::{
     ColumnLevelDecoder,
-    ColumnValueDecoder,
     DefinitionLevelDecoder,
     RepetitionLevelDecoder,
 };
@@ -36,14 +39,16 @@ use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
 /// Column reader for a Parquet type.
 pub enum ColumnReader<P: PageReader> {
-    BoolColumnReader(GenericColumnReader<bool, P>),
-    Int32ColumnReader(GenericColumnReader<i32, P>),
-    Int64ColumnReader(GenericColumnReader<i64, P>),
-    Int96ColumnReader(GenericColumnReader<Int96, P>),
-    FloatColumnReader(GenericColumnReader<f32, P>),
-    DoubleColumnReader(GenericColumnReader<f64, P>),
-    ByteArrayColumnReader(GenericColumnReader<ByteArray, P>),
-    FixedLenByteArrayColumnReader(GenericColumnReader<FixedLenByteArray, P>),
+    BoolColumnReader(GenericColumnReader<BasicColumnValueDecoder<bool>, P>),
+    Int32ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i32>, P>),
+    Int64ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i64>, P>),
+    Int96ColumnReader(GenericColumnReader<BasicColumnValueDecoder<Int96>, P>),
+    FloatColumnReader(GenericColumnReader<BasicColumnValueDecoder<f32>, P>),
+    DoubleColumnReader(GenericColumnReader<BasicColumnValueDecoder<f64>, P>),
+    ByteArrayColumnReader(GenericColumnReader<BasicColumnValueDecoder<ByteArray>, P>),
+    FixedLenByteArrayColumnReader(
+        GenericColumnReader<BasicColumnValueDecoder<FixedLenByteArray>, P>,
+    ),
 }
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
@@ -87,7 +92,7 @@ pub fn get_column_reader<P: PageReader>(
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
 pub fn get_typed_column_reader<T: DataType, P: PageReader>(
     col_reader: ColumnReader<P>,
-) -> GenericColumnReader<T, P> {
+) -> GenericColumnReader<BasicColumnValueDecoder<T>, P> {
     T::get_column_reader(col_reader).unwrap_or_else(|| {
         panic!(
             "Failed to convert column reader into a typed column reader for `{}` type",
@@ -100,7 +105,7 @@ pub fn get_typed_column_reader<T: DataType, P: PageReader>(
 ///
 /// - T: Parquet data type
 #[derive(Debug)]
-pub struct GenericColumnReader<T: DataType, P: PageReader> {
+pub struct GenericColumnReader<V: ColumnValueDecoder, P: PageReader> {
     descr: ColumnDescPtr,
 
     page_reader: P,
@@ -122,17 +127,17 @@ pub struct GenericColumnReader<T: DataType, P: PageReader> {
     rep_level_decoder: Option<RepetitionLevelDecoder>,
 
     /// The decoder for the values
-    values_decoder: ColumnValueDecoder<T>,
+    values_decoder: V,
 }
 
-impl<T, P> GenericColumnReader<T, P>
+impl<T, P> GenericColumnReader<BasicColumnValueDecoder<T>, P>
 where
     T: DataType,
     P: PageReader,
 {
     /// Creates new column reader based on column descriptor and page reader.
     pub fn new(descr: ColumnDescPtr, page_reader: P) -> Self {
-        let values_decoder = ColumnValueDecoder::new(&descr);
+        let values_decoder = BasicColumnValueDecoder::<T>::new(&descr);
 
         let def_level_decoder = (descr.max_def_level() != 0)
             .then(|| DefinitionLevelDecoder::new(descr.max_def_level()));
@@ -150,15 +155,15 @@ where
     }
 }
 
-impl<T, P> GenericColumnReader<T, P>
+impl<V, P> GenericColumnReader<V, P>
 where
-    T: DataType,
+    V: ColumnValueDecoder,
     P: PageReader,
 {
-    pub(crate) fn new_with_decoders(
+    pub fn new_with_decoders(
         descr: ColumnDescPtr,
         page_reader: P,
-        values_decoder: ColumnValueDecoder<T>,
+        values_decoder: V,
         def_level_decoder: Option<DefinitionLevelDecoder>,
         rep_level_decoder: Option<RepetitionLevelDecoder>,
     ) -> Self {
@@ -193,7 +198,7 @@ where
         max_records: usize,
         mut def_levels: Option<&mut Vec<i16>>,
         mut rep_levels: Option<&mut Vec<i16>>,
-        values: &mut Vec<T::T>,
+        values: &mut V::Buffer,
     ) -> Result<(usize, usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;

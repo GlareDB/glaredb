@@ -22,7 +22,7 @@ use bytes::Bytes;
 use super::Encoder;
 use crate::basic::{Encoding, Type};
 use crate::data_type::{DataType, SliceAsBytes};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 
 pub struct ByteStreamSplitEncoder<T> {
     buffer: Vec<u8>,

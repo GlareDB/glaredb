@@ -27,9 +27,10 @@ use half::f16;
 
 use crate::basic::Type;
 use crate::column::page::{PageReader, PageWriter};
+use crate::column::reader::basic::BasicColumnValueDecoder;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::util::bit_util::FromBytes;
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
@@ -141,7 +142,7 @@ impl PartialOrd for ByteArray {
 impl ByteArray {
     /// Creates new byte array with no data set.
     #[inline]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         ByteArray { data: None }
     }
 
@@ -167,10 +168,10 @@ impl ByteArray {
             .as_ref()
     }
 
-    /// Return the underlying `Bytes`.
+    /// Takes the underlying `Bytes`.
     #[inline]
-    pub fn bytes_data(&self) -> Bytes {
-        self.data.clone().expect("set_data should have been called")
+    pub fn take_bytes(&mut self) -> Option<Bytes> {
+        self.data.take()
     }
 
     /// Return the number of bytes this byte array is taking up.
@@ -598,7 +599,7 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{ParquetError, Result, SliceAsBytes};
+    use super::{Result, SliceAsBytes};
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
@@ -1085,7 +1086,7 @@ pub trait DataType: 'static + Send + fmt::Debug {
 
     fn get_column_reader<P: PageReader>(
         column_writer: ColumnReader<P>,
-    ) -> Option<GenericColumnReader<Self, P>>
+    ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>>
     where
         Self: Sized;
 
@@ -1133,7 +1134,7 @@ macro_rules! impl_data_type {
 
             fn get_column_reader<P: PageReader>(
                 column_reader: ColumnReader<P>,
-            ) -> Option<GenericColumnReader<Self, P>> {
+            ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>> {
                 match column_reader {
                     ColumnReader::$reader_ident(w) => Some(w),
                     _ => None,

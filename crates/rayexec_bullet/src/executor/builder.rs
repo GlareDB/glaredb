@@ -7,6 +7,9 @@ use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::storage::{
     BooleanStorage,
+    GermanLargeMetadata,
+    GermanMetadata,
+    GermanSmallMetadata,
     GermanVarlenStorage,
     PrimitiveStorage,
     UnionedGermanMetadata,
@@ -148,6 +151,43 @@ where
             _type: PhantomData,
         }
     }
+
+    pub fn get(&self, idx: usize) -> Option<&[u8]> {
+        let metadata = self.metadata.get(idx)?;
+
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                Some(&inline[..(*len as usize)])
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
+                Some(&self.data[(*offset as usize)..((offset + len) as usize)])
+            }
+        }
+    }
+
+    /// Return a mutable reference to the metadata vector.
+    ///
+    /// Care must be taken to values inserted or modified continue to represent
+    /// valid (or empty) data.
+    pub fn metadata_mut(&mut self) -> &mut Vec<UnionedGermanMetadata> {
+        &mut self.metadata
+    }
+
+    pub fn reserve_data(&mut self, additional: usize) {
+        self.data.reserve(additional)
+    }
+
+    pub fn truncate(&mut self, len: usize) {
+        self.metadata.truncate(len)
+    }
+
+    pub fn iter(&self) -> GermanVarlenBufferIter {
+        GermanVarlenBufferIter {
+            idx: 0,
+            metadata: &self.metadata,
+            data: &self.data,
+        }
+    }
 }
 
 impl<T> ArrayDataBuffer for GermanVarlenBuffer<T>
@@ -195,5 +235,30 @@ where
         };
 
         ArrayData::Binary(BinaryData::German(Arc::new(storage)))
+    }
+}
+
+#[derive(Debug)]
+pub struct GermanVarlenBufferIter<'a> {
+    idx: usize,
+    metadata: &'a [UnionedGermanMetadata],
+    data: &'a [u8],
+}
+
+impl<'a> Iterator for GermanVarlenBufferIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let metadata = self.metadata.get(self.idx)?;
+        self.idx += 1;
+
+        match metadata.as_metadata() {
+            GermanMetadata::Small(GermanSmallMetadata { len, inline }) => {
+                Some(&inline[..(*len as usize)])
+            }
+            GermanMetadata::Large(GermanLargeMetadata { len, offset, .. }) => {
+                Some(&self.data[(*offset as usize)..((offset + len) as usize)])
+            }
+        }
     }
 }

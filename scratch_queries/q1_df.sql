@@ -7,7 +7,7 @@ CREATE VIEW orders AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpc
 CREATE VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/partsupp.parquet';
 CREATE VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/part.parquet';
 
-explain SELECT
+SELECT
     l_returnflag,
     l_linestatus,
     sum(l_quantity) AS sum_qty,

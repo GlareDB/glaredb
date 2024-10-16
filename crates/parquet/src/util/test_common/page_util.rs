@@ -15,18 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::iter::Peekable;
+use std::mem;
+
 use bytes::Bytes;
 
 use crate::basic::Encoding;
-use crate::column::page::Page;
-use crate::column::page::{PageMetadata, PageReader};
+use crate::column::page::{Page, PageMetadata, PageReader};
 use crate::data_type::DataType;
 use crate::encodings::encoding::{get_encoder, Encoder};
 use crate::encodings::levels::LevelEncoder;
 use crate::errors::Result;
 use crate::schema::types::ColumnDescPtr;
-use std::iter::Peekable;
-use std::mem;
 
 pub trait DataPageBuilder {
     fn add_rep_levels(&mut self, max_level: i16, rep_levels: &[i16]);

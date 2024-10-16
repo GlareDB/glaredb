@@ -40,6 +40,7 @@ pub union UnionedGermanMetadata {
 }
 
 impl Default for UnionedGermanMetadata {
+    #[inline]
     fn default() -> Self {
         Self::zero()
     }

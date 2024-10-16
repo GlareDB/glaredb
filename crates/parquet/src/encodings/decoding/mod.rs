@@ -17,6 +17,9 @@
 
 //! Contains all supported decoders for Parquet.
 
+pub mod byte_stream_split_decoder;
+pub mod view;
+
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::{cmp, mem};
@@ -29,11 +32,9 @@ use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
-
-pub mod byte_stream_split_decoder;
 
 pub(crate) mod private {
     use super::*;
@@ -1105,6 +1106,7 @@ mod tests {
 
     use super::super::encoding::*;
     use super::*;
+    use crate::errors::ParquetError;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::util::test_common::rand_gen::RandGen;
 

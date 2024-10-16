@@ -145,6 +145,20 @@ impl Array {
         }
     }
 
+    pub fn new_with_validity_selection_and_array_data(
+        datatype: DataType,
+        validity: Bitmap,
+        selection: impl Into<Selection>,
+        data: impl Into<ArrayData>,
+    ) -> Self {
+        Array {
+            datatype,
+            selection: Some(selection.into()),
+            validity: Some(validity),
+            data: data.into(),
+        }
+    }
+
     pub fn datatype(&self) -> &DataType {
         &self.datatype
     }

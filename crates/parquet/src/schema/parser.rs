@@ -45,7 +45,7 @@
 use std::sync::Arc;
 
 use crate::basic::{ConvertedType, LogicalType, Repetition, TimeUnit, Type as PhysicalType};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::schema::types::{Type, TypePtr};
 
 /// Parses message type as string into a Parquet [`Type`]
@@ -517,6 +517,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::ParquetError;
 
     #[test]
     fn test_tokenize_empty_string() {

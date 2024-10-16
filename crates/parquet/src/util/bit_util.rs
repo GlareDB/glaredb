@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{cmp, mem::size_of};
+use std::cmp;
+use std::mem::size_of;
 
 use bytes::Bytes;
 
 use crate::data_type::{AsBytes, ByteArray, FixedLenByteArray, Int96};
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::util::bit_pack::{unpack16, unpack32, unpack64, unpack8};
 
 #[inline]
@@ -430,7 +431,6 @@ impl BitReader {
     ///
     /// This function panics if
     /// - `num_bits` is larger than the bit-capacity of `T`
-    ///
     pub fn get_batch<T: FromBytes>(&mut self, batch: &mut [T], num_bits: usize) -> usize {
         assert!(num_bits <= size_of::<T>() * 8);
 
@@ -675,11 +675,12 @@ impl From<Vec<u8>> for BitReader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::util::test_common::rand_gen::random_numbers;
-    use rand::distributions::{Distribution, Standard};
     use std::fmt::Debug;
+
+    use rand::distributions::{Distribution, Standard};
+
+    use super::*;
+    use crate::util::test_common::rand_gen::random_numbers;
 
     #[test]
     fn test_ceil() {

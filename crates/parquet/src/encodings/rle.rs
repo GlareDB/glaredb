@@ -20,7 +20,7 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::errors::{ParquetError, Result};
+use crate::errors::Result;
 use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Rle/Bit-Packing Hybrid Encoding

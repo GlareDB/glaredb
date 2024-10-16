@@ -8,12 +8,17 @@ use std::sync::Arc;
 use bytes::{Buf, Bytes};
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::PageReader;
+use parquet::column::reader::decoder::{
+    ColumnValueDecoder,
+    DefinitionLevelDecoder,
+    RepetitionLevelDecoder,
+};
 use parquet::column::reader::GenericColumnReader;
-use parquet::data_type::{DataType as ParquetDataType, Int96};
+use parquet::data_type::Int96;
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -89,9 +94,9 @@ where
     }
 }
 
-/// Trait for converting a buffer of values into an array.
-pub trait IntoArray {
-    fn into_array(self, datatype: DataType, def_levels: Option<Vec<i16>>) -> Array;
+/// Trait for converting a buffer of values into array data.
+pub trait IntoArrayData {
+    fn into_array_data(self) -> ArrayData;
 }
 
 pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
@@ -100,6 +105,24 @@ pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
         1 => true,
         other => unimplemented!("nested unimplemented, def level: {other}"),
     }))
+}
+
+/// Insert null (meaningless) values into the vec according to the validity
+/// bitmap.
+///
+/// The resulting vec will have its length equal to the bitmap's length.
+pub fn insert_null_values<T>(values: &mut Vec<T>, bitmap: &Bitmap)
+where
+    T: Copy + Default,
+{
+    values.resize(bitmap.len(), T::default());
+
+    for (current_idx, new_idx) in (0..values.len()).rev().zip(bitmap.index_iter().rev()) {
+        if current_idx <= new_idx {
+            break;
+        }
+        values[new_idx] = values[current_idx];
+    }
 }
 
 pub struct AsyncBatchReader<R: FileSource> {
@@ -276,6 +299,11 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     /// Fetches the column chunks for the current row group.
     async fn fetch_column_chunks(&mut self) -> Result<()> {
         for state in self.column_states.iter_mut() {
+            // We already have data for this.
+            if state.column_chunk.is_some() {
+                continue;
+            }
+
             let col = self
                 .metadata
                 .decoded_metadata
@@ -342,47 +370,59 @@ impl Length for InMemoryColumnChunk {
 }
 
 #[derive(Debug)]
-pub struct ValuesReader<T: ParquetDataType, P: PageReader> {
-    desc: ColumnDescPtr,
-    reader: Option<GenericColumnReader<T, P>>,
+pub struct ValuesReader<V: ColumnValueDecoder, P: PageReader> {
+    description: ColumnDescPtr,
+    reader: Option<GenericColumnReader<V, P>>,
 
     def_levels: Option<Vec<i16>>,
     rep_levels: Option<Vec<i16>>,
 }
 
-impl<T, P> ValuesReader<T, P>
+impl<V, P> ValuesReader<V, P>
 where
-    T: ParquetDataType,
+    V: ColumnValueDecoder,
     P: PageReader,
 {
-    pub fn new(desc: ColumnDescPtr) -> Self {
-        let def_levels = if desc.max_def_level() > 0 {
+    pub fn new(description: ColumnDescPtr) -> Self {
+        let def_levels = if description.max_def_level() > 0 {
             Some(Vec::new())
         } else {
             None
         };
-        let rep_levels = if desc.max_rep_level() > 0 {
+        let rep_levels = if description.max_rep_level() > 0 {
             Some(Vec::new())
         } else {
             None
         };
 
         Self {
-            desc,
+            description,
             reader: None,
             def_levels,
             rep_levels,
         }
     }
 
-    pub fn set_page_reader(&mut self, page_reader: P) -> Result<()> {
-        let reader = GenericColumnReader::new(self.desc.clone(), page_reader);
+    pub fn set_page_reader(&mut self, values_decoder: V, page_reader: P) -> Result<()> {
+        let def_level_decoder = (self.description.max_def_level() != 0)
+            .then(|| DefinitionLevelDecoder::new(self.description.max_def_level()));
+
+        let rep_level_decoder = (self.description.max_rep_level() != 0)
+            .then(|| RepetitionLevelDecoder::new(self.description.max_rep_level()));
+
+        let reader = GenericColumnReader::new_with_decoders(
+            self.description.clone(),
+            page_reader,
+            values_decoder,
+            def_level_decoder,
+            rep_level_decoder,
+        );
         self.reader = Some(reader);
 
         Ok(())
     }
 
-    pub fn read_records(&mut self, num_records: usize, values: &mut Vec<T::T>) -> Result<usize> {
+    pub fn read_records(&mut self, num_records: usize, values: &mut V::Buffer) -> Result<usize> {
         let reader = match &mut self.reader {
             Some(reader) => reader,
             None => return Err(RayexecError::new("Expected reader to be Some")),
@@ -404,7 +444,7 @@ where
             if values_read < levels_read {
                 // TODO: Need to revisit how we handle definition
                 // levels/repetition levels and nulls.
-                values.resize(levels_read, T::T::default());
+                // values.resize(levels_read, T::T::default());
             }
 
             num_read += records_read;
