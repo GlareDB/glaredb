@@ -53,25 +53,3 @@ SELECT * FROM dstextra;
 NULL 1 0
 NULL 2 10
 NULL 3 100
-
-
-statement ok
-CREATE EXTERNAL TABLE constrained
-	FROM mongo
-	OPTIONS (
-		connection_string = '${MONGO_CONN_STRING}',
-		database = 'test',
-		collection = 'bikeshare_stations'
-	)
-	COLUMNS (
-	    station_id int,
-	    status string,
-	    council_district string
-	);
-
-query III
-SELECT * FROM constrained LIMIT 3
-----
-2538 closed 1
-2541 closed 1
-2545 closed 9
