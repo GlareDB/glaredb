@@ -2937,6 +2937,7 @@ dependencies = [
  "futures",
  "gcp-bigquery-client",
  "glob",
+ "half",
  "indexmap 2.6.0",
  "ioutil",
  "jaq-interpret",

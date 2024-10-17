@@ -12,12 +12,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{
-    FieldRef,
-    Fields,
-    Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
-};
+use datafusion::arrow::datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef};
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result as DatafusionResult};
 use datafusion::execution::context::SessionState;
@@ -217,7 +212,7 @@ impl VirtualLister for MongoDbAccessor {
 pub struct MongoDbTableAccessInfo {
     pub database: String, // "Schema"
     pub collection: String,
-    pub fields: Option<Vec<FieldRef>>, // filter
+    pub fields: Option<Fields>, // filter
 }
 
 #[derive(Debug, Clone)]

@@ -513,7 +513,7 @@ impl<'a> ExternalDispatcher<'a> {
                 let table_info = MongoDbTableAccessInfo {
                     database: database.to_string(),
                     collection: collection.to_string(),
-                    fields: None,
+                    fields: schema.map(|s| s.fields),
                 };
                 let accessor = MongoDbAccessor::connect(connection_string).await?;
                 let table_accessor = accessor.into_table_accessor(table_info);
