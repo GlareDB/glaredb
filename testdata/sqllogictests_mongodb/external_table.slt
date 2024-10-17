@@ -33,7 +33,7 @@ CREATE EXTERNAL TABLE constrained
 	);
 
 query III
-SELECT * FROM constrained LIMIT 3 ORDER BY station_id;
+SELECT * FROM constrained ORDER BY station_id LIMIT 3;
 ----
 2538 closed 1
 2541 closed 1
