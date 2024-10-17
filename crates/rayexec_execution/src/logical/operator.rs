@@ -406,6 +406,10 @@ impl LogicalOperator {
             Self::MagicJoin(n) => &mut n.children,
         }
     }
+
+    pub fn is_project(&self) -> bool {
+        matches!(self, LogicalOperator::Project(_))
+    }
 }
 
 impl LogicalNode for LogicalOperator {

@@ -58,6 +58,8 @@ pub struct LogicalScan {
     /// Names for all columns from the source.
     pub names: Vec<String>,
     /// Positional column projections.
+    ///
+    /// Ascending order.
     pub projection: Vec<usize>,
     /// If we've pruned columns.
     ///

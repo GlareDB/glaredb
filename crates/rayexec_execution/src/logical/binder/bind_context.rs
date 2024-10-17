@@ -492,14 +492,13 @@ impl BindContext {
         Ok(reference)
     }
 
-    /// Creates a new table with generated columns from a list of expressions.
-    pub fn new_ephemeral_table_from_expressions(
+    /// Creates a new table with generated columns from an iterator of expression.
+    pub fn new_ephemeral_table_from_expressions<'a>(
         &mut self,
         generated_prefix: &str,
-        exprs: &[Expression],
+        exprs_iter: impl Iterator<Item = &'a Expression>,
     ) -> Result<TableRef> {
-        let column_types = exprs
-            .iter()
+        let column_types = exprs_iter
             .map(|expr| expr.datatype(self))
             .collect::<Result<Vec<_>>>()?;
 
