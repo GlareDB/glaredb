@@ -965,6 +965,11 @@ impl<'a> SessionPlanner<'a> {
                     .get("sheet_name")
                     .map(|val| val.to_owned());
 
+                let table_name = storage_options
+                    .inner
+                    .get("table_name")
+                    .map(|val| val.to_owned());
+
                 let has_header = storage_options
                     .inner
                     .get("has_header")
@@ -984,6 +989,7 @@ impl<'a> SessionPlanner<'a> {
                     file_type: None,
                     compression: None,
                     sheet_name,
+                    table_name,
                     has_header,
                 }
                 .into()

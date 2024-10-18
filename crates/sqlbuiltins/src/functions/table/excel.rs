@@ -23,9 +23,9 @@ pub struct ExcelScan;
 
 impl ConstBuiltinFunction for ExcelScan {
     const NAME: &'static str = "read_excel";
-    const DESCRIPTION: &'static str = "Reads an Excel file from the local filesystem";
+    const DESCRIPTION: &'static str = "Reads an Excel file.";
     const EXAMPLE: &'static str =
-        "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1')";
+        "SELECT * FROM read_excel('file:///path/to/file.xlsx', sheet_name => 'Sheet1', table_name => 'table')";
     const FUNCTION_TYPE: FunctionType = FunctionType::TableReturning;
     const ALIASES: &'static [&'static str] = &["read_xlsx"];
 
@@ -99,7 +99,12 @@ impl TableFunc for ExcelScan {
             .transpose()?
             .unwrap_or(100);
 
-        let table = ExcelTable::open(store_access, source_url, sheet_name, has_header)
+        let table_name: Option<String> = opts
+            .remove("table_name")
+            .map(FuncParamValue::try_into)
+            .transpose()?;
+
+        let table = ExcelTable::open(store_access, source_url, sheet_name, table_name, has_header)
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
