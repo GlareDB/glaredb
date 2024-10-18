@@ -30,6 +30,7 @@ use datafusion::arrow::array::{
 use datafusion::arrow::datatypes::{
     DataType,
     Field,
+    FieldRef,
     Fields,
     Schema as ArrowSchema,
     SchemaRef as ArrowSchemaRef,
@@ -584,6 +585,7 @@ pub struct PostgresTableProviderConfig {
     pub access: PostgresAccess,
     pub schema: String,
     pub table: String,
+    pub fields: Option<Vec<FieldRef>>, // filter
 }
 
 impl TryFrom<protogen::sqlexec::table_provider::PostgresTableProviderConfig>
@@ -597,6 +599,7 @@ impl TryFrom<protogen::sqlexec::table_provider::PostgresTableProviderConfig>
             access: value.access.required("postgres access")?,
             schema: value.schema,
             table: value.table,
+            fields: None,
         })
     }
 }
@@ -634,16 +637,25 @@ impl PostgresTableProvider {
             access,
             schema,
             table,
+            fields,
         } = conf;
 
         let state = Arc::new(access.connect().await?);
-        let (arrow_schema, pg_types) = state.get_table_schema(&schema, &table).await?;
+
+        let (observed_schema, pg_types) = state.get_table_schema(&schema, &table).await?;
+
+        // TODO: compare observed schema to the specified fields, and
+        // maybe error here if there's no overlap.
 
         Ok(PostgresTableProvider {
             schema,
             table,
             state,
-            arrow_schema: Arc::new(arrow_schema),
+            arrow_schema: fields
+                .map(ArrowSchema::new)
+                .or_else(|| Some(observed_schema))
+                .map(Arc::new)
+                .unwrap(),
             pg_types: Arc::new(pg_types),
         })
     }
