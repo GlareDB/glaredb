@@ -467,6 +467,14 @@ impl TableEntry {
         }
     }
 
+    /// Try to get the mutable ref to columns for this table if available.
+    pub fn get_internal_columns_mut(&mut self) -> Option<&mut Vec<InternalColumnDefinition>> {
+        match &mut self.options {
+            TableOptionsV0::Internal(options) => Some(&mut options.columns),
+            _ => None,
+        }
+    }
+
     pub fn get_columns(&self) -> Option<Vec<FieldRef>> {
         self.get_internal_columns().map(|val| {
             val.iter()
