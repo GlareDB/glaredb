@@ -35,6 +35,6 @@ CREATE EXTERNAL TABLE constrained
 query III
 SELECT * FROM constrained ORDER BY station_id LIMIT 3;
 ----
-0 closed 9
-11 closed 9
-111 closed 9
+0 active 9
+11 active 9
+111 active 9
