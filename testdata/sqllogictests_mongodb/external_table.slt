@@ -17,3 +17,24 @@ SELECT count(*) FROM external_table;
 statement ok
 DROP TABLE external_table;
 
+
+statement ok
+CREATE EXTERNAL TABLE constrained
+	FROM mongo
+	OPTIONS (
+		connection_string = '${MONGO_CONN_STRING}',
+		database = 'test',
+		collection = 'bikeshare_stations'
+	)
+	COLUMNS (
+	    station_id int,
+	    status string,
+	    council_district string
+	);
+
+query III
+SELECT * FROM constrained ORDER BY station_id LIMIT 3;
+----
+0 active 9
+11 active 9
+111 active 9

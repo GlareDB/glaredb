@@ -14,9 +14,13 @@ use datafusion::arrow::array::{
     Date32Builder,
     Date64Builder,
     Decimal128Builder,
+    Float16Builder,
+    Float32Builder,
     Float64Builder,
+    Int16Builder,
     Int32Builder,
     Int64Builder,
+    Int8Builder,
     LargeBinaryBuilder,
     LargeStringBuilder,
     StringBuilder,
@@ -26,7 +30,8 @@ use datafusion::arrow::array::{
     TimestampNanosecondBuilder,
     TimestampSecondBuilder,
 };
-use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit};
+use datafusion::arrow::datatypes::{DataType, Field, Fields, TimeUnit, ToByteSlice};
+use mysql_common::bigdecimal::{FromPrimitive, ToPrimitive};
 
 use crate::bson::errors::{BsonError, Result};
 use crate::common::util::try_parse_datetime;
@@ -246,37 +251,123 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
 
         // Boolean
         (RawBsonRef::Boolean(v), DataType::Boolean) => append_scalar!(BooleanBuilder, col, v),
+        (RawBsonRef::Boolean(v), DataType::Int8) => append_scalar!(Int8Builder, col, v.into()),
+        (RawBsonRef::Boolean(v), DataType::Int16) => append_scalar!(Int16Builder, col, v.into()),
         (RawBsonRef::Boolean(v), DataType::Int32) => append_scalar!(Int32Builder, col, v.into()),
         (RawBsonRef::Boolean(v), DataType::Int64) => append_scalar!(Int64Builder, col, v.into()),
+        (RawBsonRef::Boolean(v), DataType::Float16) => {
+            append_scalar!(Float16Builder, col, half::f16::from_f32(v.into()))
+        }
+        (RawBsonRef::Boolean(v), DataType::Float32) => {
+            append_scalar!(Float32Builder, col, v.into())
+        }
         (RawBsonRef::Boolean(v), DataType::Float64) => {
             append_scalar!(Float64Builder, col, v.into())
         }
         (RawBsonRef::Boolean(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
+        (RawBsonRef::Boolean(v), DataType::LargeUtf8) => {
+            append_scalar!(LargeStringBuilder, col, v.to_string())
+        }
+        (RawBsonRef::Boolean(v), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, [i32::from(v) as u8])
+        }
+        (RawBsonRef::Boolean(v), DataType::LargeBinary) => {
+            append_scalar!(BinaryBuilder, col, [i32::from(v) as u8])
+        }
 
         // Double
+        (RawBsonRef::Double(v), DataType::Int8) => append_scalar!(
+            Int8Builder,
+            col,
+            v.to_i8()
+                .ok_or_else(|| BsonError::UnexpectedDataTypeForBuilder(typ.to_owned()))?
+        ),
+        (RawBsonRef::Double(v), DataType::Int16) => {
+            append_scalar!(
+                Int16Builder,
+                col,
+                v.to_i16()
+                    .ok_or_else(|| BsonError::UnexpectedDataTypeForBuilder(typ.to_owned()))?
+            )
+        }
         (RawBsonRef::Double(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Double(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Double(v), DataType::Float16) => {
+            append_scalar!(Float16Builder, col, half::f16::from_f64(v))
+        }
+        (RawBsonRef::Double(v), DataType::Float32) => {
+            append_scalar!(Float32Builder, col, v as f32)
+        }
         (RawBsonRef::Double(v), DataType::Float64) => append_scalar!(Float64Builder, col, v),
         (RawBsonRef::Double(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
+        (RawBsonRef::Double(v), DataType::LargeUtf8) => {
+            append_scalar!(LargeStringBuilder, col, v.to_string())
+        }
+        (RawBsonRef::Double(v), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, v.to_byte_slice())
+        }
+        (RawBsonRef::Double(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.to_byte_slice())
+        }
 
         // Int32
+        (RawBsonRef::Int32(v), DataType::Int8) => append_scalar!(Int8Builder, col, v as i8),
+        (RawBsonRef::Int32(v), DataType::Int16) => append_scalar!(Int16Builder, col, v as i16),
         (RawBsonRef::Int32(v), DataType::Int32) => append_scalar!(Int32Builder, col, v),
         (RawBsonRef::Int32(v), DataType::Int64) => append_scalar!(Int64Builder, col, v as i64),
+        (RawBsonRef::Int32(v), DataType::Float16) => {
+            append_scalar!(
+                Float16Builder,
+                col,
+                half::f16::from_i32(v)
+                    .ok_or_else(|| BsonError::UnexpectedDataTypeForBuilder(typ.to_owned()))?
+            )
+        }
+        (RawBsonRef::Int32(v), DataType::Float32) => append_scalar!(Float32Builder, col, v as f32),
         (RawBsonRef::Int32(v), DataType::Float64) => append_scalar!(Float64Builder, col, v as f64),
         (RawBsonRef::Int32(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
+        (RawBsonRef::Int32(v), DataType::LargeUtf8) => {
+            append_scalar!(LargeStringBuilder, col, v.to_string())
+        }
+        (RawBsonRef::Int32(v), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, v.to_byte_slice())
+        }
+        (RawBsonRef::Int32(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.to_byte_slice())
+        }
 
         // Int64
+        (RawBsonRef::Int64(v), DataType::Int8) => append_scalar!(Int8Builder, col, v as i8),
+        (RawBsonRef::Int64(v), DataType::Int16) => append_scalar!(Int16Builder, col, v as i16),
         (RawBsonRef::Int64(v), DataType::Int32) => append_scalar!(Int32Builder, col, v as i32),
         (RawBsonRef::Int64(v), DataType::Int64) => append_scalar!(Int64Builder, col, v),
+        (RawBsonRef::Int64(v), DataType::Float16) => {
+            append_scalar!(
+                Float16Builder,
+                col,
+                half::f16::from_i64(v)
+                    .ok_or_else(|| BsonError::UnexpectedDataTypeForBuilder(typ.to_owned()))?
+            )
+        }
+        (RawBsonRef::Int64(v), DataType::Float32) => append_scalar!(Float32Builder, col, v as f32),
         (RawBsonRef::Int64(v), DataType::Float64) => append_scalar!(Float64Builder, col, v as f64),
         (RawBsonRef::Int64(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
+        }
+        (RawBsonRef::Int64(v), DataType::LargeUtf8) => {
+            append_scalar!(LargeStringBuilder, col, v.to_string())
+        }
+        (RawBsonRef::Int64(v), DataType::Binary) => {
+            append_scalar!(BinaryBuilder, col, v.to_byte_slice())
+        }
+        (RawBsonRef::Int64(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.to_byte_slice())
         }
 
         // String
@@ -285,14 +376,26 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         (RawBsonRef::String(v), DataType::Boolean) => {
             append_scalar!(BooleanBuilder, col, v.parse().unwrap_or_default())
         }
-        (RawBsonRef::String(v), DataType::Int32) => {
-            append_scalar!(Int32Builder, col, v.parse().unwrap_or_default())
-        }
         (RawBsonRef::String(v), DataType::Int64) => {
             append_scalar!(Int64Builder, col, v.parse().unwrap_or_default())
         }
+        (RawBsonRef::String(v), DataType::Int32) => {
+            append_scalar!(Int32Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Int16) => {
+            append_scalar!(Int32Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Int8) => {
+            append_scalar!(Int32Builder, col, v.parse().unwrap_or_default())
+        }
         (RawBsonRef::String(v), DataType::Float64) => {
             append_scalar!(Float64Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Float32) => {
+            append_scalar!(Float32Builder, col, v.parse().unwrap_or_default())
+        }
+        (RawBsonRef::String(v), DataType::Float16) => {
+            append_scalar!(Float16Builder, col, v.parse().unwrap_or_default())
         }
         (RawBsonRef::String(v), DataType::Date64) => {
             append_scalar!(
@@ -337,6 +440,12 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         (RawBsonRef::ObjectId(v), DataType::Utf8) => {
             append_scalar!(StringBuilder, col, v.to_string())
         }
+        (RawBsonRef::ObjectId(v), DataType::LargeBinary) => {
+            append_scalar!(LargeBinaryBuilder, col, v.bytes())
+        }
+        (RawBsonRef::ObjectId(v), DataType::LargeUtf8) => {
+            append_scalar!(LargeStringBuilder, col, v.to_string())
+        }
 
         // Timestamp (internal mongodb type; second specified)
         (RawBsonRef::Timestamp(v), DataType::Timestamp(TimeUnit::Second, _)) => {
@@ -366,6 +475,15 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
         (RawBsonRef::Timestamp(v), DataType::Utf8) => {
             append_scalar!(
                 StringBuilder,
+                col,
+                chrono::DateTime::from_timestamp_millis(v.time as i64 * 1000)
+                    .ok_or_else(|| BsonError::InvalidValue(v.to_string()))?
+                    .to_rfc3339()
+            )
+        }
+        (RawBsonRef::Timestamp(v), DataType::LargeUtf8) => {
+            append_scalar!(
+                LargeStringBuilder,
                 col,
                 chrono::DateTime::from_timestamp_millis(v.time as i64 * 1000)
                     .ok_or_else(|| BsonError::InvalidValue(v.to_string()))?
@@ -408,6 +526,18 @@ fn append_value(val: RawBsonRef, typ: &DataType, col: &mut dyn ArrayBuilder) -> 
                     .ok_or_else(|| BsonError::InvalidValue(v.to_string()))?
                     .to_rfc3339()
             )
+        }
+        (RawBsonRef::DateTime(v), DataType::LargeUtf8) => {
+            append_scalar!(
+                LargeStringBuilder,
+                col,
+                chrono::DateTime::from_timestamp_millis(v.timestamp_millis())
+                    .ok_or_else(|| BsonError::InvalidValue(v.to_string()))?
+                    .to_rfc3339()
+            )
+        }
+        (RawBsonRef::DateTime(v), DataType::Int64) => {
+            append_scalar!(Int64Builder, col, v.timestamp_millis())
         }
 
         // Array
@@ -521,6 +651,16 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
             .downcast_mut::<BooleanBuilder>()
             .unwrap()
             .append_null(),
+        &DataType::Int8 => col
+            .as_any_mut()
+            .downcast_mut::<Int8Builder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Int16 => col
+            .as_any_mut()
+            .downcast_mut::<Int16Builder>()
+            .unwrap()
+            .append_null(),
         &DataType::Int32 => col
             .as_any_mut()
             .downcast_mut::<Int32Builder>()
@@ -534,6 +674,16 @@ fn append_null(typ: &DataType, col: &mut dyn ArrayBuilder) -> Result<()> {
         &DataType::Float64 => col
             .as_any_mut()
             .downcast_mut::<Float64Builder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Float32 => col
+            .as_any_mut()
+            .downcast_mut::<Float32Builder>()
+            .unwrap()
+            .append_null(),
+        &DataType::Float16 => col
+            .as_any_mut()
+            .downcast_mut::<Float16Builder>()
             .unwrap()
             .append_null(),
         &DataType::Timestamp(TimeUnit::Nanosecond, _) => col

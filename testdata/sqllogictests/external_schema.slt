@@ -1,55 +1,55 @@
-
+statement ok
+CREATE TABLE src (x int, y text, z int);
 
 statement ok
-create table src (x int, y text, z int);
+INSERT INTO src VALUES (1, 'hello', 0), (2, 'other', 10), (3, 'world', 100);
 
 statement ok
-insert into src values (1, 'hello', 0), (2, 'other', 10), (3, 'world', 100);
+COPY (SELECT * FROM src) TO '${TMP}/external_schema.bson';
 
 statement ok
-copy (select * from src) to '${TMP}/external_schema.bson'
-
-statement ok
-create external table dst from bson
-options (
-	location '${TMP}/external_schema.bson',
-	file_type 'bson'
-	)
-columns (
-	x int,
-	z int
+CREATE EXTERNAL TABLE dst
+FROM bson
+OPTIONS (
+  location => '${TMP}/external_schema.bson',
+  file_type => 'bson'
+)
+COLUMNS (
+  x int,
+  z int
 );
 
 query ITI
-select * from src;
+SELECT * FROM src;
 ----
-1 hello 0 
+1 hello 0
 2 other 10
 3 world 100
 
 query II
-select * from dst;
+SELECT * FROM dst;
 ----
-1 0 
+1 0
 2 10
 3 100
 
 
 statement ok
-create external table dstextra from bson
-options (
-	location '${TMP}/external_schema.bson',
-	file_type 'bson'
-	)
-columns (
-	alpha int,
-	x int,
-	z int
+CREATE EXTERNAL TABLE dstextra
+FROM bson
+OPTIONS (
+  location => '${TMP}/external_schema.bson',
+  file_type => 'bson'
+)
+COLUMNS (
+  alpha int,
+  x int,
+  z int
 );
 
 query II
-select * from dstextra;
+SELECT * FROM dstextra;
 ----
-NULL 1 0 
+NULL 1 0
 NULL 2 10
 NULL 3 100
