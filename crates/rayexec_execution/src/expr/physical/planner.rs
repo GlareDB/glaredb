@@ -1,6 +1,6 @@
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::scalar::ScalarValue;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;
@@ -195,8 +195,12 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             .plan_from_expressions(self.bind_context, &[&condition.left, &condition.right])?;
 
         Ok(HashJoinCondition {
-            left: self.plan_scalar(left_refs, &condition.left)?,
-            right: self.plan_scalar(right_refs, &condition.right)?,
+            left: self
+                .plan_scalar(left_refs, &condition.left)
+                .context("Failed to plan for left side of condition")?,
+            right: self
+                .plan_scalar(right_refs, &condition.right)
+                .context("Failed to plan for right side of condition")?,
             function,
         })
     }

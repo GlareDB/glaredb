@@ -54,6 +54,18 @@ impl fmt::Display for CteRef {
     }
 }
 
+/// Bind context hold information about "table-producing" operators during
+/// planning.
+///
+/// When we go through initial logical planning, the bind context will have
+/// tables added to it, and is referenced when determining what's in scope.
+///
+/// The bind context will also be provided to the optimizer and any changes to
+/// the plans (e.g. columns removed from table scans) will be updated in the
+/// context.
+///
+/// Physical planning will then use the bind context for determining physical
+/// column ordering.
 #[derive(Debug)]
 pub struct BindContext {
     /// All child scopes used for binding.
@@ -503,6 +515,25 @@ impl BindContext {
             .collect::<Result<Vec<_>>>()?;
 
         self.new_ephemeral_table_from_types(generated_prefix, column_types)
+    }
+
+    /// Clones an existing table into a new ephemeral table.
+    ///
+    /// Useful for optimizer rules where we're creating new table refs, but want
+    /// to keep the existing column names and types for debuggability.
+    pub fn clone_to_new_ephemeral_table(&mut self, table: TableRef) -> Result<TableRef> {
+        let table = self.get_table(table)?;
+        let table_idx = self.tables.len();
+        let reference = TableRef { table_idx };
+
+        self.tables.push(Table {
+            reference,
+            alias: None,
+            column_types: table.column_types.clone(),
+            column_names: table.column_names.clone(),
+        });
+
+        Ok(reference)
     }
 
     /// Creates a new table with generated column from a list of datatypes.

@@ -2,6 +2,14 @@ use std::fmt;
 
 use crate::logical::binder::bind_context::BindContext;
 
+/// Prints out `val` using the context display mode.
+///
+/// Should only be used for debugging.
+pub fn debug_print_context(mode: ContextDisplayMode, val: &impl ContextDisplay) {
+    let wrapper = ContextDisplayWrapper { mode, item: val };
+    println!("{wrapper}");
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ContextDisplayMode<'a> {
     Enriched(&'a BindContext),

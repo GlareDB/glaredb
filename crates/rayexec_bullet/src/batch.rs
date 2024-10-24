@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::array::{Array, Selection};
+use crate::array::Array;
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::executor::builder::{
@@ -14,6 +16,7 @@ use crate::executor::physical_type::PhysicalType;
 use crate::row::ScalarRow;
 use crate::scalar::interval::Interval;
 use crate::scalar::ScalarValue;
+use crate::selection::SelectionVector;
 
 /// A batch of same-length arrays.
 #[derive(Debug, Clone, PartialEq)]
@@ -85,14 +88,16 @@ impl Batch {
     }
 
     /// Selects rows in the batch.
-    pub fn select(&self, selection: impl Into<Selection>) -> Batch {
-        let selection = selection.into();
+    ///
+    /// This accepts an Arc selection as it'll be cloned for each array in the
+    /// batch.
+    pub fn select(&self, selection: Arc<SelectionVector>) -> Batch {
         let cols = self
             .cols
             .iter()
             .map(|c| {
                 let mut col = c.clone();
-                col.select_mut(&selection);
+                col.select_mut(selection.clone());
                 col
             })
             .collect();
@@ -450,7 +455,7 @@ where
     let validity = if validity.is_all_true() {
         None
     } else {
-        Some(validity)
+        Some(validity.into())
     };
 
     Ok(Array {

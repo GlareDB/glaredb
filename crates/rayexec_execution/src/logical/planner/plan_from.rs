@@ -21,6 +21,7 @@ use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
 
 #[derive(Debug)]
@@ -285,6 +286,7 @@ impl FromPlanner {
             node: LogicalComparisonJoin {
                 join_type,
                 conditions: comparisons,
+                cardinality: StatisticsValue::Unknown,
             },
             location: LocationRequirement::Any,
             children: vec![left, right],

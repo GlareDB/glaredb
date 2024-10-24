@@ -23,7 +23,7 @@ impl UnaryNonNullUpdater {
     {
         let selection = array.selection_vector();
 
-        match &array.validity {
+        match array.validity() {
             Some(validity) => {
                 let values = S::get_storage(&array.data)?;
 

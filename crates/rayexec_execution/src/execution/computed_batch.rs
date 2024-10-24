@@ -23,6 +23,10 @@ impl ComputedBatches {
     where
         B: Into<Batch>,
     {
+        // TODO: Think about the behavior for this when batches is length zero.
+        // There was a bug where loop join produce no batches, called this
+        // method, then froze since `is_empty` returns false for empty
+        // vecdeques.
         Self::Multi(batches.into_iter().map(|b| b.into()).collect())
     }
 

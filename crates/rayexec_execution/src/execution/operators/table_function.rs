@@ -5,7 +5,8 @@ use std::task::{Context, Poll};
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_proto::ProtoConv;
 
 use super::util::futures::make_static;
 use super::{
@@ -148,17 +149,18 @@ impl DatabaseProtoConv for PhysicalTableFunction {
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
             function: Some(self.function.to_proto_ctx(context)?),
+            projections: Some(self.projections.to_proto()?),
         })
     }
 
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
         // TODO: https://github.com/GlareDB/rayexec/issues/278
-        unimplemented!()
-        // Ok(Self {
-        //     function: DatabaseProtoConv::from_proto_ctx(
-        //         proto.function.required("function")?,
-        //         context,
-        //     )?,
-        // })
+        Ok(Self {
+            function: DatabaseProtoConv::from_proto_ctx(
+                proto.function.required("function")?,
+                context,
+            )?,
+            projections: ProtoConv::from_proto(proto.projections.required("projections")?)?,
+        })
     }
 }

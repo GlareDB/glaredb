@@ -28,7 +28,7 @@ use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
-use super::statistics::{Statistics, StatisticsCount};
+use super::statistics::{Statistics, StatisticsValue};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -99,12 +99,18 @@ pub trait LogicalNode {
     /// If a logical operator references a table ref that isn't the output of
     /// any of its immediate children, then we messed up planning (e.g. didn't
     /// fully decorrelate).
+    // TODO: Make this take a bind context
     fn get_output_table_refs(&self) -> Vec<TableRef>;
+
+    /// Try to get the output cardinality of this operator.
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        StatisticsValue::Unknown
+    }
 
     /// Get the statistics for the output of this operator.
     fn get_statistics(&self) -> Statistics {
         Statistics {
-            cardinality: StatisticsCount::Unknown,
+            cardinality: StatisticsValue::Unknown,
             column_stats: None,
         }
     }
@@ -208,6 +214,10 @@ impl<N> Node<N> {
         self.children.iter().map(|c| c.get_statistics())
     }
 
+    pub fn iter_child_cardinalities(&self) -> impl Iterator<Item = StatisticsValue<usize>> + '_ {
+        self.children.iter().map(|c| c.cardinality())
+    }
+
     // TODO: Duplicated with LogicalOperator.
     pub fn modify_replace_children<F>(&mut self, modify: &mut F) -> Result<()>
     where
@@ -225,11 +235,22 @@ impl<N> Node<N> {
     }
 }
 
-impl<N: Explainable> Explainable for Node<N> {
+impl<N> Explainable for Node<N>
+where
+    N: Explainable,
+    Node<N>: LogicalNode,
+{
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        self.node
+        let mut ent = self
+            .node
             .explain_entry(conf)
-            .with_value("location", self.location)
+            .with_value("location", self.location);
+
+        if conf.verbose {
+            ent = ent.with_value("cardinality", self.cardinality())
+        }
+
+        ent
     }
 }
 
@@ -444,6 +465,40 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(),
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(),
             LogicalOperator::MagicJoin(n) => n.get_output_table_refs(),
+        }
+    }
+
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        match self {
+            Self::Invalid => panic!("attempted to get statistics for invalid operator"),
+            LogicalOperator::Project(n) => n.cardinality(),
+            LogicalOperator::Filter(n) => n.cardinality(),
+            LogicalOperator::Distinct(n) => n.cardinality(),
+            LogicalOperator::Scan(n) => n.cardinality(),
+            LogicalOperator::MaterializationScan(n) => n.cardinality(),
+            LogicalOperator::MagicMaterializationScan(n) => n.cardinality(),
+            LogicalOperator::Aggregate(n) => n.cardinality(),
+            LogicalOperator::SetOp(n) => n.cardinality(),
+            LogicalOperator::Empty(n) => n.cardinality(),
+            LogicalOperator::Limit(n) => n.cardinality(),
+            LogicalOperator::Order(n) => n.cardinality(),
+            LogicalOperator::SetVar(n) => n.cardinality(),
+            LogicalOperator::ResetVar(n) => n.cardinality(),
+            LogicalOperator::ShowVar(n) => n.cardinality(),
+            LogicalOperator::AttachDatabase(n) => n.cardinality(),
+            LogicalOperator::DetachDatabase(n) => n.cardinality(),
+            LogicalOperator::Drop(n) => n.cardinality(),
+            LogicalOperator::Insert(n) => n.cardinality(),
+            LogicalOperator::CreateSchema(n) => n.cardinality(),
+            LogicalOperator::CreateTable(n) => n.cardinality(),
+            LogicalOperator::CreateView(n) => n.cardinality(),
+            LogicalOperator::Describe(n) => n.cardinality(),
+            LogicalOperator::Explain(n) => n.cardinality(),
+            LogicalOperator::CopyTo(n) => n.cardinality(),
+            LogicalOperator::CrossJoin(n) => n.cardinality(),
+            LogicalOperator::ArbitraryJoin(n) => n.cardinality(),
+            LogicalOperator::ComparisonJoin(n) => n.cardinality(),
+            LogicalOperator::MagicJoin(n) => n.cardinality(),
         }
     }
 

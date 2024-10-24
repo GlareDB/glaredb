@@ -109,6 +109,8 @@ async fn inner(
                     writeln!(stdout, "---- EXECUTION ----")?;
                     writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
                 }
+
+                stdout.flush()?;
             }
             stdout.flush()?;
         }

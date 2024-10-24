@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::binder::bind_context::{MaterializationRef, TableRef};
 use super::operator::{LogicalNode, Node};
@@ -10,7 +10,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
 use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
-use crate::logical::statistics::StatisticsCount;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
@@ -62,32 +62,38 @@ impl JoinType {
         let left = iter.next().expect("first child");
         let right = iter.next().expect("second child");
 
-        let left_card = left.cardinality.value();
-        let right_card = right.cardinality.value();
-
         let cardinality = match self {
-            Self::Left | Self::LeftMark { .. } => match left_card {
-                Some(v) => StatisticsCount::Estimated(v),
-                _ => StatisticsCount::Unknown,
+            Self::Left | Self::LeftMark { .. } => match left.cardinality.value() {
+                Some(v) => StatisticsValue::Estimated(*v),
+                _ => StatisticsValue::Unknown,
             },
-            Self::Right => match right_card {
-                Some(v) => StatisticsCount::Estimated(v),
-                _ => StatisticsCount::Unknown,
+            Self::Right => match right.cardinality.value() {
+                Some(v) => StatisticsValue::Estimated(*v),
+                _ => StatisticsValue::Unknown,
             },
-            Self::Inner => match (left_card, right_card) {
-                (Some(left), Some(right)) => {
-                    let estimated = (left as f64) * (right as f64) * DEFAULT_SELECTIVITY;
-                    StatisticsCount::Estimated(estimated as usize)
-                }
-                _ => StatisticsCount::Unknown,
-            },
-            _ => StatisticsCount::Unknown,
+            Self::Inner => inner_join_est_cardinality(&left, &right),
+            _ => StatisticsValue::Unknown,
         };
 
         Statistics {
             cardinality,
             column_stats: None,
         }
+    }
+}
+
+/// Compute the estimated cardinality of an inner join using left and right
+/// statistics.
+pub fn inner_join_est_cardinality(left: &Statistics, right: &Statistics) -> StatisticsValue<usize> {
+    let left_card = left.cardinality.value();
+    let right_card = right.cardinality.value();
+
+    match (left_card, right_card) {
+        (Some(left), Some(right)) => {
+            let estimated = ((*left as f64) * (*right as f64)) * DEFAULT_SELECTIVITY;
+            StatisticsValue::Estimated(estimated as usize)
+        }
+        _ => StatisticsValue::Unknown,
     }
 }
 
@@ -136,6 +142,22 @@ impl fmt::Display for ComparisonCondition {
     }
 }
 
+impl TryFrom<Expression> for ComparisonCondition {
+    type Error = RayexecError;
+    fn try_from(value: Expression) -> Result<Self, Self::Error> {
+        match value {
+            Expression::Comparison(cmp) => Ok(ComparisonCondition {
+                left: *cmp.left,
+                right: *cmp.right,
+                op: cmp.op,
+            }),
+            other => Err(RayexecError::new(format!(
+                "Cannot convert '{other}' into a comparison condition"
+            ))),
+        }
+    }
+}
+
 impl ContextDisplay for ComparisonCondition {
     fn fmt_using_context(
         &self,
@@ -156,6 +178,7 @@ impl ContextDisplay for ComparisonCondition {
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
     pub conditions: Vec<ComparisonCondition>,
+    pub cardinality: StatisticsValue<usize>,
 }
 
 impl Explainable for LogicalComparisonJoin {
@@ -169,6 +192,10 @@ impl Explainable for LogicalComparisonJoin {
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.node.join_type.output_refs(self)
+    }
+
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        self.node.cardinality
     }
 
     fn get_statistics(&self) -> Statistics {
@@ -209,6 +236,8 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
 /// normal operator tree with some number of "magic" materialization scans that
 /// read deduplicated values from a materialized plan that's referenced on the
 /// left.
+///
+/// This is never an INNER join, so won't be a part of join reordering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalMagicJoin {
     /// The materialization reference for the left child.
@@ -323,8 +352,8 @@ impl LogicalNode for Node<LogicalCrossJoin> {
         let right_card = right.cardinality.value();
 
         let cardinality = match (left_card, right_card) {
-            (Some(left), Some(right)) => StatisticsCount::Estimated(left.saturating_mul(right)),
-            _ => StatisticsCount::Unknown,
+            (Some(&left), Some(&right)) => StatisticsValue::Estimated(left.saturating_mul(right)),
+            _ => StatisticsValue::Unknown,
         };
 
         Statistics {

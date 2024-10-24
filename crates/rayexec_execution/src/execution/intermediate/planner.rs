@@ -82,6 +82,7 @@ use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
 use crate::logical::operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node};
+use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::Projections;
 
 /// Planned pipelines grouped into locations for where they should be executed.
@@ -1427,6 +1428,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 node: LogicalComparisonJoin {
                     join_type: join.node.join_type,
                     conditions: join.node.conditions,
+                    cardinality: StatisticsValue::Unknown,
                 },
                 location: join.location,
                 children: join.children,
@@ -1500,6 +1502,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                             &right_refs,
                             condition,
                         )
+                        .context_fn(|| format!("Failed to plan condition: {condition}"))
                 })
                 .collect::<Result<Vec<_>>>()?;
 

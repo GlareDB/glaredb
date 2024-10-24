@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use futures::future::BoxFuture;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
+use rayexec_proto::ProtoConv;
 
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::operators::sink::PartitionSink;
@@ -21,6 +22,38 @@ impl Projections {
         Projections {
             column_indices: None,
         }
+    }
+}
+
+impl ProtoConv for Projections {
+    type ProtoType = rayexec_proto::generated::execution::Projections;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(Self::ProtoType {
+            column_indices: self
+                .column_indices
+                .as_ref()
+                .unwrap_or(&Vec::new())
+                .iter()
+                .map(|&idx| idx as u32)
+                .collect(),
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        let column_indices = if proto.column_indices.is_empty() {
+            None
+        } else {
+            Some(
+                proto
+                    .column_indices
+                    .into_iter()
+                    .map(|idx| idx as usize)
+                    .collect(),
+            )
+        };
+
+        Ok(Projections { column_indices })
     }
 }
 

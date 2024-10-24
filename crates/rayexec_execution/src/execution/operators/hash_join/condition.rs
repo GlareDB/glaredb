@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
@@ -99,6 +100,9 @@ impl LeftPrecomputedJoinConditions {
     ) -> Result<(SelectionVector, SelectionVector)> {
         assert_eq!(left_row_sel.num_rows(), right_row_sel.num_rows());
 
+        let left_row_sel = Arc::new(left_row_sel);
+        let right_row_sel = Arc::new(right_row_sel);
+
         let mut results = Vec::with_capacity(self.conditions.len());
 
         // Select rows from the right batch.
@@ -114,7 +118,7 @@ impl LeftPrecomputedJoinConditions {
                 .clone();
 
             // Select relevant rows from the left.
-            left_precomputed.select_mut(&left_row_sel.clone().into());
+            left_precomputed.select_mut(left_row_sel.clone());
 
             // Eval the right side.
             let right_arr = condition.right.eval(&selected_right)?;

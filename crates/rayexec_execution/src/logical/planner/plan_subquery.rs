@@ -30,6 +30,7 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::logical_scan::ScanSource;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SubqueryPlanner;
@@ -433,6 +434,7 @@ impl SubqueryPlanner {
                             table_ref: mark_table,
                         },
                         conditions: vec![condition],
+                        cardinality: StatisticsValue::Unknown,
                     },
                     location: LocationRequirement::Any,
                     children: vec![orig, subquery_plan],

@@ -3,6 +3,7 @@ use rayexec_error::Result;
 use super::binder::bind_context::TableRef;
 use super::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use super::operator::{LogicalNode, Node};
+use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -20,6 +21,12 @@ impl Explainable for LogicalOrder {
 impl LogicalNode for Node<LogicalOrder> {
     fn get_output_table_refs(&self) -> Vec<TableRef> {
         self.get_children_table_refs()
+    }
+
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        self.iter_child_cardinalities()
+            .next()
+            .expect("single child for project")
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>

@@ -14,6 +14,17 @@ use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_explain::ExplainFormat;
 use crate::logical::operator::LogicalOperator;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExplainChars {
+    item_left_border: char,
+    item_left_border_last: char,
+}
+
+const DEFAULT_EXPLAIN_CHARS: ExplainChars = ExplainChars {
+    item_left_border: '├',
+    item_left_border_last: '└',
+};
+
 /// Formats explain output for various plan stages.
 #[derive(Debug)]
 pub struct ExplainFormatter<'a> {
@@ -53,8 +64,25 @@ impl<'a> ExplainFormatter<'a> {
             ExplainFormat::Text => {
                 fn fmt(node: &ExplainNode, indent: usize, buf: &mut String) -> Result<()> {
                     use std::fmt::Write as _;
-                    writeln!(buf, "{}{}", " ".repeat(indent), node.entry)
-                        .context("failed to write to explain buffer")?;
+
+                    writeln!(buf, "{}{}", " ".repeat(indent), node.entry.name)?;
+
+                    for (idx, (item_name, item)) in node.entry.items.iter().enumerate() {
+                        let border = if idx == node.entry.items.len() - 1 {
+                            DEFAULT_EXPLAIN_CHARS.item_left_border_last
+                        } else {
+                            DEFAULT_EXPLAIN_CHARS.item_left_border
+                        };
+
+                        writeln!(
+                            buf,
+                            "{}  {} {}: {}",
+                            " ".repeat(indent),
+                            border,
+                            item_name,
+                            item
+                        )?;
+                    }
 
                     for child in &node.children {
                         fmt(child, indent + 2, buf)?;

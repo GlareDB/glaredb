@@ -8,40 +8,40 @@ CREATE TEMP VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/d
 CREATE TEMP VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/part.parquet';
 
 SELECT
-    o_year,
-    sum(
-        CASE WHEN nation = 'BRAZIL' THEN
-            volume
-        ELSE
-            0
-        END) / sum(volume) AS mkt_share
+    supp_nation,
+    cust_nation,
+    l_year,
+    sum(volume) AS revenue
 FROM (
     SELECT
-        extract(year FROM o_orderdate) AS o_year,
-        l_extendedprice * (1 - l_discount) AS volume,
-        n2.n_name AS nation
+        n1.n_name AS supp_nation,
+        n2.n_name AS cust_nation,
+        extract(year FROM l_shipdate) AS l_year,
+        l_extendedprice * (1 - l_discount) AS volume
     FROM
-       part,
-       supplier,
-       lineitem,
-       orders,
-       customer,
-       nation n1,
-       nation n2,
-       region
+        supplier,
+        lineitem,
+        orders,
+        customer,
+        nation n1,
+        nation n2
     WHERE
-        p_partkey = l_partkey
-        AND s_suppkey = l_suppkey
-        AND l_orderkey = o_orderkey
-        AND o_custkey = c_custkey
-        AND c_nationkey = n1.n_nationkey
-        AND n1.n_regionkey = r_regionkey
-        AND r_name = 'AMERICA'
-        AND s_nationkey = n2.n_nationkey
-        AND o_orderdate BETWEEN CAST('1995-01-01' AS date)
-        AND CAST('1996-12-31' AS date)
-        AND p_type = 'ECONOMY ANODIZED STEEL') AS all_nations
+        s_suppkey = l_suppkey
+        AND o_orderkey = l_orderkey
+        AND c_custkey = o_custkey
+        AND s_nationkey = n1.n_nationkey
+        AND c_nationkey = n2.n_nationkey
+        AND ((n1.n_name = 'FRANCE'
+                AND n2.n_name = 'GERMANY')
+            OR (n1.n_name = 'GERMANY'
+                AND n2.n_name = 'FRANCE'))
+        AND l_shipdate BETWEEN CAST('1995-01-01' AS date)
+        AND CAST('1996-12-31' AS date)) AS shipping
 GROUP BY
-    o_year
+    supp_nation,
+    cust_nation,
+    l_year
 ORDER BY
-    o_year;
+    supp_nation,
+    cust_nation,
+    l_year;

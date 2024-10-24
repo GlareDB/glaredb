@@ -1,9 +1,11 @@
 pub mod condition_extractor;
 pub mod extracted_filter;
+pub mod generator;
 pub mod split;
 
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
 use extracted_filter::ExtractedFilter;
+use generator::FilterGenerator;
 use rayexec_error::{RayexecError, Result};
 use split::split_conjunction;
 
@@ -26,9 +28,12 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
 
+// TODO: ExtractedFilter seems to not be entirely worth it here. There's
+// frequent convert to/from it.
+
 #[derive(Debug, Default)]
 pub struct FilterPushdown {
-    filters: Vec<ExtractedFilter>,
+    filter_gen: FilterGenerator,
 }
 
 impl OptimizeRule for FilterPushdown {
@@ -60,13 +65,23 @@ impl OptimizeRule for FilterPushdown {
 }
 
 impl FilterPushdown {
-    /// Adds an expression as a filter that we'll be pushing down.
-    fn add_filter(&mut self, expr: Expression) {
+    /// Adds expressions as a filter that we'll be pushing down.
+    fn add_filters(&mut self, exprs: impl IntoIterator<Item = Expression>) {
         let mut split = Vec::new();
-        split_conjunction(expr, &mut split);
+        for expr in exprs {
+            split_conjunction(expr, &mut split);
+        }
 
-        self.filters
-            .extend(split.into_iter().map(ExtractedFilter::from_expr))
+        for expr in split {
+            self.filter_gen.add_expression(expr);
+        }
+    }
+
+    fn drain_filters(&mut self) -> impl Iterator<Item = ExtractedFilter> {
+        let gen = std::mem::take(&mut self.filter_gen);
+        gen.into_expressions()
+            .into_iter()
+            .map(ExtractedFilter::from_expr)
     }
 
     /// Stops the push down for this set of filters, and wraps the plan in a new
@@ -85,12 +100,12 @@ impl FilterPushdown {
             pushdown.optimize(bind_context, child)
         })?;
 
-        if self.filters.is_empty() {
+        if self.filter_gen.is_empty() {
             // No remaining filters.
             return Ok(plan);
         }
 
-        let filter = expr::and(self.filters.drain(..).map(|ex| ex.filter))
+        let filter = expr::and(self.drain_filters().map(|ex| ex.filter))
             .expect("expression to be created from non-empty iter");
 
         Ok(LogicalOperator::Filter(Node {
@@ -142,7 +157,7 @@ impl FilterPushdown {
 
         // Drain current filters to replace column references with concrete
         // expressions from the project.
-        for filter in self.filters.drain(..) {
+        for filter in self.drain_filters() {
             let mut expr = filter.filter;
             replace_references(
                 &plan.node.projections,
@@ -150,8 +165,7 @@ impl FilterPushdown {
                 &mut expr,
             )?;
 
-            let filter = ExtractedFilter::from_expr(expr);
-            child_pushdown.filters.push(filter);
+            child_pushdown.add_filters([expr]);
         }
 
         let mut new_children = Vec::with_capacity(plan.children.len());
@@ -179,9 +193,9 @@ impl FilterPushdown {
         //
         // This can only push down filters that refernence columns in the group
         // by.
-        for filter in self.filters.drain(..) {
+        for filter in self.drain_filters() {
             // Cannot pushdown filter referencing aggregate output.
-            if filter.tables_refs.contains(&plan.node.aggregates_table) {
+            if filter.table_refs.contains(&plan.node.aggregates_table) {
                 remaining_filters.push(filter);
                 continue;
             }
@@ -225,11 +239,11 @@ impl FilterPushdown {
             let mut expr = filter.filter;
             replace_references(&plan.node.group_exprs, group_table, &mut expr)?;
 
-            child_pushdown.add_filter(expr);
+            child_pushdown.add_filters([expr]);
         }
 
         // Replace any filters that we can't push down.
-        self.filters = remaining_filters;
+        self.add_filters(remaining_filters.into_iter().map(|f| f.filter));
 
         // Push down child.
         plan.modify_replace_children(&mut |child| child_pushdown.optimize(bind_context, child))?;
@@ -274,7 +288,7 @@ impl FilterPushdown {
         mut plan: Node<LogicalFilter>,
     ) -> Result<LogicalOperator> {
         let child = plan.take_one_child_exact()?;
-        self.add_filter(plan.node.filter);
+        self.add_filters([plan.node.filter]);
         self.optimize(bind_context, child)
     }
 
@@ -286,7 +300,7 @@ impl FilterPushdown {
         match plan.node.join_type {
             JoinType::Inner => {
                 // Convert to cross join, push down on cross join.
-                self.add_filter(plan.node.condition);
+                self.add_filters([plan.node.condition]);
 
                 let plan = Node {
                     node: LogicalCrossJoin,
@@ -357,9 +371,9 @@ impl FilterPushdown {
 
                 let mut remaining_filters = Vec::new();
 
-                for filter in self.filters.drain(..) {
+                for filter in self.drain_filters() {
                     let side = ExprJoinSide::try_from_table_refs(
-                        &filter.tables_refs,
+                        &filter.table_refs,
                         &left_tables,
                         &right_tables,
                     )?;
@@ -367,12 +381,12 @@ impl FilterPushdown {
                     match side {
                         ExprJoinSide::Left => {
                             // Filter should be pushed to materialization.
-                            left_pushdown.filters.push(filter);
+                            left_pushdown.add_filters([filter.filter]);
                         }
                         _ => remaining_filters.push(filter),
                     }
                 }
-                self.filters = remaining_filters;
+                self.add_filters(remaining_filters.into_iter().map(|f| f.filter));
 
                 match &left {
                     LogicalOperator::MaterializationScan(scan) => {
@@ -440,7 +454,7 @@ impl FilterPushdown {
                 // Convert to cross join, push down on cross join.
                 for cond in plan.node.conditions {
                     let expr = cond.into_expression();
-                    self.add_filter(expr);
+                    self.add_filters([expr]);
                 }
 
                 let plan = Node {
@@ -465,16 +479,16 @@ impl FilterPushdown {
                 };
 
                 let mut remaining_filters = Vec::new();
-                for filter in self.filters.drain(..) {
+                for filter in self.drain_filters() {
                     let side = ExprJoinSide::try_from_table_refs(
-                        &filter.tables_refs,
+                        &filter.table_refs,
                         &left_tables,
                         &right_tables,
                     )?;
 
                     // Can only push filters to left side.
                     if side == ExprJoinSide::Left {
-                        left_pushdown.filters.push(filter);
+                        left_pushdown.add_filters([filter.filter]);
                         continue;
                     }
 
@@ -482,7 +496,7 @@ impl FilterPushdown {
                 }
 
                 // Put back remaining filters.
-                self.filters = remaining_filters;
+                self.add_filters(remaining_filters.into_iter().map(|f| f.filter));
 
                 // Left/right pushdown.
                 left = left_pushdown.optimize(bind_context, left)?;
@@ -507,7 +521,7 @@ impl FilterPushdown {
         bind_context: &mut BindContext,
         mut plan: Node<LogicalCrossJoin>,
     ) -> Result<LogicalOperator> {
-        if self.filters.is_empty() {
+        if self.filter_gen.is_empty() {
             // Nothing to possible join on.
             return Ok(LogicalOperator::CrossJoin(plan));
         }
@@ -524,21 +538,18 @@ impl FilterPushdown {
 
         // Figure out which expressions we can push further down vs which are
         // part of the join expression.
-        for filter in self.filters.drain(..) {
-            let side = ExprJoinSide::try_from_table_refs(
-                &filter.tables_refs,
-                &left_tables,
-                &right_tables,
-            )?;
+        for filter in self.drain_filters() {
+            let side =
+                ExprJoinSide::try_from_table_refs(&filter.table_refs, &left_tables, &right_tables)?;
 
             match side {
                 ExprJoinSide::Left => {
                     // Filter only depends on left input.
-                    left_pushdown.filters.push(filter);
+                    left_pushdown.add_filters([filter.filter]);
                 }
                 ExprJoinSide::Right => {
                     // Filter only depends on right input.
-                    right_pushdown.filters.push(filter);
+                    right_pushdown.add_filters([filter.filter]);
                 }
                 ExprJoinSide::Both | ExprJoinSide::None => {
                     // Filter is join condition.

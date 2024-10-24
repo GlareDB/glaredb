@@ -17,7 +17,7 @@ impl SelectExecutor {
         let selection = bool_array.selection_vector();
         let len = bool_array.logical_len();
 
-        match &bool_array.validity {
+        match bool_array.validity() {
             Some(validity) => {
                 let values = PhysicalBool::get_storage(&bool_array.data)?;
 
@@ -82,7 +82,7 @@ mod tests {
     fn select_with_selection() {
         let mut arr = Array::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
         // => [NULL, false, true]
-        arr.select_mut(&SelectionVector::from_iter([2, 3, 4]).into());
+        arr.select_mut(SelectionVector::from_iter([2, 3, 4]));
 
         let mut selection = SelectionVector::with_capacity(3);
         SelectExecutor::select(&arr, &mut selection).unwrap();

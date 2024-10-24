@@ -80,7 +80,7 @@ where
     {
         let selection = array.selection_vector();
 
-        match &array.validity {
+        match array.validity() {
             Some(validity) => {
                 let values = S::get_storage(&array.data)?;
 
@@ -113,7 +113,7 @@ where
         let validity = if self.validity.is_all_true() {
             None
         } else {
-            Some(self.validity)
+            Some(self.validity.into())
         };
 
         Array {

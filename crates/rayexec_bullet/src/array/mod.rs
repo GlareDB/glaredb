@@ -1,7 +1,10 @@
+mod shared_or_owned;
+
 use std::fmt::Debug;
 use std::sync::Arc;
 
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use shared_or_owned::SharedOrOwned;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
@@ -42,6 +45,12 @@ use crate::storage::{
     UntypedNullStorage,
 };
 
+/// Validity mask for physical storage.
+pub type PhysicalValidity = SharedOrOwned<Bitmap>;
+
+/// Logical row selection.
+pub type LogicalSelection = SharedOrOwned<SelectionVector>;
+
 /// Wrapper around a selection vector allowing for owned or shared vectors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Selection {
@@ -79,12 +88,12 @@ pub struct Array {
     /// If set, this provides logical row mapping on top of the underlying data.
     /// If not set, then there's a one-to-one mapping between the logical row
     /// and and row in the underlying data.
-    pub(crate) selection: Option<Selection>,
+    pub(crate) selection: Option<LogicalSelection>,
     /// Option validity mask.
     ///
     /// This indicates the validity of the underlying data. This does not take
     /// into account the selection vector, and always maps directly to the data.
-    pub(crate) validity: Option<Bitmap>,
+    pub(crate) validity: Option<PhysicalValidity>,
     /// The physical data.
     pub(crate) data: ArrayData,
 }
@@ -102,7 +111,7 @@ impl Array {
         Array {
             datatype: DataType::Null,
             selection: Some(selection.into()),
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data: data.into(),
         }
     }
@@ -118,7 +127,7 @@ impl Array {
         Ok(Array {
             datatype,
             selection: Some(selection.into()),
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data,
         })
     }
@@ -134,27 +143,27 @@ impl Array {
 
     pub fn new_with_validity_and_array_data(
         datatype: DataType,
-        validity: Bitmap,
+        validity: impl Into<PhysicalValidity>,
         data: impl Into<ArrayData>,
     ) -> Self {
         Array {
             datatype,
             selection: None,
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data: data.into(),
         }
     }
 
     pub fn new_with_validity_selection_and_array_data(
         datatype: DataType,
-        validity: Bitmap,
-        selection: impl Into<Selection>,
+        validity: impl Into<PhysicalValidity>,
+        selection: impl Into<LogicalSelection>,
         data: impl Into<ArrayData>,
     ) -> Self {
         Array {
             datatype,
             selection: Some(selection.into()),
-            validity: Some(validity),
+            validity: Some(validity.into()),
             data: data.into(),
         }
     }
@@ -174,20 +183,23 @@ impl Array {
     /// Sets the validity for a value at a given physical index.
     pub fn set_physical_validity(&mut self, idx: usize, valid: bool) {
         match &mut self.validity {
-            Some(validity) => validity.set_unchecked(idx, valid),
+            Some(validity) => {
+                let validity = validity.get_mut();
+                validity.set_unchecked(idx, valid);
+            }
             None => {
                 // Initialize validity.
                 let len = self.data.len();
                 let mut validity = Bitmap::new_with_all_true(len);
                 validity.set_unchecked(idx, valid);
 
-                self.validity = Some(validity)
+                self.validity = Some(validity.into())
             }
         }
     }
 
     // TODO: Validating variant too.
-    pub fn put_selection(&mut self, selection: impl Into<Selection>) {
+    pub fn put_selection(&mut self, selection: impl Into<LogicalSelection>) {
         self.selection = Some(selection.into())
     }
 
@@ -195,7 +207,8 @@ impl Array {
     ///
     /// Takes into account any existing selection. This allows for repeated
     /// selection (filtering) against the same array.
-    pub fn select_mut(&mut self, selection: &Selection) {
+    pub fn select_mut(&mut self, selection: impl Into<LogicalSelection>) {
+        let selection = selection.into();
         match self.selection_vector() {
             Some(existing) => {
                 // Existing selection, need to create a new vector that selects
@@ -212,7 +225,7 @@ impl Array {
             None => {
                 // No existing selection, we can just use the provided vector
                 // directly.
-                self.selection = Some(selection.clone())
+                self.selection = Some(selection)
             }
         }
     }
@@ -225,7 +238,7 @@ impl Array {
     }
 
     pub fn validity(&self) -> Option<&Bitmap> {
-        self.validity.as_ref()
+        self.validity.as_ref().map(|v| v.as_ref())
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
@@ -239,7 +252,7 @@ impl Array {
         };
 
         if let Some(validity) = &self.validity {
-            return Some(validity.value_unchecked(idx));
+            return Some(validity.as_ref().value_unchecked(idx));
         }
 
         Some(true)
@@ -275,7 +288,7 @@ impl Array {
         };
 
         if let Some(validity) = &self.validity {
-            if !validity.value_unchecked(idx) {
+            if !validity.as_ref().value_unchecked(idx) {
                 return Ok(ScalarValue::Null);
             }
         }
@@ -775,7 +788,7 @@ where
         }
 
         let mut array = Array::from_iter(new_vals);
-        array.validity = Some(validity);
+        array.validity = Some(validity.into());
 
         array
     }
@@ -1053,7 +1066,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::with_range(0..3);
 
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
@@ -1065,7 +1078,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 2]);
 
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
@@ -1077,7 +1090,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 1, 1, 2]);
 
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
@@ -1092,10 +1105,10 @@ mod tests {
         let selection = SelectionVector::from_iter([0, 2]);
 
         // => ["a", "c"]
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         let selection = SelectionVector::from_iter([1, 1, 0]);
-        arr.select_mut(&selection.into());
+        arr.select_mut(selection);
 
         assert_eq!(ScalarValue::from("c"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());

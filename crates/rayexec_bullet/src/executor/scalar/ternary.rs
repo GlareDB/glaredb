@@ -80,7 +80,7 @@ impl TernaryExecutor {
                 }
             }
 
-            out_validity = Some(out_validity_builder)
+            out_validity = Some(out_validity_builder.into())
         } else {
             let values1 = S1::get_storage(&array1.data)?;
             let values2 = S2::get_storage(&array2.data)?;

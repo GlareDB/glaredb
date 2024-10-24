@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 use hashbrown::raw::RawTable;
 use rayexec_bullet::batch::Batch;
@@ -221,10 +222,10 @@ impl GlobalHashTable {
 
             // Get the left columns for this batch.
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");
-            let left_cols = left_batch.select(left_row_sel).into_arrays();
+            let left_cols = left_batch.select(Arc::new(left_row_sel)).into_arrays();
 
             // Get the right.
-            let right_cols = right.select(right_row_sel).into_arrays();
+            let right_cols = right.select(Arc::new(right_row_sel)).into_arrays();
 
             // Create final batch.
             let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;

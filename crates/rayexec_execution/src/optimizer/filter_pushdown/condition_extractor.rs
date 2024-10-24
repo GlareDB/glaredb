@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+use std::fmt::Debug;
+
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::expr::comparison_expr::ComparisonExpr;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 use crate::logical::logical_join::{ComparisonCondition, JoinType};
@@ -24,6 +27,23 @@ pub struct ExtractedConditions {
     pub right_filter: Vec<Expression>,
 }
 
+/// Abstraction over either a vec or hash set that contains `TableRef`s.
+pub trait TableRefContainer: Debug {
+    fn contains_ref(&self, table_ref: &TableRef) -> bool;
+}
+
+impl TableRefContainer for Vec<TableRef> {
+    fn contains_ref(&self, table_ref: &TableRef) -> bool {
+        self.contains(table_ref)
+    }
+}
+
+impl TableRefContainer for HashSet<TableRef> {
+    fn contains_ref(&self, table_ref: &TableRef) -> bool {
+        self.contains(table_ref)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExprJoinSide {
     Left,
@@ -45,11 +65,15 @@ impl ExprJoinSide {
         }
     }
 
-    pub fn try_from_table_refs<'a>(
+    pub fn try_from_table_refs<'a, C1, C2>(
         refs: impl IntoIterator<Item = &'a TableRef>,
-        left_tables: &[TableRef],
-        right_tables: &[TableRef],
-    ) -> Result<ExprJoinSide> {
+        left_tables: &C1,
+        right_tables: &C2,
+    ) -> Result<ExprJoinSide>
+    where
+        C1: TableRefContainer,
+        C2: TableRefContainer,
+    {
         let mut side = ExprJoinSide::None;
         for table_ref in refs {
             side = side.combine(Self::try_from_table_ref(
@@ -66,17 +90,25 @@ impl ExprJoinSide {
     ///
     /// Errors if the expression is referencing a column that isn't in any of
     /// the table refs provided.
-    pub fn try_from_expr(
+    pub fn try_from_expr<C1, C2>(
         expr: &Expression,
-        left_tables: &[TableRef],
-        right_tables: &[TableRef],
-    ) -> Result<ExprJoinSide> {
-        fn inner(
+        left_tables: &C1,
+        right_tables: &C2,
+    ) -> Result<ExprJoinSide>
+    where
+        C1: TableRefContainer,
+        C2: TableRefContainer,
+    {
+        fn inner<C1, C2>(
             expr: &Expression,
-            left_tables: &[TableRef],
-            right_tables: &[TableRef],
+            left_tables: &C1,
+            right_tables: &C2,
             side: ExprJoinSide,
-        ) -> Result<ExprJoinSide> {
+        ) -> Result<ExprJoinSide>
+        where
+            C1: TableRefContainer,
+            C2: TableRefContainer,
+        {
             match expr {
                 Expression::Column(col) => {
                     ExprJoinSide::try_from_table_ref(col.table_scope, left_tables, right_tables)
@@ -97,14 +129,18 @@ impl ExprJoinSide {
         inner(expr, left_tables, right_tables, ExprJoinSide::None)
     }
 
-    fn try_from_table_ref(
+    fn try_from_table_ref<C1, C2>(
         table_ref: TableRef,
-        left_tables: &[TableRef],
-        right_tables: &[TableRef],
-    ) -> Result<ExprJoinSide> {
-        if left_tables.contains(&table_ref) {
+        left_tables: &C1,
+        right_tables: &C2,
+    ) -> Result<ExprJoinSide>
+    where
+        C1: TableRefContainer,
+        C2: TableRefContainer,
+    {
+        if left_tables.contains_ref(&table_ref) {
             Ok(ExprJoinSide::Left)
-        } else if right_tables.contains(&table_ref) {
+        } else if right_tables.contains_ref(&table_ref) {
             Ok(ExprJoinSide::Right)
         } else {
             Err(RayexecError::new(format!(
@@ -115,18 +151,18 @@ impl ExprJoinSide {
 }
 
 #[derive(Debug)]
-pub struct JoinConditionExtractor<'a> {
-    pub left_tables: &'a [TableRef],
-    pub right_tables: &'a [TableRef],
+pub struct JoinConditionExtractor<'a, C1, C2> {
+    pub left_tables: &'a C1,
+    pub right_tables: &'a C2,
     pub join_type: JoinType,
 }
 
-impl<'a> JoinConditionExtractor<'a> {
-    pub fn new(
-        left_tables: &'a [TableRef],
-        right_tables: &'a [TableRef],
-        join_type: JoinType,
-    ) -> Self {
+impl<'a, C1, C2> JoinConditionExtractor<'a, C1, C2>
+where
+    C1: TableRefContainer,
+    C2: TableRefContainer,
+{
+    pub fn new(left_tables: &'a C1, right_tables: &'a C2, join_type: JoinType) -> Self {
         JoinConditionExtractor {
             left_tables,
             right_tables,
@@ -187,6 +223,8 @@ impl<'a> JoinConditionExtractor<'a> {
                                 extracted.comparisons.push(condition);
                                 continue;
                             }
+
+                            // TODO: Do we need to push to arbitrary here?
                         }
                         other => {
                             extracted.arbitrary.push(other);
@@ -194,7 +232,7 @@ impl<'a> JoinConditionExtractor<'a> {
                     }
                 }
                 ExprJoinSide::Right => {
-                    if self.join_type == JoinType::Left {
+                    if matches!(self.join_type, JoinType::Left | JoinType::Inner) {
                         // Filter right input into LEFT join.
                         extracted.right_filter.push(expr);
                     } else {
@@ -202,7 +240,7 @@ impl<'a> JoinConditionExtractor<'a> {
                     }
                 }
                 ExprJoinSide::Left => {
-                    if self.join_type == JoinType::Right {
+                    if matches!(self.join_type, JoinType::Right | JoinType::Inner) {
                         // Filter left input into RIGHT join.
                         extracted.left_filter.push(expr);
                     } else {
@@ -216,5 +254,32 @@ impl<'a> JoinConditionExtractor<'a> {
         }
 
         Ok(extracted)
+    }
+
+    /// Try to get a comparison operator from an expression, treating the
+    /// expression as a join condition between left and right.
+    ///
+    /// Assumes that the expression has already been split on conjunctions.
+    ///
+    /// Returns None if the expression is not a comparison between left and
+    /// right.
+    pub fn try_get_comparison_operator(
+        &self,
+        expr: &Expression,
+    ) -> Result<Option<ComparisonOperator>> {
+        if let Expression::Comparison(ComparisonExpr { left, right, op }) = expr {
+            let left_side = ExprJoinSide::try_from_expr(left, self.left_tables, self.right_tables)?;
+            let right_side =
+                ExprJoinSide::try_from_expr(right, self.left_tables, self.right_tables)?;
+
+            if left_side != ExprJoinSide::Both
+                && right_side != ExprJoinSide::Both
+                && left_side != right_side
+            {
+                return Ok(Some(*op));
+            }
+        }
+
+        Ok(None)
     }
 }

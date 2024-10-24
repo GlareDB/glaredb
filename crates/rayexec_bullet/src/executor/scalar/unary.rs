@@ -32,7 +32,7 @@ impl UnaryExecutor {
             buffer: builder.buffer,
         };
 
-        match &array.validity {
+        match array.validity() {
             Some(validity) => {
                 let values = S::get_storage(&array.data)?;
                 let mut out_validity_builder = Bitmap::new_with_all_true(len);
@@ -50,7 +50,7 @@ impl UnaryExecutor {
                     op(val, &mut output_buffer);
                 }
 
-                out_validity = Some(out_validity_builder)
+                out_validity = Some(out_validity_builder.into())
             }
             None => {
                 let values = S::get_storage(&array.data)?;
@@ -87,7 +87,7 @@ impl UnaryExecutor {
         let selection = array.selection_vector();
         let len = array.logical_len();
 
-        match &array.validity {
+        match array.validity() {
             Some(validity) => {
                 let values = S::get_storage(&array.data)?;
 
@@ -127,7 +127,7 @@ impl UnaryExecutor {
     {
         let selection = array.selection_vector();
 
-        match &array.validity {
+        match array.validity() {
             Some(validity) => {
                 let values = S::get_storage(&array.data)?;
 
@@ -277,7 +277,7 @@ mod tests {
         selection.set_unchecked(2, 3);
         selection.set_unchecked(3, 1);
         selection.set_unchecked(4, 2);
-        array.select_mut(&selection.into());
+        array.select_mut(selection);
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,

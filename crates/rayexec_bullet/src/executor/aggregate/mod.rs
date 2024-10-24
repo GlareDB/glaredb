@@ -90,7 +90,7 @@ impl StateFinalizer {
         let validities = if validities.is_all_true() {
             None
         } else {
-            Some(validities)
+            Some(validities.into())
         };
 
         Ok(Array {

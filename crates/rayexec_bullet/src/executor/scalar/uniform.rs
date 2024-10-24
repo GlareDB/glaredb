@@ -73,7 +73,7 @@ impl UniformExecutor {
                 op(op_inputs.as_slice(), &mut output_buffer);
             }
 
-            out_validity = Some(out_validity_builder);
+            out_validity = Some(out_validity_builder.into());
         } else {
             let storage_values: Vec<_> = arrays
                 .iter()
@@ -184,7 +184,7 @@ mod tests {
     fn uniform_string_concat_row_wise_with_invalid_and_reordered() {
         let first = Array::from_iter(["a", "b", "c"]);
         let mut second = Array::from_iter(["1", "2", "3"]);
-        second.select_mut(&SelectionVector::from_iter([1, 0, 2]).into()); // ["1", "2", "3"] => ["2", "1", "3"]
+        second.select_mut(SelectionVector::from_iter([1, 0, 2])); // ["1", "2", "3"] => ["2", "1", "3"]
         second.set_physical_validity(1, false); // "2" => NULL, referencing physical index
         let third = Array::from_iter(["dog", "cat", "horse"]);
 

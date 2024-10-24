@@ -94,7 +94,7 @@ fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array
     let validity_buffer = buffers.try_next_buf()?;
     let validity = if node.null_count() > 0 {
         let bitmap = Bitmap::try_new(validity_buffer.to_vec(), len)?;
-        Some(bitmap)
+        Some(bitmap.into())
     } else {
         None
     };

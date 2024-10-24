@@ -10,6 +10,10 @@ import "physical_expr.proto";
 import "array.proto";
 import "access.proto";
 
+message Projections {
+    repeated uint32 column_indices = 1;
+}
+
 enum OnConflict {
     INVALID_ON_CONFLICT = 0;
     IGNORE              = 1;
@@ -106,7 +110,8 @@ message PhysicalValues {
 }
 
 message PhysicalTableFunction {
-    functions.PlannedTableFunction function = 1;
+    functions.PlannedTableFunction function    = 1;
+    Projections                    projections = 2;
 }
 
 message PhysicalNestedLoopJoin {

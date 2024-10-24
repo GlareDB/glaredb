@@ -2,7 +2,7 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
-use super::statistics::Statistics;
+use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -33,8 +33,8 @@ impl LogicalNode for Node<LogicalProject> {
         vec![self.node.projection_table]
     }
 
-    fn get_statistics(&self) -> Statistics {
-        self.iter_child_statistics()
+    fn cardinality(&self) -> StatisticsValue<usize> {
+        self.iter_child_cardinalities()
             .next()
             .expect("single child for project")
     }

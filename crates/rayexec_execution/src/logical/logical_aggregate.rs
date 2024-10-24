@@ -4,7 +4,7 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::TableRef;
 use super::operator::{LogicalNode, Node};
-use super::statistics::{Statistics, StatisticsCount};
+use super::statistics::{Statistics, StatisticsValue};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -78,12 +78,12 @@ impl LogicalNode for Node<LogicalAggregate> {
     fn get_statistics(&self) -> Statistics {
         if self.node.group_exprs.is_empty() {
             Statistics {
-                cardinality: StatisticsCount::Exact(1),
+                cardinality: StatisticsValue::Exact(1),
                 column_stats: None,
             }
         } else {
             Statistics {
-                cardinality: StatisticsCount::Unknown,
+                cardinality: StatisticsValue::Unknown,
                 column_stats: None,
             }
         }

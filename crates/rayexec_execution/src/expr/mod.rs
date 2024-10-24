@@ -24,7 +24,7 @@ use between_expr::BetweenExpr;
 use case_expr::CaseExpr;
 use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
-use comparison_expr::ComparisonExpr;
+use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
@@ -216,6 +216,22 @@ impl Expression {
         Ok(())
     }
 
+    /// Replace this expression using a replacement function.
+    pub fn replace_with<F>(&mut self, replace_fn: F)
+    where
+        F: FnOnce(Expression) -> Expression,
+    {
+        let expr = std::mem::replace(
+            self,
+            Expression::Literal(LiteralExpr {
+                literal: ScalarValue::Null,
+            }),
+        );
+
+        let out = replace_fn(expr);
+        *self = out;
+    }
+
     pub fn contains_subquery(&self) -> bool {
         match self {
             Self::Subquery(_) => true,
@@ -289,36 +305,6 @@ impl Expression {
         }
     }
 
-    /// Walks the expression to ensure it contains only a single logical column.
-    ///
-    /// Multiple column expressions may exist, but they must point to the same column.
-    pub fn contains_single_column(&self) -> bool {
-        fn inner(expr: &Expression, current: &mut Option<ColumnExpr>) -> bool {
-            match expr {
-                Expression::Column(col) => {
-                    if let Some(curr) = current {
-                        return curr == col;
-                    }
-                    *current = Some(*col);
-                    true
-                }
-                other => {
-                    let mut result = true;
-                    other
-                        .for_each_child(&mut |expr| {
-                            result = result && inner(expr, current);
-                            Ok(())
-                        })
-                        .expect("not to fail");
-                    result
-                }
-            }
-        }
-
-        let mut found = None;
-        inner(self, &mut found)
-    }
-
     /// Get all column references in the expression.
     pub fn get_column_references(&self) -> Vec<ColumnExpr> {
         fn inner(expr: &Expression, cols: &mut Vec<ColumnExpr>) {
@@ -379,6 +365,46 @@ pub fn add(left: Expression, right: Expression) -> Expression {
         left: Box::new(left),
         right: Box::new(right),
         op: ArithOperator::Add,
+    })
+}
+
+pub fn eq(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::Eq,
+    })
+}
+
+pub fn lt(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::Lt,
+    })
+}
+
+pub fn lt_eq(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::LtEq,
+    })
+}
+
+pub fn gt(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::Gt,
+    })
+}
+
+pub fn gt_eq(left: Expression, right: Expression) -> Expression {
+    Expression::Comparison(ComparisonExpr {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: ComparisonOperator::GtEq,
     })
 }
 

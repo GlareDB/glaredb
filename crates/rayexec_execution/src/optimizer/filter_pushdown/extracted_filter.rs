@@ -1,41 +1,34 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::TableRef;
 
 /// Holds a filtering expression and all table refs the expression references.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractedFilter {
     /// The filter expression.
     pub filter: Expression,
-    /// Tables refs this expression references.
-    pub tables_refs: HashSet<TableRef>,
+    /// Table refs this expression references.
+    pub table_refs: HashSet<TableRef>,
+    /// Columns in the filter.
+    pub columns: Vec<ColumnExpr>,
 }
 
 impl ExtractedFilter {
     pub fn from_expr(expr: Expression) -> Self {
-        fn inner(child: &Expression, refs: &mut HashSet<TableRef>) {
-            match child {
-                Expression::Column(col) => {
-                    refs.insert(col.table_scope);
-                }
-                other => other
-                    .for_each_child(&mut |child| {
-                        inner(child, refs);
-                        Ok(())
-                    })
-                    .expect("getting table refs to not fail"),
-            }
-        }
-
-        let mut refs = HashSet::new();
-        inner(&expr, &mut refs);
-
+        let table_refs = expr.get_table_references();
+        let columns = expr.get_column_references();
         ExtractedFilter {
             filter: expr,
-            tables_refs: refs,
+            table_refs,
+            columns,
         }
+    }
+
+    pub fn into_expression(self) -> Expression {
+        self.filter
     }
 }
 
