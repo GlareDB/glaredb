@@ -5,6 +5,7 @@ import pathlib
 import pandas as pd
 import time
 import os
+import matplotlib.pyplot as plt
 
 # TPC-H scale factor.
 sf = 10
@@ -349,8 +350,8 @@ def execute_rayexec(conn, dump_profile=False):
 def execute_datafusion(ctx):
     df = pd.DataFrame(columns=["dur", "query"])
     for query_id, query in sorted(queries.items()):
-        start = time.time()
         print("Query " + str(query_id))
+        start = time.time()
         try:
             print(ctx.sql(query))
             stop = time.time()
@@ -374,8 +375,8 @@ def execute_datafusion(ctx):
 def execute_duckdb(conn):
     df = pd.DataFrame(columns=["dur", "query"])
     for query_id, query in sorted(queries.items()):
-        start = time.time()
         print("Query " + str(query_id))
+        start = time.time()
         try:
             print(conn.sql(query))
             stop = time.time()
@@ -413,10 +414,37 @@ datafusion_times = execute_datafusion(datafusion_ctx)
 duckdb_times = execute_duckdb(duckdb_conn)
 duckdb_conn.close()
 
-
 print("RAYEXEC")
 print(rayexec_times)
 print("DATAFUSION")
 print(datafusion_times)
 print("DUCKDB")
 print(duckdb_times)
+
+# rayexec_times.insert(0, "system", "rayexec (dev)")
+# datafusion_times.insert(0, "system", "datafusion 41.0.0")
+# duckdb_times.insert(0, "system", "duckdb 1.1.1")
+
+# # Combine the dataframes into a single dataframe
+# all_times = pd.concat([rayexec_times, datafusion_times, duckdb_times], axis=0)
+
+# # Pivot the datafram
+# pivot_df = all_times.pivot(index="query", columns="system", values="dur")
+
+# # Plot the pivoted DataFrame
+# ax = pivot_df.plot(
+#     kind="bar", rot=0, ylabel="Duration in Seconds (Lower is Better)", figsize=(18, 5)
+# )
+
+# from psutil import *
+
+# vCPU = str(cpu_count()) + " vCPU"
+# mem = round(virtual_memory().total / (1024 * 1024 * 1024), 0)
+# runtime = "TPC-H SF=" + str(sf) + " Macbook Air M2 " + vCPU + " " + str(mem) + "GB"
+
+# # Customize the plot
+# plt.title(runtime)
+# plt.tight_layout()
+
+# # Save the figure
+# plt.savefig("times.png", dpi=300)

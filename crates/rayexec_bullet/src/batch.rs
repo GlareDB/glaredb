@@ -13,6 +13,7 @@ use crate::executor::builder::{
     PrimitiveBuffer,
 };
 use crate::executor::physical_type::PhysicalType;
+use crate::executor::scalar::concat_with_exact_total_len;
 use crate::row::ScalarRow;
 use crate::scalar::interval::Interval;
 use crate::scalar::ScalarValue;
@@ -42,6 +43,50 @@ impl Batch {
             cols: Vec::new(),
             num_rows,
         }
+    }
+
+    /// Concat multiple batches into one.
+    ///
+    /// Batches are requried to have the same logical schemas.
+    pub fn concat(batches: &[Batch]) -> Result<Self> {
+        let num_cols = match batches.first() {
+            Some(batch) => batch.num_columns(),
+            None => return Err(RayexecError::new("Cannot concat zero batches")),
+        };
+
+        for batch in batches {
+            if batch.num_columns() != num_cols {
+                return Err(RayexecError::new(format!(
+                    "Cannot concat batches with different number of columns, got {} and {}",
+                    num_cols,
+                    batch.num_columns()
+                )));
+            }
+        }
+
+        let num_rows: usize = batches.iter().map(|b| b.num_rows).sum();
+
+        // Special case for zero col batches. The true number of rows wouldn't
+        // be reflected if we just attempted to concat no array.
+        if num_cols == 0 {
+            return Ok(Batch::empty_with_num_rows(num_rows));
+        }
+
+        let mut output_cols = Vec::with_capacity(num_cols);
+
+        let mut working_arrays = Vec::with_capacity(batches.len());
+        for col_idx in 0..num_cols {
+            batches
+                .iter()
+                .for_each(|b| working_arrays.push(b.column(col_idx).unwrap()));
+
+            let out = concat_with_exact_total_len(&working_arrays, num_rows)?;
+            output_cols.push(out);
+
+            working_arrays.clear();
+        }
+
+        Batch::try_new(output_cols)
     }
 
     /// Create a new batch from some number of arrays.

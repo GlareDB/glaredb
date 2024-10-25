@@ -127,10 +127,6 @@ where
         })
     }
 
-    pub fn num_inputs(&self) -> usize {
-        self.row_reference_iters.len()
-    }
-
     /// Push a batch and iterator for an input.
     pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, mut iter: I) -> Result<()> {
         assert!(self.needs_input);

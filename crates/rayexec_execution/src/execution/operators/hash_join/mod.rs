@@ -16,6 +16,7 @@ use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
+use super::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
 use super::{
     ComputedBatches,
     ExecutableOperator,
@@ -33,6 +34,9 @@ use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {
+    /// Holds pending inputs to ensure we're building the hash table on
+    /// appropriate sized batches.
+    resizer: BatchResizer,
     /// Hash table this partition will be writing to.
     ///
     /// Optional to enable moving from the local to global state once this
@@ -187,6 +191,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         let build_states: Vec<_> = (0..build_partitions)
             .map(|_| {
                 PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
+                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                     local_hashtable: Some(PartitionHashTable::new(&self.conditions)),
                     hash_buf: Vec::new(),
                 })
@@ -227,19 +232,8 @@ impl ExecutableOperator for PhysicalHashJoin {
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                // Compute left hashes on equality condition.
-                let result = self.equality.left.eval(&batch)?;
-                state.hash_buf.clear();
-                state.hash_buf.resize(result.logical_len(), 0);
-                let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
-
-                state
-                    .local_hashtable
-                    .as_mut()
-                    .required("partition hash table")?
-                    .insert_batch(batch, hashes)?;
-
-                Ok(PollPush::Pushed)
+                self.push_build_side_batch(state, batch)?;
+                Ok(PollPush::NeedsMore)
             }
             PartitionState::HashJoinProbe(state) => {
                 // If we have pending output, we need to wait for that to get
@@ -327,13 +321,16 @@ impl ExecutableOperator for PhysicalHashJoin {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        let mut shared = match operator_state {
-            OperatorState::HashJoin(state) => state.inner.lock(),
-            other => panic!("invalid operator state: {other:?}"),
-        };
-
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
+                // Flush any remaining buffered batches.
+                self.flush_build_side_batches(state)?;
+
+                let mut shared = match operator_state {
+                    OperatorState::HashJoin(state) => state.inner.lock(),
+                    other => panic!("invalid operator state: {other:?}"),
+                };
+
                 // Move local table into global state.
                 match state.local_hashtable.take() {
                     Some(table) => shared.completed_hash_tables.push(table),
@@ -390,6 +387,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                 Ok(PollFinalize::Finalized)
             }
             PartitionState::HashJoinProbe(state) => {
+                let mut shared = match operator_state {
+                    OperatorState::HashJoin(state) => state.inner.lock(),
+                    other => panic!("invalid operator state: {other:?}"),
+                };
+
                 // Ensure we've finished building the left side before
                 // continuing with the finalize.
                 //
@@ -529,6 +531,67 @@ impl ExecutableOperator for PhysicalHashJoin {
 
             Ok(PollPull::Pending)
         }
+    }
+}
+
+impl PhysicalHashJoin {
+    /// Pushes a batch for the build side.
+    ///
+    /// This may buffer the batch in the resizer if needed.
+    fn push_build_side_batch(
+        &self,
+        state: &mut HashJoinBuildPartitionState,
+        batch: Batch,
+    ) -> Result<()> {
+        match state.resizer.try_push(batch)? {
+            ComputedBatches::Single(batch) => self.insert_into_local_table(state, batch)?,
+            ComputedBatches::Multi(batches) => {
+                for batch in batches {
+                    self.insert_into_local_table(state, batch)?;
+                }
+            }
+            ComputedBatches::None => (), // Buffered batches thus far are still too small.
+        }
+
+        Ok(())
+    }
+
+    /// Flushes any batches still in the resizer into the partition-local hash
+    /// table.
+    fn flush_build_side_batches(&self, state: &mut HashJoinBuildPartitionState) -> Result<()> {
+        match state.resizer.flush_remaining()? {
+            ComputedBatches::Single(batch) => self.insert_into_local_table(state, batch)?,
+            ComputedBatches::Multi(batches) => {
+                // Technically shouldn't happen.
+                for batch in batches {
+                    self.insert_into_local_table(state, batch)?;
+                }
+            }
+            ComputedBatches::None => (), // We're good, no batches in the resizer.
+        }
+
+        Ok(())
+    }
+
+    /// Inserts a batch into a partition-local hash table.
+    fn insert_into_local_table(
+        &self,
+        state: &mut HashJoinBuildPartitionState,
+        batch: Batch,
+    ) -> Result<()> {
+        // Compute left hashes on equality condition.
+        let result = self.equality.left.eval(&batch)?;
+        state.hash_buf.clear();
+        state.hash_buf.resize(result.logical_len(), 0);
+        let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
+
+        state
+            .local_hashtable
+            .as_mut()
+            .required("partition hash table")?
+            .insert_batch(batch, hashes)?;
+
+        Ok(())
     }
 }
 
