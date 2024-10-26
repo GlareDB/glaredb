@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -22,7 +22,7 @@ impl Explainable for LogicalAttachDatabase {
 }
 
 impl LogicalNode for Node<LogicalAttachDatabase> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
 
@@ -53,7 +53,7 @@ impl Explainable for LogicalDetachDatabase {
 }
 
 impl LogicalNode for Node<LogicalDetachDatabase> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
 

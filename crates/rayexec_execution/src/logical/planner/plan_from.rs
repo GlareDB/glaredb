@@ -94,7 +94,7 @@ impl FromPlanner {
                 // parent scope, so this project lets us resolve all columns
                 // without special-casing from binding.
                 let mut projections = Vec::new();
-                for table_ref in plan.get_output_table_refs() {
+                for table_ref in plan.get_output_table_refs(bind_context) {
                     let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
@@ -144,7 +144,7 @@ impl FromPlanner {
                 // Similarly to subqueries, we add a project here to ensure all
                 // columns from the CTE an brought into the current scope.
                 let mut projections = Vec::new();
-                for table_ref in mat.plan.get_output_table_refs() {
+                for table_ref in mat.plan.get_output_table_refs(bind_context) {
                     let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
@@ -161,10 +161,7 @@ impl FromPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![LogicalOperator::MaterializationScan(Node {
-                        node: LogicalMaterializationScan {
-                            mat: mat.mat_ref,
-                            table_refs: mat.table_refs.clone(),
-                        },
+                        node: LogicalMaterializationScan { mat: mat.mat_ref },
                         location: LocationRequirement::Any,
                         children: Vec::new(),
                     })],
@@ -202,8 +199,8 @@ impl FromPlanner {
             }));
         }
 
-        let left_tables = left.get_output_table_refs();
-        let right_tables = right.get_output_table_refs();
+        let left_tables = left.get_output_table_refs(bind_context);
+        let right_tables = right.get_output_table_refs(bind_context);
 
         let extractor = JoinConditionExtractor::new(&left_tables, &right_tables, join.join_type);
 

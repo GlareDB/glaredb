@@ -1,7 +1,7 @@
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use crate::config::vars::SessionVar;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -20,7 +20,7 @@ impl Explainable for LogicalSetVar {
 }
 
 impl LogicalNode for Node<LogicalSetVar> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
 
@@ -57,7 +57,7 @@ impl Explainable for Node<LogicalResetVar> {
 }
 
 impl LogicalNode for Node<LogicalResetVar> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
 
@@ -88,7 +88,7 @@ impl Explainable for LogicalShowVar {
 }
 
 impl LogicalNode for Node<LogicalShowVar> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
 

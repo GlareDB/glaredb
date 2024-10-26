@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use super::scan_filter::ScanFilter;
 use super::statistics::{Statistics, StatisticsValue};
@@ -124,7 +124,7 @@ impl Explainable for LogicalScan {
 }
 
 impl LogicalNode for Node<LogicalScan> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }
 

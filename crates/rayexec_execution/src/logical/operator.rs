@@ -3,7 +3,7 @@ use std::fmt;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::logical_aggregate::LogicalAggregate;
 use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
 use super::logical_copy::LogicalCopyTo;
@@ -99,8 +99,13 @@ pub trait LogicalNode {
     /// If a logical operator references a table ref that isn't the output of
     /// any of its immediate children, then we messed up planning (e.g. didn't
     /// fully decorrelate).
-    // TODO: Make this take a bind context
-    fn get_output_table_refs(&self) -> Vec<TableRef>;
+    ///
+    /// This accepts a bind context for materializations as the materialized
+    /// plan (and associated output table refs) exist just in the bind context.
+    /// Since table refs may be updated through various stages of
+    /// planning/optimizing, we want to avoid caching them directly on the
+    /// operator.
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef>;
 
     /// Try to get the output cardinality of this operator.
     fn cardinality(&self) -> StatisticsValue<usize> {
@@ -203,9 +208,9 @@ impl<N> Node<N> {
     }
 
     /// Get all table refs from the immediate children of this node.
-    pub fn get_children_table_refs(&self) -> Vec<TableRef> {
+    pub fn get_children_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.children.iter().fold(Vec::new(), |mut refs, child| {
-            refs.append(&mut child.get_output_table_refs());
+            refs.append(&mut child.get_output_table_refs(bind_context));
             refs
         })
     }
@@ -434,37 +439,37 @@ impl LogicalOperator {
 }
 
 impl LogicalNode for LogicalOperator {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         match self {
             Self::Invalid => Vec::new(), // Programmer error. Maybe panic?
-            LogicalOperator::Project(n) => n.get_output_table_refs(),
-            LogicalOperator::Filter(n) => n.get_output_table_refs(),
-            LogicalOperator::Distinct(n) => n.get_output_table_refs(),
-            LogicalOperator::Scan(n) => n.get_output_table_refs(),
-            LogicalOperator::MaterializationScan(n) => n.get_output_table_refs(),
-            LogicalOperator::MagicMaterializationScan(n) => n.get_output_table_refs(),
-            LogicalOperator::Aggregate(n) => n.get_output_table_refs(),
-            LogicalOperator::SetOp(n) => n.get_output_table_refs(),
-            LogicalOperator::Empty(n) => n.get_output_table_refs(),
-            LogicalOperator::Limit(n) => n.get_output_table_refs(),
-            LogicalOperator::Order(n) => n.get_output_table_refs(),
-            LogicalOperator::SetVar(n) => n.get_output_table_refs(),
-            LogicalOperator::ResetVar(n) => n.get_output_table_refs(),
-            LogicalOperator::ShowVar(n) => n.get_output_table_refs(),
-            LogicalOperator::AttachDatabase(n) => n.get_output_table_refs(),
-            LogicalOperator::DetachDatabase(n) => n.get_output_table_refs(),
-            LogicalOperator::Drop(n) => n.get_output_table_refs(),
-            LogicalOperator::Insert(n) => n.get_output_table_refs(),
-            LogicalOperator::CreateSchema(n) => n.get_output_table_refs(),
-            LogicalOperator::CreateTable(n) => n.get_output_table_refs(),
-            LogicalOperator::CreateView(n) => n.get_output_table_refs(),
-            LogicalOperator::Describe(n) => n.get_output_table_refs(),
-            LogicalOperator::Explain(n) => n.get_output_table_refs(),
-            LogicalOperator::CopyTo(n) => n.get_output_table_refs(),
-            LogicalOperator::CrossJoin(n) => n.get_output_table_refs(),
-            LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(),
-            LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(),
-            LogicalOperator::MagicJoin(n) => n.get_output_table_refs(),
+            LogicalOperator::Project(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Filter(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Distinct(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Scan(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::MaterializationScan(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::MagicMaterializationScan(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Aggregate(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::SetOp(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Empty(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Limit(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Order(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::SetVar(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::ResetVar(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::ShowVar(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::AttachDatabase(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::DetachDatabase(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Drop(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Insert(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::CreateSchema(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::CreateTable(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::CreateView(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Describe(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Explain(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::CopyTo(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::CrossJoin(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::MagicJoin(n) => n.get_output_table_refs(bind_context),
         }
     }
 

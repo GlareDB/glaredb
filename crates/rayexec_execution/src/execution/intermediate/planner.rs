@@ -1083,7 +1083,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = project.location;
 
         let input = project.take_one_child_exact()?;
-        let input_refs = input.get_output_table_refs();
+        let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
         let projections = self
@@ -1112,7 +1112,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = filter.location;
 
         let input = filter.take_one_child_exact()?;
-        let input_refs = input.get_output_table_refs();
+        let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
         let predicate = self
@@ -1141,7 +1141,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // TODO: Actually implement <https://github.com/GlareDB/rayexec/issues/226>
 
         let input = distinct.take_one_child_exact()?;
-        let input_refs = input.get_output_table_refs();
+        let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
         // Create group expressions from the distinct.
@@ -1193,7 +1193,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = order.location;
 
         let input = order.take_one_child_exact()?;
-        let input_refs = input.get_output_table_refs();
+        let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
         let exprs = self
@@ -1291,7 +1291,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = agg.location;
 
         let input = agg.take_one_child_exact()?;
-        let input_refs = input.get_output_table_refs();
+        let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
         let mut phys_aggs = Vec::new();
@@ -1454,8 +1454,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             // Use hash join
 
             let [left, right] = join.take_two_children_exact()?;
-            let left_refs = left.get_output_table_refs();
-            let right_refs = right.get_output_table_refs();
+            let left_refs = left.get_output_table_refs(self.bind_context);
+            let right_refs = right.get_output_table_refs(self.bind_context);
 
             let mut left_types = Vec::new();
             for &table_ref in &left_refs {
@@ -1530,7 +1530,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 not_implemented!("join type with nl join: {}", join.node.join_type);
             }
 
-            let table_refs = join.get_output_table_refs();
+            let table_refs = join.get_output_table_refs(self.bind_context);
             let conditions = self
                 .expr_planner
                 .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;
@@ -1565,7 +1565,10 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let location = join.location;
         let filter = self
             .expr_planner
-            .plan_scalar(&join.get_children_table_refs(), &join.node.condition)
+            .plan_scalar(
+                &join.get_children_table_refs(self.bind_context),
+                &join.node.condition,
+            )
             .context("Failed to plan expressions arbitrary join filter")?;
 
         // Modify the filter as to match the join type.

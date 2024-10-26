@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -17,8 +17,8 @@ impl Explainable for LogicalDistinct {
 }
 
 impl LogicalNode for Node<LogicalDistinct> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
+        self.get_children_table_refs(bind_context)
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>

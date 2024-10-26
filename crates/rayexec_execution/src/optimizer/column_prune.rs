@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
@@ -28,6 +28,68 @@ impl OptimizeRule for ColumnPrune {
         let mut prune_state = PruneState::new(true);
         prune_state.walk_plan(bind_context, &mut plan)?;
         Ok(plan)
+    }
+}
+
+/// Walks the plan looking for magic scans referencing a given materializations
+/// ref, and extract materialized columns from the scan' projection.
+#[derive(Debug)]
+struct MagicScanColumnExtractor {
+    /// Only look at scans that match this reference.
+    mat: MaterializationRef,
+    /// Complete set of columns from the underlying materialized plan that the
+    /// scan is referencing.
+    columns: HashSet<ColumnExpr>,
+}
+
+impl MagicScanColumnExtractor {
+    fn walk_plan(&mut self, plan: &LogicalOperator) -> Result<()> {
+        match plan {
+            LogicalOperator::MagicMaterializationScan(scan) if scan.node.mat == self.mat => {
+                // Magic scan matches the materialization, get the underlying
+                // columns being referenced.
+                for proj in &scan.node.projections {
+                    extract_column_exprs(proj, &mut self.columns);
+                }
+            }
+            other => {
+                // Otherwise just keep looking.
+                for child in other.children() {
+                    self.walk_plan(child)?
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Walks the plan to update magic scan projections to have updated column
+/// expressions.
+#[derive(Debug)]
+struct MagicScanColumnReplacer<'a> {
+    /// Only look at scans that match this reference.
+    mat: MaterializationRef,
+    /// Updated expressions mapping original column exprs to new expressions.
+    updated: &'a HashMap<ColumnExpr, Expression>,
+}
+
+impl<'a> MagicScanColumnReplacer<'a> {
+    fn walk_plan(&self, plan: &mut LogicalOperator) -> Result<()> {
+        match plan {
+            LogicalOperator::MagicMaterializationScan(scan) if scan.node.mat == self.mat => {
+                // Magic scan matches, replace columns as necessary.
+                for proj in &mut scan.node.projections {
+                    replace_column_reference(proj, self.updated);
+                }
+            }
+            other => {
+                // Otherwise just keep looking.
+                for child in other.children_mut() {
+                    self.walk_plan(child)?
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -115,6 +177,70 @@ impl PruneState {
         // through, and which can't. The default case assumes we can't push down
         // projections.
         match plan {
+            LogicalOperator::MagicJoin(join) => {
+                // Left child is materialization, right child is normal plan
+                // with some number of magic scans.
+                //
+                // 1. Extract all column references to the materialized plan on
+                //    the right. This should get us the complete set of column
+                //    exprs that are referenced.
+                // 2. Prune columns from the materialized left child.
+                // 3. Apply any possible updated column expressions to magic
+                //    scans on the right.
+                // 4. Do normal column pruning on the right.
+
+                // Extract the columns from the right.
+                let mut extractor = MagicScanColumnExtractor {
+                    mat: join.node.mat_ref,
+                    columns: HashSet::new(),
+                };
+                extractor.walk_plan(join.get_nth_child(1)?)?;
+
+                // Combine extracted columns with currently seen columns.
+                self.current_references.extend(&extractor.columns);
+
+                // Now push down into the left child.
+                match join.get_nth_child_mut(0)? {
+                    LogicalOperator::MaterializationScan(scan) => {
+                        let mut mat_plan = bind_context
+                            .get_materialization_mut(scan.node.mat)?
+                            .plan
+                            .take();
+
+                        self.walk_plan(bind_context, &mut mat_plan)?;
+
+                        // Replace materialized plan.
+                        let table_refs = mat_plan.get_output_table_refs(bind_context);
+                        let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                        mat.table_refs = table_refs;
+                        mat.plan = mat_plan;
+                    }
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "unexpected left child for magic join: {other:?}"
+                        )))
+                    }
+                }
+
+                // Now update magic scans as projections might have been
+                // inserted/replaced in the materialized plan.
+                let replacer = MagicScanColumnReplacer {
+                    mat: join.node.mat_ref,
+                    updated: &self.updated_expressions,
+                };
+                replacer.walk_plan(join.get_nth_child_mut(1)?)?;
+
+                // Now just do normal column pruning for the right child.
+                self.walk_plan(bind_context, join.get_nth_child_mut(1)?)?;
+                self.apply_updated_expressions(join)?;
+            }
+            LogicalOperator::MagicMaterializationScan(_) => {
+                // Nothing to do. Pushdown logic should have happened in the
+                // magic join match.
+            }
+            LogicalOperator::MaterializationScan(_) => {
+                // TODO: Normal pruning, all columns implicitly referenced.
+            }
             LogicalOperator::Project(project) => {
                 // First try to flatten with child projection.
                 try_flatten_projection(project)?;
@@ -129,7 +255,7 @@ impl PruneState {
                     .collect();
 
                 // Special case for if this projection is just a pass through.
-                if !self.implicit_reference && projection_is_passthrough(project)? {
+                if !self.implicit_reference && projection_is_passthrough(project, bind_context)? {
                     // New reference set we'll pass to child.
                     let mut child_references = HashSet::new();
                     let mut old_references = HashMap::new();
@@ -360,7 +486,6 @@ impl PruneState {
                 self.apply_updated_expressions(plan)?;
             }
             LogicalOperator::CrossJoin(_)
-            | LogicalOperator::MagicJoin(_)
             | LogicalOperator::ComparisonJoin(_)
             | LogicalOperator::ArbitraryJoin(_) => {
                 // All joins good to push through.
@@ -404,8 +529,15 @@ impl PruneState {
 /// A project is passthrough if it contains only column expressions with the
 /// first expression starting at column 0 and every subsequent expression being
 /// incremented by 1 up to num_cols
-fn projection_is_passthrough(proj: &Node<LogicalProject>) -> Result<bool> {
-    let child_ref = match proj.get_one_child_exact()?.get_output_table_refs().first() {
+fn projection_is_passthrough(
+    proj: &Node<LogicalProject>,
+    bind_context: &BindContext,
+) -> Result<bool> {
+    let child_ref = match proj
+        .get_one_child_exact()?
+        .get_output_table_refs(bind_context)
+        .first()
+    {
         Some(table_ref) => *table_ref,
         None => return Ok(false),
     };

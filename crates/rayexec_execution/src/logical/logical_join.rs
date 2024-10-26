@@ -2,7 +2,7 @@ use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::binder::bind_context::{MaterializationRef, TableRef};
+use super::binder::bind_context::{BindContext, MaterializationRef, TableRef};
 use super::operator::{LogicalNode, Node};
 use super::statistics::Statistics;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
@@ -43,17 +43,17 @@ pub enum JoinType {
 
 impl JoinType {
     /// Helper for determining the output refs for a given node type.
-    fn output_refs<T>(self, node: &Node<T>) -> Vec<TableRef> {
+    fn output_refs<T>(self, node: &Node<T>, bind_context: &BindContext) -> Vec<TableRef> {
         if let JoinType::LeftMark { table_ref } = self {
             let mut refs = node
                 .children
                 .first()
-                .map(|c| c.get_output_table_refs())
+                .map(|c| c.get_output_table_refs(bind_context))
                 .unwrap_or_default();
             refs.push(table_ref);
             refs
         } else {
-            node.get_children_table_refs()
+            node.get_children_table_refs(bind_context)
         }
     }
 
@@ -190,8 +190,8 @@ impl Explainable for LogicalComparisonJoin {
 }
 
 impl LogicalNode for Node<LogicalComparisonJoin> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.node.join_type.output_refs(self)
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
+        self.node.join_type.output_refs(self, bind_context)
     }
 
     fn cardinality(&self) -> StatisticsValue<usize> {
@@ -260,8 +260,8 @@ impl Explainable for LogicalMagicJoin {
 }
 
 impl LogicalNode for Node<LogicalMagicJoin> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.node.join_type.output_refs(self)
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
+        self.node.join_type.output_refs(self, bind_context)
     }
 
     fn get_statistics(&self) -> Statistics {
@@ -306,8 +306,8 @@ impl Explainable for LogicalArbitraryJoin {
 }
 
 impl LogicalNode for Node<LogicalArbitraryJoin> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.node.join_type.output_refs(self)
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
+        self.node.join_type.output_refs(self, bind_context)
     }
 
     fn get_statistics(&self) -> Statistics {
@@ -339,8 +339,8 @@ impl Explainable for LogicalCrossJoin {
 }
 
 impl LogicalNode for Node<LogicalCrossJoin> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
+        self.get_children_table_refs(bind_context)
     }
 
     fn get_statistics(&self) -> Statistics {

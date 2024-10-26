@@ -362,9 +362,9 @@ impl FilterPushdown {
 
                 let [left, right] = plan.take_two_children_exact()?;
 
-                let left_tables = left.get_output_table_refs();
+                let left_tables = left.get_output_table_refs(bind_context);
                 let right_tables = match plan.node.join_type {
-                    JoinType::Left => right.get_output_table_refs(),
+                    JoinType::Left => right.get_output_table_refs(bind_context),
                     JoinType::LeftMark { table_ref } => vec![table_ref], // Right side is only able to reference the mark column.
                     _ => unreachable!("join type checked in outer match"),
                 };
@@ -471,9 +471,9 @@ impl FilterPushdown {
 
                 let [mut left, mut right] = plan.take_two_children_exact()?;
 
-                let left_tables = left.get_output_table_refs();
+                let left_tables = left.get_output_table_refs(bind_context);
                 let right_tables = match plan.node.join_type {
-                    JoinType::Left => right.get_output_table_refs(),
+                    JoinType::Left => right.get_output_table_refs(bind_context),
                     JoinType::LeftMark { table_ref } => vec![table_ref], // Exprs can only reference the mark column if left mark.
                     _ => unreachable!("join type checked in outer match"),
                 };
@@ -531,8 +531,8 @@ impl FilterPushdown {
 
         let [mut left, mut right] = plan.take_two_children_exact()?;
 
-        let left_tables = left.get_output_table_refs();
-        let right_tables = right.get_output_table_refs();
+        let left_tables = left.get_output_table_refs(bind_context);
+        let right_tables = right.get_output_table_refs(bind_context);
 
         let mut join_exprs = Vec::new();
 

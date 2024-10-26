@@ -71,9 +71,6 @@ impl InnerJoinReorder {
                 };
                 plan = reorder.reorder(bind_context, plan)?;
 
-                let mat = bind_context.get_materialization_mut(scan.node.mat)?;
-                mat.plan = plan;
-
                 // Since the one or children in the plan might've switched
                 // sides, we need to recompute the table refs to ensure they're
                 // updated to be the correct order.
@@ -81,11 +78,13 @@ impl InnerJoinReorder {
                 // "magic" materializations don't need to worry about this,
                 // since they project out of the materialization (and the column
                 // refs don't change).
-                let table_refs = mat.plan.get_output_table_refs();
-                mat.table_refs = table_refs.clone();
+                let table_refs = plan.get_output_table_refs(bind_context);
 
-                let mut new_scan = scan.clone();
-                new_scan.node.table_refs = table_refs;
+                let mat = bind_context.get_materialization_mut(scan.node.mat)?;
+                mat.plan = plan;
+                mat.table_refs = table_refs;
+
+                let new_scan = scan.clone();
 
                 return Ok(LogicalOperator::MaterializationScan(new_scan));
             }
@@ -125,6 +124,7 @@ impl InnerJoinReorder {
             child_plans,
             self.conditions.drain(..),
             self.filters.drain(..),
+            bind_context,
         )?;
 
         let plan = graph.try_build()?;

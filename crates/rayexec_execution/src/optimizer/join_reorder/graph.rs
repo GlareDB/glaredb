@@ -31,7 +31,7 @@ use rayexec_error::{RayexecError, Result};
 use super::edge::{EdgeId, HyperEdges, NeighborEdge};
 use super::subgraph::Subgraph;
 use crate::expr;
-use crate::logical::binder::bind_context::TableRef;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
     ComparisonCondition,
@@ -246,12 +246,13 @@ impl Graph {
         base_ops: impl IntoIterator<Item = LogicalOperator>,
         conditions: impl IntoIterator<Item = ComparisonCondition>,
         filters: impl IntoIterator<Item = ExtractedFilter>,
+        bind_context: &BindContext,
     ) -> Result<Self> {
         let base_relations: HashMap<RelId, BaseRelation> = base_ops
             .into_iter()
             .enumerate()
             .map(|(rel_id, op)| {
-                let output_refs = op.get_output_table_refs().into_iter().collect();
+                let output_refs = op.get_output_table_refs(bind_context).into_iter().collect();
                 let cardinality = op.cardinality().value().copied().unwrap_or(20_000) as f64;
 
                 (

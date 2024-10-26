@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use super::statistics::{Statistics, StatisticsValue};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -64,7 +64,7 @@ impl Explainable for LogicalAggregate {
 }
 
 impl LogicalNode for Node<LogicalAggregate> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         let mut refs = vec![self.node.aggregates_table];
         if let Some(group_table) = self.node.group_table {
             refs.push(group_table);

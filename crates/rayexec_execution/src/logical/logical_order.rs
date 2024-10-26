@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use super::operator::{LogicalNode, Node};
 use super::statistics::StatisticsValue;
@@ -19,8 +19,8 @@ impl Explainable for LogicalOrder {
 }
 
 impl LogicalNode for Node<LogicalOrder> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
-        self.get_children_table_refs()
+    fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
+        self.get_children_table_refs(bind_context)
     }
 
     fn cardinality(&self) -> StatisticsValue<usize> {

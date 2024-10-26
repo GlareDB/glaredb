@@ -2,7 +2,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_io::location::FileLocation;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -26,7 +26,7 @@ impl Explainable for LogicalCopyTo {
 }
 
 impl LogicalNode for Node<LogicalCopyTo> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
 

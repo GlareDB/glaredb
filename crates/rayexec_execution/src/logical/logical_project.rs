@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use super::binder::bind_context::TableRef;
+use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -29,7 +29,7 @@ impl Explainable for LogicalProject {
 }
 
 impl LogicalNode for Node<LogicalProject> {
-    fn get_output_table_refs(&self) -> Vec<TableRef> {
+    fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.projection_table]
     }
 
