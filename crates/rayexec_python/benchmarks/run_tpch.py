@@ -440,7 +440,16 @@ print(duckdb_times)
 
 # vCPU = str(cpu_count()) + " vCPU"
 # mem = round(virtual_memory().total / (1024 * 1024 * 1024), 0)
-# runtime = "TPC-H SF=" + str(sf) + " Macbook Air M2 " + vCPU + " " + str(mem) + "GB"
+# runtime = (
+#     "TPC-H SF="
+#     + str(sf)
+#     + " (Parquet) "
+#     + " Macbook Air M2 "
+#     + vCPU
+#     + " "
+#     + str(mem)
+#     + "GB"
+# )
 
 # # Customize the plot
 # plt.title(runtime)

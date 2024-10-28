@@ -1444,13 +1444,21 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let location = join.location;
 
-        let equality_idx = join
+        let equality_indices: Vec<_> = join
             .node
             .conditions
             .iter()
-            .position(|c| c.op == ComparisonOperator::Eq);
+            .enumerate()
+            .filter_map(|(idx, cond)| {
+                if cond.op == ComparisonOperator::Eq {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        if let Some(equality_idx) = equality_idx {
+        if !equality_indices.is_empty() {
             // Use hash join
 
             let [left, right] = join.take_two_children_exact()?;
@@ -1509,7 +1517,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let operator = IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
                     join.node.join_type,
-                    equality_idx,
+                    &equality_indices,
                     conditions,
                     left_types,
                     right_types,

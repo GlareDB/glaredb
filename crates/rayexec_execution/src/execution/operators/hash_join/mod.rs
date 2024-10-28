@@ -114,7 +114,11 @@ struct SharedState {
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
     join_type: JoinType,
-    equality: HashJoinCondition,
+    /// All left/right equalities we'll be checking.
+    equalities: Vec<HashJoinCondition>,
+    /// All left/right conditions we'll be checking.
+    ///
+    /// This includes the above equalities.
     conditions: Vec<HashJoinCondition>,
     /// Types for the batches we'll be receiving from the left side. Used during
     /// RIGHT joins to produce null columns on the left side.
@@ -133,16 +137,21 @@ impl PhysicalHashJoin {
     /// `equality_idx` should point to the equality condition in `conditions`.
     pub fn new(
         join_type: JoinType,
-        equality_idx: usize,
+        equality_inidices: &[usize],
         conditions: Vec<HashJoinCondition>,
         left_types: Vec<DataType>,
         right_types: Vec<DataType>,
     ) -> Self {
-        let equality = conditions[equality_idx].clone();
+        assert!(!equality_inidices.is_empty());
+
+        let equalities = equality_inidices
+            .iter()
+            .map(|idx| conditions[*idx].clone())
+            .collect();
 
         PhysicalHashJoin {
             join_type,
-            equality,
+            equalities,
             conditions,
             left_types,
             right_types,
@@ -287,15 +296,26 @@ impl ExecutableOperator for PhysicalHashJoin {
                 }
 
                 // Compute right hashes on equality condition.
-                let result = self.equality.right.eval(&batch)?;
                 state.hash_buf.clear();
-                state.hash_buf.resize(result.logical_len(), 0);
-                let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
+                state.hash_buf.resize(batch.num_rows(), 0);
+
+                for (idx, equality) in self.equalities.iter().enumerate() {
+                    let result = equality.right.eval(&batch)?;
+
+                    if idx == 0 {
+                        HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
+                    } else {
+                        HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
+                    }
+                }
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
 
-                let batches =
-                    hashtable.probe(&batch, hashes, state.partition_outer_join_tracker.as_mut())?;
+                let batches = hashtable.probe(
+                    &batch,
+                    &state.hash_buf,
+                    state.partition_outer_join_tracker.as_mut(),
+                )?;
 
                 if batches.is_empty() {
                     // No batches joined, keep pushing to this operator.
@@ -579,17 +599,26 @@ impl PhysicalHashJoin {
         state: &mut HashJoinBuildPartitionState,
         batch: Batch,
     ) -> Result<()> {
-        // Compute left hashes on equality condition.
-        let result = self.equality.left.eval(&batch)?;
+        // Compute left hashes on equality conditions.
+
         state.hash_buf.clear();
-        state.hash_buf.resize(result.logical_len(), 0);
-        let hashes = HashExecutor::hash(&[result.as_ref()], &mut state.hash_buf)?;
+        state.hash_buf.resize(batch.num_rows(), 0);
+
+        for (idx, equality) in self.equalities.iter().enumerate() {
+            let result = equality.left.eval(&batch)?;
+
+            if idx == 0 {
+                HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
+            } else {
+                HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
+            }
+        }
 
         state
             .local_hashtable
             .as_mut()
             .required("partition hash table")?
-            .insert_batch(batch, hashes)?;
+            .insert_batch(batch, &state.hash_buf)?;
 
         Ok(())
     }
@@ -599,7 +628,7 @@ impl Explainable for PhysicalHashJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("HashJoin")
             .with_values("conditions", &self.conditions)
-            .with_value("equality", &self.equality)
+            .with_values("equalities", &self.equalities)
             .with_value("join_type", self.join_type)
     }
 }

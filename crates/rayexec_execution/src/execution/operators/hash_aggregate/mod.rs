@@ -470,7 +470,7 @@ impl PhysicalHashAggregate {
             let group_id = null_mask.try_as_u64()?;
 
             // Compute hashes on the group by values.
-            let hashes = HashExecutor::hash(&masked_grouping_columns, &mut state.hash_buf)?;
+            let hashes = HashExecutor::hash_many(&masked_grouping_columns, &mut state.hash_buf)?;
 
             // Compute _output_ partitions based on the hash values.
             let num_partitions = state.output_hashtables.len();

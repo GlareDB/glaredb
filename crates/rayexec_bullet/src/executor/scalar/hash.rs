@@ -33,78 +33,70 @@ pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
 pub struct HashExecutor;
 
 impl HashExecutor {
-    pub fn hash<'b>(arrays: &[&Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
+    /// Hashes the given array values, combining them with the existing hashes
+    /// in `hashes`.
+    pub fn hash_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
+        match array.physical_type() {
+            PhysicalType::UntypedNull => {
+                Self::hash_one_combine::<PhysicalUntypedNull>(array, hashes)?
+            }
+            PhysicalType::Boolean => Self::hash_one_combine::<PhysicalBool>(array, hashes)?,
+            PhysicalType::Int8 => Self::hash_one_combine::<PhysicalI8>(array, hashes)?,
+            PhysicalType::Int16 => Self::hash_one_combine::<PhysicalI16>(array, hashes)?,
+            PhysicalType::Int32 => Self::hash_one_combine::<PhysicalI32>(array, hashes)?,
+            PhysicalType::Int64 => Self::hash_one_combine::<PhysicalI64>(array, hashes)?,
+            PhysicalType::Int128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
+            PhysicalType::UInt8 => Self::hash_one_combine::<PhysicalU8>(array, hashes)?,
+            PhysicalType::UInt16 => Self::hash_one_combine::<PhysicalU16>(array, hashes)?,
+            PhysicalType::UInt32 => Self::hash_one_combine::<PhysicalU32>(array, hashes)?,
+            PhysicalType::UInt64 => Self::hash_one_combine::<PhysicalU64>(array, hashes)?,
+            PhysicalType::UInt128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
+            PhysicalType::Float32 => Self::hash_one_combine::<PhysicalF32>(array, hashes)?,
+            PhysicalType::Float64 => Self::hash_one_combine::<PhysicalF64>(array, hashes)?,
+            PhysicalType::Binary => Self::hash_one_combine::<PhysicalBinary>(array, hashes)?,
+            PhysicalType::Utf8 => Self::hash_one_combine::<PhysicalUtf8>(array, hashes)?,
+            PhysicalType::Interval => Self::hash_one_combine::<PhysicalInterval>(array, hashes)?,
+        }
+
+        Ok(())
+    }
+
+    /// Hash the given array and write the values into `hashes`, overwriting any
+    /// existing values.
+    pub fn hash_no_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
+        match array.physical_type() {
+            PhysicalType::UntypedNull => {
+                Self::hash_one_no_combine::<PhysicalUntypedNull>(array, hashes)?
+            }
+            PhysicalType::Boolean => Self::hash_one_no_combine::<PhysicalBool>(array, hashes)?,
+            PhysicalType::Int8 => Self::hash_one_no_combine::<PhysicalI8>(array, hashes)?,
+            PhysicalType::Int16 => Self::hash_one_no_combine::<PhysicalI16>(array, hashes)?,
+            PhysicalType::Int32 => Self::hash_one_no_combine::<PhysicalI32>(array, hashes)?,
+            PhysicalType::Int64 => Self::hash_one_no_combine::<PhysicalI64>(array, hashes)?,
+            PhysicalType::Int128 => Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?,
+            PhysicalType::UInt8 => Self::hash_one_no_combine::<PhysicalU8>(array, hashes)?,
+            PhysicalType::UInt16 => Self::hash_one_no_combine::<PhysicalU16>(array, hashes)?,
+            PhysicalType::UInt32 => Self::hash_one_no_combine::<PhysicalU32>(array, hashes)?,
+            PhysicalType::UInt64 => Self::hash_one_no_combine::<PhysicalU64>(array, hashes)?,
+            PhysicalType::UInt128 => Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?,
+            PhysicalType::Float32 => Self::hash_one_no_combine::<PhysicalF32>(array, hashes)?,
+            PhysicalType::Float64 => Self::hash_one_no_combine::<PhysicalF64>(array, hashes)?,
+            PhysicalType::Binary => Self::hash_one_no_combine::<PhysicalBinary>(array, hashes)?,
+            PhysicalType::Utf8 => Self::hash_one_no_combine::<PhysicalUtf8>(array, hashes)?,
+            PhysicalType::Interval => Self::hash_one_no_combine::<PhysicalInterval>(array, hashes)?,
+        }
+
+        Ok(())
+    }
+
+    pub fn hash_many<'b>(arrays: &[&Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
         for (idx, array) in arrays.iter().enumerate() {
             let combine_hash = idx > 0;
 
             if combine_hash {
-                match array.physical_type() {
-                    PhysicalType::UntypedNull => {
-                        Self::hash_one_combine::<PhysicalUntypedNull>(array, hashes)?
-                    }
-                    PhysicalType::Boolean => Self::hash_one_combine::<PhysicalBool>(array, hashes)?,
-                    PhysicalType::Int8 => Self::hash_one_combine::<PhysicalI8>(array, hashes)?,
-                    PhysicalType::Int16 => Self::hash_one_combine::<PhysicalI16>(array, hashes)?,
-                    PhysicalType::Int32 => Self::hash_one_combine::<PhysicalI32>(array, hashes)?,
-                    PhysicalType::Int64 => Self::hash_one_combine::<PhysicalI64>(array, hashes)?,
-                    PhysicalType::Int128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
-                    PhysicalType::UInt8 => Self::hash_one_combine::<PhysicalU8>(array, hashes)?,
-                    PhysicalType::UInt16 => Self::hash_one_combine::<PhysicalU16>(array, hashes)?,
-                    PhysicalType::UInt32 => Self::hash_one_combine::<PhysicalU32>(array, hashes)?,
-                    PhysicalType::UInt64 => Self::hash_one_combine::<PhysicalU64>(array, hashes)?,
-                    PhysicalType::UInt128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
-                    PhysicalType::Float32 => Self::hash_one_combine::<PhysicalF32>(array, hashes)?,
-                    PhysicalType::Float64 => Self::hash_one_combine::<PhysicalF64>(array, hashes)?,
-                    PhysicalType::Binary => {
-                        Self::hash_one_combine::<PhysicalBinary>(array, hashes)?
-                    }
-                    PhysicalType::Utf8 => Self::hash_one_combine::<PhysicalUtf8>(array, hashes)?,
-                    PhysicalType::Interval => {
-                        Self::hash_one_combine::<PhysicalInterval>(array, hashes)?
-                    }
-                }
+                Self::hash_combine(array, hashes)?;
             } else {
-                match array.physical_type() {
-                    PhysicalType::UntypedNull => {
-                        Self::hash_one_no_combine::<PhysicalUntypedNull>(array, hashes)?
-                    }
-                    PhysicalType::Boolean => {
-                        Self::hash_one_no_combine::<PhysicalBool>(array, hashes)?
-                    }
-                    PhysicalType::Int8 => Self::hash_one_no_combine::<PhysicalI8>(array, hashes)?,
-                    PhysicalType::Int16 => Self::hash_one_no_combine::<PhysicalI16>(array, hashes)?,
-                    PhysicalType::Int32 => Self::hash_one_no_combine::<PhysicalI32>(array, hashes)?,
-                    PhysicalType::Int64 => Self::hash_one_no_combine::<PhysicalI64>(array, hashes)?,
-                    PhysicalType::Int128 => {
-                        Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?
-                    }
-                    PhysicalType::UInt8 => Self::hash_one_no_combine::<PhysicalU8>(array, hashes)?,
-                    PhysicalType::UInt16 => {
-                        Self::hash_one_no_combine::<PhysicalU16>(array, hashes)?
-                    }
-                    PhysicalType::UInt32 => {
-                        Self::hash_one_no_combine::<PhysicalU32>(array, hashes)?
-                    }
-                    PhysicalType::UInt64 => {
-                        Self::hash_one_no_combine::<PhysicalU64>(array, hashes)?
-                    }
-                    PhysicalType::UInt128 => {
-                        Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?
-                    }
-                    PhysicalType::Float32 => {
-                        Self::hash_one_no_combine::<PhysicalF32>(array, hashes)?
-                    }
-                    PhysicalType::Float64 => {
-                        Self::hash_one_no_combine::<PhysicalF64>(array, hashes)?
-                    }
-                    PhysicalType::Binary => {
-                        Self::hash_one_no_combine::<PhysicalBinary>(array, hashes)?
-                    }
-                    PhysicalType::Utf8 => Self::hash_one_no_combine::<PhysicalUtf8>(array, hashes)?,
-                    PhysicalType::Interval => {
-                        Self::hash_one_no_combine::<PhysicalInterval>(array, hashes)?
-                    }
-                }
+                Self::hash_no_combine(array, hashes)?;
             }
         }
 
