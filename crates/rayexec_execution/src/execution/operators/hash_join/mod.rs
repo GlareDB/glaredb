@@ -16,7 +16,6 @@ use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
-use super::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
 use super::{
     ComputedBatches,
     ExecutableOperator,
@@ -34,9 +33,6 @@ use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
 pub struct HashJoinBuildPartitionState {
-    /// Holds pending inputs to ensure we're building the hash table on
-    /// appropriate sized batches.
-    resizer: BatchResizer,
     /// Hash table this partition will be writing to.
     ///
     /// Optional to enable moving from the local to global state once this
@@ -200,7 +196,6 @@ impl ExecutableOperator for PhysicalHashJoin {
         let build_states: Vec<_> = (0..build_partitions)
             .map(|_| {
                 PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
-                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                     local_hashtable: Some(PartitionHashTable::new(&self.conditions)),
                     hash_buf: Vec::new(),
                 })
@@ -241,7 +236,7 @@ impl ExecutableOperator for PhysicalHashJoin {
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                self.push_build_side_batch(state, batch)?;
+                self.insert_into_local_table(state, batch)?;
                 Ok(PollPush::NeedsMore)
             }
             PartitionState::HashJoinProbe(state) => {
@@ -341,9 +336,6 @@ impl ExecutableOperator for PhysicalHashJoin {
     ) -> Result<PollFinalize> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
-                // Flush any remaining buffered batches.
-                self.flush_build_side_batches(state)?;
-
                 let mut shared = match operator_state {
                     OperatorState::HashJoin(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
@@ -553,44 +545,6 @@ impl ExecutableOperator for PhysicalHashJoin {
 }
 
 impl PhysicalHashJoin {
-    /// Pushes a batch for the build side.
-    ///
-    /// This may buffer the batch in the resizer if needed.
-    fn push_build_side_batch(
-        &self,
-        state: &mut HashJoinBuildPartitionState,
-        batch: Batch,
-    ) -> Result<()> {
-        match state.resizer.try_push(batch)? {
-            ComputedBatches::Single(batch) => self.insert_into_local_table(state, batch)?,
-            ComputedBatches::Multi(batches) => {
-                for batch in batches {
-                    self.insert_into_local_table(state, batch)?;
-                }
-            }
-            ComputedBatches::None => (), // Buffered batches thus far are still too small.
-        }
-
-        Ok(())
-    }
-
-    /// Flushes any batches still in the resizer into the partition-local hash
-    /// table.
-    fn flush_build_side_batches(&self, state: &mut HashJoinBuildPartitionState) -> Result<()> {
-        match state.resizer.flush_remaining()? {
-            ComputedBatches::Single(batch) => self.insert_into_local_table(state, batch)?,
-            ComputedBatches::Multi(batches) => {
-                // Technically shouldn't happen.
-                for batch in batches {
-                    self.insert_into_local_table(state, batch)?;
-                }
-            }
-            ComputedBatches::None => (), // We're good, no batches in the resizer.
-        }
-
-        Ok(())
-    }
-
     /// Inserts a batch into a partition-local hash table.
     fn insert_into_local_table(
         &self,

@@ -8,8 +8,7 @@ use super::util::merger::{IterState, KWayMerger, MergeResult};
 use super::util::sort_keys::SortKeysExtractor;
 use super::util::sorted_batch::{IndexSortedBatch, SortedIndicesIter};
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatches;
-use crate::execution::operators::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
+use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::execution::operators::{
     ExecutableOperator,
     ExecutionStates,
@@ -34,8 +33,6 @@ pub enum ScatterSortPartitionState {
 
 #[derive(Debug)]
 pub struct ConsumingPartitionState {
-    /// Resizer for buffering input batches.
-    resizer: BatchResizer,
     /// Extract the sort keys from a batch.
     extractor: SortKeysExtractor,
     /// Batches that we sorted the row indices for.
@@ -78,7 +75,6 @@ impl ExecutableOperator for PhysicalScatterSort {
             .map(|_| {
                 PartitionState::ScatterSort(ScatterSortPartitionState::Consuming(
                     ConsumingPartitionState {
-                        resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                         extractor: extractor.clone(),
                         batches: Vec::new(),
                         pull_waker: None,
@@ -109,7 +105,7 @@ impl ExecutableOperator for PhysicalScatterSort {
 
         match state {
             ScatterSortPartitionState::Consuming(state) => {
-                self.push_batch_for_consuming(state, batch)?;
+                self.insert_batch_for_comparison(state, batch)?;
 
                 Ok(PollPush::NeedsMore)
             }
@@ -132,9 +128,6 @@ impl ExecutableOperator for PhysicalScatterSort {
 
         match state {
             ScatterSortPartitionState::Consuming(consuming_state) => {
-                // Flush buffered batches first.
-                self.flush_pending_batches_for_consuming(consuming_state)?;
-
                 let pull_waker = consuming_state.pull_waker.take(); // Taken here to satisfy lifetime.
 
                 // Initialize the merger with all the batches.
@@ -211,42 +204,6 @@ impl ExecutableOperator for PhysicalScatterSort {
 }
 
 impl PhysicalScatterSort {
-    fn push_batch_for_consuming(
-        &self,
-        state: &mut ConsumingPartitionState,
-        batch: Batch,
-    ) -> Result<()> {
-        match state.resizer.try_push(batch)? {
-            ComputedBatches::Single(batch) => self.insert_batch_for_comparison(state, batch)?,
-            ComputedBatches::Multi(batches) => {
-                for batch in batches {
-                    self.insert_batch_for_comparison(state, batch)?;
-                }
-            }
-            ComputedBatches::None => (), // Not enough rows buffered yet.
-        }
-
-        Ok(())
-    }
-
-    fn flush_pending_batches_for_consuming(
-        &self,
-        state: &mut ConsumingPartitionState,
-    ) -> Result<()> {
-        match state.resizer.flush_remaining()? {
-            ComputedBatches::Single(batch) => self.insert_batch_for_comparison(state, batch)?,
-            ComputedBatches::Multi(batches) => {
-                // Technically shouldn't happen.
-                for batch in batches {
-                    self.insert_batch_for_comparison(state, batch)?;
-                }
-            }
-            ComputedBatches::None => (), // We're good, no batches in the resizer.
-        }
-
-        Ok(())
-    }
-
     fn insert_batch_for_comparison(
         &self,
         state: &mut ConsumingPartitionState,
