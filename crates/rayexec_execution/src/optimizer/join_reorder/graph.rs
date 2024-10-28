@@ -268,6 +268,7 @@ impl Graph {
             .collect();
 
         let hyper_edges = HyperEdges::new(conditions, &base_relations)?;
+
         let filters = filters.into_iter().enumerate().collect();
 
         let mut best_plans = HashMap::with_capacity(base_relations.len());
@@ -529,25 +530,27 @@ impl Graph {
         let mut subgraph = left.1.subgraph;
         subgraph.update_numerator(&right.1.subgraph);
 
-        // Update both the numerator and denominator since filters will impact
-        // both the relative NDV and output cardinality.
+        // Update just the numerator to account for the change in cardinality.
+        //
+        // We cannot assume that the filter is filtering on the same attributes
+        // we're joining on, so avoid updating the denominator.
         for _ in 0..left_filters.len() + right_filters.len() {
             subgraph.numerator *= DEFAULT_SELECTIVITY;
-            subgraph.selectivity_denom *= 1.0 - DEFAULT_SELECTIVITY;
         }
 
         // Update denominator based on edges used for this join.
         //
-        // Only one edge per hyper edge is considered as edges within a hyper
-        // edge are very likely to be correlated.
-        let mut used_hyperedges = Vec::new();
-        for edge in &edges {
-            if used_hyperedges.contains(&edge.hyper_edge_id) {
-                continue;
-            }
+        // Only the "max" edge is considered to avoid assuming edges are
+        // independent of one another. Since we're generating additional filters
+        // in a previous optimization step, it's safe to assume there's going to
+        // be some number of conditions that are related.
+        let edge = edges
+            .iter()
+            .max_by(|a, b| f64::total_cmp(&a.min_ndv, &b.min_ndv));
 
+        // If no edge, cardinality output will just be cross product.
+        if let Some(edge) = edge {
             subgraph.update_denom(&right.1.subgraph, edge);
-            used_hyperedges.push(edge.hyper_edge_id);
         }
 
         // Get the estimated cardinality at this point in the

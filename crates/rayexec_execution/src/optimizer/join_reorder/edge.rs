@@ -61,7 +61,7 @@ pub struct NeighborEdge {
     /// for the subgraph.
     pub edge_op: Option<ComparisonOperator>,
     /// Id for the hyper edge this edge was in.
-    pub hyper_edge_id: HyperEdgeId,
+    pub _hyper_edge_id: HyperEdgeId,
     /// Id of the edge.
     pub edge_id: EdgeId,
     /// Min NDV for the hyper edge. Affects the computed denominator.
@@ -114,7 +114,7 @@ impl HyperEdges {
             {
                 found.push(NeighborEdge {
                     edge_op: edge.filter.as_ref().map(|f| f.op),
-                    hyper_edge_id: hyp.id,
+                    _hyper_edge_id: hyp.id,
                     edge_id,
                     min_ndv: hyp.min_ndv,
                 })
@@ -125,7 +125,7 @@ impl HyperEdges {
             {
                 found.push(NeighborEdge {
                     edge_op: edge.filter.as_ref().map(|f| f.op),
-                    hyper_edge_id: hyp.id,
+                    _hyper_edge_id: hyp.id,
                     edge_id,
                     min_ndv: hyp.min_ndv,
                 })
