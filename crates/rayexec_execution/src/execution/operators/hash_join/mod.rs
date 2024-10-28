@@ -317,13 +317,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                     state.partition_outer_join_tracker.as_mut(),
                 )?;
 
-                if batches.is_empty() {
+                state.buffered_output = ComputedBatches::new(batches);
+                if state.buffered_output.is_empty() {
                     // No batches joined, keep pushing to this operator.
                     return Ok(PollPush::NeedsMore);
                 }
-
-                // TODO: Would be cool not having to do this.
-                state.buffered_output = ComputedBatches::new_multi(batches);
 
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();

@@ -178,7 +178,7 @@ impl ExecutablePartitionPipeline {
 }
 
 /// Where to begin pulling from after pushing a batch through the pipeline.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct PullStart {
     /// The true start of the next iteration.
     pull_start: usize,
@@ -199,7 +199,7 @@ impl PullStart {
         loop {
             match self.pull_stack.pop() {
                 Some(mut buffered) => {
-                    let batch = match buffered.buffered.try_next()? {
+                    let batch = match buffered.buffered.try_pop_front()? {
                         Some(batch) => batch,
                         None => {
                             // Move to next in stack.
@@ -226,7 +226,7 @@ impl PullStart {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct BufferedBatches {
     /// Operator these batches are from.
     operator_idx: usize,
@@ -356,7 +356,9 @@ impl ExecutablePartitionPipeline {
 
                     match poll_pull {
                         Ok(PollPull::Computed(mut computed)) => {
-                            let batch = match computed.try_next()? {
+                            operator.profile_data.rows_emitted += computed.total_num_rows(); // TODO: We should have something to indicate materialized vs not.
+
+                            let batch = match computed.try_pop_front()? {
                                 Some(batch) => batch,
                                 None => {
                                     // TODO: Not sure when this would be None
@@ -377,7 +379,6 @@ impl ExecutablePartitionPipeline {
 
                             // We got results, increment operator index to push
                             // it into the next operator.
-                            operator.profile_data.rows_emitted += batch.num_rows(); // TODO: We should have something to indicate materialized vs not.
                             *state = PipelinePartitionState::PushTo {
                                 batch,
                                 operator_idx: *operator_idx + 1,

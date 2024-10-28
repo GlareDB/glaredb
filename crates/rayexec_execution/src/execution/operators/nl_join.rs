@@ -315,12 +315,11 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                     batches.append(&mut out);
                 }
 
-                if batches.is_empty() {
+                state.buffered = ComputedBatches::new(batches);
+                if state.buffered.is_empty() {
                     // Nothing produces, signal to push more.
                     return Ok(PollPush::NeedsMore);
                 }
-
-                state.buffered = ComputedBatches::new_multi(batches);
 
                 // We have stuff in the buffer, wake up the puller.
                 if let Some(waker) = state.pull_waker.take() {

@@ -78,7 +78,7 @@ impl BatchResizer {
                 ComputedBatches::Single(out_2) => {
                     // Happens if:
                     //  len(batch_b) > target && len(batch_b) < target * 2
-                    return Ok(ComputedBatches::new_multi([out, out_2]));
+                    return Ok(ComputedBatches::new([out, out_2]));
                 }
                 ComputedBatches::Multi(mut out_2) => {
                     // Happens if:

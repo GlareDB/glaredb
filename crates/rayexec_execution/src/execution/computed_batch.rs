@@ -4,7 +4,7 @@ use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
 /// Computed batch results from an operator.
-#[derive(Debug, Clone, PartialEq)] // TODO: Remove clone.
+#[derive(Debug, PartialEq)]
 pub enum ComputedBatches {
     /// A single batch was computed.
     Single(Batch),
@@ -19,18 +19,49 @@ pub enum ComputedBatches {
 }
 
 impl ComputedBatches {
-    pub fn new_multi<B>(batches: impl IntoIterator<Item = B>) -> Self
+    /// Create a new queue of computed batches.
+    ///
+    /// This will filter out any batches that have no rows.
+    pub fn new<I>(batches: I) -> Self
     where
-        B: Into<Batch>,
+        I: IntoIterator<Item = Batch>,
+        I::IntoIter: ExactSizeIterator,
     {
-        // TODO: Think about the behavior for this when batches is length zero.
-        // There was a bug where loop join produce no batches, called this
-        // method, then froze since `is_empty` returns false for empty
-        // vecdeques.
-        Self::Multi(batches.into_iter().map(|b| b.into()).collect())
+        let mut iter = batches.into_iter();
+        match iter.len() {
+            0 => ComputedBatches::None,
+            1 => {
+                let batch = iter.next().unwrap();
+                if batch.num_rows() == 0 {
+                    ComputedBatches::None
+                } else {
+                    ComputedBatches::Single(batch)
+                }
+            }
+            _ => {
+                let batches: VecDeque<_> = iter.filter(|b| b.num_rows() > 0).collect();
+                if batches.is_empty() {
+                    ComputedBatches::None
+                } else {
+                    ComputedBatches::Multi(batches)
+                }
+            }
+        }
+    }
+
+    pub fn total_num_rows(&self) -> usize {
+        match self {
+            Self::Single(batch) => batch.num_rows(),
+            Self::Multi(batches) => batches.iter().map(|b| b.num_rows()).sum(),
+            Self::None => 0,
+        }
     }
 
     /// Checks if this collection of batches is empty.
+    // TODO: Think about the behavior for this when batches is length zero.
+    // There was a bug where loop join produce no batches, called this
+    // method, then froze since `is_empty` returns false for empty
+    // vecdeques.
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Multi(batches) => batches.is_empty(),
@@ -51,7 +82,7 @@ impl ComputedBatches {
 
     /// Tries to get the next batch from this collection, returning None when no
     /// batches remain.
-    pub fn try_next(&mut self) -> Result<Option<Batch>> {
+    pub fn try_pop_front(&mut self) -> Result<Option<Batch>> {
         match self {
             Self::Single(_) => {
                 let orig = std::mem::replace(self, Self::None);
