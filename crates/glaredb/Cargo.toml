@@ -20,7 +20,7 @@ datafusion = { workspace = true }
 futures = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-derive_builder = "0.20.1"
+derive_builder = "0.20.2"
 indexmap = "2.6.0"
 
 [dev-dependencies]
