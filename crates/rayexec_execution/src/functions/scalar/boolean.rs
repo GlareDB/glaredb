@@ -5,7 +5,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalBool;
-use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
+use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
 use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
@@ -84,6 +84,21 @@ impl PlannedScalarFunction for AndImpl {
                         buffer: BooleanBuffer::with_len(a.logical_len()),
                     },
                     |a, b, buf| buf.put(&(a && b)),
+                )
+            }
+            3 => {
+                let a = inputs[0];
+                let b = inputs[1];
+                let c = inputs[2];
+                TernaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
+                    a,
+                    b,
+                    c,
+                    ArrayBuilder {
+                        datatype: DataType::Boolean,
+                        buffer: BooleanBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, c, buf| buf.put(&(a && b && c)),
                 )
             }
             _ => {
