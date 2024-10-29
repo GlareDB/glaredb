@@ -258,18 +258,14 @@ impl<W: Write + Send> SerializedFileWriter<W> {
         // write offset index to the file
         for (row_group_idx, row_group) in row_groups.iter_mut().enumerate() {
             for (column_idx, column_metadata) in row_group.columns.iter_mut().enumerate() {
-                match &self.offset_indexes[row_group_idx][column_idx] {
-                    Some(offset_index) => {
-                        let start_offset = self.buf.bytes_written();
-                        let mut protocol = TCompactOutputProtocol::new(&mut self.buf);
-                        offset_index.write_to_out_protocol(&mut protocol)?;
-                        let end_offset = self.buf.bytes_written();
-                        // set offset and index for offset index
-                        column_metadata.offset_index_offset = Some(start_offset as i64);
-                        column_metadata.offset_index_length =
-                            Some((end_offset - start_offset) as i32);
-                    }
-                    None => {}
+                if let Some(offset_index) = &self.offset_indexes[row_group_idx][column_idx] {
+                    let start_offset = self.buf.bytes_written();
+                    let mut protocol = TCompactOutputProtocol::new(&mut self.buf);
+                    offset_index.write_to_out_protocol(&mut protocol)?;
+                    let end_offset = self.buf.bytes_written();
+                    // set offset and index for offset index
+                    column_metadata.offset_index_offset = Some(start_offset as i64);
+                    column_metadata.offset_index_length = Some((end_offset - start_offset) as i32);
                 }
             }
         }
@@ -283,21 +279,18 @@ impl<W: Write + Send> SerializedFileWriter<W> {
         // write bloom filter to the file
         for (row_group_idx, row_group) in row_groups.iter_mut().enumerate() {
             for (column_idx, column_chunk) in row_group.columns.iter_mut().enumerate() {
-                match &self.bloom_filters[row_group_idx][column_idx] {
-                    Some(bloom_filter) => {
-                        let start_offset = self.buf.bytes_written();
-                        bloom_filter.write(&mut self.buf)?;
-                        let end_offset = self.buf.bytes_written();
-                        // set offset and index for bloom filter
-                        let column_chunk_meta = column_chunk
-                            .meta_data
-                            .as_mut()
-                            .expect("can't have bloom filter without column metadata");
-                        column_chunk_meta.bloom_filter_offset = Some(start_offset as i64);
-                        column_chunk_meta.bloom_filter_length =
-                            Some((end_offset - start_offset) as i32);
-                    }
-                    None => {}
+                if let Some(bloom_filter) = &self.bloom_filters[row_group_idx][column_idx] {
+                    let start_offset = self.buf.bytes_written();
+                    bloom_filter.write(&mut self.buf)?;
+                    let end_offset = self.buf.bytes_written();
+                    // set offset and index for bloom filter
+                    let column_chunk_meta = column_chunk
+                        .meta_data
+                        .as_mut()
+                        .expect("can't have bloom filter without column metadata");
+                    column_chunk_meta.bloom_filter_offset = Some(start_offset as i64);
+                    column_chunk_meta.bloom_filter_length =
+                        Some((end_offset - start_offset) as i32);
                 }
             }
         }
@@ -311,18 +304,14 @@ impl<W: Write + Send> SerializedFileWriter<W> {
         // write column index to the file
         for (row_group_idx, row_group) in row_groups.iter_mut().enumerate() {
             for (column_idx, column_metadata) in row_group.columns.iter_mut().enumerate() {
-                match &self.column_indexes[row_group_idx][column_idx] {
-                    Some(column_index) => {
-                        let start_offset = self.buf.bytes_written();
-                        let mut protocol = TCompactOutputProtocol::new(&mut self.buf);
-                        column_index.write_to_out_protocol(&mut protocol)?;
-                        let end_offset = self.buf.bytes_written();
-                        // set offset and index for offset index
-                        column_metadata.column_index_offset = Some(start_offset as i64);
-                        column_metadata.column_index_length =
-                            Some((end_offset - start_offset) as i32);
-                    }
-                    None => {}
+                if let Some(column_index) = &self.column_indexes[row_group_idx][column_idx] {
+                    let start_offset = self.buf.bytes_written();
+                    let mut protocol = TCompactOutputProtocol::new(&mut self.buf);
+                    column_index.write_to_out_protocol(&mut protocol)?;
+                    let end_offset = self.buf.bytes_written();
+                    // set offset and index for offset index
+                    column_metadata.column_index_offset = Some(start_offset as i64);
+                    column_metadata.column_index_length = Some((end_offset - start_offset) as i32);
                 }
             }
         }
