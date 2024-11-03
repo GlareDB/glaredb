@@ -34,15 +34,27 @@ impl Bitmap {
     /// Create a new bitmap of a given length with all values initialized to the
     /// given value.
     pub fn new_with_val(val: bool, len: usize) -> Self {
-        Self::from_iter(std::iter::repeat(val).take(len))
+        if val {
+            Self::new_with_all_true(len)
+        } else {
+            Self::new_with_all_false(len)
+        }
     }
 
     pub fn new_with_all_true(len: usize) -> Self {
-        Self::new_with_val(true, len)
+        let cap = (len + 7) / 8;
+        Bitmap {
+            len,
+            data: vec![u8::MAX; cap],
+        }
     }
 
     pub fn new_with_all_false(len: usize) -> Self {
-        Self::new_with_val(false, len)
+        let cap = (len + 7) / 8;
+        Bitmap {
+            len,
+            data: vec![0; cap],
+        }
     }
 
     /// Get the number of bits being tracked by this bitmap.
@@ -98,9 +110,9 @@ impl Bitmap {
     ///
     /// Panics if index is out of bounds.
     #[inline]
-    pub fn value_unchecked(&self, idx: usize) -> bool {
-        let byte = self.data[idx / 8];
-        (byte >> (idx % 8)) & 1 != 0
+    pub fn value(&self, idx: usize) -> bool {
+        let byte = self.data[idx >> 3]; // Equivalent to idx / 8
+        (byte >> (idx & 7)) & 1 != 0 // `idx & 7` equivalent to `idx % 8`
     }
 
     /// Set a bit at index.
@@ -250,6 +262,39 @@ impl FromIterator<bool> for Bitmap {
     }
 }
 
+impl<I> From<I> for Bitmap
+where
+    I: ExactSizeIterator<Item = bool>,
+{
+    #[rustfmt::skip]
+    fn from(mut iter: I) -> Self {
+        let cap = (iter.len() + 7) / 8;
+
+        let mut data = vec![0; cap];
+        let mut len = 0;
+
+        // Process each group of 8 bits
+        let mut idx = 0;
+        while iter.len() > 0 {
+            let mut byte = 0;
+
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 0; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 1; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 2; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 3; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 4; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 5; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 6; } len += 1; }
+            if let Some(bit) = iter.next() { if bit { byte |= 1 << 7; } len += 1; }
+
+            data[idx] = byte;
+            idx += 1;
+        }
+
+        Bitmap { len, data }
+    }
+}
+
 impl Extend<bool> for Bitmap {
     fn extend<T: IntoIterator<Item = bool>>(&mut self, iter: T) {
         for v in iter {
@@ -341,7 +386,7 @@ impl<'a> Iterator for BitmapIndexIter<'a> {
                 return None;
             }
 
-            if self.bitmap.value_unchecked(self.front) {
+            if self.bitmap.value(self.front) {
                 let idx = self.front;
                 self.front += 1;
                 return Some(idx);
@@ -360,7 +405,7 @@ impl<'a> DoubleEndedIterator for BitmapIndexIter<'a> {
                 return None;
             }
 
-            if self.bitmap.value_unchecked(self.back - 1) {
+            if self.bitmap.value(self.back - 1) {
                 let idx = self.back;
                 self.back -= 1;
                 return Some(idx - 1);
@@ -422,10 +467,10 @@ mod tests {
         let mut bm = Bitmap::from_iter(bits);
 
         bm.set_unchecked(0, false);
-        assert!(!bm.value_unchecked(0));
+        assert!(!bm.value(0));
 
         bm.set_unchecked(1, true);
-        assert!(bm.value_unchecked(1));
+        assert!(bm.value(1));
     }
 
     #[test]

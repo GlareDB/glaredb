@@ -41,7 +41,6 @@ use crate::storage::{
     ContiguousVarlenStorage,
     GermanVarlenStorage,
     PrimitiveStorage,
-    SharedHeapStorage,
     UntypedNullStorage,
 };
 
@@ -50,34 +49,6 @@ pub type PhysicalValidity = SharedOrOwned<Bitmap>;
 
 /// Logical row selection.
 pub type LogicalSelection = SharedOrOwned<SelectionVector>;
-
-/// Wrapper around a selection vector allowing for owned or shared vectors.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Selection {
-    Owned(SelectionVector),
-    Shared(Arc<SelectionVector>),
-}
-
-impl AsRef<SelectionVector> for Selection {
-    fn as_ref(&self) -> &SelectionVector {
-        match self {
-            Selection::Owned(v) => v,
-            Self::Shared(v) => v.as_ref(),
-        }
-    }
-}
-
-impl From<SelectionVector> for Selection {
-    fn from(value: SelectionVector) -> Self {
-        Selection::Owned(value)
-    }
-}
-
-impl From<Arc<SelectionVector>> for Selection {
-    fn from(value: Arc<SelectionVector>) -> Self {
-        Selection::Shared(value)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Array {
@@ -203,24 +174,26 @@ impl Array {
         self.selection = Some(selection.into())
     }
 
+    pub fn make_shared(&mut self) {
+        if let Some(validity) = &mut self.validity {
+            validity.make_shared();
+        }
+        if let Some(selection) = &mut self.selection {
+            selection.make_shared()
+        }
+    }
+
     /// Updates this array's selection vector.
     ///
     /// Takes into account any existing selection. This allows for repeated
     /// selection (filtering) against the same array.
+    // TODO: Add test for selecting on logically empty array.
     pub fn select_mut(&mut self, selection: impl Into<LogicalSelection>) {
         let selection = selection.into();
         match self.selection_vector() {
             Some(existing) => {
-                // Existing selection, need to create a new vector that selects
-                // from the existing vector.
-                let input_sel = selection.as_ref();
-                let mut new_sel = SelectionVector::with_capacity(input_sel.num_rows());
-
-                for input_loc in input_sel.iter_locations() {
-                    new_sel.push_location(existing.get_unchecked(input_loc));
-                }
-
-                self.selection = Some(new_sel.into())
+                let selection = existing.select(selection.as_ref());
+                self.selection = Some(selection.into())
             }
             None => {
                 // No existing selection, we can just use the provided vector
@@ -247,12 +220,12 @@ impl Array {
         }
 
         let idx = match self.selection_vector() {
-            Some(v) => v.get(idx)?,
+            Some(v) => v.get_opt(idx)?,
             None => idx,
         };
 
         if let Some(validity) = &self.validity {
-            return Some(validity.as_ref().value_unchecked(idx));
+            return Some(validity.as_ref().value(idx));
         }
 
         Some(true)
@@ -282,13 +255,13 @@ impl Array {
     pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
         let idx = match self.selection_vector() {
             Some(v) => v
-                .get(idx)
+                .get_opt(idx)
                 .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
             None => idx,
         };
 
         if let Some(validity) = &self.validity {
-            if !validity.as_ref().value_unchecked(idx) {
+            if !validity.as_ref().value(idx) {
                 return Ok(ScalarValue::Null);
             }
         }
@@ -470,7 +443,7 @@ impl Array {
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Boolean => match &self.data {
-                ArrayData::Boolean(arr) => arr.as_ref().as_ref().value_unchecked(idx).into(),
+                ArrayData::Boolean(arr) => arr.as_ref().as_ref().value(idx).into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Float32 => match &self.data {
@@ -564,10 +537,6 @@ impl Array {
                     ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
-                        .get(idx)
-                        .map(|b| b.as_ref())
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
@@ -583,10 +552,6 @@ impl Array {
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::LargeBinary(arr)) => arr
                         .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData::Binary(BinaryData::SharedHeap(arr)) => arr
-                        .get(idx)
-                        .map(|b| b.as_ref())
                         .ok_or_else(|| RayexecError::new("missing data"))?,
                     ArrayData::Binary(BinaryData::German(arr)) => arr
                         .get(idx)
@@ -897,7 +862,6 @@ pub enum ArrayData {
 pub enum BinaryData {
     Binary(Arc<ContiguousVarlenStorage<i32>>),
     LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    SharedHeap(Arc<SharedHeapStorage>),
     German(Arc<GermanVarlenStorage>),
 }
 
@@ -943,7 +907,6 @@ impl ArrayData {
             Self::Binary(bin) => match bin {
                 BinaryData::Binary(s) => s.len(),
                 BinaryData::LargeBinary(s) => s.len(),
-                BinaryData::SharedHeap(s) => s.len(),
                 BinaryData::German(s) => s.len(),
             },
         }
@@ -1041,12 +1004,6 @@ impl From<PrimitiveStorage<u128>> for ArrayData {
 impl From<PrimitiveStorage<Interval>> for ArrayData {
     fn from(value: PrimitiveStorage<Interval>) -> Self {
         ArrayData::Interval(value.into())
-    }
-}
-
-impl From<SharedHeapStorage> for ArrayData {
-    fn from(value: SharedHeapStorage) -> Self {
-        ArrayData::Binary(BinaryData::SharedHeap(Arc::new(value)))
     }
 }
 

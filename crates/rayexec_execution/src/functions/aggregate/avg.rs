@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::AddAssign;
-use std::vec;
 
 use num_traits::AsPrimitive;
 use rayexec_bullet::array::Array;
@@ -167,7 +166,7 @@ pub struct AvgDecimal64Impl {
 }
 
 impl AvgDecimal64Impl {
-    fn finalize(&self, states: vec::Drain<AvgStateDecimal<i64>>) -> Result<Array> {
+    fn finalize(&self, states: &mut [AvgStateDecimal<i64>]) -> Result<Array> {
         let mut builder = ArrayBuilder {
             datatype: DataType::Float64,
             buffer: PrimitiveBuffer::with_len(states.len()),
@@ -177,7 +176,7 @@ impl AvgDecimal64Impl {
 
         let scale = f64::powi(10.0, self.scale.abs() as i32);
 
-        for (idx, state) in states.enumerate() {
+        for (idx, state) in states.iter_mut().enumerate() {
             let ((sum, count), valid) = state.finalize()?;
 
             if !valid {
@@ -212,7 +211,7 @@ pub struct AvgDecimal128Impl {
 }
 
 impl AvgDecimal128Impl {
-    fn finalize(&self, states: vec::Drain<AvgStateDecimal<i128>>) -> Result<Array> {
+    fn finalize(&self, states: &mut [AvgStateDecimal<i128>]) -> Result<Array> {
         let mut builder = ArrayBuilder {
             datatype: DataType::Float64,
             buffer: PrimitiveBuffer::with_len(states.len()),
@@ -222,7 +221,7 @@ impl AvgDecimal128Impl {
 
         let scale = f64::powi(10.0, self.scale.abs() as i32);
 
-        for (idx, state) in states.enumerate() {
+        for (idx, state) in states.iter_mut().enumerate() {
             let ((sum, count), valid) = state.finalize()?;
 
             if !valid {
@@ -282,7 +281,7 @@ struct AvgStateDecimal<I> {
 }
 
 impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStateDecimal<I> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
@@ -294,7 +293,7 @@ impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStat
         Ok(())
     }
 
-    fn finalize(self) -> Result<((i128, i64), bool)> {
+    fn finalize(&mut self) -> Result<((i128, i64), bool)> {
         if self.count == 0 {
             return Ok(((0, 0), false));
         }
@@ -309,7 +308,7 @@ struct AvgStateF64<T> {
 }
 
 impl<T: AsPrimitive<f64> + AddAssign + Debug + Default> AggregateState<T, f64> for AvgStateF64<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
@@ -321,7 +320,7 @@ impl<T: AsPrimitive<f64> + AddAssign + Debug + Default> AggregateState<T, f64> f
         Ok(())
     }
 
-    fn finalize(self) -> Result<(f64, bool)> {
+    fn finalize(&mut self) -> Result<(f64, bool)> {
         if self.count == 0 {
             return Ok((0.0, false));
         }

@@ -89,7 +89,7 @@ impl HashExecutor {
         Ok(())
     }
 
-    pub fn hash_many<'b>(arrays: &[&Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
+    pub fn hash_many<'b>(arrays: &[Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
         for (idx, array) in arrays.iter().enumerate() {
             let combine_hash = idx > 0;
 
@@ -115,9 +115,9 @@ impl HashExecutor {
                 let values = S::get_storage(&array.data)?;
 
                 for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = selection::get_unchecked(selection, idx);
+                    let sel = unsafe { selection::get_unchecked(selection, idx) };
 
-                    if validity.value_unchecked(sel) {
+                    if validity.value(sel) {
                         let val = unsafe { values.get_unchecked(sel) };
                         *hash = val.hash_one();
                     } else {
@@ -129,7 +129,7 @@ impl HashExecutor {
                 let values = S::get_storage(&array.data)?;
 
                 for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = selection::get_unchecked(selection, idx);
+                    let sel = unsafe { selection::get_unchecked(selection, idx) };
                     let val = unsafe { values.get_unchecked(sel) };
                     *hash = val.hash_one();
                 }
@@ -151,9 +151,9 @@ impl HashExecutor {
                 let values = S::get_storage(&array.data)?;
 
                 for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = selection::get_unchecked(selection, idx);
+                    let sel = unsafe { selection::get_unchecked(selection, idx) };
 
-                    if validity.value_unchecked(sel) {
+                    if validity.value(sel) {
                         let val = unsafe { values.get_unchecked(sel) };
                         *hash = combine_hashes(val.hash_one(), *hash);
                     } else {
@@ -165,7 +165,7 @@ impl HashExecutor {
                 let values = S::get_storage(&array.data)?;
 
                 for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = selection::get_unchecked(selection, idx);
+                    let sel = unsafe { selection::get_unchecked(selection, idx) };
                     let val = unsafe { values.get_unchecked(sel) };
                     *hash = combine_hashes(val.hash_one(), *hash);
                 }

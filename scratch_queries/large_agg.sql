@@ -8,35 +8,10 @@ CREATE TEMP VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/d
 CREATE TEMP VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/part.parquet';
 
 SELECT
-    c_name,
-    c_custkey,
-    o_orderkey,
-    o_orderdate,
-    o_totalprice,
-    sum(l_quantity)
+    l_orderkey
 FROM
-    customer,
-    orders,
     lineitem
-WHERE
-    o_orderkey IN (
-        SELECT
-            l_orderkey
-        FROM
-            lineitem
-        GROUP BY
-            l_orderkey
-        HAVING
-            sum(l_quantity) > 300)
-    AND c_custkey = o_custkey
-    AND o_orderkey = l_orderkey
 GROUP BY
-    c_name,
-    c_custkey,
-    o_orderkey,
-    o_orderdate,
-    o_totalprice
-ORDER BY
-    o_totalprice DESC,
-    o_orderdate
-LIMIT 100;
+    l_orderkey
+HAVING
+    sum(l_quantity) > 300

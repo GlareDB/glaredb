@@ -52,8 +52,8 @@ impl BinaryExecutor {
             let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
             for idx in 0..len {
-                let sel1 = selection::get_unchecked(selection1, idx);
-                let sel2 = selection::get_unchecked(selection2, idx);
+                let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
+                let sel2 = unsafe { selection::get_unchecked(selection2, idx) };
 
                 if check_validity(sel1, validity1) && check_validity(sel2, validity2) {
                     let val1 = unsafe { values1.get_unchecked(sel1) };
@@ -72,8 +72,8 @@ impl BinaryExecutor {
             let values2 = S2::get_storage(&array2.data)?;
 
             for idx in 0..len {
-                let sel1 = selection::get_unchecked(selection1, idx);
-                let sel2 = selection::get_unchecked(selection2, idx);
+                let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
+                let sel2 = unsafe { selection::get_unchecked(selection2, idx) };
 
                 let val1 = unsafe { values1.get_unchecked(sel1) };
                 let val2 = unsafe { values2.get_unchecked(sel2) };

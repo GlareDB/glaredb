@@ -1,19 +1,18 @@
-use std::vec;
-
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{
-    AggregateState,
-    RowToStateMapping,
-    StateFinalizer,
-    UnaryNonNullUpdater,
-};
+use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalAny;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{AggregateFunction, DefaultGroupedStates, GroupedStates, PlannedAggregateFunction};
+use super::{
+    AggregateFunction,
+    ChunkGroupAddressIter,
+    DefaultGroupedStates,
+    GroupedStates,
+    PlannedAggregateFunction,
+};
 use crate::functions::{FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,17 +54,13 @@ pub struct CountNonNullImpl;
 impl CountNonNullImpl {
     fn update(
         arrays: &[&Array],
-        mapping: &[RowToStateMapping],
+        mapping: ChunkGroupAddressIter,
         states: &mut [CountNonNullState],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
+        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(arrays[0], mapping, states)
     }
 
-    fn finalize(states: vec::Drain<CountNonNullState>) -> Result<Array> {
+    fn finalize(states: &mut [CountNonNullState]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Int64,
             buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
@@ -98,7 +93,7 @@ pub struct CountNonNullState {
 }
 
 impl AggregateState<(), i64> for CountNonNullState {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())
     }
@@ -108,7 +103,7 @@ impl AggregateState<(), i64> for CountNonNullState {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(i64, bool)> {
+    fn finalize(&mut self) -> Result<(i64, bool)> {
         // Always valid, even when count is 0
         Ok((self.count, true))
     }

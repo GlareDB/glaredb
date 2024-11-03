@@ -28,6 +28,7 @@ use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
 use super::FunctionInfo;
+use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 
@@ -139,11 +140,11 @@ pub trait GroupedStates: Debug + Send {
     /// states that were computed in parallel.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    /// Generate a new state for a never before seen group in an aggregate.
+    /// Generate new states for never before seen groups in an aggregate.
     ///
     /// Returns the index of the newly initialized state that can be used to
     /// reference the state.
-    fn new_group(&mut self) -> usize;
+    fn new_groups(&mut self, count: usize);
 
     /// Get the number of group states we're tracking.
     fn num_groups(&self) -> usize;
@@ -155,7 +156,7 @@ pub trait GroupedStates: Debug + Send {
     ///
     /// `mapping` provides a mapping from the selected input row to the state
     /// that should be updated.
-    fn update_states(&mut self, inputs: &[&Array], mapping: &[RowToStateMapping]) -> Result<()>;
+    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()>;
 
     /// Try to combine two sets of grouped states into a single set of states.
     ///
@@ -165,15 +166,14 @@ pub trait GroupedStates: Debug + Send {
     /// Errors if the concrete types do not match. Essentially this prevents
     /// trying to combine state between different aggregates (SumI32 and AvgF32)
     /// _and_ type (SumI32 and SumI64).
-    fn try_combine(&mut self, consume: Box<dyn GroupedStates>, mapping: &[usize]) -> Result<()>;
+    fn combine(
+        &mut self,
+        consume: &mut Box<dyn GroupedStates>,
+        mapping: ChunkGroupAddressIter,
+    ) -> Result<()>;
 
-    /// Drains some number of internal states, finalizing them and producing an
-    /// array of the results.
-    ///
-    /// May produce an array with length less than n
-    ///
-    /// Returns None when all internal states have been drained and finalized.
-    fn drain_next(&mut self, n: usize) -> Result<Option<Array>>;
+    /// Drains the internal results producing a single output array.
+    fn drain(&mut self) -> Result<Array>;
 }
 
 /// Provides a default implementation of `GroupedStates`.
@@ -203,8 +203,8 @@ impl<State, InputType, OutputType, UpdateFn, FinalizeFn>
     DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn>
 where
     State: AggregateState<InputType, OutputType>,
-    UpdateFn: Fn(&[&Array], &[RowToStateMapping], &mut [State]) -> Result<()>,
-    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array>,
+    UpdateFn: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()>,
+    FinalizeFn: Fn(&mut [State]) -> Result<Array>,
 {
     fn new(update_fn: UpdateFn, finalize_fn: FinalizeFn) -> Self {
         DefaultGroupedStates {
@@ -223,31 +223,29 @@ where
     State: AggregateState<InputType, OutputType> + Send + 'static,
     InputType: Send + 'static,
     OutputType: Send + 'static,
-    UpdateFn: Fn(&[&Array], &[RowToStateMapping], &mut [State]) -> Result<()> + Send + 'static,
-    FinalizeFn: Fn(vec::Drain<'_, State>) -> Result<Array> + Send + 'static,
+    UpdateFn: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Send + 'static,
+    FinalizeFn: Fn(&mut [State]) -> Result<Array> + Send + 'static,
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
-    fn new_group(&mut self) -> usize {
-        let idx = self.states.len();
-        self.states.push(State::default());
-        idx
+    fn new_groups(&mut self, count: usize) {
+        self.states.extend((0..count).map(|_| State::default()))
     }
 
     fn num_groups(&self) -> usize {
         self.states.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array], mapping: &[RowToStateMapping]) -> Result<()> {
+    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()> {
         (self.update_fn)(inputs, mapping, &mut self.states)
     }
 
-    fn try_combine(
+    fn combine(
         &mut self,
-        mut consume: Box<dyn GroupedStates>,
-        mapping: &[usize],
+        consume: &mut Box<dyn GroupedStates>,
+        mapping: ChunkGroupAddressIter,
     ) -> Result<()> {
         let other = match consume.as_any_mut().downcast_mut::<Self>() {
             Some(other) => other,
@@ -258,21 +256,12 @@ where
             }
         };
 
-        let consume = std::mem::take(&mut other.states);
-        StateCombiner::combine(consume, mapping, &mut self.states)
+        StateCombiner::combine(&mut other.states, mapping, &mut self.states)
     }
 
-    fn drain_next(&mut self, n: usize) -> Result<Option<Array>> {
-        assert_ne!(0, n);
-
-        let n = usize::min(n, self.states.len());
-        if n == 0 {
-            return Ok(None);
-        }
-
-        let drain = self.states.drain(0..n);
-        let arr = (self.finalize_fn)(drain)?;
-        Ok(Some(arr))
+    fn drain(&mut self) -> Result<Array> {
+        let arr = (self.finalize_fn)(&mut self.states)?;
+        Ok(arr)
     }
 }
 
@@ -287,10 +276,49 @@ where
     }
 }
 
+/// Iterator that internally filters an iterator of group addresses to to just
+/// row mappings that correspond to a single chunk.
+#[derive(Debug)]
+pub struct ChunkGroupAddressIter<'a> {
+    pub row_idx: usize,
+    pub chunk_idx: u16,
+    pub addresses: std::slice::Iter<'a, GroupAddress>,
+}
+
+impl<'a> ChunkGroupAddressIter<'a> {
+    pub fn new(chunk_idx: u16, addrs: &'a [GroupAddress]) -> Self {
+        ChunkGroupAddressIter {
+            row_idx: 0,
+            chunk_idx,
+            addresses: addrs.iter(),
+        }
+    }
+}
+
+impl<'a> Iterator for ChunkGroupAddressIter<'a> {
+    type Item = RowToStateMapping;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        for addr in self.addresses.by_ref() {
+            if addr.chunk_idx == self.chunk_idx {
+                let row = self.row_idx;
+                self.row_idx += 1;
+                return Some(RowToStateMapping {
+                    from_row: row,
+                    to_state: addr.row_idx as usize,
+                });
+            }
+            self.row_idx += 1;
+        }
+        None
+    }
+}
+
 /// Helper function for using with `DefaultGroupedStates`.
 pub fn unary_update<State, Storage, Output>(
     arrays: &[&Array],
-    mapping: &[RowToStateMapping],
+    mapping: ChunkGroupAddressIter,
     states: &mut [State],
 ) -> Result<()>
 where
@@ -300,17 +328,14 @@ where
         Output,
     >,
 {
-    UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping.iter().copied(), states)
+    UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
 }
 
-pub fn untyped_null_finalize<State>(states: vec::Drain<State>) -> Result<Array> {
+pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array> {
     Ok(Array::new_untyped_null_array(states.len()))
 }
 
-pub fn boolean_finalize<State, Input>(
-    datatype: DataType,
-    states: vec::Drain<State>,
-) -> Result<Array>
+pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array>
 where
     State: AggregateState<Input, bool>,
 {
@@ -323,7 +348,7 @@ where
 
 pub fn primitive_finalize<State, Input, Output>(
     datatype: DataType,
-    states: vec::Drain<State>,
+    states: &mut [State],
 ) -> Result<Array>
 where
     State: AggregateState<Input, Output>,
@@ -335,54 +360,4 @@ where
         buffer: PrimitiveBuffer::with_len(states.len()),
     };
     StateFinalizer::finalize(states, builder)
-}
-
-/// Helper to drain from multiple states at a time.
-///
-/// Errors if all states do not produce arrays of the same length.
-///
-/// Returns None if there's nothing left to drain.
-pub fn multi_array_drain<'a>(
-    mut states: impl Iterator<Item = &'a mut Box<dyn GroupedStates>>,
-    n: usize,
-) -> Result<Option<Vec<Array>>> {
-    let first = match states.next() {
-        Some(state) => state.drain_next(n)?,
-        None => return Err(RayexecError::new("No states to drain from")),
-    };
-
-    let first = match first {
-        Some(array) => array,
-        None => {
-            // Check to make sure all other states produce none.
-            //
-            // If they don't, that means we're working with different numbers of
-            // groups.
-            for state in states {
-                if state.drain_next(n)?.is_some() {
-                    return Err(RayexecError::new("Not all states completed"));
-                }
-            }
-
-            return Ok(None);
-        }
-    };
-
-    let len = first.logical_len();
-    let mut arrays = Vec::new();
-    arrays.push(first);
-
-    for state in states {
-        match state.drain_next(n)? {
-            Some(arr) => {
-                if arr.logical_len() != len {
-                    return Err(RayexecError::new("Drained arrays differ in length"));
-                }
-                arrays.push(arr);
-            }
-            None => return Err(RayexecError::new("Draining completed early for state")),
-        }
-    }
-
-    Ok(Some(arrays))
 }

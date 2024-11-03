@@ -58,7 +58,7 @@ impl UniformExecutor {
                 op_inputs.clear();
                 let mut row_invalid = false;
                 for arr_idx in 0..arrays.len() {
-                    let sel = selection::get_unchecked(selections[arr_idx], idx);
+                    let sel = selection::get(selections[arr_idx], idx);
                     if row_invalid || !check_validity(sel, validities[arr_idx]) {
                         row_invalid = true;
                         out_validity_builder.set_unchecked(idx, false);
@@ -83,7 +83,7 @@ impl UniformExecutor {
             for idx in 0..len {
                 op_inputs.clear();
                 for arr_idx in 0..arrays.len() {
-                    let sel = selection::get_unchecked(selections[arr_idx], idx);
+                    let sel = selection::get(selections[arr_idx], idx);
                     let val = unsafe { storage_values[arr_idx].get_unchecked(sel) };
                     op_inputs.push(val);
                 }

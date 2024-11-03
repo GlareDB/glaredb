@@ -85,9 +85,9 @@ where
                 let values = S::get_storage(&array.data)?;
 
                 for mapping in fill_map.into_iter() {
-                    let sel = selection::get_unchecked(selection, mapping.from);
+                    let sel = unsafe { selection::get_unchecked(selection, mapping.from) };
 
-                    if validity.value_unchecked(sel) {
+                    if validity.value(sel) {
                         let val = unsafe { values.get_unchecked(sel) };
                         self.builder.buffer.put(mapping.to, val.borrow());
                     } else {
@@ -99,7 +99,7 @@ where
                 let values = S::get_storage(&array.data)?;
 
                 for mapping in fill_map.into_iter() {
-                    let sel = selection::get_unchecked(selection, mapping.from);
+                    let sel = selection::get(selection, mapping.from);
                     let val = unsafe { values.get_unchecked(sel) };
                     self.builder.buffer.put(mapping.to, val.borrow());
                 }

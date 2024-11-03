@@ -186,8 +186,8 @@ pub struct FirstState<T> {
     value: Option<T>,
 }
 
-impl<T: Default + Debug> AggregateState<T, T> for FirstState<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+impl<T: Default + Debug + Copy> AggregateState<T, T> for FirstState<T> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             self.value = other.value;
             return Ok(());
@@ -202,7 +202,7 @@ impl<T: Default + Debug> AggregateState<T, T> for FirstState<T> {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(T, bool)> {
+    fn finalize(&mut self) -> Result<(T, bool)> {
         match self.value {
             Some(v) => Ok((v, true)),
             None => Ok((T::default(), false)),
@@ -216,9 +216,9 @@ pub struct FirstStateBinary {
 }
 
 impl AggregateState<&[u8], Vec<u8>> for FirstStateBinary {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
-            self.value = other.value;
+            std::mem::swap(&mut self.value, &mut other.value);
             return Ok(());
         }
         Ok(())
@@ -231,9 +231,9 @@ impl AggregateState<&[u8], Vec<u8>> for FirstStateBinary {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(Vec<u8>, bool)> {
-        match self.value {
-            Some(v) => Ok((v, true)),
+    fn finalize(&mut self) -> Result<(Vec<u8>, bool)> {
+        match self.value.as_mut() {
+            Some(v) => Ok((std::mem::take(v), true)),
             None => Ok((Vec::new(), false)),
         }
     }
@@ -245,9 +245,9 @@ pub struct FirstStateUtf8 {
 }
 
 impl AggregateState<&str, String> for FirstStateUtf8 {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
-            self.value = other.value;
+            std::mem::swap(&mut self.value, &mut other.value);
             return Ok(());
         }
         Ok(())
@@ -260,9 +260,9 @@ impl AggregateState<&str, String> for FirstStateUtf8 {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(String, bool)> {
-        match self.value {
-            Some(v) => Ok((v, true)),
+    fn finalize(&mut self) -> Result<(String, bool)> {
+        match self.value.as_mut() {
+            Some(v) => Ok((std::mem::take(v), true)),
             None => Ok((String::new(), false)),
         }
     }

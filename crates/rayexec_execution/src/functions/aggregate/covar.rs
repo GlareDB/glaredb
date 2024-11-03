@@ -10,7 +10,7 @@ pub struct CovarSampFloat64 {
 }
 
 impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
-    fn merge(&mut self, other: Self) -> Result<()> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         let count = self.count + other.count;
         let meanx =
             (other.count as f64 * other.meanx + self.count as f64 * self.meanx) / count as f64;
@@ -52,7 +52,7 @@ impl AggregateState<(f64, f64), f64> for CovarSampFloat64 {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(f64, bool)> {
+    fn finalize(&mut self) -> Result<(f64, bool)> {
         Ok((self.co_moment / (self.count - 1) as f64, true))
     }
 }

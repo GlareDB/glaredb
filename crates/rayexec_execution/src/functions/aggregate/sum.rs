@@ -1,16 +1,10 @@
 use std::fmt::Debug;
 use std::ops::AddAssign;
-use std::vec;
 
 use num_traits::CheckedAdd;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use rayexec_bullet::executor::aggregate::{
-    AggregateState,
-    RowToStateMapping,
-    StateFinalizer,
-    UnaryNonNullUpdater,
-};
+use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI128, PhysicalI64};
 use rayexec_error::{RayexecError, Result};
@@ -21,6 +15,7 @@ use super::{
     primitive_finalize,
     unary_update,
     AggregateFunction,
+    ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
     PlannedAggregateFunction,
@@ -171,17 +166,13 @@ pub struct SumInt64Impl;
 impl SumInt64Impl {
     fn update(
         arrays: &[&Array],
-        mapping: &[RowToStateMapping],
+        mapping: ChunkGroupAddressIter,
         states: &mut [SumStateCheckedAdd<i64>],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(
-            arrays[0],
-            mapping.iter().copied(),
-            states,
-        )
+        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(arrays[0], mapping, states)
     }
 
-    fn finalize(states: vec::Drain<SumStateCheckedAdd<i64>>) -> Result<Array> {
+    fn finalize(states: &mut [SumStateCheckedAdd<i64>]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Int64,
             buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
@@ -244,8 +235,8 @@ pub struct SumStateCheckedAdd<T> {
     set: bool,
 }
 
-impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAdd<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+impl<T: CheckedAdd + Default + Debug + Copy> AggregateState<T, T> for SumStateCheckedAdd<T> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
         self.set = self.set || other.set;
         Ok(())
@@ -257,7 +248,7 @@ impl<T: CheckedAdd + Default + Debug> AggregateState<T, T> for SumStateCheckedAd
         Ok(())
     }
 
-    fn finalize(self) -> Result<(T, bool)> {
+    fn finalize(&mut self) -> Result<(T, bool)> {
         if self.set {
             Ok((self.sum, true))
         } else {
@@ -272,8 +263,8 @@ pub struct SumStateAdd<T> {
     valid: bool,
 }
 
-impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
-    fn merge(&mut self, other: Self) -> Result<()> {
+impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd<T> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
         Ok(())
@@ -285,7 +276,7 @@ impl<T: AddAssign + Default + Debug> AggregateState<T, T> for SumStateAdd<T> {
         Ok(())
     }
 
-    fn finalize(self) -> Result<(T, bool)> {
+    fn finalize(&mut self) -> Result<(T, bool)> {
         if self.valid {
             Ok((self.sum, true))
         } else {
@@ -300,6 +291,7 @@ mod tests {
     use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
+    use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 
     #[test]
     fn sum_i64_single_group_two_partitions() {
@@ -313,42 +305,47 @@ mod tests {
         let mut states_1 = specialized.new_grouped_state();
         let mut states_2 = specialized.new_grouped_state();
 
-        let idx_1 = states_1.new_group();
-        assert_eq!(0, idx_1);
-
-        let idx_2 = states_2.new_group();
-        assert_eq!(0, idx_2);
+        states_1.new_groups(1);
+        states_2.new_groups(1);
 
         // All inputs map to the same group (no GROUP BY clause)
-        let mapping_1: Vec<_> = (0..partition_1_vals.logical_len())
-            .map(|row| RowToStateMapping {
-                from_row: row,
-                to_state: 0,
+        let addrs_1: Vec<_> = (0..partition_1_vals.logical_len())
+            .map(|_| GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             })
             .collect();
-        let mapping_2: Vec<_> = (0..partition_2_vals.logical_len())
-            .map(|row| RowToStateMapping {
-                from_row: row,
-                to_state: 0,
+        let addrs_2: Vec<_> = (0..partition_2_vals.logical_len())
+            .map(|_| GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             })
             .collect();
 
         states_1
-            .update_states(&[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
         //
         // Both partitions hold a single state (representing a single group),
         // and those states map to each other.
-        let combine_mapping = vec![0];
-        states_1.try_combine(states_2, &combine_mapping).unwrap();
+        let combine_mapping = vec![GroupAddress {
+            chunk_idx: 0,
+            row_idx: 0,
+        }];
+        states_1
+            .combine(
+                &mut states_2,
+                ChunkGroupAddressIter::new(0, &combine_mapping),
+            )
+            .unwrap();
 
         // Get final output.
-        let out = states_1.drain_next(100).unwrap().unwrap();
+        let out = states_1.drain().unwrap();
 
         assert_eq!(1, out.logical_len());
         assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
@@ -379,48 +376,48 @@ mod tests {
         let mut states_2 = specialized.new_grouped_state();
 
         // Both partitions are operating on two groups ('a' and 'b').
-        states_1.new_group();
-        states_1.new_group();
+        states_1.new_groups(1);
+        states_1.new_groups(1);
 
-        states_2.new_group();
-        states_2.new_group();
+        states_2.new_groups(1);
+        states_2.new_groups(1);
 
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
-        let mapping_1 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs_1 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
         ];
-        let mapping_2 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 1,
+        let addrs_2 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
         ];
 
         states_1
-            .update_states(&[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -432,11 +429,25 @@ mod tests {
         // The mapping here indicates the the 0th state for both partitions
         // should be combined, and the 1st state for both partitions should be
         // combined.
-        let combine_mapping = vec![0, 1];
-        states_1.try_combine(states_2, &combine_mapping).unwrap();
+        let combine_mapping = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
+            },
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
+            },
+        ];
+        states_1
+            .combine(
+                &mut states_2,
+                ChunkGroupAddressIter::new(0, &combine_mapping),
+            )
+            .unwrap();
 
         // Get final output.
-        let out = states_1.drain_next(100).unwrap().unwrap();
+        let out = states_1.drain().unwrap();
 
         assert_eq!(2, out.logical_len());
         assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
@@ -476,58 +487,58 @@ mod tests {
         let mut states_2 = specialized.new_grouped_state();
 
         // Partition 1 sees groups 'x', 'y', and 'z'.
-        states_1.new_group();
-        states_1.new_group();
-        states_1.new_group();
+        states_1.new_groups(1);
+        states_1.new_groups(1);
+        states_1.new_groups(1);
 
         // Partition 2 see groups 'x' and 'z' (no 'y').
-        states_2.new_group();
-        states_2.new_group();
+        states_2.new_groups(1);
+        states_2.new_groups(1);
 
         // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
-        let mapping_1 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs_1 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 2,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 2,
             },
         ];
         // For partition 2: 'x' == 0, 'z' == 1
-        let mapping_2 = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
+        let addrs_2 = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
             },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 1,
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 1,
             },
         ];
 
         states_1
-            .update_states(&[partition_1_vals], &mapping_1)
+            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], &mapping_2)
+            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -535,11 +546,25 @@ mod tests {
         // States for 'x' both at the same position.
         //
         // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
-        let combine_mapping = vec![0, 2];
-        states_1.try_combine(states_2, &combine_mapping).unwrap();
+        let combine_mapping = vec![
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 0,
+            },
+            GroupAddress {
+                chunk_idx: 0,
+                row_idx: 2,
+            },
+        ];
+        states_1
+            .combine(
+                &mut states_2,
+                ChunkGroupAddressIter::new(0, &combine_mapping),
+            )
+            .unwrap();
 
         // Get final output.
-        let out = states_1.drain_next(100).unwrap().unwrap();
+        let out = states_1.drain().unwrap();
 
         assert_eq!(3, out.logical_len());
         assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());
@@ -547,58 +572,60 @@ mod tests {
         assert_eq!(ScalarValue::Int64(25), out.logical_value(2).unwrap());
     }
 
-    #[test]
-    fn sum_i64_drain_multiple() {
-        // Three groups, single partition, test that drain can be called
-        // multiple times until states are exhausted.
-        let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
+    // #[test]
+    // fn sum_i64_drain_multiple() {
+    //     // Three groups, single partition, test that drain can be called
+    //     // multiple times until states are exhausted.
+    //     let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
 
-        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
-        let mut states = specialized.new_grouped_state();
+    //     let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+    //     let mut states = specialized.new_grouped_state();
 
-        states.new_group();
-        states.new_group();
-        states.new_group();
+    //     states.new_group();
+    //     states.new_group();
+    //     states.new_group();
 
-        let mapping = vec![
-            RowToStateMapping {
-                from_row: 0,
-                to_state: 0,
-            },
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
-            },
-            RowToStateMapping {
-                from_row: 2,
-                to_state: 1,
-            },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 1,
-            },
-            RowToStateMapping {
-                from_row: 4,
-                to_state: 2,
-            },
-            RowToStateMapping {
-                from_row: 5,
-                to_state: 2,
-            },
-        ];
+    //     let addrs = vec![
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 0,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 0,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 1,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 1,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 2,
+    //         },
+    //         GroupAddress {
+    //             chunk_idx: 0,
+    //             row_idx: 2,
+    //         },
+    //     ];
 
-        states.update_states(&[vals], &mapping).unwrap();
+    //     states
+    //         .update_states(&[vals], ChunkGroupAddressIter::new(0, &addrs))
+    //         .unwrap();
 
-        let out_1 = states.drain_next(2).unwrap().unwrap();
-        assert_eq!(2, out_1.logical_len());
-        assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
+    //     let out_1 = states.drain_next(2).unwrap().unwrap();
+    //     assert_eq!(2, out_1.logical_len());
+    //     assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
+    //     assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
 
-        let out_2 = states.drain_next(2).unwrap().unwrap();
-        assert_eq!(1, out_2.logical_len());
-        assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
+    //     let out_2 = states.drain_next(2).unwrap().unwrap();
+    //     assert_eq!(1, out_2.logical_len());
+    //     assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
 
-        let out_3 = states.drain_next(2).unwrap();
-        assert_eq!(None, out_3);
-    }
+    //     let out_3 = states.drain_next(2).unwrap();
+    //     assert_eq!(None, out_3);
+    // }
 }

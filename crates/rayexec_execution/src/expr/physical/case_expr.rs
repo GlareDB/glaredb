@@ -75,7 +75,7 @@ impl PhysicalCaseExpr {
             // selection vector to get the original row index.
             for (array_row_idx, selected_row_idx) in trues_sel.iter_locations().enumerate() {
                 // Final output row.
-                let output_row_idx = selection.get_unchecked(selected_row_idx);
+                let output_row_idx = selection.get(selected_row_idx);
                 indices[output_row_idx] = (array_idx, array_row_idx);
 
                 // Update bitmap, this row was handled.

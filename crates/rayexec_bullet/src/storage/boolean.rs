@@ -45,10 +45,10 @@ impl<'a> AddressableStorage for BooleanStorageRef<'a> {
             return None;
         }
 
-        Some(self.0.value_unchecked(idx))
+        Some(self.0.value(idx))
     }
 
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        self.0.value_unchecked(idx)
+        self.0.value(idx)
     }
 }

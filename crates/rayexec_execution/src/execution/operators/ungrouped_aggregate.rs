@@ -4,9 +4,9 @@ use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::executor::aggregate::RowToStateMapping;
 use rayexec_error::{RayexecError, Result};
 
+use super::hash_aggregate::hash_table::GroupAddress;
 use super::{
     ExecutableOperator,
     ExecutionStates,
@@ -20,7 +20,7 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::functions::aggregate::{multi_array_drain, GroupedStates};
+use crate::functions::aggregate::{ChunkGroupAddressIter, GroupedStates};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
@@ -85,7 +85,7 @@ impl PhysicalUngroupedAggregate {
         let mut states = Vec::with_capacity(self.aggregates.len());
         for agg in &self.aggregates {
             let mut state = agg.function.new_grouped_state();
-            state.new_group();
+            state.new_groups(1);
             states.push(state);
         }
         states
@@ -139,10 +139,10 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         match state {
             UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
                 // All rows map to the same group (group 0)
-                let mapping: Vec<_> = (0..batch.num_rows())
-                    .map(|row| RowToStateMapping {
-                        from_row: row,
-                        to_state: 0,
+                let addrs: Vec<_> = (0..batch.num_rows())
+                    .map(|_| GroupAddress {
+                        chunk_idx: 0,
+                        row_idx: 0,
                     })
                     .collect();
 
@@ -153,7 +153,8 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|expr| batch.column(expr.idx).expect("column to exist"))
                         .collect();
 
-                    agg_states[agg_idx].update_states(&cols, &mapping)?;
+                    agg_states[agg_idx]
+                        .update_states(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
                 }
 
                 // Keep pushing.
@@ -189,12 +190,18 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 };
 
                 // Everything maps to the same group (group 0)
-                let mapping = vec![0];
+                let mapping = [GroupAddress {
+                    chunk_idx: 0,
+                    row_idx: 0,
+                }];
 
-                for (local_agg_state, global_agg_state) in
+                for (mut local_agg_state, global_agg_state) in
                     agg_states.into_iter().zip(shared.agg_states.iter_mut())
                 {
-                    global_agg_state.try_combine(local_agg_state, &mapping)?;
+                    global_agg_state.combine(
+                        &mut local_agg_state,
+                        ChunkGroupAddressIter::new(0, &mapping),
+                    )?;
                 }
 
                 shared.remaining -= 1;
@@ -214,19 +221,16 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     // Lock no longer needed.
                     std::mem::drop(shared);
 
-                    let mut batches = Vec::new();
-                    while let Some(arrays) = multi_array_drain(final_states.iter_mut(), 1000)? {
-                        let batch = Batch::try_new(arrays)?;
-                        batches.push(batch);
-                    }
+                    let arrays = final_states
+                        .iter_mut()
+                        .map(|s| s.drain())
+                        .collect::<Result<Vec<_>>>()?;
 
-                    // At least right now. Windows might end up doing something
-                    // different.
-                    assert_eq!(1, batches.len());
+                    let batch = Batch::try_new(arrays)?;
 
                     *state = UngroupedAggregatePartitionState::Producing {
                         partition_idx: *partition_idx,
-                        batches,
+                        batches: vec![batch],
                     }
                 }
 

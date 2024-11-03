@@ -22,8 +22,8 @@ impl SelectExecutor {
                 let values = PhysicalBool::get_storage(&bool_array.data)?;
 
                 for idx in 0..len {
-                    let sel = selection::get_unchecked(selection, idx);
-                    if !validity.value_unchecked(sel) {
+                    let sel = selection::get(selection, idx);
+                    if !validity.value(sel) {
                         continue;
                     }
 
@@ -38,7 +38,7 @@ impl SelectExecutor {
                 let values = PhysicalBool::get_storage(&bool_array.data)?;
 
                 for idx in 0..len {
-                    let sel = selection::get_unchecked(selection, idx);
+                    let sel = selection::get(selection, idx);
                     let val = unsafe { values.get_unchecked(sel) };
 
                     if val {

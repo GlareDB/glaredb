@@ -33,11 +33,12 @@ impl<T> From<Arc<T>> for SharedOrOwned<T> {
 }
 
 impl<T> AsRef<T> for SharedOrOwned<T> {
+    #[inline]
     fn as_ref(&self) -> &T {
         match &self.inner {
             SharedOrOwnedInner::Shared(v) => v.as_ref(),
             SharedOrOwnedInner::Owned(v) => v,
-            SharedOrOwnedInner::Empty => panic!("invalid state"),
+            SharedOrOwnedInner::Empty => unreachable!("invalid state"),
         }
     }
 }

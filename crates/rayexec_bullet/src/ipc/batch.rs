@@ -270,7 +270,6 @@ fn encode_array(
         ArrayData::Float64(d) => encode_primitive_values(d, data, buffers),
         ArrayData::Interval(d) => encode_primitive_values(d, data, buffers),
         ArrayData::Binary(d) => match d {
-            BinaryData::SharedHeap(_) => not_implemented!("IPC-encode shared heap binary"),
             BinaryData::Binary(d) => {
                 encode_primitive_values(&d.offsets, data, buffers);
                 encode_primitive_values(&d.data, data, buffers);

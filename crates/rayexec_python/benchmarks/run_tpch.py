@@ -7,6 +7,8 @@ import time
 import os
 import matplotlib.pyplot as plt
 
+plt.style.use("tableau-colorblind10")
+
 # TPC-H scale factor.
 sf = 10
 
@@ -755,39 +757,41 @@ print(datafusion_times)
 print("DUCKDB")
 print(duckdb_times)
 
-# rayexec_times.insert(0, "system", "rayexec (dev)")
-# datafusion_times.insert(0, "system", "datafusion 41.0.0")
-# duckdb_times.insert(0, "system", "duckdb 1.1.1")
+rayexec_times.insert(0, "system", "rayexec (dev)")
+datafusion_times.insert(0, "system", "datafusion 41.0.0")
+duckdb_times.insert(0, "system", "duckdb 1.1.1")
 
-# # Combine the dataframes into a single dataframe
-# all_times = pd.concat([rayexec_times, datafusion_times, duckdb_times], axis=0)
 
-# # Pivot the datafram
-# pivot_df = all_times.pivot(index="query", columns="system", values="dur")
+# Combine the dataframes into a single dataframe
+all_times = pd.concat([rayexec_times, datafusion_times, duckdb_times], axis=0)
 
-# # Plot the pivoted DataFrame
-# ax = pivot_df.plot(
-#     kind="bar", rot=0, ylabel="Duration in Seconds (Lower is Better)", figsize=(18, 5)
-# )
+# Pivot the datafram
+pivot_df = all_times.pivot(index="query", columns="system", values="dur")
 
-# from psutil import *
+# Plot the pivoted DataFrame
+ax = pivot_df.plot(
+    kind="bar", rot=0, ylabel="Duration in Seconds (Lower is Better)", figsize=(18, 5)
+)
 
-# vCPU = str(cpu_count()) + " vCPU"
-# mem = round(virtual_memory().total / (1024 * 1024 * 1024), 0)
-# runtime = (
-#     "TPC-H SF="
-#     + str(sf)
-#     + " (Parquet) "
-#     + " Macbook Air M2 "
-#     + vCPU
-#     + " "
-#     + str(mem)
-#     + "GB"
-# )
+from psutil import *
 
-# # Customize the plot
-# plt.title(runtime)
-# plt.tight_layout()
+vCPU = str(cpu_count()) + " vCPU"
+mem = round(virtual_memory().total / (1024 * 1024 * 1024), 0)
+runtime = (
+    "TPC-H SF="
+    + str(sf)
+    + " (Parquet) "
+    + " Macbook Air M2 "
+    + vCPU
+    + " "
+    + str(mem)
+    + "GB"
+)
 
-# # Save the figure
-# plt.savefig("times.png", dpi=300)
+
+# Customize the plot
+plt.title(runtime)
+plt.tight_layout()
+
+# Save the figure
+plt.savefig("times.png", dpi=300)

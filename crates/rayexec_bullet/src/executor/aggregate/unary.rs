@@ -28,8 +28,8 @@ impl UnaryNonNullUpdater {
                 let values = S::get_storage(&array.data)?;
 
                 for mapping in mapping {
-                    let sel = selection::get_unchecked(selection, mapping.from_row);
-                    if !validity.value_unchecked(sel) {
+                    let sel = unsafe { selection::get_unchecked(selection, mapping.from_row) };
+                    if !validity.value(sel) {
                         // Null, continue.
                         continue;
                     }
@@ -44,7 +44,7 @@ impl UnaryNonNullUpdater {
                 let values = S::get_storage(&array.data)?;
 
                 for mapping in mapping {
-                    let sel = selection::get_unchecked(selection, mapping.from_row);
+                    let sel = unsafe { selection::get_unchecked(selection, mapping.from_row) };
                     let val = unsafe { values.get_unchecked(sel) };
                     let state = &mut states[mapping.to_state];
 
@@ -68,7 +68,7 @@ mod tests {
     }
 
     impl AggregateState<i32, i32> for TestSumState {
-        fn merge(&mut self, other: Self) -> Result<()> {
+        fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.val += other.val;
             Ok(())
         }
@@ -78,7 +78,7 @@ mod tests {
             Ok(())
         }
 
-        fn finalize(self) -> Result<(i32, bool)> {
+        fn finalize(&mut self) -> Result<(i32, bool)> {
             Ok((self.val, true))
         }
     }
@@ -166,7 +166,7 @@ mod tests {
     }
 
     impl AggregateState<&str, String> for TestStringAgg {
-        fn merge(&mut self, other: Self) -> Result<()> {
+        fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.buf.push_str(&other.buf);
             Ok(())
         }
@@ -176,8 +176,8 @@ mod tests {
             Ok(())
         }
 
-        fn finalize(self) -> Result<(String, bool)> {
-            Ok((self.buf, true))
+        fn finalize(&mut self) -> Result<(String, bool)> {
+            Ok((std::mem::take(&mut self.buf), true))
         }
     }
 

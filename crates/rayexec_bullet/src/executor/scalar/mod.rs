@@ -36,11 +36,25 @@ use crate::array::Array;
 use crate::bitmap::Bitmap;
 
 #[inline]
-pub(crate) fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
+pub fn check_validity(idx: usize, validity: Option<&Bitmap>) -> bool {
     match validity {
-        Some(v) => v.value_unchecked(idx),
+        Some(v) => v.value(idx),
         None => true,
     }
+}
+
+pub fn can_skip_validity_check<'a, I>(validities: I) -> bool
+where
+    I: IntoIterator<Item = Option<&'a Bitmap>>,
+    I::IntoIter: ExactSizeIterator,
+{
+    for validity in validities.into_iter().flatten() {
+        if !validity.is_all_true() {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Validates that the length of a buffer that we're using for building a new

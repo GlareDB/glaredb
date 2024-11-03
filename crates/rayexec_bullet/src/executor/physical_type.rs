@@ -11,7 +11,6 @@ use crate::storage::{
     ContiguousVarlenStorageSlice,
     GermanVarlenStorageSlice,
     PrimitiveStorageSlice,
-    SharedHeapStorageSlice,
     UntypedNullStorage,
 };
 
@@ -365,9 +364,6 @@ impl<'a> PhysicalStorage<'a> for PhysicalBinary {
                 BinaryData::LargeBinary(b) => Ok(BinaryDataStorage::LargeBinary(
                     b.as_contiguous_storage_slice(),
                 )),
-                BinaryData::SharedHeap(b) => Ok(BinaryDataStorage::SharedHeap(
-                    b.as_shared_heap_storage_slice(),
-                )),
                 BinaryData::German(b) => Ok(BinaryDataStorage::German(b.as_german_storage_slice())),
             },
             _ => Err(RayexecError::new("invalid storage, expected binary")),
@@ -389,9 +385,6 @@ impl<'a> PhysicalStorage<'a> for PhysicalUtf8 {
                 BinaryData::LargeBinary(b) => {
                     Ok(BinaryDataStorage::LargeBinary(b.as_contiguous_storage_slice()).into())
                 }
-                BinaryData::SharedHeap(b) => {
-                    Ok(BinaryDataStorage::SharedHeap(b.as_shared_heap_storage_slice()).into())
-                }
                 BinaryData::German(b) => {
                     Ok(BinaryDataStorage::German(b.as_german_storage_slice()).into())
                 }
@@ -405,7 +398,6 @@ impl<'a> PhysicalStorage<'a> for PhysicalUtf8 {
 pub enum BinaryDataStorage<'a> {
     Binary(ContiguousVarlenStorageSlice<'a, i32>),
     LargeBinary(ContiguousVarlenStorageSlice<'a, i64>),
-    SharedHeap(SharedHeapStorageSlice<'a>),
     German(GermanVarlenStorageSlice<'a>),
 }
 
@@ -416,7 +408,6 @@ impl<'a> AddressableStorage for BinaryDataStorage<'a> {
         match self {
             Self::Binary(s) => s.len(),
             Self::LargeBinary(s) => s.len(),
-            Self::SharedHeap(s) => s.len(),
             Self::German(s) => s.len(),
         }
     }
@@ -425,7 +416,6 @@ impl<'a> AddressableStorage for BinaryDataStorage<'a> {
         match self {
             Self::Binary(s) => s.get(idx),
             Self::LargeBinary(s) => s.get(idx),
-            Self::SharedHeap(s) => s.get(idx),
             Self::German(s) => s.get(idx),
         }
     }
@@ -435,7 +425,6 @@ impl<'a> AddressableStorage for BinaryDataStorage<'a> {
         match self {
             Self::Binary(s) => s.get_unchecked(idx),
             Self::LargeBinary(s) => s.get_unchecked(idx),
-            Self::SharedHeap(s) => s.get_unchecked(idx),
             Self::German(s) => s.get_unchecked(idx),
         }
     }
@@ -453,6 +442,7 @@ impl<'a> AddressableStorage for StrDataStorage<'a> {
         self.inner.len()
     }
 
+    #[inline]
     fn get(&self, idx: usize) -> Option<Self::T> {
         let b = self.inner.get(idx)?;
         // SAFETY: Construction of the vector should have already validated the data.
@@ -463,7 +453,7 @@ impl<'a> AddressableStorage for StrDataStorage<'a> {
     #[inline]
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
         let b = self.inner.get_unchecked(idx);
-        unsafe { std::str::from_utf8_unchecked(b) } // See above
+        std::str::from_utf8_unchecked(b) // See above
     }
 }
 

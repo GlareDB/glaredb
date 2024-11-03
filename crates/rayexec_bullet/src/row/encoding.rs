@@ -270,7 +270,6 @@ impl ComparableRowEncoder {
                 ArrayData::Binary(d) => match d {
                     BinaryData::Binary(d) => d.data_size_bytes(),
                     BinaryData::LargeBinary(d) => d.data_size_bytes(),
-                    BinaryData::SharedHeap(d) => d.data_size_bytes(),
                     BinaryData::German(d) => d.data_size_bytes(),
                 },
             };
