@@ -6,6 +6,7 @@ use crate::logical::binder::bind_insert::BoundInsert;
 use crate::logical::logical_insert::LogicalInsert;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct InsertPlanner;
@@ -26,6 +27,7 @@ impl InsertPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![source],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -37,6 +39,7 @@ impl InsertPlanner {
             },
             location: insert.table_location,
             children: vec![source],
+            estimated_cardinality: StatisticsValue::Unknown,
         }))
     }
 }

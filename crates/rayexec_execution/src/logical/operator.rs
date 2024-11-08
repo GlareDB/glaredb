@@ -28,7 +28,7 @@ use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
-use super::statistics::{Statistics, StatisticsValue};
+use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -107,19 +107,6 @@ pub trait LogicalNode {
     /// operator.
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef>;
 
-    /// Try to get the output cardinality of this operator.
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        StatisticsValue::Unknown
-    }
-
-    /// Get the statistics for the output of this operator.
-    fn get_statistics(&self) -> Statistics {
-        Statistics {
-            cardinality: StatisticsValue::Unknown,
-            column_stats: None,
-        }
-    }
-
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>;
@@ -142,6 +129,11 @@ pub struct Node<N> {
     pub location: LocationRequirement,
     /// Inputs to this node.
     pub children: Vec<LogicalOperator>,
+    /// Estimated output cardinality of this node.
+    ///
+    /// Should be intialized to 'unknown'. Various optimizer rules will fill
+    /// this in as needed.
+    pub estimated_cardinality: StatisticsValue<usize>,
 }
 
 impl<N> Node<N> {
@@ -215,14 +207,6 @@ impl<N> Node<N> {
         })
     }
 
-    pub fn iter_child_statistics(&self) -> impl Iterator<Item = Statistics> + '_ {
-        self.children.iter().map(|c| c.get_statistics())
-    }
-
-    pub fn iter_child_cardinalities(&self) -> impl Iterator<Item = StatisticsValue<usize>> + '_ {
-        self.children.iter().map(|c| c.cardinality())
-    }
-
     // TODO: Duplicated with LogicalOperator.
     pub fn modify_replace_children<F>(&mut self, modify: &mut F) -> Result<()>
     where
@@ -252,7 +236,7 @@ where
             .with_value("location", self.location);
 
         if conf.verbose {
-            ent = ent.with_value("cardinality", self.cardinality())
+            ent = ent.with_value("cardinality", self.estimated_cardinality)
         }
 
         ent
@@ -309,6 +293,7 @@ impl LogicalOperator {
         node: LogicalEmpty,
         location: LocationRequirement::Any,
         children: Vec::new(),
+        estimated_cardinality: StatisticsValue::Unknown,
     });
 
     pub fn location(&self) -> &LocationRequirement {
@@ -436,6 +421,40 @@ impl LogicalOperator {
     pub fn is_project(&self) -> bool {
         matches!(self, LogicalOperator::Project(_))
     }
+
+    pub fn estimated_cardinality(&self) -> StatisticsValue<usize> {
+        match self {
+            Self::Invalid => panic!("attempted to get statistics for invalid operator"),
+            LogicalOperator::Project(n) => n.estimated_cardinality,
+            LogicalOperator::Filter(n) => n.estimated_cardinality,
+            LogicalOperator::Distinct(n) => n.estimated_cardinality,
+            LogicalOperator::Scan(n) => n.estimated_cardinality,
+            LogicalOperator::MaterializationScan(n) => n.estimated_cardinality,
+            LogicalOperator::MagicMaterializationScan(n) => n.estimated_cardinality,
+            LogicalOperator::Aggregate(n) => n.estimated_cardinality,
+            LogicalOperator::SetOp(n) => n.estimated_cardinality,
+            LogicalOperator::Empty(n) => n.estimated_cardinality,
+            LogicalOperator::Limit(n) => n.estimated_cardinality,
+            LogicalOperator::Order(n) => n.estimated_cardinality,
+            LogicalOperator::SetVar(n) => n.estimated_cardinality,
+            LogicalOperator::ResetVar(n) => n.estimated_cardinality,
+            LogicalOperator::ShowVar(n) => n.estimated_cardinality,
+            LogicalOperator::AttachDatabase(n) => n.estimated_cardinality,
+            LogicalOperator::DetachDatabase(n) => n.estimated_cardinality,
+            LogicalOperator::Drop(n) => n.estimated_cardinality,
+            LogicalOperator::Insert(n) => n.estimated_cardinality,
+            LogicalOperator::CreateSchema(n) => n.estimated_cardinality,
+            LogicalOperator::CreateTable(n) => n.estimated_cardinality,
+            LogicalOperator::CreateView(n) => n.estimated_cardinality,
+            LogicalOperator::Describe(n) => n.estimated_cardinality,
+            LogicalOperator::Explain(n) => n.estimated_cardinality,
+            LogicalOperator::CopyTo(n) => n.estimated_cardinality,
+            LogicalOperator::CrossJoin(n) => n.estimated_cardinality,
+            LogicalOperator::ArbitraryJoin(n) => n.estimated_cardinality,
+            LogicalOperator::ComparisonJoin(n) => n.estimated_cardinality,
+            LogicalOperator::MagicJoin(n) => n.estimated_cardinality,
+        }
+    }
 }
 
 impl LogicalNode for LogicalOperator {
@@ -470,74 +489,6 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::ArbitraryJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::MagicJoin(n) => n.get_output_table_refs(bind_context),
-        }
-    }
-
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        match self {
-            Self::Invalid => panic!("attempted to get statistics for invalid operator"),
-            LogicalOperator::Project(n) => n.cardinality(),
-            LogicalOperator::Filter(n) => n.cardinality(),
-            LogicalOperator::Distinct(n) => n.cardinality(),
-            LogicalOperator::Scan(n) => n.cardinality(),
-            LogicalOperator::MaterializationScan(n) => n.cardinality(),
-            LogicalOperator::MagicMaterializationScan(n) => n.cardinality(),
-            LogicalOperator::Aggregate(n) => n.cardinality(),
-            LogicalOperator::SetOp(n) => n.cardinality(),
-            LogicalOperator::Empty(n) => n.cardinality(),
-            LogicalOperator::Limit(n) => n.cardinality(),
-            LogicalOperator::Order(n) => n.cardinality(),
-            LogicalOperator::SetVar(n) => n.cardinality(),
-            LogicalOperator::ResetVar(n) => n.cardinality(),
-            LogicalOperator::ShowVar(n) => n.cardinality(),
-            LogicalOperator::AttachDatabase(n) => n.cardinality(),
-            LogicalOperator::DetachDatabase(n) => n.cardinality(),
-            LogicalOperator::Drop(n) => n.cardinality(),
-            LogicalOperator::Insert(n) => n.cardinality(),
-            LogicalOperator::CreateSchema(n) => n.cardinality(),
-            LogicalOperator::CreateTable(n) => n.cardinality(),
-            LogicalOperator::CreateView(n) => n.cardinality(),
-            LogicalOperator::Describe(n) => n.cardinality(),
-            LogicalOperator::Explain(n) => n.cardinality(),
-            LogicalOperator::CopyTo(n) => n.cardinality(),
-            LogicalOperator::CrossJoin(n) => n.cardinality(),
-            LogicalOperator::ArbitraryJoin(n) => n.cardinality(),
-            LogicalOperator::ComparisonJoin(n) => n.cardinality(),
-            LogicalOperator::MagicJoin(n) => n.cardinality(),
-        }
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        match self {
-            Self::Invalid => panic!("attempted to get statistics for invalid operator"),
-            LogicalOperator::Project(n) => n.get_statistics(),
-            LogicalOperator::Filter(n) => n.get_statistics(),
-            LogicalOperator::Distinct(n) => n.get_statistics(),
-            LogicalOperator::Scan(n) => n.get_statistics(),
-            LogicalOperator::MaterializationScan(n) => n.get_statistics(),
-            LogicalOperator::MagicMaterializationScan(n) => n.get_statistics(),
-            LogicalOperator::Aggregate(n) => n.get_statistics(),
-            LogicalOperator::SetOp(n) => n.get_statistics(),
-            LogicalOperator::Empty(n) => n.get_statistics(),
-            LogicalOperator::Limit(n) => n.get_statistics(),
-            LogicalOperator::Order(n) => n.get_statistics(),
-            LogicalOperator::SetVar(n) => n.get_statistics(),
-            LogicalOperator::ResetVar(n) => n.get_statistics(),
-            LogicalOperator::ShowVar(n) => n.get_statistics(),
-            LogicalOperator::AttachDatabase(n) => n.get_statistics(),
-            LogicalOperator::DetachDatabase(n) => n.get_statistics(),
-            LogicalOperator::Drop(n) => n.get_statistics(),
-            LogicalOperator::Insert(n) => n.get_statistics(),
-            LogicalOperator::CreateSchema(n) => n.get_statistics(),
-            LogicalOperator::CreateTable(n) => n.get_statistics(),
-            LogicalOperator::CreateView(n) => n.get_statistics(),
-            LogicalOperator::Describe(n) => n.get_statistics(),
-            LogicalOperator::Explain(n) => n.get_statistics(),
-            LogicalOperator::CopyTo(n) => n.get_statistics(),
-            LogicalOperator::CrossJoin(n) => n.get_statistics(),
-            LogicalOperator::ArbitraryJoin(n) => n.get_statistics(),
-            LogicalOperator::ComparisonJoin(n) => n.get_statistics(),
-            LogicalOperator::MagicJoin(n) => n.get_statistics(),
         }
     }
 

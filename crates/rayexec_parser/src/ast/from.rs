@@ -16,145 +16,160 @@ pub struct FromNode<T: AstMeta> {
 impl AstParseable for FromNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         // Build the first part of the FROM clause.
-        let node = Self::parse_base_from(parser)?;
+        let mut node = Self::parse_base_from(parser)?;
 
         // If followed by a join, recursively build up the FROM node using the
         // original node build above as the left part.
 
-        let node = if parser.parse_keyword(Keyword::CROSS) {
-            // <left> CROSS JOIN <right>
-            parser.expect_keyword(Keyword::JOIN)?;
-            let right = FromNode::parse(parser)?;
-            let alias = Self::maybe_parse_alias(parser)?;
-            FromNode {
-                alias,
-                body: FromNodeBody::Join(FromJoin {
-                    left: Box::new(node),
-                    right: Box::new(right),
-                    join_type: JoinType::Inner,
-                    join_condition: JoinCondition::None,
-                }),
-            }
-        } else if parser.consume_token(&Token::Comma) {
-            // <left>, <right>
-            let right = FromNode::parse(parser)?;
-            let alias = Self::maybe_parse_alias(parser)?;
-            FromNode {
-                alias,
-                body: FromNodeBody::Join(FromJoin {
-                    left: Box::new(node),
-                    right: Box::new(right),
-                    join_type: JoinType::Inner,
-                    join_condition: JoinCondition::None,
-                }),
-            }
-        } else {
-            let kw = match parser.peek() {
-                Some(tok) => match tok.keyword() {
-                    Some(kw) => kw,
-                    None => return Ok(node), // Probably an error, but that can be handled higher up with more context.
-                },
-                None => return Ok(node), // End of statement, FROM node is last part of the query.
-            };
-
-            let join_type = match kw {
-                Keyword::JOIN | Keyword::INNER => {
-                    parser.parse_keyword(Keyword::INNER); // Optional INNER
-                    parser.expect_keyword(Keyword::JOIN)?;
-                    JoinType::Inner
+        loop {
+            if parser.parse_keyword(Keyword::CROSS) {
+                // <left> CROSS JOIN <right>
+                parser.expect_keyword(Keyword::JOIN)?;
+                let right = FromNode::parse(parser)?;
+                let alias = Self::maybe_parse_alias(parser)?;
+                node = FromNode {
+                    alias,
+                    body: FromNodeBody::Join(FromJoin {
+                        left: Box::new(node),
+                        right: Box::new(right),
+                        join_type: JoinType::Inner,
+                        join_condition: JoinCondition::None,
+                    }),
                 }
-                Keyword::LEFT => {
-                    parser.expect_keyword(Keyword::LEFT)?;
-                    let kw = parser.parse_one_of_keywords(&[
-                        Keyword::JOIN,
-                        Keyword::OUTER,
-                        Keyword::ANTI,
-                        Keyword::SEMI,
-                    ]);
-                    match kw {
-                        Some(Keyword::JOIN) => JoinType::Left,
-                        Some(Keyword::OUTER) => {
-                            parser.expect_keyword(Keyword::JOIN)?;
-                            JoinType::Left
-                        }
-                        Some(Keyword::ANTI) => {
-                            parser.expect_keyword(Keyword::JOIN)?;
-                            JoinType::LeftAnti
-                        }
-                        Some(Keyword::SEMI) => {
-                            parser.expect_keyword(Keyword::JOIN)?;
-                            JoinType::LeftSemi
-                        }
-                        _ => return Err(RayexecError::new("Expected one of OUTER, SEMI, or JOIN")),
+            } else if parser.consume_token(&Token::Comma) {
+                // <left>, <right>
+                let right = FromNode::parse(parser)?;
+                let alias = Self::maybe_parse_alias(parser)?;
+                node = FromNode {
+                    alias,
+                    body: FromNodeBody::Join(FromJoin {
+                        left: Box::new(node),
+                        right: Box::new(right),
+                        join_type: JoinType::Inner,
+                        join_condition: JoinCondition::None,
+                    }),
+                }
+            } else {
+                let kw = match parser.peek() {
+                    Some(tok) => match tok.keyword() {
+                        Some(kw) => kw,
+                        None => return Ok(node), // Probably an error, but that can be handled higher up with more context.
+                    },
+                    None => return Ok(node), // End of statement, FROM node is last part of the query.
+                };
+
+                let join_type = match kw {
+                    Keyword::JOIN | Keyword::INNER => {
+                        parser.parse_keyword(Keyword::INNER); // Optional INNER
+                        parser.expect_keyword(Keyword::JOIN)?;
+                        JoinType::Inner
                     }
-                }
-                Keyword::RIGHT => {
-                    parser.expect_keyword(Keyword::RIGHT)?;
-                    let kw = parser.parse_one_of_keywords(&[
-                        Keyword::JOIN,
-                        Keyword::OUTER,
-                        Keyword::ANTI,
-                        Keyword::SEMI,
-                    ]);
-                    match kw {
-                        Some(Keyword::JOIN) => JoinType::Right,
-                        Some(Keyword::OUTER) => {
-                            parser.expect_keyword(Keyword::JOIN)?;
-                            JoinType::Right
+                    Keyword::LEFT => {
+                        parser.expect_keyword(Keyword::LEFT)?;
+                        let kw = parser.parse_one_of_keywords(&[
+                            Keyword::JOIN,
+                            Keyword::OUTER,
+                            Keyword::ANTI,
+                            Keyword::SEMI,
+                        ]);
+                        match kw {
+                            Some(Keyword::JOIN) => JoinType::Left,
+                            Some(Keyword::OUTER) => {
+                                parser.expect_keyword(Keyword::JOIN)?;
+                                JoinType::Left
+                            }
+                            Some(Keyword::ANTI) => {
+                                parser.expect_keyword(Keyword::JOIN)?;
+                                JoinType::LeftAnti
+                            }
+                            Some(Keyword::SEMI) => {
+                                parser.expect_keyword(Keyword::JOIN)?;
+                                JoinType::LeftSemi
+                            }
+                            _ => {
+                                return Err(RayexecError::new(
+                                    "Expected one of OUTER, SEMI, or JOIN",
+                                ))
+                            }
                         }
-                        Some(Keyword::ANTI) => {
-                            parser.expect_keyword(Keyword::JOIN)?;
-                            JoinType::RightAnti
-                        }
-                        Some(Keyword::SEMI) => {
-                            parser.expect_keyword(Keyword::JOIN)?;
-                            JoinType::RightSemi
-                        }
-                        _ => return Err(RayexecError::new("Expected one of OUTER, SEMI, or JOIN")),
                     }
-                }
-                Keyword::FULL => {
-                    parser.expect_keyword(Keyword::FULL)?;
-                    parser.parse_keyword(Keyword::OUTER); // Optional OUTER
-                    parser.expect_keyword(Keyword::JOIN)?;
-                    JoinType::Outer
-                }
-                _ => return Ok(node), // Unknown join keyword, probably time to start working on a different part of the query.
-            };
-
-            let right = FromNode::parse(parser)?;
-
-            let kw: Option<Keyword> = parser.peek().and_then(|t| t.keyword());
-
-            let join_condition = match kw {
-                Some(Keyword::ON) => {
-                    parser.parse_keyword(Keyword::ON);
-                    let has_paren = parser.consume_token(&Token::LeftParen);
-                    let condition = JoinCondition::On(Expr::parse(parser)?);
-                    if has_paren {
-                        parser.expect_token(&Token::RightParen)?;
+                    Keyword::RIGHT => {
+                        parser.expect_keyword(Keyword::RIGHT)?;
+                        let kw = parser.parse_one_of_keywords(&[
+                            Keyword::JOIN,
+                            Keyword::OUTER,
+                            Keyword::ANTI,
+                            Keyword::SEMI,
+                        ]);
+                        match kw {
+                            Some(Keyword::JOIN) => JoinType::Right,
+                            Some(Keyword::OUTER) => {
+                                parser.expect_keyword(Keyword::JOIN)?;
+                                JoinType::Right
+                            }
+                            Some(Keyword::ANTI) => {
+                                parser.expect_keyword(Keyword::JOIN)?;
+                                JoinType::RightAnti
+                            }
+                            Some(Keyword::SEMI) => {
+                                parser.expect_keyword(Keyword::JOIN)?;
+                                JoinType::RightSemi
+                            }
+                            _ => {
+                                return Err(RayexecError::new(
+                                    "Expected one of OUTER, SEMI, or JOIN",
+                                ))
+                            }
+                        }
                     }
-                    condition
-                }
-                Some(Keyword::USING) => {
-                    parser.parse_keyword(Keyword::USING);
-                    JoinCondition::Using(parser.parse_parenthesized_comma_separated(Ident::parse)?)
-                }
-                _ => JoinCondition::None,
-            };
+                    Keyword::FULL => {
+                        parser.expect_keyword(Keyword::FULL)?;
+                        parser.parse_keyword(Keyword::OUTER); // Optional OUTER
+                        parser.expect_keyword(Keyword::JOIN)?;
+                        JoinType::Outer
+                    }
+                    Keyword::SEMI => {
+                        parser.expect_keyword(Keyword::SEMI)?;
+                        parser.expect_keyword(Keyword::JOIN)?;
+                        JoinType::LeftSemi
+                    }
+                    _ => return Ok(node), // Unknown join keyword, probably time to start working on a different part of the query.
+                };
 
-            FromNode {
-                alias: None, // TODO: Join alias?
-                body: FromNodeBody::Join(FromJoin {
-                    left: Box::new(node),
-                    right: Box::new(right),
-                    join_type,
-                    join_condition,
-                }),
+                let right = FromNode::parse(parser)?;
+
+                let kw: Option<Keyword> = parser.peek().and_then(|t| t.keyword());
+
+                let join_condition = match kw {
+                    Some(Keyword::ON) => {
+                        parser.parse_keyword(Keyword::ON);
+                        let has_paren = parser.consume_token(&Token::LeftParen);
+                        let condition = JoinCondition::On(Expr::parse(parser)?);
+                        if has_paren {
+                            parser.expect_token(&Token::RightParen)?;
+                        }
+                        condition
+                    }
+                    Some(Keyword::USING) => {
+                        parser.parse_keyword(Keyword::USING);
+                        JoinCondition::Using(
+                            parser.parse_parenthesized_comma_separated(Ident::parse)?,
+                        )
+                    }
+                    _ => JoinCondition::None,
+                };
+
+                node = FromNode {
+                    alias: None, // TODO: Join alias?
+                    body: FromNodeBody::Join(FromJoin {
+                        left: Box::new(node),
+                        right: Box::new(right),
+                        join_type,
+                        join_condition,
+                    }),
+                };
             }
-        };
-
-        Ok(node)
+        }
     }
 }
 

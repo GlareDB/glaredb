@@ -1,4 +1,4 @@
-use super::edge::NeighborEdge;
+use super::edge::{EdgeType, NeighborEdge};
 use crate::expr::comparison_expr::ComparisonOperator;
 
 #[derive(Debug, Clone, Copy)]
@@ -28,31 +28,39 @@ impl Subgraph {
         // Only update the denominator (selectivity) if we have a join
         // condition. If we don't, we should assume cross join and not make this
         // join more selective (and thus higher cost).
-        let op = match edge.edge_op {
-            Some(op) => op,
-            None => return,
-        };
 
-        let mut denom = self.selectivity_denom * other.selectivity_denom;
+        match edge.edge_op {
+            EdgeType::Cross => (),
+            EdgeType::Inner { op } => {
+                let mut denom = self.selectivity_denom * other.selectivity_denom;
 
-        match op {
-            ComparisonOperator::Eq => {
-                // =
-                denom *= edge.min_ndv
+                match op {
+                    ComparisonOperator::Eq => {
+                        // =
+                        denom *= edge.min_ndv
+                    }
+                    ComparisonOperator::NotEq => {
+                        denom *= 0.1 // Assuming 10% selectivity for !=
+                    }
+                    ComparisonOperator::Lt
+                    | ComparisonOperator::Gt
+                    | ComparisonOperator::LtEq
+                    | ComparisonOperator::GtEq => {
+                        // For range joins, adjust selectivity. Assuming 1/3rd of
+                        // the data falls into the range.
+                        denom *= 3.0
+                    }
+                }
+
+                self.selectivity_denom = denom;
             }
-            ComparisonOperator::NotEq => {
-                denom *= 0.1 // Assuming 10% selectivity for !=
-            }
-            ComparisonOperator::Lt
-            | ComparisonOperator::Gt
-            | ComparisonOperator::LtEq
-            | ComparisonOperator::GtEq => {
-                // For range joins, adjust selectivity. Assuming 1/3rd of
-                // the data falls into the range.
-                denom *= 3.0
+            EdgeType::Semi => {
+                // TODO: Need to flip if edge is flipped.
+                #[allow(clippy::self_assignment)]
+                {
+                    self.selectivity_denom = self.selectivity_denom
+                }
             }
         }
-
-        self.selectivity_denom = denom;
     }
 }

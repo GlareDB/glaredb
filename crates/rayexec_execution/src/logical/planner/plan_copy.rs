@@ -6,6 +6,7 @@ use crate::logical::logical_copy::LogicalCopyTo;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
 use crate::logical::planner::plan_query::QueryPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct CopyPlanner;
@@ -31,6 +32,7 @@ impl CopyPlanner {
             },
             location: LocationRequirement::ClientLocal,
             children: vec![source],
+            estimated_cardinality: StatisticsValue::Unknown,
         }))
     }
 }

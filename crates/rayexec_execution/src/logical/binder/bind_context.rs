@@ -449,6 +449,15 @@ impl BindContext {
         Ok(())
     }
 
+    /// Removes the given table from a context, taking those tables out of
+    /// scope.
+    pub fn remove_tables(&mut self, current: BindScopeRef, tables: &[TableRef]) -> Result<()> {
+        let current = self.get_scope_mut(current)?;
+        current.tables.retain_mut(|v| !tables.contains(v));
+
+        Ok(())
+    }
+
     /// Computes distance from child to parent, erroring if there's no
     /// connection between the refs.
     ///

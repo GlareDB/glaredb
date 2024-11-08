@@ -28,3 +28,29 @@ query II rowsort
 SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b) ON a = b AND a >= 2;
 ----
 2  2
+
+# Inner join with subquery
+query II
+SELECT * FROM generate_series(1, 3) t1(a)
+  INNER JOIN (SELECT * FROM generate_series(1, 3) t2(b) WHERE b < 3)
+    ON a = b AND a >= 2;
+----
+2  2
+
+# Inner join with subquery and alias
+query II
+SELECT * FROM generate_series(1, 3) t1(a)
+  INNER JOIN (SELECT * FROM generate_series(1, 3) t2(b) WHERE b < 3) t3
+    ON t1.a = t3.b AND t1.a >= 2;
+----
+2  2
+
+# Multiple inner joins
+query III rowsort
+SELECT * FROM generate_series(1, 3) t1(a)
+   INNER JOIN generate_series(1, 3) t2(b) ON a = b
+   INNER JOIN generate_series(1, 3) t3(c) ON b = c;
+----
+1  1  1
+2  2  2
+3  3  3

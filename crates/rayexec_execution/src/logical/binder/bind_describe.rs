@@ -10,6 +10,7 @@ use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct DescribeBinder<'a> {
@@ -66,6 +67,7 @@ impl<'a> DescribeBinder<'a> {
             },
             location: LocationRequirement::Any,
             children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
         })
     }
 }

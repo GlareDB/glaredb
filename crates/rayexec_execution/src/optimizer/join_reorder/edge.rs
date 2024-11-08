@@ -5,11 +5,11 @@ use std::ops::ControlFlow;
 use rayexec_error::{RayexecError, Result};
 
 use super::graph::{BaseRelation, RelId, RelationSet};
+use super::ReorderableCondition;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::binder::bind_context::TableRef;
-use crate::logical::logical_join::ComparisonCondition;
 
 pub type HyperEdgeId = usize;
 
@@ -44,7 +44,7 @@ pub struct Edge {
     /// The expression joining two nodes in the graph.
     ///
     /// If None, this indicates a cross join between the two relations.
-    pub filter: Option<ComparisonCondition>,
+    pub filter: Option<ReorderableCondition>,
     /// Refs on the left side of the comparison.
     pub left_refs: HashSet<TableRef>,
     /// Refs on the right side of the comparison.
@@ -55,11 +55,18 @@ pub struct Edge {
     pub right_rel: RelId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EdgeType {
+    Cross,
+    Inner { op: ComparisonOperator },
+    Semi,
+}
+
 #[derive(Debug)]
 pub struct NeighborEdge {
     /// Operator that's used in the condition. Affects the computed denominator
     /// for the subgraph.
-    pub edge_op: Option<ComparisonOperator>,
+    pub edge_op: EdgeType,
     /// Id for the hyper edge this edge was in.
     pub _hyper_edge_id: HyperEdgeId,
     /// Id of the edge.
@@ -73,7 +80,7 @@ impl HyperEdges {
     ///
     /// Hyper edge NDV will be initialized from base relation cardinalities.
     pub fn new(
-        conditions: impl IntoIterator<Item = ComparisonCondition>,
+        conditions: impl IntoIterator<Item = ReorderableCondition>,
         base_relations: &HashMap<RelId, BaseRelation>,
     ) -> Result<Self> {
         let mut hyper_edges = HyperEdges(Vec::new());
@@ -109,11 +116,19 @@ impl HyperEdges {
         let mut found = Vec::new();
 
         self.for_each_edge(&mut |hyp, edge_id, edge| {
+            let typ = match &edge.filter {
+                Some(ReorderableCondition::Semi { .. }) => EdgeType::Semi,
+                Some(ReorderableCondition::Inner { condition }) => {
+                    EdgeType::Inner { op: condition.op }
+                }
+                None => EdgeType::Cross,
+            };
+
             if p1.relation_indices.contains(&edge.left_rel)
                 && p2.relation_indices.contains(&edge.right_rel)
             {
                 found.push(NeighborEdge {
-                    edge_op: edge.filter.as_ref().map(|f| f.op),
+                    edge_op: typ,
                     _hyper_edge_id: hyp.id,
                     edge_id,
                     min_ndv: hyp.min_ndv,
@@ -124,7 +139,7 @@ impl HyperEdges {
                 && p2.relation_indices.contains(&edge.left_rel)
             {
                 found.push(NeighborEdge {
-                    edge_op: edge.filter.as_ref().map(|f| f.op),
+                    edge_op: typ,
                     _hyper_edge_id: hyp.id,
                     edge_id,
                     min_ndv: hyp.min_ndv,
@@ -154,6 +169,11 @@ impl HyperEdges {
     pub fn remove_edge(&mut self, id: EdgeId) -> Option<Edge> {
         let hyper_edge = self.0.get_mut(id.hyper_edge_id)?;
         hyper_edge.edges.remove(&id)
+    }
+
+    pub fn get_edge(&self, id: EdgeId) -> Option<&Edge> {
+        let hyper_edge = self.0.get(id.hyper_edge_id)?;
+        hyper_edge.edges.get(&id)
     }
 
     /// Checks if all edges containing a join condition have been removed from
@@ -199,13 +219,12 @@ impl HyperEdges {
 
     fn insert_condition_as_edge(
         &mut self,
-        condition: ComparisonCondition,
+        condition: ReorderableCondition,
         base_relations: &HashMap<RelId, BaseRelation>,
     ) -> Result<()> {
         let mut min_ndv = f64::MAX;
 
-        let left_refs = condition.left.get_table_references();
-        let right_refs = condition.right.get_table_references();
+        let [left_refs, right_refs] = condition.get_left_right_table_refs();
 
         let mut left_rel = None;
         let mut right_rel = None;
@@ -232,12 +251,7 @@ impl HyperEdges {
         // We have the "local" min_ndv, check existing hyper edges to see if
         // it can be added to one.
 
-        let cols: HashSet<_> = condition
-            .left
-            .get_column_references()
-            .into_iter()
-            .chain(condition.right.get_column_references())
-            .collect();
+        let cols = condition.get_column_refs();
 
         let left_rel = left_rel.ok_or_else(|| RayexecError::new("Missing left rel id"))?;
         let right_rel = right_rel.ok_or_else(|| RayexecError::new("Missing right rel id"))?;

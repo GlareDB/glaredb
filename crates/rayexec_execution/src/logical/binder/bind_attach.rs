@@ -10,6 +10,7 @@ use crate::logical::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabas
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub enum BoundAttach {
@@ -89,6 +90,7 @@ impl AttachBinder {
                     },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             ast::AttachType::Table => Err(RayexecError::new("Attach tables not yet supported")),
@@ -114,6 +116,7 @@ impl AttachBinder {
                     node: LogicalDetachDatabase { name },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),

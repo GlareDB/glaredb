@@ -6,6 +6,7 @@ use crate::logical::binder::bind_query::BoundQuery;
 use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_select::SelectPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct QueryPlanner;
@@ -34,6 +35,7 @@ impl QueryPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: Vec::new(),
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
         }

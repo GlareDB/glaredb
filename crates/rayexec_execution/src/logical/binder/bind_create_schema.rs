@@ -6,6 +6,7 @@ use crate::database::create::OnConflict;
 use crate::logical::logical_create::LogicalCreateSchema;
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct CreateSchemaBinder {
@@ -38,6 +39,7 @@ impl CreateSchemaBinder {
             },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
         })
     }
 }

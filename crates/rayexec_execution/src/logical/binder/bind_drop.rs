@@ -6,6 +6,7 @@ use crate::database::drop::{DropInfo, DropObject};
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct DropBinder {
@@ -41,6 +42,7 @@ impl DropBinder {
                     },
                     location: LocationRequirement::ClientLocal,
                     children: Vec::new(),
+                    estimated_cardinality: StatisticsValue::Unknown,
                 })
             }
             other => not_implemented!("drop {other:?}"),

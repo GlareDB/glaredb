@@ -10,6 +10,7 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
 use crate::logical::planner::plan_subquery::SubqueryPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SelectPlanner;
@@ -30,6 +31,7 @@ impl SelectPlanner {
                 node: LogicalFilter { filter },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             });
         }
 
@@ -65,6 +67,7 @@ impl SelectPlanner {
                 node: agg,
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -80,6 +83,7 @@ impl SelectPlanner {
             },
             location: LocationRequirement::Any,
             children: vec![plan],
+            estimated_cardinality: StatisticsValue::Unknown,
         });
 
         // Handle HAVING
@@ -89,6 +93,7 @@ impl SelectPlanner {
                 node: LogicalFilter { filter: expr },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -100,6 +105,7 @@ impl SelectPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -112,6 +118,7 @@ impl SelectPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             });
         }
 
@@ -124,6 +131,7 @@ impl SelectPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 

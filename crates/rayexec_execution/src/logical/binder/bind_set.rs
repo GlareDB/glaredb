@@ -10,6 +10,7 @@ use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SetVarBinder<'a> {
@@ -49,6 +50,7 @@ impl<'a> SetVarBinder<'a> {
             node: LogicalSetVar { name, value },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
         })
     }
 
@@ -70,6 +72,7 @@ impl<'a> SetVarBinder<'a> {
             node: LogicalResetVar { var },
             location: LocationRequirement::ClientLocal,
             children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
         })
     }
 
@@ -87,6 +90,7 @@ impl<'a> SetVarBinder<'a> {
             node: LogicalShowVar { var: var.clone() },
             location: LocationRequirement::ClientLocal, // Technically could be any since the variable is copied.
             children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
         })
     }
 }

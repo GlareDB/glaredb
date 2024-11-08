@@ -28,13 +28,14 @@ use std::fmt;
 use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
-use super::edge::{EdgeId, HyperEdges, NeighborEdge};
+use super::edge::{EdgeId, EdgeType, HyperEdges, NeighborEdge};
+use super::statistics::propagate_estimated_cardinality;
 use super::subgraph::Subgraph;
+use super::ReorderableCondition;
 use crate::expr;
 use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
-    ComparisonCondition,
     JoinType,
     LogicalArbitraryJoin,
     LogicalComparisonJoin,
@@ -244,16 +245,28 @@ pub struct Graph {
 impl Graph {
     pub fn try_new(
         base_ops: impl IntoIterator<Item = LogicalOperator>,
-        conditions: impl IntoIterator<Item = ComparisonCondition>,
+        conditions: impl IntoIterator<Item = ReorderableCondition>,
         filters: impl IntoIterator<Item = ExtractedFilter>,
         bind_context: &BindContext,
     ) -> Result<Self> {
+        let base_ops = base_ops
+            .into_iter()
+            .map(|mut op| {
+                propagate_estimated_cardinality(&mut op)?;
+                Ok(op)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
         let base_relations: HashMap<RelId, BaseRelation> = base_ops
             .into_iter()
             .enumerate()
             .map(|(rel_id, op)| {
                 let output_refs = op.get_output_table_refs(bind_context).into_iter().collect();
-                let cardinality = op.cardinality().value().copied().unwrap_or(20_000) as f64;
+                let cardinality = op
+                    .estimated_cardinality()
+                    .value()
+                    .copied()
+                    .unwrap_or(20_000) as f64;
 
                 (
                     rel_id,
@@ -527,8 +540,18 @@ impl Graph {
 
         // Clone the left subgraph, and modify it to account for the
         // joins with the right based on edges.
+        //
+        // For semi joins, we only want to update from one side of subgraph.
         let mut subgraph = left.1.subgraph;
-        subgraph.update_numerator(&right.1.subgraph);
+        let any_semi = edges
+            .iter()
+            .any(|edge| matches!(edge.edge_op, EdgeType::Semi));
+        // TODO: This needs to account for edge direction (if left side of the
+        // edge actually is from the left plan and not flipped). Same with
+        // denom.
+        if !any_semi {
+            subgraph.update_numerator(&right.1.subgraph);
+        }
 
         // Update just the numerator to account for the change in cardinality.
         //
@@ -677,6 +700,7 @@ impl Graph {
                     },
                     location: filter.location,
                     children: filter.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
@@ -690,6 +714,7 @@ impl Graph {
                     },
                     location: join.location,
                     children: join.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             LogicalOperator::CrossJoin(join) => Ok(LogicalOperator::ArbitraryJoin(Node {
@@ -699,6 +724,7 @@ impl Graph {
                 },
                 location: join.location,
                 children: join.children,
+                estimated_cardinality: StatisticsValue::Unknown,
             })),
             other => Ok(LogicalOperator::Filter(Node {
                 node: LogicalFilter {
@@ -706,6 +732,7 @@ impl Graph {
                 },
                 location: LocationRequirement::Any,
                 children: vec![other],
+                estimated_cardinality: StatisticsValue::Unknown,
             })),
         }
     }
@@ -729,14 +756,35 @@ impl Graph {
 
         // Otherwise build up the plan.
 
-        let left_gen = self
+        let mut left_gen = self
             .best_plans
             .remove(&node.left)
             .ok_or_else(|| RayexecError::new("Missing left input"))?;
-        let right_gen = self
+        let mut right_gen = self
             .best_plans
             .remove(&node.right)
             .ok_or_else(|| RayexecError::new("Missing right input"))?;
+
+        // If any of the conditions are part of a semi join, ensure the correct
+        // order of the plans and prevent swapping sides.
+        let mut any_semi = false;
+        for &edge_id in &node.edges {
+            let edge = self
+                .hyper_edges
+                .get_edge(edge_id)
+                .ok_or_else(|| RayexecError::new("Missing edge"))?;
+
+            if let Some(cond @ ReorderableCondition::Semi { .. }) = &edge.filter {
+                let [left_refs, _right_refs] = cond.get_left_right_table_refs();
+
+                if !left_refs.is_subset(&left_gen.output_refs) {
+                    // Need to swap to get the plans on the right side.
+                    std::mem::swap(&mut left_gen, &mut right_gen);
+                }
+
+                any_semi = true;
+            }
+        }
 
         let mut conditions = Vec::with_capacity(node.edges.len());
         for &edge_id in &node.edges {
@@ -745,7 +793,7 @@ impl Graph {
                 .remove_edge(edge_id)
                 .ok_or_else(|| RayexecError::new("Edge already used"))?;
 
-            let mut condition = match edge.filter {
+            let condition = match edge.filter {
                 Some(filter) => filter,
                 None => {
                     // No condition on this edge, assume cross join.
@@ -753,12 +801,23 @@ impl Graph {
                 }
             };
 
-            let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
-            if condition_swap_sides {
-                condition.flip_sides();
-            }
+            match condition {
+                ReorderableCondition::Inner { mut condition } => {
+                    let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
+                    if condition_swap_sides {
+                        condition.flip_sides();
+                    }
 
-            conditions.push(condition);
+                    conditions.push(condition);
+                }
+                ReorderableCondition::Semi {
+                    conditions: mut semi_conditions,
+                } => {
+                    // Plans needed to be flipped according to conditions,
+                    // assume they're already in the right order.
+                    conditions.append(&mut semi_conditions);
+                }
+            }
         }
 
         let left = self.build_from_generated(&left_gen)?;
@@ -771,8 +830,9 @@ impl Graph {
         // to have the lower cardinality (not necessarily cost).
         //
         // Don't swap sides yet, still need to apply filters.
-        let plan_swap_sides =
-            right_gen.subgraph.estimated_cardinality() < left_gen.subgraph.estimated_cardinality();
+        let plan_swap_sides = (!any_semi)
+            && right_gen.subgraph.estimated_cardinality()
+                < left_gen.subgraph.estimated_cardinality();
 
         let [left, right] = if plan_swap_sides {
             [right, left]
@@ -793,19 +853,26 @@ impl Graph {
                 node: LogicalCrossJoin,
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Unknown,
             }))
         } else {
+            let join_type = if any_semi {
+                JoinType::Semi
+            } else {
+                JoinType::Inner
+            };
+
             // We have conditions, create comparison join.
             Ok(LogicalOperator::ComparisonJoin(Node {
                 node: LogicalComparisonJoin {
-                    join_type: JoinType::Inner,
+                    join_type,
                     conditions,
-                    cardinality: StatisticsValue::Estimated(
-                        node.subgraph.estimated_cardinality() as usize
-                    ),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Estimated(
+                    node.subgraph.estimated_cardinality() as usize,
+                ),
             }))
         }
     }

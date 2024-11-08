@@ -1,0 +1,136 @@
+# SEMI joins.
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b INT);
+
+statement ok
+CREATE TEMP TABLE t2 (a INT, b INT);
+
+statement ok
+INSERT INTO t1 VALUES (1, 2), (3, 4);
+
+statement ok
+INSERT INTO t2 VALUES (1, 5);
+
+# Basic semi join
+query II
+SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a;
+----
+1 2
+
+# Using clause
+query II
+SELECT * FROM t1 SEMI JOIN t2 USING(a);
+----
+1 2
+
+# Additional setup for extended test cases
+
+statement ok
+INSERT INTO t1 VALUES (NULL, 6), (5, NULL), (7, 8);
+
+statement ok
+INSERT INTO t2 VALUES (NULL, 9), (5, 10), (7, NULL), (7, 12);
+
+# Semi join with multiple matches
+# t1 has (7, 8), t2 has (7, NULL) and (7, 12)
+# Expect t1 row with a = 7 to appear once
+query II
+SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a WHERE t1.a = 7;
+----
+7 8
+
+# Semi join with no matches
+# t1 has (3, 4), t2 has no matching a = 3
+# Expect no output
+query II
+SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a WHERE t1.a = 3;
+----
+
+# TODO: IS
+# # Semi join with NULL values in join condition
+# # NULLs in join condition should not match
+# query II
+# SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a WHERE t1.a IS NULL;
+# ----
+
+# Semi join where t2 has NULL in join column
+query II
+SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a WHERE t1.a = 5;
+----
+5 NULL
+
+# Semi join with subquery
+query II rowsort
+SELECT * FROM t1 WHERE a IN (SELECT a FROM t2);
+----
+1 2
+5 NULL
+7 8
+
+# Semi join using EXISTS
+query II rowsort
+SELECT * FROM t1 WHERE EXISTS (SELECT 1 FROM t2 WHERE t1.a = t2.a);
+----
+1 2
+5 NULL
+7 8
+
+statement ok
+INSERT INTO t2 VALUES (8, 4);
+
+query II
+SELECT * FROM t1 SEMI JOIN t2 ON t1.b = t2.b;
+----
+3 4
+
+# Semi join with grouping and aggregation
+statement ok
+INSERT INTO t1 VALUES (10, 20), (10, 30);
+
+statement ok
+INSERT INTO t2 VALUES (10, 40);
+
+# TODO
+# # Semi join with DISTINCT
+# query II
+# SELECT DISTINCT a FROM t1 SEMI JOIN t2 ON t1.a = t2.a;
+# ----
+# 1
+# 5
+# 7
+# 10
+
+# Semi join with ORDER BY
+query II rowsort
+SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a ORDER BY a DESC;
+----
+1  2
+10 20
+10 30
+5  NULL
+7  8
+
+# Semi join with multiple conditions in ON clause
+#
+# Expected no output since there are no rows where both t1.a = t2.a AND t1.b = t2.b
+query II
+SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a AND t1.b = t2.b;
+----
+
+# Semi join with NULLs in data affecting the result
+statement ok
+INSERT INTO t2 VALUES (NULL, NULL);
+
+# TODO: IS
+# query II
+# SELECT * FROM t1 SEMI JOIN t2 ON t1.a = t2.a WHERE t1.a IS NULL;
+# ----
+
+# Semi join with anti-semi join (NOT EXISTS)
+query II rowsort
+SELECT * FROM t1 WHERE NOT EXISTS (SELECT 1 FROM t2 WHERE t1.a = t2.a);
+----
+3 4
+NULL 6
+

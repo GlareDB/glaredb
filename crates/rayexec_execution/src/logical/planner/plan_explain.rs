@@ -5,6 +5,7 @@ use crate::logical::binder::bind_explain::BoundExplain;
 use crate::logical::logical_explain::LogicalExplain;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct ExplainPlanner;
@@ -27,6 +28,7 @@ impl ExplainPlanner {
             },
             location: LocationRequirement::Any,
             children: vec![plan],
+            estimated_cardinality: StatisticsValue::Unknown,
         }))
     }
 }

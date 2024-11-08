@@ -5,6 +5,7 @@ use crate::logical::binder::bind_create_table::BoundCreateTable;
 use crate::logical::logical_create::LogicalCreateTable;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct CreateTablePlanner;
@@ -31,6 +32,7 @@ impl CreateTablePlanner {
             },
             location: LocationRequirement::ClientLocal,
             children,
+            estimated_cardinality: StatisticsValue::Unknown,
         }))
     }
 }

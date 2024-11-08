@@ -150,6 +150,41 @@ impl LeftOuterJoinDrainState {
             return Ok(Some(batch));
         }
     }
+
+    pub fn drain_semi_next(&mut self) -> Result<Option<Batch>> {
+        loop {
+            let batch = match self.batches.get(self.batch_idx) {
+                Some(batch) => batch,
+                None => return Ok(None),
+            };
+            let bitmap = self
+                .tracker
+                .bitmaps
+                .get(self.batch_idx)
+                .expect("bitmap to exist");
+            self.batch_idx += 1;
+
+            // Create a selection for just the visited rows in the left batch.
+            let selection = SelectionVector::from_iter(bitmap.index_iter());
+            let num_rows = selection.num_rows();
+
+            if num_rows == 0 {
+                // Try the next batch.
+                continue;
+            }
+
+            let left_cols = batch.select(Arc::new(selection)).into_arrays();
+            let right_cols = self
+                .right_types
+                .iter()
+                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+                .collect::<Result<Vec<_>>>()?;
+
+            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+
+            return Ok(Some(batch));
+        }
+    }
 }
 
 /// Track visited rows on the right side of a join.

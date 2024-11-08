@@ -107,6 +107,7 @@ impl SubqueryPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 Ok(right_out)
@@ -129,6 +130,7 @@ impl SubqueryPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 let mut visited_expr = Expression::Column(ColumnExpr {
@@ -177,6 +179,7 @@ impl SubqueryPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![left, right],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 Ok(Expression::Column(ColumnExpr {
@@ -227,6 +230,7 @@ impl SubqueryPlanner {
             node: LogicalMaterializationScan { mat: mat_ref },
             location: LocationRequirement::Any,
             children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
         });
         bind_context.inc_materialization_scan_count(mat_ref, 1)?;
 
@@ -299,6 +303,7 @@ impl SubqueryPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![subquery_plan],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 // Cross join!
@@ -307,6 +312,7 @@ impl SubqueryPlanner {
                     node: LogicalCrossJoin,
                     location: LocationRequirement::Any,
                     children: vec![orig, subquery_plan],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 Ok(Expression::Column(column))
@@ -380,8 +386,11 @@ impl SubqueryPlanner {
                             },
                             location: LocationRequirement::Any,
                             children: vec![subquery_plan],
+                            estimated_cardinality: StatisticsValue::Unknown,
                         })],
+                        estimated_cardinality: StatisticsValue::Unknown,
                     })],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 let orig = std::mem::replace(plan, LogicalOperator::Invalid);
@@ -389,6 +398,7 @@ impl SubqueryPlanner {
                     node: LogicalCrossJoin,
                     location: LocationRequirement::Any,
                     children: vec![orig, subquery_exists_plan],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 // Return column referencing the project.
@@ -432,10 +442,10 @@ impl SubqueryPlanner {
                             table_ref: mark_table,
                         },
                         conditions: vec![condition],
-                        cardinality: StatisticsValue::Unknown,
                     },
                     location: LocationRequirement::Any,
                     children: vec![orig, subquery_plan],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 });
 
                 Ok(Expression::Column(ColumnExpr {
@@ -660,6 +670,7 @@ impl DependentJoinPushdown {
                 },
                 location: LocationRequirement::Any,
                 children: Vec::new(),
+                estimated_cardinality: StatisticsValue::Unknown,
             });
             bind_context.inc_materialization_scan_count(self.mat_ref, 1)?;
 
@@ -669,6 +680,7 @@ impl DependentJoinPushdown {
                 node: LogicalCrossJoin,
                 location: LocationRequirement::Any,
                 children: vec![orig, right],
+                estimated_cardinality: StatisticsValue::Unknown,
             });
 
             return Ok(());

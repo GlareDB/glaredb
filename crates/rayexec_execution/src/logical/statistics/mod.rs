@@ -69,27 +69,8 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Statistics {
-    /// Cardinality of the operator.
-    pub cardinality: StatisticsValue<usize>,
-    /// Statistics for each column emitted by an operator.
-    ///
-    /// May be None if no column statistics are available.
-    pub column_stats: Option<Vec<ColumnStatistics>>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnStatistics {
     /// Number of distinct values in the column.
     pub num_distinct: StatisticsValue<usize>,
-}
-
-impl Statistics {
-    pub const fn unknown() -> Self {
-        Statistics {
-            cardinality: StatisticsValue::Unknown,
-            column_stats: None,
-        }
-    }
 }

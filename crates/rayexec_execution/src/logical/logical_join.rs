@@ -4,13 +4,10 @@ use rayexec_error::{RayexecError, Result};
 
 use super::binder::bind_context::{BindContext, MaterializationRef, TableRef};
 use super::operator::{LogicalNode, Node};
-use super::statistics::Statistics;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
-use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
@@ -55,45 +52,6 @@ impl JoinType {
         } else {
             node.get_children_table_refs(bind_context)
         }
-    }
-
-    fn statistics<T>(self, node: &Node<T>) -> Statistics {
-        let mut iter = node.iter_child_statistics();
-        let left = iter.next().expect("first child");
-        let right = iter.next().expect("second child");
-
-        let cardinality = match self {
-            Self::Left | Self::LeftMark { .. } => match left.cardinality.value() {
-                Some(v) => StatisticsValue::Estimated(*v),
-                _ => StatisticsValue::Unknown,
-            },
-            Self::Right => match right.cardinality.value() {
-                Some(v) => StatisticsValue::Estimated(*v),
-                _ => StatisticsValue::Unknown,
-            },
-            Self::Inner => inner_join_est_cardinality(&left, &right),
-            _ => StatisticsValue::Unknown,
-        };
-
-        Statistics {
-            cardinality,
-            column_stats: None,
-        }
-    }
-}
-
-/// Compute the estimated cardinality of an inner join using left and right
-/// statistics.
-pub fn inner_join_est_cardinality(left: &Statistics, right: &Statistics) -> StatisticsValue<usize> {
-    let left_card = left.cardinality.value();
-    let right_card = right.cardinality.value();
-
-    match (left_card, right_card) {
-        (Some(left), Some(right)) => {
-            let estimated = ((*left as f64) * (*right as f64)) * DEFAULT_SELECTIVITY;
-            StatisticsValue::Estimated(estimated as usize)
-        }
-        _ => StatisticsValue::Unknown,
     }
 }
 
@@ -178,7 +136,6 @@ impl ContextDisplay for ComparisonCondition {
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
     pub conditions: Vec<ComparisonCondition>,
-    pub cardinality: StatisticsValue<usize>,
 }
 
 impl Explainable for LogicalComparisonJoin {
@@ -192,14 +149,6 @@ impl Explainable for LogicalComparisonJoin {
 impl LogicalNode for Node<LogicalComparisonJoin> {
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.node.join_type.output_refs(self, bind_context)
-    }
-
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        self.node.cardinality
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        self.node.join_type.statistics(self)
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
@@ -264,10 +213,6 @@ impl LogicalNode for Node<LogicalMagicJoin> {
         self.node.join_type.output_refs(self, bind_context)
     }
 
-    fn get_statistics(&self) -> Statistics {
-        self.node.join_type.statistics(self)
-    }
-
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>,
@@ -310,10 +255,6 @@ impl LogicalNode for Node<LogicalArbitraryJoin> {
         self.node.join_type.output_refs(self, bind_context)
     }
 
-    fn get_statistics(&self) -> Statistics {
-        Statistics::unknown()
-    }
-
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
     where
         F: FnMut(&Expression) -> Result<()>,
@@ -341,25 +282,6 @@ impl Explainable for LogicalCrossJoin {
 impl LogicalNode for Node<LogicalCrossJoin> {
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        let mut iter = self.iter_child_statistics();
-        let left = iter.next().expect("first child");
-        let right = iter.next().expect("second child");
-
-        let left_card = left.cardinality.value();
-        let right_card = right.cardinality.value();
-
-        let cardinality = match (left_card, right_card) {
-            (Some(&left), Some(&right)) => StatisticsValue::Estimated(left.saturating_mul(right)),
-            _ => StatisticsValue::Unknown,
-        };
-
-        Statistics {
-            cardinality,
-            column_stats: None,
-        }
     }
 
     fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>

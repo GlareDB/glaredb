@@ -27,6 +27,7 @@ use crate::logical::logical_order::LogicalOrder;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 // TODO: ExtractedFilter seems to not be entirely worth it here. There's
 // frequent convert to/from it.
@@ -112,6 +113,7 @@ impl FilterPushdown {
             node: LogicalFilter { filter },
             location: LocationRequirement::Any,
             children: vec![plan],
+            estimated_cardinality: StatisticsValue::Unknown,
         }))
     }
 
@@ -306,6 +308,7 @@ impl FilterPushdown {
                     node: LogicalCrossJoin,
                     location: plan.location,
                     children: plan.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
                 };
 
                 self.pushdown_cross_join(bind_context, plan)
@@ -427,6 +430,7 @@ impl FilterPushdown {
                         },
                         location: plan.location,
                         children: vec![left, new_right], // Left doesn't change, just a reference to a materialization.
+                        estimated_cardinality: StatisticsValue::Unknown,
                     }),
                 )
             }
@@ -461,6 +465,7 @@ impl FilterPushdown {
                     node: LogicalCrossJoin,
                     location: plan.location,
                     children: plan.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
                 };
 
                 self.pushdown_cross_join(bind_context, plan)
@@ -479,6 +484,7 @@ impl FilterPushdown {
                 };
 
                 let mut remaining_filters = Vec::new();
+
                 for filter in self.drain_filters() {
                     let side = ExprJoinSide::try_from_table_refs(
                         &filter.table_refs,
@@ -489,6 +495,17 @@ impl FilterPushdown {
                     // Can only push filters to left side.
                     if side == ExprJoinSide::Left {
                         left_pushdown.add_filters([filter.filter]);
+                        continue;
+                    }
+
+                    // If the filter expression is referencing the right
+                    // side, and the filter only has a single column ref, we
+                    // can convert this to a semi join and omit the filter.
+                    if side == ExprJoinSide::Right
+                        && matches!(plan.node.join_type, JoinType::LeftMark { .. })
+                        && matches!(filter.filter, Expression::Column(_))
+                    {
+                        plan.node.join_type = JoinType::Semi;
                         continue;
                     }
 
@@ -569,6 +586,7 @@ impl FilterPushdown {
                 node: LogicalCrossJoin,
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Unknown,
             }));
         }
 

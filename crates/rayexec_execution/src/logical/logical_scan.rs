@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
 use super::scan_filter::ScanFilter;
-use super::statistics::{Statistics, StatisticsValue};
+use super::statistics::StatisticsValue;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -35,24 +35,12 @@ pub enum ScanSource {
 }
 
 impl ScanSource {
-    fn cardinality(&self) -> StatisticsValue<usize> {
+    pub fn cardinality(&self) -> StatisticsValue<usize> {
         match self {
             Self::Table { .. } => StatisticsValue::Unknown,
             Self::TableFunction { function } => function.cardinality(),
             Self::ExpressionList { rows } => StatisticsValue::Exact(rows.len()),
             Self::View { .. } => StatisticsValue::Unknown,
-        }
-    }
-
-    fn statistics(&self) -> Statistics {
-        match self {
-            Self::Table { .. } => Statistics::unknown(),
-            Self::TableFunction { function } => function.statistics(),
-            Self::ExpressionList { rows } => Statistics {
-                cardinality: StatisticsValue::Exact(rows.len()),
-                column_stats: None,
-            },
-            Self::View { .. } => Statistics::unknown(),
         }
     }
 }
@@ -126,14 +114,6 @@ impl Explainable for LogicalScan {
 impl LogicalNode for Node<LogicalScan> {
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
-    }
-
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        self.node.source.cardinality()
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        self.node.source.statistics()
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>

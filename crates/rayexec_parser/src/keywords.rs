@@ -255,6 +255,7 @@ pub const RESERVED_FOR_TABLE_ALIAS: &[Keyword] = &[
     Keyword::LEFT,
     Keyword::RIGHT,
     Keyword::NATURAL,
+    Keyword::SEMI,
     Keyword::USING,
     Keyword::CLUSTER,
     Keyword::DISTRIBUTE,

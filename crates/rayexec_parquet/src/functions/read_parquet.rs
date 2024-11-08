@@ -6,7 +6,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
-use rayexec_execution::logical::statistics::{Statistics, StatisticsValue};
+use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -142,22 +142,6 @@ impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
             .sum::<i64>() as usize;
 
         StatisticsValue::Exact(num_rows)
-    }
-
-    fn statistics(&self) -> Statistics {
-        let num_rows = self
-            .state
-            .metadata
-            .decoded_metadata
-            .row_groups()
-            .iter()
-            .map(|g| g.num_rows())
-            .sum::<i64>() as usize;
-
-        Statistics {
-            cardinality: StatisticsValue::Exact(num_rows),
-            column_stats: None,
-        }
     }
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {

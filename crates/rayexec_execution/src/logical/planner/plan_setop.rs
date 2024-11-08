@@ -11,6 +11,7 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::logical_setop::LogicalSetop;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SetOpPlanner;
@@ -49,6 +50,7 @@ impl SetOpPlanner {
             },
             location: LocationRequirement::Any,
             children: vec![left, right],
+            estimated_cardinality: StatisticsValue::Unknown,
         });
 
         // Handle ORDER BY
@@ -59,6 +61,7 @@ impl SetOpPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -71,6 +74,7 @@ impl SetOpPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             });
         }
 
@@ -97,6 +101,7 @@ impl SetOpPlanner {
             },
             location: LocationRequirement::Any,
             children: vec![orig_plan],
+            estimated_cardinality: StatisticsValue::Unknown,
         }))
     }
 

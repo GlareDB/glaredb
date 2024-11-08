@@ -443,6 +443,7 @@ impl<'a> FromBinder<'a> {
             ast::JoinType::Inner => JoinType::Inner,
             ast::JoinType::Left => JoinType::Left,
             ast::JoinType::Right => JoinType::Right,
+            ast::JoinType::LeftSemi => JoinType::Semi,
             other => not_implemented!("plan join type: {other:?}"),
         };
 
@@ -520,6 +521,15 @@ impl<'a> FromBinder<'a> {
                 right: Box::new(right),
                 op: ComparisonOperator::Eq,
             }))
+        }
+
+        // Remove right columns from scope for semi joins.
+        if join_type == JoinType::Semi {
+            let right_tables: Vec<_> = bind_context
+                .iter_tables(right_idx)?
+                .map(|t| t.reference)
+                .collect();
+            bind_context.remove_tables(self.current, &right_tables)?;
         }
 
         Ok(BoundFrom {

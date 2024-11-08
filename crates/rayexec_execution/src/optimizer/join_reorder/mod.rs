@@ -1,8 +1,9 @@
 mod edge;
 mod graph;
+mod statistics;
 mod subgraph;
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use graph::Graph;
 use rayexec_error::Result;
@@ -10,8 +11,9 @@ use rayexec_error::Result;
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
+use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_join::{ComparisonCondition, JoinType};
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
@@ -33,10 +35,62 @@ impl OptimizeRule for JoinReorder {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ReorderableCondition {
+    Inner {
+        condition: ComparisonCondition,
+    },
+    Semi {
+        conditions: Vec<ComparisonCondition>,
+    },
+}
+
+impl ReorderableCondition {
+    pub fn get_column_refs(&self) -> HashSet<ColumnExpr> {
+        match self {
+            Self::Inner { condition } => condition
+                .left
+                .get_column_references()
+                .into_iter()
+                .chain(condition.right.get_column_references())
+                .collect(),
+            Self::Semi { conditions } => {
+                let mut cols = HashSet::new();
+                for condition in conditions {
+                    cols.extend(condition.left.get_column_references());
+                    cols.extend(condition.right.get_column_references());
+                }
+
+                cols
+            }
+        }
+    }
+
+    pub fn get_left_right_table_refs(&self) -> [HashSet<TableRef>; 2] {
+        match self {
+            Self::Inner { condition } => [
+                condition.left.get_table_references(),
+                condition.right.get_table_references(),
+            ],
+            Self::Semi { conditions } => {
+                let left_refs = conditions.iter().fold(HashSet::new(), |mut acc, cond| {
+                    acc.extend(cond.left.get_table_references());
+                    acc
+                });
+                let right_refs = conditions.iter().fold(HashSet::new(), |mut acc, cond| {
+                    acc.extend(cond.right.get_table_references());
+                    acc
+                });
+                [left_refs, right_refs]
+            }
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct InnerJoinReorder {
     /// Extracted conditions from comparison joins.
-    conditions: Vec<ComparisonCondition>,
+    conditions: Vec<ReorderableCondition>,
     /// Extracted expressions that cannot be used for inner joins.
     filters: Vec<ExtractedFilter>,
     /// All plans that will be used to build up the join tree.
@@ -94,7 +148,10 @@ impl InnerJoinReorder {
             LogicalOperator::CrossJoin(_) => {
                 self.extract_filters_and_join_children(root)?;
             }
-            LogicalOperator::ComparisonJoin(join) if join.node.join_type == JoinType::Inner => {
+            LogicalOperator::ComparisonJoin(join)
+                if join.node.join_type == JoinType::Inner
+                    || join.node.join_type == JoinType::Semi =>
+            {
                 self.extract_filters_and_join_children(root)?;
             }
             LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
@@ -153,7 +210,21 @@ impl InnerJoinReorder {
                 }
                 LogicalOperator::ComparisonJoin(mut join) => {
                     if join.node.join_type == JoinType::Inner {
-                        self.conditions.extend(join.node.conditions);
+                        for cond in &join.node.conditions {
+                            self.conditions.push(ReorderableCondition::Inner {
+                                condition: cond.clone(),
+                            })
+                        }
+                        for child in join.children.drain(..) {
+                            queue.push_back(child);
+                        }
+                    } else if join.node.join_type == JoinType::Semi {
+                        // Semi join conditions need to be kept together as
+                        // they're not freely reorderable.
+                        self.conditions.push(ReorderableCondition::Semi {
+                            conditions: join.node.conditions,
+                        });
+
                         for child in join.children.drain(..) {
                             queue.push_back(child);
                         }

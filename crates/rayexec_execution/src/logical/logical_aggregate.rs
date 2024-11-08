@@ -4,7 +4,6 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
-use super::statistics::{Statistics, StatisticsValue};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -73,20 +72,6 @@ impl LogicalNode for Node<LogicalAggregate> {
             refs.push(grouping_set_table);
         }
         refs
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        if self.node.group_exprs.is_empty() {
-            Statistics {
-                cardinality: StatisticsValue::Exact(1),
-                column_stats: None,
-            }
-        } else {
-            Statistics {
-                cardinality: StatisticsValue::Unknown,
-                column_stats: None,
-            }
-        }
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>

@@ -155,9 +155,13 @@ impl PhysicalHashJoin {
     }
 
     const fn is_left_join(&self) -> bool {
+        // Note that while a SEMI join is pretty much an inner join just with
+        // the right chopped off, we need to be able to handle duplicate rows on
+        // the left. So we use the same mechanism for the LEFT MARK join to
+        // accomplish the deduplication.
         matches!(
             self.join_type,
-            JoinType::Left | JoinType::Full | JoinType::LeftMark { .. }
+            JoinType::Left | JoinType::Full | JoinType::Semi | JoinType::LeftMark { .. }
         )
     }
 
@@ -166,7 +170,10 @@ impl PhysicalHashJoin {
     }
 
     const fn is_mark_join(&self) -> bool {
-        matches!(self.join_type, JoinType::LeftMark { .. })
+        // Note this includes SEMI join since it's just an extension of a mark
+        // join, just that we return the left visited rows instead of bools that
+        // they've been visited.
+        matches!(self.join_type, JoinType::Semi | JoinType::LeftMark { .. })
     }
 }
 
@@ -515,6 +522,12 @@ impl ExecutableOperator for PhysicalHashJoin {
                     if matches!(self.join_type, JoinType::LeftMark { .. }) {
                         // Mark drain
                         match drain_state.drain_mark_next()? {
+                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
+                            None => return Ok(PollPull::Exhausted),
+                        }
+                    } else if matches!(self.join_type, JoinType::Semi) {
+                        // Semi drain
+                        match drain_state.drain_semi_next()? {
                             Some(batch) => return Ok(PollPull::Computed(batch.into())),
                             None => return Ok(PollPull::Exhausted),
                         }

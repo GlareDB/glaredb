@@ -2,8 +2,6 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
-use super::statistics::assumptions::DEFAULT_SELECTIVITY;
-use super::statistics::{Statistics, StatisticsValue};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -21,35 +19,6 @@ impl Explainable for LogicalFilter {
 impl LogicalNode for Node<LogicalFilter> {
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
-    }
-
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        let child_card = self
-            .iter_child_cardinalities()
-            .next()
-            .expect("filter has child");
-
-        match child_card.value() {
-            Some(v) => StatisticsValue::Estimated(((*v as f64) * DEFAULT_SELECTIVITY) as usize),
-            None => StatisticsValue::Unknown,
-        }
-    }
-
-    fn get_statistics(&self) -> Statistics {
-        let child_stats = self
-            .iter_child_statistics()
-            .next()
-            .expect("filter has a child");
-
-        if let Some(card) = child_stats.cardinality.value() {
-            let estimated = (*card as f64) * DEFAULT_SELECTIVITY;
-            return Statistics {
-                cardinality: StatisticsValue::Estimated(estimated as usize),
-                column_stats: None,
-            };
-        }
-
-        Statistics::unknown()
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>

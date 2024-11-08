@@ -40,6 +40,13 @@ impl FromPlanner {
 
                 let projection = (0..types.len()).collect();
 
+                let source = ScanSource::Table {
+                    catalog: table.catalog,
+                    schema: table.schema,
+                    source: table.entry,
+                };
+                let estimated_cardinality = source.cardinality();
+
                 Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {
                         table_ref: table.table_ref,
@@ -48,14 +55,11 @@ impl FromPlanner {
                         projection,
                         did_prune_columns: false,
                         scan_filters: Vec::new(),
-                        source: ScanSource::Table {
-                            catalog: table.catalog,
-                            schema: table.schema,
-                            source: table.entry,
-                        },
+                        source,
                     },
                     location: table.location,
                     children: Vec::new(),
+                    estimated_cardinality,
                 }))
             }
             BoundFromItem::Join(join) => self.plan_join(bind_context, join),
@@ -69,6 +73,11 @@ impl FromPlanner {
 
                 let projection = (0..types.len()).collect();
 
+                let source = ScanSource::TableFunction {
+                    function: func.function,
+                };
+                let estimated_cardinality = source.cardinality();
+
                 Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {
                         table_ref: func.table_ref,
@@ -77,12 +86,11 @@ impl FromPlanner {
                         projection,
                         did_prune_columns: false,
                         scan_filters: Vec::new(),
-                        source: ScanSource::TableFunction {
-                            function: func.function,
-                        },
+                        source,
                     },
                     location: func.location,
                     children: Vec::new(),
+                    estimated_cardinality,
                 }))
             }
             BoundFromItem::Subquery(subquery) => {
@@ -111,6 +119,7 @@ impl FromPlanner {
                     },
                     location: LocationRequirement::Any,
                     children: vec![plan],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             BoundFromItem::MaterializedCte(mat_cte) => {
@@ -164,13 +173,16 @@ impl FromPlanner {
                         node: LogicalMaterializationScan { mat: mat.mat_ref },
                         location: LocationRequirement::Any,
                         children: Vec::new(),
+                        estimated_cardinality: StatisticsValue::Unknown,
                     })],
+                    estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
             BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {
                 node: LogicalEmpty,
                 location: LocationRequirement::Any,
                 children: Vec::new(),
+                estimated_cardinality: StatisticsValue::Unknown,
             })),
         }
     }
@@ -196,6 +208,7 @@ impl FromPlanner {
                 node: LogicalCrossJoin,
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Unknown,
             }));
         }
 
@@ -213,6 +226,7 @@ impl FromPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![left],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -223,6 +237,7 @@ impl FromPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![right],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 
@@ -275,6 +290,7 @@ impl FromPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
+                estimated_cardinality: StatisticsValue::Unknown,
             }));
         }
 
@@ -283,10 +299,10 @@ impl FromPlanner {
             node: LogicalComparisonJoin {
                 join_type,
                 conditions: comparisons,
-                cardinality: StatisticsValue::Unknown,
             },
             location: LocationRequirement::Any,
             children: vec![left, right],
+            estimated_cardinality: StatisticsValue::Unknown,
         });
 
         // Push filter if we have arbitrary expressions.
@@ -297,6 +313,7 @@ impl FromPlanner {
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
             })
         }
 

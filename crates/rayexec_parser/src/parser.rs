@@ -63,7 +63,15 @@ impl<'a> Parser<'a> {
             }
 
             if expect_delimiter {
-                return Err(RayexecError::new("Expected semicolon between statements"));
+                let unparsed = match self.toks.get(self.idx) {
+                    Some(tok) => self.sql.get(tok.start_idx..).unwrap_or_default(),
+                    None => "",
+                };
+
+                return Err(RayexecError::new(format!(
+                    "Expected semicolon between statements. Unparsed SQL: '{}'",
+                    unparsed,
+                )));
             }
 
             let stmt = self.parse_statement()?;
