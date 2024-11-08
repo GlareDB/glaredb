@@ -12,6 +12,7 @@ use crate::storage::AddressableStorage;
 pub struct UnaryExecutor;
 
 impl UnaryExecutor {
+    /// Executes `op` on every non-null input.
     pub fn execute<'a, S, B, Op>(
         array: &'a Array,
         builder: ArrayBuilder<B>,

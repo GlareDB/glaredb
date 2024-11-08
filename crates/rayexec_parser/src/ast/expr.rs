@@ -1,7 +1,7 @@
 use std::ops::Neg;
 use std::str::FromStr;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
@@ -247,6 +247,15 @@ pub enum Expr<T: AstMeta> {
         pattern: Box<Expr<T>>,
         negated: bool,
         case_insensitive: bool,
+    },
+    /// IS NULL/IS NOT NULL
+    IsNull { expr: Box<Expr<T>>, negated: bool },
+    /// IS TRUE/IS NOT TRUE
+    /// IS FALSE/IS NOT FALSE
+    IsBool {
+        expr: Box<Expr<T>>,
+        val: bool,
+        negated: bool,
     },
     /// Interval
     ///
@@ -600,9 +609,44 @@ impl Expr<Raw> {
             };
 
             match kw {
-                Keyword::IS => {
-                    not_implemented!("IS parse")
-                }
+                Keyword::IS => match parser.next_keyword()? {
+                    Keyword::NULL => Ok(Expr::IsNull {
+                        expr: Box::new(prefix),
+                        negated: false,
+                    }),
+                    Keyword::TRUE => Ok(Expr::IsBool {
+                        expr: Box::new(prefix),
+                        val: true,
+                        negated: false,
+                    }),
+                    Keyword::FALSE => Ok(Expr::IsBool {
+                        expr: Box::new(prefix),
+                        val: false,
+                        negated: false,
+                    }),
+                    Keyword::NOT => match parser.next_keyword()? {
+                        Keyword::NULL => Ok(Expr::IsNull {
+                            expr: Box::new(prefix),
+                            negated: true,
+                        }),
+                        Keyword::TRUE => Ok(Expr::IsBool {
+                            expr: Box::new(prefix),
+                            val: true,
+                            negated: true,
+                        }),
+                        Keyword::FALSE => Ok(Expr::IsBool {
+                            expr: Box::new(prefix),
+                            val: false,
+                            negated: true,
+                        }),
+                        other => Err(RayexecError::new(format!(
+                            "Unexpected keyword in IS NOT expression: {other}"
+                        ))),
+                    },
+                    other => Err(RayexecError::new(format!(
+                        "Unexpected keyword in IS expression: {other}"
+                    ))),
+                },
                 // TODO: Loop on the NOT so we don't need to repeat.
                 Keyword::NOT => match parser.next_keyword()? {
                     Keyword::LIKE => Ok(Expr::Like {

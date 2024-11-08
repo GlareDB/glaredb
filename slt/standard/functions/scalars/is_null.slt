@@ -1,0 +1,74 @@
+# is_null/is_not_null
+
+statement ok
+CREATE TEMP TABLE t1 as (SELECT * FROM (VALUES (1), (2), (NULL)) v(a));
+
+query IT rowsort
+SELECT a, is_null(a) from t1;
+----
+1     false
+2     false
+NULL  true
+
+query T
+SELECT is_null(4 + 2);
+----
+false
+
+query T
+SELECT is_null(NULL + 2);
+----
+true
+
+query IT rowsort
+SELECT a, is_not_null(a) from t1;
+----
+1     true
+2     true
+NULL  false
+
+query T
+SELECT is_not_null(4 + 2);
+----
+true
+
+query T
+SELECT is_not_null(NULL + 2);
+----
+false
+
+# Keywords
+
+query IT rowsort
+SELECT a, a IS NULL from t1;
+----
+1     false
+2     false
+NULL  true
+
+query T
+SELECT 4 + 2 IS NULL;
+----
+false
+
+query T
+SELECT NULL + 2 IS NULL;
+----
+true
+
+query IT rowsort
+SELECT a, a IS NOT NULL from t1;
+----
+1     true
+2     true
+NULL  false
+
+query T
+SELECT 4 + 2 IS NOT NULL;
+----
+true
+
+query T
+SELECT NULL + 2 IS NOT NULL;
+----
+false

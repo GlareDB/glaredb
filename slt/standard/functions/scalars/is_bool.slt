@@ -1,0 +1,82 @@
+# is_true/is_not_true/is_false/is_not_false
+
+statement ok
+CREATE TEMP TABLE t1 AS (SELECT * FROM (VALUES (true), (false), (NULL)) v(a))
+
+query T rowsort
+SELECT a, is_true(a) FROM t1;
+----
+NULL   false
+false  false
+true   true
+
+query T rowsort
+SELECT a, is_false(a) FROM t1;
+----
+NULL   false
+false  true
+true   false
+
+query T rowsort
+SELECT a, is_not_false(a) FROM t1;
+----
+NULL   true
+false  false
+true   true
+
+query T rowsort
+SELECT a, is_not_true(a) FROM t1;
+----
+NULL   true
+false  true
+true   false
+
+# Keywords
+
+query T rowsort
+SELECT a, a IS TRUE FROM t1;
+----
+NULL   false
+false  false
+true   true
+
+query T rowsort
+SELECT a, a IS FALSE FROM t1;
+----
+NULL   false
+false  true
+true   false
+
+query T rowsort
+SELECT a, a IS NOT FALSE FROM t1;
+----
+NULL   true
+false  false
+true   true
+
+query T rowsort
+SELECT a, a IS NOT TRUE FROM t1;
+----
+NULL   true
+false  true
+true   false
+
+query T
+SELECT 4 = 4 IS TRUE;
+----
+true
+
+query T
+SELECT 4 = 4 IS NOT TRUE;
+----
+false
+
+query T
+SELECT 4 = 4 IS FALSE;
+----
+false
+
+query T
+SELECT 4 = 4 IS NOT FALSE;
+----
+true

@@ -238,6 +238,10 @@ impl Array {
         &self.data
     }
 
+    pub fn into_array_data(self) -> ArrayData {
+        self.data
+    }
+
     /// Gets the physical type of the array.
     pub fn physical_type(&self) -> PhysicalType {
         match self.data.physical_type() {

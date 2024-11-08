@@ -73,6 +73,19 @@ impl BooleanBuffer {
             values: Bitmap::new_with_all_false(len),
         }
     }
+
+    /// Creates a new boolean buffer with all values set to `default`.
+    pub fn with_len_and_default_value(len: usize, default: bool) -> Self {
+        if default {
+            BooleanBuffer {
+                values: Bitmap::new_with_all_true(len),
+            }
+        } else {
+            BooleanBuffer {
+                values: Bitmap::new_with_all_false(len),
+            }
+        }
+    }
 }
 
 impl ArrayDataBuffer for BooleanBuffer {
