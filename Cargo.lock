@@ -2939,7 +2939,7 @@ dependencies = [
  "memoize",
  "mongodb",
  "mysql_async",
- "mysql_common",
+ "mysql_common 0.33.0",
  "object_store",
  "object_store_util",
  "once_cell",
@@ -5649,7 +5649,7 @@ dependencies = [
  "futures-util",
  "keyed_priority_queue",
  "lru 0.12.3",
- "mysql_common",
+ "mysql_common 0.32.4",
  "pem",
  "percent-encoding",
  "pin-project",
@@ -5684,7 +5684,6 @@ dependencies = [
  "byteorder",
  "bytes",
  "cc",
- "chrono",
  "cmake",
  "crc32fast",
  "flate2",
@@ -5705,6 +5704,39 @@ dependencies = [
  "subprocess",
  "thiserror",
  "time",
+ "uuid",
+ "zstd 0.13.1",
+]
+
+[[package]]
+name = "mysql_common"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccd1b5ad6509b04758ae5e339345baa6992c1fc11f45e4b9edae044417cac302"
+dependencies = [
+ "base64 0.22.1",
+ "bindgen",
+ "bitflags 2.5.0",
+ "btoi",
+ "byteorder",
+ "bytes",
+ "cc",
+ "chrono",
+ "cmake",
+ "crc32fast",
+ "flate2",
+ "lazy_static",
+ "num-bigint",
+ "num-traits",
+ "rand",
+ "regex",
+ "saturating",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "subprocess",
+ "thiserror",
  "uuid",
  "zstd 0.13.1",
 ]
