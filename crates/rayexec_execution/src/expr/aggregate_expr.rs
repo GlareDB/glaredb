@@ -16,6 +16,8 @@ pub struct AggregateExpr {
     pub inputs: Vec<Expression>,
     /// Optional filter to the aggregate.
     pub filter: Option<Box<Expression>>,
+    /// If the inputs should be deduplicated.
+    pub distinct: bool,
 }
 
 impl AggregateExpr {
@@ -37,7 +39,11 @@ impl ContextDisplay for AggregateExpr {
             .map(|e| ContextDisplayWrapper::with_mode(e, mode).to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "({})", inputs)?;
+        if self.distinct {
+            write!(f, "(DISTINCT {})", inputs)?;
+        } else {
+            write!(f, "({})", inputs)?;
+        }
 
         if let Some(filter) = self.filter.as_ref() {
             write!(

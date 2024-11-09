@@ -1,5 +1,6 @@
 pub mod chunk;
 pub mod compare;
+pub mod distinct;
 pub mod drain;
 pub mod entry;
 pub mod hash_table;
@@ -8,6 +9,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
+use distinct::DistinctGroupedStates;
 use drain::HashTableDrain;
 use hash_table::HashTable;
 use parking_lot::Mutex;
@@ -36,15 +38,29 @@ use crate::functions::aggregate::{GroupedStates, PlannedAggregateFunction};
 
 #[derive(Debug)]
 pub struct Aggregate {
+    /// Function for producing the aggregate state.
     pub function: Box<dyn PlannedAggregateFunction>,
+    /// Columns that will be inputs into the aggregate.
     pub col_selection: Bitmap,
+    /// If inputs are distinct.
+    pub is_distinct: bool,
 }
 
 impl Aggregate {
     pub fn new_states(&self) -> AggregateStates {
-        AggregateStates {
-            states: self.function.new_grouped_state(),
-            col_selection: self.col_selection.clone(),
+        if self.is_distinct {
+            let states = Box::new(DistinctGroupedStates::new(
+                self.function.new_grouped_state(),
+            ));
+            AggregateStates {
+                states,
+                col_selection: self.col_selection.clone(),
+            }
+        } else {
+            AggregateStates {
+                states: self.function.new_grouped_state(),
+                col_selection: self.col_selection.clone(),
+            }
         }
     }
 }
@@ -245,6 +261,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         .map(|(expr, col_selection)| Aggregate {
                             function: expr.function.clone(),
                             col_selection: col_selection.clone(),
+                            is_distinct: expr.is_distinct,
                         })
                         .collect();
                     HashTable::new(16, aggregates)
@@ -391,7 +408,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     let mut final_table =
                         completed.pop().expect("there to be at least one partition");
 
-                    final_table.merge(&mut completed)?;
+                    final_table.merge_many(&mut completed)?;
 
                     let drain = final_table.into_drain();
                     state.hashtable_drain = Some(drain);

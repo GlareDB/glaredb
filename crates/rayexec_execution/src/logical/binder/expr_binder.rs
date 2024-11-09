@@ -459,6 +459,12 @@ impl<'a> BaseExpressionBinder<'a> {
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
                     (ResolvedFunction::Scalar(scalar), _) => {
+                        if func.distinct {
+                            return Err(RayexecError::new(
+                                "DISTINCT only supported for aggregate functions",
+                            ));
+                        }
+
                         let inputs = self.apply_casts_for_scalar_function(
                             bind_context,
                             scalar.as_ref(),
@@ -485,6 +491,7 @@ impl<'a> BaseExpressionBinder<'a> {
 
                         Ok(Expression::Aggregate(AggregateExpr {
                             agg,
+                            distinct: func.distinct,
                             inputs,
                             filter: None,
                         }))

@@ -110,30 +110,38 @@ impl HashTable {
         Ok(())
     }
 
-    pub fn merge(&mut self, others: &mut [HashTable]) -> Result<()> {
+    pub fn merge_many(&mut self, others: &mut [HashTable]) -> Result<()> {
         let other_inputs: usize = others.iter().map(|table| table.num_occupied).sum();
         self.resize_if_needed(other_inputs)?;
 
         for other in others {
-            for mut other_chunk in other.chunks.drain(..) {
-                // Find or create groups in self from other.
-                self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
+            self.merge(other)?;
+        }
 
-                // Now figure out which chunks we need to update in self. Find or
-                // create groups would have already created new chunks with empty
-                // states for us for groups we haven't seen in self.
-                self.insert_buffers.chunk_indices.clear();
-                self.insert_buffers.chunk_indices.extend(
-                    self.insert_buffers
-                        .group_addresses
-                        .iter()
-                        .map(|addr| addr.chunk_idx),
-                );
+        Ok(())
+    }
 
-                for &chunk_idx in &self.insert_buffers.chunk_indices {
-                    let chunk = &mut self.chunks[chunk_idx as usize];
-                    chunk.combine_states(&mut other_chunk, &self.insert_buffers.group_addresses)?;
-                }
+    pub fn merge(&mut self, other: &mut HashTable) -> Result<()> {
+        self.resize_if_needed(other.num_occupied)?;
+
+        for mut other_chunk in other.chunks.drain(..) {
+            // Find or create groups in self from other.
+            self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
+
+            // Now figure out which chunks we need to update in self. Find or
+            // create groups would have already created new chunks with empty
+            // states for us for groups we haven't seen in self.
+            self.insert_buffers.chunk_indices.clear();
+            self.insert_buffers.chunk_indices.extend(
+                self.insert_buffers
+                    .group_addresses
+                    .iter()
+                    .map(|addr| addr.chunk_idx),
+            );
+
+            for &chunk_idx in &self.insert_buffers.chunk_indices {
+                let chunk = &mut self.chunks[chunk_idx as usize];
+                chunk.combine_states(&mut other_chunk, &self.insert_buffers.group_addresses)?;
             }
         }
 
@@ -477,6 +485,7 @@ mod tests {
         let aggregate = Aggregate {
             function: Sum.plan_from_datatypes(&[DataType::Int64]).unwrap(),
             col_selection: Bitmap::from_iter([true]),
+            is_distinct: false,
         };
 
         HashTable::new(16, vec![aggregate])
@@ -576,7 +585,7 @@ mod tests {
         let mut t2 = make_hash_table();
         t2.insert(&groups2, &hashes, &inputs2).unwrap();
 
-        t1.merge(&mut [t2]).unwrap();
+        t1.merge_many(&mut [t2]).unwrap();
 
         assert_eq!(3, t1.num_occupied);
     }

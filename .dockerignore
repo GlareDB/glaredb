@@ -1,6 +1,18 @@
+# Cargo target directories.
 /*target
-flamegraph.svg
-.DS_Store
 
-/submodules
+# Temp dir for slts
 /slt_tmp
+
+# Outputs from cargo flamegraph
+flamegraph.svg
+
+# Python stuff
+venv/
+.venv/
+__pycache__
+
+# Benchmark stuff
+**/benchmarks/data/
+**/.tmp
+profile.json

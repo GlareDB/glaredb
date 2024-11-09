@@ -115,6 +115,8 @@ pub struct PhysicalAggregateExpression {
     pub columns: Vec<PhysicalColumnExpr>,
     /// Output type of the aggregate.
     pub output_type: DataType,
+    /// If inputs are distinct.
+    pub is_distinct: bool,
     // TODO: Filter
 }
 
@@ -136,6 +138,7 @@ impl DatabaseProtoConv for PhysicalAggregateExpression {
                 .map(|c| c.to_proto_ctx(context))
                 .collect::<Result<Vec<_>>>()?,
             output_type: Some(self.output_type.to_proto()?),
+            is_distinct: self.is_distinct,
         })
     }
 
@@ -151,6 +154,7 @@ impl DatabaseProtoConv for PhysicalAggregateExpression {
                 .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
                 .collect::<Result<Vec<_>>>()?,
             output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
+            is_distinct: proto.is_distinct,
         })
     }
 }

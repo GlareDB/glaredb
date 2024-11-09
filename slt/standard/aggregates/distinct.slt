@@ -1,0 +1,50 @@
+# Aggregates with DISTINCT
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (3, 'x'),
+  (3, 'y'),
+  (4, 'y'),
+  (5, 'z');
+
+query I
+SELECT count(DISTINCT b) FROM t1;
+----
+3
+
+query II
+SELECT count(a), count(DISTINCT b) FROM t1;
+----
+4  3
+
+query II rowsort
+SELECT count(DISTINCT b), sum(DISTINCT a) FROM t1;
+----
+3  12
+
+query I
+SELECT count(DISTINCT b) FROM t1 GROUP BY b;
+----
+1
+1
+1
+
+query I
+SELECT sum(DISTINCT a) FROM t1;
+----
+12
+
+query I
+SELECT avg(DISTINCT a) FROM t1;
+----
+4
+
+query TI rowsort
+SELECT b, sum(DISTINCT a) FROM t1 GROUP BY b;
+----
+x  3
+y  7
+z  5

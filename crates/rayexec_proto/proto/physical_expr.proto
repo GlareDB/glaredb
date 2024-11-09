@@ -37,6 +37,7 @@ message PhysicalAggregateExpression {
     functions.PlannedAggregateFunction function    = 1;
     repeated PhysicalColumnExpr        columns     = 2;
     schema.DataType                    output_type = 3;
+    bool                               is_distinct = 4;
 }
 
 message PhysicalSortExpression {

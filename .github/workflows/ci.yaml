@@ -78,7 +78,8 @@ jobs:
 
       - name: SLTs TPC-H SF=0.1
         env:
-          DEBUG_PRINT_EXPLAIN: 1
+          # TODO: Stack overflow during explain for q20
+          # DEBUG_PRINT_EXPLAIN: 1 
           DEBUG_PRINT_PROFILE_DATA: 1
         run: |
           cargo test slt/tpch/q01

@@ -355,6 +355,7 @@ impl<'a> ExpressionResolver<'a> {
                     );
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: resolve_idx,
+                        distinct: func.distinct,
                         args,
                         filter,
                     }));
@@ -376,6 +377,7 @@ impl<'a> ExpressionResolver<'a> {
                     );
                     return Ok(ast::Expr::Function(ast::Function {
                         reference: resolve_idx,
+                        distinct: func.distinct,
                         args,
                         filter,
                     }));

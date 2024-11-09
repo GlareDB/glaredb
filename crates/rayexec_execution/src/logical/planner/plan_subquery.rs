@@ -370,6 +370,7 @@ impl SubqueryPlanner {
                             aggregates_table: agg_table,
                             aggregates: vec![Expression::Aggregate(AggregateExpr {
                                 agg: Box::new(CountNonNullImpl),
+                                distinct: false,
                                 inputs: vec![Expression::Column(subquery_column)],
                                 filter: None,
                             })],

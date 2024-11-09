@@ -6,6 +6,7 @@ use parking_lot::Mutex;
 use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
+use super::hash_aggregate::distinct::DistinctGroupedStates;
 use super::hash_aggregate::hash_table::GroupAddress;
 use super::{
     ExecutableOperator,
@@ -84,7 +85,11 @@ impl PhysicalUngroupedAggregate {
     fn create_agg_states_with_single_group(&self) -> Vec<Box<dyn GroupedStates>> {
         let mut states = Vec::with_capacity(self.aggregates.len());
         for agg in &self.aggregates {
-            let mut state = agg.function.new_grouped_state();
+            let mut state = if agg.is_distinct {
+                Box::new(DistinctGroupedStates::new(agg.function.new_grouped_state()))
+            } else {
+                agg.function.new_grouped_state()
+            };
             state.new_groups(1);
             states.push(state);
         }

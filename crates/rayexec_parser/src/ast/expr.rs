@@ -88,6 +88,11 @@ pub enum Literal<T: AstMeta> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Function<T: AstMeta> {
     pub reference: T::FunctionReference,
+    /// If arguments should be treated as distinct sets.
+    ///
+    /// E.g. `SELECT count(DISTINCT col) FROM ...`
+    pub distinct: bool,
+    /// Arguments to the function.
     pub args: Vec<FunctionArg<T>>,
     /// Filter part of `COUNT(col) FILTER (WHERE col > 5)`
     pub filter: Option<Box<Expr<T>>>,
@@ -848,6 +853,8 @@ impl Expr<Raw> {
 
         // Function call if left paren.
         if parser.consume_token(&Token::LeftParen) {
+            let distinct = parser.parse_keyword(Keyword::DISTINCT);
+
             if wildcard {
                 // Someone trying to do this:
                 // `namespace.*()`
@@ -877,6 +884,7 @@ impl Expr<Raw> {
 
             Ok(Expr::Function(Function {
                 reference: ObjectReference(idents),
+                distinct,
                 args,
                 filter,
             }))
@@ -1258,6 +1266,7 @@ mod tests {
         let expr: Expr<_> = parse_ast("sum(my_col)").unwrap();
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("sum")]),
+            distinct: false,
             args: vec![FunctionArg::Unnamed {
                 arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("my_col"))),
             }],
@@ -1271,6 +1280,7 @@ mod tests {
         let expr: Expr<_> = parse_ast("random()").unwrap();
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("random")]),
+            distinct: false,
             args: Vec::new(),
             filter: None,
         });
@@ -1282,6 +1292,7 @@ mod tests {
         let expr: Expr<_> = parse_ast("count(x) filter (where x > 5)").unwrap();
         let expected = Expr::Function(Function {
             reference: ObjectReference(vec![Ident::from_string("count")]),
+            distinct: false,
             args: vec![FunctionArg::Unnamed {
                 arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("x"))),
             }],
@@ -1290,6 +1301,20 @@ mod tests {
                 op: BinaryOperator::Gt,
                 right: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
             })),
+        });
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_with_distinct() {
+        let expr: Expr<_> = parse_ast("count(distinct x)").unwrap();
+        let expected = Expr::Function(Function {
+            reference: ObjectReference(vec![Ident::from_string("count")]),
+            distinct: true,
+            args: vec![FunctionArg::Unnamed {
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("x"))),
+            }],
+            filter: None,
         });
         assert_eq!(expected, expr);
     }
@@ -1310,6 +1335,7 @@ mod tests {
         let expr: Expr<_> = parse_ast("count(*)").unwrap();
         let expected = Expr::Function(Function {
             reference: ObjectReference::from_strings(["count"]),
+            distinct: false,
             args: vec![FunctionArg::Unnamed {
                 arg: FunctionArgExpr::Wildcard,
             }],
@@ -1326,6 +1352,7 @@ mod tests {
             op: BinaryOperator::Multiply,
             right: Box::new(Expr::Function(Function {
                 reference: ObjectReference::from_strings(["count"]),
+                distinct: false,
                 args: vec![FunctionArg::Unnamed {
                     arg: FunctionArgExpr::Wildcard,
                 }],
@@ -1341,6 +1368,7 @@ mod tests {
         let expected = Expr::BinaryExpr {
             left: Box::new(Expr::Function(Function {
                 reference: ObjectReference::from_strings(["count"]),
+                distinct: false,
                 args: vec![FunctionArg::Unnamed {
                     arg: FunctionArgExpr::Wildcard,
                 }],

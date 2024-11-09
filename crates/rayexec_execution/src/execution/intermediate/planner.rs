@@ -1361,6 +1361,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
                 columns: (start_col_index..end_col_index)
                     .map(|idx| PhysicalColumnExpr { idx })
                     .collect(),
+                is_distinct: agg.distinct,
             };
 
             phys_aggs.push(phys_agg);

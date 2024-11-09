@@ -1,0 +1,11 @@
+FROM --platform=linux/amd64 rust
+
+WORKDIR /usr/src/rayexec
+COPY . .
+
+RUN ./scripts/install_protoc_linux.sh
+
+# Cache things
+RUN cargo test slt/standard
+
+CMD ["cargo", "test", "slt/standard"]
