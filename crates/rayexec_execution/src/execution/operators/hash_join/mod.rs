@@ -83,6 +83,11 @@ struct SharedState {
     completed_hash_tables: Vec<PartitionHashTable>,
     /// Global hash table once it's been built.
     global_hash_table: Option<Arc<GlobalHashTable>>,
+    /// Number of partitions that are probiding the table.
+    ///
+    /// This is used to initialize the drain states such that each partition
+    /// processes different batch sets.
+    probe_partition_count: usize,
     /// Number of build inputs remaining.
     ///
     /// Initially set to number of build partitions.
@@ -105,6 +110,11 @@ struct SharedState {
     /// Woken once the global hash table has been completed (moved into
     /// `shared_global`).
     probe_push_wakers: Vec<Option<Waker>>,
+    /// Pending wakers for threads waiting for the global outer join tracker to
+    /// have all partition inputs merged into it.
+    ///
+    /// Indexed by probe partition index.
+    probe_drain_wakers: Vec<Option<Waker>>,
 }
 
 #[derive(Debug)]
@@ -154,7 +164,7 @@ impl PhysicalHashJoin {
         }
     }
 
-    const fn is_left_join(&self) -> bool {
+    const fn join_requires_drain(&self) -> bool {
         // Note that while a SEMI join is pretty much an inner join just with
         // the right chopped off, we need to be able to handle duplicate rows on
         // the left. So we use the same mechanism for the LEFT MARK join to
@@ -190,10 +200,12 @@ impl ExecutableOperator for PhysicalHashJoin {
         let shared = SharedState {
             completed_hash_tables: Vec::with_capacity(build_partitions),
             global_hash_table: None,
+            probe_partition_count: probe_partitions,
             build_inputs_remaining: build_partitions,
             probe_inputs_remaining: probe_partitions,
             global_outer_join_tracker: None,
             probe_push_wakers: vec![None; probe_partitions],
+            probe_drain_wakers: vec![None; probe_partitions],
         };
 
         let operator_state = HashJoinOperatorState {
@@ -284,7 +296,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                     // Create initial visit bitmaps that will be tracked by this
                     // partition.
-                    if self.is_left_join() {
+                    if self.join_requires_drain() {
                         state.partition_outer_join_tracker = Some(
                             LeftOuterJoinTracker::new_for_batches(global.collected_batches()),
                         );
@@ -385,7 +397,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                     };
 
                     // Init global left tracker too if needed.
-                    if self.is_left_join() {
+                    if self.join_requires_drain() {
                         shared.global_outer_join_tracker = Some(
                             LeftOuterJoinTracker::new_for_batches(global.collected_batches()),
                         )
@@ -438,7 +450,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 state.input_finished = true;
                 shared.probe_inputs_remaining -= 1;
 
-                if self.is_left_join() {
+                if self.join_requires_drain() {
                     let probe_finished = shared.probe_inputs_remaining == 0;
 
                     // Merge local left visit bitmaps into global if we have it.
@@ -458,24 +470,14 @@ impl ExecutableOperator for PhysicalHashJoin {
                         global.merge_from(local)
                     }
 
-                    // If we're the last probe partition, set up state to drain all
-                    // unvisited rows from left.
-                    //
-                    // TODO: Allow multiple partitions to drain. Should be
-                    // doable by taking hash table and partioning collected
-                    // batches back out to probe partitions, and each probe
-                    // partition have its own drain state.
                     if probe_finished {
-                        state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
-                            global.clone(),
-                            shared
-                                .global_hash_table
-                                .as_ref()
-                                .unwrap()
-                                .collected_batches()
-                                .to_vec(),
-                            self.right_types.clone(),
-                        ))
+                        // Wake up pending probers, they can initialize drain
+                        // states now.
+                        for waker in shared.probe_drain_wakers.iter_mut() {
+                            if let Some(waker) = waker.take() {
+                                waker.wake();
+                            }
+                        }
                     }
                 }
 
@@ -493,7 +495,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        operator_state: &OperatorState,
     ) -> Result<PollPull> {
         let state = match partition_state {
             PartitionState::HashJoinProbe(state) => state,
@@ -517,6 +519,47 @@ impl ExecutableOperator for PhysicalHashJoin {
         } else {
             // No batches computed, check if we're done.
             if state.input_finished {
+                if state.outer_join_drain_state.is_none() && self.join_requires_drain() {
+                    // We don't yet have a drain, check the global state to see
+                    // if we can create it.
+                    let mut shared = match operator_state {
+                        OperatorState::HashJoin(state) => state.inner.lock(),
+                        other => panic!("invalid operator state: {other:?}"),
+                    };
+
+                    if shared.probe_inputs_remaining != 0 {
+                        // Global state does not yet have all inputs. Need to wait.
+                        shared.probe_drain_wakers[state.partition_idx] = Some(cx.waker().clone());
+                        return Ok(PollPull::Pending);
+                    }
+
+                    let start_idx = state.partition_idx;
+                    let skip = shared.probe_partition_count;
+
+                    // Otherwise we can create the drain.
+                    let global = match shared.global_outer_join_tracker.as_mut() {
+                        Some(global) => global,
+                        None => {
+                            return Err(RayexecError::new(
+                                "Global left outer tracker unexpectedly None",
+                            ))
+                        }
+                    };
+
+                    state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
+                        start_idx,
+                        skip,
+                        global.clone(),
+                        shared
+                            .global_hash_table
+                            .as_ref()
+                            .unwrap()
+                            .collected_batches()
+                            .to_vec(),
+                        self.right_types.clone(),
+                    ));
+                }
+
                 // Check if we're still draining unvisited left rows.
                 if let Some(drain_state) = state.outer_join_drain_state.as_mut() {
                     if matches!(self.join_type, JoinType::LeftMark { .. }) {

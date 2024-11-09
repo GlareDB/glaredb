@@ -62,10 +62,18 @@ pub struct LeftOuterJoinDrainState {
     right_types: Vec<DataType>,
     /// Current batch we're draining.
     batch_idx: usize,
+    /// How many batches to skip on each iteration.
+    ///
+    /// This should be set to the number of partitions draining, and lets us
+    /// have multiple drains at the same time as each partition will visit
+    /// different sets of batches.
+    skip: usize,
 }
 
 impl LeftOuterJoinDrainState {
     pub fn new(
+        start_idx: usize,
+        skip: usize,
         tracker: LeftOuterJoinTracker,
         batches: Vec<Batch>,
         right_types: Vec<DataType>,
@@ -74,7 +82,8 @@ impl LeftOuterJoinDrainState {
             tracker,
             batches,
             right_types,
-            batch_idx: 0,
+            batch_idx: start_idx,
+            skip,
         }
     }
 
@@ -90,7 +99,7 @@ impl LeftOuterJoinDrainState {
             .bitmaps
             .get(self.batch_idx)
             .expect("bitmap to exist");
-        self.batch_idx += 1;
+        self.batch_idx += self.skip;
 
         let cols = batch
             .columns()
@@ -121,7 +130,7 @@ impl LeftOuterJoinDrainState {
                 .bitmaps
                 .get(self.batch_idx)
                 .expect("bitmap to exist");
-            self.batch_idx += 1;
+            self.batch_idx += self.skip;
 
             // TODO: Don't clone. Also might make sense to have the bitmap logic
             // flipped to avoid the negate here (we're already doing that for RIGHT
@@ -162,7 +171,7 @@ impl LeftOuterJoinDrainState {
                 .bitmaps
                 .get(self.batch_idx)
                 .expect("bitmap to exist");
-            self.batch_idx += 1;
+            self.batch_idx += self.skip;
 
             // Create a selection for just the visited rows in the left batch.
             let selection = SelectionVector::from_iter(bitmap.index_iter());

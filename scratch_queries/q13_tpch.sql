@@ -8,31 +8,21 @@ CREATE TEMP VIEW partsupp AS SELECT * FROM './crates/rayexec_python/benchmarks/d
 CREATE TEMP VIEW part AS SELECT * FROM './crates/rayexec_python/benchmarks/data/tpch-10/part.parquet';
 
 SELECT
-    p_brand,
-    p_type,
-    p_size,
-    count(DISTINCT ps_suppkey) AS supplier_cnt
-FROM
-    partsupp,
-    part
-WHERE
-    p_partkey = ps_partkey
-    AND p_brand <> 'Brand#45'
-    AND p_type NOT LIKE 'MEDIUM POLISHED%'
-    AND p_size IN (49, 14, 23, 45, 19, 3, 36, 9)
-    AND ps_suppkey NOT IN (
-        SELECT
-            s_suppkey
-        FROM
-            supplier
-        WHERE
-            s_comment LIKE '%Customer%Complaints%')
+    c_count,
+    count(*) AS custdist
+FROM (
+    SELECT
+        c_custkey,
+        count(o_orderkey)
+    FROM
+        customer
+    LEFT OUTER JOIN
+        orders
+      ON c_custkey = o_custkey AND o_comment NOT LIKE '%special%requests%'
+    GROUP BY c_custkey
+  ) AS c_orders (c_custkey, c_count)
 GROUP BY
-    p_brand,
-    p_type,
-    p_size
+    c_count
 ORDER BY
-    supplier_cnt DESC,
-    p_brand,
-    p_type,
-    p_size;
+    custdist DESC,
+    c_count DESC;
