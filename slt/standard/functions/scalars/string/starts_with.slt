@@ -16,3 +16,9 @@ query B
 select 'alphabet' ^@ 'alph';
 ----
 true
+
+# Alias
+query B
+select prefix('alphabet', 'alph');
+----
+true

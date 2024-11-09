@@ -1,0 +1,17 @@
+# ends_with function
+
+query B
+select ends_with('alphabet', 'bet');
+----
+true
+
+query B
+select ends_with('alphabet', 'dog');
+----
+false
+
+# Alias
+query B
+select suffix('alphabet', 'bet');
+----
+true

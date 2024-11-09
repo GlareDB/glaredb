@@ -3,15 +3,14 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{Result, ResultExt};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::util_types;
-use serde::{Deserialize, Serialize};
+use regex::{escape, Regex};
 
-use super::comparison::EqImpl;
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::expr::Expression;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -47,31 +46,15 @@ impl ScalarFunction for Like {
     }
 
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
-        let mut packed = PackedDecoder::new(state);
-        let variant: String = packed.decode_next()?;
-        match variant.as_str() {
-            "starts_with" => {
-                let constant: util_types::OptionalString = packed.decode_next()?;
-                Ok(Box::new(StartsWithImpl {
-                    constant: constant.value,
-                }))
-            }
-            "ends_with" => {
-                let constant: util_types::OptionalString = packed.decode_next()?;
-                Ok(Box::new(EndsWithImpl {
-                    constant: constant.value,
-                }))
-            }
-            "contains" => {
-                let constant: util_types::OptionalString = packed.decode_next()?;
-                Ok(Box::new(ContainsImpl {
-                    constant: constant.value,
-                }))
-            }
-            other => Err(RayexecError::new(format!(
-                "Unknown variant for like: {other}"
-            ))),
-        }
+        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
+        let constant = constant
+            .value
+            .as_ref()
+            .map(|s| Regex::new(s))
+            .transpose()
+            .context("Failed to rebuild regex")?;
+
+        Ok(Box::new(LikeImpl { constant }))
     }
 
     fn plan_from_expressions(
@@ -84,78 +67,31 @@ impl ScalarFunction for Like {
             .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
-        // TODO: 3rd arg for optional escape char
-        plan_check_num_args(self, &datatypes, 2)?;
-
         match (&datatypes[0], &datatypes[1]) {
             (DataType::Utf8, DataType::Utf8) => (),
             (DataType::LargeUtf8, DataType::LargeUtf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
 
-        if inputs[1].is_constant() {
+        let pattern = if inputs[1].is_const_foldable() {
             let pattern = ConstFold::rewrite(bind_context, inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 
-            let escape_char = b'\\'; // TODO: Possible to get from the user at some point.
+            let pattern = like_pattern_to_regex(&mut String::new(), &pattern, Some('\\'))?;
 
-            // Iterators for '%' and '_'. These lets us check the pattern string
-            // for simple patterns, allowing us to skip regex if it's not
-            // needed.
-            //
-            // The percents iterator is fused because we may call it again after
-            // receiving a None.
-            let mut percents = pattern.char_indices().filter(|(_, c)| *c == '%').fuse();
-            let mut underscores = pattern.char_indices().filter(|(_, c)| *c == '_');
-
-            match (percents.next(), percents.next(), underscores.next()) {
-                // '%search'
-                (Some((0, _)), None, None) => {
-                    let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(EndsWithImpl {
-                        constant: Some(pattern),
-                    }))
-                }
-                // 'search%'
-                (Some((n, _)), None, None)
-                    if n == pattern.len() - 1 && pattern.as_bytes()[n - 1] != escape_char =>
-                {
-                    let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(StartsWithImpl {
-                        constant: Some(pattern),
-                    }))
-                }
-                // '%search%'
-                (Some((0, _)), Some((n, _)), None)
-                    if n == pattern.len() - 1 && pattern.as_bytes()[n - 1] != escape_char =>
-                {
-                    let pattern = pattern.trim_matches('%').to_string();
-                    Ok(Box::new(ContainsImpl {
-                        constant: Some(pattern),
-                    }))
-                }
-                // 'search'
-                // aka just equals
-                (None, None, None) => Ok(Box::new(EqImpl)),
-                other => {
-                    // TODO: Regex
-                    not_implemented!("string search {other:?}")
-                }
-            }
+            Some(pattern)
         } else {
-            // TODO: Non-constant variants
-            not_implemented!("non-constant string search")
-        }
+            None
+        };
+
+        Ok(Box::new(LikeImpl { constant: pattern }))
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum LikeImpl {
-    StartsWith(StartsWithImpl),
-    EndsWith(EndsWithImpl),
-    Contains(ContainsImpl),
-    Regex(),
+#[derive(Debug, Clone)]
+pub struct LikeImpl {
+    pub constant: Option<Regex>,
 }
 
 impl PlannedScalarFunction for LikeImpl {
@@ -164,104 +100,8 @@ impl PlannedScalarFunction for LikeImpl {
     }
 
     fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        let mut packed = PackedEncoder::new(state);
-        match self {
-            Self::StartsWith(v) => {
-                packed.encode_next(&"starts_with".to_string())?;
-                packed.encode_next(&util_types::OptionalString {
-                    value: v.constant.clone(),
-                })?
-            }
-            Self::EndsWith(v) => {
-                packed.encode_next(&"ends_with".to_string())?;
-                packed.encode_next(&util_types::OptionalString {
-                    value: v.constant.clone(),
-                })?
-            }
-            Self::Contains(v) => {
-                packed.encode_next(&"contains".to_string())?;
-                packed.encode_next(&util_types::OptionalString {
-                    value: v.constant.clone(),
-                })?
-            }
-            Self::Regex() => {
-                not_implemented!("regex")
-            }
-        }
-
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        match self {
-            Self::StartsWith(f) => f.execute(inputs),
-            Self::EndsWith(f) => f.execute(inputs),
-            Self::Contains(f) => f.execute(inputs),
-            Self::Regex() => not_implemented!("like regex exec"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StartsWith;
-
-impl FunctionInfo for StartsWith {
-    fn name(&self) -> &'static str {
-        "starts_with"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-            Signature {
-                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction for StartsWith {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
-        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
-        Ok(Box::new(StartsWithImpl {
-            constant: constant.value,
-        }))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
-                Ok(Box::new(StartsWithImpl { constant: None }))
-            }
-            _ => Err(invalid_input_types_error(self, inputs)),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StartsWithImpl {
-    constant: Option<String>,
-}
-
-impl PlannedScalarFunction for StartsWithImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &StartsWith
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
-            value: self.constant.clone(),
-        })
+        let constant = self.constant.as_ref().map(|c| c.to_string());
+        PackedEncoder::new(state).encode_next(&util_types::OptionalString { value: constant })
     }
 
     fn return_type(&self) -> DataType {
@@ -277,201 +117,69 @@ impl PlannedScalarFunction for StartsWithImpl {
         match self.constant.as_ref() {
             Some(constant) => {
                 UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-                    buf.put(&s.starts_with(constant))
+                    let b = constant.is_match(s);
+                    buf.put(&b);
                 })
             }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                builder,
-                |s, c, buf| buf.put(&s.starts_with(c)),
-            ),
-        }
-    }
-}
+            None => {
+                let mut s_buf = String::new();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EndsWith;
-
-impl FunctionInfo for EndsWith {
-    fn name(&self) -> &'static str {
-        "ends_with"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-            Signature {
-                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction for EndsWith {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
-        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
-        Ok(Box::new(EndsWithImpl {
-            constant: constant.value,
-        }))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
-                Ok(Box::new(EndsWithImpl { constant: None }))
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    builder,
+                    |a, b, buf| {
+                        match like_pattern_to_regex(&mut s_buf, b, Some('\\')) {
+                            Ok(pat) => {
+                                let b = pat.is_match(a);
+                                buf.put(&b);
+                            }
+                            Err(_) => {
+                                // TODO: Do something
+                            }
+                        }
+                    },
+                )
             }
-            _ => Err(invalid_input_types_error(self, inputs)),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EndsWithImpl {
-    constant: Option<String>,
-}
+/// Converts a LIKE pattern into regex.
+fn like_pattern_to_regex(
+    buf: &mut String,
+    pattern: &str,
+    escape_char: Option<char>,
+) -> Result<Regex> {
+    buf.clear();
+    buf.push('^');
 
-impl PlannedScalarFunction for EndsWithImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &EndsWith
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
-            value: self.constant.clone(),
-        })
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
-
-        match self.constant.as_ref() {
-            Some(constant) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-                    buf.put(&s.ends_with(constant))
-                })
+    let mut chars = pattern.chars().peekable();
+    while let Some(c) = chars.next() {
+        if Some(c) == escape_char {
+            // Escape character found, treat the next character literally.
+            if let Some(next_char) = chars.next() {
+                buf.push_str(&escape(&next_char.to_string()));
+            } else {
+                // Escape character at the end, treat it literally.
+                buf.push_str(&escape(&c.to_string()));
             }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                builder,
-                |s, c, buf| buf.put(&s.ends_with(c)),
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Contains;
-
-impl FunctionInfo for Contains {
-    fn name(&self) -> &'static str {
-        "contains"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-            Signature {
-                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction for Contains {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
-        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
-        Ok(Box::new(ContainsImpl {
-            constant: constant.value,
-        }))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Utf8, DataType::Utf8) | (DataType::LargeUtf8, DataType::LargeUtf8) => {
-                Ok(Box::new(ContainsImpl { constant: None }))
+        } else {
+            match c {
+                '%' => {
+                    buf.push_str(".*"); // '%' matches any sequence of characters
+                }
+                '_' => {
+                    buf.push('.'); // '_' matches any single character
+                }
+                _ => {
+                    // Escape regex special characters.
+                    buf.push_str(&escape(&c.to_string()));
+                }
             }
-            _ => Err(invalid_input_types_error(self, inputs)),
         }
     }
-}
+    buf.push('$');
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ContainsImpl {
-    constant: Option<String>,
-}
-
-impl PlannedScalarFunction for ContainsImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Contains
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
-            value: self.constant.clone(),
-        })
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
-
-        match self.constant.as_ref() {
-            Some(constant) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-                    buf.put(&s.contains(constant))
-                })
-            }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                builder,
-                |s, c, buf| buf.put(&s.contains(c)),
-            ),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn encode_decode_contains() {
-        let contains = ContainsImpl {
-            constant: Some("const".to_string()),
-        };
-
-        let mut buf = Vec::new();
-        contains.encode_state(&mut buf).unwrap();
-
-        let got = Contains.decode_state(&buf).unwrap();
-        assert_eq!("contains", got.scalar_function().name());
-    }
+    Regex::new(buf).context("Failed to build regex pattern")
 }

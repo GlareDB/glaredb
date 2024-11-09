@@ -399,6 +399,27 @@ GROUP BY
 ORDER BY
     l_shipmode;
     """,
+    13: """
+SELECT
+    c_count,
+    count(*) AS custdist
+FROM (
+    SELECT
+        c_custkey,
+        count(o_orderkey)
+    FROM
+        customer
+    LEFT OUTER JOIN
+        orders
+      ON c_custkey = o_custkey AND o_comment NOT LIKE '%special%requests%'
+    GROUP BY c_custkey
+  ) AS c_orders (c_custkey, c_count)
+GROUP BY
+    c_count
+ORDER BY
+    custdist DESC,
+    c_count DESC;
+    """,
     14: """
 SELECT
     100.00 * sum(
@@ -445,6 +466,37 @@ WHERE
         FROM  revenue0)
 ORDER BY
     s_suppkey;
+    """,
+    16: """
+SELECT
+    p_brand,
+    p_type,
+    p_size,
+    count(DISTINCT ps_suppkey) AS supplier_cnt
+FROM
+    partsupp,
+    part
+WHERE
+    p_partkey = ps_partkey
+    AND p_brand <> 'Brand#45'
+    AND p_type NOT LIKE 'MEDIUM POLISHED%'
+    AND p_size IN (49, 14, 23, 45, 19, 3, 36, 9)
+    AND ps_suppkey NOT IN (
+        SELECT
+            s_suppkey
+        FROM
+            supplier
+        WHERE
+            s_comment LIKE '%Customer%Complaints%')
+GROUP BY
+    p_brand,
+    p_type,
+    p_size
+ORDER BY
+    supplier_cnt DESC,
+    p_brand,
+    p_type,
+    p_size;
     """,
     17: """
 SELECT

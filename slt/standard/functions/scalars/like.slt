@@ -42,6 +42,21 @@ select like('abc', '%');
 ----
 true
 
+query B
+select like('abc', '%a%c%');
+----
+true
+
+query B
+select like('abc', '%a_c%');
+----
+true
+
+query B
+select like('abbc', '%a_c%');
+----
+false
+
 # LIKE expression
 
 query B

@@ -20,3 +20,13 @@ select contains('alphabet', 'dog');
 ----
 false
 
+query B
+select contains('alphabet', NULL);
+----
+NULL
+
+query B
+select contains(NULL, 'dog');
+----
+NULL
+

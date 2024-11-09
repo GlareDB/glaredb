@@ -654,6 +654,24 @@ impl Expr<Raw> {
                 },
                 // TODO: Loop on the NOT so we don't need to repeat.
                 Keyword::NOT => match parser.next_keyword()? {
+                    Keyword::IN => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let expr = if QueryNode::is_query_node_start(parser) {
+                            Expr::InSubquery {
+                                negated: true,
+                                expr: Box::new(prefix),
+                                subquery: Box::new(QueryNode::parse(parser)?),
+                            }
+                        } else {
+                            Expr::InList {
+                                negated: true,
+                                expr: Box::new(prefix),
+                                list: parser.parse_comma_separated(Expr::parse)?,
+                            }
+                        };
+                        parser.expect_token(&Token::RightParen)?;
+                        Ok(expr)
+                    }
                     Keyword::LIKE => Ok(Expr::Like {
                         negated: true,
                         case_insensitive: false,

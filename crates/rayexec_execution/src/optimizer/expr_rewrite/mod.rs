@@ -1,11 +1,13 @@
 pub mod const_fold;
 pub mod distributive_or;
 pub mod join_filter_or;
+pub mod like;
 pub mod unnest_conjunction;
 
 use const_fold::ConstFold;
 use distributive_or::DistributiveOrRewrite;
 use join_filter_or::JoinFilterOrRewrite;
+use like::LikeRewrite;
 use rayexec_error::Result;
 use unnest_conjunction::UnnestConjunctionRewrite;
 
@@ -33,6 +35,11 @@ impl OptimizeRule for ExpressionRewriter {
         plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         let mut plan = match plan {
+            LogicalOperator::Project(mut project) => {
+                project.node.projections =
+                    Self::apply_rewrites_all(bind_context, project.node.projections)?;
+                LogicalOperator::Project(project)
+            }
             LogicalOperator::Filter(mut filter) => {
                 filter.node.filter = Self::apply_rewrites(bind_context, filter.node.filter)?;
                 filter.node.filter =
@@ -75,6 +82,7 @@ impl ExpressionRewriter {
 
     /// Apply all rewrite rules to an expression.
     pub fn apply_rewrites(bind_context: &BindContext, expr: Expression) -> Result<Expression> {
+        let expr = LikeRewrite::rewrite(bind_context, expr)?; // TODO: Move to last
         let expr = ConstFold::rewrite(bind_context, expr)?;
         let expr = UnnestConjunctionRewrite::rewrite(bind_context, expr)?;
         let expr = DistributiveOrRewrite::rewrite(bind_context, expr)?;
