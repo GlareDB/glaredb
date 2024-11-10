@@ -23,7 +23,6 @@ parking_lot = { workspace = true }
 rayon = { workspace = true }
 smallvec = { workspace = true }
 tracing = { workspace = true }
-half = "2.4.1"
 tokio = { workspace = true, default-features = false }
 regex = { workspace = true }
 url = { workspace = true }
@@ -37,6 +36,7 @@ dashmap = "6.0.1"
 strsim = "0.11.1"
 scc = { workspace = true }
 indexmap = "2.5.0"
+half = { workspace = true }
 
 [dev-dependencies]
 similar-asserts = "1.5.0"

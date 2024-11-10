@@ -1,0 +1,47 @@
+# Arith with f16
+
+query TT
+DESCRIBE SELECT (1.0 + 2.0)::HALF;
+----
+?column?  Float16
+
+query R
+SELECT (1.0 + 2.0)::HALF;
+----
+3
+
+query TT
+DESCRIBE SELECT 1.0::HALF + 2.0::HALF;
+----
+?column?  Float16
+
+query R
+SELECT 1.0::HALF + 2.0::HALF;
+----
+3
+
+query R
+SELECT 1.0::HALF - 2.0::HALF;
+----
+-1
+
+query R
+SELECT 1.0::HALF / 2.0::HALF;
+----
+0.5
+
+query R
+SELECT 1.0::HALF * 2.0::HALF;
+----
+2
+
+query R
+SELECT 1.0::HALF % 2.0::HALF;
+----
+1
+
+# implicit cast
+query R
+SELECT 3 * 2.5::HALF;
+----
+7.5

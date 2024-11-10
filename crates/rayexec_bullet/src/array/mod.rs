@@ -3,6 +3,7 @@ mod shared_or_owned;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use shared_or_owned::SharedOrOwned;
 
@@ -13,6 +14,7 @@ use crate::executor::physical_type::{
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -383,6 +385,14 @@ impl Array {
                 },
                 |v, buf| buf.put(&v),
             ),
+            ArrayData::Float16(_) => UnaryExecutor::execute::<PhysicalF16, _, _>(
+                self,
+                ArrayBuilder {
+                    datatype: self.datatype.clone(),
+                    buffer: PrimitiveBuffer::with_len(self.logical_len()),
+                },
+                |v, buf| buf.put(&v),
+            ),
             ArrayData::Float32(_) => UnaryExecutor::execute::<PhysicalF32, _, _>(
                 self,
                 ArrayBuilder {
@@ -448,6 +458,10 @@ impl Array {
             },
             DataType::Boolean => match &self.data {
                 ArrayData::Boolean(arr) => arr.as_ref().as_ref().value(idx).into(),
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
+            DataType::Float16 => match &self.data {
+                ArrayData::Float16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Float32 => match &self.data {
@@ -827,6 +841,7 @@ impl_primitive_from_iter!(u16, UInt16);
 impl_primitive_from_iter!(u32, UInt32);
 impl_primitive_from_iter!(u64, UInt64);
 impl_primitive_from_iter!(u128, UInt128);
+impl_primitive_from_iter!(f16, Float16);
 impl_primitive_from_iter!(f32, Float32);
 impl_primitive_from_iter!(f64, Float64);
 
@@ -846,6 +861,7 @@ impl FromIterator<bool> for Array {
 pub enum ArrayData {
     UntypedNull(UntypedNullStorage),
     Boolean(Arc<BooleanStorage>),
+    Float16(Arc<PrimitiveStorage<f16>>),
     Float32(Arc<PrimitiveStorage<f32>>),
     Float64(Arc<PrimitiveStorage<f64>>),
     Int8(Arc<PrimitiveStorage<i8>>),
@@ -874,6 +890,7 @@ impl ArrayData {
         match self {
             Self::UntypedNull(_) => PhysicalType::UntypedNull,
             Self::Boolean(_) => PhysicalType::Boolean,
+            Self::Float16(_) => PhysicalType::Float16,
             Self::Float32(_) => PhysicalType::Float32,
             Self::Float64(_) => PhysicalType::Float64,
             Self::Int8(_) => PhysicalType::Int8,
@@ -895,6 +912,7 @@ impl ArrayData {
         match self {
             Self::UntypedNull(s) => s.len(),
             Self::Boolean(s) => s.len(),
+            Self::Float16(s) => s.len(),
             Self::Float32(s) => s.len(),
             Self::Float64(s) => s.len(),
             Self::Int8(s) => s.len(),
@@ -930,6 +948,12 @@ impl From<UntypedNullStorage> for ArrayData {
 impl From<BooleanStorage> for ArrayData {
     fn from(value: BooleanStorage) -> Self {
         ArrayData::Boolean(value.into())
+    }
+}
+
+impl From<PrimitiveStorage<f16>> for ArrayData {
+    fn from(value: PrimitiveStorage<f16>) -> Self {
+        ArrayData::Float16(value.into())
     }
 }
 

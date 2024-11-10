@@ -18,6 +18,8 @@ pub enum DataType {
     Integer,
     /// BIGINT, INT8
     BigInt,
+    /// HALF, FLOAT2,
+    Half,
     /// REAL, FLOAT, FLOAT4
     Real,
     /// DOUBLE, FLOAT8
@@ -51,6 +53,7 @@ impl AstParseable for DataType {
             Keyword::SMALLINT | Keyword::INT2 => DataType::SmallInt,
             Keyword::INT | Keyword::INTEGER | Keyword::INT4 => DataType::Integer,
             Keyword::BIGINT | Keyword::INT8 => DataType::BigInt,
+            Keyword::HALF | Keyword::FLOAT2 => DataType::Half,
             Keyword::REAL | Keyword::FLOAT | Keyword::FLOAT4 => DataType::Real,
             Keyword::DOUBLE | Keyword::FLOAT8 => DataType::Double,
             Keyword::DECIMAL | Keyword::NUMERIC => {
@@ -111,6 +114,9 @@ mod tests {
 
         assert_ast_eq(DataType::BigInt, "bigint");
         assert_ast_eq(DataType::BigInt, "int8");
+
+        assert_ast_eq(DataType::Half, "half");
+        assert_ast_eq(DataType::Half, "float2");
 
         assert_ast_eq(DataType::Real, "real");
         assert_ast_eq(DataType::Real, "float");

@@ -2,6 +2,7 @@
 use std::collections::VecDeque;
 
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
+use half::f16;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 
 use super::compression::CompressionType;
@@ -115,6 +116,7 @@ fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array
         PhysicalType::UInt32 => decode_primitive_values::<u32>(buffers.try_next_buf()?)?,
         PhysicalType::UInt64 => decode_primitive_values::<u64>(buffers.try_next_buf()?)?,
         PhysicalType::UInt128 => decode_primitive_values::<u128>(buffers.try_next_buf()?)?,
+        PhysicalType::Float16 => decode_primitive_values::<f16>(buffers.try_next_buf()?)?,
         PhysicalType::Float32 => decode_primitive_values::<f32>(buffers.try_next_buf()?)?,
         PhysicalType::Float64 => decode_primitive_values::<f64>(buffers.try_next_buf()?)?,
         PhysicalType::Interval => decode_primitive_values::<Interval>(buffers.try_next_buf()?)?,
@@ -266,6 +268,7 @@ fn encode_array(
         ArrayData::UInt32(d) => encode_primitive_values(d, data, buffers),
         ArrayData::UInt64(d) => encode_primitive_values(d, data, buffers),
         ArrayData::UInt128(d) => encode_primitive_values(d, data, buffers),
+        ArrayData::Float16(d) => encode_primitive_values(d, data, buffers),
         ArrayData::Float32(d) => encode_primitive_values(d, data, buffers),
         ArrayData::Float64(d) => encode_primitive_values(d, data, buffers),
         ArrayData::Interval(d) => encode_primitive_values(d, data, buffers),

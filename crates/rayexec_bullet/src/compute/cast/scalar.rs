@@ -23,6 +23,7 @@ use crate::datatype::DataType;
 use crate::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::scalar::{OwnedScalarValue, ScalarValue};
 
+// TODO: Try to remove this.
 pub fn cast_scalar(scalar: ScalarValue, to: &DataType) -> Result<OwnedScalarValue> {
     if &scalar.datatype() == to {
         return Ok(scalar.into_owned());

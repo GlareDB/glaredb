@@ -14,6 +14,7 @@ use crate::executor::builder::{
 use crate::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -227,6 +228,13 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
             });
             concat_with_fill_state::<PhysicalU128, _>(arrays, state)
         }
+        PhysicalType::Float16 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(total_len),
+            });
+            concat_with_fill_state::<PhysicalF16, _>(arrays, state)
+        }
         PhysicalType::Float32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
@@ -388,6 +396,13 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
             interleave_with_fill_state::<PhysicalU128, _>(arrays, indices, state)
+        }
+        PhysicalType::Float16 => {
+            let state = FillState::new(ArrayBuilder {
+                datatype: datatype.clone(),
+                buffer: PrimitiveBuffer::with_len(indices.len()),
+            });
+            interleave_with_fill_state::<PhysicalF16, _>(arrays, indices, state)
         }
         PhysicalType::Float32 => {
             let state = FillState::new(ArrayBuilder {

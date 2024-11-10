@@ -4,6 +4,7 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -134,6 +135,9 @@ where
             }
             PhysicalType::UInt128 => {
                 compare_rows_eq::<PhysicalU128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::Float16 => {
+                compare_rows_eq::<PhysicalF16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Float32 => {
                 compare_rows_eq::<PhysicalF32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?

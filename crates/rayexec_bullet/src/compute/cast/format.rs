@@ -3,6 +3,7 @@ use std::fmt::{self, Display, Write as _};
 use std::marker::PhantomData;
 
 use chrono::{DateTime, Utc};
+use half::f16;
 
 use crate::compute::date::SECONDS_IN_DAY;
 use crate::scalar::interval::Interval;
@@ -40,6 +41,7 @@ pub type UInt16Formatter = DisplayFormatter<u16>;
 pub type UInt32Formatter = DisplayFormatter<u32>;
 pub type UInt64Formatter = DisplayFormatter<u64>;
 pub type UInt128Formatter = DisplayFormatter<u128>;
+pub type Float16Formatter = DisplayFormatter<f16>;
 pub type Float32Formatter = DisplayFormatter<f32>;
 pub type Float64Formatter = DisplayFormatter<f64>;
 

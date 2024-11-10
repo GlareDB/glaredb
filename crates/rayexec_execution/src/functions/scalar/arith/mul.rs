@@ -4,6 +4,7 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -50,6 +51,11 @@ impl FunctionInfo for Mul {
 
     fn signatures(&self) -> &[Signature] {
         &[
+            Signature {
+                input: &[DataTypeId::Float16, DataTypeId::Float16],
+                variadic: None,
+                return_type: DataTypeId::Float16,
+            },
             Signature {
                 input: &[DataTypeId::Float32, DataTypeId::Float32],
                 variadic: None,
@@ -133,7 +139,8 @@ impl ScalarFunction for Mul {
     fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float32, DataType::Float32)
+            (DataType::Float16, DataType::Float16)
+            | (DataType::Float32, DataType::Float32)
             | (DataType::Float64, DataType::Float64)
             | (DataType::Int8, DataType::Int8)
             | (DataType::Int16, DataType::Int16)
@@ -299,6 +306,17 @@ impl PlannedScalarFunction for MulImpl {
             }
             (PhysicalType::UInt128, PhysicalType::UInt128) => {
                 BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
+                    a,
+                    b,
+                    ArrayBuilder {
+                        datatype,
+                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
+                    },
+                    |a, b, buf| buf.put(&(a * b)),
+                )
+            }
+            (PhysicalType::Float16, PhysicalType::Float16) => {
+                BinaryExecutor::execute::<PhysicalF16, PhysicalF16, _, _>(
                     a,
                     b,
                     ArrayBuilder {

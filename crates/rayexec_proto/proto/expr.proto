@@ -51,17 +51,18 @@ message OwnedScalarValue {
         uint32           scalar_uint32     = 11;
         uint64           scalar_uint64     = 12;
         bytes            scalar_uint128    = 13;
-        float            scalar_float32    = 14;
-        double           scalar_float64    = 15;
-        Decimal64Scalar  scalar_decimal64  = 16;
-        Decimal128Scalar scalar_decimal128 = 17;
-        TimestampScalar  scalar_timestamp  = 18;
-        int32            scalar_date32     = 19;
-        int64            scalar_date64     = 20;
-        IntervalScalar   scalar_interval   = 21;
-        string           scalar_utf8       = 22;
-        bytes            scalar_binary     = 23;
-        StructScalar     scalar_struct     = 24;
-        ListScalar       scalar_list       = 25;
+        float            scalar_float16    = 14;
+        float            scalar_float32    = 15;
+        double           scalar_float64    = 16;
+        Decimal64Scalar  scalar_decimal64  = 17;
+        Decimal128Scalar scalar_decimal128 = 18;
+        TimestampScalar  scalar_timestamp  = 19;
+        int32            scalar_date32     = 20;
+        int64            scalar_date64     = 21;
+        IntervalScalar   scalar_interval   = 22;
+        string           scalar_utf8       = 23;
+        bytes            scalar_binary     = 24;
+        StructScalar     scalar_struct     = 25;
+        ListScalar       scalar_list       = 26;
     }
 }

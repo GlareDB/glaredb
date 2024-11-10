@@ -1,0 +1,27 @@
+# Cast to/from f16
+
+query R
+DESCRIBE SELECT 2.0::HALF;
+----
+?column?  Float16
+
+query R
+SELECT 2::HALF;
+----
+2
+
+query R
+SELECT 2.0::HALF;
+----
+2
+
+query R
+SELECT '2.0'::HALF;
+----
+2
+
+query R
+SELECT (2.0 + 1.0)::HALF;
+----
+3
+

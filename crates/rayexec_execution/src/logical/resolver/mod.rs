@@ -991,6 +991,7 @@ impl<'a> Resolver<'a> {
             ast::DataType::SmallInt => DataType::Int16,
             ast::DataType::Integer => DataType::Int32,
             ast::DataType::BigInt => DataType::Int64,
+            ast::DataType::Half => DataType::Float16,
             ast::DataType::Real => DataType::Float32,
             ast::DataType::Double => DataType::Float64,
             ast::DataType::Decimal(prec, scale) => {

@@ -30,6 +30,7 @@ pub enum DataTypeId {
     UInt32,
     UInt64,
     UInt128,
+    Float16,
     Float32,
     Float64,
     Decimal64,
@@ -64,6 +65,7 @@ impl ProtoConv for DataTypeId {
             Self::UInt32 => Self::ProtoType::Uint32,
             Self::UInt64 => Self::ProtoType::Uint64,
             Self::UInt128 => Self::ProtoType::Uint128,
+            Self::Float16 => Self::ProtoType::Float16,
             Self::Float32 => Self::ProtoType::Float32,
             Self::Float64 => Self::ProtoType::Float64,
             Self::Decimal64 => Self::ProtoType::Decimal64,
@@ -97,6 +99,7 @@ impl ProtoConv for DataTypeId {
             Self::ProtoType::Uint32 => Self::UInt32,
             Self::ProtoType::Uint64 => Self::UInt64,
             Self::ProtoType::Uint128 => Self::UInt128,
+            Self::ProtoType::Float16 => Self::Float16,
             Self::ProtoType::Float32 => Self::Float32,
             Self::ProtoType::Float64 => Self::Float64,
             Self::ProtoType::Decimal64 => Self::Decimal64,
@@ -131,6 +134,7 @@ impl fmt::Display for DataTypeId {
             Self::UInt32 => write!(f, "UInt32"),
             Self::UInt64 => write!(f, "UInt64"),
             Self::UInt128 => write!(f, "UInt128"),
+            Self::Float16 => write!(f, "Float16"),
             Self::Float32 => write!(f, "Float32"),
             Self::Float64 => write!(f, "Float64"),
             Self::Decimal64 => write!(f, "Decimal64"),
@@ -325,6 +329,7 @@ pub enum DataType {
     UInt32,
     UInt64,
     UInt128,
+    Float16,
     Float32,
     Float64,
     /// 64-bit decimal.
@@ -372,6 +377,7 @@ impl DataType {
             DataTypeId::UInt32 => DataType::UInt32,
             DataTypeId::UInt64 => DataType::UInt64,
             DataTypeId::UInt128 => DataType::UInt128,
+            DataTypeId::Float16 => DataType::Float16,
             DataTypeId::Float32 => DataType::Float32,
             DataTypeId::Float64 => DataType::Float64,
             DataTypeId::Decimal64 => DataType::Decimal64(DecimalTypeMeta::new(
@@ -416,6 +422,7 @@ impl DataType {
             DataType::UInt32 => DataTypeId::UInt32,
             DataType::UInt64 => DataTypeId::UInt64,
             DataType::UInt128 => DataTypeId::UInt128,
+            DataType::Float16 => DataTypeId::Float16,
             DataType::Float32 => DataTypeId::Float32,
             DataType::Float64 => DataTypeId::Float64,
             DataType::Decimal64(_) => DataTypeId::Decimal64,
@@ -447,6 +454,7 @@ impl DataType {
             DataType::UInt32 => PhysicalType::UInt32,
             DataType::UInt64 => PhysicalType::UInt64,
             DataType::UInt128 => PhysicalType::UInt128,
+            DataType::Float16 => PhysicalType::Float16,
             DataType::Float32 => PhysicalType::Float32,
             DataType::Float64 => PhysicalType::Float64,
             DataType::Decimal64(_) => PhysicalType::Int64,
@@ -491,6 +499,7 @@ impl DataType {
                 | DataType::UInt32
                 | DataType::UInt64
                 | DataType::UInt128
+                | DataType::Float16
                 | DataType::Float32
                 | DataType::Float64
         )
@@ -513,6 +522,13 @@ impl DataType {
                 | DataType::Float64
                 | DataType::Decimal64(_)
                 | DataType::Decimal128(_)
+        )
+    }
+
+    pub const fn is_float(&self) -> bool {
+        matches!(
+            self,
+            DataType::Float16 | DataType::Float32 | DataType::Float64
         )
     }
 
@@ -551,6 +567,7 @@ impl ProtoConv for DataType {
             DataType::UInt32 => Value::TypeUint32(EmptyMeta {}),
             DataType::UInt64 => Value::TypeUint64(EmptyMeta {}),
             DataType::UInt128 => Value::TypeUint128(EmptyMeta {}),
+            DataType::Float16 => Value::TypeFloat16(EmptyMeta {}),
             DataType::Float32 => Value::TypeFloat32(EmptyMeta {}),
             DataType::Float64 => Value::TypeFloat64(EmptyMeta {}),
             DataType::Decimal64(m) => Value::TypeDecimal64(m.to_proto()?),
@@ -585,6 +602,7 @@ impl ProtoConv for DataType {
             Value::TypeUint32(_) => DataType::UInt32,
             Value::TypeUint64(_) => DataType::UInt64,
             Value::TypeUint128(_) => DataType::UInt128,
+            Value::TypeFloat16(_) => DataType::Float16,
             Value::TypeFloat32(_) => DataType::Float32,
             Value::TypeFloat64(_) => DataType::Float64,
             Value::TypeDecimal64(m) => DataType::Decimal64(DecimalTypeMeta::from_proto(m)?),
@@ -618,6 +636,7 @@ impl fmt::Display for DataType {
             Self::UInt32 => write!(f, "UInt32"),
             Self::UInt64 => write!(f, "UInt64"),
             Self::UInt128 => write!(f, "UInt128"),
+            Self::Float16 => write!(f, "Float16"),
             Self::Float32 => write!(f, "Float32"),
             Self::Float64 => write!(f, "Float64"),
             Self::Decimal64(meta) => write!(f, "Decimal64({},{})", meta.precision, meta.scale),

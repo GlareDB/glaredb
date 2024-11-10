@@ -1,4 +1,3 @@
-pub mod compare;
 pub mod encoding;
 
 use rayexec_error::Result;

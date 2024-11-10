@@ -1,11 +1,13 @@
 use std::fmt::Debug;
 
+use half::f16;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -143,6 +145,10 @@ impl PlannedAggregateFunction for FirstImpl {
             )),
             PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
                 unary_update::<FirstState<u128>, PhysicalU128, u128>,
+                move |states| primitive_finalize(datatype.clone(), states),
+            )),
+            PhysicalType::Float16 => Box::new(DefaultGroupedStates::new(
+                unary_update::<FirstState<f16>, PhysicalF16, f16>,
                 move |states| primitive_finalize(datatype.clone(), states),
             )),
             PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(

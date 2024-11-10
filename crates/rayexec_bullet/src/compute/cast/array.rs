@@ -1,5 +1,6 @@
 use std::ops::Mul;
 
+use half::f16;
 use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
 
@@ -31,6 +32,7 @@ use super::parse::{
     Date32Parser,
     Decimal128Parser,
     Decimal64Parser,
+    Float16Parser,
     Float32Parser,
     Float64Parser,
     Int128Parser,
@@ -52,6 +54,7 @@ use crate::datatype::{DataType, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::executor::physical_type::{
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -118,6 +121,9 @@ pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Resu
         }
         DataType::UInt128 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalU128>(arr, to, behavior)?
+        }
+        DataType::Float16 if to.is_primitive_numeric() => {
+            cast_primitive_numeric_helper::<PhysicalF16>(arr, to, behavior)?
         }
         DataType::Float32 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalF32>(arr, to, behavior)?
@@ -472,6 +478,7 @@ where
         DataType::UInt32 => cast_primitive_numeric::<S, u32>(arr, to, behavior),
         DataType::UInt64 => cast_primitive_numeric::<S, u64>(arr, to, behavior),
         DataType::UInt128 => cast_primitive_numeric::<S, u128>(arr, to, behavior),
+        DataType::Float16 => cast_primitive_numeric::<S, f16>(arr, to, behavior),
         DataType::Float32 => cast_primitive_numeric::<S, f32>(arr, to, behavior),
         DataType::Float64 => cast_primitive_numeric::<S, f64>(arr, to, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
@@ -523,6 +530,9 @@ pub fn cast_from_utf8(
         DataType::UInt64 => cast_parse_primitive(arr, datatype, behavior, UInt64Parser::default()),
         DataType::UInt128 => {
             cast_parse_primitive(arr, datatype, behavior, UInt128Parser::default())
+        }
+        DataType::Float16 => {
+            cast_parse_primitive(arr, datatype, behavior, Float16Parser::default())
         }
         DataType::Float32 => {
             cast_parse_primitive(arr, datatype, behavior, Float32Parser::default())

@@ -33,3 +33,4 @@ serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.6.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 scc = "2.1.13"
+half = { version = "2.4.1", features = ["num-traits", "serde"] }

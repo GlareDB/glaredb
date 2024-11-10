@@ -29,6 +29,7 @@ pub const fn implicit_cast_score(have: &DataType, want: DataTypeId) -> Option<u3
         DataType::UInt64 => return uint64_cast_score(want),
 
         // Float casts
+        DataType::Float16 => return float16_cast_score(want),
         DataType::Float32 => return float32_cast_score(want),
         DataType::Float64 => return float64_cast_score(want),
 
@@ -72,6 +73,7 @@ const fn target_score(target: DataTypeId) -> u32 {
         DataTypeId::UInt32 => 170,
         DataTypeId::Int64 => 161,
         DataTypeId::UInt64 => 160,
+        DataTypeId::Float16 => 152,
         DataTypeId::Float32 => 151,
         DataTypeId::Float64 => 141,
         DataTypeId::Decimal64 => 131,
@@ -87,6 +89,7 @@ const fn int8_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Int16
         | DataTypeId::Int32
         | DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -100,6 +103,7 @@ const fn int16_cast_score(want: DataTypeId) -> Option<u32> {
         DataTypeId::Int16
         | DataTypeId::Int32
         | DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -112,6 +116,7 @@ const fn int32_cast_score(want: DataTypeId) -> Option<u32> {
     Some(match want {
         DataTypeId::Int32
         | DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -123,6 +128,7 @@ const fn int32_cast_score(want: DataTypeId) -> Option<u32> {
 const fn int64_cast_score(want: DataTypeId) -> Option<u32> {
     Some(match want {
         DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -140,6 +146,7 @@ const fn uint8_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Int32
         | DataTypeId::UInt64
         | DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -155,6 +162,7 @@ const fn uint16_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Int32
         | DataTypeId::UInt64
         | DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -168,6 +176,7 @@ const fn uint32_cast_score(want: DataTypeId) -> Option<u32> {
         DataTypeId::UInt32
         | DataTypeId::UInt64
         | DataTypeId::Int64
+        | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
@@ -179,6 +188,18 @@ const fn uint32_cast_score(want: DataTypeId) -> Option<u32> {
 const fn uint64_cast_score(want: DataTypeId) -> Option<u32> {
     Some(match want {
         DataTypeId::UInt64
+        | DataTypeId::Float16
+        | DataTypeId::Float32
+        | DataTypeId::Float64
+        | DataTypeId::Decimal64
+        | DataTypeId::Decimal128 => target_score(want),
+        _ => return None,
+    })
+}
+
+const fn float16_cast_score(want: DataTypeId) -> Option<u32> {
+    Some(match want {
+        DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64

@@ -7,6 +7,7 @@ use std::fmt;
 use std::hash::Hash;
 
 use decimal::{Decimal128Scalar, Decimal64Scalar};
+use half::f16;
 use interval::Interval;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
@@ -21,6 +22,7 @@ use crate::compute::cast::format::{
     Date64Formatter,
     Decimal128Formatter,
     Decimal64Formatter,
+    Float16Formatter,
     Float32Formatter,
     Float64Formatter,
     Formatter,
@@ -49,6 +51,7 @@ use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
 pub enum ScalarValue<'a> {
     Null,
     Boolean(bool),
+    Float16(f16),
     Float32(f32),
     Float64(f64),
     Int8(i8),
@@ -82,6 +85,7 @@ impl<'a> Hash for ScalarValue<'a> {
         match self {
             Self::Null => 0_u8.hash(state),
             Self::Boolean(v) => v.hash(state),
+            Self::Float16(v) => v.to_le_bytes().hash(state),
             Self::Float32(v) => v.to_le_bytes().hash(state),
             Self::Float64(v) => v.to_le_bytes().hash(state),
             Self::Int8(v) => v.hash(state),
@@ -115,6 +119,7 @@ impl<'a> ScalarValue<'a> {
         match self {
             ScalarValue::Null => DataType::Null,
             ScalarValue::Boolean(_) => DataType::Boolean,
+            ScalarValue::Float16(_) => DataType::Float16,
             ScalarValue::Float32(_) => DataType::Float32,
             ScalarValue::Float64(_) => DataType::Float64,
             ScalarValue::Int8(_) => DataType::Int8,
@@ -153,6 +158,7 @@ impl<'a> ScalarValue<'a> {
         match self {
             Self::Null => OwnedScalarValue::Null,
             Self::Boolean(v) => OwnedScalarValue::Boolean(v),
+            Self::Float16(v) => OwnedScalarValue::Float16(v),
             Self::Float32(v) => OwnedScalarValue::Float32(v),
             Self::Float64(v) => OwnedScalarValue::Float64(v),
             Self::Int8(v) => OwnedScalarValue::Int8(v),
@@ -187,6 +193,7 @@ impl<'a> ScalarValue<'a> {
         let data: ArrayData = match self {
             Self::Null => return Ok(Array::new_untyped_null_array(n)),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
+            Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
@@ -207,7 +214,7 @@ impl<'a> ScalarValue<'a> {
             Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
             Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            other => not_implemented!("{other} to array"), // Struct, List
+            other => not_implemented!("{other:?} to array"), // Struct, List
         };
 
         let mut array = Array::new_with_array_data(self.datatype(), data);
@@ -309,6 +316,7 @@ impl fmt::Display for ScalarValue<'_> {
         match self {
             Self::Null => write!(f, "NULL"),
             Self::Boolean(v) => BoolFormatter::default().write(v, f),
+            Self::Float16(v) => Float16Formatter::default().write(v, f),
             Self::Float32(v) => Float32Formatter::default().write(v, f),
             Self::Float64(v) => Float64Formatter::default().write(v, f),
             Self::Int8(v) => Int8Formatter::default().write(v, f),
@@ -364,6 +372,12 @@ impl fmt::Display for ScalarValue<'_> {
 impl<'a> From<bool> for ScalarValue<'a> {
     fn from(value: bool) -> Self {
         ScalarValue::Boolean(value)
+    }
+}
+
+impl<'a> From<f16> for ScalarValue<'a> {
+    fn from(value: f16) -> Self {
+        ScalarValue::Float16(value)
     }
 }
 
@@ -480,6 +494,7 @@ impl ProtoConv for OwnedScalarValue {
             Self::UInt32(v) => Value::ScalarUint32(*v),
             Self::UInt64(v) => Value::ScalarUint64(*v),
             Self::UInt128(v) => Value::ScalarUint128(v.to_le_bytes().to_vec()),
+            Self::Float16(v) => Value::ScalarFloat16(v.to_f32()),
             Self::Float32(v) => Value::ScalarFloat32(*v),
             Self::Float64(v) => Value::ScalarFloat64(*v),
             Self::Decimal64(v) => Value::ScalarDecimal64(v.to_proto()?),
@@ -524,6 +539,7 @@ impl ProtoConv for OwnedScalarValue {
                 v.try_into()
                     .map_err(|_| RayexecError::new("byte buffer not 16 bytes"))?,
             )),
+            Value::ScalarFloat16(v) => Self::Float16(f16::from_f32(v)),
             Value::ScalarFloat32(v) => Self::Float32(v),
             Value::ScalarFloat64(v) => Self::Float64(v),
             Value::ScalarDecimal64(v) => Self::Decimal64(Decimal64Scalar::from_proto(v)?),

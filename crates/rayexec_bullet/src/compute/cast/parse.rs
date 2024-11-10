@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use chrono::{Datelike, NaiveDate};
+use half::f16;
 use num::PrimInt;
 
 use crate::compute::date::EPOCH_DAYS_FROM_CE;
@@ -61,6 +62,7 @@ pub type UInt16Parser = FromStrParser<u16>;
 pub type UInt32Parser = FromStrParser<u32>;
 pub type UInt64Parser = FromStrParser<u64>;
 pub type UInt128Parser = FromStrParser<u128>;
+pub type Float16Parser = FromStrParser<f16>;
 pub type Float32Parser = FromStrParser<f32>;
 pub type Float64Parser = FromStrParser<f64>;
 

@@ -17,20 +17,21 @@ enum DataTypeId {
     UINT32              = 11;
     UINT64              = 12;
     UINT128             = 13;
-    FLOAT32             = 14;
-    FLOAT64             = 15;
-    DECIMAL64           = 16;
-    DECIMAL128          = 17;
-    TIMESTAMP           = 18;
-    DATE32              = 19;
-    DATE64              = 20;
-    INTERVAL            = 21;
-    UTF8                = 22;
-    LARGE_UTF8          = 23;
-    BINARY              = 24;
-    LARGE_BINARY        = 25;
-    STRUCT              = 26;
-    LIST                = 27;
+    FLOAT16             = 14;
+    FLOAT32             = 15;
+    FLOAT64             = 16;
+    DECIMAL64           = 17;
+    DECIMAL128          = 18;
+    TIMESTAMP           = 19;
+    DATE32              = 20;
+    DATE64              = 21;
+    INTERVAL            = 22;
+    UTF8                = 23;
+    LARGE_UTF8          = 24;
+    BINARY              = 25;
+    LARGE_BINARY        = 26;
+    STRUCT              = 27;
+    LIST                = 28;
 }
 
 enum TimeUnit {
@@ -74,20 +75,21 @@ message DataType {
         EmptyMeta         type_uint32       = 11;
         EmptyMeta         type_uint64       = 12;
         EmptyMeta         type_uint128      = 13;
-        EmptyMeta         type_float32      = 14;
-        EmptyMeta         type_float64      = 15;
-        DecimalTypeMeta   type_decimal64    = 16;
-        DecimalTypeMeta   type_decimal128   = 17;
-        TimestampTypeMeta type_timestamp    = 18;
-        EmptyMeta         type_date32       = 19;
-        EmptyMeta         type_date64       = 20;
-        EmptyMeta         type_interval     = 21;
-        EmptyMeta         type_utf8         = 22;
-        EmptyMeta         type_large_utf8   = 23;
-        EmptyMeta         type_binary       = 24;
-        EmptyMeta         type_large_binary = 25;
-        StructTypeMeta    type_struct       = 26;
-        ListTypeMeta      type_list         = 27;
+        EmptyMeta         type_float16      = 14;
+        EmptyMeta         type_float32      = 15;
+        EmptyMeta         type_float64      = 16;
+        DecimalTypeMeta   type_decimal64    = 17;
+        DecimalTypeMeta   type_decimal128   = 18;
+        TimestampTypeMeta type_timestamp    = 19;
+        EmptyMeta         type_date32       = 20;
+        EmptyMeta         type_date64       = 21;
+        EmptyMeta         type_interval     = 22;
+        EmptyMeta         type_utf8         = 23;
+        EmptyMeta         type_large_utf8   = 24;
+        EmptyMeta         type_binary       = 25;
+        EmptyMeta         type_large_binary = 26;
+        StructTypeMeta    type_struct       = 27;
+        ListTypeMeta      type_list         = 28;
     }
 }
 

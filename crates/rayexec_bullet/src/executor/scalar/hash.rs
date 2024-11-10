@@ -1,10 +1,12 @@
 use ahash::RandomState;
+use half::f16;
 use rayexec_error::Result;
 
 use crate::array::Array;
 use crate::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -51,6 +53,7 @@ impl HashExecutor {
             PhysicalType::UInt32 => Self::hash_one_combine::<PhysicalU32>(array, hashes)?,
             PhysicalType::UInt64 => Self::hash_one_combine::<PhysicalU64>(array, hashes)?,
             PhysicalType::UInt128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
+            PhysicalType::Float16 => Self::hash_one_combine::<PhysicalF16>(array, hashes)?,
             PhysicalType::Float32 => Self::hash_one_combine::<PhysicalF32>(array, hashes)?,
             PhysicalType::Float64 => Self::hash_one_combine::<PhysicalF64>(array, hashes)?,
             PhysicalType::Binary => Self::hash_one_combine::<PhysicalBinary>(array, hashes)?,
@@ -79,6 +82,7 @@ impl HashExecutor {
             PhysicalType::UInt32 => Self::hash_one_no_combine::<PhysicalU32>(array, hashes)?,
             PhysicalType::UInt64 => Self::hash_one_no_combine::<PhysicalU64>(array, hashes)?,
             PhysicalType::UInt128 => Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?,
+            PhysicalType::Float16 => Self::hash_one_no_combine::<PhysicalF16>(array, hashes)?,
             PhysicalType::Float32 => Self::hash_one_no_combine::<PhysicalF32>(array, hashes)?,
             PhysicalType::Float64 => Self::hash_one_no_combine::<PhysicalF64>(array, hashes)?,
             PhysicalType::Binary => Self::hash_one_no_combine::<PhysicalBinary>(array, hashes)?,
@@ -222,6 +226,12 @@ impl_hash_value!(u128);
 impl_hash_value!(&str);
 impl_hash_value!(&[u8]);
 impl_hash_value!(Interval);
+
+impl HashValue for f16 {
+    fn hash_one(&self) -> u64 {
+        HASH_RANDOM_STATE.hash_one(self.to_ne_bytes())
+    }
+}
 
 impl HashValue for f32 {
     fn hash_one(&self) -> u64 {

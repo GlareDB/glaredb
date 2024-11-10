@@ -1,3 +1,4 @@
+use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::array::{Array, ArrayData, BinaryData};
@@ -5,6 +6,7 @@ use crate::executor::physical_type::{
     AsBytes,
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -225,6 +227,9 @@ impl ComparableRowEncoder {
                     ArrayData::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
+                    ArrayData::Float16(_) => Self::encode_primitive::<PhysicalF16>(
+                        cmp_col, arr, row_idx, data, row_offset,
+                    )?,
                     ArrayData::Float32(_) => Self::encode_primitive::<PhysicalF32>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
@@ -264,6 +269,7 @@ impl ComparableRowEncoder {
                 ArrayData::UInt32(d) => d.data_size_bytes(),
                 ArrayData::UInt64(d) => d.data_size_bytes(),
                 ArrayData::UInt128(d) => d.data_size_bytes(),
+                ArrayData::Float16(d) => d.data_size_bytes(),
                 ArrayData::Float32(d) => d.data_size_bytes(),
                 ArrayData::Float64(d) => d.data_size_bytes(),
                 ArrayData::Interval(d) => d.data_size_bytes(),
@@ -400,6 +406,14 @@ comparable_encode_signed!(i16);
 comparable_encode_signed!(i32);
 comparable_encode_signed!(i64);
 comparable_encode_signed!(i128);
+
+impl ComparableEncode for f16 {
+    fn encode(&self, buf: &mut [u8]) {
+        let bits = self.to_bits() as i16;
+        let v = bits ^ (((bits >> 15) as u16) >> 1) as i16;
+        v.encode(buf)
+    }
+}
 
 impl ComparableEncode for f32 {
     fn encode(&self, buf: &mut [u8]) {

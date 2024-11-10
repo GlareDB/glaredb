@@ -930,6 +930,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -1990,6 +1991,7 @@ dependencies = [
  "chrono",
  "csv-core",
  "flatbuffers",
+ "half",
  "num",
  "rayexec_error",
  "rayexec_proto",

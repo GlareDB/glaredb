@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
@@ -28,6 +29,7 @@ pub enum PhysicalType {
     UInt32,
     UInt64,
     UInt128,
+    Float16,
     Float32,
     Float64,
     Interval,
@@ -50,6 +52,7 @@ impl PhysicalType {
             Self::UInt32 => PrimitiveBuffer::<u32>::with_len(len).into_data(),
             Self::UInt64 => PrimitiveBuffer::<u64>::with_len(len).into_data(),
             Self::UInt128 => PrimitiveBuffer::<u128>::with_len(len).into_data(),
+            Self::Float16 => PrimitiveBuffer::<f16>::with_len(len).into_data(),
             Self::Float32 => PrimitiveBuffer::<f32>::with_len(len).into_data(),
             Self::Float64 => PrimitiveBuffer::<f64>::with_len(len).into_data(),
             Self::Interval => PrimitiveBuffer::<Interval>::with_len(len).into_data(),
@@ -307,6 +310,19 @@ impl<'a> PhysicalStorage<'a> for PhysicalU128 {
         match data {
             ArrayData::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected u128")),
+        }
+    }
+}
+
+pub struct PhysicalF16;
+
+impl<'a> PhysicalStorage<'a> for PhysicalF16 {
+    type Storage = PrimitiveStorageSlice<'a, f16>;
+
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
+        match data {
+            ArrayData::Float16(storage) => Ok(storage.as_primitive_storage_slice()),
+            _ => Err(RayexecError::new("invalid storage, expected f32")),
         }
     }
 }
