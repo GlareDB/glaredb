@@ -4,7 +4,7 @@ default-members = ["crates/*", "test_bin"]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.71"
+version = "0.0.72"
 edition = "2021"
 
 [profile.release]
