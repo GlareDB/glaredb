@@ -152,63 +152,65 @@ impl PlannedAggregateFunction for MinImpl {
         self.datatype.clone()
     }
 
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.datatype.clone();
-        match self.datatype.physical_type().expect("to get physical type") {
-            PhysicalType::Int8 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<i8>, PhysicalI8, i8>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int16 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<i16>, PhysicalI16, i16>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int32 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<i32>, PhysicalI32, i32>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int64 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<i64>, PhysicalI64, i64>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int128 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<i128>, PhysicalI128, i128>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt8 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<u8>, PhysicalU8, u8>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt16 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<u16>, PhysicalU16, u16>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt32 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<u32>, PhysicalU32, u32>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt64 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<u64>, PhysicalU64, u64>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<u128>, PhysicalU128, u128>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<f32>, PhysicalF32, f32>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Float64 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<f64>, PhysicalF64, f64>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Interval => Box::new(DefaultGroupedStates::new(
-                unary_update::<MinState<Interval>, PhysicalInterval, Interval>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            other => panic!("unexpected physical type {other:?}"),
-        }
+        Ok(
+            match self.datatype.physical_type().expect("to get physical type") {
+                PhysicalType::Int8 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<i8>, PhysicalI8, i8>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int16 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<i16>, PhysicalI16, i16>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int32 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<i32>, PhysicalI32, i32>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int64 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<i64>, PhysicalI64, i64>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int128 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<i128>, PhysicalI128, i128>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt8 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<u8>, PhysicalU8, u8>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt16 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<u16>, PhysicalU16, u16>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt32 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<u32>, PhysicalU32, u32>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt64 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<u64>, PhysicalU64, u64>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<u128>, PhysicalU128, u128>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<f32>, PhysicalF32, f32>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Float64 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<f64>, PhysicalF64, f64>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Interval => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<Interval>, PhysicalInterval, Interval>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                other => panic!("unexpected physical type {other:?}"),
+            },
+        )
     }
 }
 
@@ -230,63 +232,65 @@ impl PlannedAggregateFunction for MaxImpl {
         self.datatype.clone()
     }
 
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.datatype.clone();
-        match self.datatype.physical_type().expect("to get physical type") {
-            PhysicalType::Int8 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<i8>, PhysicalI8, i8>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int16 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<i16>, PhysicalI16, i16>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int32 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<i32>, PhysicalI32, i32>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int64 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<i64>, PhysicalI64, i64>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Int128 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<i128>, PhysicalI128, i128>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt8 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<u8>, PhysicalU8, u8>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt16 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<u16>, PhysicalU16, u16>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt32 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<u32>, PhysicalU32, u32>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt64 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<u64>, PhysicalU64, u64>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<u128>, PhysicalU128, u128>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<f32>, PhysicalF32, f32>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Float64 => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<f64>, PhysicalF64, f64>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            PhysicalType::Interval => Box::new(DefaultGroupedStates::new(
-                unary_update::<MaxState<Interval>, PhysicalInterval, Interval>,
-                move |states| primitive_finalize(datatype.clone(), states),
-            )),
-            other => panic!("unexpected physical type {other:?}"),
-        }
+        Ok(
+            match self.datatype.physical_type().expect("to get physical type") {
+                PhysicalType::Int8 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<i8>, PhysicalI8, i8>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int16 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<i16>, PhysicalI16, i16>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int32 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<i32>, PhysicalI32, i32>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int64 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<i64>, PhysicalI64, i64>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Int128 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<i128>, PhysicalI128, i128>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt8 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<u8>, PhysicalU8, u8>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt16 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<u16>, PhysicalU16, u16>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt32 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<u32>, PhysicalU32, u32>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt64 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<u64>, PhysicalU64, u64>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::UInt128 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<u128>, PhysicalU128, u128>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<f32>, PhysicalF32, f32>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Float64 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<f64>, PhysicalF64, f64>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                PhysicalType::Interval => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<Interval>, PhysicalInterval, Interval>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
+                other => panic!("unexpected physical type {other:?}"),
+            },
+        )
     }
 }
 

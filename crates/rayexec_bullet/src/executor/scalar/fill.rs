@@ -270,6 +270,12 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
             });
             concat_with_fill_state::<PhysicalBinary, _>(arrays, state)
         }
+        PhysicalType::List => {
+            // TODO: Very doable
+            Err(RayexecError::new(
+                "concatenating list arrays not yet supported",
+            ))
+        }
     }
 }
 
@@ -438,6 +444,12 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(indices.len()),
             });
             interleave_with_fill_state::<PhysicalBinary, _>(arrays, indices, state)
+        }
+        PhysicalType::List => {
+            // TODO: Also doable
+            Err(RayexecError::new(
+                "interleaving list arrays not yet supported",
+            ))
         }
     }
 }

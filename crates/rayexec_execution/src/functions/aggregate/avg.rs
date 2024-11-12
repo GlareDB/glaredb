@@ -149,13 +149,13 @@ impl PlannedAggregateFunction for AvgImpl {
         DataType::Float64
     }
 
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        match self {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
+        Ok(match self {
             Self::Decimal64(s) => s.new_grouped_state(),
             Self::Decimal128(s) => s.new_grouped_state(),
             Self::Float64(s) => s.new_grouped_state(),
             Self::Int64(s) => s.new_grouped_state(),
-        }
+        })
     }
 }
 

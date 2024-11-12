@@ -4,13 +4,15 @@ use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
-use crate::array::{ArrayData, BinaryData};
+use crate::array::{Array, ArrayData, BinaryData};
 use crate::scalar::interval::Interval;
 use crate::storage::{
     AddressableStorage,
     BooleanStorageRef,
     ContiguousVarlenStorageSlice,
     GermanVarlenStorageSlice,
+    ListItemMetadata,
+    ListStorage,
     PrimitiveStorageSlice,
     UntypedNullStorage,
 };
@@ -35,6 +37,7 @@ pub enum PhysicalType {
     Interval,
     Binary,
     Utf8,
+    List,
 }
 
 impl PhysicalType {
@@ -58,6 +61,11 @@ impl PhysicalType {
             Self::Interval => PrimitiveBuffer::<Interval>::with_len(len).into_data(),
             Self::Binary => GermanVarlenBuffer::<[u8]>::with_len(len).into_data(),
             Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
+            Self::List => ListStorage {
+                metadata: vec![ListItemMetadata::default(); len].into(),
+                array: Array::new_untyped_null_array(0),
+            }
+            .into(),
         }
     }
 }
@@ -476,5 +484,18 @@ impl<'a> AddressableStorage for StrDataStorage<'a> {
 impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
     fn from(value: BinaryDataStorage<'a>) -> Self {
         StrDataStorage { inner: value }
+    }
+}
+
+pub struct PhysicalList;
+
+impl<'a> PhysicalStorage<'a> for PhysicalList {
+    type Storage = PrimitiveStorageSlice<'a, ListItemMetadata>;
+
+    fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
+        match data {
+            ArrayData::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
+            _ => Err(RayexecError::new("invalid storage, expected list")),
+        }
     }
 }

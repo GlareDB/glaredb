@@ -2,7 +2,6 @@
 
 # TODO: Add back list functions
 # <https://github.com/GlareDB/rayexec/issues/276>
-halt
 
 query ?
 select list_values();
@@ -33,11 +32,11 @@ select list_values(1, 2, 3), list_values(4, 5);
 ----
 [1, 2, 3]  [4, 5]
 
-query ?
+query ? rowsort
 select list_values(a, b) from (values ('yoshi', 'mario'), ('luigi', 'peach')) as v(a,b);
 ----
-[yoshi, mario]
 [luigi, peach]
+[yoshi, mario]
 
 query ?
 select list_values(1, 2.1);
@@ -82,8 +81,8 @@ select *, c1[1], c1[2], c1[3], c1[4]
 [d, e, f]  d  e     f     NULL
 
 
-query ?
+query ? rowsort
 select [a, b] from (values ('yoshi', 'mario'), ('luigi', 'peach')) as v(a,b);
 ----
-[yoshi, mario]
 [luigi, peach]
+[yoshi, mario]

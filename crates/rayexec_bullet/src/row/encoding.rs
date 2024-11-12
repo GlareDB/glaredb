@@ -242,6 +242,7 @@ impl ComparableRowEncoder {
                     ArrayData::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
+                    ArrayData::List(_) => not_implemented!("Row encode list"),
                 };
             }
 
@@ -278,6 +279,7 @@ impl ComparableRowEncoder {
                     BinaryData::LargeBinary(d) => d.data_size_bytes(),
                     BinaryData::German(d) => d.data_size_bytes(),
                 },
+                ArrayData::List(_) => not_implemented!("Row encode list"),
             };
 
             // Account for validities.
@@ -310,7 +312,7 @@ impl ComparableRowEncoder {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at_unchecked::<S>(arr, row)? {
+        match UnaryExecutor::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + val.as_bytes().len();
@@ -345,7 +347,7 @@ impl ComparableRowEncoder {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at_unchecked::<S>(arr, row)? {
+        match UnaryExecutor::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + std::mem::size_of::<<S::Storage as AddressableStorage>::T>();

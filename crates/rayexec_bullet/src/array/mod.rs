@@ -42,6 +42,7 @@ use crate::storage::{
     BooleanStorage,
     ContiguousVarlenStorage,
     GermanVarlenStorage,
+    ListStorage,
     PrimitiveStorage,
     UntypedNullStorage,
 };
@@ -444,6 +445,7 @@ impl Array {
                     )
                 }
             }
+            ArrayData::List(_) => Err(RayexecError::new("Cannot yet unselect list arrays")),
         }
     }
 
@@ -579,7 +581,22 @@ impl Array {
                 v.into()
             }
             DataType::Struct(_) => not_implemented!("get value: struct"),
-            DataType::List(_) => not_implemented!("get value: list"),
+            DataType::List(_) => match &self.data {
+                ArrayData::List(list) => {
+                    let meta = list
+                        .metadata
+                        .as_slice()
+                        .get(idx)
+                        .ok_or_else(|| RayexecError::new("Out of bounds"))?;
+
+                    let vals = (meta.offset..meta.offset + meta.len)
+                        .map(|idx| list.array.physical_scalar(idx as usize))
+                        .collect::<Result<Vec<_>>>()?;
+
+                    ScalarValue::List(vals)
+                }
+                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
+            },
         })
     }
 
@@ -590,109 +607,119 @@ impl Array {
         }
 
         match scalar {
-            ScalarValue::Null => UnaryExecutor::value_at_unchecked::<PhysicalAny>(self, row)
-                .map(|arr_val| arr_val.is_none()), // None == NULL
-            ScalarValue::Boolean(v) => UnaryExecutor::value_at_unchecked::<PhysicalBool>(self, row)
-                .map(|arr_val| match arr_val {
+            ScalarValue::Null => {
+                UnaryExecutor::value_at::<PhysicalAny>(self, row).map(|arr_val| arr_val.is_none())
+            } // None == NULL
+            ScalarValue::Boolean(v) => {
+                UnaryExecutor::value_at::<PhysicalBool>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
-                }),
+                })
+            }
             ScalarValue::Int8(v) => {
-                UnaryExecutor::value_at_unchecked::<PhysicalI8>(self, row).map(|arr_val| {
-                    match arr_val {
-                        Some(arr_val) => arr_val == *v,
-                        None => false,
-                    }
+                UnaryExecutor::value_at::<PhysicalI8>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
                 })
             }
-            ScalarValue::Int16(v) => UnaryExecutor::value_at_unchecked::<PhysicalI16>(self, row)
-                .map(|arr_val| match arr_val {
+            ScalarValue::Int16(v) => {
+                UnaryExecutor::value_at::<PhysicalI16>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
-                }),
-            ScalarValue::Int32(v) => UnaryExecutor::value_at_unchecked::<PhysicalI32>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Int64(v) => UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Int128(v) => UnaryExecutor::value_at_unchecked::<PhysicalI128>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::UInt8(v) => UnaryExecutor::value_at_unchecked::<PhysicalU8>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::UInt16(v) => UnaryExecutor::value_at_unchecked::<PhysicalU16>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::UInt32(v) => UnaryExecutor::value_at_unchecked::<PhysicalU32>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::UInt64(v) => UnaryExecutor::value_at_unchecked::<PhysicalU64>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::UInt128(v) => UnaryExecutor::value_at_unchecked::<PhysicalU128>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Float32(v) => UnaryExecutor::value_at_unchecked::<PhysicalF32>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Float64(v) => UnaryExecutor::value_at_unchecked::<PhysicalF64>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Date32(v) => UnaryExecutor::value_at_unchecked::<PhysicalI32>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Date64(v) => UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Interval(v) => {
-                UnaryExecutor::value_at_unchecked::<PhysicalInterval>(self, row).map(|arr_val| {
-                    match arr_val {
-                        Some(arr_val) => arr_val == *v,
-                        None => false,
-                    }
                 })
             }
-            ScalarValue::Utf8(v) => UnaryExecutor::value_at_unchecked::<PhysicalUtf8>(self, row)
-                .map(|arr_val| match arr_val {
+            ScalarValue::Int32(v) => {
+                UnaryExecutor::value_at::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Int64(v) => {
+                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Int128(v) => {
+                UnaryExecutor::value_at::<PhysicalI128>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::UInt8(v) => {
+                UnaryExecutor::value_at::<PhysicalU8>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::UInt16(v) => {
+                UnaryExecutor::value_at::<PhysicalU16>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::UInt32(v) => {
+                UnaryExecutor::value_at::<PhysicalU32>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::UInt64(v) => {
+                UnaryExecutor::value_at::<PhysicalU64>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::UInt128(v) => {
+                UnaryExecutor::value_at::<PhysicalU128>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Float32(v) => {
+                UnaryExecutor::value_at::<PhysicalF32>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Float64(v) => {
+                UnaryExecutor::value_at::<PhysicalF64>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Date32(v) => {
+                UnaryExecutor::value_at::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Date64(v) => {
+                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                })
+            }
+            ScalarValue::Interval(v) => UnaryExecutor::value_at::<PhysicalInterval>(self, row).map(
+                |arr_val| match arr_val {
+                    Some(arr_val) => arr_val == *v,
+                    None => false,
+                },
+            ),
+            ScalarValue::Utf8(v) => {
+                UnaryExecutor::value_at::<PhysicalUtf8>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == v.as_ref(),
                     None => false,
-                }),
+                })
+            }
             ScalarValue::Binary(v) => {
-                UnaryExecutor::value_at_unchecked::<PhysicalBinary>(self, row).map(|arr_val| {
-                    match arr_val {
-                        Some(arr_val) => arr_val == v.as_ref(),
-                        None => false,
-                    }
+                UnaryExecutor::value_at::<PhysicalBinary>(self, row).map(|arr_val| match arr_val {
+                    Some(arr_val) => arr_val == v.as_ref(),
+                    None => false,
                 })
             }
             ScalarValue::Timestamp(v) => {
-                UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row).map(|arr_val| {
+                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| {
                     // Assumes time unit is the same
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -701,7 +728,7 @@ impl Array {
                 })
             }
             ScalarValue::Decimal64(v) => {
-                UnaryExecutor::value_at_unchecked::<PhysicalI64>(self, row).map(|arr_val| {
+                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| {
                     // Assumes precision/scale are the same.
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -710,7 +737,7 @@ impl Array {
                 })
             }
             ScalarValue::Decimal128(v) => {
-                UnaryExecutor::value_at_unchecked::<PhysicalI128>(self, row).map(|arr_val| {
+                UnaryExecutor::value_at::<PhysicalI128>(self, row).map(|arr_val| {
                     // Assumes precision/scale are the same.
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -876,6 +903,7 @@ pub enum ArrayData {
     UInt128(Arc<PrimitiveStorage<u128>>),
     Interval(Arc<PrimitiveStorage<Interval>>),
     Binary(BinaryData),
+    List(Arc<ListStorage>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -905,6 +933,7 @@ impl ArrayData {
             Self::UInt128(_) => PhysicalType::UInt128,
             Self::Interval(_) => PhysicalType::Interval,
             Self::Binary(_) => PhysicalType::Binary,
+            Self::List(_) => PhysicalType::List,
         }
     }
 
@@ -931,6 +960,7 @@ impl ArrayData {
                 BinaryData::LargeBinary(s) => s.len(),
                 BinaryData::German(s) => s.len(),
             },
+            ArrayData::List(s) => s.len(),
         }
     }
 
@@ -1038,6 +1068,12 @@ impl From<PrimitiveStorage<Interval>> for ArrayData {
 impl From<GermanVarlenStorage> for ArrayData {
     fn from(value: GermanVarlenStorage) -> Self {
         ArrayData::Binary(BinaryData::German(Arc::new(value)))
+    }
+}
+
+impl From<ListStorage> for ArrayData {
+    fn from(value: ListStorage) -> Self {
+        ArrayData::List(Arc::new(value))
     }
 }
 

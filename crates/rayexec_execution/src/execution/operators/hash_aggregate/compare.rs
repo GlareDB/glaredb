@@ -26,7 +26,7 @@ use rayexec_bullet::executor::physical_type::{
 use rayexec_bullet::executor::scalar::{can_skip_validity_check, check_validity};
 use rayexec_bullet::selection::{self, SelectionVector};
 use rayexec_bullet::storage::AddressableStorage;
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 
 use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
@@ -157,6 +157,9 @@ where
             }
             PhysicalType::Utf8 => {
                 compare_rows_eq::<PhysicalUtf8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            }
+            PhysicalType::List => {
+                not_implemented!("Row compare list")
             }
         }
     }

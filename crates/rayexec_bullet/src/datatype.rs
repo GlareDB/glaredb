@@ -292,6 +292,14 @@ pub struct ListTypeMeta {
     pub datatype: Box<DataType>,
 }
 
+impl ListTypeMeta {
+    pub fn new(element_type: DataType) -> Self {
+        ListTypeMeta {
+            datatype: Box::new(element_type),
+        }
+    }
+}
+
 impl ProtoConv for ListTypeMeta {
     type ProtoType = rayexec_proto::generated::schema::ListTypeMeta;
 
@@ -468,7 +476,7 @@ impl DataType {
             DataType::Binary => PhysicalType::Binary,
             DataType::LargeBinary => PhysicalType::Binary,
             DataType::Struct(_) => not_implemented!("struct data type to physical type"),
-            DataType::List(_) => not_implemented!("list data type to physical type"),
+            DataType::List(_) => PhysicalType::List,
         })
     }
 

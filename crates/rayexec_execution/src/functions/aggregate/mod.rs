@@ -104,7 +104,7 @@ pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
 
     /// Create a new `GroupedStates` that's able to hold the aggregate state for
     /// multiple groups.
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates>;
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>>;
 }
 
 impl Clone for Box<dyn PlannedAggregateFunction> {

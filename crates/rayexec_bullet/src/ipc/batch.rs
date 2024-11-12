@@ -126,6 +126,7 @@ fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array
         PhysicalType::Utf8 => {
             decode_varlen_values([buffers.try_next_buf()?, buffers.try_next_buf()?])?
         }
+        PhysicalType::List => not_implemented!("IPC-decode untyped null"),
     };
 
     Ok(Array {
@@ -288,6 +289,7 @@ fn encode_array(
                 encode_primitive_values(&d.data, data, buffers);
             }
         },
+        ArrayData::List(_) => not_implemented!("IPC-encode list"),
     }
 
     Ok(())

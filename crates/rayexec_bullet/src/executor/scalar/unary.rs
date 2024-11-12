@@ -119,7 +119,7 @@ impl UnaryExecutor {
     /// Gets the value some index in the array.
     ///
     /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at_unchecked<'a, S>(
+    pub fn value_at<'a, S>(
         array: &'a Array,
         idx: usize,
     ) -> Result<Option<<S::Storage as AddressableStorage>::T>>

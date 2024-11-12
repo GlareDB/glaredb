@@ -47,20 +47,20 @@ pub struct Aggregate {
 }
 
 impl Aggregate {
-    pub fn new_states(&self) -> AggregateStates {
+    pub fn new_states(&self) -> Result<AggregateStates> {
         if self.is_distinct {
             let states = Box::new(DistinctGroupedStates::new(
-                self.function.new_grouped_state(),
+                self.function.new_grouped_state()?,
             ));
-            AggregateStates {
+            Ok(AggregateStates {
                 states,
                 col_selection: self.col_selection.clone(),
-            }
+            })
         } else {
-            AggregateStates {
-                states: self.function.new_grouped_state(),
+            Ok(AggregateStates {
+                states: self.function.new_grouped_state()?,
                 col_selection: self.col_selection.clone(),
-            }
+            })
         }
     }
 }

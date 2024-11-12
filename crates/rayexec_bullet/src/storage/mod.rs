@@ -13,9 +13,12 @@ mod boolean;
 pub use boolean::*;
 
 mod untyped_null;
+pub use untyped_null::*;
+
+mod list;
 use std::fmt::Debug;
 
-pub use untyped_null::*;
+pub use list::*;
 
 /// In-memory array storage that can be directly indexed into.
 pub trait AddressableStorage: Debug {

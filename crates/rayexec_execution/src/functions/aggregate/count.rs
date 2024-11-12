@@ -82,8 +82,11 @@ impl PlannedAggregateFunction for CountNonNullImpl {
         DataType::Int64
     }
 
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
+        Ok(Box::new(DefaultGroupedStates::new(
+            Self::update,
+            Self::finalize,
+        )))
     }
 }
 

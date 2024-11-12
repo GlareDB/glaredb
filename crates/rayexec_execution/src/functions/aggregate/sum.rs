@@ -150,13 +150,13 @@ impl PlannedAggregateFunction for SumImpl {
         }
     }
 
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        match self {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
+        Ok(match self {
             Self::Decimal64(s) => s.new_grouped_state(),
             Self::Decimal128(s) => s.new_grouped_state(),
             Self::Float64(s) => s.new_grouped_state(),
             Self::Int64(s) => s.new_grouped_state(),
-        }
+        })
     }
 }
 
@@ -302,8 +302,8 @@ mod tests {
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
-        let mut states_1 = specialized.new_grouped_state();
-        let mut states_2 = specialized.new_grouped_state();
+        let mut states_1 = specialized.new_grouped_state().unwrap();
+        let mut states_2 = specialized.new_grouped_state().unwrap();
 
         states_1.new_groups(1);
         states_2.new_groups(1);
@@ -372,8 +372,8 @@ mod tests {
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
-        let mut states_1 = specialized.new_grouped_state();
-        let mut states_2 = specialized.new_grouped_state();
+        let mut states_1 = specialized.new_grouped_state().unwrap();
+        let mut states_2 = specialized.new_grouped_state().unwrap();
 
         // Both partitions are operating on two groups ('a' and 'b').
         states_1.new_groups(1);
@@ -483,8 +483,8 @@ mod tests {
 
         let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
 
-        let mut states_1 = specialized.new_grouped_state();
-        let mut states_2 = specialized.new_grouped_state();
+        let mut states_1 = specialized.new_grouped_state().unwrap();
+        let mut states_2 = specialized.new_grouped_state().unwrap();
 
         // Partition 1 sees groups 'x', 'y', and 'z'.
         states_1.new_groups(1);

@@ -9,7 +9,13 @@ use parquet::basic::{
 };
 use parquet::format::{MicroSeconds, MilliSeconds, NanoSeconds};
 use parquet::schema::types::{BasicTypeInfo, SchemaDescriptor, Type};
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{
+    DataType,
+    DecimalTypeMeta,
+    ListTypeMeta,
+    TimeUnit,
+    TimestampTypeMeta,
+};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
@@ -155,14 +161,75 @@ fn to_parquet_type(field: &Field) -> Result<Type> {
     result.context("failed to build parquet type")
 }
 
+fn convert_types_to_fields<T: AsRef<Type>>(typs: &[T]) -> Result<Vec<Field>> {
+    let mut fields = Vec::with_capacity(typs.len());
+
+    for parquet_type in typs.iter() {
+        let field = convert_type_to_field(parquet_type)?;
+        fields.push(field);
+    }
+
+    Ok(fields)
+}
+
+fn convert_type_to_field(parquet_type: impl AsRef<Type>) -> Result<Field> {
+    let parquet_type = parquet_type.as_ref();
+    let dt = if parquet_type.is_primitive() {
+        convert_primitive(parquet_type)?
+    } else {
+        convert_complex(parquet_type)?
+    };
+
+    let field = Field::new(parquet_type.name(), dt, true); // TODO: Nullable from repetition.
+
+    Ok(field)
+}
+
 fn convert_complex(parquet_type: &Type) -> Result<DataType> {
     match parquet_type {
-        Type::GroupType {
-            basic_info,
-            fields: _,
-        } => {
+        Type::GroupType { basic_info, fields } => {
             match basic_info.converted_type() {
-                ConvertedType::LIST => not_implemented!("parqet list"),
+                ConvertedType::LIST => {
+                    // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists
+                    if fields.len() != 1 {
+                        return Err(RayexecError::new(format!(
+                            "List can only have a single type, got {}",
+                            fields.len(),
+                        )));
+                    }
+
+                    let nested = &fields[0];
+                    if !nested.get_basic_info().has_repetition() {
+                        return Err(RayexecError::new("List field requires repetition"));
+                    }
+                    if nested.get_basic_info().repetition() != Repetition::REPEATED {
+                        return Err(RayexecError::new("List field requires REPEATED repetition"));
+                    }
+
+                    // // List<Integer> (nullable list, non-null elements)
+                    // optional group my_list (LIST) {
+                    //   repeated int32 element;
+                    // }
+                    if nested.is_primitive() {
+                        let nested_type = convert_primitive(nested.as_ref())?;
+                        return Ok(DataType::List(ListTypeMeta::new(nested_type)));
+                    }
+
+                    // TODO: Other backwards compat types.
+
+                    let inner_fields = nested.get_fields();
+                    if inner_fields.len() != 1 {
+                        return Err(RayexecError::new(format!(
+                            "Unsupported number of inner fields for list, expected 1, got {}",
+                            inner_fields.len(),
+                        )));
+                    }
+
+                    let inner_field = &inner_fields[0];
+                    let inner_field = convert_type_to_field(inner_field)?;
+
+                    Ok(DataType::List(ListTypeMeta::new(inner_field.datatype)))
+                }
                 ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => {
                     not_implemented!("parquet map")
                 }
@@ -174,24 +241,6 @@ fn convert_complex(parquet_type: &Type) -> Result<DataType> {
         }
         Type::PrimitiveType { .. } => unreachable!(),
     }
-}
-
-fn convert_types_to_fields<T: AsRef<Type>>(typs: &[T]) -> Result<Vec<Field>> {
-    let mut fields = Vec::with_capacity(typs.len());
-
-    for parquet_type in typs.iter() {
-        let parquet_type = parquet_type.as_ref();
-        let dt = if parquet_type.is_primitive() {
-            convert_primitive(parquet_type)?
-        } else {
-            convert_complex(parquet_type)?
-        };
-
-        let field = Field::new(parquet_type.name(), dt, true); // TODO: Nullable from repetition.
-        fields.push(field);
-    }
-
-    Ok(fields)
 }
 
 /// Convert a primitive type to a bullet data type.

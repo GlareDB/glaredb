@@ -1,6 +1,6 @@
 use ahash::RandomState;
 use half::f16;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::array::Array;
 use crate::executor::physical_type::{
@@ -59,6 +59,9 @@ impl HashExecutor {
             PhysicalType::Binary => Self::hash_one_combine::<PhysicalBinary>(array, hashes)?,
             PhysicalType::Utf8 => Self::hash_one_combine::<PhysicalUtf8>(array, hashes)?,
             PhysicalType::Interval => Self::hash_one_combine::<PhysicalInterval>(array, hashes)?,
+            PhysicalType::List => {
+                return Err(RayexecError::new("Hashing list array not yet supported"))
+            }
         }
 
         Ok(())
@@ -88,6 +91,9 @@ impl HashExecutor {
             PhysicalType::Binary => Self::hash_one_no_combine::<PhysicalBinary>(array, hashes)?,
             PhysicalType::Utf8 => Self::hash_one_no_combine::<PhysicalUtf8>(array, hashes)?,
             PhysicalType::Interval => Self::hash_one_no_combine::<PhysicalInterval>(array, hashes)?,
+            PhysicalType::List => {
+                return Err(RayexecError::new("Hashing list array not yet supported"))
+            }
         }
 
         Ok(())

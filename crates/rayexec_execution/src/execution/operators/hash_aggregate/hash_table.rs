@@ -293,8 +293,11 @@ impl HashTable {
                         // Either we have no chunk, or we do but it's already at
                         // a good capacity. Create a new one.
                         let chunk_idx = self.chunks.len();
-                        let mut states: Vec<_> =
-                            self.aggregates.iter().map(|agg| agg.new_states()).collect();
+                        let mut states = self
+                            .aggregates
+                            .iter()
+                            .map(|agg| agg.new_states())
+                            .collect::<Result<Vec<_>>>()?;
 
                         // Initialize the states.
                         for state in &mut states {

@@ -43,8 +43,15 @@ use crate::compute::cast::format::{
     UInt8Formatter,
 };
 use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::executor::scalar::concat;
 use crate::selection::SelectionVector;
-use crate::storage::{BooleanStorage, GermanVarlenStorage, PrimitiveStorage};
+use crate::storage::{
+    BooleanStorage,
+    GermanVarlenStorage,
+    ListItemMetadata,
+    ListStorage,
+    PrimitiveStorage,
+};
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -145,12 +152,14 @@ impl<'a> ScalarValue<'a> {
             ScalarValue::Utf8(_) => DataType::Utf8,
             ScalarValue::Binary(_) => DataType::Binary,
             ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
-            Self::List(list) => {
-                let first = list.first().unwrap(); // TODO: Allow empty list scalars?
-                DataType::List(ListTypeMeta {
+            ScalarValue::List(list) => match list.first() {
+                Some(first) => DataType::List(ListTypeMeta {
                     datatype: Box::new(first.datatype()),
-                })
-            }
+                }),
+                None => DataType::List(ListTypeMeta {
+                    datatype: Box::new(DataType::Null),
+                }),
+            },
         }
     }
 
@@ -214,6 +223,35 @@ impl<'a> ScalarValue<'a> {
             Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
             Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
+            Self::List(v) => {
+                if v.is_empty() {
+                    let metadata = ListItemMetadata { offset: 0, len: 0 };
+
+                    ListStorage {
+                        metadata: vec![metadata].into(),
+                        array: Array::new_untyped_null_array(0),
+                    }
+                    .into()
+                } else {
+                    let arrays = v
+                        .iter()
+                        .map(|v| v.as_array(1))
+                        .collect::<Result<Vec<_>>>()?;
+                    let refs: Vec<_> = arrays.iter().collect();
+                    let array = concat(&refs)?;
+
+                    let metadata = ListItemMetadata {
+                        offset: 0,
+                        len: array.logical_len() as i32,
+                    };
+
+                    ListStorage {
+                        metadata: vec![metadata].into(),
+                        array,
+                    }
+                    .into()
+                }
+            }
             other => not_implemented!("{other:?} to array"), // Struct, List
         };
 

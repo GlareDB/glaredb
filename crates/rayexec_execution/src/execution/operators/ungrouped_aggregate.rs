@@ -82,18 +82,21 @@ impl PhysicalUngroupedAggregate {
         PhysicalUngroupedAggregate { aggregates }
     }
 
-    fn create_agg_states_with_single_group(&self) -> Vec<Box<dyn GroupedStates>> {
+    fn create_agg_states_with_single_group(&self) -> Result<Vec<Box<dyn GroupedStates>>> {
         let mut states = Vec::with_capacity(self.aggregates.len());
         for agg in &self.aggregates {
             let mut state = if agg.is_distinct {
-                Box::new(DistinctGroupedStates::new(agg.function.new_grouped_state()))
+                Box::new(DistinctGroupedStates::new(
+                    agg.function.new_grouped_state()?,
+                ))
             } else {
-                agg.function.new_grouped_state()
+                agg.function.new_grouped_state()?
             };
             state.new_groups(1);
             states.push(state);
         }
-        states
+
+        Ok(states)
     }
 }
 
@@ -107,21 +110,23 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
         let inner = OperatorStateInner {
             remaining: num_partitions,
-            agg_states: self.create_agg_states_with_single_group(),
+            agg_states: self.create_agg_states_with_single_group()?,
             pull_wakers: (0..num_partitions).map(|_| None).collect(),
         };
         let operator_state = UngroupedAggregateOperatorState {
             inner: Mutex::new(inner),
         };
 
-        let partition_states: Vec<_> = (0..num_partitions)
+        let partition_states = (0..num_partitions)
             .map(|idx| {
-                PartitionState::UngroupedAggregate(UngroupedAggregatePartitionState::Aggregating {
-                    partition_idx: idx,
-                    agg_states: self.create_agg_states_with_single_group(),
-                })
+                Ok(PartitionState::UngroupedAggregate(
+                    UngroupedAggregatePartitionState::Aggregating {
+                        partition_idx: idx,
+                        agg_states: self.create_agg_states_with_single_group()?,
+                    },
+                ))
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(ExecutionStates {
             operator_state: Arc::new(OperatorState::UngroupedAggregate(operator_state)),
