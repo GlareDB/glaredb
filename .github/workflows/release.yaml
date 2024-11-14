@@ -63,10 +63,10 @@ jobs:
       - name: Upload python wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos
+          name: wheels-macos-arm
           path: crates/rayexec_python/dist
 
-  python-manylinux:
+  python-manylinux-x86:
     name: Build python (Linux x86-64)
     runs-on: ubuntu-latest
     steps:
@@ -84,12 +84,37 @@ jobs:
       - name: Upload python wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux
+          name: wheels-linux-x86
+          path: crates/rayexec_python/dist
+
+  python-manylinux-arm:
+    name: Build python (Linux Arm64)
+    runs-on: ubuntu-2404-arm-4-core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Maturin build
+        uses: PyO3/maturin-action@v1
+        with:
+          before-script-linux: "../../scripts/install_protoc_linux_arm.sh" # Relative to working dir
+          args: --release --out dist
+          working-directory: crates/rayexec_python
+          # Typically we'd want to use 2.17, but the combination of 2.17 with
+          # ARM seems to cause compilation failures with ring.
+          #
+          # See: <https://github.com/briansmith/ring/issues/1728>
+          manylinux: 2_28
+
+      - name: Upload python wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-arm
           path: crates/rayexec_python/dist
 
   python-pypi-upload:
     name: Upload to pypi
-    needs: [python-macos-arm, python-manylinux]
+    needs: [python-macos-arm, python-manylinux-x86, python-manylinux-arm]
     runs-on: ubuntu-latest
     steps:
       - name: Download wheels
