@@ -71,6 +71,10 @@ pub enum PlanLocationState<'a, C: HttpClient> {
     },
 }
 
+// TODO: Some refactoring in order.
+//
+// We don't need to create all operators up front, we can build them up
+// incrementally.
 #[derive(Debug)]
 pub struct ExecutablePipelinePlanner<'a, R: Runtime> {
     context: &'a DatabaseContext,
@@ -208,7 +212,24 @@ impl PendingQuery {
         for (id, pipeline) in group.pipelines {
             let mut operator_indexes = Vec::with_capacity(pipeline.operators.len());
 
-            for operator in pipeline.operators {
+            for (op_idx, mut operator) in pipeline.operators.into_iter().enumerate() {
+                // Check to see if this pipeline has a source with a
+                // partitioning requriment. If it does, go ahead and just put
+                // that on the operator.
+                //
+                // This avoids needing to introduce repartitions if we don't
+                // want/need it.
+                if op_idx == 0 && operator.partitioning_requirement.is_none() {
+                    // TODO: Possibly for `OtherGroup` as well?
+                    if let PipelineSource::OtherPipeline {
+                        partitioning_requirement,
+                        ..
+                    } = &pipeline.source
+                    {
+                        operator.partitioning_requirement = *partitioning_requirement;
+                    }
+                }
+
                 let idx = operators.len();
                 let pending = PendingOperatorWithState::try_from_intermediate_operator(
                     config, context, operator,
@@ -475,7 +496,7 @@ impl PendingQuery {
 
                 Ok(pipeline)
             }
-            PipelineSource::OtherPipeline { pipeline } => {
+            PipelineSource::OtherPipeline { pipeline, .. } => {
                 // Source is the last operation for some other pipeline
                 // executing on this node.
                 let operator_idx = *self

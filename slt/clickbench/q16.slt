@@ -1,0 +1,22 @@
+query TT
+DESCRIBE SELECT "UserID", "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", "SearchPhrase" ORDER BY COUNT(*) DESC LIMIT 10;
+----
+UserID        Int64
+SearchPhrase  Utf8
+count         Int64
+
+# Note extra ORDER BY since count has duplicates
+query ???
+SELECT "UserID", "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", "SearchPhrase" ORDER BY COUNT(*) DESC, "UserID" LIMIT 10;
+----
+-7918574344944952583 (empty) 182
+-7589677728426322164 (empty) 152
+-8906290752198210953 (empty) 126
+-7904263253391067902 (empty) 123
+-8351596774216514728 (empty) 112
+-8258406745529374862 (empty) 111
+-5808690843284415970 (empty) 104
+-5813304333699498523 (empty) 102
+-4975559395456095104 (empty) 102
+-8229872269465361314 (empty) 100
+

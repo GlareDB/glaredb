@@ -1,0 +1,19 @@
+query TT
+DESCRIBE SELECT "SearchPhrase" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' ORDER BY "SearchPhrase" LIMIT 10;
+----
+SearchPhrase Utf8
+
+query ?
+SELECT "SearchPhrase" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' ORDER BY "SearchPhrase" LIMIT 10;
+----
+188242-81 кубов
+188242-81 кубов
+5951-88 денске-уральские массы велир
+5951-88 денске-уральские массы велир
+95 квартир
+95 квартир
+diamond rmc m45011-8 сериал
+diamond rmc m45011-8 сериал
+erection пермь курском звучка штильники скривода моряков адлера
+erection пермь курском звучка штильники скривода моряков адлера
+

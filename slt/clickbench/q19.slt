@@ -1,0 +1,10 @@
+query TT
+DESCRIBE SELECT "UserID" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "UserID" = 435090932899640449;
+----
+UserID Int64
+
+# Note this id doesn't exist in the truncated dataset
+query ?
+SELECT "UserID" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "UserID" = 435090932899640449;
+----
+

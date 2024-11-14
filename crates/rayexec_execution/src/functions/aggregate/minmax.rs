@@ -1,8 +1,12 @@
 use std::fmt::Debug;
 
+use half::f16;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::AggregateState;
+use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
+use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{
+    PhysicalBinary,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -76,6 +80,10 @@ impl AggregateFunction for Min {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
+            | DataType::Date32
+            | DataType::Date64
+            | DataType::Utf8
+            | DataType::Binary
             | DataType::Timestamp(_) => Ok(Box::new(MinImpl {
                 datatype: inputs[0].clone(),
             })),
@@ -126,6 +134,10 @@ impl AggregateFunction for Max {
             | DataType::Float64
             | DataType::Decimal64(_)
             | DataType::Decimal128(_)
+            | DataType::Date32
+            | DataType::Date64
+            | DataType::Utf8
+            | DataType::Binary
             | DataType::Timestamp(_) => Ok(Box::new(MaxImpl {
                 datatype: inputs[0].clone(),
             })),
@@ -196,6 +208,10 @@ impl PlannedAggregateFunction for MinImpl {
                     unary_update::<MinState<u128>, PhysicalU128, u128>,
                     move |states| primitive_finalize(datatype.clone(), states),
                 )),
+                PhysicalType::Float16 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinState<f16>, PhysicalF16, f16>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
                 PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
                     unary_update::<MinState<f32>, PhysicalF32, f32>,
                     move |states| primitive_finalize(datatype.clone(), states),
@@ -208,6 +224,31 @@ impl PlannedAggregateFunction for MinImpl {
                     unary_update::<MinState<Interval>, PhysicalInterval, Interval>,
                     move |states| primitive_finalize(datatype.clone(), states),
                 )),
+                PhysicalType::Utf8 => {
+                    // Safe to read as binary since we should've already
+                    // validated that this is valid utf8.
+                    Box::new(DefaultGroupedStates::new(
+                        unary_update::<MinStateBinary, PhysicalBinary, Vec<u8>>,
+                        move |states| {
+                            let builder = ArrayBuilder {
+                                datatype: datatype.clone(),
+                                buffer: GermanVarlenBuffer::<[u8]>::with_len(states.len()),
+                            };
+                            StateFinalizer::finalize(states, builder)
+                        },
+                    ))
+                }
+                PhysicalType::Binary => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MinStateBinary, PhysicalBinary, Vec<u8>>,
+                    move |states| {
+                        let builder = ArrayBuilder {
+                            datatype: datatype.clone(),
+                            buffer: GermanVarlenBuffer::<[u8]>::with_len(states.len()),
+                        };
+                        StateFinalizer::finalize(states, builder)
+                    },
+                )),
+
                 other => panic!("unexpected physical type {other:?}"),
             },
         )
@@ -276,6 +317,10 @@ impl PlannedAggregateFunction for MaxImpl {
                     unary_update::<MaxState<u128>, PhysicalU128, u128>,
                     move |states| primitive_finalize(datatype.clone(), states),
                 )),
+                PhysicalType::Float16 => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxState<f16>, PhysicalF16, f16>,
+                    move |states| primitive_finalize(datatype.clone(), states),
+                )),
                 PhysicalType::Float32 => Box::new(DefaultGroupedStates::new(
                     unary_update::<MaxState<f32>, PhysicalF32, f32>,
                     move |states| primitive_finalize(datatype.clone(), states),
@@ -288,6 +333,30 @@ impl PlannedAggregateFunction for MaxImpl {
                     unary_update::<MaxState<Interval>, PhysicalInterval, Interval>,
                     move |states| primitive_finalize(datatype.clone(), states),
                 )),
+                PhysicalType::Utf8 => {
+                    // Safe to use binary, see Min
+                    Box::new(DefaultGroupedStates::new(
+                        unary_update::<MaxStateBinary, PhysicalBinary, Vec<u8>>,
+                        move |states| {
+                            let builder = ArrayBuilder {
+                                datatype: datatype.clone(),
+                                buffer: GermanVarlenBuffer::<[u8]>::with_len(states.len()),
+                            };
+                            StateFinalizer::finalize(states, builder)
+                        },
+                    ))
+                }
+                PhysicalType::Binary => Box::new(DefaultGroupedStates::new(
+                    unary_update::<MaxStateBinary, PhysicalBinary, Vec<u8>>,
+                    move |states| {
+                        let builder = ArrayBuilder {
+                            datatype: datatype.clone(),
+                            buffer: GermanVarlenBuffer::<[u8]>::with_len(states.len()),
+                        };
+                        StateFinalizer::finalize(states, builder)
+                    },
+                )),
+
                 other => panic!("unexpected physical type {other:?}"),
             },
         )
@@ -300,7 +369,10 @@ pub struct MinState<T> {
     valid: bool,
 }
 
-impl<T: PartialOrd + Debug + Default + Copy> AggregateState<T, T> for MinState<T> {
+impl<T> AggregateState<T, T> for MinState<T>
+where
+    T: PartialOrd + Debug + Default + Copy,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
@@ -332,12 +404,53 @@ impl<T: PartialOrd + Debug + Default + Copy> AggregateState<T, T> for MinState<T
 }
 
 #[derive(Debug, Default)]
+pub struct MinStateBinary {
+    min: Vec<u8>,
+    valid: bool,
+}
+
+impl AggregateState<&[u8], Vec<u8>> for MinStateBinary {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
+        if !self.valid {
+            self.valid = other.valid;
+            std::mem::swap(&mut self.min, &mut other.min);
+        } else if other.valid && other.min < self.min {
+            std::mem::swap(&mut self.min, &mut other.min);
+        }
+
+        Ok(())
+    }
+
+    fn update(&mut self, input: &[u8]) -> Result<()> {
+        if !self.valid {
+            self.valid = true;
+            self.min = input.into();
+        } else if input < self.min.as_slice() {
+            self.min = input.into();
+        }
+
+        Ok(())
+    }
+
+    fn finalize(&mut self) -> Result<(Vec<u8>, bool)> {
+        if self.valid {
+            Ok((std::mem::take(&mut self.min), true))
+        } else {
+            Ok((Vec::new(), false))
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct MaxState<T> {
     max: T,
     valid: bool,
 }
 
-impl<T: PartialOrd + Debug + Default + Copy> AggregateState<T, T> for MaxState<T> {
+impl<T> AggregateState<T, T> for MaxState<T>
+where
+    T: PartialOrd + Debug + Default + Copy,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
@@ -364,6 +477,44 @@ impl<T: PartialOrd + Debug + Default + Copy> AggregateState<T, T> for MaxState<T
             Ok((self.max, true))
         } else {
             Ok((T::default(), false))
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MaxStateBinary {
+    max: Vec<u8>,
+    valid: bool,
+}
+
+impl AggregateState<&[u8], Vec<u8>> for MaxStateBinary {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
+        if !self.valid {
+            self.valid = other.valid;
+            std::mem::swap(&mut self.max, &mut other.max);
+        } else if other.valid && other.max > self.max {
+            std::mem::swap(&mut self.max, &mut other.max);
+        }
+
+        Ok(())
+    }
+
+    fn update(&mut self, input: &[u8]) -> Result<()> {
+        if !self.valid {
+            self.valid = true;
+            self.max = input.into();
+        } else if input > self.max.as_slice() {
+            self.max = input.into();
+        }
+
+        Ok(())
+    }
+
+    fn finalize(&mut self) -> Result<(Vec<u8>, bool)> {
+        if self.valid {
+            Ok((std::mem::take(&mut self.max), true))
+        } else {
+            Ok((Vec::new(), false))
         }
     }
 }

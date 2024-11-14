@@ -1,0 +1,10 @@
+query TT
+DESCRIBE SELECT "Title", COUNT(*) AS "PageViews" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "CounterID" = 62 AND "EventDate"::date >= '2013-07-01'::date AND "EventDate"::date <= '2013-07-31'::date AND "DontCountHits" = 0 AND "IsRefresh" = 0 AND "Title" <> '' GROUP BY "Title" ORDER BY "PageViews" DESC LIMIT 10;
+----
+Title      Utf8
+PageViews  Int64
+
+# No rows correct for truncated dataset
+query ??
+SELECT "Title", COUNT(*) AS "PageViews" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "CounterID" = 62 AND "EventDate"::date >= '2013-07-01'::date AND "EventDate"::date <= '2013-07-31'::date AND "DontCountHits" = 0 AND "IsRefresh" = 0 AND "Title" <> '' GROUP BY "Title" ORDER BY "PageViews" DESC LIMIT 10;
+----

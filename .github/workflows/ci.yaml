@@ -82,28 +82,11 @@ jobs:
           # DEBUG_PRINT_EXPLAIN: 1 
           DEBUG_PRINT_PROFILE_DATA: 1
         run: |
-          cargo test slt/tpch/q01
-          cargo test slt/tpch/q02
-          cargo test slt/tpch/q03
-          cargo test slt/tpch/q04
-          cargo test slt/tpch/q05
-          cargo test slt/tpch/q06
-          cargo test slt/tpch/q07
-          cargo test slt/tpch/q08
-          cargo test slt/tpch/q09
-          cargo test slt/tpch/q10
-          cargo test slt/tpch/q11
-          cargo test slt/tpch/q12
-          cargo test slt/tpch/q13
-          cargo test slt/tpch/q14
-          cargo test slt/tpch/q15
-          cargo test slt/tpch/q16
-          cargo test slt/tpch/q17
-          cargo test slt/tpch/q18
-          cargo test slt/tpch/q19
-          cargo test slt/tpch/q20
-          cargo test slt/tpch/q21
-          cargo test slt/tpch/q22
+          cargo test slt/tpch
+
+      - name: SLTs Clickbench truncated
+        run: |
+          cargo test slt/clickbench
 
   wasm:
     name: Build wasm

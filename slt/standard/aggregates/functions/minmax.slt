@@ -30,3 +30,9 @@ select max(a) from (values ('1.23'::decimal), ('4.56'::decimal)) as v(a);
 ----
 4.560
 
+# Utf8 min/max
+
+query TT
+SELECT min(a), max(a) FROM (VALUES ('a'), ('b'), ('c')) v(a);
+----
+a  c

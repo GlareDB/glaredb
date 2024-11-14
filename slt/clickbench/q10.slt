@@ -1,0 +1,10 @@
+query TT
+DESCRIBE SELECT "MobilePhoneModel", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "MobilePhoneModel" <> '' GROUP BY "MobilePhoneModel" ORDER BY u DESC LIMIT 10;
+----
+MobilePhoneModel  Utf8
+u                 Int64
+
+query ??
+SELECT "MobilePhoneModel", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "MobilePhoneModel" <> '' GROUP BY "MobilePhoneModel" ORDER BY u DESC LIMIT 10;
+----
+iPad 22

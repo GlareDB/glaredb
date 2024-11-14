@@ -1,0 +1,16 @@
+query TT
+DESCRIBE SELECT "MobilePhone", "MobilePhoneModel", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "MobilePhoneModel" <> '' GROUP BY "MobilePhone", "MobilePhoneModel" ORDER BY u DESC LIMIT 10;
+----
+MobilePhone       Int16
+MobilePhoneModel  Utf8
+u                 Int64
+
+# Note the rowsort is required since we're ordering by the last column which
+# hash duplicates ('1').
+query ??? rowsort
+SELECT "MobilePhone", "MobilePhoneModel", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "MobilePhoneModel" <> '' GROUP BY "MobilePhone", "MobilePhoneModel" ORDER BY u DESC LIMIT 10;
+----
+1   iPad  19
+19  iPad  1
+60  iPad  1
+7   iPad  1

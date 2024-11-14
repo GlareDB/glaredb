@@ -1,0 +1,12 @@
+query TT
+DESCRIBE SELECT "AdvEngineID", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "AdvEngineID" <> 0 GROUP BY "AdvEngineID" ORDER BY COUNT(*) DESC;
+----
+AdvEngineID  Int16
+count        Int64
+
+query ??
+SELECT "AdvEngineID", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "AdvEngineID" <> 0 GROUP BY "AdvEngineID" ORDER BY COUNT(*) DESC;
+----
+2   220
+13  142
+

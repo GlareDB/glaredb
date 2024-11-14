@@ -388,37 +388,28 @@ impl ExecutableOperator for PhysicalGatherSort {
                     match merger.try_merge(1024)? {
                         MergeResult::Batch(batch) => return Ok(PollPull::Computed(batch.into())),
                         MergeResult::NeedsInput(input_idx) => {
-                            match state.input_buffers.buffered[input_idx].take() {
-                                Some(batch) => {
-                                    let (batch, iter) = batch.into_batch_and_iter();
-                                    merger.push_batch_for_input(input_idx, batch, iter)?;
-                                    continue; // Keep trying to merge.
-                                }
-                                None => {
-                                    let pushed = Self::try_push_input_batch_to_merger(
-                                        cx,
-                                        merger,
-                                        &mut state.input_buffers,
-                                        operator_state,
-                                        input_idx,
-                                    )?;
+                            let pushed = Self::try_push_input_batch_to_merger(
+                                cx,
+                                merger,
+                                &mut state.input_buffers,
+                                operator_state,
+                                input_idx,
+                            )?;
 
-                                    if pushed {
-                                        // Keep trying to merge
-                                        continue;
-                                    } else {
-                                        // Batch not available yet. Waker
-                                        // registered by
-                                        // `try_push_input_batch_to_merger`.
-                                        //
-                                        // Store input that we need to try to
-                                        // get a batch from so that the next
-                                        // call to `poll_pull` ensures that we
-                                        // get that input.
-                                        *input_required = Some(input_idx);
-                                        return Ok(PollPull::Pending);
-                                    }
-                                }
+                            if pushed {
+                                // Keep trying to merge
+                                continue;
+                            } else {
+                                // Batch not available yet. Waker
+                                // registered by
+                                // `try_push_input_batch_to_merger`.
+                                //
+                                // Store input that we need to try to
+                                // get a batch from so that the next
+                                // call to `poll_pull` ensures that we
+                                // get that input.
+                                *input_required = Some(input_idx);
+                                return Ok(PollPull::Pending);
                             }
                         }
                         MergeResult::Exhausted => return Ok(PollPull::Exhausted),

@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT AVG("UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+----
+avg  Float64
+
+query ?
+SELECT AVG("UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+----
+-7135061942656019000

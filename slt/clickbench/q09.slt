@@ -1,0 +1,23 @@
+query TT
+DESCRIBE SELECT "RegionID", SUM("AdvEngineID"), COUNT(*) AS c, AVG("ResolutionWidth"), COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY c DESC LIMIT 10;
+----
+RegionID  Int32
+sum       Int64
+c         Int64
+avg       Float64
+count     Int64
+
+query ?????
+SELECT "RegionID", SUM("AdvEngineID"), COUNT(*) AS c, AVG("ResolutionWidth"), COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY c DESC LIMIT 10;
+----
+229    1156  5197  1641.5397344621897  294
+2      326   1964  1561.1390020366598  119
+1      60    623   1617.720706260032   38
+208    102   213   1172.906103286385   29
+7      16    164   1592.5853658536585  12
+12457  130   142   1777.1549295774648  2
+9      0     98    1559.2857142857142  9
+47     8     96    1174.75             6
+57     20    78    1603.3846153846155  5
+34     18    76    1578.1052631578948  6
+

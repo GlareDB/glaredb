@@ -1,0 +1,27 @@
+# regexp_replace function
+
+query T
+SELECT regexp_replace('alphabet', 'bet', 'DOG');
+----
+alphaDOG
+
+query T
+SELECT regexp_replace('alphabet', '.*', 'GOOSE');
+----
+GOOSE
+
+statement ok
+CREATE TEMP TABLE t1 (id INT, val TEXT, regex TEXT, replacement TEXT)
+
+statement ok
+INSERT INTO t1 VALUES
+  (1, 'dog', 'dog', 'cat'),
+  (2, 'dog', 'cat', 'cat'),
+  (3, 'dog', '.*', 'cat');
+
+query IT
+SELECT id, regexp_replace(val, regex, replacement) FROM t1 ORDER BY id;
+----
+1  cat
+2  dog
+3  cat

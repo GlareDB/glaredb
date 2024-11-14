@@ -195,7 +195,8 @@ message PipelineSink {
 message PipelineSourceInPipeline {}
 
 message PipelineSourceOtherPipeline {
-    IntermediatePipelineId id = 1;
+    IntermediatePipelineId id                       = 1;
+    optional uint32        partitioning_requirement = 2;
 }
 
 message PipelineSourceOtherGroup {

@@ -189,7 +189,17 @@ pub enum PipelineSource {
     /// Source is already in the pipeline, don't do anything.
     InPipeline,
     /// Source is some other pipeline in the same group as this pipeline.
-    OtherPipeline { pipeline: IntermediatePipelineId },
+    OtherPipeline {
+        /// Pipeline to pull from.
+        pipeline: IntermediatePipelineId,
+        /// Optional partitioning requirement.
+        ///
+        /// This should be set if the pipline we're constructing should maintain
+        /// the output partitioning of the source.
+        ///
+        /// Mostly for ORDER BY to maintain sortedness through the pipeline.
+        partitioning_requirement: Option<usize>,
+    },
     /// Source is remote, build an ipc source.
     OtherGroup {
         stream_id: StreamId,
@@ -212,8 +222,12 @@ impl ProtoConv for PipelineSource {
 
         let value = match self {
             Self::InPipeline => Value::InPipeline(Default::default()),
-            Self::OtherPipeline { pipeline } => Value::OtherPipeline(PipelineSourceOtherPipeline {
+            Self::OtherPipeline {
+                pipeline,
+                partitioning_requirement,
+            } => Value::OtherPipeline(PipelineSourceOtherPipeline {
                 id: Some(pipeline.to_proto()?),
+                partitioning_requirement: partitioning_requirement.map(|p| p as u32),
             }),
             Self::OtherGroup {
                 partitions,
@@ -242,8 +256,12 @@ impl ProtoConv for PipelineSource {
 
         Ok(match proto.value.required("value")? {
             Value::InPipeline(_) => Self::InPipeline,
-            Value::OtherPipeline(PipelineSourceOtherPipeline { id }) => Self::OtherPipeline {
+            Value::OtherPipeline(PipelineSourceOtherPipeline {
+                id,
+                partitioning_requirement,
+            }) => Self::OtherPipeline {
                 pipeline: IntermediatePipelineId::from_proto(id.required("id")?)?,
+                partitioning_requirement: partitioning_requirement.map(|p| p as usize),
             },
             Value::OtherGroup(PipelineSourceOtherGroup {
                 stream_id,

@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "AdvEngineID" <> 0;
+----
+count  Int64
+
+query ?
+SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "AdvEngineID" <> 0;
+----
+362

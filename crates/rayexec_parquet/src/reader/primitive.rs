@@ -5,6 +5,8 @@ use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::compute::cast::array::cast_array;
+use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
@@ -59,25 +61,33 @@ where
             None => None,
         };
 
-        let array_data = match (T::get_physical_type(), &self.datatype) {
-            (PhysicalType::BOOLEAN, DataType::Boolean) => data.into_array_data(),
-            (PhysicalType::INT32, DataType::Int32) => data.into_array_data(),
-            (PhysicalType::INT32, DataType::Date32) => data.into_array_data(),
-            (PhysicalType::INT64, DataType::Int64) => data.into_array_data(),
-            (PhysicalType::INT64, DataType::Decimal64(_)) => data.into_array_data(),
-            (PhysicalType::INT64, DataType::Timestamp(_)) => data.into_array_data(),
-            (PhysicalType::INT96, DataType::Timestamp(_)) => data.into_array_data(),
-            (PhysicalType::FLOAT, DataType::Float32) => data.into_array_data(),
-            (PhysicalType::DOUBLE, DataType::Float64) => data.into_array_data(),
+        let (array_data, build_type) = match (T::get_physical_type(), &self.datatype) {
+            (PhysicalType::BOOLEAN, DataType::Boolean) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT32, DataType::Int16) => (data.into_array_data(), DataType::Int32),
+            (PhysicalType::INT32, DataType::Int32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT32, DataType::UInt16) => (data.into_array_data(), DataType::Int32),
+            (PhysicalType::INT32, DataType::Date32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT64, DataType::Int64) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT64, DataType::Decimal64(_)) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT64, DataType::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT96, DataType::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::FLOAT, DataType::Float32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::DOUBLE, DataType::Float64) => (data.into_array_data(), self.datatype.clone()),
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parquet: {p_other}, bullet: {d_other}")))
         };
 
-        Ok(match bitmap {
-            Some(bitmap) => {
-                Array::new_with_validity_and_array_data(self.datatype.clone(), bitmap, array_data)
-            }
-            None => Array::new_with_array_data(self.datatype.clone(), array_data),
-        })
+        let needs_cast = build_type != self.datatype;
+
+        let mut array = match bitmap {
+            Some(bitmap) => Array::new_with_validity_and_array_data(build_type, bitmap, array_data),
+            None => Array::new_with_array_data(build_type, array_data),
+        };
+
+        if needs_cast {
+            array = cast_array(&array, self.datatype.clone(), CastFailBehavior::Null)?;
+        }
+
+        Ok(array)
     }
 }
 

@@ -55,7 +55,9 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(string::StartsWith),
         Box::new(string::EndsWith),
         Box::new(string::Contains),
+        Box::new(string::Length),
         Box::new(concat::Concat),
+        Box::new(string::RegexpReplace),
         // Like
         Box::new(like::Like),
         // Struct
@@ -70,6 +72,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(list::ListValues),
         // Datetime
         Box::new(datetime::DatePart),
+        Box::new(datetime::EpochMs),
+        Box::new(datetime::Epoch),
         // Is
         Box::new(is::IsNull),
         Box::new(is::IsNotNull),

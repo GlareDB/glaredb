@@ -1,0 +1,21 @@
+query TT
+DESCRIBE SELECT 1, "URL", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY 1, "URL" ORDER BY c DESC LIMIT 10;
+----
+?column?  Int32
+URL       Utf8
+c         Int64
+
+query ???
+SELECT 1, "URL", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY 1, "URL" ORDER BY c DESC LIMIT 10;
+----
+1  https://produkty%2Fproduct                                                                                              225
+1  https://produkty%2Fpulove.ru/album/login                                                                                140
+1  (empty)                                                                                                                 130
+1  https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soul                                                                 118
+1  https://produkty/kurortmag                                                                                              108
+1  https://produkty%2F                                                                                                     102
+1  https://produkty%2Fpulove.ru/kiroverlanet.ru/otdam-soulmjj/628965/detail.aspx?Forum.cofe.ru&pvid=163789569-geniya_1538  62
+1  https://produkty/full&qset=159508&s_yers                                                                                60
+1  https://produkty%2Fproduct_id                                                                                           50
+1  https://produkty%2Fpulove.ru/moscow                                                                                     43
+

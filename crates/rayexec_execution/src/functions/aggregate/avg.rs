@@ -255,7 +255,7 @@ pub struct AvgFloat64Impl;
 impl AvgFloat64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(
-            unary_update::<AvgStateF64<f64>, PhysicalF64, f64>,
+            unary_update::<AvgStateF64<f64, f64>, PhysicalF64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
         ))
     }
@@ -267,7 +267,7 @@ pub struct AvgInt64Impl;
 impl AvgInt64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(
-            unary_update::<AvgStateF64<i64>, PhysicalI64, f64>,
+            unary_update::<AvgStateF64<i64, i128>, PhysicalI64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
         ))
     }
@@ -302,20 +302,25 @@ impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStat
 }
 
 #[derive(Debug, Default)]
-struct AvgStateF64<T> {
+struct AvgStateF64<I, T> {
     sum: T,
     count: i64,
+    _input: PhantomData<I>,
 }
 
-impl<T: AsPrimitive<f64> + AddAssign + Debug + Default> AggregateState<T, f64> for AvgStateF64<T> {
+impl<I, T> AggregateState<I, f64> for AvgStateF64<I, T>
+where
+    I: Into<T> + Default + Debug,
+    T: AsPrimitive<f64> + AddAssign + Debug + Default,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, input: T) -> Result<()> {
-        self.sum += input;
+    fn update(&mut self, input: I) -> Result<()> {
+        self.sum += input.into();
         self.count += 1;
         Ok(())
     }

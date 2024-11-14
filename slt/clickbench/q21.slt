@@ -1,0 +1,11 @@
+query TT
+DESCRIBE SELECT "SearchPhrase", MIN("URL"), COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "URL" LIKE '%google%' AND "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY c DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+min           Utf8
+c             Int64
+
+# Note truncated dataset does not include '%google%'
+query ???
+SELECT "SearchPhrase", MIN("URL"), COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "URL" LIKE '%google%' AND "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY c DESC LIMIT 10;
+----

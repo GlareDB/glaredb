@@ -1,0 +1,14 @@
+query TT
+DESCRIBE SELECT "SearchPhrase", MIN("URL"), MIN("Title"), COUNT(*) AS c, COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "Title" LIKE '%Google%' AND "URL" NOT LIKE '%.google.%' AND "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY c DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+min           Utf8
+min           Utf8
+c             Int64
+count         Int64
+
+query ?????
+SELECT "SearchPhrase", MIN("URL"), MIN("Title"), COUNT(*) AS c, COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "Title" LIKE '%Google%' AND "URL" NOT LIKE '%.google.%' AND "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY c DESC LIMIT 10;
+----
+ведомосквиталия страции https://produkty%2Fpulove.ru/booklyattion-war-sinij-9182/women Легко на участные участников., Цены - Стильная парнем. Саганрог догадения : Турции, купить у 10 дне кольные машинки не представки - Новая с избиение спродажа: котята 2014 г.в. Цена: 47500-10ECO060 – -------- купить квартиру Оренбург (России Galantrax Flamiliada Google, Nо 18 фотоконверк Супер Кардиган 1 1
+

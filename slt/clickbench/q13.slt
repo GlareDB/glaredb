@@ -1,0 +1,21 @@
+query TT
+DESCRIBE SELECT "SearchPhrase", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY u DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+u             Int64
+
+# Extra ORDER BY
+query ??
+SELECT "SearchPhrase", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY u DESC, "SearchPhrase" LIMIT 10;
+----
+ведомосквы вместу              32
+ведомосквиталия страции        15
+ведомосквы вы из               10
+ведомосковский                 9
+авторий                        5
+ведомосква                     4
+покеты рецепт засня            3
+usb на алекомедит джонс мультр 2
+активный отельство             2
+афиша липецк автосточка        2
+

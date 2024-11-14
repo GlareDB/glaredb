@@ -1,0 +1,20 @@
+query TT
+DESCRIBE SELECT "SearchPhrase", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY c DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+c             Int64
+
+query ??
+SELECT "SearchPhrase", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY c DESC LIMIT 10;
+----
+ведомосквы вместу                110
+ведомосквиталия страции          45
+ведомосквы вы из                 38
+ведомосковский                   33
+ведомоскве варфейс               20
+растика конд каторией в чебурек  16
+авторий                          14
+коптимиквиды юристический        14
+ведомосква                       13
+сварочные огниторговце           12
+

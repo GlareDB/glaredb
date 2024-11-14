@@ -132,6 +132,23 @@ pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Resu
             cast_primitive_numeric_helper::<PhysicalF64>(arr, to, behavior)?
         }
 
+        // Int to date32
+        DataType::Int8 if to == DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalI8, i32>(arr, to, behavior)?
+        }
+        DataType::Int16 if to == DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalI16, i32>(arr, to, behavior)?
+        }
+        DataType::Int32 if to == DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalI32, i32>(arr, to, behavior)?
+        }
+        DataType::UInt8 if to == DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalU8, i32>(arr, to, behavior)?
+        }
+        DataType::UInt16 if to == DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalU16, i32>(arr, to, behavior)?
+        }
+
         // Int to decimal.
         DataType::Int8 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalI8>(arr, to, behavior)?

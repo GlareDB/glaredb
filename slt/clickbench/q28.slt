@@ -1,0 +1,12 @@
+query TT
+DESCRIBE SELECT REGEXP_REPLACE("Referer", '^https?://(?:www\.)?([^/]+)/.*$', '\1') AS k, AVG(length("Referer")) AS l, COUNT(*) AS c, MIN("Referer") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "Referer" <> '' GROUP BY k HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
+----
+k    Utf8
+l    Float64
+c    Int64
+min  Utf8
+
+# Zero rows correct for truncated dataset
+query ????
+SELECT REGEXP_REPLACE("Referer", '^https?://(?:www\.)?([^/]+)/.*$', '\1') AS k, AVG(length("Referer")) AS l, COUNT(*) AS c, MIN("Referer") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "Referer" <> '' GROUP BY k HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
+----

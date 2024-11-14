@@ -1,0 +1,16 @@
+# String length
+
+statement ok
+CREATE TEMP TABLE strings (v TEXT);
+
+statement ok
+INSERT INTO strings VALUES (''), (NULL), ('😤🤝👀'), ('my_string');
+
+query TI
+SELECT v, length(v) FROM strings ORDER BY 1;
+----
+NULL       NULL
+(empty)    0
+my_string  9
+😤🤝👀     3
+

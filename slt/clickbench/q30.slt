@@ -1,0 +1,23 @@
+query TT
+DESCRIBE SELECT "SearchEngineID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchEngineID", "ClientIP" ORDER BY c DESC LIMIT 10;
+----
+SearchEngineID  Int16
+ClientIP        Int32
+c               Int64
+sum             Int64
+avg             Float64
+
+# Additional ORDER BY since count has duplicates
+query ?????
+SELECT "SearchEngineID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchEngineID", "ClientIP" ORDER BY c DESC, "ClientIP" LIMIT 10;
+----
+13  -673500741   20  12  1638
+2   1735595921   20  9   1638
+2   -125068408   14  7   1638
+2   -1555581670  12  6   1638
+2   743072690    12  6   1368
+2   1140309473   12  6   1638
+2   -1300828471  10  5   1396
+2   -181568119   10  5   1996
+2   403806690    10  5   1828
+2   1449805590   10  6   1638

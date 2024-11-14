@@ -1,0 +1,15 @@
+# ORDER BY large number of input rows.
+
+query T
+SELECT a::TEXT AS s FROM generate_series(1, 99999) g(a) ORDER BY s LIMIT 10;
+----
+1
+10
+100
+1000
+10000
+10001
+10002
+10003
+10004
+10005

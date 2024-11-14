@@ -1258,16 +1258,14 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // Global sorting accepts n-partitions, but produces only a single
         // partition. We finish the current pipeline
 
-        // TODO: Actually enforce that.
-
         let in_progress = self.take_in_progress_pipeline()?;
         self.in_progress = Some(InProgressPipeline {
             id: id_gen.next_pipeline_id(),
             operators: Vec::new(),
             location,
-            // TODO:
             source: PipelineSource::OtherPipeline {
                 pipeline: in_progress.id,
+                partitioning_requirement: Some(1),
             },
         });
 

@@ -1,0 +1,24 @@
+# Note needed extra epoch call to convert to timestamp
+query TT
+DESCRIBE SELECT "UserID", extract(minute FROM epoch("EventTime")) AS m, "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", m, "SearchPhrase" ORDER BY COUNT(*) DESC LIMIT 10;
+----
+UserID        Int64
+m             Decimal64(18,3)
+SearchPhrase  Utf8
+count         Int64
+
+# Extra ORDER BY, count has duplicates.
+query ????
+SELECT "UserID", extract(minute FROM epoch("EventTime")) AS m, "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", m, "SearchPhrase" ORDER BY COUNT(*) DESC, "UserID" LIMIT 10;
+----
+-7918574344944952583  26.000  (empty)  24
+-9154375582268094750  1.000   (empty)  20
+-8455721461950319637  21.000  (empty)  16
+-8284294157038592779  11.000  (empty)  16
+-7725127544842036118  21.000  (empty)  16
+-9158995094684353950  12.000  (empty)  14
+-7918574344944952583  9.000   (empty)  14
+-7904263253391067902  34.000  (empty)  14
+-7018910098174567459  56.000  (empty)  14
+-7018910098174567459  57.000  (empty)  14
+

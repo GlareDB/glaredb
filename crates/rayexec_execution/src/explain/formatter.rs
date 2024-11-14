@@ -198,7 +198,7 @@ impl ExplainNode {
                     ("partitions", partitions.to_string()),
                 ],
             ),
-            PipelineSource::OtherPipeline { pipeline } => {
+            PipelineSource::OtherPipeline { pipeline, .. } => {
                 entry.with_named_map("Source", "OtherPipeline", [("pipeline_id", pipeline.0)])
             }
             PipelineSource::Materialization { mat_ref } => entry.with_named_map(

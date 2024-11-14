@@ -56,9 +56,15 @@ where
         (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<bool, P>::new(
             batch_size, datatype, desc,
         ))),
+        (DataType::Int16, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+            batch_size, datatype, desc,
+        ))),
         (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
+        (DataType::UInt16, PhysicalType::INT32) => Ok(Box::new(
+            PrimitiveArrayReader::<i32, P>::new(batch_size, datatype, desc),
+        )),
         (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),

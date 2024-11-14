@@ -1,0 +1,10 @@
+query TT
+DESCRIBE SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "URL" LIKE '%google%';
+----
+count Int64
+
+# Note doesn't exist in truncated dataset
+query ?
+SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "URL" LIKE '%google%';
+----
+0

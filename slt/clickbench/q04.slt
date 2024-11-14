@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+----
+count Int64
+
+query ?
+SELECT COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+----
+723

@@ -1,0 +1,23 @@
+query TT
+DESCRIBE SELECT "WatchID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "WatchID", "ClientIP" ORDER BY c DESC LIMIT 10;
+----
+WatchID   Int64
+ClientIP  Int32
+c         Int64
+sum       Int64
+avg       Float64
+
+# Additional ORDER BY, count has duplicates
+query ?????
+SELECT "WatchID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "WatchID", "ClientIP" ORDER BY c DESC, "WatchID" LIMIT 10;
+----
+4617561261186506426  1785570738  1  0  1750
+4621548433098056642  1515936442  1  1  1917
+4627214020331320067  743072690   1  1  1368
+4630380122233063518  1207096081  1  1  1917
+4636835208715655538  1603657374  1  0  1828
+4638023078767590803  601553448   1  0  1368
+4640697035997705957  743072690   1  0  1368
+4646520385515517960  1337491165  1  0  1368
+4647310520206361580  127765921   1  0  1638
+4649178432418992904  1948294990  1  0  1750
