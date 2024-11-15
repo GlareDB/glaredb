@@ -46,7 +46,7 @@ terminal_util = { path = "../terminal_util" }
 num_cpus = "1.16.0"
 colored = "2.1.0"
 nu-ansi-term = "0.50.1"
-reedline = "0.36.0"
+reedline = "0.37.0"
 atty = "0.2.14"
 console-subscriber = "0.4.0"
 tokio-postgres = "0.7.12"
