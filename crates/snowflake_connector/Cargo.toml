@@ -23,7 +23,7 @@ datafusion = { workspace = true }
 hex = "0.4.3"
 base64 = "0.22.1"
 bytes = "1.8.0"
-flate2 = "1.0.34"
+flate2 = "1.0.35"
 decimal = { path = "../decimal" }
 
 [dev-dependencies]
