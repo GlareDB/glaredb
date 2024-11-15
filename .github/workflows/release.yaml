@@ -81,7 +81,7 @@ jobs:
         with:
           name: dist-${{ matrix.target }}.zip
           path: ./target/dist/
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -143,7 +143,7 @@ jobs:
         with:
           name: dist-kernel-releases.zip
           path: ./dist
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -197,7 +197,7 @@ jobs:
         with:
           name: wheels.zip
           path: dist
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -245,7 +245,7 @@ jobs:
         with:
           name: wheels
           path: bindings/python/dist
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -295,7 +295,7 @@ jobs:
         with:
           name: wheels
           path: bindings/python/dist
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -330,7 +330,7 @@ jobs:
         with:
           command: upload
           args: --skip-existing *
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -464,7 +464,7 @@ jobs:
           name: bindings-${{ matrix.target }}
           path: bindings/nodejs/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
@@ -521,7 +521,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - uses: slackapi/slack-github-action@v1.27.0
+      - uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() }}
         with:
           payload: |
