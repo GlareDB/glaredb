@@ -1,0 +1,10 @@
+query TT
+DESCRIBE SELECT DATE_TRUNC('minute', epoch("EventTime")) AS "M", COUNT(*) AS "PageViews" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "CounterID" = 62 AND "EventDate"::date >= '2013-07-14'::date AND "EventDate"::date <= '2013-07-15'::date AND "IsRefresh" = 0 AND "DontCountHits" = 0 GROUP BY DATE_TRUNC('minute', epoch("EventTime")) ORDER BY DATE_TRUNC('minute', epoch("EventTime")) LIMIT 10 OFFSET 1000;
+----
+M          Timestamp(μs)
+PageViews  Int64
+
+# TODO: Double check that empty is correct
+query ??
+SELECT DATE_TRUNC('minute', epoch("EventTime")) AS "M", COUNT(*) AS "PageViews" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "CounterID" = 62 AND "EventDate"::date >= '2013-07-14'::date AND "EventDate"::date <= '2013-07-15'::date AND "IsRefresh" = 0 AND "DontCountHits" = 0 GROUP BY DATE_TRUNC('minute', epoch("EventTime")) ORDER BY DATE_TRUNC('minute', epoch("EventTime")) LIMIT 10 OFFSET 1000;
+----

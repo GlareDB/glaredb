@@ -1,0 +1,21 @@
+# date_trunc function
+
+query T
+SELECT date_trunc('second', epoch(1731462995));
+----
+2024-11-13 01:56:35 UTC
+
+query T
+SELECT date_trunc('minute', epoch(1731462995));
+----
+2024-11-13 01:56:00 UTC
+
+query T
+SELECT date_trunc('hour', epoch(1731462995));
+----
+2024-11-13 01:00:00 UTC
+
+query T
+SELECT date_trunc('day', epoch(1731462995));
+----
+2024-11-13 00:00:00 UTC

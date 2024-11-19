@@ -1,0 +1,14 @@
+query TT
+DESCRIBE SELECT "TraficSourceID", "SearchEngineID", "AdvEngineID", CASE WHEN ("SearchEngineID" = 0 AND "AdvEngineID" = 0) THEN "Referer" ELSE '' END AS "Src", "URL" AS "Dst", COUNT(*) AS "PageViews" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "CounterID" = 62 AND "EventDate"::date >= '2013-07-01'::date AND "EventDate"::date <= '2013-07-31'::date AND "IsRefresh" = 0 GROUP BY "TraficSourceID", "SearchEngineID", "AdvEngineID", "Src", "Dst" ORDER BY "PageViews" DESC LIMIT 10 OFFSET 1000;
+----
+TraficSourceID  Int16
+SearchEngineID  Int16
+AdvEngineID     Int16
+Src             Utf8
+Dst             Utf8
+PageViews       Int64
+
+# Zero rows correct for truncated data set
+query ??????
+SELECT "TraficSourceID", "SearchEngineID", "AdvEngineID", CASE WHEN ("SearchEngineID" = 0 AND "AdvEngineID" = 0) THEN "Referer" ELSE '' END AS "Src", "URL" AS "Dst", COUNT(*) AS "PageViews" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "CounterID" = 62 AND "EventDate"::date >= '2013-07-01'::date AND "EventDate"::date <= '2013-07-31'::date AND "IsRefresh" = 0 GROUP BY "TraficSourceID", "SearchEngineID", "AdvEngineID", "Src", "Dst" ORDER BY "PageViews" DESC LIMIT 10 OFFSET 1000;
+----

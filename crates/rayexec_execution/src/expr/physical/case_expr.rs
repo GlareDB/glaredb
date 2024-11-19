@@ -55,11 +55,6 @@ impl PhysicalCaseExpr {
             // need to fall through on.
             SelectExecutor::select(&selected, &mut trues_sel)?;
 
-            if trues_sel.num_rows() == 0 {
-                // No rows selected, move to next case.
-                continue;
-            }
-
             // Select rows in batch to execute on based on 'trues'.
             let execute_batch = selected_batch.select(Arc::new(trues_sel.clone()));
             let output = case.then.eval(&execute_batch)?;

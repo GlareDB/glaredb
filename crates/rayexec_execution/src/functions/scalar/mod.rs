@@ -72,6 +72,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(list::ListValues),
         // Datetime
         Box::new(datetime::DatePart),
+        Box::new(datetime::DateTrunc),
         Box::new(datetime::EpochMs),
         Box::new(datetime::Epoch),
         // Is
