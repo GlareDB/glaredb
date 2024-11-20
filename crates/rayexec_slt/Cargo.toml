@@ -11,7 +11,7 @@ rayexec_execution = { path = '../rayexec_execution' }
 rayexec_bullet = { path = '../rayexec_bullet' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_shell = { path = '../rayexec_shell' }
-libtest-mimic = "0.7.3"
+libtest-mimic = "0.8.1"
 sqllogictest = "0.20.4"
 env_logger = "0.11.3"
 futures = { workspace = true, features = ["executor"] }
