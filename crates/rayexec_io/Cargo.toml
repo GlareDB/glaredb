@@ -17,4 +17,4 @@ chrono = { version = "0.4.38", features = ["serde"] }
 hmac = "0.12.1"
 sha2 = "0.10.8"
 percent-encoding = "2.3.1"
-quick-xml = { version = "0.36.0", default-features = false, features = ["serialize"] }
+quick-xml = { version = "0.37.1", default-features = false, features = ["serialize"] }
