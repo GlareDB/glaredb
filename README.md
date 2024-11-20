@@ -1,4 +1,11 @@
-# GlareDB (NEXT)
+# GlareDB (Next)
 
-- https://next.glaredb.com
-- `pip install rayexec`
+The next iteration of GlareDB.
+
+The `main` branch contains all work in progress code for the next iteration. The
+DataFusion based GlareDB code is in the `legacy` branch.
+
+The code is still a bit aways from being production ready, but you can try out
+the early versions either via <https://next.glaredb.com> or as a python library
+with `pip install rayexec` ("rayexec" was the early name for the replacement
+engine).
