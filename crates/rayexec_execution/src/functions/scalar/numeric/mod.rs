@@ -1,9 +1,15 @@
 use std::fmt::Debug;
 
+use num_traits::Float;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalF32, PhysicalF64, PhysicalType};
+use rayexec_bullet::executor::physical_type::{
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalStorage,
+    PhysicalType,
+};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -18,6 +24,36 @@ use crate::functions::{
     FunctionInfo,
     Signature,
 };
+
+/// Signature for functions that accept a single numeric and produce a numeric.
+// TODO: Include decimals.
+const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &'static [Signature] = &[
+    Signature {
+        input: &[DataTypeId::Float16],
+        variadic: None,
+        return_type: DataTypeId::Boolean,
+    },
+    Signature {
+        input: &[DataTypeId::Float32],
+        variadic: None,
+        return_type: DataTypeId::Boolean,
+    },
+    Signature {
+        input: &[DataTypeId::Float64],
+        variadic: None,
+        return_type: DataTypeId::Boolean,
+    },
+];
+
+/// Helper for checking if the input is a numeric type.
+fn check_is_unary_numeric_input(info: &impl FunctionInfo, inputs: &[DataType]) -> Result<()> {
+    plan_check_num_args(info, inputs, 1)?;
+    // TODO: Decimals too
+    match &inputs[0] {
+        DataType::Float16 | DataType::Float32 | DataType::Float64 => Ok(()),
+        other => Err(invalid_input_types_error(info, &[other])),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNan;
