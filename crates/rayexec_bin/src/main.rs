@@ -8,6 +8,7 @@ use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
+use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
@@ -83,7 +84,8 @@ async fn inner(
         .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
         .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
-        .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
+        .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
+        .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
     let engine = SingleUserEngine::try_new(executor, runtime, registry)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;

@@ -5,6 +5,7 @@ use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
+use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::result_table::{MaterializedColumn, MaterializedResultTable};
 use rayexec_shell::session::SingleUserEngine;
@@ -29,7 +30,8 @@ impl WasmSession {
             .with_datasource("memory", Box::new(MemoryDataSource))?
             .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
             .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
-            .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?;
+            .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
+            .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
 
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone(), registry)?;
 

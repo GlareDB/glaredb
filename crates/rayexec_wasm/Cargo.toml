@@ -22,6 +22,7 @@ rayexec_shell = { path = '../rayexec_shell' }
 rayexec_parquet = { path = '../rayexec_parquet' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }
+rayexec_iceberg = { path = '../rayexec_iceberg' }
 rayexec_io = { path = '../rayexec_io' }
 futures = { workspace = true }
 parking_lot = { workspace = true }
