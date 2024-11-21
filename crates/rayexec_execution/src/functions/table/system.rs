@@ -15,7 +15,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
+use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
 use crate::storage::table_storage::{

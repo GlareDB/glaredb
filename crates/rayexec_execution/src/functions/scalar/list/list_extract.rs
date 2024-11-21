@@ -33,7 +33,6 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUtf8,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;

@@ -61,7 +61,7 @@ use crate::functions::{
 
 /// Signature for functions that accept a single numeric and produce a numeric.
 // TODO: Include decimals.
-const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &'static [Signature] = &[
+const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &[Signature] = &[
     Signature {
         input: &[DataTypeId::Float16],
         variadic: None,
@@ -103,7 +103,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
 
 /// Helper struct for creating functions that accept and produce a single
 /// numeric argument.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct UnaryInputNumericScalar<O: UnaryInputNumericOperation> {
     _op: PhantomData<O>,
 }

@@ -24,7 +24,6 @@ use crate::executor::physical_type::{
 };
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::interval::Interval;
-use crate::storage::AddressableStorage;
 
 /// Binary-encoded rows suitable for comparisons.
 #[derive(Debug)]
