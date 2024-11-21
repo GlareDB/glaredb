@@ -61,6 +61,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(numeric::Sin::new()),
         Box::new(numeric::Sqrt::new()),
         Box::new(numeric::Tan::new()),
+        Box::new(numeric::Degrees::new()),
+        Box::new(numeric::Radians::new()),
         Box::new(numeric::IsNan),
         // String
         Box::new(string::Repeat),

@@ -118,6 +118,12 @@ impl SystemFunctionImpl for ListFunctionsImpl {
                         function_names.try_push(entry.name.as_bytes())?;
                         function_types.try_push("aggregate".as_bytes())?;
                     }
+                    CatalogEntryInner::TableFunction(_) => {
+                        database_names.try_push(database.0.as_bytes())?;
+                        schema_names.try_push(schema_name.as_bytes())?;
+                        function_names.try_push(entry.name.as_bytes())?;
+                        function_types.try_push("table".as_bytes())?;
+                    }
                     _ => (),
                 }
 
