@@ -1,14 +1,27 @@
 use core::str;
+use std::collections::VecDeque;
+use std::io::Cursor;
 use std::sync::Arc;
 
 use futures::StreamExt;
+use rayexec_bullet::batch::Batch;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::{FileProvider, FileSourceExt};
+use rayexec_io::{FileProvider, FileSource, FileSourceExt};
+use rayexec_parquet::metadata::Metadata;
+use rayexec_parquet::reader::AsyncBatchReader;
 
-use crate::spec::{Manifest, ManifestList, Snapshot, TableMetadata};
+use crate::spec::{
+    DataFile,
+    Manifest,
+    ManifestContent,
+    ManifestEntryStatus,
+    ManifestList,
+    Snapshot,
+    TableMetadata,
+};
 
 const VERSION_HINT_PATH: &'static str = "metadata/version-hint.text";
 
@@ -24,6 +37,8 @@ pub struct Table {
     metadata: TableMetadata,
     /// Resolve paths relative to the table's root.
     resolver: PathResolver,
+    /// Loaded manifest files.
+    manifests: Vec<Manifest>,
 }
 
 impl Table {
@@ -81,7 +96,7 @@ impl Table {
                 }
 
                 let rel_path = latest_rel_path.ok_or_else(|| {
-                    RayexecError::new(format!("No valid iceberg tables in root {root}"))
+                    RayexecError::new(format!("No valid iceberg tables in root '{root}'"))
                 })?;
 
                 root.join([rel_path])?
@@ -97,16 +112,56 @@ impl Table {
 
         let resolver = PathResolver::from_metadata(&metadata);
 
-        Ok(Table {
+        let mut table = Table {
             root,
             provider,
             conf,
             metadata,
             resolver,
-        })
+            manifests: Vec::new(),
+        };
+
+        // TODO: Could be lazy, also we'll probably want to cache the table
+        // metadata to reuse across queries.
+        let manifests = table.read_manifests().await?;
+        table.manifests = manifests;
+
+        Ok(table)
     }
 
     pub fn scan(&self, projections: Projections, num_partitions: usize) -> Result<Vec<TableScan>> {
+        // Find all data files in the manifests. We'll distribute these evenly
+        // over however many partitions we need.
+        let data_files_iter = self
+            .manifests
+            .iter()
+            .filter(|m| matches!(m.metadata.content, ManifestContent::Data))
+            .flat_map(|m| {
+                m.entries.iter().filter_map(|ent| {
+                    let status: ManifestEntryStatus = ent.status.try_into().unwrap_or_default();
+                    if status.is_deleted() {
+                        // Ignore deleted entries during table scans.
+                        None
+                    } else {
+                        Some(&ent.data_file)
+                    }
+                })
+            });
+
+        let mut partitioned_files: Vec<_> = (0..num_partitions).map(|_| VecDeque::new()).collect();
+
+        for (idx, data_file) in data_files_iter.enumerate() {
+            // TODO: More formats?
+            if data_file.file_format != "parquet" {
+                return Err(RayexecError::new(
+                    "'parquet' format currently the only supported file format for Iceberg",
+                ));
+            }
+
+            let partition = idx % num_partitions;
+            partitioned_files[partition].push_back(data_file.clone());
+        }
+
         unimplemented!()
     }
 
@@ -127,21 +182,147 @@ impl Table {
     }
 
     async fn read_manifests(&self) -> Result<Vec<Manifest>> {
-        unimplemented!()
+        let list = self.read_manifest_list().await?;
+
+        let mut manifests = Vec::new();
+        for ent in list.entries {
+            let manifest_path = self.resolver.relative_path(&ent.manifest_path);
+
+            let path = self.root.join([manifest_path])?;
+            let bs = self
+                .provider
+                .file_source(path, &self.conf)?
+                .read_stream_all()
+                .await?;
+
+            let cursor = Cursor::new(bs);
+
+            let manifest = Manifest::from_raw_avro(cursor)?;
+            manifests.push(manifest);
+        }
+
+        Ok(manifests)
     }
 
     async fn read_manifest_list(&self) -> Result<ManifestList> {
-        unimplemented!()
+        let current_snapshot = self.current_snapshot()?;
+        let manifest_list_path = self.resolver.relative_path(&current_snapshot.manifest_list);
+
+        let path = self.root.join([manifest_list_path])?;
+        let bs = self
+            .provider
+            .file_source(path, &self.conf)?
+            .read_stream_all()
+            .await?;
+
+        let cursor = Cursor::new(bs);
+        let list = ManifestList::from_raw_avro(cursor)?;
+
+        Ok(list)
     }
 
     /// Get the current snapshot form the table metadta.
     fn current_snapshot(&self) -> Result<&Snapshot> {
-        unimplemented!()
+        let current_snapshot_id = self
+            .metadata
+            .current_snapshot_id
+            .ok_or_else(|| RayexecError::new("Missing current snapshot id".to_string()))?;
+
+        let current_snapshot = self
+            .metadata
+            .snapshots
+            .iter()
+            .find(|s| s.snapshot_id == current_snapshot_id)
+            .ok_or_else(|| {
+                RayexecError::new(format!("Missing snapshot for id: {}", current_snapshot_id))
+            })?;
+
+        Ok(current_snapshot)
     }
 }
 
 #[derive(Debug)]
-pub struct TableScan {}
+pub struct TableScan {
+    /// Root of the table.
+    root: FileLocation,
+    /// Output schema of the table.
+    schema: Schema,
+    /// Column projections.
+    projections: Projections,
+    /// Files this scan is responsible for.
+    files: VecDeque<DataFile>,
+    /// File provider for getting the actual file sources.
+    provider: Arc<dyn FileProvider>,
+    conf: AccessConfig,
+    /// Current reader, initially empty and populated on first stream.
+    ///
+    /// Once a reader runs out, the next file is loaded, and gets placed here.
+    current: Option<AsyncBatchReader<Box<dyn FileSource>>>,
+}
+
+impl TableScan {
+    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+        loop {
+            if self.current.is_none() {
+                let file = match self.files.pop_front() {
+                    Some(file) => file,
+                    None => return Ok(None), // We're done
+                };
+
+                // TODO: Spec says the file path is the full path, tbd if that's
+                // actually the case.
+                let location = self.root.join([file.file_path])?;
+
+                self.current = Some(
+                    Self::load_reader(
+                        location,
+                        &self.conf,
+                        self.provider.as_ref(),
+                        &self.schema,
+                        self.projections.clone(),
+                    )
+                    .await?,
+                )
+            }
+
+            match self.current.as_mut().unwrap().read_next().await {
+                Ok(Some(batch)) => return Ok(Some(batch)),
+                Ok(None) => {
+                    // Loads next read at beginning of loop.
+                    self.current = None;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    async fn load_reader(
+        location: FileLocation,
+        conf: &AccessConfig,
+        provider: &dyn FileProvider,
+        schema: &Schema,
+        projections: Projections,
+    ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
+        let mut source = provider.file_source(location, conf)?;
+
+        let size = source.size().await?;
+        let metadata = Arc::new(Metadata::new_from_source(source.as_mut(), size).await?);
+        let row_groups: VecDeque<_> = (0..metadata.decoded_metadata.row_groups().len()).collect();
+
+        const BATCH_SIZE: usize = 4096; // TODO
+        let reader = AsyncBatchReader::try_new(
+            source,
+            row_groups,
+            metadata,
+            schema,
+            BATCH_SIZE,
+            projections,
+        )?;
+
+        Ok(reader)
+    }
+}
 
 /// Helper for resolving paths for files.
 #[derive(Debug, Clone)]

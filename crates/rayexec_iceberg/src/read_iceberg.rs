@@ -9,6 +9,7 @@ use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
 
+use crate::datatable::IcebergDataTable;
 use crate::table::Table;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,10 +28,10 @@ impl<R: Runtime> TableFunction for ReadIceberg<R> {
 
     fn plan_and_initialize(
         &self,
-        context: &DatabaseContext,
+        _context: &DatabaseContext,
         args: TableFunctionArgs,
     ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
-        unimplemented!()
+        Box::pin(async move { ReadIcebergImpl::initialize(self.clone(), args).await })
     }
 
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
@@ -99,6 +100,6 @@ impl<R: Runtime> PlannedTableFunction for ReadIcebergImpl<R> {
             None => return Err(RayexecError::new("Iceberg table not initialized")),
         };
 
-        unimplemented!()
+        Ok(Box::new(IcebergDataTable { table }))
     }
 }

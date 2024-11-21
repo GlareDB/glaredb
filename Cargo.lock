@@ -2208,6 +2208,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
+ "rayexec_parquet",
  "rayexec_proto",
  "regex",
  "serde",
