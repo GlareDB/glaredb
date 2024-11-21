@@ -1,5 +1,6 @@
 use std::fmt;
 
+use half::f16;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};

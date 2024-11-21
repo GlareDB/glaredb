@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_proto::ProtoConv;
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::array::{Array, ArrayData, BinaryData};
@@ -14,6 +15,7 @@ use crate::storage::{
     ListItemMetadata,
     ListStorage,
     PrimitiveStorageSlice,
+    UntypedNull,
     UntypedNullStorage,
 };
 
@@ -70,6 +72,59 @@ impl PhysicalType {
     }
 }
 
+impl ProtoConv for PhysicalType {
+    type ProtoType = rayexec_proto::generated::physical_type::PhysicalType;
+
+    fn to_proto(&self) -> Result<Self::ProtoType> {
+        Ok(match self {
+            Self::UntypedNull => Self::ProtoType::UntypedNull,
+            Self::Boolean => Self::ProtoType::Boolean,
+            Self::Int8 => Self::ProtoType::Int8,
+            Self::Int16 => Self::ProtoType::Int16,
+            Self::Int32 => Self::ProtoType::Int32,
+            Self::Int64 => Self::ProtoType::Int64,
+            Self::Int128 => Self::ProtoType::Int128,
+            Self::UInt8 => Self::ProtoType::Uint8,
+            Self::UInt16 => Self::ProtoType::Uint16,
+            Self::UInt32 => Self::ProtoType::Uint32,
+            Self::UInt64 => Self::ProtoType::Uint64,
+            Self::UInt128 => Self::ProtoType::Uint128,
+            Self::Float16 => Self::ProtoType::Float16,
+            Self::Float32 => Self::ProtoType::Float32,
+            Self::Float64 => Self::ProtoType::Float64,
+            Self::Interval => Self::ProtoType::Interval,
+            Self::Utf8 => Self::ProtoType::Utf8,
+            Self::Binary => Self::ProtoType::Binary,
+            Self::List => Self::ProtoType::List,
+        })
+    }
+
+    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+        Ok(match proto {
+            Self::ProtoType::InvalidPhysicalType => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::UntypedNull => Self::UntypedNull,
+            Self::ProtoType::Boolean => Self::Boolean,
+            Self::ProtoType::Int8 => Self::Int8,
+            Self::ProtoType::Int16 => Self::Int16,
+            Self::ProtoType::Int32 => Self::Int32,
+            Self::ProtoType::Int64 => Self::Int64,
+            Self::ProtoType::Int128 => Self::Int128,
+            Self::ProtoType::Uint8 => Self::UInt8,
+            Self::ProtoType::Uint16 => Self::UInt16,
+            Self::ProtoType::Uint32 => Self::UInt32,
+            Self::ProtoType::Uint64 => Self::UInt64,
+            Self::ProtoType::Uint128 => Self::UInt128,
+            Self::ProtoType::Float16 => Self::Float16,
+            Self::ProtoType::Float32 => Self::Float32,
+            Self::ProtoType::Float64 => Self::Float64,
+            Self::ProtoType::Interval => Self::Interval,
+            Self::ProtoType::Utf8 => Self::Utf8,
+            Self::ProtoType::Binary => Self::Binary,
+            Self::ProtoType::List => Self::List,
+        })
+    }
+}
+
 /// Types able to convert themselves to byte slices.
 pub trait AsBytes {
     fn as_bytes(&self) -> &[u8];
@@ -123,7 +178,8 @@ impl VarlenType for [u8] {
 /// Contains a lifetime to enable tying the returned storage to the provided
 /// array data.
 pub trait PhysicalStorage<'a> {
-    type Storage: AddressableStorage;
+    type Type;
+    type Storage: AddressableStorage<T = Self::Type>;
 
     /// Gets the storage for the array that we can access directly.
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage>;
@@ -137,6 +193,7 @@ pub trait PhysicalStorage<'a> {
 pub struct PhysicalAny;
 
 impl<'a> PhysicalStorage<'a> for PhysicalAny {
+    type Type = ();
     type Storage = UnitStorage;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -169,6 +226,7 @@ impl AddressableStorage for UnitStorage {
 pub struct PhysicalUntypedNull;
 
 impl<'a> PhysicalStorage<'a> for PhysicalUntypedNull {
+    type Type = UntypedNull;
     type Storage = UntypedNullStorage;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -182,6 +240,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalUntypedNull {
 pub struct PhysicalBool;
 
 impl<'a> PhysicalStorage<'a> for PhysicalBool {
+    type Type = bool;
     type Storage = BooleanStorageRef<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -195,6 +254,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalBool {
 pub struct PhysicalI8;
 
 impl<'a> PhysicalStorage<'a> for PhysicalI8 {
+    type Type = i8;
     type Storage = PrimitiveStorageSlice<'a, i8>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -208,6 +268,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI8 {
 pub struct PhysicalI16;
 
 impl<'a> PhysicalStorage<'a> for PhysicalI16 {
+    type Type = i16;
     type Storage = PrimitiveStorageSlice<'a, i16>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -221,6 +282,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI16 {
 pub struct PhysicalI32;
 
 impl<'a> PhysicalStorage<'a> for PhysicalI32 {
+    type Type = i32;
     type Storage = PrimitiveStorageSlice<'a, i32>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -234,6 +296,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI32 {
 pub struct PhysicalI64;
 
 impl<'a> PhysicalStorage<'a> for PhysicalI64 {
+    type Type = i64;
     type Storage = PrimitiveStorageSlice<'a, i64>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -247,6 +310,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI64 {
 pub struct PhysicalI128;
 
 impl<'a> PhysicalStorage<'a> for PhysicalI128 {
+    type Type = i128;
     type Storage = PrimitiveStorageSlice<'a, i128>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -260,6 +324,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalI128 {
 pub struct PhysicalU8;
 
 impl<'a> PhysicalStorage<'a> for PhysicalU8 {
+    type Type = u8;
     type Storage = PrimitiveStorageSlice<'a, u8>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -273,6 +338,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU8 {
 pub struct PhysicalU16;
 
 impl<'a> PhysicalStorage<'a> for PhysicalU16 {
+    type Type = u16;
     type Storage = PrimitiveStorageSlice<'a, u16>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -286,6 +352,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU16 {
 pub struct PhysicalU32;
 
 impl<'a> PhysicalStorage<'a> for PhysicalU32 {
+    type Type = u32;
     type Storage = PrimitiveStorageSlice<'a, u32>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -299,6 +366,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU32 {
 pub struct PhysicalU64;
 
 impl<'a> PhysicalStorage<'a> for PhysicalU64 {
+    type Type = u64;
     type Storage = PrimitiveStorageSlice<'a, u64>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -312,6 +380,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU64 {
 pub struct PhysicalU128;
 
 impl<'a> PhysicalStorage<'a> for PhysicalU128 {
+    type Type = u128;
     type Storage = PrimitiveStorageSlice<'a, u128>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -325,6 +394,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalU128 {
 pub struct PhysicalF16;
 
 impl<'a> PhysicalStorage<'a> for PhysicalF16 {
+    type Type = f16;
     type Storage = PrimitiveStorageSlice<'a, f16>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -338,6 +408,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalF16 {
 pub struct PhysicalF32;
 
 impl<'a> PhysicalStorage<'a> for PhysicalF32 {
+    type Type = f32;
     type Storage = PrimitiveStorageSlice<'a, f32>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -351,6 +422,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalF32 {
 pub struct PhysicalF64;
 
 impl<'a> PhysicalStorage<'a> for PhysicalF64 {
+    type Type = f64;
     type Storage = PrimitiveStorageSlice<'a, f64>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -364,6 +436,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalF64 {
 pub struct PhysicalInterval;
 
 impl<'a> PhysicalStorage<'a> for PhysicalInterval {
+    type Type = Interval;
     type Storage = PrimitiveStorageSlice<'a, Interval>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -377,6 +450,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalInterval {
 pub struct PhysicalBinary;
 
 impl<'a> PhysicalStorage<'a> for PhysicalBinary {
+    type Type = &'a [u8];
     type Storage = BinaryDataStorage<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -398,6 +472,7 @@ impl<'a> PhysicalStorage<'a> for PhysicalBinary {
 pub struct PhysicalUtf8;
 
 impl<'a> PhysicalStorage<'a> for PhysicalUtf8 {
+    type Type = &'a str;
     type Storage = StrDataStorage<'a>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
@@ -490,6 +565,7 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
 pub struct PhysicalList;
 
 impl<'a> PhysicalStorage<'a> for PhysicalList {
+    type Type = ListItemMetadata;
     type Storage = PrimitiveStorageSlice<'a, ListItemMetadata>;
 
     fn get_storage(data: &'a ArrayData) -> Result<Self::Storage> {
