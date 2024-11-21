@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
+
+use crate::table::Table;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadIceberg<R: Runtime> {
@@ -39,6 +43,7 @@ struct ReadIcebergState {
     location: FileLocation,
     conf: AccessConfig,
     schema: Schema,
+    table: Option<Arc<Table>>, // Populate on re-init if needed.
 }
 
 #[derive(Debug, Clone)]
@@ -52,7 +57,21 @@ impl<R: Runtime> ReadIcebergImpl<R> {
         func: ReadIceberg<R>,
         args: TableFunctionArgs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
-        unimplemented!()
+        let (location, conf) = args.try_location_and_access_config()?;
+        let provider = func.runtime.file_provider();
+
+        let table = Table::load(location.clone(), provider, conf.clone()).await?;
+        let schema = table.schema()?;
+
+        Ok(Box::new(ReadIcebergImpl {
+            func,
+            state: ReadIcebergState {
+                location,
+                conf,
+                schema,
+                table: Some(Arc::new(table)),
+            },
+        }))
     }
 }
 
@@ -75,6 +94,11 @@ impl<R: Runtime> PlannedTableFunction for ReadIcebergImpl<R> {
     }
 
     fn datatable(&self) -> Result<Box<dyn DataTable>> {
+        let table = match self.state.table.as_ref() {
+            Some(table) => table.clone(),
+            None => return Err(RayexecError::new("Iceberg table not initialized")),
+        };
+
         unimplemented!()
     }
 }

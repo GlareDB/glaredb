@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
+use futures::StreamExt;
 use location::{AccessConfig, FileLocation};
 use rayexec_error::Result;
 
@@ -68,6 +69,30 @@ pub trait FileSource: Sync + Send + Debug {
     /// content can just be streamed.
     fn size(&mut self) -> BoxFuture<Result<usize>>;
 }
+
+/// Extension traits that provide convenience utilities.
+///
+/// Default implementations can be overridden for increased efficiency.
+pub trait FileSourceExt: FileSource {
+    /// Creates a stream from the source and reads it to completion.
+    ///
+    /// The returned bytes is the complete response.
+    fn read_stream_all(&mut self) -> BoxFuture<'static, Result<Bytes>> {
+        let mut stream = self.read_stream();
+        Box::pin(async move {
+            let mut buf = Vec::new();
+
+            while let Some(result) = stream.next().await {
+                let bs = result?;
+                buf.extend_from_slice(bs.as_ref());
+            }
+
+            Ok(buf.into())
+        })
+    }
+}
+
+impl<S: FileSource> FileSourceExt for S {}
 
 // TODO: Possibly remove this and just use boxed trait where needed. Will likely
 // need to be done if want to change `read_stream` to `into_read_stream`.

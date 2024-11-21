@@ -8,7 +8,7 @@ use rayexec_bullet::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use rayexec_bullet::field::Field;
+use rayexec_bullet::field::{Field, Schema as BulletSchema};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
@@ -272,6 +272,18 @@ pub struct Schema {
     pub schema_id: i32,
     pub identifier_field_ids: Option<Vec<i32>>,
     pub fields: Vec<StructField>,
+}
+
+impl Schema {
+    pub fn to_schema(&self) -> Result<BulletSchema> {
+        let fields = self
+            .fields
+            .iter()
+            .map(|f| f.to_field())
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(BulletSchema::new(fields))
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
 pub mod spec;
 
+mod datatable;
 mod read_iceberg;
+mod table;
 
 use rayexec_execution::datasource::{DataSource, DataSourceBuilder, FileHandler};
 use rayexec_execution::functions::table::TableFunction;
