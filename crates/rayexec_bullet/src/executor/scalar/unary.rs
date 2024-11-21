@@ -19,7 +19,7 @@ impl UnaryExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(<S::Storage as AddressableStorage>::T, &mut OutputBuffer<B>),
+        Op: FnMut(S::Type, &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
         B: ArrayDataBuffer,
     {
@@ -82,7 +82,7 @@ impl UnaryExecutor {
     /// either Some(val) if the value is valid, or None if it's not.
     pub fn for_each<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
     where
-        Op: FnMut(usize, Option<<S::Storage as AddressableStorage>::T>),
+        Op: FnMut(usize, Option<S::Type>),
         S: PhysicalStorage<'a>,
     {
         let selection = array.selection_vector();
@@ -119,10 +119,7 @@ impl UnaryExecutor {
     /// Gets the value some index in the array.
     ///
     /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at<'a, S>(
-        array: &'a Array,
-        idx: usize,
-    ) -> Result<Option<<S::Storage as AddressableStorage>::T>>
+    pub fn value_at<'a, S>(array: &'a Array, idx: usize) -> Result<Option<S::Type>>
     where
         S: PhysicalStorage<'a>,
     {

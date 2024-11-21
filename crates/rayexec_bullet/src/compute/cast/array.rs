@@ -229,7 +229,7 @@ fn decimal_rescale_helper<'a, S>(
 ) -> Result<Array>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: PrimInt,
+    S::Type: PrimInt,
 {
     match to {
         DataType::Decimal64(_) => decimal_rescale::<S, Decimal64Type>(arr, to, behavior),
@@ -246,7 +246,7 @@ pub fn decimal_rescale<'a, S, D>(
 where
     S: PhysicalStorage<'a>,
     D: DecimalType,
-    <S::Storage as AddressableStorage>::T: PrimInt,
+    S::Type: PrimInt,
     ArrayData: From<PrimitiveStorage<D::Primitive>>,
 {
     let new_meta = to.try_get_decimal_type_meta()?;
@@ -298,7 +298,7 @@ fn cast_float_to_decimal_helper<'a, S>(
 ) -> Result<Array>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: Float,
+    S::Type: Float,
 {
     match to {
         DataType::Decimal64(_) => cast_float_to_decimal::<S, Decimal64Type>(arr, to, behavior),
@@ -315,7 +315,7 @@ fn cast_float_to_decimal<'a, S, D>(
 where
     S: PhysicalStorage<'a>,
     D: DecimalType,
-    <S::Storage as AddressableStorage>::T: Float,
+    S::Type: Float,
     ArrayData: From<PrimitiveStorage<D::Primitive>>,
 {
     let decimal_meta = to.try_get_decimal_type_meta()?;
@@ -400,7 +400,7 @@ fn cast_int_to_decimal_helper<'a, S>(
 ) -> Result<Array>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: PrimInt,
+    S::Type: PrimInt,
 {
     match to {
         DataType::Decimal64(_) => cast_int_to_decimal::<S, Decimal64Type>(arr, to, behavior),
@@ -417,7 +417,7 @@ fn cast_int_to_decimal<'a, S, D>(
 where
     S: PhysicalStorage<'a>,
     D: DecimalType,
-    <S::Storage as AddressableStorage>::T: PrimInt,
+    S::Type: PrimInt,
     ArrayData: From<PrimitiveStorage<D::Primitive>>,
 {
     let decimal_meta = to.try_get_decimal_type_meta()?;
@@ -482,7 +482,7 @@ fn cast_primitive_numeric_helper<'a, S>(
 ) -> Result<Array>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: ToPrimitive,
+    S::Type: ToPrimitive,
 {
     match to {
         DataType::Int8 => cast_primitive_numeric::<S, i8>(arr, to, behavior),
@@ -509,7 +509,7 @@ pub fn cast_primitive_numeric<'a, S, T>(
 ) -> Result<Array>
 where
     S: PhysicalStorage<'a>,
-    <S::Storage as AddressableStorage>::T: ToPrimitive,
+    S::Type: ToPrimitive,
     T: NumCast + Default + Copy,
     ArrayData: From<PrimitiveStorage<T>>,
 {
@@ -653,7 +653,7 @@ fn cast_format<'a, S, F>(
 ) -> Result<Array>
 where
     S: PhysicalStorage<'a>,
-    F: Formatter<Type = <S::Storage as AddressableStorage>::T>,
+    F: Formatter<Type = S::Type>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
     let mut string_buf = String::new();

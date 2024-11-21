@@ -19,7 +19,7 @@ impl UniformExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(&[<S::Storage as AddressableStorage>::T], &mut OutputBuffer<B>),
+        Op: FnMut(&[S::Type], &mut OutputBuffer<B>),
         S: PhysicalStorage<'a>,
         B: ArrayDataBuffer,
     {

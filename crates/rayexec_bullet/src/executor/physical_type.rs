@@ -178,7 +178,9 @@ impl VarlenType for [u8] {
 /// Contains a lifetime to enable tying the returned storage to the provided
 /// array data.
 pub trait PhysicalStorage<'a> {
+    /// The type that gets returned from the underlying array storage.
     type Type;
+    /// The type of the underlying array storage.
     type Storage: AddressableStorage<T = Self::Type>;
 
     /// Gets the storage for the array that we can access directly.

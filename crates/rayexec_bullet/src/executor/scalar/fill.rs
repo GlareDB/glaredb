@@ -76,8 +76,7 @@ where
     where
         S: PhysicalStorage<'a>,
         I: IntoIterator<Item = FillMapping>,
-        <<S as PhysicalStorage<'a>>::Storage as AddressableStorage>::T:
-            Borrow<<B as ArrayDataBuffer>::Type>,
+        S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
     {
         let selection = array.selection_vector();
 
@@ -286,8 +285,7 @@ fn concat_with_fill_state<'a, S, B>(
 where
     S: PhysicalStorage<'a>,
     B: ArrayDataBuffer,
-    <<S as PhysicalStorage<'a>>::Storage as AddressableStorage>::T:
-        Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     let mut offset = 0;
 
@@ -462,8 +460,7 @@ fn interleave_with_fill_state<'a, S, B>(
 where
     S: PhysicalStorage<'a>,
     B: ArrayDataBuffer,
-    <<S as PhysicalStorage<'a>>::Storage as AddressableStorage>::T:
-        Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     for (idx, array) in arrays.iter().enumerate() {
         // Generates an iter that maps rows from the array we're currently on to

@@ -276,7 +276,7 @@ fn extract_inner<'a, S, B>(
 where
     S: PhysicalStorage<'a>,
     B: ArrayDataBuffer,
-    <S::Storage as AddressableStorage>::T: Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     let el_idx = el_idx as i32;
 
