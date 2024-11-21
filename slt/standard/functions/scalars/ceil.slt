@@ -1,0 +1,6 @@
+# ceil functions
+
+query R
+SELECT ceil(1.2);
+----
+2

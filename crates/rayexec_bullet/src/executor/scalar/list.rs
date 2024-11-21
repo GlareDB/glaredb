@@ -22,7 +22,7 @@ impl ListExecutor {
         mut builder: ArrayBuilder<B>,
     ) -> Result<Array>
     where
-        R: BinaryListReducer<<S::Storage as AddressableStorage>::T, B::Type>,
+        R: BinaryListReducer<S::Type, B::Type>,
         S: PhysicalStorage<'a>,
         B: ArrayDataBuffer,
         <B as ArrayDataBuffer>::Type: Sized,

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package rayexec.physical_type;
+
+enum PhysicalType {
+    INVALID_PHYSICAL_TYPE = 0;
+    UNTYPED_NULL          = 1;
+    BOOLEAN               = 2;
+    INT8                  = 3;
+    INT16                 = 4;
+    INT32                 = 5;
+    INT64                 = 6;
+    INT128                = 7;
+    UINT8                 = 8;
+    UINT16                = 9;
+    UINT32                = 10;
+    UINT64                = 11;
+    UINT128               = 12;
+    FLOAT16               = 13;
+    FLOAT32               = 14;
+    FLOAT64               = 15;
+    INTERVAL              = 16;
+    BINARY                = 17;
+    UTF8                  = 18;
+    LIST                  = 19;
+}

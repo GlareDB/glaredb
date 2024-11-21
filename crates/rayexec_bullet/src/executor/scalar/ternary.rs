@@ -23,12 +23,7 @@ impl TernaryExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(
-            <S1::Storage as AddressableStorage>::T,
-            <S2::Storage as AddressableStorage>::T,
-            <S3::Storage as AddressableStorage>::T,
-            &mut OutputBuffer<B>,
-        ),
+        Op: FnMut(S1::Type, S2::Type, S3::Type, &mut OutputBuffer<B>),
         S1: PhysicalStorage<'a>,
         S2: PhysicalStorage<'a>,
         S3: PhysicalStorage<'a>,

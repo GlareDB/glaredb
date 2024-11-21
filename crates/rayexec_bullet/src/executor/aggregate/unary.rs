@@ -19,7 +19,7 @@ impl UnaryNonNullUpdater {
     where
         S: PhysicalStorage<'a>,
         I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<<S::Storage as AddressableStorage>::T, Output>,
+        State: AggregateState<S::Type, Output>,
     {
         let selection = array.selection_vector();
 

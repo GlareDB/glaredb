@@ -15,7 +15,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::CatalogEntryType;
+use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
 use crate::storage::table_storage::{
@@ -70,6 +70,73 @@ impl SystemFunctionImpl for ListDatabasesImpl {
         Batch::try_new([
             Array::new_with_array_data(DataType::Utf8, database_names.into_data()),
             Array::new_with_array_data(DataType::Utf8, datasources.into_data()),
+        ])
+    }
+}
+
+pub type ListFunctions = SystemFunction<ListFunctionsImpl>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListFunctionsImpl;
+
+impl SystemFunctionImpl for ListFunctionsImpl {
+    const NAME: &'static str = "list_functions";
+
+    fn schema() -> Schema {
+        Schema::new([
+            Field::new("database_name", DataType::Utf8, false),
+            Field::new("schema_name", DataType::Utf8, false),
+            Field::new("function_name", DataType::Utf8, false),
+            Field::new("function_type", DataType::Utf8, false),
+        ])
+    }
+
+    fn new_batch(
+        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+    ) -> Result<Batch> {
+        let database = databases.pop_front().required("database")?;
+
+        let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
+        let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
+        let mut function_names = GermanVarlenStorage::with_metadata_capacity(0);
+        let mut function_types = GermanVarlenStorage::with_metadata_capacity(0);
+
+        let tx = &CatalogTx {};
+
+        database.1.for_each_schema(tx, &mut |schema_name, schema| {
+            schema.for_each_entry(tx, &mut |_, entry| {
+                match &entry.entry {
+                    CatalogEntryInner::ScalarFunction(_) => {
+                        database_names.try_push(database.0.as_bytes())?;
+                        schema_names.try_push(schema_name.as_bytes())?;
+                        function_names.try_push(entry.name.as_bytes())?;
+                        function_types.try_push("scalar".as_bytes())?;
+                    }
+                    CatalogEntryInner::AggregateFunction(_) => {
+                        database_names.try_push(database.0.as_bytes())?;
+                        schema_names.try_push(schema_name.as_bytes())?;
+                        function_names.try_push(entry.name.as_bytes())?;
+                        function_types.try_push("aggregate".as_bytes())?;
+                    }
+                    CatalogEntryInner::TableFunction(_) => {
+                        database_names.try_push(database.0.as_bytes())?;
+                        schema_names.try_push(schema_name.as_bytes())?;
+                        function_names.try_push(entry.name.as_bytes())?;
+                        function_types.try_push("table".as_bytes())?;
+                    }
+                    _ => (),
+                }
+
+                Ok(())
+            })?;
+            Ok(())
+        })?;
+
+        Batch::try_new([
+            Array::new_with_array_data(DataType::Utf8, database_names),
+            Array::new_with_array_data(DataType::Utf8, schema_names),
+            Array::new_with_array_data(DataType::Utf8, function_names),
+            Array::new_with_array_data(DataType::Utf8, function_types),
         ])
     }
 }

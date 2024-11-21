@@ -4,6 +4,10 @@ pub mod schema {
     include!(concat!(env!("OUT_DIR"), "/rayexec.schema.rs"));
 }
 
+pub mod physical_type {
+    include!(concat!(env!("OUT_DIR"), "/rayexec.physical_type.rs"));
+}
+
 pub mod array {
     include!(concat!(env!("OUT_DIR"), "/rayexec.array.rs"));
 }

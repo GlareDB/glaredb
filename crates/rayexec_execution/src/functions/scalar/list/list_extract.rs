@@ -33,7 +33,6 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUtf8,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
@@ -276,7 +275,7 @@ fn extract_inner<'a, S, B>(
 where
     S: PhysicalStorage<'a>,
     B: ArrayDataBuffer,
-    <S::Storage as AddressableStorage>::T: Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     let el_idx = el_idx as i32;
 

@@ -94,6 +94,13 @@ pub trait FunctionInfo {
         &[]
     }
 
+    /// A description for the function.
+    ///
+    /// Defaults to an empty string.
+    fn description(&self) -> &'static str {
+        ""
+    }
+
     /// Signature for the function.
     ///
     /// This is used during binding/planning to determine the return type for a

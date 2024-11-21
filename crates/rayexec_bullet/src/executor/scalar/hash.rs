@@ -116,7 +116,7 @@ impl HashExecutor {
     fn hash_one_no_combine<'a, 'b, S>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
     where
         S: PhysicalStorage<'a>,
-        <S::Storage as AddressableStorage>::T: HashValue,
+        S::Type: HashValue,
     {
         let selection = array.selection_vector();
 
@@ -152,7 +152,7 @@ impl HashExecutor {
     fn hash_one_combine<'a, 'b, S>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
     where
         S: PhysicalStorage<'a>,
-        <S::Storage as AddressableStorage>::T: HashValue,
+        S::Type: HashValue,
     {
         let selection = array.selection_vector();
 

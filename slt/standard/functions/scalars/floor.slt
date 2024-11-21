@@ -1,0 +1,6 @@
+# floor function
+
+query R
+SELECT floor(1.2);
+----
+1
