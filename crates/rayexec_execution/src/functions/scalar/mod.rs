@@ -46,8 +46,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(comparison::Gt),
         Box::new(comparison::GtEq),
         // Numeric
-        Box::new(numeric::Ceil),
-        Box::new(numeric::Floor),
+        Box::new(numeric::Ceil::new()),
+        Box::new(numeric::Floor::new()),
         Box::new(numeric::IsNan),
         // String
         Box::new(string::Repeat),
