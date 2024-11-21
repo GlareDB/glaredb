@@ -2106,6 +2106,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_iceberg"
+version = "0.0.76"
+dependencies = [
+ "bytes",
+ "futures",
+ "parquet",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "rayexec_proto",
+ "regex",
+ "serde",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "rayexec_io"
 version = "0.0.76"
 dependencies = [

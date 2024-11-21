@@ -1,0 +1,18 @@
+[package]
+name = "rayexec_iceberg"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_proto = { path = '../rayexec_proto' }
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_error = { path = '../rayexec_error' }
+rayexec_io = { path = '../rayexec_io' }
+parquet = { path = '../parquet' }
+futures = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+url = { workspace = true }
+bytes = { workspace = true }
+serde = { workspace = true }
