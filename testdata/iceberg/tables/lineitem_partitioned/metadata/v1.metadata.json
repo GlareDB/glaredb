@@ -1,0 +1,148 @@
+{
+  "format-version" : 2,
+  "table-uuid" : "bd20ac46-e49e-477f-9555-b3f08e4516a7",
+  "location" : "./iceberg/tables/lineitem_partitioned",
+  "last-sequence-number" : 1,
+  "last-updated-ms" : 1690903622953,
+  "last-column-id" : 16,
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "l_orderkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 2,
+      "name" : "l_partkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 3,
+      "name" : "l_suppkey",
+      "required" : false,
+      "type" : "long"
+    }, {
+      "id" : 4,
+      "name" : "l_linenumber",
+      "required" : false,
+      "type" : "int"
+    }, {
+      "id" : 5,
+      "name" : "l_quantity",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 6,
+      "name" : "l_extendedprice",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 7,
+      "name" : "l_discount",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 8,
+      "name" : "l_tax",
+      "required" : false,
+      "type" : "decimal(15, 2)"
+    }, {
+      "id" : 9,
+      "name" : "l_returnflag",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 10,
+      "name" : "l_linestatus",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 11,
+      "name" : "l_shipdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 12,
+      "name" : "l_commitdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 13,
+      "name" : "l_receiptdate",
+      "required" : false,
+      "type" : "date"
+    }, {
+      "id" : 14,
+      "name" : "l_shipinstruct",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 15,
+      "name" : "l_shipmode",
+      "required" : false,
+      "type" : "string"
+    }, {
+      "id" : 16,
+      "name" : "l_comment",
+      "required" : false,
+      "type" : "string"
+    } ]
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ {
+      "name" : "l_shipmode",
+      "transform" : "identity",
+      "source-id" : 15,
+      "field-id" : 1000
+    } ]
+  } ],
+  "last-partition-id" : 1000,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "owner" : "sean",
+    "write.update.mode" : "merge-on-read"
+  },
+  "current-snapshot-id" : 382600614106034542,
+  "refs" : {
+    "main" : {
+      "snapshot-id" : 382600614106034542,
+      "type" : "branch"
+    }
+  },
+  "snapshots" : [ {
+    "sequence-number" : 1,
+    "snapshot-id" : 382600614106034542,
+    "timestamp-ms" : 1690903622953,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1690903619201",
+      "added-data-files" : "7",
+      "added-records" : "1000",
+      "added-files-size" : "73742",
+      "changed-partition-count" : "7",
+      "total-records" : "1000",
+      "total-files-size" : "73742",
+      "total-data-files" : "7",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "iceberg/tables/lineitem_partitioned/metadata/snap-382600614106034542-1-539c8aca-b6da-4d13-85ee-135dab23c909.avro",
+    "schema-id" : 0
+  } ],
+  "statistics" : [ ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1690903622953,
+    "snapshot-id" : 382600614106034542
+  } ],
+  "metadata-log" : [ ]
+}
