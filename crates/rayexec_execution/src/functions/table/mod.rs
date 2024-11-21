@@ -16,7 +16,7 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 use series::GenerateSeries;
-use system::{ListDatabases, ListSchemas, ListTables};
+use system::{ListDatabases, ListFunctions, ListSchemas, ListTables};
 
 use crate::database::DatabaseContext;
 use crate::logical::statistics::StatisticsValue;
@@ -29,6 +29,7 @@ pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::ne
         Box::new(ListDatabases::new()),
         Box::new(ListSchemas::new()),
         Box::new(ListTables::new()),
+        Box::new(ListFunctions::new()),
     ]
 });
 

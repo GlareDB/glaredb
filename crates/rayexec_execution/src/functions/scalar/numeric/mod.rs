@@ -1,14 +1,33 @@
 mod abs;
+mod acos;
+mod asin;
+mod atan;
+mod cbrt;
 mod ceil;
+mod cos;
+mod exp;
 mod floor;
 mod isnan;
+mod ln;
+mod log;
+mod sin;
+mod sqrt;
+mod tan;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 pub use abs::*;
+pub use acos::*;
+pub use asin::*;
+pub use atan::*;
+pub use cbrt::*;
 pub use ceil::*;
+pub use cos::*;
+pub use exp::*;
 pub use floor::*;
 pub use isnan::*;
+pub use ln::*;
+pub use log::*;
 use num_traits::Float;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -23,6 +42,9 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
+pub use sin::*;
+pub use sqrt::*;
+pub use tan::*;
 
 use super::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{
