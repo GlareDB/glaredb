@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
@@ -74,8 +74,7 @@ impl<'a> SelectExprExpander<'a> {
         expr: ast::SelectExpr<ResolvedMeta>,
     ) -> Result<Vec<ExpandedSelectExpr>> {
         Ok(match expr {
-            ast::SelectExpr::Wildcard(_wildcard) => {
-                // TODO: Exclude, replace
+            ast::SelectExpr::Wildcard(modifier) => {
                 let mut exprs = Vec::new();
 
                 // Handle USING columns. Expanding a SELECT * query that
@@ -114,10 +113,11 @@ impl<'a> SelectExprExpander<'a> {
                     }
                 }
 
+                Self::exclude_and_replace_cols(&mut exprs, modifier)?;
+
                 exprs
             }
-            ast::SelectExpr::QualifiedWildcard(reference, _wildcard) => {
-                // TODO: Exclude, replace
+            ast::SelectExpr::QualifiedWildcard(reference, modifier) => {
                 if reference.0.len() > 1 {
                     return Err(RayexecError::new(
                         "Qualified wildcard references with more than one ident not yet supported",
@@ -156,6 +156,8 @@ impl<'a> SelectExprExpander<'a> {
                     })
                 }
 
+                Self::exclude_and_replace_cols(&mut exprs, modifier)?;
+
                 exprs
             }
             ast::SelectExpr::AliasedExpr(expr, alias) => {
@@ -168,6 +170,88 @@ impl<'a> SelectExprExpander<'a> {
                 vec![ExpandedSelectExpr::Expr { expr, alias: None }]
             }
         })
+    }
+
+    fn exclude_and_replace_cols(
+        exprs: &mut Vec<ExpandedSelectExpr>,
+        modifier: ast::WildcardModifier<ResolvedMeta>,
+    ) -> Result<()> {
+        // Handles exclusion first, then replace. Attempting to replace a column
+        // that's been excluded should error.
+
+        // Normalizes excluded columns, includes a boolean to track if we
+        // visited this column.
+        //
+        // We do not allow users to exlude columns that don't exist in the output, so
+        // error if any of the exluded columns aren't visited.
+        let mut normalized_excluded: HashMap<String, bool> = modifier
+            .exclude_cols
+            .into_iter()
+            .map(|ident| (ident.into_normalized_string(), false))
+            .collect();
+
+        exprs.retain(|expr| {
+            if let ExpandedSelectExpr::Column { name, .. } = expr {
+                if let Some(visited) = normalized_excluded.get_mut(name) {
+                    // Column excluded.
+                    *visited = true;
+                    return false; // Don't retain.
+                }
+            }
+            true
+        });
+
+        for (name, visited) in normalized_excluded {
+            if !visited {
+                return Err(RayexecError::new(format!(
+                    "Column \"{name}\" was in EXCLUDE list, but it's not a column being returned"
+                )));
+            }
+        }
+
+        // Like above, we track if we've visited a replacement column, and error
+        // if we don't.
+        let mut normalized_replaces: HashMap<String, (ast::Expr<ResolvedMeta>, bool)> = modifier
+            .replace_cols
+            .into_iter()
+            .map(|replacement| {
+                (
+                    replacement.col.into_normalized_string(),
+                    (replacement.expr, false),
+                )
+            })
+            .collect();
+
+        for expr in exprs {
+            if let ExpandedSelectExpr::Column { name, .. } = expr {
+                if let Some((ast_expr, visited)) = normalized_replaces.get_mut(name) {
+                    // Column should be replaced, just clone the replacement ast
+                    // expr.
+                    //
+                    // While we may end up replacing multiple cols with the same
+                    // ast expr, we don't want to check for that here. It'll
+                    // eventually go through the same ambiguity/duplicate name
+                    // checks during planning.
+                    *expr = ExpandedSelectExpr::Expr {
+                        expr: ast_expr.clone(),
+                        alias: Some(name.clone()),
+                    };
+
+                    // Mark visited.
+                    *visited = true;
+                }
+            }
+        }
+
+        for (name, (_, visited)) in normalized_replaces {
+            if !visited {
+                return Err(RayexecError::new(format!(
+                    "Column \"{name}\" was in REPLACE list, but it's not a column being returned"
+                )));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -221,7 +305,10 @@ mod tests {
 
         let expander = SelectExprExpander::new(bind_context.root_scope_ref(), &bind_context);
 
-        let exprs = vec![ast::SelectExpr::Wildcard(ast::Wildcard::default())];
+        let exprs = vec![ast::SelectExpr::Wildcard(ast::WildcardModifier {
+            exclude_cols: Vec::new(),
+            replace_cols: Vec::new(),
+        })];
 
         let expected = vec![
             ExpandedSelectExpr::Column {
@@ -279,7 +366,10 @@ mod tests {
         // Expand just 't1'
         let exprs = vec![ast::SelectExpr::QualifiedWildcard(
             ObjectReference(vec![ast::Ident::from_string("t1")]),
-            ast::Wildcard::default(),
+            ast::WildcardModifier {
+                exclude_cols: Vec::new(),
+                replace_cols: Vec::new(),
+            },
         )];
 
         let expected = vec![
