@@ -61,7 +61,7 @@ impl Table {
                     hint_str
                 };
 
-                root.join([format!("metadata/v{}.metadata.json", line)])?
+                root.join(["metadata", &format!("v{}.metadata.json", line)])?
             }
             Err(_) => {
                 // TODO: This could error for a variety of reasons, current just
@@ -70,7 +70,7 @@ impl Table {
                 // List all the metadata files and try to get the one with the
                 // latest version.
 
-                let prefix = root.join(["metadata/"])?;
+                let prefix = root.join(["metadata"])?;
                 let mut metadata_stream = provider.list_prefix(prefix, &conf);
 
                 let (mut latest, mut latest_rel_path) = (0_u32, None);
@@ -152,17 +152,33 @@ impl Table {
 
         for (idx, data_file) in data_files_iter.enumerate() {
             // TODO: More formats?
-            if data_file.file_format != "parquet" {
-                return Err(RayexecError::new(
-                    "'parquet' format currently the only supported file format for Iceberg",
-                ));
+            if !data_file.file_format.eq_ignore_ascii_case("parquet") {
+                return Err(RayexecError::new( format!(
+                    "'parquet' format currently the only supported file format for Iceberg, got '{}'", data_file.file_format,
+                )));
             }
 
             let partition = idx % num_partitions;
             partitioned_files[partition].push_back(data_file.clone());
         }
 
-        unimplemented!()
+        let schema = self.schema()?;
+
+        let scans = partitioned_files
+            .into_iter()
+            .map(|files| TableScan {
+                root: self.root.clone(),
+                resolver: self.resolver.clone(),
+                schema: schema.clone(),
+                projections: projections.clone(),
+                files,
+                provider: self.provider.clone(),
+                conf: self.conf.clone(),
+                current: None,
+            })
+            .collect();
+
+        Ok(scans)
     }
 
     pub fn schema(&self) -> Result<Schema> {
@@ -245,6 +261,8 @@ impl Table {
 pub struct TableScan {
     /// Root of the table.
     root: FileLocation,
+    /// Relative path resolver.
+    resolver: PathResolver,
     /// Output schema of the table.
     schema: Schema,
     /// Column projections.
@@ -269,9 +287,12 @@ impl TableScan {
                     None => return Ok(None), // We're done
                 };
 
-                // TODO: Spec says the file path is the full path, tbd if that's
-                // actually the case.
-                let location = self.root.join([file.file_path])?;
+                // Get the path of the file relative to the path in the tabl's
+                // metadata. This let's us do the path join below without any
+                // issue as it'll already have the root in it.
+                let path = self.resolver.relative_path(&file.file_path);
+
+                let location = self.root.join([path])?;
 
                 self.current = Some(
                     Self::load_reader(

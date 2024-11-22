@@ -54,6 +54,7 @@ pub struct ManifestListEntry {
     pub deleted_rows_count: i64,
     pub partitions: Vec<FieldSummary>,
     #[serde(with = "serde_bytes")]
+    #[serde(default)]
     pub key_metadata: Option<Vec<u8>>,
 }
 
@@ -95,8 +96,10 @@ pub struct FieldSummary {
     pub contains_null: bool,
     pub contains_nan: bool,
     #[serde(with = "serde_bytes")]
+    #[serde(default)]
     pub lower_bound: Option<Vec<u8>>,
     #[serde(with = "serde_bytes")]
+    #[serde(default)]
     pub upper_bound: Option<Vec<u8>>,
 }
 
@@ -282,6 +285,7 @@ pub struct DataFile {
     pub lower_bounds: Option<Vec<BinaryEntry>>,
     pub upper_bounds: Option<Vec<BinaryEntry>>,
     #[serde(with = "serde_bytes")]
+    #[serde(default)]
     pub key_metadata: Option<Vec<u8>>,
     pub split_offsets: Option<Vec<i64>>,
     pub equality_ids: Option<Vec<i32>>,
