@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use rayexec_execution::runtime::Runtime;
@@ -34,15 +34,16 @@ impl<R: Runtime> TableFunction for ReadIceberg<R> {
         Box::pin(async move { ReadIcebergImpl::initialize(self.clone(), args).await })
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
-        unimplemented!()
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+        // TODO
+        not_implemented!("decode iceberg state")
     }
 }
 
 #[derive(Debug, Clone)]
 struct ReadIcebergState {
-    location: FileLocation,
-    conf: AccessConfig,
+    _location: FileLocation,
+    _conf: AccessConfig,
     schema: Schema,
     table: Option<Arc<Table>>, // Populate on re-init if needed.
 }
@@ -61,14 +62,15 @@ impl<R: Runtime> ReadIcebergImpl<R> {
         let (location, conf) = args.try_location_and_access_config()?;
         let provider = func.runtime.file_provider();
 
+        // TODO: Fetch stats, use during planning.
         let table = Table::load(location.clone(), provider, conf.clone()).await?;
         let schema = table.schema()?;
 
         Ok(Box::new(ReadIcebergImpl {
             func,
             state: ReadIcebergState {
-                location,
-                conf,
+                _location: location,
+                _conf: conf,
                 schema,
                 table: Some(Arc::new(table)),
             },
@@ -79,15 +81,15 @@ impl<R: Runtime> ReadIcebergImpl<R> {
 impl<R: Runtime> PlannedTableFunction for ReadIcebergImpl<R> {
     fn reinitialize(&self) -> BoxFuture<Result<()>> {
         // TODO: See delta
-        unimplemented!()
+        Box::pin(async move { not_implemented!("reinit iceberg state") })
     }
 
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
     }
 
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        unimplemented!()
+    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
+        not_implemented!("encode iceberg state")
     }
 
     fn schema(&self) -> Schema {

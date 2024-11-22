@@ -19,7 +19,13 @@ pub fn main() -> Result<()> {
             let executor = executor.clone();
             let rt = rt.clone();
             async move {
-                let vars = ReplacementVars::default();
+                let aws_key = VarValue::sensitive_from_env("AWS_KEY");
+                let aws_secret = VarValue::sensitive_from_env("AWS_SECRET");
+
+                let mut vars = ReplacementVars::default();
+                vars.add_var("AWS_KEY", aws_key);
+                vars.add_var("AWS_SECRET", aws_secret);
+
                 let engine = SingleUserEngine::try_new(
                     executor.clone(),
                     rt.clone(),

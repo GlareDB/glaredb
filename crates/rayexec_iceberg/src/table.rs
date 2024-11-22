@@ -23,8 +23,6 @@ use crate::spec::{
     TableMetadata,
 };
 
-const VERSION_HINT_PATH: &'static str = "metadata/version-hint.text";
-
 #[derive(Debug)]
 pub struct Table {
     /// Root of the table.
@@ -47,7 +45,7 @@ impl Table {
         provider: Arc<dyn FileProvider>,
         conf: AccessConfig,
     ) -> Result<Self> {
-        let hint_path = root.join([VERSION_HINT_PATH])?;
+        let hint_path = root.join(["metadata", "version-hint.text"])?;
 
         let version_path = match provider.file_source(hint_path, &conf) {
             Ok(mut src) => {
@@ -99,7 +97,7 @@ impl Table {
                     RayexecError::new(format!("No valid iceberg tables in root '{root}'"))
                 })?;
 
-                root.join([rel_path])?
+                root.join(rel_path.split('/'))?
             }
         };
 
@@ -204,7 +202,7 @@ impl Table {
         for ent in list.entries {
             let manifest_path = self.resolver.relative_path(&ent.manifest_path);
 
-            let path = self.root.join([manifest_path])?;
+            let path = self.root.join(manifest_path.split('/'))?;
             let bs = self
                 .provider
                 .file_source(path, &self.conf)?
@@ -224,7 +222,7 @@ impl Table {
         let current_snapshot = self.current_snapshot()?;
         let manifest_list_path = self.resolver.relative_path(&current_snapshot.manifest_list);
 
-        let path = self.root.join([manifest_list_path])?;
+        let path = self.root.join(manifest_list_path.split('/'))?;
         let bs = self
             .provider
             .file_source(path, &self.conf)?
@@ -292,7 +290,7 @@ impl TableScan {
                 // issue as it'll already have the root in it.
                 let path = self.resolver.relative_path(&file.file_path);
 
-                let location = self.root.join([path])?;
+                let location = self.root.join(path.split('/'))?;
 
                 self.current = Some(
                     Self::load_reader(

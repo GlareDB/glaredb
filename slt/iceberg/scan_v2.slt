@@ -3,6 +3,26 @@
 # All tables were created from a source parquet file consisting of a 1000
 # records.
 
+query TT
+DESCRIBE iceberg_scan('../testdata/iceberg/tables/lineitem_simple_longversion');
+----
+l_orderkey       Int64
+l_partkey        Int64
+l_suppkey        Int64
+l_linenumber     Int32
+l_quantity       Decimal128(15,2)
+l_extendedprice  Decimal128(15,2)
+l_discount       Decimal128(15,2)
+l_tax            Decimal128(15,2)
+l_returnflag     Utf8
+l_linestatus     Utf8
+l_shipdate       Date32
+l_commitdate     Date32
+l_receiptdate    Date32
+l_shipinstruct   Utf8
+l_shipmode       Utf8
+l_comment        Utf8
+
 # We should be able to query a table with version number longer than i32 limit.
 #
 # See: https://github.com/GlareDB/glaredb/issues/2277
