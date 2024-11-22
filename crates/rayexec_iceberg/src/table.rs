@@ -80,8 +80,7 @@ impl Table {
                         // Extract version 43 from "v43.metadata.json"
                         if let Some(vers) = rel_path
                             .strip_prefix("v")
-                            .map(|s| s.strip_suffix(".metadata.json"))
-                            .flatten()
+                            .and_then(|s| s.strip_suffix(".metadata.json"))
                         {
                             if let Ok(vers) = vers.parse::<u32>() {
                                 if vers > latest {

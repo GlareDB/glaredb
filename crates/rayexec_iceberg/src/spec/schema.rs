@@ -63,7 +63,7 @@ impl TryFrom<PrimitiveType> for DataType {
             PrimitiveType::Timestamptz => not_implemented!("Timestamp with timezone"),
             PrimitiveType::String => DataType::Utf8,
             PrimitiveType::Uuid => DataType::Utf8,
-            PrimitiveType::Fixed(l) => not_implemented!("Fixed sized binary"),
+            PrimitiveType::Fixed(_) => not_implemented!("Fixed sized binary"),
             PrimitiveType::Binary => DataType::Binary,
         })
     }
@@ -228,7 +228,7 @@ pub struct StructType {
 impl TryFrom<&StructType> for DataType {
     type Error = RayexecError;
 
-    fn try_from(value: &StructType) -> Result<Self> {
+    fn try_from(_value: &StructType) -> Result<Self> {
         Err(RayexecError::new("Iceberg struct type not yet implemented"))
         // let fields = value
         //     .fields
