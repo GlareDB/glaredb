@@ -98,7 +98,7 @@ impl<'a> SelectExprExpander<'a> {
 
                 for table in self.bind_context.iter_tables(self.current)? {
                     for (col_idx, name) in table.column_names.iter().enumerate() {
-                        // If column is already added from USING or EXLUDE, skip it.
+                        // If column is already added from USING, skip it.
                         if handled.contains(name) {
                             continue;
                         }
