@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use rayexec_error::{RayexecError, Result};
-use rayexec_parser::ast::{self, modifiers};
+use rayexec_parser::ast;
 
 use crate::expr::column_expr::ColumnExpr;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableAlias};
@@ -113,7 +113,7 @@ impl<'a> SelectExprExpander<'a> {
                     }
                 }
 
-                Self::exlude_cols(&mut exprs, modifier)?;
+                Self::exclude_and_replace_cols(&mut exprs, modifier)?;
 
                 exprs
             }
@@ -156,7 +156,7 @@ impl<'a> SelectExprExpander<'a> {
                     })
                 }
 
-                Self::exlude_cols(&mut exprs, modifier)?;
+                Self::exclude_and_replace_cols(&mut exprs, modifier)?;
 
                 exprs
             }
@@ -172,10 +172,13 @@ impl<'a> SelectExprExpander<'a> {
         })
     }
 
-    fn exlude_cols(
+    fn exclude_and_replace_cols(
         exprs: &mut Vec<ExpandedSelectExpr>,
         modifier: ast::WildcardModifier<ResolvedMeta>,
     ) -> Result<()> {
+        // Handles exclusion first, then replace. Attempting to replace a column
+        // that's been excluded should error.
+
         // Normalizes excluded columns, includes a boolean to track if we
         // visited this column.
         //
@@ -202,6 +205,48 @@ impl<'a> SelectExprExpander<'a> {
             if !visited {
                 return Err(RayexecError::new(format!(
                     "Column \"{name}\" was in EXCLUDE list, but it's not a column being returned"
+                )));
+            }
+        }
+
+        // Like above, we track if we've visited a replacement column, and error
+        // if we don't.
+        let mut normalized_replaces: HashMap<String, (ast::Expr<ResolvedMeta>, bool)> = modifier
+            .replace_cols
+            .into_iter()
+            .map(|replacement| {
+                (
+                    replacement.col.into_normalized_string(),
+                    (replacement.expr, false),
+                )
+            })
+            .collect();
+
+        for expr in exprs {
+            if let ExpandedSelectExpr::Column { name, .. } = expr {
+                if let Some((ast_expr, visited)) = normalized_replaces.get_mut(name) {
+                    // Column should be replaced, just clone the replacement ast
+                    // expr.
+                    //
+                    // While we may end up replacing multiple cols with the same
+                    // ast expr, we don't want to check for that here. It'll
+                    // eventually go through the same ambiguity/duplicate name
+                    // checks during planning.
+                    *expr = ExpandedSelectExpr::Expr {
+                        expr: ast_expr.clone(),
+                        alias: Some(name.clone()),
+                    };
+
+                    // Mark visited.
+                    *visited = true;
+                }
+            }
+        }
+
+        for (name, (_, visited)) in normalized_replaces {
+            if !visited {
+                return Err(RayexecError::new(format!(
+                    "Column \"{name}\" was in REPLACE list, but it's not a column being returned"
                 )));
             }
         }

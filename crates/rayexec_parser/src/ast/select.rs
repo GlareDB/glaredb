@@ -128,25 +128,28 @@ pub struct WildcardModifier<T: AstMeta> {
     ///
     /// `SELECT * REPLACE (col1 / 100 AS col1) ...`
     pub replace_cols: Vec<ReplaceColumn<T>>,
-    // TODO: `SELECT COLUMNS(...)`
 }
 
 impl AstParseable for WildcardModifier<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
-        match parser.parse_one_of_keywords(&[Keyword::EXCEPT, Keyword::EXCLUDE]) {
+        let exclude_cols = match parser.parse_one_of_keywords(&[Keyword::EXCEPT, Keyword::EXCLUDE])
+        {
             Some(Keyword::EXCEPT) | Some(Keyword::EXCLUDE) => {
-                let cols = parser.parse_parenthesized_comma_separated(Ident::parse)?;
-
-                Ok(WildcardModifier {
-                    exclude_cols: cols,
-                    replace_cols: Vec::new(),
-                })
+                parser.parse_parenthesized_comma_separated(Ident::parse)?
             }
-            _ => Ok(WildcardModifier {
-                exclude_cols: Vec::new(),
-                replace_cols: Vec::new(),
-            }),
-        }
+            _ => Vec::new(),
+        };
+
+        let replace_cols = if parser.parse_keyword(Keyword::REPLACE) {
+            parser.parse_parenthesized_comma_separated(ReplaceColumn::parse)?
+        } else {
+            Vec::new()
+        };
+
+        Ok(WildcardModifier {
+            exclude_cols,
+            replace_cols,
+        })
     }
 }
 
@@ -233,6 +236,18 @@ impl AstParseable for WildcardExpr<Raw> {
 pub struct ReplaceColumn<T: AstMeta> {
     pub col: Ident,
     pub expr: Expr<T>,
+}
+
+impl AstParseable for ReplaceColumn<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        let expr = Expr::parse(parser)?;
+        let alias = match parser.parse_alias(RESERVED_FOR_COLUMN_ALIAS)? {
+            Some(alias) => alias,
+            None => return Err(RayexecError::new("REPLACE requires column name")),
+        };
+
+        Ok(ReplaceColumn { col: alias, expr })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

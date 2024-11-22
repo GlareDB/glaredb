@@ -168,10 +168,10 @@ impl TableAlias {
 impl fmt::Display for TableAlias {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(database) = &self.database {
-            write!(f, "{database}")?;
+            write!(f, "{database}.")?;
         }
         if let Some(schema) = &self.schema {
-            write!(f, "{schema}")?;
+            write!(f, "{schema}.")?;
         }
         write!(f, "{}", self.table)
     }
