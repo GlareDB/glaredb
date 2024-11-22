@@ -1,0 +1,34 @@
+# read_iceberg from s3
+
+query TT
+DESCRIBE iceberg_scan(
+  's3://glaredb-test/iceberg/tables/lineitem_simple',
+  region='us-east-1', key_id='__AWS_KEY__', secret='__AWS_SECRET__'
+);
+----
+l_orderkey       Int64
+l_partkey        Int64
+l_suppkey        Int64
+l_linenumber     Int32
+l_quantity       Decimal128(15,2)
+l_extendedprice  Decimal128(15,2)
+l_discount       Decimal128(15,2)
+l_tax            Decimal128(15,2)
+l_returnflag     Utf8
+l_linestatus     Utf8
+l_shipdate       Date32
+l_commitdate     Date32
+l_receiptdate    Date32
+l_shipinstruct   Utf8
+l_shipmode       Utf8
+l_comment        Utf8
+
+query T
+select count(*) = 1000
+  from read_iceberg(
+    's3://glaredb-test/iceberg/tables/lineitem_simple',
+    region='us-east-1', key_id='__AWS_KEY__', secret='__AWS_SECRET__'
+  );
+----
+true
+

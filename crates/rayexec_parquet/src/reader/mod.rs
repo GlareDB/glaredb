@@ -88,6 +88,11 @@ where
         (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),
+        (DataType::Decimal128(_), PhysicalType::INT64) => {
+            Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
         (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
             batch_size, datatype, desc,
         ))),

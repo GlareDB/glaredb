@@ -10,7 +10,6 @@ use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
-use serde::{Deserialize, Serialize};
 
 use crate::datatable::DeltaDataTable;
 use crate::protocol::table::Table;
@@ -45,12 +44,11 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 struct ReadDeltaState {
     location: FileLocation,
     conf: AccessConfig,
     schema: Schema,
-    #[serde(skip)]
     table: Option<Arc<Table>>, // Populate on re-init if needed.
 }
 
