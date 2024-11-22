@@ -830,7 +830,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.76"
+version = "0.0.77"
 
 [[package]]
 name = "fnv"
@@ -1450,7 +1450,7 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "logutil"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1700,7 +1700,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -2053,7 +2053,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "clap",
  "crossterm",
@@ -2075,7 +2075,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "ahash",
  "bytes",
@@ -2092,7 +2092,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "csv",
@@ -2112,7 +2112,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_debug"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "futures",
@@ -2130,7 +2130,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_delta"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -2151,7 +2151,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "erased-serde",
  "serde",
@@ -2159,7 +2159,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "ahash",
  "chrono",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_iceberg"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "apache-avro",
  "bytes",
@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "chrono",
@@ -2240,7 +2240,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -2259,7 +2259,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -2271,7 +2271,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "erased-serde",
  "futures",
@@ -2286,7 +2286,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_proto"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "prost",
  "prost-build",
@@ -2296,7 +2296,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_python"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2316,7 +2316,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "futures",
@@ -2335,7 +2335,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "axum",
  "clap",
@@ -2357,7 +2357,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2372,7 +2372,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "async-trait",
  "crossterm",
@@ -2393,7 +2393,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -3014,7 +3014,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.76"
+version = "0.0.77"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
