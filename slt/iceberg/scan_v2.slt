@@ -1,0 +1,65 @@
+# Iceberg scan for v2 format.
+#
+# All tables were created from a source parquet file consisting of a 1000
+# records.
+
+# We should be able to query a table with version number longer than i32 limit.
+#
+# See: https://github.com/GlareDB/glaredb/issues/2277
+query T
+select count(*) = 1000
+  from iceberg_scan('../testdata/iceberg/tables/lineitem_simple_longversion');
+----
+true
+
+query T
+select count(*) = 1000
+  from read_iceberg('../testdata/iceberg/tables/lineitem_simple_longversion');
+----
+true
+
+query T
+select count(*) = 1000 from iceberg_scan('../testdata/iceberg/tables-v2/lineitem_simple');
+----
+true
+
+query T
+select count(*) = 1000 from iceberg_scan('../testdata/iceberg/tables-v2/lineitem_partitioned');
+----
+true
+
+# Note that this table has twice as many records since creating the second
+# version of the table was from inserting the source data again.
+query T
+select count(*) = 2000 from iceberg_scan('../testdata/iceberg/tables-v2/lineitem_versioned');
+----
+true
+
+query TI
+select l_shipmode, count(*)
+  from iceberg_scan('../testdata/iceberg/tables-v2/lineitem_simple')
+  group by l_shipmode
+  order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132
+
+query TI
+select l_shipmode, count(*)
+  from iceberg_scan('../testdata/iceberg/tables-v2/lineitem_partitioned')
+  group by l_shipmode
+  order by l_shipmode;
+----
+AIR        143
+FOB        136
+MAIL       144
+RAIL       130
+REG AIR    157
+SHIP       158
+TRUCK      132
+

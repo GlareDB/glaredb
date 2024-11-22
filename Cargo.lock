@@ -3022,6 +3022,7 @@ dependencies = [
  "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_iceberg",
  "rayexec_parquet",
  "rayexec_postgres",
  "rayexec_rt_native",

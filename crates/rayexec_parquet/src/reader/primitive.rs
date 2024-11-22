@@ -61,6 +61,11 @@ where
             None => None,
         };
 
+        // The build type for the array may differ than the desired output data
+        // type.
+        //
+        // E.g. we may need to convert physical INT64 -> Decimal128. If that
+        // happens, we'll apply cast after building.
         let (array_data, build_type) = match (T::get_physical_type(), &self.datatype) {
             (PhysicalType::BOOLEAN, DataType::Boolean) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::INT32, DataType::Int16) => (data.into_array_data(), DataType::Int32),
