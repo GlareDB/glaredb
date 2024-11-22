@@ -42,7 +42,7 @@ SELECT COLUMNS('col_*') FROM t1;
 ----
 2  3  4
 
-query III
+query IIII
 SELECT col_a, COLUMNS('col_*') FROM t1;
 ----
 2  2  3  4
