@@ -38,6 +38,11 @@ path = "integration_slt_tpch.rs"
 
 [[test]]
 harness = false
+name = "integration_slt_tpcds"
+path = "integration_slt_tpcds.rs"
+
+[[test]]
+harness = false
 name = "integration_slt_clickbench"
 path = "integration_slt_clickbench.rs"
 

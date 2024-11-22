@@ -320,13 +320,12 @@ fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
                 t
             ))),
         },
-        (
-            Some(LogicalType::Decimal {
-                scale: _,
-                precision: _,
-            }),
-            _,
-        ) => unimplemented!(),
+        (Some(LogicalType::Decimal { scale, precision }), _) => {
+            Ok(DataType::Decimal128(DecimalTypeMeta {
+                precision: precision as u8,
+                scale: scale as i8,
+            }))
+        }
         (Some(LogicalType::Date), _) => unimplemented!(),
         (Some(LogicalType::Time { unit, .. }), _) => match unit {
             ParquetTimeUnit::MILLIS(_) => unimplemented!(),
