@@ -68,6 +68,7 @@ define_keywords!(
     CENTURIES,
     CENTURY,
     CLUSTER,
+    COLUMNS,
     COPY,
     CREATE,
     CROSS,

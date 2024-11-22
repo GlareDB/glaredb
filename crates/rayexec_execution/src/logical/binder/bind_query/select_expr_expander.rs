@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_parser::ast;
+use regex::Regex;
 
 use crate::expr::column_expr::ColumnExpr;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableAlias};
@@ -167,7 +168,39 @@ impl<'a> SelectExprExpander<'a> {
                 }]
             }
             ast::SelectExpr::Expr(expr) => {
-                vec![ExpandedSelectExpr::Expr { expr, alias: None }]
+                // Check if this is a COLUMNS expr, expand if it is.
+                if let ast::Expr::Columns(cols_expr) = expr {
+                    match cols_expr {
+                        ast::ColumnsExpr::Pattern(pattern) => {
+                            let regex = Regex::new(&pattern)
+                                .context("Failed to build column regex from pattern")?;
+
+                            let mut exprs = Vec::new();
+                            // Iter all columns in the context, select the ones
+                            // that match the regex.
+                            for table in self.bind_context.iter_tables(self.current)? {
+                                for (col_idx, name) in table.column_names.iter().enumerate() {
+                                    if !regex.is_match(name) {
+                                        continue;
+                                    }
+
+                                    exprs.push(ExpandedSelectExpr::Column {
+                                        expr: ColumnExpr {
+                                            table_scope: table.reference,
+                                            column: col_idx,
+                                        },
+                                        name: name.clone(),
+                                    })
+                                }
+                            }
+
+                            exprs
+                        }
+                    }
+                } else {
+                    // Normal expression.
+                    vec![ExpandedSelectExpr::Expr { expr, alias: None }]
+                }
             }
         })
     }

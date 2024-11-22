@@ -1066,6 +1066,18 @@ impl<'a> BaseExpressionBinder<'a> {
                     inputs: vec![date_part_expr, expr],
                 }))
             }
+            ast::Expr::Columns(_) => {
+                // TODO: This doens't need to be the case, but there's going to
+                // be slightly different handling if this is a top-level select
+                // expression, and argument to a function, or used elsewhere in
+                // the query.
+                //
+                // Currently we're just going to support top-level select
+                // expressions.
+                Err(RayexecError::new(
+                    "COLUMNS expression should have been handle in select list expander",
+                ))
+            }
         }
     }
 
