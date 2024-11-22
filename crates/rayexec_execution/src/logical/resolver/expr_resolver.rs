@@ -48,9 +48,9 @@ impl<'a> ExpressionResolver<'a> {
 
     pub async fn resolve_wildcard(
         &self,
-        wildcard: ast::Wildcard<Raw>,
+        wildcard: ast::WildcardModifier<Raw>,
         resolve_context: &mut ResolveContext,
-    ) -> Result<ast::Wildcard<ResolvedMeta>> {
+    ) -> Result<ast::WildcardModifier<ResolvedMeta>> {
         let mut replace_cols = Vec::with_capacity(wildcard.replace_cols.len());
         for replace in wildcard.replace_cols {
             replace_cols.push(ReplaceColumn {
@@ -61,7 +61,7 @@ impl<'a> ExpressionResolver<'a> {
             });
         }
 
-        Ok(ast::Wildcard {
+        Ok(ast::WildcardModifier {
             exclude_cols: wildcard.exclude_cols,
             replace_cols,
         })

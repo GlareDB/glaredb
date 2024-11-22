@@ -1,0 +1,61 @@
+# EXCEPT/EXCLUDE keyword tests
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b INT, c INT);
+
+statement ok
+INSERT INTO t1 VALUES (2,3,4);
+
+query TT
+DESCRIBE SELECT * EXCLUDE (b) FROM t1;
+----
+a  Int32
+c  Int32
+
+query II
+SELECT * EXCLUDE (b) FROM t1;
+----
+2  4
+
+query II
+SELECT t1.* EXCLUDE (b) FROM t1;
+----
+2  4
+
+query I
+SELECT * EXCLUDE (b, a) FROM t1;
+----
+4
+
+# Alternative keyword.
+query I
+SELECT * EXCEPT (b, a) FROM t1;
+----
+4
+
+statement error Column "d" was in EXCLUDE list, but it's not a column being returned
+SELECT * EXCLUDE (d) FROM t1;
+
+query TT
+DESCRIBE SELECT * EXCLUDE (b) FROM t1, t1 AS t2;
+----
+a  Int32
+c  Int32
+a  Int32
+c  Int32
+
+query IIII
+SELECT * EXCLUDE (b) FROM t1, t1 AS t2;
+----
+2  4  2  4
+
+query TT
+DESCRIBE SELECT t2.* EXCLUDE (b) FROM t1, t1 AS t2;
+----
+a  Int32
+c  Int32
+
+query II
+SELECT t2.* EXCLUDE (b) FROM t1, t1 AS t2;
+----
+2  4

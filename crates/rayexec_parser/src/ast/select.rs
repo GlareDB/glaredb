@@ -80,9 +80,9 @@ pub enum SelectExpr<T: AstMeta> {
     /// A qualified wild card.
     ///
     /// `<reference>.*`
-    QualifiedWildcard(ObjectReference, Wildcard<T>),
+    QualifiedWildcard(ObjectReference, WildcardModifier<T>),
     /// An unqualifed wild card.
-    Wildcard(Wildcard<T>),
+    Wildcard(WildcardModifier<T>),
 }
 
 impl<T: AstMeta> SelectExpr<T> {
@@ -100,12 +100,12 @@ impl AstParseable for SelectExpr<Raw> {
 
         match expr {
             WildcardExpr::Wildcard => {
-                // TODO: Replace, exclude
-                Ok(SelectExpr::Wildcard(Wildcard::default()))
+                let modifier = WildcardModifier::parse(parser)?;
+                Ok(SelectExpr::Wildcard(modifier))
             }
             WildcardExpr::QualifiedWildcard(name) => {
-                // TODO: Replace, exclude
-                Ok(SelectExpr::QualifiedWildcard(name, Wildcard::default()))
+                let modifier = WildcardModifier::parse(parser)?;
+                Ok(SelectExpr::QualifiedWildcard(name, modifier))
             }
             WildcardExpr::Expr(expr) => {
                 let alias = parser.parse_alias(RESERVED_FOR_COLUMN_ALIAS)?;
@@ -119,10 +119,10 @@ impl AstParseable for SelectExpr<Raw> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Wildcard<T: AstMeta> {
+pub struct WildcardModifier<T: AstMeta> {
     /// Columns to exclude in the star select.
     ///
-    /// `SELECT * EXCLUDE col1, col2 ...`
+    /// `SELECT * EXCLUDE (col1, col2 ...)`
     pub exclude_cols: Vec<Ident>,
     /// Columns to replace in the star select.
     ///
@@ -131,11 +131,21 @@ pub struct Wildcard<T: AstMeta> {
     // TODO: `SELECT COLUMNS(...)`
 }
 
-impl<T: AstMeta> Default for Wildcard<T> {
-    fn default() -> Self {
-        Wildcard {
-            exclude_cols: Vec::new(),
-            replace_cols: Vec::new(),
+impl AstParseable for WildcardModifier<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        match parser.parse_one_of_keywords(&[Keyword::EXCEPT, Keyword::EXCLUDE]) {
+            Some(Keyword::EXCEPT) | Some(Keyword::EXCLUDE) => {
+                let cols = parser.parse_parenthesized_comma_separated(Ident::parse)?;
+
+                Ok(WildcardModifier {
+                    exclude_cols: cols,
+                    replace_cols: Vec::new(),
+                })
+            }
+            _ => Ok(WildcardModifier {
+                exclude_cols: Vec::new(),
+                replace_cols: Vec::new(),
+            }),
         }
     }
 }

@@ -92,6 +92,7 @@ define_keywords!(
     END,
     EPOCH,
     EXCEPT,
+    EXCLUDE,
     EXISTS,
     EXPLAIN,
     EXTERNAL,
