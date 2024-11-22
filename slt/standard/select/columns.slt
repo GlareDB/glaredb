@@ -1,0 +1,48 @@
+# COLUMNS expression in select list
+
+statement ok
+CREATE TEMP TABLE t1 (col_a INT, col_b INT, col_c INT, other INT);
+
+statement ok
+INSERT INTO t1 VALUES (2,3,4,5);
+
+query TT
+DESCRIBE SELECT COLUMNS('.*') FROM t1;
+----
+col_a  Int32
+col_b  Int32
+col_c  Int32
+other  Int32
+
+query IIII
+SELECT COLUMNS('.*') FROM t1;
+----
+2  3  4  5
+
+query TT
+DESCRIBE SELECT COLUMNS('.*_a|.*_c') FROM t1;
+----
+col_a  Int32
+col_c  Int32
+
+query II
+SELECT COLUMNS('.*_a|.*_c') FROM t1;
+----
+2  4
+
+query TT
+DESCRIBE SELECT COLUMNS('col_*') FROM t1;
+----
+col_a  Int32
+col_b  Int32
+col_c  Int32
+
+query III
+SELECT COLUMNS('col_*') FROM t1;
+----
+2  3  4
+
+query III
+SELECT col_a, COLUMNS('col_*') FROM t1;
+----
+2  2  3  4

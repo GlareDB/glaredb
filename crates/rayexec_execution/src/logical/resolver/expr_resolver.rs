@@ -579,6 +579,7 @@ impl<'a> ExpressionResolver<'a> {
                     expr: Box::new(expr),
                 })
             }
+            ast::Expr::Columns(col) => Ok(ast::Expr::Columns(col)),
             other => not_implemented!("resolve expr {other:?}"),
         }
     }

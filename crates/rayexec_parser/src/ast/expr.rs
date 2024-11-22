@@ -168,6 +168,8 @@ pub enum Expr<T: AstMeta> {
     Literal(Literal<T>),
     /// [<expr1>, <expr2>, ...]
     Array(Vec<Expr<T>>),
+    /// COLUMNS(...)
+    Columns(ColumnsExpr),
     /// my_array[1]
     ArraySubscript {
         expr: Box<Expr<T>>,
@@ -490,6 +492,19 @@ impl Expr<Raw> {
                             date_part,
                             expr: Box::new(expr),
                         }
+                    }
+                    Keyword::COLUMNS => {
+                        // TODO: Should we just special case on left paren? And
+                        // assume ident otherwise?
+                        parser.expect_token(&Token::LeftParen)?;
+
+                        // TODO: Other COLUMNS exprs
+                        let pattern = Expr::parse_string_literal(parser)?;
+                        let columns_expr = ColumnsExpr::Pattern(pattern);
+
+                        parser.expect_token(&Token::RightParen)?;
+
+                        Expr::Columns(columns_expr)
                     }
 
                     _ => Self::parse_ident_expr(w.clone(), parser)?,
@@ -966,6 +981,12 @@ impl Expr<Raw> {
             ))),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ColumnsExpr {
+    /// `COLUMNS('regex_pattern')`
+    Pattern(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
