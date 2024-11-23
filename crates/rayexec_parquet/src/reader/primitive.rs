@@ -76,7 +76,7 @@ where
             (PhysicalType::INT32, DataType::Decimal128(_)) => (data.into_array_data(), DataType::Int32),
             (PhysicalType::INT64, DataType::Int64) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::INT64, DataType::Decimal64(_)) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT64, DataType::Decimal128(_)) => (data.into_array_data(), DataType::Int64),
+            (PhysicalType::INT64, DataType::Decimal128(_)) => (data.into_array_data(), DataType::Int64), // TODO
             (PhysicalType::INT64, DataType::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::INT96, DataType::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
             (PhysicalType::FLOAT, DataType::Float32) => (data.into_array_data(), self.datatype.clone()),

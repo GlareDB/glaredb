@@ -72,6 +72,7 @@ async fn create_views(
 
     for table in TABLES {
         let query = format_view_query(table);
+        // println!("{query}");
         let _ = session.query(&query).await?.collect().await?;
     }
 
@@ -79,5 +80,5 @@ async fn create_views(
 }
 
 fn format_view_query(table: &str) -> String {
-    format!("CREATE TEMP VIEW {table} AS SELECT * FROM '../submodules/testdata/tpcds_sf0.1/{table}.parquet'")
+    format!("CREATE TEMP VIEW {table} AS SELECT * FROM '../submodules/testdata/tpcds_sf0.1/{table}.parquet';")
 }
