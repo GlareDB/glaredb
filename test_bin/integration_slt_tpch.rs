@@ -9,6 +9,8 @@ use rayexec_shell::session::SingleUserEngine;
 use rayexec_slt::{ReplacementVars, RunConfig};
 
 pub fn main() -> Result<()> {
+    unsafe { backtrace_on_stack_overflow::enable() };
+
     let rt = NativeRuntime::with_default_tokio()?;
     let executor = ThreadedNativeExecutor::try_new()?;
 
