@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::SingleUserEngine;
+use rayexec_shell::session::{SingleUserEngine, SingleUserSession};
 use rayexec_slt::{ReplacementVars, RunConfig};
 
 pub fn main() -> Result<()> {
@@ -26,6 +26,8 @@ pub fn main() -> Result<()> {
                         .with_datasource("parquet", ParquetDataSource::initialize(rt.clone()))?,
                 )?;
 
+                create_views(engine.session()).await?;
+
                 Ok(RunConfig {
                     engine,
                     vars: ReplacementVars::default(),
@@ -36,4 +38,46 @@ pub fn main() -> Result<()> {
         },
         "slt_tpcds",
     )
+}
+
+async fn create_views(
+    session: &SingleUserSession<ThreadedNativeExecutor, NativeRuntime>,
+) -> Result<()> {
+    const TABLES: &'static [&'static str] = &[
+        "call_center",
+        "catalog_page",
+        "catalog_returns",
+        "catalog_sales",
+        "customer",
+        "customer_address",
+        "customer_demographics",
+        "date_dim",
+        "household_demographics",
+        "income_band",
+        "inventory",
+        "item",
+        "promotion",
+        "reason",
+        "ship_mode",
+        "store",
+        "store_returns",
+        "store_sales",
+        "time_dim",
+        "warehouse",
+        "web_page",
+        "web_returns",
+        "web_sales",
+        "web_site",
+    ];
+
+    for table in TABLES {
+        let query = format_view_query(table);
+        let _ = session.query(&query).await?.collect().await?;
+    }
+
+    Ok(())
+}
+
+fn format_view_query(table: &str) -> String {
+    format!("CREATE TEMP VIEW {table} AS SELECT * FROM '../submodules/testdata/tpcds_sf0.1/{table}.parquet'")
 }

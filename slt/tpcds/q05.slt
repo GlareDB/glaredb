@@ -14,19 +14,16 @@ DESCRIBE WITH ssr AS
              ss_net_profit AS profit,
              cast(0 AS decimal(7,2)) AS return_amt,
              cast(0 AS decimal(7,2)) AS net_loss
-      FROM
-           '../submodules/testdata/tpcds_sf0.1/store_sales.parquet' store_sales
+      FROM store_sales
       UNION ALL SELECT sr_store_sk AS store_sk,
                        sr_returned_date_sk AS date_sk,
                        cast(0 AS decimal(7,2)) AS sales_price,
                        cast(0 AS decimal(7,2)) AS profit,
                        sr_return_amt AS return_amt,
                        sr_net_loss AS net_loss
-      FROM
-           '../submodules/testdata/tpcds_sf0.1/store_returns.parquet' store_returns
-      ) salesreturns,
-        '../submodules/testdata/tpcds_sf0.1/date_dim.parquet' date_dim,
-        '../submodules/testdata/tpcds_sf0.1/store.parquet'    store
+      FROM store_returns ) salesreturns,
+        date_dim,
+        store
    WHERE date_sk = d_date_sk
      AND d_date BETWEEN cast('2000-08-23' AS date) AND cast('2000-09-06' AS date)
      AND store_sk = s_store_sk
@@ -44,19 +41,16 @@ DESCRIBE WITH ssr AS
              cs_net_profit AS profit,
              cast(0 AS decimal(7,2)) AS return_amt,
              cast(0 AS decimal(7,2)) AS net_loss
-      FROM
-           '../submodules/testdata/tpcds_sf0.1/catalog_sales.parquet' catalog_sales
+      FROM catalog_sales
       UNION ALL SELECT cr_catalog_page_sk AS page_sk,
                        cr_returned_date_sk AS date_sk,
                        cast(0 AS decimal(7,2)) AS sales_price,
                        cast(0 AS decimal(7,2)) AS profit,
                        cr_return_amount AS return_amt,
                        cr_net_loss AS net_loss
-      FROM
-           '../submodules/testdata/tpcds_sf0.1/catalog_returns.parquet' catalog_returns
-      ) salesreturns,
-        '../submodules/testdata/tpcds_sf0.1/date_dim.parquet'     date_dim,
-        '../submodules/testdata/tpcds_sf0.1/catalog_page.parquet' catalog_page
+      FROM catalog_returns ) salesreturns,
+        date_dim,
+        catalog_page
    WHERE date_sk = d_date_sk
      AND d_date BETWEEN cast('2000-08-23' AS date) AND cast('2000-09-06' AS date)
      AND page_sk = cp_catalog_page_sk
@@ -74,22 +68,18 @@ DESCRIBE WITH ssr AS
              ws_net_profit AS profit,
              cast(0 AS decimal(7,2)) AS return_amt,
              cast(0 AS decimal(7,2)) AS net_loss
-      FROM
-           '../submodules/testdata/tpcds_sf0.1/web_sales.parquet' web_sales
+      FROM web_sales
       UNION ALL SELECT ws_web_site_sk AS wsr_web_site_sk,
                        wr_returned_date_sk AS date_sk,
                        cast(0 AS decimal(7,2)) AS sales_price,
                        cast(0 AS decimal(7,2)) AS profit,
                        wr_return_amt AS return_amt,
                        wr_net_loss AS net_loss
-      FROM
-           '../submodules/testdata/tpcds_sf0.1/web_returns.parquet' web_returns
-      LEFT OUTER JOIN
-           '../submodules/testdata/tpcds_sf0.1/web_sales.parquet' web_sales
-           ON (wr_item_sk = ws_item_sk
+      FROM web_returns
+      LEFT OUTER JOIN web_sales ON (wr_item_sk = ws_item_sk
                                     AND wr_order_number = ws_order_number) ) salesreturns,
-        '../submodules/testdata/tpcds_sf0.1/date_dim.parquet' date_dim,
-        '../submodules/testdata/tpcds_sf0.1/web_site.parquet' web_site
+        date_dim,
+        web_site
    WHERE date_sk = d_date_sk
      AND d_date BETWEEN cast('2000-08-23' AS date) AND cast('2000-09-06' AS date)
      AND wsr_web_site_sk = web_site_sk
@@ -123,3 +113,4 @@ GROUP BY ROLLUP (channel,
 ORDER BY channel NULLS FIRST,
          id NULLS FIRST
 LIMIT 100;
+----

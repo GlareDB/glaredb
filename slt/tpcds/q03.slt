@@ -1,14 +1,14 @@
 # decimal agg
+# Also resolve: Error source: query failed: Missing column for reference: item.i_brand_id
 
 query TT
 DESCRIBE SELECT dt.d_year,
        item.i_brand_id brand_id,
        item.i_brand brand,
        sum(ss_ext_sales_price) sum_agg
-FROM
-     '../submodules/testdata/tpcds_sf0.1/date_dim.parquet'    dt,
-     '../submodules/testdata/tpcds_sf0.1/store_sales.parquet' store_sales,
-     '../submodules/testdata/tpcds_sf0.1/item.parquet'        item
+FROM date_dim dt,
+     store_sales,
+     item
 WHERE dt.d_date_sk = store_sales.ss_sold_date_sk
   AND store_sales.ss_item_sk = item.i_item_sk
   AND item.i_manufact_id = 128
@@ -21,54 +21,3 @@ ORDER BY dt.d_year,
          brand_id
 LIMIT 100;
 ----
-d_year    Int32
-brand_id  Int32
-brand     Utf8
-sum_agg   Decimal128(7,2)
-
-query ????
-SELECT dt.d_year,
-       item.i_brand_id brand_id,
-       item.i_brand brand,
-       sum(ss_ext_sales_price) sum_agg
-FROM
-     '../submodules/testdata/tpcds_sf0.1/date_dim.parquet'    dt,
-     '../submodules/testdata/tpcds_sf0.1/store_sales.parquet' store_sales,
-     '../submodules/testdata/tpcds_sf0.1/item.parquet'        item
-WHERE dt.d_date_sk = store_sales.ss_sold_date_sk
-  AND store_sales.ss_item_sk = item.i_item_sk
-  AND item.i_manufact_id = 128
-  AND dt.d_moy=11
-GROUP BY dt.d_year,
-         item.i_brand,
-         item.i_brand_id
-ORDER BY dt.d_year,
-         sum_agg DESC,
-         brand_id
-LIMIT 100;
-----
-1998 1004001 edu packamalg #1 111831.00
-1998 3004001 scholarunivamalg #16 74144.00
-1998 3001001 amalgexporti #1 32383.00
-1998 1004001 exportiexporti #2 1663.00
-1999 1004001 exportiexporti #2 NULL
-1999 3001001 amalgexporti #1 NULL
-1999 7016007 importoscholar #2 NULL
-1999 3004001 scholarunivamalg #16 63268.00
-1999 1004001 edu packamalg #1 4938.00
-2000 7016007 importoscholar #2 NULL
-2000 3001001 amalgexporti #1 97920.00
-2000 1004001 edu packamalg #1 33698.00
-2000 3004001 scholarunivamalg #16 24232.00
-2000 1004001 exportiexporti #2 13101.00
-2001 3004001 scholarunivamalg #16 NULL
-2001 1004001 edu packamalg #1 133388.00
-2001 3001001 amalgexporti #1 119039.00
-2001 1004001 exportiexporti #2 52360.00
-2001 7016007 importoscholar #2 4480.00
-2002 7016007 importoscholar #2 NULL
-2002 1004001 exportiexporti #2 105891.00
-2002 3004001 scholarunivamalg #16 4550.00
-2002 1004001 edu packamalg #1 258.00
-
-

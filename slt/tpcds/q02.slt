@@ -7,13 +7,10 @@ DESCRIBE WITH wscs AS
    FROM
      (SELECT ws_sold_date_sk sold_date_sk,
              ws_ext_sales_price sales_price
-      FROM
-          '../submodules/testdata/tpcds_sf0.1/web_sales.parquet' web_sales
+      FROM web_sales
       UNION ALL SELECT cs_sold_date_sk sold_date_sk,
                        cs_ext_sales_price sales_price
-      FROM
-          '../submodules/testdata/tpcds_sf0.1/catalog_sales.parquet' catalog_sales
-      ) sq1),
+      FROM catalog_sales) sq1),
      wswscs AS
   (SELECT d_week_seq,
           sum(CASE
@@ -45,7 +42,7 @@ DESCRIBE WITH wscs AS
                   ELSE NULL
               END) sat_sales
    FROM wscs,
-        '../submodules/testdata/tpcds_sf0.1/date_dim.parquet' date_dim
+        date_dim
    WHERE d_date_sk = sold_date_sk
    GROUP BY d_week_seq)
 SELECT d_week_seq1,
@@ -66,7 +63,7 @@ FROM
           fri_sales fri_sales1,
           sat_sales sat_sales1
    FROM wswscs,
-        '../submodules/testdata/tpcds_sf0.1/date_dim.parquet' date_dim
+        date_dim
    WHERE date_dim.d_week_seq = wswscs.d_week_seq
      AND d_year = 2001) y,
   (SELECT wswscs.d_week_seq d_week_seq2,
@@ -78,7 +75,7 @@ FROM
           fri_sales fri_sales2,
           sat_sales sat_sales2
    FROM wswscs,
-        '../submodules/testdata/tpcds_sf0.1/date_dim.parquet' date_dim
+        date_dim
    WHERE date_dim.d_week_seq = wswscs.d_week_seq
      AND d_year = 2001+1) z
 WHERE d_week_seq1 = d_week_seq2-53
