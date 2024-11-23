@@ -1,0 +1,158 @@
+# decimal agg
+
+query TT
+DESCRIBE SELECT i_item_id,
+       avg(ss_quantity) agg1,
+       avg(ss_list_price) agg2,
+       avg(ss_coupon_amt) agg3,
+       avg(ss_sales_price) agg4
+FROM store_sales,
+     customer_demographics,
+     date_dim,
+     item,
+     promotion
+WHERE ss_sold_date_sk = d_date_sk
+  AND ss_item_sk = i_item_sk
+  AND ss_cdemo_sk = cd_demo_sk
+  AND ss_promo_sk = p_promo_sk
+  AND cd_gender = 'M'
+  AND cd_marital_status = 'S'
+  AND cd_education_status = 'College'
+  AND (p_channel_email = 'N'
+       OR p_channel_event = 'N')
+  AND d_year = 2000
+GROUP BY i_item_id
+ORDER BY i_item_id
+LIMIT 100;
+----
+i_item_id  Utf8
+agg1       Float64
+agg2       Float64
+agg3       Float64
+agg4       Float64
+
+query ?????
+SELECT i_item_id,
+       avg(ss_quantity) agg1,
+       avg(ss_list_price) agg2,
+       avg(ss_coupon_amt) agg3,
+       avg(ss_sales_price) agg4
+FROM store_sales,
+     customer_demographics,
+     date_dim,
+     item,
+     promotion
+WHERE ss_sold_date_sk = d_date_sk
+  AND ss_item_sk = i_item_sk
+  AND ss_cdemo_sk = cd_demo_sk
+  AND ss_promo_sk = p_promo_sk
+  AND cd_gender = 'M'
+  AND cd_marital_status = 'S'
+  AND cd_education_status = 'College'
+  AND (p_channel_email = 'N'
+       OR p_channel_event = 'N')
+  AND d_year = 2000
+GROUP BY i_item_id
+ORDER BY i_item_id
+LIMIT 100;
+----
+AAAAAAAAAAEAAAAA  27.5                1735                0                   3590
+AAAAAAAAAAHAAAAA  74                  3096                NULL                1939
+AAAAAAAAABAAAAAA  27                  6304.333333333333   0                   3349.6666666666665
+AAAAAAAAABEAAAAA  50                  7247                0                   6596
+AAAAAAAAABGAAAAA  80                  4729                0                   907
+AAAAAAAAACDAAAAA  56                  9957                0                   1390.5
+AAAAAAAAADFAAAAA  89.5                6613                0                   1625.5
+AAAAAAAAAEAAAAAA  49                  5398                0                   2628.3333333333335
+AAAAAAAAAEEAAAAA  26                  6962                0                   3939
+AAAAAAAAAEGAAAAA  50                  2729                0                   2853
+AAAAAAAAAFAAAAAA  54                  12189               0                   438
+AAAAAAAAAFCAAAAA  86                  1795                0                   212
+AAAAAAAAAFFAAAAA  90                  6578                15829               2671.5
+AAAAAAAAAGBAAAAA  94                  6838                0                   4667
+AAAAAAAAAGCAAAAA  40.333333333333336  10113.333333333334  0                   2044.3333333333333
+AAAAAAAAAGEAAAAA  30                  13875               0                   2312
+AAAAAAAAAGFAAAAA  19                  1043                0                   2584
+AAAAAAAAAHDAAAAA  68                  572                 0                   3328
+AAAAAAAAAHGAAAAA  49                  9215.333333333334   1160                2632.6666666666665
+AAAAAAAAAICAAAAA  10                  6802.5              41841.5             1457
+AAAAAAAAAIFAAAAA  64                  14740               0                   128
+AAAAAAAAAKAAAAAA  50                  12436               0                   8804
+AAAAAAAAAKEAAAAA  33.5                7697                1342.5              3749
+AAAAAAAAAMBAAAAA  54                  9817                0                   4699.333333333333
+AAAAAAAAAMCAAAAA  91                  2508                0                   5119
+AAAAAAAAAMFAAAAA  27                  15493               0                   6352
+AAAAAAAAANAAAAAA  36                  8369                0                   781
+AAAAAAAAANBAAAAA  40                  707                 0                   1950
+AAAAAAAAAOGAAAAA  31                  14259               0                   168
+AAAAAAAAAPCAAAAA  41                  5162                0                   579
+AAAAAAAABBCAAAAA  49.5                5487                0                   8298
+AAAAAAAABBFAAAAA  87                  15248               0                   748
+AAAAAAAABCBAAAAA  12                  697                 0                   6242
+AAAAAAAABDAAAAAA  20                  932                 0                   4757
+AAAAAAAABDGAAAAA  55                  8245                5204                178
+AAAAAAAABECAAAAA  49                  10220.5             0                   3342.5
+AAAAAAAABEFAAAAA  34.5                9435                0                   3599.5
+AAAAAAAABFBAAAAA  75                  6555.5              12144.5             6626
+AAAAAAAABFEAAAAA  40                  8429                0                   5628
+AAAAAAAABGDAAAAA  54.5                5895                0                   2539.5
+AAAAAAAABHFAAAAA  1                   255                 0                   1685
+AAAAAAAABIBAAAAA  99                  1277                0                   0
+AAAAAAAABIEAAAAA  86                  1282                85895               5207
+AAAAAAAABJAAAAAA  86                  12388               0                   4149
+AAAAAAAABKCAAAAA  58                  2844                20373               1072
+AAAAAAAABKFAAAAA  55                  2493                0                   3555
+AAAAAAAABLBAAAAA  0                   937                 0                   0
+AAAAAAAABMDAAAAA  97                  8217                0                   7124
+AAAAAAAABOBAAAAA  99                  4322                0                   4098
+AAAAAAAABOEAAAAA  47                  8421                0                   4467
+AAAAAAAABPGAAAAA  98                  8658                0                   2941
+AAAAAAAACAGAAAAA  52                  12927               0                   2323
+AAAAAAAACBEAAAAA  89                  3824                0                   144
+AAAAAAAACCAAAAAA  73                  4859                0                   3595
+AAAAAAAACCDAAAAA  95                  14491               0                   2201
+AAAAAAAACCGAAAAA  10                  8539                0                   5188
+AAAAAAAACDDAAAAA  39.5                4865.5              0                   7137.5
+AAAAAAAACDFAAAAA  11                  8050                0                   84
+AAAAAAAACEBAAAAA  74                  9681                0                   2650
+AAAAAAAACECAAAAA  29                  5080                0                   5852
+AAAAAAAACEEAAAAA  60                  12615.666666666666  17756.333333333332  2401
+AAAAAAAACEFAAAAA  47                  4142                1506                489
+AAAAAAAACFAAAAAA  50                  2894                1334                743
+AAAAAAAACFDAAAAA  93                  10767               0                   3849
+AAAAAAAACFEAAAAA  35.333333333333336  1016.6666666666666  18746.333333333332  2507.6666666666665
+AAAAAAAACFGAAAAA  56                  6020                0                   962
+AAAAAAAACGDAAAAA  39                  4109                11806.5             5436
+AAAAAAAACGGAAAAA  14                  10765               75841               3453
+AAAAAAAACHBAAAAA  25                  9580                0                   2695
+AAAAAAAACHCAAAAA  NULL                10187               0                   8636
+AAAAAAAACHEAAAAA  22                  5509                NULL                7597
+AAAAAAAACIAAAAAA  97                  3805                0                   3402
+AAAAAAAACIEAAAAA  50                  7092                0                   5162
+AAAAAAAACJCAAAAA  28.5                2703                0                   434
+AAAAAAAACJFAAAAA  33                  3730                0                   5881
+AAAAAAAACJGAAAAA  1                   2080                0                   3326
+AAAAAAAACKBAAAAA  96                  8110                0                   14637
+AAAAAAAACKEAAAAA  52.666666666666664  4386.333333333333   1820                5646.333333333333
+AAAAAAAACLDAAAAA  78                  2917                0                   116
+AAAAAAAACLEAAAAA  50                  6329                0                   7480
+AAAAAAAACLGAAAAA  38                  4501                60188               1080
+AAAAAAAACMAAAAAA  41.5                3422.5              0                   9261.5
+AAAAAAAACMFAAAAA  31                  2164                14456               1284
+AAAAAAAACMGAAAAA  40                  8375.5              0                   3473
+AAAAAAAACNCAAAAA  19                  14650               0                   13516
+AAAAAAAACNEAAAAA  43                  7298                0                   7347
+AAAAAAAACNFAAAAA  35                  10586               0                   188
+AAAAAAAACODAAAAA  41                  5004                0                   860
+AAAAAAAACOEAAAAA  7                   9189                1286                5600
+AAAAAAAACPCAAAAA  22                  12251               0                   1963
+AAAAAAAACPGAAAAA  36                  7259.5              0                   3397
+AAAAAAAADAEAAAAA  56                  5385                NULL                7683
+AAAAAAAADBAAAAAA  45.5                2779.5              0                   3651.5
+AAAAAAAADBGAAAAA  33.5                4085                0                   837.5
+AAAAAAAADCCAAAAA  49                  6607                0                   369
+AAAAAAAADCFAAAAA  30                  7966                0                   4865
+AAAAAAAADDBAAAAA  36.5                3907.5              0                   3047.5
+AAAAAAAADDEAAAAA  77.5                4580                0                   421.5
+AAAAAAAADEDAAAAA  46                  14247               69960               12875
+AAAAAAAADGBAAAAA  5                   8752                0                   398

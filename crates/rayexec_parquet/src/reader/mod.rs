@@ -85,9 +85,17 @@ where
         (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Decimal64(_), _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
-            batch_size, datatype, desc,
-        ))),
+        (DataType::Decimal64(_), PhysicalType::INT32) => Ok(Box::new(
+            PrimitiveArrayReader::<i32, P>::new(batch_size, datatype, desc),
+        )),
+        (DataType::Decimal64(_), PhysicalType::INT64) => Ok(Box::new(
+            PrimitiveArrayReader::<i64, P>::new(batch_size, datatype, desc),
+        )),
+        (DataType::Decimal128(_), PhysicalType::INT32) => {
+            Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
         (DataType::Decimal128(_), PhysicalType::INT64) => {
             Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
                 batch_size, datatype, desc,

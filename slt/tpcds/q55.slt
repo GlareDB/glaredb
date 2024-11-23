@@ -1,0 +1,70 @@
+query TT
+DESCRIBE SELECT i_brand_id brand_id,
+       i_brand brand,
+       sum(ss_ext_sales_price) ext_price
+FROM date_dim,
+     store_sales,
+     item
+WHERE d_date_sk = ss_sold_date_sk
+  AND ss_item_sk = i_item_sk
+  AND i_manager_id=28
+  AND d_moy=11
+  AND d_year=1999
+GROUP BY i_brand,
+         i_brand_id
+ORDER BY ext_price DESC,
+         i_brand_id
+LIMIT 100 ;
+----
+brand_id   Int32
+brand      Utf8
+ext_price  Decimal128(7,2)
+
+query ???
+SELECT i_brand_id brand_id,
+       i_brand brand,
+       sum(ss_ext_sales_price) ext_price
+FROM date_dim,
+     store_sales,
+     item
+WHERE d_date_sk = ss_sold_date_sk
+  AND ss_item_sk = i_item_sk
+  AND i_manager_id=28
+  AND d_moy=11
+  AND d_year=1999
+GROUP BY i_brand,
+         i_brand_id
+ORDER BY ext_price DESC,
+         i_brand_id
+LIMIT 100 ;
+----
+2001001 amalgbrand #7 NULL
+6002008 edu packimporto #1 NULL
+10006005 amalgbrand #10 NULL
+5004001 edu packscholar #1 416686.00
+8011006 importoamalg #1 238473.00
+5002001 importoscholar #1 155664.00
+9010004 univunivamalg #4 110073.00
+3002002 exportiamalg #2 99720.00
+9016003 edu packimporto #2 98730.00
+1001001 amalgamalg #1 94852.00
+6015001 scholarbrand #1 85320.00
+9006010 importoamalg #1 77394.00
+3004001 scholarunivamalg #16 63268.00
+7011004 importoamalg #2 62844.00
+4004002 amalgmaxi #5 59778.00
+1003002 exportiamalg #2 57048.00
+9005002 amalgscholar #2 56287.00
+8005003 edu packamalgamalg #8 48144.00
+5002001 scholarunivamalg #10 44364.00
+3001002 amalgexporti #2 41706.00
+10016007 edu packunivamalg #12 39771.00
+6005007 importobrand #6 35807.00
+2001002 amalgimporto #2 32613.00
+2003002 exportiexporti #1 29550.00
+9005003 brandnameless #5 29358.00
+9016001 amalgedu pack #2 27160.00
+2004001 importoamalg #2 8978.00
+1003002 univbrand #2 3690.00
+5001002 amalgscholar #2 2536.00
+6004003 edu packcorp #3 480.00
