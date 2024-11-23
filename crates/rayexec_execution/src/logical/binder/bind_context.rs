@@ -3,6 +3,7 @@ use std::fmt;
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
+use serde::{Deserialize, Serialize};
 
 use super::bind_query::BoundQuery;
 use crate::expr::Expression;
@@ -143,7 +144,7 @@ struct BindScope {
 }
 
 /// Reference to a table inside a scope.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableAlias {
     pub database: Option<String>,
     pub schema: Option<String>,

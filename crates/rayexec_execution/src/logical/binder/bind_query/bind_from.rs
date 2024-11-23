@@ -327,8 +327,18 @@ impl<'a> FromBinder<'a> {
             names.extend(table.column_names.iter().cloned());
         }
 
-        // Apply additional aliases if we're a view.
-        if let ResolvedSubqueryOptions::View { column_aliases } = subquery.options {
+        let table_ref = if let ResolvedSubqueryOptions::View {
+            table_alias,
+            column_aliases,
+        } = subquery.options
+        {
+            // If we're a view, ensure we apply the right column aliases _and_
+            // include a table alias when creating a ref in the bind context
+            // (for qualified column references).
+            //
+            // Columns aliases defined in the view may be overridden in
+            // `push_table_scope_with_from_alias`. This just sets the default
+            // names.
             if column_aliases.len() > names.len() {
                 return Err(RayexecError::new(format!(
                     "View contains too many column aliases, expected {}, got {}",
@@ -340,10 +350,18 @@ impl<'a> FromBinder<'a> {
             for (name, alias) in names.iter_mut().zip(column_aliases) {
                 *name = alias;
             }
-        }
 
-        let table_ref =
-            self.push_table_scope_with_from_alias(bind_context, None, names, types, alias)?;
+            self.push_table_scope_with_from_alias(
+                bind_context,
+                Some(table_alias),
+                names,
+                types,
+                alias,
+            )?
+        } else {
+            // Nothing special, just a normal subquery so no table alias.
+            self.push_table_scope_with_from_alias(bind_context, None, names, types, alias)?
+        };
 
         Ok(BoundFrom {
             bind_ref: self.current,
