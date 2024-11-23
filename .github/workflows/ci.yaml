@@ -92,12 +92,15 @@ jobs:
 
       - name: SLTs TPC-DS SF=0.1
         env:
-          DEBUG_PRINT_EXPLAIN: 1 
+          DEBUG_PRINT_EXPLAIN: 1
           DEBUG_PRINT_PROFILE_DATA: 1
         run: |
           cargo test slt/tpch/describe_files
           # cargo test slt/tpch/q01
           # cargo test slt/tpch/q02
+          # cargo test slt/tpch/q03
+          # cargo test slt/tpch/q04
+          # cargo test slt/tpch/q05
 
       - name: SLTs Clickbench truncated
         run: |
