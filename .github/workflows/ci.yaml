@@ -48,7 +48,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Standard tests
-        run: cargo test -- --skip slt_datasource_  --skip slt_tpch --skip slt_hybrid
+        run: cargo test -- --skip slt_datasource_  --skip slt_tpch --skip slt_tpcds --skip slt_hybrid
 
       - name: SLTs Hybrid
         run: cargo test slt_hybrid
