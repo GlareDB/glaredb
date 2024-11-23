@@ -1,0 +1,115 @@
+# decimal
+query TT
+DESCRIBE SELECT ca_zip,
+       ca_city,
+       sum(ws_sales_price)
+FROM web_sales,
+     customer,
+     customer_address,
+     date_dim,
+     item
+WHERE ws_bill_customer_sk = c_customer_sk
+  AND c_current_addr_sk = ca_address_sk
+  AND ws_item_sk = i_item_sk
+  AND (SUBSTRING(ca_zip,1,5) IN ('85669',
+                              '86197',
+                              '88274',
+                              '83405',
+                              '86475',
+                              '85392',
+                              '85460',
+                              '80348',
+                              '81792')
+       OR i_item_id IN
+         (SELECT i_item_id
+          FROM item
+          WHERE i_item_sk IN (2,
+                              3,
+                              5,
+                              7,
+                              11,
+                              13,
+                              17,
+                              19,
+                              23,
+                              29) ))
+  AND ws_sold_date_sk = d_date_sk
+  AND d_qoy = 2
+  AND d_year = 2001
+GROUP BY ca_zip,
+         ca_city
+ORDER BY ca_zip,
+         ca_city
+LIMIT 100;
+----
+ca_zip   Utf8
+ca_city  Utf8
+sum      Decimal128(7,2)
+
+query ???
+SELECT ca_zip,
+       ca_city,
+       sum(ws_sales_price)
+FROM web_sales,
+     customer,
+     customer_address,
+     date_dim,
+     item
+WHERE ws_bill_customer_sk = c_customer_sk
+  AND c_current_addr_sk = ca_address_sk
+  AND ws_item_sk = i_item_sk
+  AND (SUBSTRING(ca_zip,1,5) IN ('85669',
+                              '86197',
+                              '88274',
+                              '83405',
+                              '86475',
+                              '85392',
+                              '85460',
+                              '80348',
+                              '81792')
+       OR i_item_id IN
+         (SELECT i_item_id
+          FROM item
+          WHERE i_item_sk IN (2,
+                              3,
+                              5,
+                              7,
+                              11,
+                              13,
+                              17,
+                              19,
+                              23,
+                              29) ))
+  AND ws_sold_date_sk = d_date_sk
+  AND d_qoy = 2
+  AND d_year = 2001
+GROUP BY ca_zip,
+         ca_city
+ORDER BY ca_zip,
+         ca_city
+LIMIT 100;
+----
+10411 Bethel 1460.00
+12898 Walnut Grove 1847.00
+16060 Kingston 2092.00
+18354 Midway 191.00
+21675 Five Forks 418.00
+28370 Bridgeport 648.00
+34536 Ashley 6987.00
+38567 Pine Grove 3936.00
+42812 Spring Valley 9231.00
+44244 Brownsville 385.00
+50141 Murray 2687.00
+50191 Pleasant Grove 20636.00
+51952 Valley View 7760.00
+54098 Hamilton 1334.00
+54854 Hamilton 2277.00
+55709 Ashland 9357.00
+55709 Green Acres 0.00
+60309 Newport 1751.00
+63957 Clifton 993.00
+66971 Spring Hill 1094.00
+71711 Newport 4310.00
+77746 Arlington 7647.00
+79583 Salem 11773.00
+(empty) (empty) 2438.00
