@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, FunctionArg, ReplaceColumn};
 use rayexec_parser::meta::Raw;
+use stackutil::check_stack_redline;
 
 use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::ResolvedFunction;
@@ -180,6 +181,22 @@ impl<'a> ExpressionResolver<'a> {
         expr: ast::Expr<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::Expr<ResolvedMeta>> {
+        // Match arms that produce a bunch of intermediate variables should be
+        // split out into a separate function.
+        //
+        // This is necessary since compiling in debug mode with no optimizations
+        // would produce very large stack frames for this function. And since
+        // it's recursively called, it's very easy to hit a stack overflow. By
+        // splitting out some arms into separate functions, we avoid having
+        // those variables count towards stack usage.
+        //
+        // This is not a problem with optimizations (at least O1). I just don't
+        // want to have to do that for our unit/integration tests if I don't
+        // have to.
+        //
+        // See <https://github.com/rust-lang/rust/issues/34283>
+        check_stack_redline("resolve expression")?;
+
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
             ast::Expr::CompoundIdent(idents) => Ok(ast::Expr::CompoundIdent(idents)),
@@ -197,202 +214,20 @@ impl<'a> ExpressionResolver<'a> {
                     }
                 }
             })),
-            ast::Expr::Array(arr) => {
-                let mut new_arr = Vec::with_capacity(arr.len());
-                for v in arr {
-                    let new_v = Box::pin(self.resolve_expression(v, resolve_context)).await?;
-                    new_arr.push(new_v);
-                }
-                Ok(ast::Expr::Array(new_arr))
-            }
+            ast::Expr::Array(arr) => self.resolve_array(arr, resolve_context).await,
             ast::Expr::ArraySubscript { expr, subscript } => {
-                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
-                let subscript = match *subscript {
-                    ast::ArraySubscript::Index(index) => ast::ArraySubscript::Index(
-                        Box::pin(self.resolve_expression(index, resolve_context)).await?,
-                    ),
-                    ast::ArraySubscript::Slice {
-                        lower,
-                        upper,
-                        stride,
-                    } => {
-                        let lower = match lower {
-                            Some(lower) => Some(
-                                Box::pin(self.resolve_expression(lower, resolve_context)).await?,
-                            ),
-                            None => None,
-                        };
-                        let upper = match upper {
-                            Some(upper) => Some(
-                                Box::pin(self.resolve_expression(upper, resolve_context)).await?,
-                            ),
-                            None => None,
-                        };
-                        let stride = match stride {
-                            Some(stride) => Some(
-                                Box::pin(self.resolve_expression(stride, resolve_context)).await?,
-                            ),
-                            None => None,
-                        };
-
-                        ast::ArraySubscript::Slice {
-                            lower,
-                            upper,
-                            stride,
-                        }
-                    }
-                };
-
-                Ok(ast::Expr::ArraySubscript {
-                    expr: Box::new(expr),
-                    subscript: Box::new(subscript),
-                })
+                self.resolve_array_subscript(expr, subscript, resolve_context)
+                    .await
             }
             ast::Expr::UnaryExpr { op, expr } => {
-                match op {
-                    ast::UnaryOperator::Plus => {
-                        // Nothing to do, just bind and return the inner expression.
-                        Box::pin(self.resolve_expression(*expr, resolve_context)).await
-                    }
-                    ast::UnaryOperator::Minus => match *expr {
-                        ast::Expr::Literal(ast::Literal::Number(n)) => {
-                            Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
-                        }
-                        expr => Ok(ast::Expr::UnaryExpr {
-                            op: ast::UnaryOperator::Minus,
-                            expr: Box::new(
-                                Box::pin(self.resolve_expression(expr, resolve_context)).await?,
-                            ),
-                        }),
-                    },
-                    ast::UnaryOperator::Not => {
-                        let expr =
-                            Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
-                        Ok(ast::Expr::UnaryExpr {
-                            op,
-                            expr: Box::new(expr),
-                        })
-                    }
-                }
+                self.resolve_unary_expr(op, expr, resolve_context).await
             }
             ast::Expr::BinaryExpr { left, op, right } => Ok(ast::Expr::BinaryExpr {
                 left: Box::new(Box::pin(self.resolve_expression(*left, resolve_context)).await?),
                 op,
                 right: Box::new(Box::pin(self.resolve_expression(*right, resolve_context)).await?),
             }),
-            ast::Expr::Function(func) => {
-                // TODO: Search path (with system being the first to check)
-                if func.reference.0.len() != 1 {
-                    return Err(RayexecError::new(
-                        "Qualified function names not yet supported",
-                    ));
-                }
-                let func_name = &func.reference.0[0].as_normalized_string();
-                let catalog = "system";
-                let schema = "glare_catalog";
-
-                let filter = match func.filter {
-                    Some(filter) => Some(Box::new(
-                        Box::pin(self.resolve_expression(*filter, resolve_context)).await?,
-                    )),
-                    None => None,
-                };
-
-                let mut args = Vec::with_capacity(func.args.len());
-                // TODO: This current rewrites '*' function arguments to 'true'.
-                // This is for 'count(*)'. What we should be doing is rewriting
-                // 'count(*)' to 'count_star()' and have a function
-                // implementation for 'count_star'.
-                //
-                // No other function accepts a '*' (I think).
-                for func_arg in func.args {
-                    let func_arg = match func_arg {
-                        ast::FunctionArg::Named { name, arg } => ast::FunctionArg::Named {
-                            name,
-                            arg: match arg {
-                                ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
-                                    ast::Expr::Literal(ast::Literal::Boolean(true)),
-                                ),
-                                ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                                    Box::pin(self.resolve_expression(expr, resolve_context))
-                                        .await?,
-                                ),
-                            },
-                        },
-                        ast::FunctionArg::Unnamed { arg } => ast::FunctionArg::Unnamed {
-                            arg: match arg {
-                                ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
-                                    ast::Expr::Literal(ast::Literal::Boolean(true)),
-                                ),
-                                ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                                    Box::pin(self.resolve_expression(expr, resolve_context))
-                                        .await?,
-                                ),
-                            },
-                        },
-                    };
-                    args.push(func_arg);
-                }
-
-                let schema_ent = self
-                    .resolver
-                    .context
-                    .get_database(catalog)?
-                    .catalog
-                    .get_schema(self.resolver.tx, schema)?
-                    .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
-
-                // Check scalars first.
-                if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
-                    // TODO: Allow unresolved scalars?
-                    // TODO: This also assumes scalars (and aggs) are the same everywhere, which
-                    // they probably should be for now.
-                    let resolve_idx = resolve_context.functions.push_resolved(
-                        ResolvedFunction::Scalar(
-                            scalar.try_as_scalar_function_entry()?.function.clone(),
-                        ),
-                        LocationRequirement::Any,
-                    );
-                    return Ok(ast::Expr::Function(ast::Function {
-                        reference: resolve_idx,
-                        distinct: func.distinct,
-                        args,
-                        filter,
-                    }));
-                }
-
-                // Now check aggregates.
-                if let Some(aggregate) =
-                    schema_ent.get_aggregate_function(self.resolver.tx, func_name)?
-                {
-                    // TODO: Allow unresolved aggregates?
-                    let resolve_idx = resolve_context.functions.push_resolved(
-                        ResolvedFunction::Aggregate(
-                            aggregate
-                                .try_as_aggregate_function_entry()?
-                                .function
-                                .clone(),
-                        ),
-                        LocationRequirement::Any,
-                    );
-                    return Ok(ast::Expr::Function(ast::Function {
-                        reference: resolve_idx,
-                        distinct: func.distinct,
-                        args,
-                        filter,
-                    }));
-                }
-
-                Err(create_user_facing_resolve_err(
-                    self.resolver.tx,
-                    Some(&schema_ent),
-                    &[
-                        CatalogEntryType::ScalarFunction,
-                        CatalogEntryType::AggregateFunction,
-                    ],
-                    func_name,
-                ))
-            }
+            ast::Expr::Function(func) => self.resolve_function(func, resolve_context).await,
             ast::Expr::Subquery(subquery) => {
                 let resolved =
                     Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
@@ -582,5 +417,209 @@ impl<'a> ExpressionResolver<'a> {
             ast::Expr::Columns(col) => Ok(ast::Expr::Columns(col)),
             other => not_implemented!("resolve expr {other:?}"),
         }
+    }
+
+    async fn resolve_array(
+        &self,
+        arr: Vec<ast::Expr<Raw>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        let mut new_arr = Vec::with_capacity(arr.len());
+        for v in arr {
+            let new_v = Box::pin(self.resolve_expression(v, resolve_context)).await?;
+            new_arr.push(new_v);
+        }
+        Ok(ast::Expr::Array(new_arr))
+    }
+
+    async fn resolve_array_subscript(
+        &self,
+        expr: Box<ast::Expr<Raw>>,
+        subscript: Box<ast::ArraySubscript<Raw>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+        let subscript = match *subscript {
+            ast::ArraySubscript::Index(index) => ast::ArraySubscript::Index(
+                Box::pin(self.resolve_expression(index, resolve_context)).await?,
+            ),
+            ast::ArraySubscript::Slice {
+                lower,
+                upper,
+                stride,
+            } => {
+                let lower = match lower {
+                    Some(lower) => {
+                        Some(Box::pin(self.resolve_expression(lower, resolve_context)).await?)
+                    }
+                    None => None,
+                };
+                let upper = match upper {
+                    Some(upper) => {
+                        Some(Box::pin(self.resolve_expression(upper, resolve_context)).await?)
+                    }
+                    None => None,
+                };
+                let stride = match stride {
+                    Some(stride) => {
+                        Some(Box::pin(self.resolve_expression(stride, resolve_context)).await?)
+                    }
+                    None => None,
+                };
+
+                ast::ArraySubscript::Slice {
+                    lower,
+                    upper,
+                    stride,
+                }
+            }
+        };
+
+        Ok(ast::Expr::ArraySubscript {
+            expr: Box::new(expr),
+            subscript: Box::new(subscript),
+        })
+    }
+
+    async fn resolve_unary_expr(
+        &self,
+        op: ast::UnaryOperator,
+        expr: Box<ast::Expr<Raw>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        match op {
+            ast::UnaryOperator::Plus => {
+                // Nothing to do, just bind and return the inner expression.
+                Box::pin(self.resolve_expression(*expr, resolve_context)).await
+            }
+            ast::UnaryOperator::Minus => match *expr {
+                ast::Expr::Literal(ast::Literal::Number(n)) => {
+                    Ok(ast::Expr::Literal(ast::Literal::Number(format!("-{n}"))))
+                }
+                expr => Ok(ast::Expr::UnaryExpr {
+                    op: ast::UnaryOperator::Minus,
+                    expr: Box::new(Box::pin(self.resolve_expression(expr, resolve_context)).await?),
+                }),
+            },
+            ast::UnaryOperator::Not => {
+                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+                Ok(ast::Expr::UnaryExpr {
+                    op,
+                    expr: Box::new(expr),
+                })
+            }
+        }
+    }
+
+    async fn resolve_function(
+        &self,
+        func: ast::Function<Raw>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        // TODO: Search path (with system being the first to check)
+        if func.reference.0.len() != 1 {
+            return Err(RayexecError::new(
+                "Qualified function names not yet supported",
+            ));
+        }
+        let func_name = &func.reference.0[0].as_normalized_string();
+        let catalog = "system";
+        let schema = "glare_catalog";
+
+        let filter = match func.filter {
+            Some(filter) => Some(Box::new(
+                Box::pin(self.resolve_expression(*filter, resolve_context)).await?,
+            )),
+            None => None,
+        };
+
+        let mut args = Vec::with_capacity(func.args.len());
+        // TODO: This current rewrites '*' function arguments to 'true'.
+        // This is for 'count(*)'. What we should be doing is rewriting
+        // 'count(*)' to 'count_star()' and have a function
+        // implementation for 'count_star'.
+        //
+        // No other function accepts a '*' (I think).
+        for func_arg in func.args {
+            let func_arg = match func_arg {
+                ast::FunctionArg::Named { name, arg } => ast::FunctionArg::Named {
+                    name,
+                    arg: match arg {
+                        ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
+                            ast::Expr::Literal(ast::Literal::Boolean(true)),
+                        ),
+                        ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
+                            Box::pin(self.resolve_expression(expr, resolve_context)).await?,
+                        ),
+                    },
+                },
+                ast::FunctionArg::Unnamed { arg } => ast::FunctionArg::Unnamed {
+                    arg: match arg {
+                        ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
+                            ast::Expr::Literal(ast::Literal::Boolean(true)),
+                        ),
+                        ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
+                            Box::pin(self.resolve_expression(expr, resolve_context)).await?,
+                        ),
+                    },
+                },
+            };
+            args.push(func_arg);
+        }
+
+        let schema_ent = self
+            .resolver
+            .context
+            .get_database(catalog)?
+            .catalog
+            .get_schema(self.resolver.tx, schema)?
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+
+        // Check scalars first.
+        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
+            // TODO: Allow unresolved scalars?
+            // TODO: This also assumes scalars (and aggs) are the same everywhere, which
+            // they probably should be for now.
+            let resolve_idx = resolve_context.functions.push_resolved(
+                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function.clone()),
+                LocationRequirement::Any,
+            );
+            return Ok(ast::Expr::Function(ast::Function {
+                reference: resolve_idx,
+                distinct: func.distinct,
+                args,
+                filter,
+            }));
+        }
+
+        // Now check aggregates.
+        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, func_name)? {
+            // TODO: Allow unresolved aggregates?
+            let resolve_idx = resolve_context.functions.push_resolved(
+                ResolvedFunction::Aggregate(
+                    aggregate
+                        .try_as_aggregate_function_entry()?
+                        .function
+                        .clone(),
+                ),
+                LocationRequirement::Any,
+            );
+            return Ok(ast::Expr::Function(ast::Function {
+                reference: resolve_idx,
+                distinct: func.distinct,
+                args,
+                filter,
+            }));
+        }
+
+        Err(create_user_facing_resolve_err(
+            self.resolver.tx,
+            Some(&schema_ent),
+            &[
+                CatalogEntryType::ScalarFunction,
+                CatalogEntryType::AggregateFunction,
+            ],
+            func_name,
+        ))
     }
 }
