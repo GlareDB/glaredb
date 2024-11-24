@@ -1,7 +1,17 @@
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, Expr, FunctionArg, Ident, ObjectReference, QueryNode};
+use super::{
+    AstParseable,
+    Expr,
+    FunctionArg,
+    Ident,
+    LimitModifier,
+    ObjectReference,
+    QueryNode,
+    QueryNodeBody,
+    Values,
+};
 use crate::keywords::{Keyword, RESERVED_FOR_TABLE_ALIAS};
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
@@ -189,6 +199,27 @@ impl FromNode<Raw> {
                 body: FromNodeBody::Subquery(FromSubquery {
                     options: (),
                     query: subquery,
+                }),
+            })
+        } else if parser.parse_keyword(Keyword::VALUES) {
+            // Allow `SELECT * FROM VALUES ...` as a convenience (don't require
+            // parenthesis).
+            let values = Values::parse(parser)?;
+            let alias = Self::maybe_parse_alias(parser)?;
+
+            Ok(FromNode {
+                alias,
+                body: FromNodeBody::Subquery(FromSubquery {
+                    options: (),
+                    query: QueryNode {
+                        ctes: None,
+                        body: QueryNodeBody::Values(values),
+                        order_by: None,
+                        limit: LimitModifier {
+                            limit: None,
+                            offset: None,
+                        },
+                    },
                 }),
             })
         } else {
