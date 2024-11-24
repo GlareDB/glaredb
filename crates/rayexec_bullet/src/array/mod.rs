@@ -906,13 +906,6 @@ pub enum ArrayData {
     List(Arc<ListStorage>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum BinaryData {
-    Binary(Arc<ContiguousVarlenStorage<i32>>),
-    LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    German(Arc<GermanVarlenStorage>),
-}
-
 impl ArrayData {
     pub fn physical_type(&self) -> PhysicalType {
         match self {
@@ -966,6 +959,26 @@ impl ArrayData {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryData {
+    Binary(Arc<ContiguousVarlenStorage<i32>>),
+    LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
+    German(Arc<GermanVarlenStorage>),
+}
+
+impl BinaryData {
+    /// Get the binary data size for the array.
+    ///
+    /// This will not include metadata size in the calculation.
+    pub fn binary_data_size_bytes(&self) -> usize {
+        match self {
+            Self::Binary(s) => s.data_size_bytes(),
+            Self::LargeBinary(s) => s.data_size_bytes(),
+            Self::German(s) => s.data_size_bytes(),
+        }
     }
 }
 

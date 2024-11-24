@@ -204,6 +204,11 @@ impl GermanVarlenStorage {
     }
 
     pub fn data_size_bytes(&self) -> usize {
+        // TODO: This shouldn't need to iter the metadata. Currently we assume
+        // this returns _all_ data when computing row-encodings, even for
+        // strings that are inlined.
+        //
+        // We might just want different functions.
         self.metadata.iter().map(|m| m.data_len() as usize).sum()
     }
 

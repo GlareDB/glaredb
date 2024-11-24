@@ -1,0 +1,21 @@
+# UPPER
+
+query T
+SELECT upper('ABC');
+----
+ABC
+
+query T
+SELECT upper('aBc');
+----
+ABC
+
+query T
+SELECT upper('tschüß')
+----
+TSCHÜSS
+
+query T
+SELECT upper('农历新年');
+----
+农历新年
