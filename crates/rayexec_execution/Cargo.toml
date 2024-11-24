@@ -10,6 +10,7 @@ rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_io = { path = "../rayexec_io" }
 fmtutil = { path = "../fmtutil" }
+stackutil = { path = "../stackutil" }
 
 ahash = { workspace = true }
 dyn-clone = "1.0.17"

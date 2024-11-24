@@ -1,0 +1,53 @@
+# Ensure we can reference columns qualified by view name.
+
+statement ok
+CREATE TEMP VIEW v1 AS SELECT * FROM (VALUES ('cat', 3), ('dog', 4)) v(a, b);
+
+query TI
+SELECT a, b FROM v1 ORDER BY 1;
+----
+cat  3
+dog  4
+
+query TI
+SELECT v1.a, b FROM v1 ORDER BY 1;
+----
+cat  3
+dog  4
+
+query TI
+SELECT v1.a, a, b FROM v1 ORDER BY 1;
+----
+cat  cat  3
+dog  dog  4
+
+query TT
+DESCRIBE SELECT v1.* FROM v1 ORDER BY 1;
+----
+a Utf8
+b Int32
+
+query TI
+SELECT v1.* FROM v1 ORDER BY 1;
+----
+cat  3
+dog  4
+
+statement ok
+CREATE TEMP VIEW v2(col_1, col_2) AS SELECT * FROM (VALUES ('goose', 3), ('moose', 4)) v(a, b);
+
+statement error Missing column for reference: v2.a
+SELECT v2.a, b FROM v2 ORDER BY 1;
+
+query TI
+SELECT v2.col_1, col_2 FROM v2 ORDER BY 1;
+----
+goose  3
+moose  4
+
+query TT
+DESCRIBE SELECT v2.* FROM v2 ORDER BY 1;
+----
+col_1  Utf8
+col_2  Int32
+

@@ -28,6 +28,7 @@ use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
+use super::binder::bind_context::TableAlias;
 use super::binder::expr_binder::BaseExpressionBinder;
 use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
@@ -73,13 +74,19 @@ pub enum ResolvedSubqueryOptions {
     Normal,
     /// View subquery.
     ///
+    /// We include a table alias representing the path of the view according to
+    /// the catalog to enable qualifying column references in the query.
+    ///
     /// Column aliases have the following precedence:
     /// 1. Aliases applied when calling the view in FROM
     /// 2. Aliases stored on the view during create
     /// 3. Unaliases inner columns
     ///
     /// View subqueries cannot reference columns outside of itself.
-    View { column_aliases: Vec<String> },
+    View {
+        table_alias: TableAlias,
+        column_aliases: Vec<String>,
+    },
 }
 
 /// Determines the logic taken when encountering an unknown object in a query.
@@ -833,8 +840,16 @@ impl<'a> Resolver<'a> {
                             }
                         };
 
+                        // TODO: We may want to just include the database/schema
+                        // on the alias too. Need to see what we're doing for
+                        // tables and just do the same here.
                         ast::FromNodeBody::Subquery(ast::FromSubquery {
                             options: ResolvedSubqueryOptions::View {
+                                table_alias: TableAlias {
+                                    database: None,
+                                    schema: None,
+                                    table: ent.entry.name.clone(),
+                                },
                                 column_aliases: view.column_aliases.clone().unwrap_or_default(),
                             },
                             query,
