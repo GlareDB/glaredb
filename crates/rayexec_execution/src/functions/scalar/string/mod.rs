@@ -1,5 +1,8 @@
 //! String functions.
 
+mod case;
+pub use case::*;
+
 mod repeat;
 pub use repeat::*;
 

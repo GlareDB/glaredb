@@ -1,0 +1,21 @@
+# LOWER
+
+query T
+SELECT lower('abc');
+----
+abc
+
+query T
+SELECT lower('AbC');
+----
+abc
+
+query T
+SELECT lower('ὈΔΥΣΣΕΎΣ');
+----
+ὀδυσσεύς
+
+query T
+SELECT lower('农历新年')
+----
+农历新年
