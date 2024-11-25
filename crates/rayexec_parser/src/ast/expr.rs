@@ -4,7 +4,7 @@ use std::str::FromStr;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
+use super::{AstParseable, DataType, Ident, ObjectReference, OrderByNode, QueryNode};
 use crate::keywords::{keyword_from_str, Keyword};
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
