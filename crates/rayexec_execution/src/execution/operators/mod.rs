@@ -73,7 +73,7 @@ use ungrouped_aggregate::{
     UngroupedAggregatePartitionState,
 };
 use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
-use unnest::PhysicalUnnest;
+use unnest::{PhysicalUnnest, UnnestPartitionState};
 use values::PhysicalValues;
 
 use self::empty::EmptyPartitionState;
@@ -122,6 +122,7 @@ pub enum PartitionState {
     GatherSortPull(GatherSortPullPartitionState),
     ScatterSort(ScatterSortPartitionState),
     Limit(LimitPartitionState),
+    Unnest(UnnestPartitionState),
     UnionTop(UnionTopPartitionState),
     UnionBottom(UnionBottomPartitionState),
     Simple(SimplePartitionState),
