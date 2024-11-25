@@ -1,5 +1,6 @@
 use rayexec_error::Result;
 
+use super::plan_unnest::UnnestPlanner;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_select::BoundSelect;
 use crate::logical::logical_aggregate::LogicalAggregate;
@@ -85,6 +86,8 @@ impl SelectPlanner {
             children: vec![plan],
             estimated_cardinality: StatisticsValue::Unknown,
         });
+        // Handle possible UNNESTing.
+        plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
 
         // Handle HAVING
         if let Some(mut expr) = select.having {

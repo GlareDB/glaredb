@@ -256,6 +256,24 @@ impl Expression {
         }
     }
 
+    pub fn contains_unnest(&self) -> bool {
+        match self {
+            Self::Unnest(_) => true,
+            _ => {
+                let mut has_unnest = false;
+                self.for_each_child(&mut |expr| {
+                    if has_unnest {
+                        return Ok(());
+                    }
+                    has_unnest = has_unnest || expr.contains_unnest();
+                    Ok(())
+                })
+                .expect("unnest check to no fail");
+                has_unnest
+            }
+        }
+    }
+
     // TODO: Probably remove.
     pub fn is_constant(&self) -> bool {
         match self {
