@@ -19,6 +19,29 @@ SELECT unnest([3,4,5]) + 3;
 7
 8
 
+query ?
+SELECT unnest(NULL);
+----
+
+# Note this differs from duckdb. We produce rows according to the non-null
+# input, duckdb produces zero rows.
+#
+# The beahvior shown here more closely matches what happens when unnesting a
+# column with null lists.
+query ?I rowsort
+SELECT unnest(NULL), unnest([4,5,6]);
+----
+NULL  4
+NULL  5
+NULL  6
+
+query ?I rowsort
+SELECT unnest([]), unnest([4,5,6]);
+----
+NULL  4
+NULL  5
+NULL  6
+
 query II rowsort
 SELECT unnest([3,4,5]), unnest([3,2,1]);
 ----
@@ -97,6 +120,39 @@ e
 f
 
 query T
+SELECT unnest(a) FROM VALUES (['a', 'b', 'c']),
+                             (NULL),
+                             (['d', 'e', 'f']) v(a)
+  ORDER BY 1
+----
+a
+b
+c
+d
+e
+f
+
+query III
 SELECT sum(unnest(a)), min(unnest(a)), max(unnest(a)) FROM VALUES ([1,2,3]), ([4,5,6]) v(a);
 ----
 21  1  6
+
+query II
+SELECT sum(unnest(a)), sum(unnest(b)) FROM
+    VALUES ([1,NULL,2,3], [4,5]),
+           ([6],          [NULL,7,8,9,10]) v(a,b);
+----
+12  43
+
+# Keep logical types
+query TT
+DESCRIBE SELECT unnest(['2022-01-03'::DATE, '2023-04-05'::DATE]);
+----
+unnest  Date32
+
+query T rowsort
+SELECT unnest(['2022-01-03'::DATE, '2023-04-05'::DATE]);
+----
+2022-01-03
+2023-04-05
+
