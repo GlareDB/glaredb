@@ -75,7 +75,7 @@ impl StateFinalizer {
         I: IntoIterator<Item = &'a mut State>,
         I::IntoIter: ExactSizeIterator,
         State: AggregateState<Input, Output> + 'a,
-        Output: Borrow<<B as ArrayDataBuffer>::Type>,
+        Output: Borrow<B::Type>,
     {
         let states = states.into_iter();
         let mut validities = Bitmap::new_with_all_true(states.len());
