@@ -576,7 +576,7 @@ impl<'a> ExpressionResolver<'a> {
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
         // Check if this is a special function.
-        if let Some(special) = SpecialBuiltinFunction::try_from_name(&func_name) {
+        if let Some(special) = SpecialBuiltinFunction::try_from_name(func_name) {
             let resolve_idx = resolve_context
                 .functions
                 .push_resolved(ResolvedFunction::Special(special), LocationRequirement::Any);

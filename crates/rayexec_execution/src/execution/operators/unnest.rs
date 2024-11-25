@@ -299,6 +299,8 @@ impl ExecutableOperator for PhysicalUnnest {
 impl Explainable for PhysicalUnnest {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Unnest")
+            .with_values("project_expressions", &self.project_expressions)
+            .with_values("unnest_expressions", &self.unnest_expressions)
     }
 }
 
@@ -441,7 +443,7 @@ where
 
     match child.validity() {
         Some(validity) => {
-            let values = S::get_storage(&child.array_data())?;
+            let values = S::get_storage(child.array_data())?;
             let mut out_validity = Bitmap::new_with_all_false(out_len);
 
             for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
@@ -464,7 +466,7 @@ where
             ))
         }
         None => {
-            let values = S::get_storage(&child.array_data())?;
+            let values = S::get_storage(child.array_data())?;
 
             // Note we always have an output validity since we may be producing
             // an array from a list that contains fewer items than the number of
