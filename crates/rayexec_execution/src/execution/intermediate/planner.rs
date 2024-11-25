@@ -1149,13 +1149,21 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
-        let expressions = self
+        let project_expressions = self
             .expr_planner
-            .plan_scalars(&input_refs, &unnest.node.expressions)
-            .context("Failed to plan expressions for unnest")?;
+            .plan_scalars(&input_refs, &unnest.node.project_expressions)
+            .context("Failed to plan project expressions for unnest")?;
+
+        let unnest_expressions = self
+            .expr_planner
+            .plan_scalars(&input_refs, &unnest.node.unnest_expressions)
+            .context("Failed to plan unnest expressions for unnest")?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Unnest(PhysicalUnnest { expressions })),
+            operator: Arc::new(PhysicalOperator::Unnest(PhysicalUnnest {
+                project_expressions,
+                unnest_expressions,
+            })),
             partitioning_requirement: None,
         };
 

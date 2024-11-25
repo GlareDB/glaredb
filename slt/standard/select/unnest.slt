@@ -12,6 +12,13 @@ SELECT unnest([3,4,5]);
 4
 5
 
+query IT rowsort
+SELECT unnest([3,4,5]), 'dog';
+----
+3  dog
+4  dog
+5  dog
+
 query I rowsort
 SELECT unnest([3,4,5]) + 3;
 ----
@@ -118,6 +125,17 @@ c
 d
 e
 f
+
+query T
+SELECT b, unnest(a), b FROM VALUES (['a', 'b', 'c'], 8),
+                                   (['d', 'e'],      9) v(a, b)
+  ORDER BY 2
+----
+8  a  8
+8  b  8
+8  c  8
+9  d  9
+9  e  9
 
 query T
 SELECT unnest(a) FROM VALUES (['a', 'b', 'c']),

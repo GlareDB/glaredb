@@ -6,7 +6,6 @@ use half::f16;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::builder::{
     ArrayBuilder,
     ArrayDataBuffer,
@@ -36,7 +35,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUtf8,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::selection;
+use rayexec_bullet::selection::{self, SelectionVector};
 use rayexec_bullet::storage::{AddressableStorage, ListItemMetadata};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
@@ -56,8 +55,10 @@ use crate::expr::physical::PhysicalScalarExpression;
 
 #[derive(Debug)]
 pub struct UnnestPartitionState {
+    /// Projections that need to extended to match the unnest outputs.
+    project_inputs: Vec<Array>,
     /// Inputs we're processing.
-    inputs: Vec<Array>,
+    unnest_inputs: Vec<Array>,
     /// Number of rows in the input.
     input_num_rows: usize,
     /// Row we're currently unnesting.
@@ -76,7 +77,8 @@ pub struct UnnestPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalUnnest {
-    pub expressions: Vec<PhysicalScalarExpression>,
+    pub project_expressions: Vec<PhysicalScalarExpression>,
+    pub unnest_expressions: Vec<PhysicalScalarExpression>,
 }
 
 impl ExecutableOperator for PhysicalUnnest {
@@ -90,7 +92,14 @@ impl ExecutableOperator for PhysicalUnnest {
         let states: Vec<_> = (0..partitions)
             .map(|_| {
                 PartitionState::Unnest(UnnestPartitionState {
-                    inputs: vec![Array::new_untyped_null_array(0); self.expressions.len()],
+                    project_inputs: vec![
+                        Array::new_untyped_null_array(0);
+                        self.project_expressions.len()
+                    ],
+                    unnest_inputs: vec![
+                        Array::new_untyped_null_array(0);
+                        self.unnest_expressions.len()
+                    ],
                     input_num_rows: 0,
                     current_row: 0,
                     finished: false,
@@ -131,8 +140,12 @@ impl ExecutableOperator for PhysicalUnnest {
         }
 
         // Compute inputs. These will be stored until we've processed all rows.
-        for (col_idx, expr) in self.expressions.iter().enumerate() {
-            state.inputs[col_idx] = expr.eval(&batch)?.into_owned();
+        for (col_idx, expr) in self.project_expressions.iter().enumerate() {
+            state.project_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+        }
+
+        for (col_idx, expr) in self.unnest_expressions.iter().enumerate() {
+            state.unnest_inputs[col_idx] = expr.eval(&batch)?.into_owned();
         }
 
         state.input_num_rows = batch.num_rows();
@@ -192,15 +205,15 @@ impl ExecutableOperator for PhysicalUnnest {
 
         // We have input ready, get the longest list for the current row.
         let mut longest = 0;
-        for input_idx in 0..state.inputs.len() {
-            if state.inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
+        for input_idx in 0..state.unnest_inputs.len() {
+            if state.unnest_inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
                 // Just let other unnest expressions determine the number of
                 // rows.
                 continue;
             }
 
             if let Some(list_meta) = UnaryExecutor::value_at::<PhysicalList>(
-                &state.inputs[input_idx],
+                &state.unnest_inputs[input_idx],
                 state.current_row,
             )? {
                 if list_meta.len > longest {
@@ -209,9 +222,26 @@ impl ExecutableOperator for PhysicalUnnest {
             }
         }
 
-        let mut outputs = Vec::with_capacity(state.inputs.len());
-        for input_idx in 0..state.inputs.len() {
-            let arr = &state.inputs[input_idx];
+        let mut outputs =
+            Vec::with_capacity(state.project_inputs.len() + state.unnest_inputs.len());
+
+        // Process plain project inputs.
+        //
+        // Create a selection vector that points to the current row to extend
+        // out the values as needed.
+        let selection = Arc::new(SelectionVector::from(vec![
+            state.current_row;
+            longest as usize
+        ]));
+        for projected in &state.project_inputs {
+            let mut out = projected.clone();
+            out.select_mut(selection.clone());
+            outputs.push(out);
+        }
+
+        // Now process unnests.
+        for input_idx in 0..state.unnest_inputs.len() {
+            let arr = &state.unnest_inputs[input_idx];
 
             match arr.physical_type() {
                 PhysicalType::List => {

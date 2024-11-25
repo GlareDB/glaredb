@@ -33,19 +33,42 @@ impl UnnestPlanner {
             return Ok(plan);
         }
 
-        // We have one or more UNNESTs, extract them all into a separate logical
-        // unnest.
+        // We have one or more UNNESTs.
+        //
+        // We create two new table refs to differentiate between expressions
+        // that should be projected through the UNNEST, and expessions that
+        // should actually be unnested.
         let unnest_ref = bind_context.new_ephemeral_table()?;
-        let mut extracted_exprs = Vec::new(); // TODO: Extract all, UNNEST will just be project
+        let projection_ref = bind_context.new_ephemeral_table()?;
+
+        let mut unnest_expressions = Vec::new();
+        let mut project_expressions = Vec::new();
 
         plan.for_each_expr_mut(&mut |expr| {
             // Generate replacement column expr based on number of extracted
             // expressions so far.
-            extract_unnest(expr, unnest_ref, &mut extracted_exprs)
+            let did_extract = extract_unnest(expr, unnest_ref, &mut unnest_expressions)?;
+
+            // If we didn't extract, we'll need to handle this expression as a
+            // projection through the unnest. Just swap out the original
+            // expression with a column ref.
+            if !did_extract {
+                let col_idx = project_expressions.len();
+                let replace = Expression::Column(ColumnExpr {
+                    table_scope: projection_ref,
+                    column: col_idx,
+                });
+
+                let orig = std::mem::replace(expr, replace);
+
+                project_expressions.push(orig);
+            }
+
+            Ok(())
         })?;
 
-        // Place extracted exprs in the bind context.
-        for (idx, expr) in extracted_exprs.iter().enumerate() {
+        // Update table refs with the proper columns/types
+        for (idx, expr) in unnest_expressions.iter().enumerate() {
             // Need to store the type that's being produced from the unnest, so
             // unwrap the list data type.
             let datatype = match expr.datatype(bind_context)? {
@@ -60,11 +83,23 @@ impl UnnestPlanner {
             )?;
         }
 
+        for (idx, expr) in project_expressions.iter().enumerate() {
+            // Just plain projections, no need to modify types.
+            let datatype = expr.datatype(bind_context)?;
+            bind_context.push_column_for_table(
+                projection_ref,
+                format!("__generated_project{idx}"),
+                datatype,
+            )?;
+        }
+
         let unnest_children = std::mem::take(plan.children_mut());
         let unnest = LogicalOperator::Unnest(Node {
             node: LogicalUnnest {
-                table_ref: unnest_ref,
-                expressions: extracted_exprs,
+                projection_ref,
+                unnest_ref,
+                unnest_expressions,
+                project_expressions,
             },
             estimated_cardinality: StatisticsValue::Unknown,
             location: LocationRequirement::Any,
@@ -78,11 +113,15 @@ impl UnnestPlanner {
     }
 }
 
+/// Try to extract any unnest expressions, replacing the original expression
+/// with a column reference that points to the extracted expression.
+///
+/// Return true if at least one expression was extracted.
 fn extract_unnest(
     expr: &mut Expression,
     unnest_ref: TableRef,
     extracted: &mut Vec<Expression>,
-) -> Result<()> {
+) -> Result<bool> {
     match expr {
         Expression::Unnest(_) => {
             // Replace with the column expr that'll represent the output of the
@@ -104,10 +143,18 @@ fn extract_unnest(
                 _ => unreachable!(),
             }
 
-            Ok(())
+            Ok(true)
         }
         other => {
-            other.for_each_child_mut(&mut |child| extract_unnest(child, unnest_ref, extracted))
+            let mut did_extract = false;
+            other.for_each_child_mut(&mut |child| {
+                let child_did_extract = extract_unnest(child, unnest_ref, extracted)?;
+                did_extract |= child_did_extract;
+
+                Ok(())
+            })?;
+
+            Ok(did_extract)
         }
     }
 }
