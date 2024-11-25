@@ -4,6 +4,7 @@ use rayexec_bullet::scalar::interval::Interval;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
+use stackutil::check_stack_redline;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
@@ -17,6 +18,7 @@ use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::negate_expr::{NegateExpr, NegateOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
+use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::{AsScalarFunction, Expression};
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::concat::Concat;
@@ -27,7 +29,7 @@ use crate::functions::scalar::{is, like, ScalarFunction};
 use crate::functions::CastType;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
-use crate::logical::resolver::resolved_function::ResolvedFunction;
+use crate::logical::resolver::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +85,8 @@ impl<'a> BaseExpressionBinder<'a> {
         column_binder: &mut impl ExpressionColumnBinder,
         recur: RecursionContext,
     ) -> Result<Expression> {
+        check_stack_redline("bind expression")?;
+
         match expr {
             ast::Expr::Ident(ident) => {
                 // Use the provided column binder, no fallback.
@@ -457,6 +461,56 @@ impl<'a> BaseExpressionBinder<'a> {
                 // I don't think it makes sense to try to handle different sets
                 // of scalar/aggs in the hybrid case yet.
                 match reference {
+                    (ResolvedFunction::Special(special), _) => {
+                        match special {
+                            SpecialBuiltinFunction::Unnest => {
+                                if func.distinct || func.filter.is_some() {
+                                    return Err(RayexecError::new(
+                                        "UNNEST does not support DISTINCT or FILTER",
+                                    ));
+                                }
+
+                                if func.args.len() != 1 {
+                                    return Err(RayexecError::new(
+                                        "UNNEST requires a single argument",
+                                    ));
+                                }
+
+                                let input = match &func.args[0] {
+                                    ast::FunctionArg::Named { .. } => {
+                                        return Err(RayexecError::new(
+                                            "named arguments to UNNEST not yet supported",
+                                        ))
+                                    }
+                                    ast::FunctionArg::Unnamed { arg } => match arg {
+                                        ast::FunctionArgExpr::Wildcard => {
+                                            return Err(RayexecError::new(
+                                                "wildcard to UNNEST not supported",
+                                            ))
+                                        }
+                                        ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
+                                            bind_context,
+                                            expr,
+                                            column_binder,
+                                            RecursionContext {
+                                                is_root: false,
+                                                ..recur
+                                            },
+                                        )?,
+                                    },
+                                };
+
+                                let unnest_expr = Expression::Unnest(UnnestExpr {
+                                    expr: Box::new(input),
+                                });
+
+                                // To verify input types.
+                                let _ = unnest_expr.datatype(bind_context)?;
+
+                                Ok(unnest_expr)
+                            }
+                        }
+                    }
                     (ResolvedFunction::Scalar(scalar), _) => {
                         if func.distinct {
                             return Err(RayexecError::new(

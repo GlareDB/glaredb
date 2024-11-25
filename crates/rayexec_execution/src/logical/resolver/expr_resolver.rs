@@ -6,7 +6,7 @@ use rayexec_parser::meta::Raw;
 use stackutil::check_stack_redline;
 
 use super::resolve_normal::create_user_facing_resolve_err;
-use super::resolved_function::ResolvedFunction;
+use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::{ResolveContext, ResolvedMeta, Resolver};
 use crate::database::catalog_entry::CatalogEntryType;
 use crate::functions::table::TableFunctionArgs;
@@ -575,7 +575,21 @@ impl<'a> ExpressionResolver<'a> {
             .get_schema(self.resolver.tx, schema)?
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
-        // Check scalars first.
+        // Check if this is a special function.
+        if let Some(special) = SpecialBuiltinFunction::try_from_name(func_name) {
+            let resolve_idx = resolve_context
+                .functions
+                .push_resolved(ResolvedFunction::Special(special), LocationRequirement::Any);
+
+            return Ok(ast::Expr::Function(ast::Function {
+                reference: resolve_idx,
+                distinct: func.distinct,
+                args,
+                filter,
+            }));
+        }
+
+        // Now check scalars.
         if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
             // TODO: Allow unresolved scalars?
             // TODO: This also assumes scalars (and aggs) are the same everywhere, which

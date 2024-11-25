@@ -1,0 +1,176 @@
+# UNNEST in select list
+
+query TT
+DESCRIBE SELECT unnest([3,4,5])
+----
+unnest  Int32
+
+query I rowsort
+SELECT unnest([3,4,5]);
+----
+3
+4
+5
+
+query IT rowsort
+SELECT unnest([3,4,5]), 'dog';
+----
+3  dog
+4  dog
+5  dog
+
+query I rowsort
+SELECT unnest([3,4,5]) + 3;
+----
+6
+7
+8
+
+query ?
+SELECT unnest(NULL);
+----
+
+# Note this differs from duckdb. We produce rows according to the non-null
+# input, duckdb produces zero rows.
+#
+# The beahvior shown here more closely matches what happens when unnesting a
+# column with null lists.
+query ?I rowsort
+SELECT unnest(NULL), unnest([4,5,6]);
+----
+NULL  4
+NULL  5
+NULL  6
+
+query ?I rowsort
+SELECT unnest([]), unnest([4,5,6]);
+----
+NULL  4
+NULL  5
+NULL  6
+
+query II rowsort
+SELECT unnest([3,4,5]), unnest([3,2,1]);
+----
+3  3
+4  2
+5  1
+
+query TT
+DESCRIBE SELECT unnest([NULL, NULL, NULL]);
+----
+unnest  Null
+
+query ?
+SELECT unnest([NULL, NULL, NULL]);
+----
+NULL
+NULL
+NULL
+
+query I
+SELECT unnest([NULL, 4, NULL]) ORDER BY 1 NULLS LAST;
+----
+4
+NULL
+NULL
+
+query TT
+DESCRIBE SELECT unnest([NULL, 4, NULL]) ORDER BY 1 NULLS LAST;
+----
+unnest  Int32
+
+query II rowsort
+SELECT unnest([3,4,5]), unnest([3,2]);
+----
+3  3
+4  2
+5  NULL
+
+query TT
+DESCRIBE SELECT unnest([3,4,5]) a, unnest([3,2,1]) b ORDER BY b
+----
+a  Int32
+b  Int32
+
+query II
+SELECT unnest([3,4,5]) a, unnest([3,2,1]) b ORDER BY b;
+----
+5  1
+4  2
+3  3
+
+query T rowsort
+SELECT repeat(unnest(['a', 'b', 'c']), 3);
+----
+aaa
+bbb
+ccc
+
+query T rowsort
+SELECT repeat(unnest(['a', 'b', 'c']), unnest([1, 2, 3]));
+----
+a
+bb
+ccc
+
+query T
+SELECT unnest(a) FROM VALUES (['a', 'b', 'c']),
+                             (['d', 'e', 'f']) v(a)
+  ORDER BY 1
+----
+a
+b
+c
+d
+e
+f
+
+query T
+SELECT b, unnest(a), b FROM VALUES (['a', 'b', 'c'], 8),
+                                   (['d', 'e'],      9) v(a, b)
+  ORDER BY 2
+----
+8  a  8
+8  b  8
+8  c  8
+9  d  9
+9  e  9
+
+query T
+SELECT unnest(a) FROM VALUES (['a', 'b', 'c']),
+                             (NULL),
+                             (['d', 'e', 'f']) v(a)
+  ORDER BY 1
+----
+a
+b
+c
+d
+e
+f
+
+query III
+SELECT sum(unnest(a)), min(unnest(a)), max(unnest(a)) FROM VALUES ([1,2,3]), ([4,5,6]) v(a);
+----
+21  1  6
+
+query II
+SELECT sum(unnest(a)), sum(unnest(b)) FROM
+    VALUES ([1,NULL,2,3], [4,5]),
+           ([6],          [NULL,7,8,9,10]) v(a,b);
+----
+12  43
+
+# Keep logical types
+query TT
+DESCRIBE SELECT unnest(['2022-01-03'::DATE, '2023-04-05'::DATE]);
+----
+unnest  Date32
+
+query T rowsort
+SELECT unnest(['2022-01-03'::DATE, '2023-04-05'::DATE]);
+----
+2022-01-03
+2023-04-05
+

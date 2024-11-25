@@ -41,3 +41,4 @@ mod plan_query;
 mod plan_select;
 mod plan_setop;
 mod plan_subquery;
+mod plan_unnest;

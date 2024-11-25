@@ -42,6 +42,7 @@ use crate::execution::operators::sort::scatter_sort::PhysicalScatterSort;
 use crate::execution::operators::table_function::PhysicalTableFunction;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::union::PhysicalUnion;
+use crate::execution::operators::unnest::PhysicalUnnest;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
 use crate::explain::context_display::ContextDisplayMode;
@@ -82,6 +83,7 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
+use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{self, LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::storage::table_storage::Projections;
 
@@ -256,6 +258,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         match plan {
             LogicalOperator::Project(proj) => self.push_project(id_gen, materializations, proj),
+            LogicalOperator::Unnest(unnest) => self.push_unnest(id_gen, materializations, unnest),
             LogicalOperator::Filter(filter) => self.push_filter(id_gen, materializations, filter),
             LogicalOperator::Distinct(distinct) => {
                 self.push_distinct(id_gen, materializations, distinct)
@@ -1126,6 +1129,41 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
                 ProjectOperation::new(projections),
             ))),
+            partitioning_requirement: None,
+        };
+
+        self.push_intermediate_operator(operator, location, id_gen)?;
+
+        Ok(())
+    }
+
+    fn push_unnest(
+        &mut self,
+        id_gen: &mut PipelineIdGen,
+        materializations: &mut Materializations,
+        mut unnest: Node<LogicalUnnest>,
+    ) -> Result<()> {
+        let location = unnest.location;
+
+        let input = unnest.take_one_child_exact()?;
+        let input_refs = input.get_output_table_refs(self.bind_context);
+        self.walk(materializations, id_gen, input)?;
+
+        let project_expressions = self
+            .expr_planner
+            .plan_scalars(&input_refs, &unnest.node.project_expressions)
+            .context("Failed to plan project expressions for unnest")?;
+
+        let unnest_expressions = self
+            .expr_planner
+            .plan_scalars(&input_refs, &unnest.node.unnest_expressions)
+            .context("Failed to plan unnest expressions for unnest")?;
+
+        let operator = IntermediateOperator {
+            operator: Arc::new(PhysicalOperator::Unnest(PhysicalUnnest {
+                project_expressions,
+                unnest_expressions,
+            })),
             partitioning_requirement: None,
         };
 

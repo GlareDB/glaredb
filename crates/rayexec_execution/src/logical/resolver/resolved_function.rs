@@ -5,11 +5,33 @@ use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::ScalarFunction;
 use crate::proto::DatabaseProtoConv;
 
+/// "Builtin" functions that require special handling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialBuiltinFunction {
+    Unnest,
+}
+
+impl SpecialBuiltinFunction {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Unnest => "unnest",
+        }
+    }
+
+    pub fn try_from_name(func_name: &str) -> Option<Self> {
+        match func_name {
+            "unnest" => Some(Self::Unnest),
+            _ => None,
+        }
+    }
+}
+
 /// A resolved aggregate or scalar function.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedFunction {
     Scalar(Box<dyn ScalarFunction>),
     Aggregate(Box<dyn AggregateFunction>),
+    Special(SpecialBuiltinFunction),
 }
 
 impl ResolvedFunction {
@@ -17,6 +39,7 @@ impl ResolvedFunction {
         match self {
             Self::Scalar(f) => f.name(),
             Self::Aggregate(f) => f.name(),
+            Self::Special(f) => f.name(),
         }
     }
 
@@ -34,6 +57,7 @@ impl DatabaseProtoConv for ResolvedFunction {
         let value = match self {
             Self::Scalar(scalar) => Value::Scalar(scalar.to_proto_ctx(context)?),
             Self::Aggregate(agg) => Value::Aggregate(agg.to_proto_ctx(context)?),
+            Self::Special(_) => todo!(),
         };
 
         Ok(Self::ProtoType { value: Some(value) })

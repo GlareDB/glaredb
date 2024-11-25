@@ -11,6 +11,7 @@ pub mod literal_expr;
 pub mod negate_expr;
 pub mod scalar_function_expr;
 pub mod subquery_expr;
+pub mod unnest_expr;
 pub mod window_expr;
 
 pub mod physical;
@@ -34,6 +35,7 @@ use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use subquery_expr::SubqueryExpr;
+use unnest_expr::UnnestExpr;
 use window_expr::WindowExpr;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
@@ -56,6 +58,7 @@ pub enum Expression {
     ScalarFunction(ScalarFunctionExpr),
     Subquery(SubqueryExpr),
     Window(WindowExpr),
+    Unnest(UnnestExpr),
 }
 
 impl Expression {
@@ -81,6 +84,7 @@ impl Expression {
             Self::ScalarFunction(expr) => expr.function.return_type(),
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(_) => not_implemented!("WINDOW"),
+            Self::Unnest(expr) => expr.datatype(bind_context)?,
         })
     }
 
@@ -146,6 +150,7 @@ impl Expression {
                     func(partition)?;
                 }
             }
+            Self::Unnest(unnest) => func(&mut unnest.expr)?,
         }
         Ok(())
     }
@@ -212,6 +217,7 @@ impl Expression {
                     func(partition)?;
                 }
             }
+            Self::Unnest(unnest) => func(&unnest.expr)?,
         }
         Ok(())
     }
@@ -246,6 +252,24 @@ impl Expression {
                 })
                 .expect("subquery check to no fail");
                 has_subquery
+            }
+        }
+    }
+
+    pub fn contains_unnest(&self) -> bool {
+        match self {
+            Self::Unnest(_) => true,
+            _ => {
+                let mut has_unnest = false;
+                self.for_each_child(&mut |expr| {
+                    if has_unnest {
+                        return Ok(());
+                    }
+                    has_unnest = has_unnest || expr.contains_unnest();
+                    Ok(())
+                })
+                .expect("unnest check to no fail");
+                has_unnest
             }
         }
     }
@@ -489,6 +513,7 @@ impl ContextDisplay for Expression {
             Self::ScalarFunction(expr) => expr.fmt_using_context(mode, f),
             Self::Subquery(expr) => expr.fmt_using_context(mode, f),
             Self::Window(expr) => expr.fmt_using_context(mode, f),
+            Self::Unnest(expr) => expr.fmt_using_context(mode, f),
         }
     }
 }
