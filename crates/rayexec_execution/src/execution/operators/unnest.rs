@@ -248,7 +248,7 @@ impl Explainable for PhysicalUnnest {
 
 fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
     match child.physical_type() {
-        PhysicalType::UntypedNull => not_implemented!("NULL unnest"),
+        PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
         PhysicalType::Boolean => {
             let builder = ArrayBuilder {
                 datatype: DataType::Boolean,
@@ -384,7 +384,7 @@ where
     match child.validity() {
         Some(validity) => {
             let values = S::get_storage(&child.array_data())?;
-            let mut out_validity_builder = Bitmap::new_with_all_false(out_len);
+            let mut out_validity = Bitmap::new_with_all_false(out_len);
 
             for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
                 let child_idx = child_idx as usize;
@@ -395,29 +395,36 @@ where
                 }
 
                 let val = unsafe { values.get_unchecked(sel) };
-                out_validity_builder.set_unchecked(out_idx, true);
+                out_validity.set_unchecked(out_idx, true);
                 builder.buffer.put(out_idx, val.borrow());
             }
 
             Ok(Array::new_with_validity_and_array_data(
                 builder.datatype,
-                out_validity_builder,
+                out_validity,
                 builder.buffer.into_data(),
             ))
         }
         None => {
             let values = S::get_storage(&child.array_data())?;
 
+            // Note we always have an output validity since we may be producing
+            // an array from a list that contains fewer items than the number of
+            // rows we're producing.
+            let mut out_validity = Bitmap::new_with_all_false(out_len);
+
             for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
                 let child_idx = child_idx as usize;
                 let sel = selection::get(selection, child_idx);
 
                 let val = unsafe { values.get_unchecked(sel) };
+                out_validity.set_unchecked(out_idx, true);
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_array_data(
+            Ok(Array::new_with_validity_and_array_data(
                 builder.datatype,
+                out_validity,
                 builder.buffer.into_data(),
             ))
         }

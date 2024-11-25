@@ -27,6 +27,37 @@ SELECT unnest([3,4,5]), unnest([3,2,1]);
 5  1
 
 query TT
+DESCRIBE SELECT unnest([NULL, NULL, NULL]);
+----
+unnest  Null
+
+query ?
+SELECT unnest([NULL, NULL, NULL]);
+----
+NULL
+NULL
+NULL
+
+query I
+SELECT unnest([NULL, 4, NULL]) ORDER BY 1 NULLS LAST;
+----
+4
+NULL
+NULL
+
+query TT
+DESCRIBE SELECT unnest([NULL, 4, NULL]) ORDER BY 1 NULLS LAST;
+----
+unnest  Int32
+
+query II rowsort
+SELECT unnest([3,4,5]), unnest([3,2]);
+----
+3  3
+4  2
+5  NULL
+
+query TT
 DESCRIBE SELECT unnest([3,4,5]) a, unnest([3,2,1]) b ORDER BY b
 ----
 a  Int32
@@ -53,3 +84,19 @@ a
 bb
 ccc
 
+query T
+SELECT unnest(a) FROM VALUES (['a', 'b', 'c']),
+                             (['d', 'e', 'f']) v(a)
+  ORDER BY 1
+----
+a
+b
+c
+d
+e
+f
+
+query T
+SELECT sum(unnest(a)), min(unnest(a)), max(unnest(a)) FROM VALUES ([1,2,3]), ([4,5,6]) v(a);
+----
+21  1  6

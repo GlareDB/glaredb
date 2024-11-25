@@ -69,7 +69,8 @@ impl SelectPlanner {
                 location: LocationRequirement::Any,
                 children: vec![plan],
                 estimated_cardinality: StatisticsValue::Unknown,
-            })
+            });
+            plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
         }
 
         // Handle projections.
