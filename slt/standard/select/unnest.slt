@@ -1,8 +1,55 @@
 # UNNEST in select list
 
+query TT
+DESCRIBE SELECT unnest([3,4,5])
+----
+unnest  Int32
+
 query I rowsort
 SELECT unnest([3,4,5]);
 ----
 3
 4
 5
+
+query I rowsort
+SELECT unnest([3,4,5]) + 3;
+----
+6
+7
+8
+
+query II rowsort
+SELECT unnest([3,4,5]), unnest([3,2,1]);
+----
+3  3
+4  2
+5  1
+
+query TT
+DESCRIBE SELECT unnest([3,4,5]) a, unnest([3,2,1]) b ORDER BY b
+----
+a  Int32
+b  Int32
+
+query II
+SELECT unnest([3,4,5]) a, unnest([3,2,1]) b ORDER BY b;
+----
+5  1
+4  2
+3  3
+
+query T rowsort
+SELECT repeat(unnest(['a', 'b', 'c']), 3);
+----
+aaa
+bbb
+ccc
+
+query T rowsort
+SELECT repeat(unnest(['a', 'b', 'c']), unnest([1, 2, 3]));
+----
+a
+bb
+ccc
+

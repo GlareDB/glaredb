@@ -90,7 +90,7 @@ impl ExecutableOperator for PhysicalUnnest {
         let states: Vec<_> = (0..partitions)
             .map(|_| {
                 PartitionState::Unnest(UnnestPartitionState {
-                    inputs: vec![Array::new_untyped_null_array(0)],
+                    inputs: vec![Array::new_untyped_null_array(0); self.expressions.len()],
                     input_num_rows: 0,
                     current_row: 0,
                     finished: false,

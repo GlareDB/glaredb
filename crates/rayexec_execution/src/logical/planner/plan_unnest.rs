@@ -1,8 +1,9 @@
+use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;
@@ -35,54 +36,65 @@ impl UnnestPlanner {
         // We have one or more UNNESTs, extract them all into a separate logical
         // unnest.
         let unnest_ref = bind_context.new_ephemeral_table()?;
-        let mut extracted_exprs = Vec::new();
+        let mut extracted_exprs = Vec::new(); // TODO: Extract all, UNNEST will just be project
 
         plan.for_each_expr_mut(&mut |expr| {
             // Generate replacement column expr based on number of extracted
             // expressions so far.
-            let curr_col = extracted_exprs.len();
-            let replace = ColumnExpr {
-                table_scope: unnest_ref,
-                column: curr_col,
-            };
-            extract_unnest(expr, replace, &mut extracted_exprs)
+            extract_unnest(expr, unnest_ref, &mut extracted_exprs)
         })?;
 
-        if expr_count == extracted_exprs.len() {
-            // All expressions contained an UNNEST call, now they'll just
-            // reference the unnest operator.
+        // Place extracted exprs in the bind context.
+        for (idx, expr) in extracted_exprs.iter().enumerate() {
+            // Need to store the type that's being produced from the unnest, so
+            // unwrap the list data type.
+            let datatype = match expr.datatype(bind_context)? {
+                DataType::List(list) => list.datatype.as_ref().clone(),
+                other => other,
+            };
 
-            let unnest_children = std::mem::take(plan.children_mut());
-            let unnest = LogicalOperator::Unnest(Node {
-                node: LogicalUnnest {
-                    table_ref: unnest_ref,
-                    expressions: extracted_exprs,
-                },
-                estimated_cardinality: StatisticsValue::Unknown,
-                location: LocationRequirement::Any,
-                children: unnest_children,
-            });
-
-            // Update plan to now have the unnest as its child.
-            *plan.children_mut() = vec![unnest];
-
-            Ok(plan)
-        } else {
-            unimplemented!()
+            bind_context.push_column_for_table(
+                unnest_ref,
+                format!("__generated_unnest{idx}"),
+                datatype,
+            )?;
         }
+
+        let unnest_children = std::mem::take(plan.children_mut());
+        let unnest = LogicalOperator::Unnest(Node {
+            node: LogicalUnnest {
+                table_ref: unnest_ref,
+                expressions: extracted_exprs,
+            },
+            estimated_cardinality: StatisticsValue::Unknown,
+            location: LocationRequirement::Any,
+            children: unnest_children,
+        });
+
+        // Update plan to now have the unnest as its child.
+        *plan.children_mut() = vec![unnest];
+
+        Ok(plan)
     }
 }
 
 fn extract_unnest(
     expr: &mut Expression,
-    replace: ColumnExpr,
+    unnest_ref: TableRef,
     extracted: &mut Vec<Expression>,
 ) -> Result<()> {
     match expr {
         Expression::Unnest(_) => {
             // Replace with the column expr that'll represent the output of the
             // UNNEST.
-            let inner = std::mem::replace(expr, Expression::Column(replace));
+            let col_idx = extracted.len();
+            let inner = std::mem::replace(
+                expr,
+                Expression::Column(ColumnExpr {
+                    table_scope: unnest_ref,
+                    column: col_idx,
+                }),
+            );
 
             // Note we don't support nested UNNESTs.
             match inner {
@@ -94,6 +106,8 @@ fn extract_unnest(
 
             Ok(())
         }
-        other => other.for_each_child_mut(&mut |child| extract_unnest(child, replace, extracted)),
+        other => {
+            other.for_each_child_mut(&mut |child| extract_unnest(child, unnest_ref, extracted))
+        }
     }
 }
