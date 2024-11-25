@@ -204,13 +204,13 @@ mod tests {
         // GROUP BY a
         let node = ast::GroupByNode::Exprs {
             exprs: vec![ast::GroupByExpr::Expr(vec![ast::Expr::Ident(
-                ast::Ident::from_string("a"),
+                ast::Ident::new_unquoted("a"),
             )])],
         };
 
         let sets = GroupByWithSets::try_from_ast(node).unwrap();
         let expected = GroupByWithSets {
-            expressions: vec![ast::Expr::Ident(ast::Ident::from_string("a"))],
+            expressions: vec![ast::Expr::Ident(ast::Ident::new_unquoted("a"))],
             grouping_sets: vec![[0].into()],
         };
 
@@ -222,16 +222,16 @@ mod tests {
         // GROUP BY a, b
         let node = ast::GroupByNode::Exprs {
             exprs: vec![ast::GroupByExpr::Expr(vec![
-                ast::Expr::Ident(ast::Ident::from_string("a")),
-                ast::Expr::Ident(ast::Ident::from_string("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
             ])],
         };
 
         let sets = GroupByWithSets::try_from_ast(node).unwrap();
         let expected = GroupByWithSets {
             expressions: vec![
-                ast::Expr::Ident(ast::Ident::from_string("a")),
-                ast::Expr::Ident(ast::Ident::from_string("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
             ],
             grouping_sets: vec![[0, 1].into()],
         };
@@ -244,18 +244,18 @@ mod tests {
         // GROUP BY ROLLUP a, b, c
         let node = ast::GroupByNode::Exprs {
             exprs: vec![ast::GroupByExpr::Rollup(vec![
-                ast::Expr::Ident(ast::Ident::from_string("a")),
-                ast::Expr::Ident(ast::Ident::from_string("b")),
-                ast::Expr::Ident(ast::Ident::from_string("c")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("c")),
             ])],
         };
 
         let sets = GroupByWithSets::try_from_ast(node).unwrap();
         let expected = GroupByWithSets {
             expressions: vec![
-                ast::Expr::Ident(ast::Ident::from_string("a")),
-                ast::Expr::Ident(ast::Ident::from_string("b")),
-                ast::Expr::Ident(ast::Ident::from_string("c")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("c")),
             ],
             grouping_sets: vec![[0, 1, 2].into(), [0, 1].into(), [0].into(), [].into()],
         };
@@ -268,18 +268,18 @@ mod tests {
         // GROUP BY CUBE a, b, c
         let node = ast::GroupByNode::Exprs {
             exprs: vec![ast::GroupByExpr::Cube(vec![
-                ast::Expr::Ident(ast::Ident::from_string("a")),
-                ast::Expr::Ident(ast::Ident::from_string("b")),
-                ast::Expr::Ident(ast::Ident::from_string("c")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("c")),
             ])],
         };
 
         let sets = GroupByWithSets::try_from_ast(node).unwrap();
         let expected = GroupByWithSets {
             expressions: vec![
-                ast::Expr::Ident(ast::Ident::from_string("a")),
-                ast::Expr::Ident(ast::Ident::from_string("b")),
-                ast::Expr::Ident(ast::Ident::from_string("c")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("c")),
             ],
             grouping_sets: vec![
                 [].into(),

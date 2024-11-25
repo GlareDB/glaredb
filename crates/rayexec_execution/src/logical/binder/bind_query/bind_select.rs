@@ -168,7 +168,7 @@ mod tests {
                 ast::SelectExpr::Expr(ast::Expr::Literal(ast::Literal::Number("1".to_string()))),
                 ast::SelectExpr::AliasedExpr(
                     ast::Expr::Literal(ast::Literal::Number("1".to_string())),
-                    ast::Ident::from_string("my_alias"),
+                    ast::Ident::new_unquoted("my_alias"),
                 ),
             ],
             from: None,

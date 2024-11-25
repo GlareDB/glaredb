@@ -398,7 +398,7 @@ mod tests {
 
         // Expand just 't1'
         let exprs = vec![ast::SelectExpr::QualifiedWildcard(
-            ObjectReference(vec![ast::Ident::from_string("t1")]),
+            ObjectReference(vec![ast::Ident::new_unquoted("t1")]),
             ast::WildcardModifier {
                 exclude_cols: Vec::new(),
                 replace_cols: Vec::new(),

@@ -381,7 +381,7 @@ mod tests {
         let node: FromNode<_> = parse_ast("my_table AS ORDER").unwrap();
         let expected = FromNode {
             alias: Some(FromAlias {
-                alias: Ident::from_string("ORDER"),
+                alias: Ident::new_unquoted("ORDER"),
                 columns: None,
             }),
             body: FromNodeBody::BaseTable(FromBaseTable {
@@ -534,9 +534,9 @@ mod tests {
                 }),
                 join_type: JoinType::Inner,
                 join_condition: JoinCondition::On(Expr::BinaryExpr {
-                    left: Box::new(Expr::Ident(Ident::from_string("c1"))),
+                    left: Box::new(Expr::Ident(Ident::new_unquoted("c1"))),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Ident(Ident::from_string("c2"))),
+                    right: Box::new(Expr::Ident(Ident::new_unquoted("c2"))),
                 }),
             }),
         };
@@ -563,9 +563,9 @@ mod tests {
                 }),
                 join_type: JoinType::Inner,
                 join_condition: JoinCondition::On(Expr::BinaryExpr {
-                    left: Box::new(Expr::Ident(Ident::from_string("c1"))),
+                    left: Box::new(Expr::Ident(Ident::new_unquoted("c1"))),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Ident(Ident::from_string("c2"))),
+                    right: Box::new(Expr::Ident(Ident::new_unquoted("c2"))),
                 }),
             }),
         };
@@ -592,9 +592,9 @@ mod tests {
                 }),
                 join_type: JoinType::Inner,
                 join_condition: JoinCondition::Using(vec![
-                    Ident::from_string("c1"),
-                    Ident::from_string("c2"),
-                    Ident::from_string("c3"),
+                    Ident::new_unquoted("c1"),
+                    Ident::new_unquoted("c2"),
+                    Ident::new_unquoted("c3"),
                 ]),
             }),
         };

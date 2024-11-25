@@ -97,11 +97,11 @@ mod tests {
     fn attach_pg_database() {
         let got = parse_ast::<Attach<_>>("ATTACH POSTGRES DATABASE AS my_pg CONNECTION_STRING 'postgres://sean:pass@localhost/db'").unwrap();
         let expected = Attach {
-            datasource_name: Ident::from_string("POSTGRES"),
+            datasource_name: Ident::new_unquoted("POSTGRES"),
             attach_type: AttachType::Database,
             alias: ObjectReference::from_strings(["my_pg"]),
             options: [(
-                Ident::from_string("CONNECTION_STRING"),
+                Ident::new_unquoted("CONNECTION_STRING"),
                 Expr::Literal(Literal::SingleQuotedString(
                     "postgres://sean:pass@localhost/db".to_string(),
                 )),
@@ -117,22 +117,22 @@ mod tests {
     fn attach_pg_table() {
         let got = parse_ast::<Attach<_>>("ATTACH POSTGRES TABLE AS my_pg_table CONNECTION_STRING 'postgres://sean:pass@localhost/db' SCHEMA 'public' TABLE 'users'").unwrap();
         let expected = Attach {
-            datasource_name: Ident::from_string("POSTGRES"),
+            datasource_name: Ident::new_unquoted("POSTGRES"),
             attach_type: AttachType::Table,
             alias: ObjectReference::from_strings(["my_pg_table"]),
             options: [
                 (
-                    Ident::from_string("CONNECTION_STRING"),
+                    Ident::new_unquoted("CONNECTION_STRING"),
                     Expr::Literal(Literal::SingleQuotedString(
                         "postgres://sean:pass@localhost/db".to_string(),
                     )),
                 ),
                 (
-                    Ident::from_string("SCHEMA"),
+                    Ident::new_unquoted("SCHEMA"),
                     Expr::Literal(Literal::SingleQuotedString("public".to_string())),
                 ),
                 (
-                    Ident::from_string("TABLE"),
+                    Ident::new_unquoted("TABLE"),
                     Expr::Literal(Literal::SingleQuotedString("users".to_string())),
                 ),
             ]

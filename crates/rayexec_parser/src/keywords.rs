@@ -171,6 +171,7 @@ define_keywords!(
     ORDER,
     OTHERS,
     OUTER,
+    OVER,
     PARTITION,
     PIVOT,
     PRECEDING,

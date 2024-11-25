@@ -72,7 +72,8 @@ pub struct Ident {
 }
 
 impl Ident {
-    pub fn from_string(s: impl Into<String>) -> Self {
+    /// Create a new unquoted identifier.
+    pub fn new_unquoted(s: impl Into<String>) -> Self {
         Ident {
             value: s.into(),
             quoted: false,

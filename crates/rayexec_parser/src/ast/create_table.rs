@@ -127,7 +127,7 @@ mod tests {
             external: false,
             name: ObjectReference::from_strings(["hello"]),
             columns: vec![ColumnDef {
-                name: Ident::from_string("a"),
+                name: Ident::new_unquoted("a"),
                 datatype: DataType::Integer,
                 opts: Vec::new(),
             }],
@@ -147,12 +147,12 @@ mod tests {
             name: ObjectReference::from_strings(["hello"]),
             columns: vec![
                 ColumnDef {
-                    name: Ident::from_string("a"),
+                    name: Ident::new_unquoted("a"),
                     datatype: DataType::Integer,
                     opts: Vec::new(),
                 },
                 ColumnDef {
-                    name: Ident::from_string("world"),
+                    name: Ident::new_unquoted("world"),
                     datatype: DataType::Varchar(None),
                     opts: Vec::new(),
                 },
@@ -173,12 +173,12 @@ mod tests {
             name: ObjectReference::from_strings(["hello"]),
             columns: vec![
                 ColumnDef {
-                    name: Ident::from_string("a"),
+                    name: Ident::new_unquoted("a"),
                     datatype: DataType::Integer,
                     opts: Vec::new(),
                 },
                 ColumnDef {
-                    name: Ident::from_string("world"),
+                    name: Ident::new_unquoted("world"),
                     datatype: DataType::Varchar(None),
                     opts: Vec::new(),
                 },
@@ -198,7 +198,7 @@ mod tests {
             external: false,
             name: ObjectReference::from_strings(["hello"]),
             columns: vec![ColumnDef {
-                name: Ident::from_string("a"),
+                name: Ident::new_unquoted("a"),
                 datatype: DataType::Integer,
                 opts: Vec::new(),
             }],
@@ -218,7 +218,7 @@ mod tests {
             external: false,
             name: ObjectReference::from_strings(["hello"]),
             columns: vec![ColumnDef {
-                name: Ident::from_string("a"),
+                name: Ident::new_unquoted("a"),
                 datatype: DataType::Integer,
                 opts: Vec::new(),
             }],

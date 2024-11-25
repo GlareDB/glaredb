@@ -7,11 +7,49 @@ use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WindowSpec<T: AstMeta> {
+pub enum WindowSpec<T: AstMeta> {
+    Named(Ident),
+    Definition(WindowDefinition<T>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WindowDefinition<T: AstMeta> {
     pub existing: Option<Ident>,
     pub partition_by: Vec<Expr<T>>,
     pub order_by: Vec<OrderByNode<T>>,
     pub frame: Option<WindowFrame<T>>,
+}
+
+impl AstParseable for WindowDefinition<Raw> {
+    fn parse(parser: &mut Parser) -> Result<Self> {
+        // TODO: This will prevent window names from being a keyword.
+        let existing = if !parser.peek_keyword().is_some() {
+            Some(Ident::parse(parser)?)
+        } else {
+            None
+        };
+
+        let partition_by = if parser.parse_keyword_sequence(&[Keyword::PARTITION, Keyword::BY]) {
+            parser.parse_comma_separated(Expr::parse)?
+        } else {
+            Vec::new()
+        };
+
+        let order_by = if parser.parse_keyword_sequence(&[Keyword::ORDER, Keyword::BY]) {
+            parser.parse_comma_separated(OrderByNode::parse)?
+        } else {
+            Vec::new()
+        };
+
+        let frame = parser.maybe_parse(WindowFrame::parse);
+
+        Ok(WindowDefinition {
+            existing,
+            partition_by,
+            order_by,
+            frame,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -74,9 +112,9 @@ impl AstParseable for WindowFrameExclusion {
 pub enum WindowFrameBound<T: AstMeta> {
     CurrentRow,
     UnboundedPreceding,
-    Preceding(Expr<T>),
+    Preceding(Box<Expr<T>>),
     UnboundedFollowing,
-    Following(Expr<T>),
+    Following(Box<Expr<T>>),
 }
 
 impl AstParseable for WindowFrameBound<Raw> {
@@ -91,8 +129,8 @@ impl AstParseable for WindowFrameBound<Raw> {
             } else {
                 let expr = Expr::parse(parser)?;
                 match parser.parse_one_of_keywords(&[Keyword::PRECEDING, Keyword::FOLLOWING]) {
-                    Some(Keyword::PRECEDING) => WindowFrameBound::Preceding(expr),
-                    Some(Keyword::FOLLOWING) => WindowFrameBound::Following(expr),
+                    Some(Keyword::PRECEDING) => WindowFrameBound::Preceding(Box::new(expr)),
+                    Some(Keyword::FOLLOWING) => WindowFrameBound::Following(Box::new(expr)),
                     _ => return Err(RayexecError::new(
                         "Expected <expr> PRECEDING, UNBOUNDED PRECEDING, CURRENT ROW, UNBOUNDED FOLLOWING, or <expr> FOLLOWING for window frame bound"
                     )),
@@ -180,7 +218,9 @@ mod tests {
         let frame: WindowFrame<_> = parse_ast("ROWS 4 FOLLOWING").unwrap();
         let expected = WindowFrame {
             unit: WindowFrameUnit::Rows,
-            start: WindowFrameBound::Following(Expr::Literal(Literal::Number("4".to_string()))),
+            start: WindowFrameBound::Following(Box::new(Expr::Literal(Literal::Number(
+                "4".to_string(),
+            )))),
             end: None,
             exclusion: None,
         };
