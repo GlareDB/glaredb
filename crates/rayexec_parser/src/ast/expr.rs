@@ -198,7 +198,7 @@ pub enum Expr<T: AstMeta> {
         right: Box<Expr<T>>,
     },
     /// A function call.
-    Function(Function<T>),
+    Function(Box<Function<T>>),
     /// Scalar subquery.
     Subquery(Box<QueryNode<T>>),
     /// Nested expression wrapped in parenthesis.
@@ -936,13 +936,13 @@ impl Expr<Raw> {
                 None
             };
 
-            Ok(Expr::Function(Function {
+            Ok(Expr::Function(Box::new(Function {
                 reference: ObjectReference(idents),
                 distinct,
                 args,
                 filter,
                 over,
-            }))
+            })))
         } else {
             Ok(match idents.len() {
                 1 if !wildcard => Expr::Ident(idents.pop().unwrap()),
@@ -1326,7 +1326,7 @@ mod tests {
     #[test]
     fn function_call_simple() {
         let expr: Expr<_> = parse_ast("sum(my_col)").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("sum")]),
             distinct: false,
             args: vec![FunctionArg::Unnamed {
@@ -1334,27 +1334,27 @@ mod tests {
             }],
             filter: None,
             over: None,
-        });
+        }));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn function_call_no_args() {
         let expr: Expr<_> = parse_ast("random()").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("random")]),
             distinct: false,
             args: Vec::new(),
             filter: None,
             over: None,
-        });
+        }));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn function_call_with_over() {
         let expr: Expr<_> = parse_ast("count(x) filter (where x > 5)").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("count")]),
             distinct: false,
             args: vec![FunctionArg::Unnamed {
@@ -1366,14 +1366,14 @@ mod tests {
                 right: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
             })),
             over: None,
-        });
+        }));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn function_call_with_distinct() {
         let expr: Expr<_> = parse_ast("count(distinct x)").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("count")]),
             distinct: true,
             args: vec![FunctionArg::Unnamed {
@@ -1381,7 +1381,7 @@ mod tests {
             }],
             filter: None,
             over: None,
-        });
+        }));
         assert_eq!(expected, expr);
     }
 
@@ -1389,7 +1389,7 @@ mod tests {
     fn function_call_window_def() {
         let expr: Expr<_> =
             parse_ast("rank() over (partition by depname order by salary desc, empno)").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("rank")]),
             distinct: false,
             args: Vec::new(),
@@ -1411,7 +1411,7 @@ mod tests {
                 ],
                 frame: None,
             })),
-        });
+        }));
         assert_eq!(expected, expr);
     }
 
@@ -1429,7 +1429,7 @@ mod tests {
     #[test]
     fn count_star() {
         let expr: Expr<_> = parse_ast("count(*)").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference::from_strings(["count"]),
             distinct: false,
             args: vec![FunctionArg::Unnamed {
@@ -1437,7 +1437,7 @@ mod tests {
             }],
             filter: None,
             over: None,
-        });
+        }));
         assert_eq!(expected, expr);
     }
 
@@ -1447,7 +1447,7 @@ mod tests {
         let expected = Expr::BinaryExpr {
             left: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
             op: BinaryOperator::Multiply,
-            right: Box::new(Expr::Function(Function {
+            right: Box::new(Expr::Function(Box::new(Function {
                 reference: ObjectReference::from_strings(["count"]),
                 distinct: false,
                 args: vec![FunctionArg::Unnamed {
@@ -1455,7 +1455,7 @@ mod tests {
                 }],
                 filter: None,
                 over: None,
-            })),
+            }))),
         };
         assert_eq!(expected, expr);
     }
@@ -1464,7 +1464,7 @@ mod tests {
     fn count_star_precedence_after() {
         let expr: Expr<_> = parse_ast("count(*) * 111").unwrap();
         let expected = Expr::BinaryExpr {
-            left: Box::new(Expr::Function(Function {
+            left: Box::new(Expr::Function(Box::new(Function {
                 reference: ObjectReference::from_strings(["count"]),
                 distinct: false,
                 args: vec![FunctionArg::Unnamed {
@@ -1472,7 +1472,7 @@ mod tests {
                 }],
                 filter: None,
                 over: None,
-            })),
+            }))),
             op: BinaryOperator::Multiply,
             right: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
         };

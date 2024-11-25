@@ -175,6 +175,20 @@ impl<'a> ExpressionResolver<'a> {
         Ok(resolved)
     }
 
+    pub async fn resolve_optional_expression(
+        &self,
+        expr: Option<ast::Expr<Raw>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<Option<ast::Expr<ResolvedMeta>>> {
+        Ok(match expr {
+            Some(expr) => {
+                let expr = Box::pin(self.resolve_expression(expr, resolve_context)).await?;
+                Some(expr)
+            }
+            None => None,
+        })
+    }
+
     /// Resolve an expression.
     pub async fn resolve_expression(
         &self,
@@ -228,21 +242,13 @@ impl<'a> ExpressionResolver<'a> {
                 right: Box::new(Box::pin(self.resolve_expression(*right, resolve_context)).await?),
             }),
             ast::Expr::Function(func) => self.resolve_function(func, resolve_context).await,
-            ast::Expr::Subquery(subquery) => {
-                let resolved =
-                    Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
-                Ok(ast::Expr::Subquery(Box::new(resolved)))
-            }
+            ast::Expr::Subquery(subquery) => self.resolve_subquery(subquery, resolve_context).await,
             ast::Expr::Exists {
                 subquery,
                 not_exists,
             } => {
-                let resolved =
-                    Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
-                Ok(ast::Expr::Exists {
-                    subquery: Box::new(resolved),
-                    not_exists,
-                })
+                self.resolve_exists_subquery(subquery, not_exists, resolve_context)
+                    .await
             }
             ast::Expr::TypedString { datatype, value } => {
                 let datatype = Resolver::ast_datatype_to_exec_datatype(datatype)?;
@@ -369,43 +375,12 @@ impl<'a> ExpressionResolver<'a> {
                 results,
                 else_expr,
             } => {
-                let expr = match expr {
-                    Some(expr) => Some(Box::new(
-                        Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
-                    )),
-                    None => None,
-                };
-                let else_expr = match else_expr {
-                    Some(expr) => Some(Box::new(
-                        Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
-                    )),
-                    None => None,
-                };
-                let conditions =
-                    Box::pin(self.resolve_expressions(conditions, resolve_context)).await?;
-                let results = Box::pin(self.resolve_expressions(results, resolve_context)).await?;
-                Ok(ast::Expr::Case {
-                    expr,
-                    conditions,
-                    results,
-                    else_expr,
-                })
+                self.resolve_case(expr, conditions, results, else_expr, resolve_context)
+                    .await
             }
             ast::Expr::Substring { expr, from, count } => {
-                let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
-                let from = Box::pin(self.resolve_expression(*from, resolve_context)).await?;
-                let count = match count {
-                    Some(count) => {
-                        Some(Box::pin(self.resolve_expression(*count, resolve_context)).await?)
-                    }
-                    None => None,
-                };
-
-                Ok(ast::Expr::Substring {
-                    expr: Box::new(expr),
-                    from: Box::new(from),
-                    count: count.map(Box::new),
-                })
+                self.resolve_substring(expr, from, count, resolve_context)
+                    .await
             }
             ast::Expr::Extract { date_part, expr } => {
                 let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
@@ -417,6 +392,80 @@ impl<'a> ExpressionResolver<'a> {
             ast::Expr::Columns(col) => Ok(ast::Expr::Columns(col)),
             other => not_implemented!("resolve expr {other:?}"),
         }
+    }
+
+    async fn resolve_subquery(
+        &self,
+        subquery: Box<ast::QueryNode<Raw>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        let resolved = Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
+        Ok(ast::Expr::Subquery(Box::new(resolved)))
+    }
+
+    async fn resolve_exists_subquery(
+        &self,
+        subquery: Box<ast::QueryNode<Raw>>,
+        not_exists: bool,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        let resolved = Box::pin(self.resolver.resolve_query(*subquery, resolve_context)).await?;
+        Ok(ast::Expr::Exists {
+            subquery: Box::new(resolved),
+            not_exists,
+        })
+    }
+
+    async fn resolve_substring(
+        &self,
+        expr: Box<ast::Expr<Raw>>,
+        from: Box<ast::Expr<Raw>>,
+        count: Option<Box<ast::Expr<Raw>>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
+        let from = Box::pin(self.resolve_expression(*from, resolve_context)).await?;
+        let count = match count {
+            Some(count) => Some(Box::pin(self.resolve_expression(*count, resolve_context)).await?),
+            None => None,
+        };
+
+        Ok(ast::Expr::Substring {
+            expr: Box::new(expr),
+            from: Box::new(from),
+            count: count.map(Box::new),
+        })
+    }
+
+    async fn resolve_case(
+        &self,
+        expr: Option<Box<ast::Expr<Raw>>>,
+        conditions: Vec<ast::Expr<Raw>>,
+        results: Vec<ast::Expr<Raw>>,
+        else_expr: Option<Box<ast::Expr<Raw>>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::Expr<ResolvedMeta>> {
+        let expr = match expr {
+            Some(expr) => Some(Box::new(
+                Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
+            )),
+            None => None,
+        };
+        let else_expr = match else_expr {
+            Some(expr) => Some(Box::new(
+                Box::pin(self.resolve_expression(*expr, resolve_context)).await?,
+            )),
+            None => None,
+        };
+        let conditions = Box::pin(self.resolve_expressions(conditions, resolve_context)).await?;
+        let results = Box::pin(self.resolve_expressions(results, resolve_context)).await?;
+
+        Ok(ast::Expr::Case {
+            expr,
+            conditions,
+            results,
+            else_expr,
+        })
     }
 
     async fn resolve_array(
@@ -513,7 +562,7 @@ impl<'a> ExpressionResolver<'a> {
 
     async fn resolve_function(
         &self,
-        func: ast::Function<Raw>,
+        func: Box<ast::Function<Raw>>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::Expr<ResolvedMeta>> {
         // TODO: Search path (with system being the first to check)
@@ -526,21 +575,103 @@ impl<'a> ExpressionResolver<'a> {
         let catalog = "system";
         let schema = "glare_catalog";
 
-        let filter = match func.filter {
-            Some(filter) => Some(Box::new(
-                Box::pin(self.resolve_expression(*filter, resolve_context)).await?,
-            )),
+        let filter = self
+            .resolve_optional_expression(func.filter.map(|e| *e), resolve_context)
+            .await?
+            .map(|e| Box::new(e));
+
+        let over = match func.over {
+            Some(over) => Some(self.resolve_window_spec(over, resolve_context).await?),
             None => None,
         };
+        let args = Box::pin(self.resolve_function_args(func.args, resolve_context)).await?;
 
-        let mut args = Vec::with_capacity(func.args.len());
+        let schema_ent = self
+            .resolver
+            .context
+            .get_database(catalog)?
+            .catalog
+            .get_schema(self.resolver.tx, schema)?
+            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+
+        // Check if this is a special function.
+        if let Some(special) = SpecialBuiltinFunction::try_from_name(func_name) {
+            let resolve_idx = resolve_context
+                .functions
+                .push_resolved(ResolvedFunction::Special(special), LocationRequirement::Any);
+
+            return Ok(ast::Expr::Function(Box::new(ast::Function {
+                reference: resolve_idx,
+                distinct: func.distinct,
+                args,
+                filter,
+                over,
+            })));
+        }
+
+        // Now check scalars.
+        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
+            // TODO: Allow unresolved scalars?
+            // TODO: This also assumes scalars (and aggs) are the same everywhere, which
+            // they probably should be for now.
+            let resolve_idx = resolve_context.functions.push_resolved(
+                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function.clone()),
+                LocationRequirement::Any,
+            );
+            return Ok(ast::Expr::Function(Box::new(ast::Function {
+                reference: resolve_idx,
+                distinct: func.distinct,
+                args,
+                filter,
+                over,
+            })));
+        }
+
+        // Now check aggregates.
+        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, func_name)? {
+            // TODO: Allow unresolved aggregates?
+            let resolve_idx = resolve_context.functions.push_resolved(
+                ResolvedFunction::Aggregate(
+                    aggregate
+                        .try_as_aggregate_function_entry()?
+                        .function
+                        .clone(),
+                ),
+                LocationRequirement::Any,
+            );
+            return Ok(ast::Expr::Function(Box::new(ast::Function {
+                reference: resolve_idx,
+                distinct: func.distinct,
+                args,
+                filter,
+                over,
+            })));
+        }
+
+        Err(create_user_facing_resolve_err(
+            self.resolver.tx,
+            Some(&schema_ent),
+            &[
+                CatalogEntryType::ScalarFunction,
+                CatalogEntryType::AggregateFunction,
+            ],
+            func_name,
+        ))
+    }
+
+    async fn resolve_function_args(
+        &self,
+        args: Vec<ast::FunctionArg<Raw>>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<Vec<ast::FunctionArg<ResolvedMeta>>> {
+        let mut resolved_args = Vec::with_capacity(args.len());
         // TODO: This current rewrites '*' function arguments to 'true'.
         // This is for 'count(*)'. What we should be doing is rewriting
         // 'count(*)' to 'count_star()' and have a function
         // implementation for 'count_star'.
         //
         // No other function accepts a '*' (I think).
-        for func_arg in func.args {
+        for func_arg in args {
             let func_arg = match func_arg {
                 ast::FunctionArg::Named { name, arg } => ast::FunctionArg::Named {
                     name,
@@ -564,76 +695,91 @@ impl<'a> ExpressionResolver<'a> {
                     },
                 },
             };
-            args.push(func_arg);
+            resolved_args.push(func_arg);
         }
 
-        let schema_ent = self
-            .resolver
-            .context
-            .get_database(catalog)?
-            .catalog
-            .get_schema(self.resolver.tx, schema)?
-            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+        Ok(resolved_args)
+    }
 
-        // Check if this is a special function.
-        if let Some(special) = SpecialBuiltinFunction::try_from_name(func_name) {
-            let resolve_idx = resolve_context
-                .functions
-                .push_resolved(ResolvedFunction::Special(special), LocationRequirement::Any);
-
-            return Ok(ast::Expr::Function(ast::Function {
-                reference: resolve_idx,
-                distinct: func.distinct,
-                args,
-                filter,
-            }));
+    /// Handle resolving the `OVER (...)` clause for a window function.
+    async fn resolve_window_spec(
+        &self,
+        over: ast::WindowSpec<Raw>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ast::WindowSpec<ResolvedMeta>> {
+        async fn resolve_window_frame_bound<'a>(
+            resolver: &ExpressionResolver<'a>,
+            bound: ast::WindowFrameBound<Raw>,
+            resolve_context: &mut ResolveContext,
+        ) -> Result<ast::WindowFrameBound<ResolvedMeta>> {
+            Ok(match bound {
+                ast::WindowFrameBound::CurrentRow => ast::WindowFrameBound::CurrentRow,
+                ast::WindowFrameBound::UnboundedPreceding => {
+                    ast::WindowFrameBound::UnboundedPreceding
+                }
+                ast::WindowFrameBound::UnboundedFollowing => {
+                    ast::WindowFrameBound::UnboundedFollowing
+                }
+                ast::WindowFrameBound::Preceding(expr) => {
+                    let expr =
+                        Box::pin(resolver.resolve_expression(*expr, resolve_context)).await?;
+                    ast::WindowFrameBound::Preceding(Box::new(expr))
+                }
+                ast::WindowFrameBound::Following(expr) => {
+                    let expr =
+                        Box::pin(resolver.resolve_expression(*expr, resolve_context)).await?;
+                    ast::WindowFrameBound::Following(Box::new(expr))
+                }
+            })
         }
 
-        // Now check scalars.
-        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
-            // TODO: Allow unresolved scalars?
-            // TODO: This also assumes scalars (and aggs) are the same everywhere, which
-            // they probably should be for now.
-            let resolve_idx = resolve_context.functions.push_resolved(
-                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function.clone()),
-                LocationRequirement::Any,
-            );
-            return Ok(ast::Expr::Function(ast::Function {
-                reference: resolve_idx,
-                distinct: func.distinct,
-                args,
-                filter,
-            }));
-        }
+        match over {
+            ast::WindowSpec::Definition(window_def) => {
+                let partition_by =
+                    Box::pin(self.resolve_expressions(window_def.partition_by, resolve_context))
+                        .await?;
 
-        // Now check aggregates.
-        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, func_name)? {
-            // TODO: Allow unresolved aggregates?
-            let resolve_idx = resolve_context.functions.push_resolved(
-                ResolvedFunction::Aggregate(
-                    aggregate
-                        .try_as_aggregate_function_entry()?
-                        .function
-                        .clone(),
-                ),
-                LocationRequirement::Any,
-            );
-            return Ok(ast::Expr::Function(ast::Function {
-                reference: resolve_idx,
-                distinct: func.distinct,
-                args,
-                filter,
-            }));
-        }
+                let mut order_by = Vec::with_capacity(window_def.order_by.len());
+                for order in window_def.order_by {
+                    let order = ast::OrderByNode {
+                        typ: order.typ,
+                        nulls: order.nulls,
+                        expr: Box::pin(self.resolve_expression(order.expr, resolve_context))
+                            .await?,
+                    };
 
-        Err(create_user_facing_resolve_err(
-            self.resolver.tx,
-            Some(&schema_ent),
-            &[
-                CatalogEntryType::ScalarFunction,
-                CatalogEntryType::AggregateFunction,
-            ],
-            func_name,
-        ))
+                    order_by.push(order);
+                }
+
+                let frame = match window_def.frame {
+                    Some(frame) => {
+                        let start =
+                            resolve_window_frame_bound(self, frame.start, resolve_context).await?;
+                        let end = match frame.end {
+                            Some(end) => {
+                                Some(resolve_window_frame_bound(self, end, resolve_context).await?)
+                            }
+                            None => None,
+                        };
+
+                        Some(ast::WindowFrame {
+                            unit: frame.unit,
+                            start,
+                            end,
+                            exclusion: frame.exclusion,
+                        })
+                    }
+                    None => None,
+                };
+
+                Ok(ast::WindowSpec::Definition(ast::WindowDefinition {
+                    existing: window_def.existing,
+                    partition_by,
+                    order_by,
+                    frame,
+                }))
+            }
+            ast::WindowSpec::Named(ident) => Ok(ast::WindowSpec::Named(ident)),
+        }
     }
 }

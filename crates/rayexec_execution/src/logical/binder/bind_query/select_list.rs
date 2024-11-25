@@ -99,8 +99,9 @@ impl SelectList {
                             .last()
                             .map(|i| i.as_normalized_string())
                             .unwrap_or_else(|| "?column?".to_string()),
-                        ast::Expr::Function(ast::Function { reference, .. }) => {
-                            let (func, _) = resolve_context.functions.try_get_bound(*reference)?;
+                        ast::Expr::Function(func) => {
+                            let (func, _) =
+                                resolve_context.functions.try_get_bound(func.reference)?;
                             func.name().to_string()
                         }
                         _ => "?column?".to_string(),
