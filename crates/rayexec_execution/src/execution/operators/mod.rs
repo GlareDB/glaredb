@@ -25,6 +25,7 @@ pub mod source;
 pub mod table_function;
 pub mod ungrouped_aggregate;
 pub mod union;
+pub mod unnest;
 pub mod values;
 
 mod util;
@@ -72,6 +73,7 @@ use ungrouped_aggregate::{
     UngroupedAggregatePartitionState,
 };
 use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
+use unnest::PhysicalUnnest;
 use values::PhysicalValues;
 
 use self::empty::EmptyPartitionState;
@@ -324,6 +326,7 @@ pub enum PhysicalOperator {
     Union(PhysicalUnion),
     Filter(SimpleOperator<FilterOperation>),
     Project(SimpleOperator<ProjectOperation>),
+    Unnest(PhysicalUnnest),
     Scan(PhysicalScan),
     TableFunction(PhysicalTableFunction),
     Insert(PhysicalInsert),
@@ -360,6 +363,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Union(op) => op.create_states(context, partitions),
             Self::Filter(op) => op.create_states(context, partitions),
             Self::Project(op) => op.create_states(context, partitions),
+            Self::Unnest(op) => op.create_states(context, partitions),
             Self::Scan(op) => op.create_states(context, partitions),
             Self::TableFunction(op) => op.create_states(context, partitions),
             Self::Insert(op) => op.create_states(context, partitions),
@@ -402,6 +406,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Union(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Filter(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Project(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::Unnest(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Scan(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::TableFunction(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Insert(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -445,6 +450,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Union(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Filter(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Project(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::Unnest(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Scan(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::TableFunction(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Insert(op) => op.poll_finalize_push(cx, partition_state, operator_state),
@@ -482,6 +488,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Union(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Filter(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Project(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::Unnest(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Scan(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::TableFunction(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Insert(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -516,6 +523,7 @@ impl Explainable for PhysicalOperator {
             Self::Union(op) => op.explain_entry(conf),
             Self::Filter(op) => op.explain_entry(conf),
             Self::Project(op) => op.explain_entry(conf),
+            Self::Unnest(op) => op.explain_entry(conf),
             Self::Scan(op) => op.explain_entry(conf),
             Self::TableFunction(op) => op.explain_entry(conf),
             Self::Insert(op) => op.explain_entry(conf),
