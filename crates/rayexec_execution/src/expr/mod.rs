@@ -83,7 +83,7 @@ impl Expression {
             Self::Negate(expr) => expr.datatype(bind_context)?,
             Self::ScalarFunction(expr) => expr.function.return_type(),
             Self::Subquery(expr) => expr.return_type.clone(),
-            Self::Window(_) => not_implemented!("WINDOW"),
+            Self::Window(window) => window.agg.return_type(),
             Self::Unnest(expr) => expr.datatype(bind_context)?,
         })
     }
@@ -145,9 +145,11 @@ impl Expression {
                 for input in &mut window.inputs {
                     func(input)?;
                 }
-                func(&mut window.filter)?;
                 for partition in &mut window.partition_by {
                     func(partition)?;
+                }
+                for order_by in &mut window.order_by {
+                    func(&mut order_by.expr)?;
                 }
             }
             Self::Unnest(unnest) => func(&mut unnest.expr)?,
@@ -212,9 +214,11 @@ impl Expression {
                 for input in &window.inputs {
                     func(input)?;
                 }
-                func(&window.filter)?;
                 for partition in &window.partition_by {
                     func(partition)?;
+                }
+                for order_by in &window.order_by {
+                    func(&order_by.expr)?;
                 }
             }
             Self::Unnest(unnest) => func(&unnest.expr)?,

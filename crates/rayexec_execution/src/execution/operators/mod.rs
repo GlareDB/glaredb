@@ -27,6 +27,7 @@ pub mod ungrouped_aggregate;
 pub mod union;
 pub mod unnest;
 pub mod values;
+pub mod window;
 
 mod util;
 
@@ -75,6 +76,7 @@ use ungrouped_aggregate::{
 use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
 use unnest::{PhysicalUnnest, UnnestPartitionState};
 use values::PhysicalValues;
+use window::PhysicalWindow;
 
 use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
@@ -104,7 +106,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
 /// States local to a partition within a single operator.
-// Current size: 240 bytes
+// Current size: 264 bytes
 #[derive(Debug)]
 pub enum PartitionState {
     HashAggregate(HashAggregatePartitionState),
@@ -137,7 +139,7 @@ pub enum PartitionState {
 }
 
 /// A global state across all partitions in an operator.
-// Current size: 200 bytes
+// Current size: 144 bytes
 #[derive(Debug)]
 pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
@@ -307,11 +309,12 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     ) -> Result<PollPull>;
 }
 
-// 192 bytes
+// 144 bytes
 #[derive(Debug)]
 pub enum PhysicalOperator {
     HashAggregate(PhysicalHashAggregate),
     UngroupedAggregate(PhysicalUngroupedAggregate),
+    Window(PhysicalWindow),
     NestedLoopJoin(PhysicalNestedLoopJoin),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
@@ -349,6 +352,7 @@ impl ExecutableOperator for PhysicalOperator {
         match self {
             Self::HashAggregate(op) => op.create_states(context, partitions),
             Self::UngroupedAggregate(op) => op.create_states(context, partitions),
+            Self::Window(op) => op.create_states(context, partitions),
             Self::NestedLoopJoin(op) => op.create_states(context, partitions),
             Self::HashJoin(op) => op.create_states(context, partitions),
             Self::Values(op) => op.create_states(context, partitions),
@@ -390,6 +394,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::UngroupedAggregate(op) => {
                 op.poll_push(cx, partition_state, operator_state, batch)
             }
+            Self::Window(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::NestedLoopJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -432,6 +437,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::UngroupedAggregate(op) => {
                 op.poll_finalize_push(cx, partition_state, operator_state)
             }
+            Self::Window(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::NestedLoopJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::HashJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_finalize_push(cx, partition_state, operator_state),
@@ -474,6 +480,7 @@ impl ExecutableOperator for PhysicalOperator {
         match self {
             Self::HashAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::UngroupedAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::Window(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::NestedLoopJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -509,6 +516,7 @@ impl Explainable for PhysicalOperator {
         match self {
             Self::HashAggregate(op) => op.explain_entry(conf),
             Self::UngroupedAggregate(op) => op.explain_entry(conf),
+            Self::Window(op) => op.explain_entry(conf),
             Self::NestedLoopJoin(op) => op.explain_entry(conf),
             Self::HashJoin(op) => op.explain_entry(conf),
             Self::Values(op) => op.explain_entry(conf),
