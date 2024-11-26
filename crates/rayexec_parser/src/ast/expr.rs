@@ -926,9 +926,15 @@ impl Expr<Raw> {
 
             let over = if parser.parse_keyword(Keyword::OVER) {
                 if parser.consume_token(&Token::LeftParen) {
-                    let spec = WindowSpec::Definition(WindowDefinition::parse(parser)?);
-                    parser.expect_token(&Token::RightParen)?;
-                    Some(spec)
+                    if parser.consume_token(&Token::RightParen) {
+                        // Empty OVER, we still need the spec, but it'll contain
+                        // nothing.
+                        Some(WindowSpec::Definition(WindowDefinition::default()))
+                    } else {
+                        let spec = WindowSpec::Definition(WindowDefinition::parse(parser)?);
+                        parser.expect_token(&Token::RightParen)?;
+                        Some(spec)
+                    }
                 } else {
                     Some(WindowSpec::Named(Ident::parse(parser)?))
                 }
@@ -1409,6 +1415,26 @@ mod tests {
                         expr: Expr::Ident(Ident::new_unquoted("empno")),
                     },
                 ],
+                frame: None,
+            })),
+        }));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_window_def_empty_over() {
+        let expr: Expr<_> = parse_ast("rank() over ()").unwrap();
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("rank")]),
+            distinct: false,
+            args: Vec::new(),
+            filter: None,
+            // Note that this should be Some but everything empty. We need to
+            // differentiate between and empty OVER and missing OVER.
+            over: Some(WindowSpec::Definition(WindowDefinition {
+                existing: None,
+                partition_by: Vec::new(),
+                order_by: Vec::new(),
                 frame: None,
             })),
         }));

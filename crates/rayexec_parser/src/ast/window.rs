@@ -5,6 +5,7 @@ use super::{AstParseable, Expr, Ident, OrderByNode};
 use crate::keywords::Keyword;
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WindowSpec<T: AstMeta> {
@@ -18,6 +19,17 @@ pub struct WindowDefinition<T: AstMeta> {
     pub partition_by: Vec<Expr<T>>,
     pub order_by: Vec<OrderByNode<T>>,
     pub frame: Option<WindowFrame<T>>,
+}
+
+impl Default for WindowDefinition<Raw> {
+    fn default() -> Self {
+        WindowDefinition {
+            existing: None,
+            partition_by: Vec::new(),
+            order_by: Vec::new(),
+            frame: None,
+        }
+    }
 }
 
 impl AstParseable for WindowDefinition<Raw> {
