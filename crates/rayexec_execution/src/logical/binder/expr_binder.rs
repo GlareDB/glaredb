@@ -19,6 +19,7 @@ use crate::expr::negate_expr::{NegateExpr, NegateOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
+use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{AsScalarFunction, Expression};
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::scalar::concat::Concat;
@@ -27,6 +28,7 @@ use crate::functions::scalar::list::{ListExtract, ListValues};
 use crate::functions::scalar::string::{StartsWith, Substring};
 use crate::functions::scalar::{is, like, ScalarFunction};
 use crate::functions::CastType;
+use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
@@ -414,142 +416,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 })
             }
             ast::Expr::Function(func) => {
-                let reference = self
-                    .resolve_context
-                    .functions
-                    .try_get_bound(func.reference)?;
-
-                let recur = if reference.0.is_aggregate() {
-                    RecursionContext {
-                        allow_windows: false,
-                        allow_aggregates: false,
-                        ..recur
-                    }
-                } else {
-                    recur
-                };
-
-                let inputs = func
-                    .args
-                    .iter()
-                    .map(|arg| match arg {
-                        ast::FunctionArg::Unnamed { arg } => match arg {
-                            ast::FunctionArgExpr::Expr(expr) => Ok(self.bind_expression(
-                                bind_context,
-                                expr,
-                                column_binder,
-                                RecursionContext {
-                                    is_root: false,
-                                    ..recur
-                                },
-                            )?),
-                            ast::FunctionArgExpr::Wildcard => {
-                                // Resolver should have handled removing '*'
-                                // from function calls.
-                                Err(RayexecError::new(
-                                    "Cannot plan a function with '*' as an argument",
-                                ))
-                            }
-                        },
-                        ast::FunctionArg::Named { .. } => Err(RayexecError::new(
-                            "Named arguments to scalar functions not supported",
-                        )),
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-
-                // TODO: This should probably assert that location == any since
-                // I don't think it makes sense to try to handle different sets
-                // of scalar/aggs in the hybrid case yet.
-                match reference {
-                    (ResolvedFunction::Special(special), _) => {
-                        match special {
-                            SpecialBuiltinFunction::Unnest => {
-                                if func.distinct || func.filter.is_some() {
-                                    return Err(RayexecError::new(
-                                        "UNNEST does not support DISTINCT or FILTER",
-                                    ));
-                                }
-
-                                if func.args.len() != 1 {
-                                    return Err(RayexecError::new(
-                                        "UNNEST requires a single argument",
-                                    ));
-                                }
-
-                                let input = match &func.args[0] {
-                                    ast::FunctionArg::Named { .. } => {
-                                        return Err(RayexecError::new(
-                                            "named arguments to UNNEST not yet supported",
-                                        ))
-                                    }
-                                    ast::FunctionArg::Unnamed { arg } => match arg {
-                                        ast::FunctionArgExpr::Wildcard => {
-                                            return Err(RayexecError::new(
-                                                "wildcard to UNNEST not supported",
-                                            ))
-                                        }
-                                        ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
-                                            bind_context,
-                                            expr,
-                                            column_binder,
-                                            RecursionContext {
-                                                is_root: false,
-                                                ..recur
-                                            },
-                                        )?,
-                                    },
-                                };
-
-                                let unnest_expr = Expression::Unnest(UnnestExpr {
-                                    expr: Box::new(input),
-                                });
-
-                                // To verify input types.
-                                let _ = unnest_expr.datatype(bind_context)?;
-
-                                Ok(unnest_expr)
-                            }
-                        }
-                    }
-                    (ResolvedFunction::Scalar(scalar), _) => {
-                        if func.distinct {
-                            return Err(RayexecError::new(
-                                "DISTINCT only supported for aggregate functions",
-                            ));
-                        }
-
-                        let inputs = self.apply_casts_for_scalar_function(
-                            bind_context,
-                            scalar.as_ref(),
-                            inputs,
-                        )?;
-
-                        let refs: Vec<_> = inputs.iter().collect();
-                        let function = scalar.plan_from_expressions(bind_context, &refs)?;
-
-                        Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                            function,
-                            inputs,
-                        }))
-                    }
-                    (ResolvedFunction::Aggregate(agg), _) => {
-                        let inputs = self.apply_casts_for_aggregate_function(
-                            bind_context,
-                            agg.as_ref(),
-                            inputs,
-                        )?;
-
-                        let refs: Vec<_> = inputs.iter().collect();
-                        let agg = agg.plan_from_expressions(bind_context, &refs)?;
-
-                        Ok(Expression::Aggregate(AggregateExpr {
-                            agg,
-                            distinct: func.distinct,
-                            inputs,
-                            filter: None,
-                        }))
-                    }
-                }
+                self.bind_function(bind_context, func, column_binder, recur)
             }
             ast::Expr::Nested(nested) => self.bind_expression(
                 bind_context,
@@ -1246,6 +1113,237 @@ impl<'a> BaseExpressionBinder<'a> {
                 )))
             }
         })
+    }
+
+    pub(crate) fn bind_function(
+        &self,
+        bind_context: &mut BindContext,
+        func: &ast::Function<ResolvedMeta>,
+        column_binder: &mut impl ExpressionColumnBinder,
+        recur: RecursionContext,
+    ) -> Result<Expression> {
+        let reference = self
+            .resolve_context
+            .functions
+            .try_get_bound(func.reference)?;
+
+        let recur = if reference.0.is_aggregate() {
+            RecursionContext {
+                allow_windows: false,
+                allow_aggregates: false,
+                ..recur
+            }
+        } else {
+            recur
+        };
+
+        let inputs = func
+            .args
+            .iter()
+            .map(|arg| match arg {
+                ast::FunctionArg::Unnamed { arg } => match arg {
+                    ast::FunctionArgExpr::Expr(expr) => Ok(self.bind_expression(
+                        bind_context,
+                        expr,
+                        column_binder,
+                        RecursionContext {
+                            is_root: false,
+                            ..recur
+                        },
+                    )?),
+                    ast::FunctionArgExpr::Wildcard => {
+                        // Resolver should have handled removing '*'
+                        // from function calls.
+                        Err(RayexecError::new(
+                            "Cannot plan a function with '*' as an argument",
+                        ))
+                    }
+                },
+                ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                    "Named arguments to scalar functions not supported",
+                )),
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // TODO: This should probably assert that location == any since
+        // I don't think it makes sense to try to handle different sets
+        // of scalar/aggs in the hybrid case yet.
+        match reference {
+            (ResolvedFunction::Special(special), _) => {
+                match special {
+                    SpecialBuiltinFunction::Unnest => {
+                        if func.distinct || func.filter.is_some() || func.over.is_some() {
+                            return Err(RayexecError::new(
+                                "UNNEST does not support DISTINCT, FILTER, or OVER",
+                            ));
+                        }
+
+                        if func.args.len() != 1 {
+                            return Err(RayexecError::new("UNNEST requires a single argument"));
+                        }
+
+                        let input = match &func.args[0] {
+                            ast::FunctionArg::Named { .. } => {
+                                return Err(RayexecError::new(
+                                    "named arguments to UNNEST not yet supported",
+                                ))
+                            }
+                            ast::FunctionArg::Unnamed { arg } => match arg {
+                                ast::FunctionArgExpr::Wildcard => {
+                                    return Err(RayexecError::new(
+                                        "wildcard to UNNEST not supported",
+                                    ))
+                                }
+                                ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
+                                    bind_context,
+                                    expr,
+                                    column_binder,
+                                    RecursionContext {
+                                        is_root: false,
+                                        ..recur
+                                    },
+                                )?,
+                            },
+                        };
+
+                        let unnest_expr = Expression::Unnest(UnnestExpr {
+                            expr: Box::new(input),
+                        });
+
+                        // To verify input types.
+                        let _ = unnest_expr.datatype(bind_context)?;
+
+                        Ok(unnest_expr)
+                    }
+                }
+            }
+            (ResolvedFunction::Scalar(scalar), _) => {
+                if func.distinct {
+                    return Err(RayexecError::new(
+                        "DISTINCT only supported for aggregate functions",
+                    ));
+                }
+                if func.over.is_some() {
+                    return Err(RayexecError::new(
+                        "OVER only supported for aggregate functions",
+                    ));
+                }
+
+                let inputs =
+                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), inputs)?;
+
+                let refs: Vec<_> = inputs.iter().collect();
+                let function = scalar.plan_from_expressions(bind_context, &refs)?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function,
+                    inputs,
+                }))
+            }
+            (ResolvedFunction::Aggregate(agg), _) => {
+                let inputs =
+                    self.apply_casts_for_aggregate_function(bind_context, agg.as_ref(), inputs)?;
+
+                let refs: Vec<_> = inputs.iter().collect();
+                let agg = agg.plan_from_expressions(bind_context, &refs)?;
+
+                match &func.over {
+                    Some(over) => {
+                        // Window
+
+                        match over {
+                            ast::WindowSpec::Named(_) => {
+                                not_implemented!("named window spec")
+                            }
+                            ast::WindowSpec::Definition(window_def) => {
+                                if window_def.existing.is_some() {
+                                    not_implemented!("inherit existing window spec definition")
+                                }
+
+                                let partition_by = self.bind_expressions(
+                                    bind_context,
+                                    &window_def.partition_by,
+                                    column_binder,
+                                    recur,
+                                )?;
+
+                                // Handle order by.
+                                //
+                                // Handled slightly different than statement
+                                // level ORDER BY in that it can't bind to an
+                                // output column.
+                                let order_by = window_def
+                                    .order_by
+                                    .iter()
+                                    .map(|order_by| {
+                                        let expr = self.bind_expression(
+                                            bind_context,
+                                            &order_by.expr,
+                                            column_binder,
+                                            recur,
+                                        )?;
+                                        Ok(BoundOrderByExpr {
+                                            expr,
+                                            desc: matches!(
+                                                order_by.typ.unwrap_or(ast::OrderByType::Asc),
+                                                ast::OrderByType::Desc
+                                            ),
+                                            nulls_first: matches!(
+                                                order_by.nulls.unwrap_or(ast::OrderByNulls::First),
+                                                ast::OrderByNulls::First
+                                            ),
+                                        })
+                                    })
+                                    .collect::<Result<Vec<_>>>()?;
+
+                                let start = match &window_def.frame {
+                                    Some(frame) => {
+                                        //
+                                        unimplemented!()
+                                    }
+                                    None => WindowFrameBound::default_start(),
+                                };
+
+                                let end = match &window_def.frame {
+                                    Some(frame) => {
+                                        //
+                                        unimplemented!()
+                                    }
+                                    None => WindowFrameBound::default_start(),
+                                };
+
+                                let exclude = match &window_def.frame {
+                                    Some(frame) => {
+                                        //
+                                        unimplemented!()
+                                    }
+                                    None => WindowFrameExclusion::default(),
+                                };
+
+                                Ok(Expression::Window(WindowExpr {
+                                    agg,
+                                    inputs,
+                                    partition_by,
+                                    order_by,
+                                    start,
+                                    end,
+                                    exclude,
+                                }))
+                            }
+                        }
+                    }
+                    None => {
+                        // Normal aggregate.
+                        Ok(Expression::Aggregate(AggregateExpr {
+                            agg,
+                            distinct: func.distinct,
+                            inputs,
+                            filter: None,
+                        }))
+                    }
+                }
+            }
+        }
     }
 
     pub(crate) fn apply_cast_for_operator<const N: usize>(
