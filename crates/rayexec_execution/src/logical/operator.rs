@@ -29,6 +29,7 @@ use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
 use super::logical_unnest::LogicalUnnest;
+use super::logical_window::LogicalWindow;
 use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -288,6 +289,7 @@ pub enum LogicalOperator {
     ArbitraryJoin(Node<LogicalArbitraryJoin>),
     MagicJoin(Node<LogicalMagicJoin>),
     Unnest(Node<LogicalUnnest>),
+    Window(Node<LogicalWindow>),
 }
 
 impl LogicalOperator {
@@ -384,6 +386,7 @@ impl LogicalOperator {
             Self::ComparisonJoin(n) => &n.children,
             Self::MagicJoin(n) => &n.children,
             Self::Unnest(n) => &n.children,
+            Self::Window(n) => &n.children,
         }
     }
 
@@ -419,6 +422,7 @@ impl LogicalOperator {
             Self::ComparisonJoin(n) => &mut n.children,
             Self::MagicJoin(n) => &mut n.children,
             Self::Unnest(n) => &mut n.children,
+            Self::Window(n) => &mut n.children,
         }
     }
 
@@ -458,6 +462,7 @@ impl LogicalOperator {
             LogicalOperator::ComparisonJoin(n) => n.estimated_cardinality,
             LogicalOperator::MagicJoin(n) => n.estimated_cardinality,
             LogicalOperator::Unnest(n) => n.estimated_cardinality,
+            LogicalOperator::Window(n) => n.estimated_cardinality,
         }
     }
 }
@@ -495,6 +500,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::ComparisonJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::MagicJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Unnest(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::Window(n) => n.get_output_table_refs(bind_context),
         }
     }
 
@@ -533,6 +539,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::ComparisonJoin(n) => n.for_each_expr(func),
             LogicalOperator::MagicJoin(n) => n.for_each_expr(func),
             LogicalOperator::Unnest(n) => n.for_each_expr(func),
+            LogicalOperator::Window(n) => n.for_each_expr(func),
         }
     }
 
@@ -571,6 +578,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::ComparisonJoin(n) => n.for_each_expr_mut(func),
             LogicalOperator::MagicJoin(n) => n.for_each_expr_mut(func),
             LogicalOperator::Unnest(n) => n.for_each_expr_mut(func),
+            LogicalOperator::Window(n) => n.for_each_expr_mut(func),
         }
     }
 }

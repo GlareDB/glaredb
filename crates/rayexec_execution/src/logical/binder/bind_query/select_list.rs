@@ -1,10 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;
+use super::bind_select_list::SelectListBinder;
 use super::select_expr_expander::ExpandedSelectExpr;
+use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
@@ -20,7 +22,7 @@ pub struct Preprojection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrunedProjectionTable {
+pub struct OutputProjectionTable {
     /// Table containing just column references.
     pub table: TableRef,
     /// Column expressions containing references to the original expanded select
@@ -30,21 +32,22 @@ pub struct PrunedProjectionTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelectList {
-    /// Optional pruned table to use at the end of select planning.
+    /// Optional ouptut table to use at the end of select planning.
     ///
     /// Is Some when additional columns are added to the select list for ORDER
     /// BY and GROUP BY. The pruned table serves to remove those from the final
     /// output.
-    pub pruned: Option<PrunedProjectionTable>,
+    ///
+    /// In the case of window functions, an output tabe will be required as
+    /// windows need to be executed after aggregates/having. Window expressions
+    /// in the original projection list will have been replaced with a column
+    /// reference referencing the window table.
+    pub output: Option<OutputProjectionTable>,
     /// Table containing columns for projections
     pub projections_table: TableRef,
     /// Projection expressions. May contain additional expressions for use with
-    /// ORDER BY and GROUP BY.
+    /// ORDER BY, GROUP BY or window functions.
     pub projections: Vec<Expression>,
-    /// Number of columns that this select should output.
-    ///
-    /// If less than length of projections, extra columns need to be omitted.
-    pub output_column_count: usize,
     /// Table containing columns for aggregates.
     pub aggregates_table: TableRef,
     /// All extracted aggregates.
@@ -73,93 +76,6 @@ pub struct SelectList {
 }
 
 impl SelectList {
-    pub fn try_new(
-        bind_ref: BindScopeRef,
-        bind_context: &mut BindContext,
-        resolve_context: &ResolveContext,
-        projections: Vec<ExpandedSelectExpr>,
-    ) -> Result<Self> {
-        let mut alias_map = HashMap::new();
-
-        // Track aliases to allow referencing them in GROUP BY and ORDER BY.
-        for (idx, projection) in projections.iter().enumerate() {
-            if let Some(alias) = projection.get_alias() {
-                alias_map.insert(alias.to_string(), idx);
-            }
-        }
-
-        // Generate column names from ast expressions.
-        let mut names = projections
-            .iter()
-            .map(|expr| {
-                Ok(match expr {
-                    ExpandedSelectExpr::Expr { expr, .. } => match expr {
-                        ast::Expr::Ident(ident) => ident.as_normalized_string(),
-                        ast::Expr::CompoundIdent(idents) => idents
-                            .last()
-                            .map(|i| i.as_normalized_string())
-                            .unwrap_or_else(|| "?column?".to_string()),
-                        ast::Expr::Function(func) => {
-                            let (func, _) =
-                                resolve_context.functions.try_get_bound(func.reference)?;
-                            func.name().to_string()
-                        }
-                        _ => "?column?".to_string(),
-                    },
-                    ExpandedSelectExpr::Column { name, .. } => name.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        // Update with user provided aliases
-        //
-        // TODO: This should be updated in finalize, GROUP BY may reference an
-        // unaliased column.
-        for (alias, idx) in &alias_map {
-            names[*idx] = alias.clone();
-        }
-
-        // Bind the expressions.
-        let expr_binder = BaseExpressionBinder::new(bind_ref, resolve_context);
-        let mut exprs = Vec::with_capacity(projections.len());
-        for proj in projections {
-            match proj {
-                ExpandedSelectExpr::Expr { expr, .. } => {
-                    let expr = expr_binder.bind_expression(
-                        bind_context,
-                        &expr,
-                        &mut DefaultColumnBinder,
-                        RecursionContext {
-                            allow_windows: true,
-                            allow_aggregates: true,
-                            is_root: true,
-                        },
-                    )?;
-                    exprs.push(expr);
-                }
-                ExpandedSelectExpr::Column { expr, .. } => {
-                    exprs.push(Expression::Column(expr));
-                }
-            }
-        }
-
-        let types = exprs
-            .iter()
-            .map(|expr| expr.datatype(bind_context))
-            .collect::<Result<Vec<_>>>()?;
-
-        // Create table with columns. Now things can bind to the select list if
-        // needed (ORDERY BY, GROUP BY).
-        let projections_table = bind_context.new_ephemeral_table_with_columns(types, names)?;
-
-        Ok(SelectList {
-            projections_table,
-            alias_map,
-            projections: exprs,
-            appended: Vec::new(),
-        })
-    }
-
     /// Finalizes the select list, producing a bound variant.
     ///
     /// This will extract aggregates from the list, placing them in their own
@@ -177,12 +93,20 @@ impl SelectList {
         let mut windows = Vec::new();
 
         for expr in &mut self.projections {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
-            Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
+            SelectListBinder::extract_aggregates(
+                aggregates_table,
+                bind_context,
+                expr,
+                &mut aggregates,
+            )?;
         }
         for expr in &mut self.appended {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
-            Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
+            SelectListBinder::extract_aggregates(
+                aggregates_table,
+                bind_context,
+                expr,
+                &mut aggregates,
+            )?;
         }
 
         // Have projections point to the GROUP BY instead of the other way
@@ -202,7 +126,7 @@ impl SelectList {
             self.projections.append(&mut self.appended);
 
             let projections_table = bind_context.get_table(self.projections_table)?;
-            let pruned_table_ref = bind_context.new_ephemeral_table_with_columns(
+            let output_table_ref = bind_context.new_ephemeral_table_with_columns(
                 projections_table
                     .column_types
                     .iter()
@@ -227,8 +151,8 @@ impl SelectList {
                 })
                 .collect();
 
-            Some(PrunedProjectionTable {
-                table: pruned_table_ref,
+            Some(OutputProjectionTable {
+                table: output_table_ref,
                 expressions,
             })
         } else {
@@ -236,9 +160,8 @@ impl SelectList {
         };
 
         Ok(BoundSelectList {
-            pruned: pruned_table,
+            output: pruned_table,
             projections_table: self.projections_table,
-            output_column_count: self.projections.len(),
             projections: self.projections,
             aggregates_table,
             aggregates,
@@ -290,86 +213,19 @@ impl SelectList {
         Ok(())
     }
 
-    /// Extracts aggregates from `expression` into `aggregates`.
-    fn extract_aggregates(
-        aggregates_table: TableRef,
-        bind_context: &mut BindContext,
-        expression: &mut Expression,
-        aggregates: &mut Vec<Expression>,
-    ) -> Result<()> {
-        if let Expression::Aggregate(agg) = expression {
-            // Replace the aggregate in the projections list with a column
-            // reference that points to the extracted aggregate.
-            let datatype = agg.datatype(bind_context)?;
-            let col_idx = bind_context.push_column_for_table(
-                aggregates_table,
-                "__generated_agg_ref",
-                datatype,
-            )?;
-            let agg = std::mem::replace(
-                expression,
-                Expression::Column(ColumnExpr {
-                    table_scope: aggregates_table,
-                    column: col_idx,
-                }),
-            );
-
-            aggregates.push(agg);
-            return Ok(());
-        }
-
-        expression.for_each_child_mut(&mut |expr| {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, aggregates)
-        })?;
-
-        Ok(())
-    }
-
-    /// Extracts windows from `expression` into `windows`.
-    fn extract_windows(
-        windows_table: TableRef,
-        bind_context: &mut BindContext,
-        expression: &mut Expression,
-        windows: &mut Vec<Expression>,
-    ) -> Result<()> {
-        if let Expression::Window(window) = expression {
-            // Replace the window in the projections list with a column
-            // reference that points to the extracted aggregate.
-            let datatype = window.datatype(bind_context)?;
-            let col_idx = bind_context.push_column_for_table(
-                windows_table,
-                "__generated_window_ref",
-                datatype,
-            )?;
-            let agg = std::mem::replace(
-                expression,
-                Expression::Column(ColumnExpr {
-                    table_scope: windows_table,
-                    column: col_idx,
-                }),
-            );
-
-            windows.push(agg);
-            return Ok(());
-        }
-
-        expression.for_each_child_mut(&mut |expr| {
-            Self::extract_windows(windows_table, bind_context, expr, windows)
-        })?;
-
-        Ok(())
-    }
-
     /// Appends an expression to the select list.
-    pub fn append_expression(
+    pub fn append_projection(
         &mut self,
         bind_context: &mut BindContext,
         expr: Expression,
     ) -> Result<ColumnExpr> {
         let datatype = expr.datatype(bind_context)?;
         self.appended.push(expr);
-        let idx =
-            bind_context.push_column_for_table(self.projections_table, "__appended", datatype)?;
+        let idx = bind_context.push_column_for_table(
+            self.projections_table,
+            "__appended_proj",
+            datatype,
+        )?;
 
         Ok(ColumnExpr {
             table_scope: self.projections_table,

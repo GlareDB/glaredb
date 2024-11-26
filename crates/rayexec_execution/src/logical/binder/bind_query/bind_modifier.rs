@@ -103,7 +103,7 @@ impl<'a> ModifierBinder<'a> {
                 let expr = if column_binder.did_bind_to_select {
                     expr
                 } else {
-                    let col = select_list.append_expression(bind_context, expr)?;
+                    let col = select_list.append_projection(bind_context, expr)?;
                     Expression::Column(col)
                 };
 

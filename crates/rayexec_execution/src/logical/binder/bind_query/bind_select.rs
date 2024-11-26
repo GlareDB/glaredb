@@ -5,6 +5,7 @@ use super::bind_from::{BoundFrom, FromBinder};
 use super::bind_group_by::{BoundGroupBy, GroupByBinder};
 use super::bind_having::HavingBinder;
 use super::bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder};
+use super::bind_select_list::SelectListBinder;
 use super::select_expr_expander::SelectExprExpander;
 use super::select_list::{BoundSelectList, SelectList};
 use crate::expr::Expression;
@@ -66,12 +67,8 @@ impl<'a> SelectBinder<'a> {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
-        let mut select_list = SelectList::try_new(
-            from_bind_ref,
-            bind_context,
-            self.resolve_context,
-            projections,
-        )?;
+        let mut select_list = SelectListBinder::new(from_bind_ref, self.resolve_context)
+            .bind(bind_context, projections)?;
 
         // Handle WHERE
         let where_expr = select
@@ -123,8 +120,8 @@ impl<'a> SelectBinder<'a> {
         let select_list = select_list.finalize(bind_context, group_by.as_mut())?;
 
         // Move output select columns into current scope.
-        match &select_list.pruned {
-            Some(pruned) => bind_context.append_table_to_scope(self.current, pruned.table)?,
+        match &select_list.output {
+            Some(output) => bind_context.append_table_to_scope(self.current, output.table)?,
             None => {
                 bind_context.append_table_to_scope(self.current, select_list.projections_table)?
             }

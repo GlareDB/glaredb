@@ -127,11 +127,11 @@ impl SelectPlanner {
         }
 
         // Omit any columns that shouldn't be in the output.
-        if let Some(pruned) = select.select_list.pruned {
+        if let Some(output) = select.select_list.output {
             plan = LogicalOperator::Project(Node {
                 node: LogicalProject {
-                    projections: pruned.expressions,
-                    projection_table: pruned.table,
+                    projections: output.expressions,
+                    projection_table: output.table,
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

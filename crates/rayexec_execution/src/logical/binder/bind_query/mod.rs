@@ -3,6 +3,7 @@ pub mod bind_group_by;
 pub mod bind_having;
 pub mod bind_modifier;
 pub mod bind_select;
+pub mod bind_select_list;
 pub mod bind_setop;
 pub mod bind_values;
 
@@ -30,7 +31,7 @@ pub enum BoundQuery {
 impl BoundQuery {
     pub fn output_table_ref(&self) -> TableRef {
         match self {
-            BoundQuery::Select(select) => match &select.select_list.pruned {
+            BoundQuery::Select(select) => match &select.select_list.output {
                 Some(pruned) => pruned.table,
                 None => select.select_list.projections_table,
             },

@@ -254,7 +254,7 @@ impl Expression {
                     has_subquery = has_subquery || expr.contains_subquery();
                     Ok(())
                 })
-                .expect("subquery check to no fail");
+                .expect("subquery check to not fail");
                 has_subquery
             }
         }
@@ -272,8 +272,26 @@ impl Expression {
                     has_unnest = has_unnest || expr.contains_unnest();
                     Ok(())
                 })
-                .expect("unnest check to no fail");
+                .expect("unnest check to not fail");
                 has_unnest
+            }
+        }
+    }
+
+    pub fn contains_window(&self) -> bool {
+        match self {
+            Self::Window(_) => true,
+            _ => {
+                let mut has_window = false;
+                self.for_each_child(&mut |expr| {
+                    if has_window {
+                        return Ok(());
+                    }
+                    has_window = has_window || expr.contains_window();
+                    Ok(())
+                })
+                .expect("window check to not fail");
+                has_window
             }
         }
     }

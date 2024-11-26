@@ -42,7 +42,7 @@ impl<'a> HavingBinder<'a> {
 
         // Append expression to projection list, this filter will then reference
         // the appended column.
-        let col_expr = select_list.append_expression(bind_context, expr)?;
+        let col_expr = select_list.append_projection(bind_context, expr)?;
 
         Ok(Expression::Column(col_expr))
     }
