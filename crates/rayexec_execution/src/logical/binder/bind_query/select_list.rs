@@ -169,14 +169,20 @@ impl SelectList {
         bind_context: &mut BindContext,
         mut group_by: Option<&mut BoundGroupBy>,
     ) -> Result<BoundSelectList> {
-        // Extract aggregates into separate table.
+        // Extract aggregates and windows into separate tables.
         let aggregates_table = bind_context.new_ephemeral_table()?;
+        let windows_table = bind_context.new_ephemeral_table()?;
+
         let mut aggregates = Vec::new();
+        let mut windows = Vec::new();
+
         for expr in &mut self.projections {
             Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+            Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
         }
         for expr in &mut self.appended {
             Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+            Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
         }
 
         // Have projections point to the GROUP BY instead of the other way
@@ -236,8 +242,8 @@ impl SelectList {
             projections: self.projections,
             aggregates_table,
             aggregates,
-            windows_table: bind_context.new_ephemeral_table()?, // TODO
-            windows: Vec::new(),                                // TODO
+            windows_table,
+            windows,
         })
     }
 
@@ -295,8 +301,11 @@ impl SelectList {
             // Replace the aggregate in the projections list with a column
             // reference that points to the extracted aggregate.
             let datatype = agg.datatype(bind_context)?;
-            let col_idx =
-                bind_context.push_column_for_table(aggregates_table, "__generated", datatype)?;
+            let col_idx = bind_context.push_column_for_table(
+                aggregates_table,
+                "__generated_agg_ref",
+                datatype,
+            )?;
             let agg = std::mem::replace(
                 expression,
                 Expression::Column(ColumnExpr {
@@ -311,6 +320,41 @@ impl SelectList {
 
         expression.for_each_child_mut(&mut |expr| {
             Self::extract_aggregates(aggregates_table, bind_context, expr, aggregates)
+        })?;
+
+        Ok(())
+    }
+
+    /// Extracts windows from `expression` into `windows`.
+    fn extract_windows(
+        windows_table: TableRef,
+        bind_context: &mut BindContext,
+        expression: &mut Expression,
+        windows: &mut Vec<Expression>,
+    ) -> Result<()> {
+        if let Expression::Window(window) = expression {
+            // Replace the window in the projections list with a column
+            // reference that points to the extracted aggregate.
+            let datatype = window.datatype(bind_context)?;
+            let col_idx = bind_context.push_column_for_table(
+                windows_table,
+                "__generated_window_ref",
+                datatype,
+            )?;
+            let agg = std::mem::replace(
+                expression,
+                Expression::Column(ColumnExpr {
+                    table_scope: windows_table,
+                    column: col_idx,
+                }),
+            );
+
+            windows.push(agg);
+            return Ok(());
+        }
+
+        expression.for_each_child_mut(&mut |expr| {
+            Self::extract_windows(windows_table, bind_context, expr, windows)
         })?;
 
         Ok(())

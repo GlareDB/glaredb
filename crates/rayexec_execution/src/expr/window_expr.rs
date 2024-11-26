@@ -1,11 +1,14 @@
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
+use rayexec_bullet::datatype::DataType;
+use rayexec_error::Result;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::logical::binder::bind_query::bind_modifier::{BoundOrderBy, BoundOrderByExpr};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WindowFrameUnit {
@@ -75,22 +78,47 @@ pub struct WindowExpr {
     pub exclude: WindowFrameExclusion,
 }
 
+impl WindowExpr {
+    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
+        Ok(self.agg.return_type())
+    }
+}
+
 impl ContextDisplay for WindowExpr {
     fn fmt_using_context(
         &self,
         mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let inputs: Vec<_> = self
+        write!(f, "{}", self.agg.aggregate_function().name())?;
+        let inputs = self
             .inputs
             .iter()
-            .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
-            .collect();
-        write!(
-            f,
-            "{}({})",
-            self.agg.aggregate_function().name(),
-            inputs.display_as_list()
-        )
+            .map(|expr| ContextDisplayWrapper::with_mode(expr, mode).to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "({}) OVER (", inputs)?;
+
+        if !self.partition_by.is_empty() {
+            write!(
+                f,
+                "PARTION BY {} ",
+                self.inputs
+                    .iter()
+                    .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
+                    .collect::<Vec<_>>()
+                    .display_as_list()
+            )?;
+        }
+
+        if !self.order_by.is_empty() {
+            write!(f, "ORDER BY {} ", self.order_by.display_as_list())?;
+        }
+
+        // TODO: Bounds
+
+        write!(f, ")")?;
+
+        Ok(())
     }
 }
