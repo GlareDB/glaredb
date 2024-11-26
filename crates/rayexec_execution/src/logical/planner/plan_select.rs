@@ -8,6 +8,7 @@ use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_limit::LogicalLimit;
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_window::LogicalWindow;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
 use crate::logical::planner::plan_subquery::SubqueryPlanner;
@@ -82,6 +83,22 @@ impl SelectPlanner {
                 children: vec![plan],
                 estimated_cardinality: StatisticsValue::Unknown,
             })
+        }
+
+        // Handle windows
+        if !select.select_list.windows.is_empty() {
+            for expr in &mut select.select_list.windows {
+                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
+            }
+            plan = LogicalOperator::Window(Node {
+                node: LogicalWindow {
+                    windows: select.select_list.windows,
+                    windows_table: select.select_list.windows_table,
+                },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
+            });
         }
 
         // Handle projections.
