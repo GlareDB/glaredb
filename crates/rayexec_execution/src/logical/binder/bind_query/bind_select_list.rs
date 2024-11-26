@@ -106,11 +106,27 @@ impl<'a> SelectListBinder<'a> {
         // needed (ORDERY BY, GROUP BY).
         let projections_table = bind_context.new_ephemeral_table_with_columns(types, names)?;
 
+        // Extract aggregates and windows into separate tables.
+        let aggregates_table = bind_context.new_ephemeral_table()?;
+        let windows_table = bind_context.new_ephemeral_table()?;
+
+        let mut aggregates = Vec::new();
+        let mut windows = Vec::new();
+
+        for expr in &mut exprs {
+            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+            Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
+        }
+
         Ok(SelectList {
             projections_table,
             alias_map,
             projections: exprs,
             appended: Vec::new(),
+            aggregates_table,
+            aggregates,
+            windows,
+            windows_table,
         })
     }
 

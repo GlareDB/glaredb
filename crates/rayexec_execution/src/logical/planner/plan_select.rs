@@ -73,6 +73,17 @@ impl SelectPlanner {
             plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
         }
 
+        // Handle HAVING
+        if let Some(mut expr) = select.having {
+            plan = SubqueryPlanner.plan(bind_context, &mut expr, plan)?;
+            plan = LogicalOperator::Filter(Node {
+                node: LogicalFilter { filter: expr },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
+            })
+        }
+
         // Handle projections.
         for expr in &mut select.select_list.projections {
             plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
@@ -89,17 +100,6 @@ impl SelectPlanner {
         });
         // Handle possible UNNESTing.
         plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
-
-        // Handle HAVING
-        if let Some(mut expr) = select.having {
-            plan = SubqueryPlanner.plan(bind_context, &mut expr, plan)?;
-            plan = LogicalOperator::Filter(Node {
-                node: LogicalFilter { filter: expr },
-                location: LocationRequirement::Any,
-                children: vec![plan],
-                estimated_cardinality: StatisticsValue::Unknown,
-            })
-        }
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {

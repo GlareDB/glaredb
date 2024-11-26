@@ -111,6 +111,7 @@ impl<'a> SelectBinder<'a> {
                 HavingBinder::new(from_bind_ref, self.resolve_context).bind(
                     bind_context,
                     &mut select_list,
+                    group_by.as_ref(),
                     expr,
                 )
             })

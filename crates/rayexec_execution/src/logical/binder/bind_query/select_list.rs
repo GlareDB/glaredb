@@ -59,6 +59,26 @@ pub struct BoundSelectList {
 }
 
 #[derive(Debug)]
+pub struct ExtractedWindows {
+    /// Table containing columns for windows.
+    pub windows_table: TableRef,
+    /// All extracted windows.
+    pub windows: Vec<Expression>,
+    /// Maps the position of the window function in the original projection ot
+    /// the extracted window index.
+    ///
+    /// This is used to reconstruct the correct projection ordering when
+    /// finalizing.
+    pub projection_map: HashMap<usize, usize>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AliasTarget {
+    Projection(usize),
+    Window(usize),
+}
+
+#[derive(Debug)]
 pub struct SelectList {
     /// The table scope that expressions referencing columns in the select list
     /// should bind to.
@@ -72,7 +92,17 @@ pub struct SelectList {
     /// Projections that are appended to the right of the output projects.
     ///
     /// This is for appending expressions used for ORDER BY and GROUP BY.
+    ///
+    /// Appending to this list may introduce new aggregates, but not windows.
     pub appended: Vec<Expression>,
+    /// Table containing columns for aggregates.
+    pub aggregates_table: TableRef,
+    /// All extracted aggregates.
+    pub aggregates: Vec<Expression>,
+    /// Table containing columns for windows.
+    pub windows_table: TableRef,
+    /// All extracted windows.
+    pub windows: Vec<Expression>,
 }
 
 impl SelectList {
@@ -85,37 +115,18 @@ impl SelectList {
         bind_context: &mut BindContext,
         mut group_by: Option<&mut BoundGroupBy>,
     ) -> Result<BoundSelectList> {
-        // Extract aggregates and windows into separate tables.
-        let aggregates_table = bind_context.new_ephemeral_table()?;
-        let windows_table = bind_context.new_ephemeral_table()?;
-
-        let mut aggregates = Vec::new();
-        let mut windows = Vec::new();
-
-        for expr in &mut self.projections {
-            SelectListBinder::extract_aggregates(
-                aggregates_table,
-                bind_context,
-                expr,
-                &mut aggregates,
-            )?;
-        }
-        for expr in &mut self.appended {
-            SelectListBinder::extract_aggregates(
-                aggregates_table,
-                bind_context,
-                expr,
-                &mut aggregates,
-            )?;
-        }
-
         // Have projections point to the GROUP BY instead of the other way
         // around.
         if let Some(group_by) = group_by.as_mut() {
             self.update_group_by_dependencies(group_by)?;
         }
 
-        self.verify_column_references(bind_context, aggregates_table, &aggregates, group_by)?;
+        self.verify_column_references(
+            bind_context,
+            self.aggregates_table,
+            &self.aggregates,
+            group_by,
+        )?;
 
         // If we had appended column, ensure we have a pruned table that only
         // contains the original projections.
@@ -163,10 +174,10 @@ impl SelectList {
             output: pruned_table,
             projections_table: self.projections_table,
             projections: self.projections,
-            aggregates_table,
-            aggregates,
-            windows_table,
-            windows,
+            aggregates_table: self.aggregates_table,
+            aggregates: self.aggregates,
+            windows_table: self.windows_table,
+            windows: self.windows,
         })
     }
 
@@ -214,12 +225,22 @@ impl SelectList {
     }
 
     /// Appends an expression to the select list.
+    ///
+    /// This will automatically extract out any aggregates from the expression.
     pub fn append_projection(
         &mut self,
         bind_context: &mut BindContext,
-        expr: Expression,
+        mut expr: Expression,
     ) -> Result<ColumnExpr> {
         let datatype = expr.datatype(bind_context)?;
+
+        SelectListBinder::extract_aggregates(
+            self.aggregates_table,
+            bind_context,
+            &mut expr,
+            &mut self.aggregates,
+        )?;
+
         self.appended.push(expr);
         let idx = bind_context.push_column_for_table(
             self.projections_table,
@@ -248,7 +269,15 @@ impl SelectList {
         None
     }
 
-    /// Try to get a column by column ordinal.
+    pub fn expr_by_user_alias(&self, ident: &ast::Ident) -> Result<Option<&Expression>> {
+        if let Some(col) = self.column_by_user_alias(ident) {
+            Ok(Some(self.get_projection(col.column)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get a column reference by ordinal.
     pub fn column_by_ordinal(
         &self,
         lit: &ast::Literal<ResolvedMeta>,
@@ -272,37 +301,22 @@ impl SelectList {
         Ok(None)
     }
 
+    /// Get a projection expression by ordinal.
+    pub fn expr_by_ordinal(&self, lit: &ast::Literal<ResolvedMeta>) -> Result<Option<&Expression>> {
+        if let Some(col) = self.column_by_ordinal(lit)? {
+            Ok(Some(self.get_projection(col.column)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Updates expressions in the select list and bound group to ensure the
     /// select list depends on columns in the group by, and not the other way
     /// around.
     ///
-    /// During GROUP BY binding, the group by may reference columns in the
-    /// select via alias or ordinal. We swap the expressions such that the
-    /// select list references the group by.
+    /// During GROUP BY binding, we clone in the original expressions from the
+    /// select list list. So we just need to check for equality.
     fn update_group_by_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
-        // Update group expressions to be the base for any aliased expressions.
-        for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
-            if let Expression::Column(col) = expr {
-                if col.table_scope == self.projections_table {
-                    let proj_expr = self.projections.get_mut(col.column).ok_or_else(|| {
-                        RayexecError::new(format!("Missing projection column: {col}"))
-                    })?;
-
-                    // Point projection to group by expression, replace group by
-                    // expression with original expression.
-                    let orig = std::mem::replace(
-                        proj_expr,
-                        Expression::Column(ColumnExpr {
-                            table_scope: group_by.group_table,
-                            column: idx,
-                        }),
-                    );
-
-                    *expr = orig;
-                }
-            }
-        }
-
         fn update_projection_expr(
             group_by_expr: &Expression,
             group_by_col: ColumnExpr,
@@ -334,7 +348,7 @@ impl SelectList {
         Ok(())
     }
 
-    pub fn get_projection(&mut self, idx: usize) -> Result<&Expression> {
+    pub fn get_projection(&self, idx: usize) -> Result<&Expression> {
         self.projections
             .get(idx)
             .ok_or_else(|| RayexecError::new(format!("Missing projection at index {idx}")))
