@@ -3,7 +3,7 @@ use rayexec_parser::ast;
 
 use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
-use super::select_list::SelectList;
+use super::select_list::{BoundSelectList, SelectList};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
@@ -27,10 +27,9 @@ impl<'a> HavingBinder<'a> {
     }
 
     pub fn bind(
-        &mut self,
+        &self,
         bind_context: &mut BindContext,
         select_list: &mut SelectList,
-        group_by: Option<&BoundGroupBy>,
         having: ast::Expr<ResolvedMeta>,
     ) -> Result<Expression> {
         let mut expr = BaseExpressionBinder::new(self.current, self.resolve_context)
@@ -53,71 +52,61 @@ impl<'a> HavingBinder<'a> {
             &mut select_list.aggregates,
         )?;
 
-        // Update expression to ensure it points to the GROUP BY.
-        Self::update_group_by_dependencies(select_list.aggregates_table, &mut expr, group_by)?;
-
         Ok(expr)
     }
 
-    /// Update the expression to point to the GROUP BY as necessary.
+    /// Updates the having expression to ensure all column references point to
+    /// either the aggregates table or groups table.
     ///
-    /// Errors if we encounter a column expression that doesn't point to the
-    /// aggregates table or if the column can't be found in the group by.
-    fn update_group_by_dependencies(
-        agg_table: TableRef,
-        expr: &mut Expression,
+    /// This should be called after finalizing the select list as we'll be
+    /// cloning in expressions from the GROUP BY directly, and they're updating
+    /// only after select list finalizing.
+    pub fn update_expression_dependencies(
+        &self,
+        select_list: &BoundSelectList,
+        having_expr: &mut Expression,
         group_by: Option<&BoundGroupBy>,
     ) -> Result<()> {
-        match group_by {
-            Some(group_by) => {
-                fn update_expr(
-                    agg_table: TableRef,
-                    group_by_expr: &Expression,
-                    group_by_col: ColumnExpr,
-                    expr: &mut Expression,
-                ) -> Result<()> {
-                    if expr == group_by_expr {
-                        *expr = Expression::Column(group_by_col);
-                        return Ok(());
-                    }
-
-                    if let Expression::Column(col) = expr {
-                        if col.table_scope != agg_table {
-                            return Err(RayexecError::new(format!(
-                                "'{expr}' contains columns not found in GROUP BY"
-                            )));
-                        }
-                    }
-
-                    expr.for_each_child_mut(&mut |child| {
-                        update_expr(agg_table, group_by_expr, group_by_col, child)
-                    })
-                }
-
-                // Update expression with references to the group by.
-                for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
-                    let group_by_col = ColumnExpr {
-                        table_scope: group_by.group_table,
-                        column: idx,
-                    };
-
-                    update_expr(agg_table, group_by_expr, group_by_col, expr)?;
-                }
-
-                Ok(())
+        fn update_expr(
+            group_by_expr: &Expression,
+            group_by_col: ColumnExpr,
+            expr: &mut Expression,
+        ) -> Result<()> {
+            if expr == group_by_expr {
+                *expr = Expression::Column(group_by_col);
+                return Ok(());
             }
-            None => {
-                // Just need to check that the only table ref we have is the one
-                // pointing to the aggregates table.
-                let refs = expr.get_table_references();
-                if refs.is_empty() || (refs.len() == 1 && refs.contains(&agg_table)) {
-                    Ok(())
-                } else {
-                    Err(RayexecError::new(format!(
-                        "'{expr}' contains columns not found in GROUP BY"
-                    )))
-                }
+
+            expr.for_each_child_mut(&mut |child| update_expr(group_by_expr, group_by_col, child))
+        }
+
+        if let Some(group_by) = group_by {
+            // Now update all columns in the select list to references to the GROUP
+            // BY expressions.
+            for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
+                let group_by_col = ColumnExpr {
+                    table_scope: group_by.group_table,
+                    column: idx,
+                };
+
+                update_expr(group_by_expr, group_by_col, having_expr)?;
             }
         }
+
+        // Verify that we only reference either GROUP BY columns or contain
+        // aggregates.
+        let mut refs = having_expr.get_table_references();
+        refs.remove(&select_list.aggregates_table);
+        if let Some(group_by) = group_by {
+            refs.remove(&group_by.group_table);
+        }
+
+        if !refs.is_empty() {
+            return Err(RayexecError::new(
+                "HAVING contains columns not found in the GROUP BY clause",
+            ));
+        }
+
+        Ok(())
     }
 }

@@ -105,13 +105,12 @@ impl<'a> SelectBinder<'a> {
             .transpose()?;
 
         // Handle HAVING
-        let having = select
+        let mut having = select
             .having
             .map(|expr| {
                 HavingBinder::new(from_bind_ref, self.resolve_context).bind(
                     bind_context,
                     &mut select_list,
-                    group_by.as_ref(),
                     expr,
                 )
             })
@@ -119,6 +118,15 @@ impl<'a> SelectBinder<'a> {
 
         // Finalize projections.
         let select_list = select_list.finalize(bind_context, group_by.as_mut())?;
+
+        // Update HAVING if needed.
+        if let Some(having) = &mut having {
+            HavingBinder::new(from_bind_ref, self.resolve_context).update_expression_dependencies(
+                &select_list,
+                having,
+                group_by.as_ref(),
+            )?;
+        }
 
         // Move output select columns into current scope.
         match &select_list.output {

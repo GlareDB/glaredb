@@ -59,26 +59,6 @@ pub struct BoundSelectList {
 }
 
 #[derive(Debug)]
-pub struct ExtractedWindows {
-    /// Table containing columns for windows.
-    pub windows_table: TableRef,
-    /// All extracted windows.
-    pub windows: Vec<Expression>,
-    /// Maps the position of the window function in the original projection ot
-    /// the extracted window index.
-    ///
-    /// This is used to reconstruct the correct projection ordering when
-    /// finalizing.
-    pub projection_map: HashMap<usize, usize>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum AliasTarget {
-    Projection(usize),
-    Window(usize),
-}
-
-#[derive(Debug)]
 pub struct SelectList {
     /// The table scope that expressions referencing columns in the select list
     /// should bind to.
@@ -269,14 +249,6 @@ impl SelectList {
         None
     }
 
-    pub fn expr_by_user_alias(&self, ident: &ast::Ident) -> Result<Option<&Expression>> {
-        if let Some(col) = self.column_by_user_alias(ident) {
-            Ok(Some(self.get_projection(col.column)?))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Get a column reference by ordinal.
     pub fn column_by_ordinal(
         &self,
@@ -301,22 +273,38 @@ impl SelectList {
         Ok(None)
     }
 
-    /// Get a projection expression by ordinal.
-    pub fn expr_by_ordinal(&self, lit: &ast::Literal<ResolvedMeta>) -> Result<Option<&Expression>> {
-        if let Some(col) = self.column_by_ordinal(lit)? {
-            Ok(Some(self.get_projection(col.column)?))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Updates expressions in the select list and bound group to ensure the
     /// select list depends on columns in the group by, and not the other way
     /// around.
     ///
-    /// During GROUP BY binding, we clone in the original expressions from the
-    /// select list list. So we just need to check for equality.
+    /// During GROUP BY binding, we use a column reference pointing to the
+    /// select list. We avoid cloning the expression directly into the GROUP BY
+    /// since that'll cause some ambiguity around if the expression is a sub
+    /// expression or not.
     fn update_group_by_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
+        // Update group expressions to be the base for any aliased expressions.
+        for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
+            if let Expression::Column(col) = expr {
+                if col.table_scope == self.projections_table {
+                    let proj_expr = self.projections.get_mut(col.column).ok_or_else(|| {
+                        RayexecError::new(format!("Missing projection column: {col}"))
+                    })?;
+
+                    // Point projection to group by expression, replace group by
+                    // expression with original expression.
+                    let orig = std::mem::replace(
+                        proj_expr,
+                        Expression::Column(ColumnExpr {
+                            table_scope: group_by.group_table,
+                            column: idx,
+                        }),
+                    );
+
+                    *expr = orig;
+                }
+            }
+        }
+
         fn update_projection_expr(
             group_by_expr: &Expression,
             group_by_col: ColumnExpr,
@@ -346,17 +334,5 @@ impl SelectList {
         }
 
         Ok(())
-    }
-
-    pub fn get_projection(&self, idx: usize) -> Result<&Expression> {
-        self.projections
-            .get(idx)
-            .ok_or_else(|| RayexecError::new(format!("Missing projection at index {idx}")))
-    }
-
-    pub fn get_projection_mut(&mut self, idx: usize) -> Result<&mut Expression> {
-        self.projections
-            .get_mut(idx)
-            .ok_or_else(|| RayexecError::new(format!("Missing projection at index {idx}")))
     }
 }

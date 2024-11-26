@@ -91,10 +91,9 @@ impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
         _bind_context: &mut BindContext,
         literal: &ast::Literal<ResolvedMeta>,
     ) -> Result<Option<Expression>> {
-        if let Some(expr) = self.select_list.expr_by_ordinal(literal)? {
-            return Ok(Some(expr.clone()));
+        if let Some(col) = self.select_list.column_by_ordinal(literal)? {
+            return Ok(Some(Expression::Column(col)));
         }
-
         Ok(None)
     }
 
@@ -118,8 +117,8 @@ impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
         }
 
         // Try to bind to a user-provided alias.
-        if let Some(expr) = self.select_list.expr_by_user_alias(ident)? {
-            return Ok(Some(expr.clone()));
+        if let Some(col) = self.select_list.column_by_user_alias(ident) {
+            return Ok(Some(Expression::Column(col)));
         }
 
         Ok(None)
