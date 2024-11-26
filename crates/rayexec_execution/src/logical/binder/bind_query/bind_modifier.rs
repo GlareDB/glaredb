@@ -11,7 +11,7 @@ use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoundOrderByExpr {
     pub expr: Expression,
     pub desc: bool,
