@@ -1297,25 +1297,22 @@ impl<'a> BaseExpressionBinder<'a> {
                                     .collect::<Result<Vec<_>>>()?;
 
                                 let start = match &window_def.frame {
-                                    Some(frame) => {
-                                        //
-                                        unimplemented!()
+                                    Some(_frame) => {
+                                        not_implemented!("non-default window frame")
                                     }
                                     None => WindowFrameBound::default_start(),
                                 };
 
                                 let end = match &window_def.frame {
-                                    Some(frame) => {
-                                        //
-                                        unimplemented!()
+                                    Some(_frame) => {
+                                        not_implemented!("non-default window frame")
                                     }
                                     None => WindowFrameBound::default_start(),
                                 };
 
                                 let exclude = match &window_def.frame {
-                                    Some(frame) => {
-                                        //
-                                        unimplemented!()
+                                    Some(_frame) => {
+                                        not_implemented!("non-default window frame")
                                     }
                                     None => WindowFrameExclusion::default(),
                                 };
