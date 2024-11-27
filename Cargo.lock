@@ -2216,6 +2216,11 @@ version = "0.0.80"
 dependencies = [
  "bindgen",
  "cc",
+ "fmtutil",
+ "futures",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
 ]
 
 [[package]]
@@ -3160,6 +3165,7 @@ version = "0.0.80"
 dependencies = [
  "rayexec_bullet",
  "rayexec_csv",
+ "rayexec_dbgen",
  "rayexec_debug",
  "rayexec_delta",
  "rayexec_error",
