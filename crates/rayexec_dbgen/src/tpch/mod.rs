@@ -1,3 +1,6 @@
+mod bindings;
+pub mod info;
+
 use futures::future::BoxFuture;
 use info::{TableInfo, TPCH_TABLES};
 use rayexec_bullet::field::Schema;
@@ -6,8 +9,6 @@ use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
-
-pub mod info;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TpchGen<R: Runtime> {

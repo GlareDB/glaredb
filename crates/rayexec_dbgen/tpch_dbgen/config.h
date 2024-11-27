@@ -95,6 +95,8 @@
  *   TPCH              -- make will create TPCH (set in makefile)
  */
 
+
+
 #ifdef DOS
 #define PATH_SEP	'\\'
 #else

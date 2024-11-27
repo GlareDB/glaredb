@@ -1,3 +1,8 @@
+use std::env;
+use std::path::PathBuf;
+
+use bindgen::CargoCallbacks;
+
 fn main() {
     cc::Build::new()
         // Define DBNAME, LINUX, SQLSERVER, and TPCH.
@@ -20,5 +25,18 @@ fn main() {
             "tpch_dbgen/speed_seed.c",
             "tpch_dbgen/varsub.c",
         ])
-        .compile("dbgen")
+        .compile("dbgen");
+
+    let header_path = PathBuf::from("tpch_dbgen/dbgen.h").canonicalize().unwrap();
+    let header_str = header_path.to_str().unwrap();
+
+    let bindings = bindgen::Builder::default()
+        .header(header_str)
+        .allowlist_function("generate_table_data")
+        .parse_callbacks(Box::new(CargoCallbacks))
+        .generate()
+        .unwrap();
+
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("tpch_dbgen_bindings.rs");
+    bindings.write_to_file(out_path).unwrap()
 }
