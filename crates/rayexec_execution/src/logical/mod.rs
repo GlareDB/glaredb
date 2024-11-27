@@ -64,3 +64,4 @@ pub mod logical_scan;
 pub mod logical_set;
 pub mod logical_setop;
 pub mod logical_unnest;
+pub mod logical_window;

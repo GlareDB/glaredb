@@ -5,8 +5,9 @@ use super::bind_from::{BoundFrom, FromBinder};
 use super::bind_group_by::{BoundGroupBy, GroupByBinder};
 use super::bind_having::HavingBinder;
 use super::bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder};
+use super::bind_select_list::SelectListBinder;
 use super::select_expr_expander::SelectExprExpander;
-use super::select_list::{BoundSelectList, SelectList};
+use super::select_list::BoundSelectList;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
@@ -66,12 +67,8 @@ impl<'a> SelectBinder<'a> {
             return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
         }
 
-        let mut select_list = SelectList::try_new(
-            from_bind_ref,
-            bind_context,
-            self.resolve_context,
-            projections,
-        )?;
+        let mut select_list = SelectListBinder::new(from_bind_ref, self.resolve_context)
+            .bind(bind_context, projections)?;
 
         // Handle WHERE
         let where_expr = select
@@ -108,7 +105,7 @@ impl<'a> SelectBinder<'a> {
             .transpose()?;
 
         // Handle HAVING
-        let having = select
+        let mut having = select
             .having
             .map(|expr| {
                 HavingBinder::new(from_bind_ref, self.resolve_context).bind(
@@ -122,9 +119,18 @@ impl<'a> SelectBinder<'a> {
         // Finalize projections.
         let select_list = select_list.finalize(bind_context, group_by.as_mut())?;
 
+        // Update HAVING if needed.
+        if let Some(having) = &mut having {
+            HavingBinder::new(from_bind_ref, self.resolve_context).update_expression_dependencies(
+                &select_list,
+                having,
+                group_by.as_ref(),
+            )?;
+        }
+
         // Move output select columns into current scope.
-        match &select_list.pruned {
-            Some(pruned) => bind_context.append_table_to_scope(self.current, pruned.table)?,
+        match &select_list.output {
+            Some(output) => bind_context.append_table_to_scope(self.current, output.table)?,
             None => {
                 bind_context.append_table_to_scope(self.current, select_list.projections_table)?
             }
@@ -168,7 +174,7 @@ mod tests {
                 ast::SelectExpr::Expr(ast::Expr::Literal(ast::Literal::Number("1".to_string()))),
                 ast::SelectExpr::AliasedExpr(
                     ast::Expr::Literal(ast::Literal::Number("1".to_string())),
-                    ast::Ident::from_string("my_alias"),
+                    ast::Ident::new_unquoted("my_alias"),
                 ),
             ],
             from: None,

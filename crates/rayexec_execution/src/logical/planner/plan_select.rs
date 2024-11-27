@@ -8,6 +8,7 @@ use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_limit::LogicalLimit;
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_window::LogicalWindow;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
 use crate::logical::planner::plan_subquery::SubqueryPlanner;
@@ -73,6 +74,33 @@ impl SelectPlanner {
             plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
         }
 
+        // Handle HAVING
+        if let Some(mut expr) = select.having {
+            plan = SubqueryPlanner.plan(bind_context, &mut expr, plan)?;
+            plan = LogicalOperator::Filter(Node {
+                node: LogicalFilter { filter: expr },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
+            })
+        }
+
+        // Handle windows
+        if !select.select_list.windows.is_empty() {
+            for expr in &mut select.select_list.windows {
+                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
+            }
+            plan = LogicalOperator::Window(Node {
+                node: LogicalWindow {
+                    windows: select.select_list.windows,
+                    windows_table: select.select_list.windows_table,
+                },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
+            });
+        }
+
         // Handle projections.
         for expr in &mut select.select_list.projections {
             plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
@@ -89,17 +117,6 @@ impl SelectPlanner {
         });
         // Handle possible UNNESTing.
         plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
-
-        // Handle HAVING
-        if let Some(mut expr) = select.having {
-            plan = SubqueryPlanner.plan(bind_context, &mut expr, plan)?;
-            plan = LogicalOperator::Filter(Node {
-                node: LogicalFilter { filter: expr },
-                location: LocationRequirement::Any,
-                children: vec![plan],
-                estimated_cardinality: StatisticsValue::Unknown,
-            })
-        }
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {
@@ -127,11 +144,11 @@ impl SelectPlanner {
         }
 
         // Omit any columns that shouldn't be in the output.
-        if let Some(pruned) = select.select_list.pruned {
+        if let Some(output) = select.select_list.output {
             plan = LogicalOperator::Project(Node {
                 node: LogicalProject {
-                    projections: pruned.expressions,
-                    projection_table: pruned.table,
+                    projections: output.expressions,
+                    projection_table: output.table,
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

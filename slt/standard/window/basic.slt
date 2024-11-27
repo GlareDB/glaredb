@@ -1,0 +1,10 @@
+# Basic WINDOW tests
+
+halt
+
+query I
+SELECT sum(a) OVER () FROM (VALUES (1), (2), (3)) v(a);
+----
+6
+6
+6

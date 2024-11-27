@@ -100,8 +100,8 @@ mod tests {
             source: CopyToSource::Table(ObjectReference::from_strings(["my_schema", "my_table"])),
             target: CopyToTarget::File("myfile".to_string()),
             options: vec![CopyOption {
-                key: Ident::from_string("FORMAT"),
-                val: Expr::Ident(Ident::from_string("parquet")),
+                key: Ident::new_unquoted("FORMAT"),
+                val: Expr::Ident(Ident::new_unquoted("parquet")),
             }],
         };
         assert_eq!(expected, node);

@@ -76,7 +76,7 @@ mod tests {
         let got = parse_ast("insert into t1(c1, c2) values (1)").unwrap();
         let expected = Insert {
             table: ObjectReference::from_strings(["t1"]),
-            columns: vec![Ident::from_string("c1"), Ident::from_string("c2")],
+            columns: vec![Ident::new_unquoted("c1"), Ident::new_unquoted("c2")],
             source: query_node_values_1(),
         };
         assert_eq!(expected, got);

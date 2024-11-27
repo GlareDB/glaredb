@@ -254,6 +254,7 @@ impl ExplainNode {
             LogicalOperator::ComparisonJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::MagicJoin(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Unnest(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::Window(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::MaterializationScan(n) => {
                 // Materialization special case, walk children by get
                 // materialization from bind context.

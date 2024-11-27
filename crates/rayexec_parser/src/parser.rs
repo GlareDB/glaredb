@@ -432,6 +432,14 @@ impl<'a> Parser<'a> {
         self.peek_nth(0)
     }
 
+    /// Get the next keyword without altering the current index.
+    ///
+    /// Returns None if the next token isn't a keyword or we're at the end of
+    /// the token list.
+    pub(crate) fn peek_keyword(&self) -> Option<Keyword> {
+        self.peek().and_then(|tok| tok.keyword())
+    }
+
     /// Get the nth next token without altering the current index.
     ///
     /// Ignores whitespace.

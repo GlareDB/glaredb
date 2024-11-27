@@ -2,11 +2,11 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::bind_modifier::{BoundLimit, BoundOrderBy};
+use super::bind_select_list::SelectListBinder;
 use super::BoundQuery;
 use crate::functions::implicit::implicit_cast_score;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
 use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
-use crate::logical::binder::bind_query::select_list::SelectList;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_setop::SetOpKind;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -159,8 +159,8 @@ impl<'a> SetOpBinder<'a> {
         let modifier_binder =
             ModifierBinder::new(vec![left_scope, right_scope], self.resolve_context);
         // TODO: This select list should be able to reference aliases in the output.
-        let mut empty_select_list =
-            SelectList::try_new(self.current, bind_context, self.resolve_context, Vec::new())?;
+        let mut empty_select_list = SelectListBinder::new(self.current, self.resolve_context)
+            .bind(bind_context, Vec::new())?;
         let order_by = order_by
             .map(|order_by| {
                 modifier_binder.bind_order_by(bind_context, &mut empty_select_list, order_by)

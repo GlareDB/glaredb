@@ -32,7 +32,7 @@ use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use subquery_expr::SubqueryExpr;
 use unnest_expr::UnnestExpr;
@@ -83,7 +83,7 @@ impl Expression {
             Self::Negate(expr) => expr.datatype(bind_context)?,
             Self::ScalarFunction(expr) => expr.function.return_type(),
             Self::Subquery(expr) => expr.return_type.clone(),
-            Self::Window(_) => not_implemented!("WINDOW"),
+            Self::Window(window) => window.agg.return_type(),
             Self::Unnest(expr) => expr.datatype(bind_context)?,
         })
     }
@@ -145,9 +145,11 @@ impl Expression {
                 for input in &mut window.inputs {
                     func(input)?;
                 }
-                func(&mut window.filter)?;
                 for partition in &mut window.partition_by {
                     func(partition)?;
+                }
+                for order_by in &mut window.order_by {
+                    func(&mut order_by.expr)?;
                 }
             }
             Self::Unnest(unnest) => func(&mut unnest.expr)?,
@@ -212,9 +214,11 @@ impl Expression {
                 for input in &window.inputs {
                     func(input)?;
                 }
-                func(&window.filter)?;
                 for partition in &window.partition_by {
                     func(partition)?;
+                }
+                for order_by in &window.order_by {
+                    func(&order_by.expr)?;
                 }
             }
             Self::Unnest(unnest) => func(&unnest.expr)?,
@@ -250,7 +254,7 @@ impl Expression {
                     has_subquery = has_subquery || expr.contains_subquery();
                     Ok(())
                 })
-                .expect("subquery check to no fail");
+                .expect("subquery check to not fail");
                 has_subquery
             }
         }
@@ -268,8 +272,26 @@ impl Expression {
                     has_unnest = has_unnest || expr.contains_unnest();
                     Ok(())
                 })
-                .expect("unnest check to no fail");
+                .expect("unnest check to not fail");
                 has_unnest
+            }
+        }
+    }
+
+    pub fn contains_window(&self) -> bool {
+        match self {
+            Self::Window(_) => true,
+            _ => {
+                let mut has_window = false;
+                self.for_each_child(&mut |expr| {
+                    if has_window {
+                        return Ok(());
+                    }
+                    has_window = has_window || expr.contains_window();
+                    Ok(())
+                })
+                .expect("window check to not fail");
+                has_window
             }
         }
     }

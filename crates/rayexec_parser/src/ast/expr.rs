@@ -4,7 +4,15 @@ use std::str::FromStr;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{AstParseable, DataType, Ident, ObjectReference, QueryNode};
+use super::{
+    AstParseable,
+    DataType,
+    Ident,
+    ObjectReference,
+    QueryNode,
+    WindowDefinition,
+    WindowSpec,
+};
 use crate::keywords::{keyword_from_str, Keyword};
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
@@ -96,6 +104,8 @@ pub struct Function<T: AstMeta> {
     pub args: Vec<FunctionArg<T>>,
     /// Filter part of `COUNT(col) FILTER (WHERE col > 5)`
     pub filter: Option<Box<Expr<T>>>,
+    /// Option OVER clause indicating this is a window function.
+    pub over: Option<WindowSpec<T>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -187,7 +197,7 @@ pub enum Expr<T: AstMeta> {
         right: Box<Expr<T>>,
     },
     /// A function call.
-    Function(Function<T>),
+    Function(Box<Function<T>>),
     /// Scalar subquery.
     Subquery(Box<QueryNode<T>>),
     /// Nested expression wrapped in parenthesis.
@@ -913,14 +923,31 @@ impl Expr<Raw> {
                 None
             };
 
-            // TODO: Windows
+            let over = if parser.parse_keyword(Keyword::OVER) {
+                if parser.consume_token(&Token::LeftParen) {
+                    if parser.consume_token(&Token::RightParen) {
+                        // Empty OVER, we still need the spec, but it'll contain
+                        // nothing.
+                        Some(WindowSpec::Definition(WindowDefinition::default()))
+                    } else {
+                        let spec = WindowSpec::Definition(WindowDefinition::parse(parser)?);
+                        parser.expect_token(&Token::RightParen)?;
+                        Some(spec)
+                    }
+                } else {
+                    Some(WindowSpec::Named(Ident::parse(parser)?))
+                }
+            } else {
+                None
+            };
 
-            Ok(Expr::Function(Function {
+            Ok(Expr::Function(Box::new(Function {
                 reference: ObjectReference(idents),
                 distinct,
                 args,
                 filter,
-            }))
+                over,
+            })))
         } else {
             Ok(match idents.len() {
                 1 if !wildcard => Expr::Ident(idents.pop().unwrap()),
@@ -1254,6 +1281,7 @@ mod tests {
 
     use super::*;
     use crate::ast::testutil::parse_ast;
+    use crate::ast::{OrderByNode, OrderByType};
 
     #[test]
     fn literal() {
@@ -1266,8 +1294,8 @@ mod tests {
     fn compound() {
         let expr: Expr<_> = parse_ast("my_schema.t1").unwrap();
         let expected = Expr::CompoundIdent(vec![
-            Ident::from_string("my_schema"),
-            Ident::from_string("t1"),
+            Ident::new_unquoted("my_schema"),
+            Ident::new_unquoted("t1"),
         ]);
         assert_eq!(expected, expr);
     }
@@ -1276,8 +1304,8 @@ mod tests {
     fn compound_with_keyword() {
         let expr: Expr<_> = parse_ast("schema.table").unwrap();
         let expected = Expr::CompoundIdent(vec![
-            Ident::from_string("schema"),
-            Ident::from_string("table"),
+            Ident::new_unquoted("schema"),
+            Ident::new_unquoted("table"),
         ]);
         assert_eq!(expected, expr);
     }
@@ -1285,7 +1313,7 @@ mod tests {
     #[test]
     fn qualified_wildcard() {
         let expr: Expr<_> = parse_ast("schema.*").unwrap();
-        let expected = Expr::QualifiedWildcard(vec![Ident::from_string("schema")]);
+        let expected = Expr::QualifiedWildcard(vec![Ident::new_unquoted("schema")]);
         assert_eq!(expected, expr);
     }
 
@@ -1303,58 +1331,112 @@ mod tests {
     #[test]
     fn function_call_simple() {
         let expr: Expr<_> = parse_ast("sum(my_col)").unwrap();
-        let expected = Expr::Function(Function {
-            reference: ObjectReference(vec![Ident::from_string("sum")]),
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("sum")]),
             distinct: false,
             args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("my_col"))),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::new_unquoted("my_col"))),
             }],
             filter: None,
-        });
+            over: None,
+        }));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn function_call_no_args() {
         let expr: Expr<_> = parse_ast("random()").unwrap();
-        let expected = Expr::Function(Function {
-            reference: ObjectReference(vec![Ident::from_string("random")]),
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("random")]),
             distinct: false,
             args: Vec::new(),
             filter: None,
-        });
+            over: None,
+        }));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn function_call_with_over() {
         let expr: Expr<_> = parse_ast("count(x) filter (where x > 5)").unwrap();
-        let expected = Expr::Function(Function {
-            reference: ObjectReference(vec![Ident::from_string("count")]),
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("count")]),
             distinct: false,
             args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("x"))),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::new_unquoted("x"))),
             }],
             filter: Some(Box::new(Expr::BinaryExpr {
-                left: Box::new(Expr::Ident(Ident::from_string("x"))),
+                left: Box::new(Expr::Ident(Ident::new_unquoted("x"))),
                 op: BinaryOperator::Gt,
                 right: Box::new(Expr::Literal(Literal::Number("5".to_string()))),
             })),
-        });
+            over: None,
+        }));
         assert_eq!(expected, expr);
     }
 
     #[test]
     fn function_call_with_distinct() {
         let expr: Expr<_> = parse_ast("count(distinct x)").unwrap();
-        let expected = Expr::Function(Function {
-            reference: ObjectReference(vec![Ident::from_string("count")]),
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("count")]),
             distinct: true,
             args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::from_string("x"))),
+                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::new_unquoted("x"))),
             }],
             filter: None,
-        });
+            over: None,
+        }));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_window_def() {
+        let expr: Expr<_> =
+            parse_ast("rank() over (partition by depname order by salary desc, empno)").unwrap();
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("rank")]),
+            distinct: false,
+            args: Vec::new(),
+            filter: None,
+            over: Some(WindowSpec::Definition(WindowDefinition {
+                existing: None,
+                partition_by: vec![Expr::Ident(Ident::new_unquoted("depname"))],
+                order_by: vec![
+                    OrderByNode {
+                        typ: Some(OrderByType::Desc),
+                        nulls: None,
+                        expr: Expr::Ident(Ident::new_unquoted("salary")),
+                    },
+                    OrderByNode {
+                        typ: None,
+                        nulls: None,
+                        expr: Expr::Ident(Ident::new_unquoted("empno")),
+                    },
+                ],
+                frame: None,
+            })),
+        }));
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
+    fn function_call_window_def_empty_over() {
+        let expr: Expr<_> = parse_ast("rank() over ()").unwrap();
+        let expected = Expr::Function(Box::new(Function {
+            reference: ObjectReference(vec![Ident::new_unquoted("rank")]),
+            distinct: false,
+            args: Vec::new(),
+            filter: None,
+            // Note that this should be Some but everything empty. We need to
+            // differentiate between and empty OVER and missing OVER.
+            over: Some(WindowSpec::Definition(WindowDefinition {
+                existing: None,
+                partition_by: Vec::new(),
+                order_by: Vec::new(),
+                frame: None,
+            })),
+        }));
         assert_eq!(expected, expr);
     }
 
@@ -1372,14 +1454,15 @@ mod tests {
     #[test]
     fn count_star() {
         let expr: Expr<_> = parse_ast("count(*)").unwrap();
-        let expected = Expr::Function(Function {
+        let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference::from_strings(["count"]),
             distinct: false,
             args: vec![FunctionArg::Unnamed {
                 arg: FunctionArgExpr::Wildcard,
             }],
             filter: None,
-        });
+            over: None,
+        }));
         assert_eq!(expected, expr);
     }
 
@@ -1389,14 +1472,15 @@ mod tests {
         let expected = Expr::BinaryExpr {
             left: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
             op: BinaryOperator::Multiply,
-            right: Box::new(Expr::Function(Function {
+            right: Box::new(Expr::Function(Box::new(Function {
                 reference: ObjectReference::from_strings(["count"]),
                 distinct: false,
                 args: vec![FunctionArg::Unnamed {
                     arg: FunctionArgExpr::Wildcard,
                 }],
                 filter: None,
-            })),
+                over: None,
+            }))),
         };
         assert_eq!(expected, expr);
     }
@@ -1405,14 +1489,15 @@ mod tests {
     fn count_star_precedence_after() {
         let expr: Expr<_> = parse_ast("count(*) * 111").unwrap();
         let expected = Expr::BinaryExpr {
-            left: Box::new(Expr::Function(Function {
+            left: Box::new(Expr::Function(Box::new(Function {
                 reference: ObjectReference::from_strings(["count"]),
                 distinct: false,
                 args: vec![FunctionArg::Unnamed {
                     arg: FunctionArgExpr::Wildcard,
                 }],
                 filter: None,
-            })),
+                over: None,
+            }))),
             op: BinaryOperator::Multiply,
             right: Box::new(Expr::Literal(Literal::Number("111".to_string()))),
         };
@@ -1523,8 +1608,8 @@ mod tests {
     fn array_literal_basic() {
         let expr: Expr<_> = parse_ast("[a, b]").unwrap();
         let expected = Expr::Array(vec![
-            Expr::Ident(Ident::from_string("a")),
-            Expr::Ident(Ident::from_string("b")),
+            Expr::Ident(Ident::new_unquoted("a")),
+            Expr::Ident(Ident::new_unquoted("b")),
         ]);
         assert_eq!(expected, expr)
     }
@@ -1540,7 +1625,7 @@ mod tests {
     fn array_subscript_index() {
         let expr: Expr<_> = parse_ast("my_array[2]").unwrap();
         let expected = Expr::ArraySubscript {
-            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            expr: Box::new(Expr::Ident(Ident::new_unquoted("my_array"))),
             subscript: Box::new(ArraySubscript::Index(Expr::Literal(Literal::Number(
                 "2".to_string(),
             )))),
@@ -1552,7 +1637,7 @@ mod tests {
     fn array_subscript_slice() {
         let expr: Expr<_> = parse_ast("my_array[1:2]").unwrap();
         let expected = Expr::ArraySubscript {
-            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            expr: Box::new(Expr::Ident(Ident::new_unquoted("my_array"))),
             subscript: Box::new(ArraySubscript::Slice {
                 lower: Some(Expr::Literal(Literal::Number("1".to_string()))),
                 upper: Some(Expr::Literal(Literal::Number("2".to_string()))),
@@ -1566,7 +1651,7 @@ mod tests {
     fn array_subscript_slice_no_upper() {
         let expr: Expr<_> = parse_ast("my_array[1:]").unwrap();
         let expected = Expr::ArraySubscript {
-            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            expr: Box::new(Expr::Ident(Ident::new_unquoted("my_array"))),
             subscript: Box::new(ArraySubscript::Slice {
                 lower: Some(Expr::Literal(Literal::Number("1".to_string()))),
                 upper: None,
@@ -1580,7 +1665,7 @@ mod tests {
     fn array_subscript_slice_no_lower() {
         let expr: Expr<_> = parse_ast("my_array[:2]").unwrap();
         let expected = Expr::ArraySubscript {
-            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            expr: Box::new(Expr::Ident(Ident::new_unquoted("my_array"))),
             subscript: Box::new(ArraySubscript::Slice {
                 lower: None,
                 upper: Some(Expr::Literal(Literal::Number("2".to_string()))),
@@ -1594,7 +1679,7 @@ mod tests {
     fn array_subscript_slice_with_stride() {
         let expr: Expr<_> = parse_ast("my_array[1:2:3]").unwrap();
         let expected = Expr::ArraySubscript {
-            expr: Box::new(Expr::Ident(Ident::from_string("my_array"))),
+            expr: Box::new(Expr::Ident(Ident::new_unquoted("my_array"))),
             subscript: Box::new(ArraySubscript::Slice {
                 lower: Some(Expr::Literal(Literal::Number("1".to_string()))),
                 upper: Some(Expr::Literal(Literal::Number("2".to_string()))),
@@ -1608,9 +1693,9 @@ mod tests {
     fn string_contains_sugar() {
         let expr: Expr<_> = parse_ast("s1 ^@ s2").unwrap();
         let expected = Expr::BinaryExpr {
-            left: Box::new(Expr::Ident(Ident::from_string("s1"))),
+            left: Box::new(Expr::Ident(Ident::new_unquoted("s1"))),
             op: BinaryOperator::StringStartsWith,
-            right: Box::new(Expr::Ident(Ident::from_string("s2"))),
+            right: Box::new(Expr::Ident(Ident::new_unquoted("s2"))),
         };
         assert_eq!(expected, expr);
     }
@@ -1620,9 +1705,9 @@ mod tests {
         let expr: Expr<_> = parse_ast("col BETWEEN a AND b").unwrap();
         let expected = Expr::Between {
             negated: false,
-            expr: Box::new(Expr::Ident(Ident::from_string("col"))),
-            low: Box::new(Expr::Ident(Ident::from_string("a"))),
-            high: Box::new(Expr::Ident(Ident::from_string("b"))),
+            expr: Box::new(Expr::Ident(Ident::new_unquoted("col"))),
+            low: Box::new(Expr::Ident(Ident::new_unquoted("a"))),
+            high: Box::new(Expr::Ident(Ident::new_unquoted("b"))),
         };
         assert_eq!(expected, expr);
     }
@@ -1633,11 +1718,11 @@ mod tests {
         let expected = Expr::Case {
             expr: None,
             conditions: vec![Expr::BinaryExpr {
-                left: Box::new(Expr::Ident(Ident::from_string("a"))),
+                left: Box::new(Expr::Ident(Ident::new_unquoted("a"))),
                 op: BinaryOperator::Gt,
-                right: Box::new(Expr::Ident(Ident::from_string("b"))),
+                right: Box::new(Expr::Ident(Ident::new_unquoted("b"))),
             }],
-            results: vec![Expr::Ident(Ident::from_string("c"))],
+            results: vec![Expr::Ident(Ident::new_unquoted("c"))],
             else_expr: None,
         };
         assert_eq!(expected, expr);
@@ -1647,9 +1732,9 @@ mod tests {
     fn case_with_leading_expr_no_else() {
         let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c END").unwrap();
         let expected = Expr::Case {
-            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
-            conditions: vec![Expr::Ident(Ident::from_string("b"))],
-            results: vec![Expr::Ident(Ident::from_string("c"))],
+            expr: Some(Box::new(Expr::Ident(Ident::new_unquoted("a")))),
+            conditions: vec![Expr::Ident(Ident::new_unquoted("b"))],
+            results: vec![Expr::Ident(Ident::new_unquoted("c"))],
             else_expr: None,
         };
         assert_eq!(expected, expr);
@@ -1659,10 +1744,10 @@ mod tests {
     fn case_with_leading_expr_with_else() {
         let expr: Expr<_> = parse_ast("CASE a WHEN b THEN c ELSE d END").unwrap();
         let expected = Expr::Case {
-            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
-            conditions: vec![Expr::Ident(Ident::from_string("b"))],
-            results: vec![Expr::Ident(Ident::from_string("c"))],
-            else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
+            expr: Some(Box::new(Expr::Ident(Ident::new_unquoted("a")))),
+            conditions: vec![Expr::Ident(Ident::new_unquoted("b"))],
+            results: vec![Expr::Ident(Ident::new_unquoted("c"))],
+            else_expr: Some(Box::new(Expr::Ident(Ident::new_unquoted("d")))),
         };
         assert_eq!(expected, expr);
     }
@@ -1671,16 +1756,16 @@ mod tests {
     fn case_multiple_conditions() {
         let expr: Expr<_> = parse_ast("CASE a WHEN b1 THEN c1 WHEN b2 THEN c2 ELSE d END").unwrap();
         let expected = Expr::Case {
-            expr: Some(Box::new(Expr::Ident(Ident::from_string("a")))),
+            expr: Some(Box::new(Expr::Ident(Ident::new_unquoted("a")))),
             conditions: vec![
-                Expr::Ident(Ident::from_string("b1")),
-                Expr::Ident(Ident::from_string("b2")),
+                Expr::Ident(Ident::new_unquoted("b1")),
+                Expr::Ident(Ident::new_unquoted("b2")),
             ],
             results: vec![
-                Expr::Ident(Ident::from_string("c1")),
-                Expr::Ident(Ident::from_string("c2")),
+                Expr::Ident(Ident::new_unquoted("c1")),
+                Expr::Ident(Ident::new_unquoted("c2")),
             ],
-            else_expr: Some(Box::new(Expr::Ident(Ident::from_string("d")))),
+            else_expr: Some(Box::new(Expr::Ident(Ident::new_unquoted("d")))),
         };
         assert_eq!(expected, expr);
     }

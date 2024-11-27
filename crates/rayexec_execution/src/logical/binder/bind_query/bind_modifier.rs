@@ -11,7 +11,7 @@ use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoundOrderByExpr {
     pub expr: Expression,
     pub desc: bool,
@@ -103,7 +103,7 @@ impl<'a> ModifierBinder<'a> {
                 let expr = if column_binder.did_bind_to_select {
                     expr
                 } else {
-                    let col = select_list.append_expression(bind_context, expr)?;
+                    let col = select_list.append_projection(bind_context, expr)?;
                     Expression::Column(col)
                 };
 
