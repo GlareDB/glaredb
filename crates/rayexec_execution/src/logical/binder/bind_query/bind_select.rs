@@ -7,7 +7,7 @@ use super::bind_having::HavingBinder;
 use super::bind_modifier::{BoundLimit, BoundOrderBy, ModifierBinder};
 use super::bind_select_list::SelectListBinder;
 use super::select_expr_expander::SelectExprExpander;
-use super::select_list::{BoundSelectList, SelectList};
+use super::select_list::BoundSelectList;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;

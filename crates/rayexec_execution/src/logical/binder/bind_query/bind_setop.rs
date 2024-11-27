@@ -7,7 +7,6 @@ use super::BoundQuery;
 use crate::functions::implicit::implicit_cast_score;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
 use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
-use crate::logical::binder::bind_query::select_list::SelectList;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_setop::SetOpKind;
 use crate::logical::resolver::resolve_context::ResolveContext;

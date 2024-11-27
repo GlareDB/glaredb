@@ -1,18 +1,13 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
-use super::select_expr_expander::ExpandedSelectExpr;
-use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
-use crate::logical::binder::column_binder::DefaultColumnBinder;
-use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
-use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::binder::bind_context::{BindContext, TableRef};
 use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

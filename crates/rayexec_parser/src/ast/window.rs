@@ -5,7 +5,6 @@ use super::{AstParseable, Expr, Ident, OrderByNode};
 use crate::keywords::Keyword;
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
-use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WindowSpec<T: AstMeta> {

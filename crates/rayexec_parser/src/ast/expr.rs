@@ -9,7 +9,6 @@ use super::{
     DataType,
     Ident,
     ObjectReference,
-    OrderByNode,
     QueryNode,
     WindowDefinition,
     WindowSpec,

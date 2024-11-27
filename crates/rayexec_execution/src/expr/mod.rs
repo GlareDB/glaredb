@@ -32,7 +32,7 @@ use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use subquery_expr::SubqueryExpr;
 use unnest_expr::UnnestExpr;
