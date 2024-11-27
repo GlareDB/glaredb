@@ -4,3 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+
+[build-dependencies]
+bindgen = "0.65.1"
+cc = "1.0"

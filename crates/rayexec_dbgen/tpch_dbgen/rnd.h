@@ -35,6 +35,9 @@
  * provided by Frank Stephens of Unisys
  */
 
+#include "config.h"
+#include "dss.h"
+
 /* function protypes */
 DSS_HUGE            NextRand    PROTO((DSS_HUGE));
 DSS_HUGE            UnifInt     PROTO((DSS_HUGE, DSS_HUGE, long));

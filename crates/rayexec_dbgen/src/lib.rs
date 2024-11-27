@@ -1,4 +1,9 @@
+extern "C" {
+    fn foo_function();
+}
+
 pub fn add(left: u64, right: u64) -> u64 {
+    unsafe { foo_function() };
     left + right
 }
 
