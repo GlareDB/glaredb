@@ -1,0 +1,6 @@
+[package]
+name = "rayexec_dbgen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
