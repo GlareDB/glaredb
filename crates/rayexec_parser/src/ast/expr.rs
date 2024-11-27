@@ -1281,7 +1281,7 @@ mod tests {
 
     use super::*;
     use crate::ast::testutil::parse_ast;
-    use crate::ast::OrderByType;
+    use crate::ast::{OrderByNode, OrderByType};
 
     #[test]
     fn literal() {

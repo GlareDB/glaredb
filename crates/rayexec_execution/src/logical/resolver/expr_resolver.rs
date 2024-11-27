@@ -578,7 +578,7 @@ impl<'a> ExpressionResolver<'a> {
         let filter = self
             .resolve_optional_expression(func.filter.map(|e| *e), resolve_context)
             .await?
-            .map(|e| Box::new(e));
+            .map(Box::new);
 
         let over = match func.over {
             Some(over) => Some(self.resolve_window_spec(over, resolve_context).await?),

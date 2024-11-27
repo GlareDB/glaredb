@@ -34,7 +34,7 @@ impl Default for WindowDefinition<Raw> {
 impl AstParseable for WindowDefinition<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         // TODO: This will prevent window names from being a keyword.
-        let existing = if !parser.peek_keyword().is_some() {
+        let existing = if parser.peek_keyword().is_none() {
             Some(Ident::parse(parser)?)
         } else {
             None
