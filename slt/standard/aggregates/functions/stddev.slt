@@ -1,0 +1,59 @@
+# stddev_pop, stddev_samp (and variance)
+
+query R
+SELECT stddev_pop(4);
+----
+0
+
+query R
+SELECT var_pop(4);
+----
+0
+
+query R
+SELECT stddev_samp(4);
+----
+NULL
+
+query R
+SELECT var_samp(4);
+----
+NULL
+
+query R
+SELECT stddev_pop(a) FROM VALUES (4) v(a) WHERE false;
+----
+NULL
+
+# TODO: round would be nice here.
+
+query T
+SELECT stddev_pop(a) >= 3.0 AND stddev_pop(a) < 3.00001 FROM VALUES (0), (6), (6), (8) v(a);
+----
+true
+
+query T
+SELECT stddev_pop(a) > 4.9 AND stddev_pop(a) < 5 FROM VALUES (0), (6), (6), (14) v(a);
+----
+true
+
+query T
+SELECT var_pop(a) >= 9.0 AND var_pop(a) < 9.00001 FROM VALUES (0), (6), (6), (8) v(a);
+----
+true
+
+query T
+SELECT stddev_samp(a) > 5.74 AND stddev_samp(a) < 5.75 FROM VALUES (0), (6), (6), (14) v(a);
+----
+true
+
+# Alias
+query T
+SELECT stddev(a) > 5.74 AND stddev(a) < 5.75 FROM VALUES (0), (6), (6), (14) v(a);
+----
+true
+
+query T
+SELECT var_samp(a) >= 33.0 AND var_samp(a) < 33.00001 FROM VALUES (0), (6), (6), (14) v(a);
+----
+true
