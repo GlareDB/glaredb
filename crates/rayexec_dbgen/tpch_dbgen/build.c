@@ -44,6 +44,7 @@
 
 #include "dss.h"
 #include "dsstypes.h"
+#include "state.h"
 #ifdef ADHOC
 #include "adhoc.h"
 extern adhoc_t adhocs[];
@@ -61,7 +62,8 @@ extern adhoc_t adhocs[];
     }
 #define V_STR(avg, sd, tgt) a_rnd((int)(avg * V_STR_LOW), (int)(avg * V_STR_HGH), sd, tgt)
 #define TEXT(avg, sd, tgt) dbg_text(tgt, (int)(avg * V_STR_LOW), (int)(avg * V_STR_HGH), sd)
-static void gen_phone PROTO((DSS_HUGE ind, char *target, long seed));
+
+static void gen_phone PROTO((DSS_HUGE ind, char *target, seed_t *seed));
 
 DSS_HUGE
 rpb_routine(DSS_HUGE p) {
@@ -74,7 +76,7 @@ rpb_routine(DSS_HUGE p) {
     return (price);
 }
 
-static void gen_phone(DSS_HUGE ind, char *target, long seed) {
+static void gen_phone(DSS_HUGE ind, char *target, seed_t *seed) {
     DSS_HUGE acode, exchg, number;
 
     RANDOM(acode, 100, 999, seed);
@@ -90,7 +92,7 @@ static void gen_phone(DSS_HUGE ind, char *target, long seed) {
     return;
 }
 
-long mk_cust(DSS_HUGE n_cust, customer_t *c) {
+long mk_cust(DSS_HUGE n_cust, customer_t *c, gen_state_t *state) {
     DSS_HUGE i;
     static int bInit = 0;
     static char szFormat[100];
@@ -99,14 +101,15 @@ long mk_cust(DSS_HUGE n_cust, customer_t *c) {
         sprintf(szFormat, C_NAME_FMT, 9, HUGE_FORMAT + 1);
         bInit = 1;
     }
+
     c->custkey = n_cust;
     sprintf(c->name, szFormat, C_NAME_TAG, n_cust);
     V_STR(C_ADDR_LEN, C_ADDR_SD, c->address);
     c->alen = (int)strlen(c->address);
-    RANDOM(i, 0, (nations.count - 1), C_NTRG_SD);
+    RANDOM(i, 0, (nations.count - 1), get_seed(state, C_NTRG_SD));
     c->nation_code = i;
-    gen_phone(i, c->phone, (long)C_PHNE_SD);
-    RANDOM(c->acctbal, C_ABAL_MIN, C_ABAL_MAX, C_ABAL_SD);
+    gen_phone(i, c->phone, get_seed(state, C_PHNE_SD));
+    RANDOM(c->acctbal, C_ABAL_MIN, C_ABAL_MAX, get_seed(state, C_ABAL_SD));
     pick_str(&c_mseg_set, C_MSEG_SD, c->mktsegment);
     TEXT(C_CMNT_LEN, C_CMNT_SD, c->comment);
     c->clen = (int)strlen(c->comment);
@@ -131,7 +134,7 @@ void mk_sparse(DSS_HUGE i, DSS_HUGE *ok, long seq) {
     return;
 }
 
-long mk_order(DSS_HUGE index, order_t *o, long upd_num) {
+long mk_order(DSS_HUGE index, order_t *o, long upd_num, gen_state_t *state) {
     DSS_HUGE lcnt;
     DSS_HUGE rprice;
     long ocnt;
@@ -158,18 +161,18 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num) {
     if (scale >= 30000)
         RANDOM64(o->custkey, O_CKEY_MIN, O_CKEY_MAX, O_CKEY_SD);
     else
-        RANDOM(o->custkey, O_CKEY_MIN, O_CKEY_MAX, O_CKEY_SD);
+        RANDOM(o->custkey, O_CKEY_MIN, O_CKEY_MAX, get_seed(state, O_CKEY_SD));
     while (o->custkey % CUST_MORTALITY == 0) {
         o->custkey += delta;
         o->custkey = MIN(o->custkey, O_CKEY_MAX);
         delta *= -1;
     }
 
-    RANDOM(tmp_date, O_ODATE_MIN, O_ODATE_MAX, O_ODATE_SD);
+    RANDOM(tmp_date, O_ODATE_MIN, O_ODATE_MAX, get_seed(state, O_ODATE_SD));
     strcpy(o->odate, asc_date[tmp_date - STARTDATE]);
 
     pick_str(&o_priority_set, O_PRIO_SD, o->opriority);
-    RANDOM(clk_num, 1, MAX((scale * O_CLRK_SCL), O_CLRK_SCL), O_CLRK_SD);
+    RANDOM(clk_num, 1, MAX((scale * O_CLRK_SCL), O_CLRK_SCL), get_seed(state, O_CLRK_SD));
     sprintf(o->clerk, szFormat, O_CLRK_TAG, clk_num);
     TEXT(O_CMNT_LEN, O_CMNT_SD, o->comment);
     o->clen = (int)strlen(o->comment);
@@ -183,14 +186,14 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num) {
     o->orderstatus = 'O';
     ocnt = 0;
 
-    RANDOM(o->lines, O_LCNT_MIN, O_LCNT_MAX, O_LCNT_SD);
+    RANDOM(o->lines, O_LCNT_MIN, O_LCNT_MAX, get_seed(state, O_LCNT_SD));
     for (lcnt = 0; lcnt < o->lines; lcnt++) {
         o->l[lcnt].okey = o->okey;
         ;
         o->l[lcnt].lcnt = lcnt + 1;
-        RANDOM(o->l[lcnt].quantity, L_QTY_MIN, L_QTY_MAX, L_QTY_SD);
-        RANDOM(o->l[lcnt].discount, L_DCNT_MIN, L_DCNT_MAX, L_DCNT_SD);
-        RANDOM(o->l[lcnt].tax, L_TAX_MIN, L_TAX_MAX, L_TAX_SD);
+        RANDOM(o->l[lcnt].quantity, L_QTY_MIN, L_QTY_MAX, get_seed(state, L_QTY_SD));
+        RANDOM(o->l[lcnt].discount, L_DCNT_MIN, L_DCNT_MAX, get_seed(state, L_DCNT_SD));
+        RANDOM(o->l[lcnt].tax, L_TAX_MIN, L_TAX_MAX, get_seed(state, L_TAX_SD));
         pick_str(&l_instruct_set, L_SHIP_SD, o->l[lcnt].shipinstruct);
         pick_str(&l_smode_set, L_SMODE_SD, o->l[lcnt].shipmode);
         TEXT(L_CMNT_LEN, L_CMNT_SD, o->l[lcnt].comment);
@@ -198,20 +201,20 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num) {
         if (scale >= 30000)
             RANDOM64(o->l[lcnt].partkey, L_PKEY_MIN, L_PKEY_MAX, L_PKEY_SD);
         else
-            RANDOM(o->l[lcnt].partkey, L_PKEY_MIN, L_PKEY_MAX, L_PKEY_SD);
+            RANDOM(o->l[lcnt].partkey, L_PKEY_MIN, L_PKEY_MAX, get_seed(state, L_PKEY_SD));
         rprice = rpb_routine(o->l[lcnt].partkey);
-        RANDOM(supp_num, 0, 3, L_SKEY_SD);
+        RANDOM(supp_num, 0, 3, get_seed(state, L_SKEY_SD));
         PART_SUPP_BRIDGE(o->l[lcnt].suppkey, o->l[lcnt].partkey, supp_num);
         o->l[lcnt].eprice = rprice * o->l[lcnt].quantity;
 
         o->totalprice += ((o->l[lcnt].eprice * ((long)100 - o->l[lcnt].discount)) / (long)PENNIES) *
                          ((long)100 + o->l[lcnt].tax) / (long)PENNIES;
 
-        RANDOM(s_date, L_SDTE_MIN, L_SDTE_MAX, L_SDTE_SD);
+        RANDOM(s_date, L_SDTE_MIN, L_SDTE_MAX, get_seed(state, L_SDTE_SD));
         s_date += tmp_date;
-        RANDOM(c_date, L_CDTE_MIN, L_CDTE_MAX, L_CDTE_SD);
+        RANDOM(c_date, L_CDTE_MIN, L_CDTE_MAX, get_seed(state, L_CDTE_SD));
         c_date += tmp_date;
-        RANDOM(r_date, L_RDTE_MIN, L_RDTE_MAX, L_RDTE_SD);
+        RANDOM(r_date, L_RDTE_MIN, L_RDTE_MAX, get_seed(state, L_RDTE_SD));
         r_date += s_date;
 
         strcpy(o->l[lcnt].sdate, asc_date[s_date - STARTDATE]);
@@ -239,7 +242,7 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num) {
     return (0);
 }
 
-long mk_part(DSS_HUGE index, part_t *p) {
+long mk_part(DSS_HUGE index, part_t *p, gen_state_t *state) {
     DSS_HUGE temp;
     long snum;
     DSS_HUGE brnd;
@@ -256,11 +259,11 @@ long mk_part(DSS_HUGE index, part_t *p) {
     agg_str(&colors, (long)P_NAME_SCL, (long)P_NAME_SD, p->name);
     RANDOM(temp, P_MFG_MIN, P_MFG_MAX, P_MFG_SD);
     sprintf(p->mfgr, szFormat, P_MFG_TAG, temp);
-    RANDOM(brnd, P_BRND_MIN, P_BRND_MAX, P_BRND_SD);
+    RANDOM(brnd, P_BRND_MIN, P_BRND_MAX, get_seed(state, P_BRND_SD));
     sprintf(p->brand, szBrandFormat, P_BRND_TAG, (temp * 10 + brnd));
     p->tlen = pick_str(&p_types_set, P_TYPE_SD, p->type);
     p->tlen = (int)strlen(p_types_set.list[p->tlen].text);
-    RANDOM(p->size, P_SIZE_MIN, P_SIZE_MAX, P_SIZE_SD);
+    RANDOM(p->size, P_SIZE_MIN, P_SIZE_MAX, get_seed(state, P_SIZE_SD));
     pick_str(&p_cntr_set, P_CNTR_SD, p->container);
     p->retailprice = rpb_routine(index);
     TEXT(P_CMNT_LEN, P_CMNT_SD, p->comment);
@@ -269,15 +272,15 @@ long mk_part(DSS_HUGE index, part_t *p) {
     for (snum = 0; snum < SUPP_PER_PART; snum++) {
         p->s[snum].partkey = p->partkey;
         PART_SUPP_BRIDGE(p->s[snum].suppkey, index, snum);
-        RANDOM(p->s[snum].qty, PS_QTY_MIN, PS_QTY_MAX, PS_QTY_SD);
-        RANDOM(p->s[snum].scost, PS_SCST_MIN, PS_SCST_MAX, PS_SCST_SD);
+        RANDOM(p->s[snum].qty, PS_QTY_MIN, PS_QTY_MAX, get_seed(state, PS_QTY_SD));
+        RANDOM(p->s[snum].scost, PS_SCST_MIN, PS_SCST_MAX, get_seed(state, PS_SCST_SD));
         TEXT(PS_CMNT_LEN, PS_CMNT_SD, p->s[snum].comment);
         p->s[snum].clen = (int)strlen(p->s[snum].comment);
     }
     return (0);
 }
 
-long mk_supp(DSS_HUGE index, supplier_t *s) {
+long mk_supp(DSS_HUGE index, supplier_t *s, gen_state_t *state) {
     DSS_HUGE i, bad_press, noise, offset, type;
     static int bInit = 0;
     static char szFormat[100];
@@ -290,10 +293,10 @@ long mk_supp(DSS_HUGE index, supplier_t *s) {
     sprintf(s->name, szFormat, S_NAME_TAG, index);
     V_STR(S_ADDR_LEN, S_ADDR_SD, s->address);
     s->alen = (int)strlen(s->address);
-    RANDOM(i, 0, nations.count - 1, S_NTRG_SD);
+    RANDOM(i, 0, nations.count - 1, get_seed(state, S_NTRG_SD));
     s->nation_code = i;
-    gen_phone(i, s->phone, S_PHNE_SD);
-    RANDOM(s->acctbal, S_ABAL_MIN, S_ABAL_MAX, S_ABAL_SD);
+    gen_phone(i, s->phone, get_seed(state, S_PHNE_SD));
+    RANDOM(s->acctbal, S_ABAL_MIN, S_ABAL_MAX, get_seed(state, S_ABAL_SD));
 
     TEXT(S_CMNT_LEN, S_CMNT_SD, s->comment);
     s->clen = (int)strlen(s->comment);
@@ -301,10 +304,10 @@ long mk_supp(DSS_HUGE index, supplier_t *s) {
      * these calls should really move inside the if stmt below, but this
      * will simplify seedless parallel load
      */
-    RANDOM(bad_press, 1, 10000, BBB_CMNT_SD);
-    RANDOM(type, 0, 100, BBB_TYPE_SD);
-    RANDOM(noise, 0, (s->clen - BBB_CMNT_LEN), BBB_JNK_SD);
-    RANDOM(offset, 0, (s->clen - (BBB_CMNT_LEN + noise)), BBB_OFFSET_SD);
+    RANDOM(bad_press, 1, 10000, get_seed(state, BBB_CMNT_SD));
+    RANDOM(type, 0, 100, get_seed(state, BBB_TYPE_SD));
+    RANDOM(noise, 0, (s->clen - BBB_CMNT_LEN), get_seed(state, BBB_JNK_SD));
+    RANDOM(offset, 0, (s->clen - (BBB_CMNT_LEN + noise)), get_seed(state, BBB_OFFSET_SD));
     if (bad_press <= S_CMNT_BBB) {
         type = (type < BBB_DEADBEATS) ? 0 : 1;
         memcpy(s->comment + offset, BBB_BASE, BBB_BASE_LEN);

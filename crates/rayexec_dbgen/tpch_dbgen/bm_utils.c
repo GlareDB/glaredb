@@ -170,13 +170,13 @@ long yes_no(char *prompt) {
  * and using the characters in alphanum (currently includes a space
  * and comma)
  */
-void a_rnd(int min, int max, int column, char *dest) {
+void a_rnd(int min, int max, seed_t *seed, char *dest) {
     DSS_HUGE i, len, char_int;
 
-    RANDOM(len, min, max, column);
+    RANDOM(len, min, max, seed);
     for (i = 0; i < len; i++) {
         if (i % 5 == 0)
-            RANDOM(char_int, 0, MAX_LONG, column);
+            RANDOM(char_int, 0, MAX_LONG, seed);
         *(dest + i) = alpha_num[char_int & 077];
         char_int >>= 6;
     }
@@ -189,15 +189,15 @@ void a_rnd(int min, int max, int column, char *dest) {
  * noise of a length rendomly selected between min and max at a random
  * position
  */
-void e_str(distribution *d, int min, int max, int stream, char *dest) {
+void e_str(distribution *d, int min, int max, seed_t *seed, char *dest) {
     char strtmp[MAXAGG_LEN + 1];
     DSS_HUGE loc;
     int len;
 
-    a_rnd(min, max, stream, dest);
-    pick_str(d, stream, strtmp);
+    a_rnd(min, max, seed, dest);
+    pick_str(d, seed, strtmp);
     len = (int)strlen(strtmp);
-    RANDOM(loc, 0, ((int)strlen(dest) - 1 - len), stream);
+    RANDOM(loc, 0, ((int)strlen(dest) - 1 - len), seed);
     strncpy(dest + loc, strtmp, len);
 
     return;
@@ -208,11 +208,11 @@ void e_str(distribution *d, int min, int max, int stream, char *dest) {
  * long in [1, max] where max is determined by the distribution
  * being queried
  */
-int pick_str(distribution *s, int c, char *target) {
+int pick_str(distribution *s, seed_t *seed, char *target) {
     long i = 0;
     DSS_HUGE j;
 
-    RANDOM(j, 1, s->list[s->count - 1].weight, c);
+    RANDOM(j, 1, s->list[s->count - 1].weight, seed);
     while (s->list[i].weight < j)
         i++;
     strcpy(target, s->list[i].text);

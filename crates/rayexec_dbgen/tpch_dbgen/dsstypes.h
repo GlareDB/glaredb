@@ -35,6 +35,8 @@
  * and function prototypes
  */
 
+#include "state.h"
+
 /*
  * typedefs
  */
@@ -51,7 +53,7 @@ typedef struct {
     int clen;
 } customer_t;
 /* customers.c */
-long mk_cust PROTO((DSS_HUGE n_cust, customer_t *c));
+long mk_cust PROTO((DSS_HUGE n_cust, customer_t *c, gen_state_t *state));
 int pr_cust PROTO((customer_t * c, int mode));
 int ld_cust PROTO((customer_t * c, int mode));
 
@@ -91,7 +93,7 @@ typedef struct {
 } order_t;
 
 /* order.c */
-long mk_order PROTO((DSS_HUGE index, order_t *o, long upd_num));
+long mk_order PROTO((DSS_HUGE index, order_t *o, long upd_num, gen_state_t *state));
 int pr_order PROTO((order_t * o, int mode));
 int ld_order PROTO((order_t * o, int mode));
 void mk_sparse PROTO((DSS_HUGE index, DSS_HUGE *ok, long seq));
@@ -122,7 +124,7 @@ typedef struct {
 } part_t;
 
 /* parts.c */
-long mk_part PROTO((DSS_HUGE index, part_t *p));
+long mk_part PROTO((DSS_HUGE index, part_t *p, gen_state_t *state));
 int pr_part PROTO((part_t * part, int mode));
 int ld_part PROTO((part_t * part, int mode));
 
@@ -138,7 +140,7 @@ typedef struct {
     int clen;
 } supplier_t;
 /* supplier.c */
-long mk_supp PROTO((DSS_HUGE index, supplier_t *s));
+long mk_supp PROTO((DSS_HUGE index, supplier_t *s, gen_state_t *state));
 int pr_supp PROTO((supplier_t * supp, int mode));
 int ld_supp PROTO((supplier_t * supp, int mode));
 

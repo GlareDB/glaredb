@@ -64,6 +64,10 @@
  * general definitions and control information for the DSS code
  * generator; if it controls the data set, it's here
  */
+
+/* Move this import to the top to ensure we have all the defines properly
+ * configured.
+ */
 #include "config.h"
 
 #ifndef DSS_H
@@ -198,14 +202,14 @@ typedef struct SEED_T {
 /* bm_utils.c */
 char *env_config PROTO((char *var, char *dflt));
 long yes_no PROTO((char *prompt));
-void a_rnd PROTO((int min, int max, int column, char *dest));
+void a_rnd PROTO((int min, int max, seed_t *seed, char *dest));
 int tx_rnd PROTO((long min, long max, long column, char *tgt));
 long julian PROTO((long date));
 long unjulian PROTO((long date));
 FILE *tbl_open PROTO((int tbl, char *mode));
 long dssncasecmp PROTO((char *s1, char *s2, int n));
 long dsscasecmp PROTO((char *s1, char *s2));
-int pick_str PROTO((distribution * s, int c, char *target));
+int pick_str PROTO((distribution * s, seed_t *seed, char *target));
 void agg_str PROTO((distribution * set, long count, long col, char *dest));
 void read_dist PROTO((char *path, char *name, distribution *target));
 void embed_str PROTO((distribution * d, int min, int max, int stream, char *dest));
@@ -216,8 +220,8 @@ DSS_HUGE set_state PROTO((int t, long scale, long procs, long step, DSS_HUGE *e)
 
 /* rnd.c */
 DSS_HUGE NextRand PROTO((DSS_HUGE nSeed));
-DSS_HUGE UnifInt PROTO((DSS_HUGE nLow, DSS_HUGE nHigh, long nStream));
-void dss_random(DSS_HUGE *tgt, DSS_HUGE min, DSS_HUGE max, long seed);
+DSS_HUGE UnifInt PROTO((DSS_HUGE nLow, DSS_HUGE nHigh, seed_t *seed));
+void dss_random(DSS_HUGE *tgt, DSS_HUGE min, DSS_HUGE max, seed_t *seed);
 void row_start(int t);
 void row_stop(int t);
 void dump_seeds(int t);

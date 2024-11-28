@@ -38,10 +38,6 @@
 #include "config.h"
 #include "dss.h"
 
-/* function protypes */
-DSS_HUGE NextRand PROTO((DSS_HUGE));
-DSS_HUGE UnifInt PROTO((DSS_HUGE, DSS_HUGE, long));
-
 static long nA = 16807;      /* the multiplier */
 static long nM = 2147483647; /* the modulus == 2^31 - 1 */
 static long nQ = 127773;     /* the quotient nM / nA */
@@ -58,6 +54,7 @@ double dM = 2147483647.0;
  * preferred solution, but not initializing correctly
  */
 #define VSTR_MAX(len) (long)(len / 5 + (len % 5 == 0) ? 0 : 1 + 1)
+
 seed_t Seed[MAX_STREAM + 1] = {
     {PART, 1, 0, 1},                           /* P_MFG_SD     0 */
     {PART, 46831694, 0, 1},                    /* P_BRND_SD    1 */

@@ -22,43 +22,43 @@ void gen_tbl(int tnum, DSS_HUGE row_count, DSS_HUGE offset) {
     for (i = offset; offset < row_count; offset++) {
         row_start(tnum);
 
-        switch (tnum) {
-        case LINE:
-        case ORDER:
-        case ORDER_LINE:
-            mk_order(i, &o, 0);
-            // Append
-            break;
-        case SUPP:
-            mk_supp(i, &supp);
-            // Append
-            break;
-        case CUST:
-            mk_cust(i, &cust);
-            // Append
-            break;
-        case PSUPP:
-        case PART:
-        case PART_PSUPP:
-            mk_part(i, &part);
-            // Append
-            break;
-        case NATION:
-            mk_nation(i, &code);
-            // Append
-            break;
-        case REGION:
-            mk_region(i, &code);
-            // Append
-            break;
-        }
+        /* switch (tnum) { */
+        /* case LINE: */
+        /* case ORDER: */
+        /* case ORDER_LINE: */
+        /*     mk_order(i, &o, 0); */
+        /*     // Append */
+        /*     break; */
+        /* case SUPP: */
+        /*     mk_supp(i, &supp); */
+        /*     // Append */
+        /*     break; */
+        /* case CUST: */
+        /*     mk_cust(i, &cust); */
+        /*     // Append */
+        /*     break; */
+        /* case PSUPP: */
+        /* case PART: */
+        /* case PART_PSUPP: */
+        /*     mk_part(i, &part); */
+        /*     // Append */
+        /*     break; */
+        /* case NATION: */
+        /*     mk_nation(i, &code); */
+        /*     // Append */
+        /*     break; */
+        /* case REGION: */
+        /*     mk_region(i, &code); */
+        /*     // Append */
+        /*     break; */
+        /* } */
 
         row_stop(tnum);
     }
 }
 
 void generate_data(double scale) {
-    struct GenState state;
+    gen_state_t state;
     DSS_HUGE i;
     DSS_HUGE rowcnt = 0;
 

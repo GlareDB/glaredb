@@ -127,16 +127,16 @@ void NthElement(DSS_HUGE N, DSS_HUGE *StartSeed) {
 }
 
 /* updates Seed[column] using the a_rnd algorithm */
-void fake_a_rnd(int min, int max, int column) {
+void fake_a_rnd(int min, int max, seed_t *seed) {
     DSS_HUGE len;
     DSS_HUGE itcount;
 
-    RANDOM(len, min, max, column);
+    RANDOM(len, min, max, seed);
     if (len % 5L == 0)
         itcount = len / 5;
     else
         itcount = len / 5 + 1L;
-    NthElement(itcount, &Seed[column].usage);
+    NthElement(itcount, &seed->usage);
 #ifdef RNG_TEST
     Seed[column].nCalls += itcount;
 #endif

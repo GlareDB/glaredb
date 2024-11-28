@@ -6,15 +6,20 @@
 
 #ifndef STATE_H
 #define  STATE_H
-#endif
 
 #include "dss.h"
 
-struct GenState {
+typedef struct {
     tdef tdefs[10];
-};
+    /* Seeds used for data gen, stateful as values are updated */
+    seed_t seeds[MAX_STREAM + 1];
+} gen_state_t;
 
-void init_gen_state(struct GenState *state) {
+seed_t* get_seed(gen_state_t *state, long seed) {
+    return &state->seeds[seed];
+}
+
+void init_gen_state(gen_state_t *state) {
     // Replaces the static instantion in driver.c
     //
     // Also sets the callbacks to NULL, we'll be handling those ourselves.
@@ -29,3 +34,5 @@ void init_gen_state(struct GenState *state) {
     state->tdefs[NATION]     = (tdef){"nation.tbl", "nation table", NATIONS_MAX, NULL, NULL, NONE, 0};
     state->tdefs[REGION]     = (tdef){"region.tbl", "region table", NATIONS_MAX, NULL, NULL, NONE, 0};
 }
+
+#endif

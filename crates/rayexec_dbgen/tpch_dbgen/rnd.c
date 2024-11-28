@@ -94,9 +94,9 @@
 char *env_config PROTO((char *tag, char *dflt));
 void NthElement(DSS_HUGE, DSS_HUGE *);
 
-void dss_random(DSS_HUGE *tgt, DSS_HUGE lower, DSS_HUGE upper, long stream) {
-    *tgt = UnifInt(lower, upper, stream);
-    Seed[stream].usage += 1;
+void dss_random(DSS_HUGE *tgt, DSS_HUGE lower, DSS_HUGE upper, seed_t *seed) {
+    *tgt = UnifInt(lower, upper, seed);
+    seed->usage += 1;
 
     return;
 }
@@ -176,24 +176,15 @@ NextRand(DSS_HUGE nSeed)
 *******************************************************************/
 
 /*
- * long UnifInt( long nLow, long nHigh, long nStream )
- */
-DSS_HUGE
-UnifInt(DSS_HUGE nLow, DSS_HUGE nHigh, long nStream)
-
-/*
  * Returns an integer uniformly distributed between nLow and nHigh,
  * including * the endpoints.  nStream is the random number stream.
  * Stream 0 is used if nStream is not in the range 0..MAX_STREAM.
  */
-
-{
+DSS_HUGE
+UnifInt(DSS_HUGE nLow, DSS_HUGE nHigh, seed_t *seed) {
     double dRange;
     DSS_HUGE nTemp, nRange;
     int32_t nLow32 = (int32_t)nLow, nHigh32 = (int32_t)nHigh;
-
-    if (nStream < 0 || nStream > MAX_STREAM)
-        nStream = 0;
 
     if ((nHigh == MAX_LONG) && (nLow == 0)) {
         dRange = DOUBLE_CAST(nHigh32 - nLow32 + 1);
@@ -203,10 +194,10 @@ UnifInt(DSS_HUGE nLow, DSS_HUGE nHigh, long nStream)
         nRange = nHigh - nLow + 1;
     }
 
-    Seed[nStream].value = NextRand(Seed[nStream].value);
+    seed->value = NextRand(seed->value);
 #ifdef RNG_TEST
-    Seed[nStream].nCalls += 1;
+    seed->nCalls += 1;
 #endif
-    nTemp = (DSS_HUGE)(((double)Seed[nStream].value / dM) * (dRange));
+    nTemp = (DSS_HUGE)(((double)seed->value / dM) * (dRange));
     return (nLow + nTemp);
 }
