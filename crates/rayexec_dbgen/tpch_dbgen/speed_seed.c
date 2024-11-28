@@ -209,7 +209,6 @@ long sd_psupp(int child, DSS_HUGE skip_count) {
 }
 
 long sd_cust(int child, DSS_HUGE skip_count) {
-
     ADVANCE_STREAM(C_ADDR_SD, skip_count * 9);
     ADVANCE_STREAM(C_CMNT_SD, skip_count * 2);
     ADVANCE_STREAM(C_NTRG_SD, skip_count);

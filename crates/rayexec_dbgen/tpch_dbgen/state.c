@@ -64,9 +64,10 @@ void init_gen_state(gen_state_t *state) {
     state->tdefs[PSUPP] = (tdef){"partsupp.tbl", "partsupplier table", 200000, NULL, NULL, NONE, 0};
     state->tdefs[SUPP] = (tdef){"supplier.tbl", "suppliers table", 10000, NULL, NULL, NONE, 0};
     state->tdefs[CUST] = (tdef){"customer.tbl", "customers table", 150000, NULL, NULL, NONE, 0};
-    state->tdefs[ORDER] = (tdef){"orders.tbl", "order table", 150000, NULL, NULL, LINE, 0};
-    state->tdefs[LINE] = (tdef){"lineitem.tbl", "lineitem table", 150000, NULL, NULL, NONE, 0};
-    state->tdefs[ORDER_LINE] = (tdef){"orders.tbl", "orders/lineitem tables", 150000, NULL, NULL, LINE, 0};
+    state->tdefs[ORDER] = (tdef){"orders.tbl", "order table", 150000 * ORDERS_PER_CUST, NULL, NULL, LINE, 0};
+    state->tdefs[LINE] = (tdef){"lineitem.tbl", "lineitem table", 150000 * ORDERS_PER_CUST, NULL, NULL, NONE, 0};
+    state->tdefs[ORDER_LINE] =
+        (tdef){"orders.tbl", "orders/lineitem tables", 150000 * ORDERS_PER_CUST, NULL, NULL, LINE, 0};
     state->tdefs[PART_PSUPP] = (tdef){"part.tbl", "part/partsupplier tables", 200000, NULL, NULL, PSUPP, 0};
     state->tdefs[NATION] = (tdef){"nation.tbl", "nation table", NATIONS_MAX, NULL, NULL, NONE, 0};
     state->tdefs[REGION] = (tdef){"region.tbl", "region table", NATIONS_MAX, NULL, NULL, NONE, 0};
