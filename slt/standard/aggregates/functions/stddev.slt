@@ -1,0 +1,16 @@
+# stddev_pop, stddev_samp (and variance)
+
+query R
+SELECT stddev_pop(4);
+----
+0
+
+query R
+SELECT stddev_pop(a) FROM VALUES (0), (6), (6), (8) v(a);
+----
+3
+
+query T
+SELECT stddev_pop(a) > 4.9 AND stddev_pop(a) < 5 FROM VALUES (0), (6), (6), (14) v(a);
+----
+true
