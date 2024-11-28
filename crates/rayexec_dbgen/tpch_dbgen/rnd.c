@@ -90,6 +90,7 @@
 #endif
 #include "dss.h"
 #include "rnd.h"
+#include "state.h"
 
 char *env_config PROTO((char *tag, char *dflt));
 void NthElement(DSS_HUGE, DSS_HUGE *);
@@ -101,15 +102,15 @@ void dss_random(DSS_HUGE *tgt, DSS_HUGE lower, DSS_HUGE upper, seed_t *seed) {
     return;
 }
 
-void row_start(int t) {
+void row_start(int t, gen_state_t *state) {
     int i;
     for (i = 0; i <= MAX_STREAM; i++)
-        Seed[i].usage = 0;
+        state->seeds[i].usage = 0;
 
     return;
 }
 
-void row_stop(int t) {
+void row_stop(int t, gen_state_t *state) {
     int i;
 
     /* need to allow for handling the master and detail together */
@@ -119,29 +120,29 @@ void row_stop(int t) {
         t = PART;
 
     for (i = 0; i <= MAX_STREAM; i++)
-        if ((Seed[i].table == t) || (Seed[i].table == tdefs[t].child)) {
-            if (set_seeds && (Seed[i].usage > Seed[i].boundary)) {
-                fprintf(stderr, "\nSEED CHANGE: seed[%d].usage = %d\n", i, Seed[i].usage);
-                Seed[i].boundary = Seed[i].usage;
+        if ((get_seed(state, i)->table == t) || (get_seed(state, i)->table == tdefs[t].child)) {
+            if (set_seeds && (get_seed(state, i)->usage > get_seed(state, i)->boundary)) {
+                fprintf(stderr, "\nSEED CHANGE: seed[%d].usage = %d\n", i, get_seed(state, i)->usage);
+                get_seed(state, i)->boundary = get_seed(state, i)->usage;
             } else {
-                NthElement((Seed[i].boundary - Seed[i].usage), &Seed[i].value);
+                NthElement((get_seed(state, i)->boundary - get_seed(state, i)->usage), &get_seed(state, i)->value);
 #ifdef RNG_TEST
-                Seed[i].nCalls += Seed[i].boundary - Seed[i].usage;
+                get_seed(state, i)->nCalls += get_seed(state, i)->boundary - get_seed(state, i)->usage;
 #endif
             }
         }
     return;
 }
 
-void dump_seeds(int tbl) {
+void dump_seeds(int tbl, gen_state_t *state) {
     int i;
 
     for (i = 0; i <= MAX_STREAM; i++)
-        if (Seed[i].table == tbl)
+        if (get_seed(state, i)->table == tbl)
 #ifdef RNG_TEST
-            printf("%d(%ld):\t%ld\n", i, Seed[i].nCalls, Seed[i].value);
+            printf("%d(%ld):\t%ld\n", i, get_seed(state, i)->nCalls, get_seed(state, i)->value);
 #else
-            printf("%d:\t%ld\n", i, Seed[i].value);
+            printf("%d:\t%ld\n", i, get_seed(state, i)->value);
 #endif
     return;
 }

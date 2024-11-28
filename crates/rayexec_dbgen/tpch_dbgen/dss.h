@@ -152,9 +152,6 @@ static char lnoise[4] = {'|', '/', '-', '\\'};
 #define SPARSE_KEEP 3
 #define MK_SPARSE(key, seq) (((((key >> 3) << 2) | (seq & 0x0003)) << 3) | (key & 0x0007))
 
-#define RANDOM(tgt, lower, upper, stream) dss_random(&tgt, lower, upper, stream)
-#define RANDOM64(tgt, lower, upper, stream) dss_random64(&tgt, lower, upper, stream)
-
 typedef struct {
     long weight;
     char *text;
@@ -221,10 +218,6 @@ DSS_HUGE set_state PROTO((int t, long scale, long procs, long step, DSS_HUGE *e)
 /* rnd.c */
 DSS_HUGE NextRand PROTO((DSS_HUGE nSeed));
 DSS_HUGE UnifInt PROTO((DSS_HUGE nLow, DSS_HUGE nHigh, seed_t *seed));
-void dss_random(DSS_HUGE *tgt, DSS_HUGE min, DSS_HUGE max, seed_t *seed);
-void row_start(int t);
-void row_stop(int t);
-void dump_seeds(int t);
 
 /* text.c */
 #define MAX_GRAMMAR_LEN 12 /* max length of grammar component */

@@ -1,16 +1,19 @@
 #include "config.h"
 #include "dss.h"
 #include "dsstypes.h"
+#include "rnd.h"
 #include "state.h"
 
-void generate_table_data(int table_idx, DSS_HUGE row_count) {}
+void generate_table_data(int table_idx, DSS_HUGE row_count) {
+}
 
-void foo_function(void) {}
+void foo_function(void) {
+}
 
 /*
  * generate a particular table
  */
-void gen_tbl(int tnum, DSS_HUGE row_count, DSS_HUGE offset) {
+void gen_tbl(int tnum, DSS_HUGE row_count, DSS_HUGE offset, gen_state_t *state) {
     order_t o;
     supplier_t supp;
     customer_t cust;
@@ -20,7 +23,7 @@ void gen_tbl(int tnum, DSS_HUGE row_count, DSS_HUGE offset) {
     DSS_HUGE i;
 
     for (i = offset; offset < row_count; offset++) {
-        row_start(tnum);
+        row_start(tnum, state);
 
         /* switch (tnum) { */
         /* case LINE: */
@@ -53,7 +56,7 @@ void gen_tbl(int tnum, DSS_HUGE row_count, DSS_HUGE offset) {
         /*     break; */
         /* } */
 
-        row_stop(tnum);
+        row_stop(tnum, state);
     }
 }
 
@@ -70,7 +73,7 @@ void generate_data(double scale) {
                 rowcnt = tdefs[i].base * scale;
             else
                 rowcnt = tdefs[i].base;
-            gen_tbl((int)i, rowcnt, 0);
+            gen_tbl((int)i, rowcnt, 0, &state);
         }
     }
 }

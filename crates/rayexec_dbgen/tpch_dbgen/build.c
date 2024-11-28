@@ -44,6 +44,7 @@
 
 #include "dss.h"
 #include "dsstypes.h"
+#include "rnd.h"
 #include "state.h"
 #ifdef ADHOC
 #include "adhoc.h"

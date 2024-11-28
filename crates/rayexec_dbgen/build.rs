@@ -13,7 +13,6 @@ fn main() {
             "tpch_dbgen/rng64.c",
             "tpch_dbgen/rnd.c",
             "tpch_dbgen/speed_seed.c",
-            "tpch_dbgen/varsub.c",
         ])
         .compile("dbgen");
 

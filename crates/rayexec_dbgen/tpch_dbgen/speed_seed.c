@@ -49,6 +49,7 @@
  *
  */
 #include "dss.h"
+#include "rnd.h"
 #include "rng64.h"
 #include <stdio.h>
 #include <stdlib.h>
