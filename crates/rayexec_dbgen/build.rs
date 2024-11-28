@@ -8,6 +8,7 @@ fn main() {
         .files([
             "tpch_dbgen/dbgen.c",
             "tpch_dbgen/permute.c",
+            "tpch_dbgen/build.c",
             "tpch_dbgen/bm_utils.c",
             "tpch_dbgen/rng64.c",
             "tpch_dbgen/rnd.c",

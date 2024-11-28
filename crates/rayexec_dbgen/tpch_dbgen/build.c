@@ -104,13 +104,13 @@ long mk_cust(DSS_HUGE n_cust, customer_t *c, gen_state_t *state) {
 
     c->custkey = n_cust;
     sprintf(c->name, szFormat, C_NAME_TAG, n_cust);
-    V_STR(C_ADDR_LEN, C_ADDR_SD, c->address);
+    V_STR(C_ADDR_LEN, get_seed(state, C_ADDR_SD), c->address);
     c->alen = (int)strlen(c->address);
     RANDOM(i, 0, (nations.count - 1), get_seed(state, C_NTRG_SD));
     c->nation_code = i;
     gen_phone(i, c->phone, get_seed(state, C_PHNE_SD));
     RANDOM(c->acctbal, C_ABAL_MIN, C_ABAL_MAX, get_seed(state, C_ABAL_SD));
-    pick_str(&c_mseg_set, C_MSEG_SD, c->mktsegment);
+    pick_str(&c_mseg_set, get_seed(state, C_MSEG_SD), c->mktsegment);
     TEXT(C_CMNT_LEN, C_CMNT_SD, c->comment);
     c->clen = (int)strlen(c->comment);
 
@@ -171,7 +171,7 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num, gen_state_t *state) {
     RANDOM(tmp_date, O_ODATE_MIN, O_ODATE_MAX, get_seed(state, O_ODATE_SD));
     strcpy(o->odate, asc_date[tmp_date - STARTDATE]);
 
-    pick_str(&o_priority_set, O_PRIO_SD, o->opriority);
+    pick_str(&o_priority_set, get_seed(state, O_PRIO_SD), o->opriority);
     RANDOM(clk_num, 1, MAX((scale * O_CLRK_SCL), O_CLRK_SCL), get_seed(state, O_CLRK_SD));
     sprintf(o->clerk, szFormat, O_CLRK_TAG, clk_num);
     TEXT(O_CMNT_LEN, O_CMNT_SD, o->comment);
@@ -194,8 +194,8 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num, gen_state_t *state) {
         RANDOM(o->l[lcnt].quantity, L_QTY_MIN, L_QTY_MAX, get_seed(state, L_QTY_SD));
         RANDOM(o->l[lcnt].discount, L_DCNT_MIN, L_DCNT_MAX, get_seed(state, L_DCNT_SD));
         RANDOM(o->l[lcnt].tax, L_TAX_MIN, L_TAX_MAX, get_seed(state, L_TAX_SD));
-        pick_str(&l_instruct_set, L_SHIP_SD, o->l[lcnt].shipinstruct);
-        pick_str(&l_smode_set, L_SMODE_SD, o->l[lcnt].shipmode);
+        pick_str(&l_instruct_set, get_seed(state, L_SHIP_SD), o->l[lcnt].shipinstruct);
+        pick_str(&l_smode_set, get_seed(state, L_SMODE_SD), o->l[lcnt].shipmode);
         TEXT(L_CMNT_LEN, L_CMNT_SD, o->l[lcnt].comment);
         o->l[lcnt].clen = (int)strlen(o->l[lcnt].comment);
         if (scale >= 30000)
@@ -222,7 +222,7 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num, gen_state_t *state) {
         strcpy(o->l[lcnt].rdate, asc_date[r_date - STARTDATE]);
 
         if (julian(r_date) <= CURRENTDATE) {
-            pick_str(&l_rflag_set, L_RFLG_SD, tmp_str);
+            pick_str(&l_rflag_set, get_seed(state, L_RFLG_SD), tmp_str);
             o->l[lcnt].rflag[0] = *tmp_str;
         } else
             o->l[lcnt].rflag[0] = 'N';
@@ -261,10 +261,10 @@ long mk_part(DSS_HUGE index, part_t *p, gen_state_t *state) {
     sprintf(p->mfgr, szFormat, P_MFG_TAG, temp);
     RANDOM(brnd, P_BRND_MIN, P_BRND_MAX, get_seed(state, P_BRND_SD));
     sprintf(p->brand, szBrandFormat, P_BRND_TAG, (temp * 10 + brnd));
-    p->tlen = pick_str(&p_types_set, P_TYPE_SD, p->type);
+    p->tlen = pick_str(&p_types_set, get_seed(state, P_TYPE_SD), p->type);
     p->tlen = (int)strlen(p_types_set.list[p->tlen].text);
     RANDOM(p->size, P_SIZE_MIN, P_SIZE_MAX, get_seed(state, P_SIZE_SD));
-    pick_str(&p_cntr_set, P_CNTR_SD, p->container);
+    pick_str(&p_cntr_set, get_seed(state, P_CNTR_SD), p->container);
     p->retailprice = rpb_routine(index);
     TEXT(P_CMNT_LEN, P_CMNT_SD, p->comment);
     p->clen = (int)strlen(p->comment);
@@ -291,7 +291,7 @@ long mk_supp(DSS_HUGE index, supplier_t *s, gen_state_t *state) {
     }
     s->suppkey = index;
     sprintf(s->name, szFormat, S_NAME_TAG, index);
-    V_STR(S_ADDR_LEN, S_ADDR_SD, s->address);
+    V_STR(S_ADDR_LEN, get_seed(state, S_ADDR_SD), s->address);
     s->alen = (int)strlen(s->address);
     RANDOM(i, 0, nations.count - 1, get_seed(state, S_NTRG_SD));
     s->nation_code = i;
