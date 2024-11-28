@@ -13,6 +13,8 @@ typedef struct {
     tdef tdefs[10];
     /* Seeds used for data gen, stateful as values are updated */
     seed_t seeds[MAX_STREAM + 1];
+    /* Scale factor */
+    long scale;
 } gen_state_t;
 
 seed_t* get_seed(gen_state_t *state, long seed);

@@ -56,9 +56,9 @@ extern adhoc_t adhocs[];
 #define JDAY_BASE 8035        /* start from 1/1/70 a la unix */
 #define JMNTH_BASE (-70 * 12) /* start from 1/1/70 a la unix */
 #define JDAY(date) ((date)-STARTDATE + JDAY_BASE + 1)
-#define PART_SUPP_BRIDGE(tgt, p, s)                                                                                    \
+#define PART_SUPP_BRIDGE(state, tgt, p, s)                                                                             \
     {                                                                                                                  \
-        DSS_HUGE tot_scnt = tdefs[SUPP].base * scale;                                                                  \
+        DSS_HUGE tot_scnt = state->tdefs[SUPP].base * scale;                                                           \
         tgt = (p + s * (tot_scnt / SUPP_PER_PART + (long)((p - 1) / tot_scnt))) % tot_scnt + 1;                        \
     }
 #define V_STR(avg, sd, tgt) a_rnd((int)(avg * V_STR_LOW), (int)(avg * V_STR_HGH), sd, tgt)
@@ -205,7 +205,7 @@ long mk_order(DSS_HUGE index, order_t *o, long upd_num, gen_state_t *state) {
             RANDOM(o->l[lcnt].partkey, L_PKEY_MIN, L_PKEY_MAX, get_seed(state, L_PKEY_SD));
         rprice = rpb_routine(o->l[lcnt].partkey);
         RANDOM(supp_num, 0, 3, get_seed(state, L_SKEY_SD));
-        PART_SUPP_BRIDGE(o->l[lcnt].suppkey, o->l[lcnt].partkey, supp_num);
+        PART_SUPP_BRIDGE(state, o->l[lcnt].suppkey, o->l[lcnt].partkey, supp_num);
         o->l[lcnt].eprice = rprice * o->l[lcnt].quantity;
 
         o->totalprice += ((o->l[lcnt].eprice * ((long)100 - o->l[lcnt].discount)) / (long)PENNIES) *
@@ -272,7 +272,7 @@ long mk_part(DSS_HUGE index, part_t *p, gen_state_t *state) {
 
     for (snum = 0; snum < SUPP_PER_PART; snum++) {
         p->s[snum].partkey = p->partkey;
-        PART_SUPP_BRIDGE(p->s[snum].suppkey, index, snum);
+        PART_SUPP_BRIDGE(state, p->s[snum].suppkey, index, snum);
         RANDOM(p->s[snum].qty, PS_QTY_MIN, PS_QTY_MAX, get_seed(state, PS_QTY_SD));
         RANDOM(p->s[snum].scost, PS_SCST_MIN, PS_SCST_MAX, get_seed(state, PS_SCST_SD));
         TEXT(PS_CMNT_LEN, PS_CMNT_SD, p->s[snum].comment);

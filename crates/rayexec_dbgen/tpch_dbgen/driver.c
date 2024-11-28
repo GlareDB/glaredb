@@ -174,18 +174,18 @@ long sd_supp(int child, DSS_HUGE skip_count);
 long sd_order_line(int child, DSS_HUGE skip_count);
 long sd_part_psupp(int child, DSS_HUGE skip_count);
 
-tdef tdefs[] = {
-    {"part.tbl", "part table", 200000, pr_part, sd_part, PSUPP, 0},
-    {"partsupp.tbl", "partsupplier table", 200000, pr_psupp, sd_psupp, NONE, 0},
-    {"supplier.tbl", "suppliers table", 10000, pr_supp, sd_supp, NONE, 0},
-    {"customer.tbl", "customers table", 150000, pr_cust, sd_cust, NONE, 0},
-    {"orders.tbl", "order table", 150000, pr_order, sd_order, LINE, 0},
-    {"lineitem.tbl", "lineitem table", 150000, pr_line, sd_line, NONE, 0},
-    {"orders.tbl", "orders/lineitem tables", 150000, pr_order_line, sd_order, LINE, 0},
-    {"part.tbl", "part/partsupplier tables", 200000, pr_part_psupp, sd_part, PSUPP, 0},
-    {"nation.tbl", "nation table", NATIONS_MAX, pr_nation, NO_LFUNC, NONE, 0},
-    {"region.tbl", "region table", NATIONS_MAX, pr_region, NO_LFUNC, NONE, 0},
-};
+/* tdef tdefs[] = { */
+/*     {"part.tbl", "part table", 200000, pr_part, sd_part, PSUPP, 0}, */
+/*     {"partsupp.tbl", "partsupplier table", 200000, pr_psupp, sd_psupp, NONE, 0}, */
+/*     {"supplier.tbl", "suppliers table", 10000, pr_supp, sd_supp, NONE, 0}, */
+/*     {"customer.tbl", "customers table", 150000, pr_cust, sd_cust, NONE, 0}, */
+/*     {"orders.tbl", "order table", 150000, pr_order, sd_order, LINE, 0}, */
+/*     {"lineitem.tbl", "lineitem table", 150000, pr_line, sd_line, NONE, 0}, */
+/*     {"orders.tbl", "orders/lineitem tables", 150000, pr_order_line, sd_order, LINE, 0}, */
+/*     {"part.tbl", "part/partsupplier tables", 200000, pr_part_psupp, sd_part, PSUPP, 0}, */
+/*     {"nation.tbl", "nation table", NATIONS_MAX, pr_nation, NO_LFUNC, NONE, 0}, */
+/*     {"region.tbl", "region table", NATIONS_MAX, pr_region, NO_LFUNC, NONE, 0}, */
+/* }; */
 
 /*
  * re-set default output file names
@@ -375,21 +375,21 @@ int partial(int tbl, int s) {
     DSS_HUGE rowcnt;
     DSS_HUGE extra;
 
-    if (verbose > 0) {
-        fprintf(stderr, "\tStarting to load stage %d of %d for %s...", s, children, tdefs[tbl].comment);
-    }
+    /* if (verbose > 0) { */
+    /*     fprintf(stderr, "\tStarting to load stage %d of %d for %s...", s, children, tdefs[tbl].comment); */
+    /* } */
 
-    set_files(tbl, s);
+    /* set_files(tbl, s); */
 
-    rowcnt = set_state(tbl, scale, children, s, &extra);
+    /* rowcnt = set_state(tbl, scale, children, s, &extra); */
 
-    if (s == children)
-        gen_tbl(tbl, rowcnt * (s - 1) + 1, rowcnt + extra, upd_num);
-    else
-        gen_tbl(tbl, rowcnt * (s - 1) + 1, rowcnt, upd_num);
+    /* if (s == children) */
+    /*     gen_tbl(tbl, rowcnt * (s - 1) + 1, rowcnt + extra, upd_num); */
+    /* else */
+    /*     gen_tbl(tbl, rowcnt * (s - 1) + 1, rowcnt, upd_num); */
 
-    if (verbose > 0)
-        fprintf(stderr, "done.\n");
+    /* if (verbose > 0) */
+    /*     fprintf(stderr, "done.\n"); */
 
     return (0);
 }
@@ -632,10 +632,10 @@ int main(int ac, char **av) {
      * updates are never parallelized
      */
     if (updates) {
-        /*
-         * set RNG to start generating rows beyond SF=scale
-         */
-        set_state(ORDER, scale, 100, 101, &i);
+        /* /\* */
+        /*  * set RNG to start generating rows beyond SF=scale */
+        /*  *\/ */
+        /* set_state(ORDER, scale, 100, 101, &i); */
         rowcnt = (int)(tdefs[ORDER_LINE].base / 10000 * scale * UPD_PCT);
         if (step > 0) {
             /*

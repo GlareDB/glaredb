@@ -120,7 +120,7 @@ void row_stop(int t, gen_state_t *state) {
         t = PART;
 
     for (i = 0; i <= MAX_STREAM; i++)
-        if ((get_seed(state, i)->table == t) || (get_seed(state, i)->table == tdefs[t].child)) {
+        if ((get_seed(state, i)->table == t) || (get_seed(state, i)->table == state->tdefs[t].child)) {
             if (set_seeds && (get_seed(state, i)->usage > get_seed(state, i)->boundary)) {
                 fprintf(stderr, "\nSEED CHANGE: seed[%d].usage = %d\n", i, get_seed(state, i)->usage);
                 get_seed(state, i)->boundary = get_seed(state, i)->usage;

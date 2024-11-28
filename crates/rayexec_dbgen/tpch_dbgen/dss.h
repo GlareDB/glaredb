@@ -213,7 +213,7 @@ void embed_str PROTO((distribution * d, int min, int max, int stream, char *dest
 #ifndef STDLIB_HAS_GETOPT
 int getopt PROTO((int arg_cnt, char **arg_vect, char *oprions));
 #endif /* STDLIB_HAS_GETOPT */
-DSS_HUGE set_state PROTO((int t, long scale, long procs, long step, DSS_HUGE *e));
+/* DSS_HUGE set_state PROTO((int t, long scale, long procs, long step, DSS_HUGE *e)); */
 
 /* rnd.c */
 DSS_HUGE NextRand PROTO((DSS_HUGE nSeed));
@@ -277,11 +277,6 @@ EXTERN int insert_orders_segment;
 EXTERN int insert_lineitem_segment;
 EXTERN int delete_segment;
 
-#ifndef DECLARER
-extern tdef tdefs[];
-
-#endif /* DECLARER */
-
 /*****************************************************************
  ** table level defines use the following naming convention: t_ccc_xxx
  ** with: t, a table identifier
@@ -334,7 +329,7 @@ extern tdef tdefs[];
  */
 #define PS_SIZE 145
 #define PS_SKEY_MIN 0
-#define PS_SKEY_MAX ((tdefs[SUPP].base - 1) * scale)
+#define PS_SKEY_MAX ((state->tdefs[SUPP].base - 1) * state->scale)
 #define PS_SCST_MIN 100
 #define PS_SCST_MAX 100000
 #define PS_QTY_MIN 1
@@ -353,7 +348,7 @@ extern tdef tdefs[];
  */
 #define O_SIZE 109
 #define O_CKEY_MIN 1
-#define O_CKEY_MAX (tdefs[CUST].base * scale)
+#define O_CKEY_MAX (state->tdefs[CUST].base * state->scale)
 #define O_ODATE_MIN STARTDATE
 #define O_ODATE_MAX (STARTDATE + TOTDATE - (L_SDTE_MAX + L_RDTE_MAX) - 1)
 #define O_CLRK_TAG "Clerk#"
@@ -373,7 +368,7 @@ extern tdef tdefs[];
 #define L_DCNT_MIN 0
 #define L_DCNT_MAX 10
 #define L_PKEY_MIN 1
-#define L_PKEY_MAX (tdefs[PART].base * scale)
+#define L_PKEY_MAX (state->tdefs[PART].base * state->scale)
 #define L_SDTE_MIN 1
 #define L_SDTE_MAX 121
 #define L_CDTE_MIN 30
@@ -475,17 +470,17 @@ int dbg_print(int dt, FILE *tgt, void *data, int len, int eol);
 /*
  * verification macros
  */
-#define VRF_STR(t, d)                                                                                                  \
+#define VRF_STR(state, t, d)                                                                                           \
     {                                                                                                                  \
         char *xx = d;                                                                                                  \
         while (*xx)                                                                                                    \
-            tdefs[t].vtotal += *xx++;                                                                                  \
+            state->tdefs[t].vtotal += *xx++;                                                                           \
     }
-#define VRF_INT(t, d) tdefs[t].vtotal += d
-#define VRF_HUGE(t, d) tdefs[t].vtotal = *((long *)&d) + *((long *)(&d + 1))
+#define VRF_INT(state, t, d) state->tdefs[t].vtotal += d
+#define VRF_HUGE(state, t, d) state->tdefs[t].vtotal = *((long *)&d) + *((long *)(&d + 1))
 /* assume float is a 64 bit quantity */
-#define VRF_MONEY(t, d) tdefs[t].vtotal = *((long *)&d) + *((long *)(&d + 1))
-#define VRF_CHR(t, d) tdefs[t].vtotal += d
+#define VRF_MONEY(state, t, d) state->tdefs[t].vtotal = *((long *)&d) + *((long *)(&d + 1))
+#define VRF_CHR(state, t, d) state->tdefs[t].vtotal += d
 #define VRF_STRT(t)
 #define VRF_END(t)
 

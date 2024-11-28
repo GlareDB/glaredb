@@ -69,10 +69,11 @@ void generate_data(double scale) {
 
     for (i = PART; i <= REGION; i++) {
         if (table & (1 << i)) {
-            if (i < NATION)
-                rowcnt = tdefs[i].base * scale;
-            else
-                rowcnt = tdefs[i].base;
+            if (i < NATION) {
+                /* rowcnt = tdefs[i].base * scale; */
+            } else {
+                /* rowcnt = tdefs[i].base; */
+            }
             gen_tbl((int)i, rowcnt, 0, &state);
         }
     }
