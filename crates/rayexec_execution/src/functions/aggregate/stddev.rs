@@ -343,7 +343,7 @@ where
         let other_count = other.count as f64;
         let total_count = self_count + other_count;
 
-        let new_mean = (self_count as f64 * self.mean + other_count * other.mean) / total_count;
+        let new_mean = (self_count * self.mean + other_count * other.mean) / total_count;
         let delta = self.mean - other.mean;
 
         self.m2 = self.m2 + other.m2 + delta * delta * self_count * other_count / total_count;
