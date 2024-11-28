@@ -12,6 +12,7 @@ fn main() {
             "tpch_dbgen/bm_utils.c",
             "tpch_dbgen/rng64.c",
             "tpch_dbgen/rnd.c",
+            "tpch_dbgen/text.c",
             "tpch_dbgen/speed_seed.c",
         ])
         .compile("dbgen");

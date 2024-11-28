@@ -45,6 +45,7 @@
 #endif /* TEST */
 
 #include "config.h"
+#include "rnd.h"
 #include <stdlib.h>
 #if (defined(_POSIX_) || !defined(WIN32)) /* Change for Windows NT */
 #include <sys/wait.h>
@@ -103,12 +104,12 @@
  *	Called By: txt_sentence()
  *	Calls: pick_str()
  */
-static int txt_vp(char *dest, int sd) {
+static int txt_vp(char *dest, seed_t *seed) {
     char syntax[MAX_GRAMMAR_LEN + 1], *cptr, *parse_target;
     distribution *src;
     int i, res = 0;
 
-    pick_str(&vp, sd, &syntax[0]);
+    pick_str(&vp, seed, &syntax[0]);
     parse_target = syntax;
     while ((cptr = strtok(parse_target, " ")) != NULL) {
         src = NULL;
@@ -123,7 +124,7 @@ static int txt_vp(char *dest, int sd) {
             src = &auxillaries;
             break;
         } /* end of POS switch statement */
-        i = pick_str(src, sd, dest);
+        i = pick_str(src, seed, dest);
         i = (int)strlen(DIST_MEMBER(src, i));
         dest += i;
         res += i;
@@ -154,12 +155,12 @@ static int txt_vp(char *dest, int sd) {
  *	Called By: txt_sentence()
  *	Calls: pick_str(),
  */
-static int txt_np(char *dest, int sd) {
+static int txt_np(char *dest, seed_t *seed) {
     char syntax[MAX_GRAMMAR_LEN + 1], *cptr, *parse_target;
     distribution *src;
     int i, res = 0;
 
-    pick_str(&np, sd, &syntax[0]);
+    pick_str(&np, seed, &syntax[0]);
     parse_target = syntax;
     while ((cptr = strtok(parse_target, " ")) != NULL) {
         src = NULL;
@@ -177,7 +178,7 @@ static int txt_np(char *dest, int sd) {
             src = &nouns;
             break;
         } /* end of POS switch statement */
-        i = pick_str(src, sd, dest);
+        i = pick_str(src, seed, dest);
         i = (int)strlen(DIST_MEMBER(src, i));
         dest += i;
         res += i;
@@ -208,11 +209,11 @@ static int txt_np(char *dest, int sd) {
  *	Called By: dbg_text()
  *	Calls: pick_str(), txt_np(), txt_vp()
  */
-static int txt_sentence(char *dest, int sd) {
+static int txt_sentence(char *dest, seed_t *seed) {
     char syntax[MAX_GRAMMAR_LEN + 1], *cptr;
     int i, res = 0, len = 0;
 
-    pick_str(&grammar, sd, syntax);
+    pick_str(&grammar, seed, syntax);
     cptr = syntax;
 
 next_token: /* I hate goto's, but can't seem to have parent and child use strtok() */
@@ -222,20 +223,20 @@ next_token: /* I hate goto's, but can't seem to have parent and child use strtok
         goto done;
     switch (*cptr) {
     case 'V':
-        len = txt_vp(dest, sd);
+        len = txt_vp(dest, seed);
         break;
     case 'N':
-        len = txt_np(dest, sd);
+        len = txt_np(dest, seed);
         break;
     case 'P':
-        i = pick_str(&prepositions, sd, dest);
+        i = pick_str(&prepositions, seed, dest);
         len = (int)strlen(DIST_MEMBER(&prepositions, i));
         strcpy((dest + len), " the ");
         len += 5;
-        len += txt_np(dest + len, sd);
+        len += txt_np(dest + len, seed);
         break;
     case 'T':
-        i = pick_str(&terminators, sd, --dest); /*terminators should abut previous word */
+        i = pick_str(&terminators, seed, --dest); /*terminators should abut previous word */
         len = (int)strlen(DIST_MEMBER(&terminators, i));
         break;
     } /* end of POS switch statement */
@@ -259,7 +260,7 @@ done:
  *		produce ELIZA-like text of random, bounded length, truncating the last
  *		generated sentence as required
  */
-void dbg_text(char *tgt, int min, int max, int sd) {
+void dbg_text(char *tgt, int min, int max, seed_t *seed) {
     DSS_HUGE hgLength = 0, hgOffset, wordlen = 0, s_len, needed;
     char sentence[MAX_SENT_LEN + 1], *cp;
     static char szTextPool[TEXT_POOL_SIZE + 1];
@@ -277,7 +278,7 @@ void dbg_text(char *tgt, int min, int max, int sd) {
                 fprintf(stderr, "%3.0f%%\b\b\b\b", (100.0 * wordlen) / TEXT_POOL_SIZE);
             }
 
-            s_len = txt_sentence(sentence, 5);
+            s_len = txt_sentence(sentence, seed);
             if (s_len < 0)
                 INTERNAL_ERROR("Bad sentence formation");
             needed = TEXT_POOL_SIZE - wordlen;
@@ -301,8 +302,8 @@ void dbg_text(char *tgt, int min, int max, int sd) {
             fprintf(stderr, "\n");
     }
 
-    RANDOM(hgOffset, 0, TEXT_POOL_SIZE - max, sd);
-    RANDOM(hgLength, min, max, sd);
+    RANDOM(hgOffset, 0, TEXT_POOL_SIZE - max, seed);
+    RANDOM(hgLength, min, max, seed);
     strncpy(&tgt[0], &szTextPool[hgOffset], (int)hgLength);
     tgt[hgLength] = '\0';
 

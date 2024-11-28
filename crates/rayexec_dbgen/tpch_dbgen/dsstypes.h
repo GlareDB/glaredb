@@ -168,9 +168,9 @@ typedef struct {
 } code_t;
 
 /* code table */
-int mk_nation PROTO((DSS_HUGE i, code_t *c));
+int mk_nation PROTO((DSS_HUGE i, code_t *c, gen_state_t *state));
 int pr_nation PROTO((code_t * c, int mode));
 int ld_nation PROTO((code_t * c, int mode));
-int mk_region PROTO((DSS_HUGE i, code_t *c));
+int mk_region PROTO((DSS_HUGE i, code_t *c, gen_state_t *state));
 int pr_region PROTO((code_t * c, int mode));
 int ld_region PROTO((code_t * c, int mode));
