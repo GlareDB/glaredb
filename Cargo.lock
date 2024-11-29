@@ -264,6 +264,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bench_bin"
+version = "0.0.82"
+dependencies = [
+ "rayexec_bench",
+ "rayexec_bullet",
+ "rayexec_csv",
+ "rayexec_debug",
+ "rayexec_delta",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_iceberg",
+ "rayexec_parquet",
+ "rayexec_postgres",
+ "rayexec_rt_native",
+ "rayexec_server",
+ "rayexec_shell",
+]
+
+[[package]]
 name = "bigdecimal"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2059,6 +2078,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
+]
+
+[[package]]
+name = "rayexec_bench"
+version = "0.0.82"
+dependencies = [
+ "clap",
+ "futures",
+ "logutil",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_rt_native",
+ "rayexec_shell",
 ]
 
 [[package]]
