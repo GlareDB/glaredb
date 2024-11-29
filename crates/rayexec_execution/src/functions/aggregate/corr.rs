@@ -141,8 +141,7 @@ mod tests {
         let mut state = CorrelationState::default();
         state.update((1.0, 1.0)).unwrap();
 
-        let (v, valid) = state.finalize().unwrap();
-        assert!(valid);
-        assert!(v.is_nan());
+        let (_v, valid) = state.finalize().unwrap();
+        assert!(!valid);
     }
 }
