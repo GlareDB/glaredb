@@ -184,10 +184,10 @@ impl CovarFinalize for CovarPopFinalize {
 
 #[derive(Debug, Default)]
 pub struct CovarState<F: CovarFinalize> {
-    count: i64,
-    meanx: f64,
-    meany: f64,
-    co_moment: f64,
+    pub count: i64,
+    pub meanx: f64,
+    pub meany: f64,
+    pub co_moment: f64,
     _finalize: PhantomData<F>,
 }
 
