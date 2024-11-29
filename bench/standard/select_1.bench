@@ -1,0 +1,4 @@
+# Testing the bench stuff.
+
+run
+SELECT 1
