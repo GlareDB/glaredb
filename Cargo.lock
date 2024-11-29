@@ -2062,6 +2062,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_bench"
+version = "0.0.82"
+dependencies = [
+ "clap",
+ "futures",
+ "logutil",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_rt_native",
+ "rayexec_shell",
+]
+
+[[package]]
 name = "rayexec_bin"
 version = "0.0.82"
 dependencies = [

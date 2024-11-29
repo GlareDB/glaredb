@@ -1,0 +1,7 @@
+# min/max from output of 10M ints.
+
+setup
+CREATE TEMP VIEW ints AS SELECT * FROM FROM generate_series(1, 10000000);
+
+run
+SELECT min(a), max(a) FROM ints;
