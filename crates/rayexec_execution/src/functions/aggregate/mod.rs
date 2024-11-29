@@ -45,6 +45,8 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
         Box::new(stddev::StddevSamp),
         Box::new(stddev::VarPop),
         Box::new(stddev::VarSamp),
+        Box::new(covar::CovarPop),
+        Box::new(covar::CovarSamp),
     ]
 });
 
