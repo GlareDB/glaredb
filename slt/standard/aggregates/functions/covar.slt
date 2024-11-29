@@ -1,0 +1,41 @@
+# COVAR_POP and COVAR_SAMP functions
+
+query R
+SELECT covar_pop(1, 1);
+----
+0
+
+query RRR
+SELECT covar_pop(1, NULL), covar_pop(NULL, 1), covar_pop(NULL, NULL);
+----
+NULL  NULL  NULL
+
+query R
+SELECT covar_pop(a, b) FROM VALUES (30, 33), (40, 48), (50, 57) v(a, b);
+----
+80
+
+query R
+SELECT covar_pop(a, 0) FROM VALUES (30, 33), (40, 48), (50, 57) v(a, b);
+----
+0
+
+query R
+SELECT covar_samp(1, 1);
+----
+NULL
+
+query RRR
+SELECT covar_samp(1, NULL), covar_samp(NULL, 1), covar_samp(NULL, NULL);
+----
+NULL  NULL  NULL
+
+query R
+SELECT covar_samp(a, b) FROM VALUES (30, 33), (40, 48), (50, 57) v(a, b);
+----
+120
+
+query R
+SELECT covar_samp(a, 0) FROM VALUES (30, 33), (40, 48), (50, 57) v(a, b);
+----
+0

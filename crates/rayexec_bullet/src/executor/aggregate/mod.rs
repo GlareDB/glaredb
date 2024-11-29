@@ -1,5 +1,8 @@
 //! Vectorized aggregate executors.
 
+mod binary;
+pub use binary::*;
+
 mod unary;
 use std::borrow::Borrow;
 use std::fmt::Debug;
