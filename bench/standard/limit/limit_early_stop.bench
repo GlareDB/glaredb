@@ -1,0 +1,4 @@
+# Ensure we stop early
+
+run
+SELECT * FROM generate_series(1, 100000000000) LIMIT 30;

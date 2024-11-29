@@ -11,17 +11,26 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;
-use runner::{BenchmarkRunner, BenchmarkTimes};
+use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 
 #[derive(Parser)]
 #[clap(name = "rayexec_bin")]
 struct Arguments {
-    // /// Print the EXPLAIN output for queries prior to running them.
-    // #[clap(long, env = "DEBUG_PRINT_EXPLAIN")]
-    // print_explain: bool,
-    // /// Print the profile data for a query after running it.
-    // #[clap(long, env = "DEBUG_PRINT_PROFILE_DATA")]
-    // print_profile_data: bool,
+    /// Print the EXPLAIN output for queries prior to running them.
+    ///
+    /// Only printed once.
+    #[clap(long, env = "DEBUG_PRINT_EXPLAIN")]
+    print_explain: bool,
+    /// Print the profile data for a query after running it.
+    ///
+    /// Data is printed for every run of the query.
+    #[clap(long, env = "DEBUG_PRINT_PROFILE_DATA")]
+    print_profile_data: bool,
+    /// Print the results of the benchmark queries.
+    ///
+    /// Results are printed for every run of the query.
+    #[clap(long, env = "DEBUG_PRINT_RESULTS")]
+    print_results: bool,
     /// Directory to search for benchmarks in.
     #[clap(long)]
     benches_dir: Option<String>,
@@ -90,7 +99,12 @@ pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
             benchmark: bench,
         };
 
-        let times = runner.run(args.count)?;
+        let times = runner.run(RunnerConfig {
+            count: args.count,
+            print_explain: args.print_explain,
+            print_results: args.print_results,
+            print_profile_data: args.print_profile_data,
+        })?;
 
         let name = path_str
             .trim_end_matches(".bench")

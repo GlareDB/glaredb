@@ -1,0 +1,7 @@
+# Many distinct values in aggregate inputs.
+
+setup
+CREATE TEMP VIEW ints AS SELECT * FROM generate_series(1, 1000000) g(v);
+
+run
+SELECT sum(distinct v), avg(distinct v), count(distinct v) FROM ints;
