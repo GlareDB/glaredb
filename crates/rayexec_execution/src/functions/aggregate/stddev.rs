@@ -323,9 +323,9 @@ impl VarianceFinalize for VariancePopFinalize {
 
 #[derive(Debug, Default)]
 pub struct VarianceState<F: VarianceFinalize> {
-    count: i64,
-    mean: f64,
-    m2: f64,
+    pub count: i64,
+    pub mean: f64,
+    pub m2: f64,
     _finalize: PhantomData<F>,
 }
 
