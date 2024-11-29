@@ -28,7 +28,7 @@ rust-version = "1.70.0"
 rayexec_error = { path = "../rayexec_error" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 ahash = { workspace = true }
-bytes = { version = "1.1", default-features = false, features = ["std"] }
+bytes = { version = "1.9", default-features = false, features = ["std"] }
 thrift = { version = "0.17", default-features = false }
 snap = { version = "1.0", default-features = false, optional = true }
 brotli = { version = "6.0", default-features = false, features = ["std"], optional = true }

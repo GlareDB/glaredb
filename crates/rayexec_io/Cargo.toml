@@ -10,7 +10,7 @@ futures = { workspace = true }
 tracing = { workspace = true }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
 url = { workspace = true, features = ["serde"] }
-bytes = { version = "1.1", default-features = false, features = ["std"] }
+bytes = { version = "1.9", default-features = false, features = ["std"] }
 serde = { workspace = true }
 parking_lot = { workspace = true }
 chrono = { version = "0.4.38", features = ["serde"] }
