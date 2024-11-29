@@ -4,7 +4,7 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use super::{FunctionVolatility, PlannedScalarFunction, ScalarFunction};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +25,10 @@ impl FunctionInfo for Random {
 }
 
 impl ScalarFunction for Random {
+    fn volatility(&self) -> FunctionVolatility {
+        FunctionVolatility::Volatile
+    }
+
     fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
         Ok(Box::new(RandomImpl))
     }
