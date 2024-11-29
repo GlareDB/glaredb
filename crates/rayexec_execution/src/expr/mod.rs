@@ -39,7 +39,7 @@ use unnest_expr::UnnestExpr;
 use window_expr::WindowExpr;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::{FunctionVolatility, ScalarFunction};
 use crate::logical::binder::bind_context::{BindContext, TableRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -336,6 +336,11 @@ impl Expression {
             Self::Aggregate(_) => false,
             Self::Window(_) => false,
             Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
+            Self::ScalarFunction(f)
+                if f.function.scalar_function().volatility() == FunctionVolatility::Volatile =>
+            {
+                false
+            }
             _ => {
                 let mut is_foldable = true;
                 self.for_each_child(&mut |expr| {

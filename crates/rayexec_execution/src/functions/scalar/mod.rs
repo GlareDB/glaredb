@@ -104,11 +104,24 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
     ]
 });
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionVolatility {
+    /// Every call to this function with the same arguemnts is not guaranteed to
+    /// return the same value.
+    Volatile,
+    /// This function is consistent within the query.
+    Consistent,
+}
+
 /// A generic scalar function that can specialize into a more specific function
 /// depending on input types.
 ///
 /// Generic scalar functions must be cheaply cloneable.
 pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    fn volatility(&self) -> FunctionVolatility {
+        FunctionVolatility::Consistent
+    }
+
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>>;
 
     /// Plan a scalar function based on datatype inputs.
