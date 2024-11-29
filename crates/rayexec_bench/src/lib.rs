@@ -82,7 +82,11 @@ pub fn run(builder: impl EngineBuilder, files: impl IntoIterator<Item = PathBuf>
 
         let times = runner.run(args.count)?;
 
-        let name = path_str.trim_end_matches(".bench").to_string();
+        let name = path_str
+            .trim_end_matches(".bench")
+            .trim_start_matches("./")
+            .trim_start_matches("../")
+            .to_string();
         all_times.insert(name, times);
     }
 

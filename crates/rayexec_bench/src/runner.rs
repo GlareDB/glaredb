@@ -1,7 +1,6 @@
-use std::path::Path;
 use std::time::Instant;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;
@@ -40,7 +39,7 @@ impl BenchmarkRunner {
             }
             Ok(())
         });
-        let _ = result?;
+        result?;
         let setup_time_ms = Instant::now().duration_since(setup_start).as_millis() as u64;
 
         let mut query_times_ms = Vec::with_capacity(count);
@@ -54,7 +53,7 @@ impl BenchmarkRunner {
                 }
                 Ok(())
             });
-            let _ = result?;
+            result?;
             let query_time_ms = Instant::now().duration_since(bench_start).as_millis() as u64;
 
             query_times_ms.push(query_time_ms);
