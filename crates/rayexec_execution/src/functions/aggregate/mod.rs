@@ -4,6 +4,7 @@ pub mod count;
 pub mod covar;
 pub mod first;
 pub mod minmax;
+pub mod regr_avg;
 pub mod regr_count;
 pub mod stddev;
 pub mod sum;
@@ -51,6 +52,8 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
         Box::new(covar::CovarSamp),
         Box::new(corr::Corr),
         Box::new(regr_count::RegrCount),
+        Box::new(regr_avg::RegrAvgY),
+        Box::new(regr_avg::RegrAvgX),
     ]
 });
 
