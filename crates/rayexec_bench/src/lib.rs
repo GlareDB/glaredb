@@ -22,6 +22,10 @@ struct Arguments {
     // /// Print the profile data for a query after running it.
     // #[clap(long, env = "DEBUG_PRINT_PROFILE_DATA")]
     // print_profile_data: bool,
+    /// Directory to search for benchmarks in.
+    #[clap(long)]
+    benches_dir: Option<String>,
+    /// Number of times to run benchmark queries
     #[clap(long, short, default_value = "5")]
     count: usize,
     /// Pattern to match benchmark files to run.
@@ -57,13 +61,19 @@ impl EngineBuilder for DefaultEngineBuilder {
     }
 }
 
-pub fn run(builder: impl EngineBuilder, files: impl IntoIterator<Item = PathBuf>) -> Result<()> {
+pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
     let args = Arguments::parse();
+
+    let dir = match &args.benches_dir {
+        Some(dir) => Path::new(dir),
+        None => Path::new(default_dir),
+    };
+    let paths = find_files(Path::new(dir))?;
 
     // Times keyed by the file names.
     let mut all_times: BTreeMap<String, BenchmarkTimes> = BTreeMap::new(); // BTree for sorted output.
 
-    for path in files {
+    for path in paths {
         let path_str = path
             .to_str()
             .ok_or_else(|| RayexecError::new("File path not valid utf8"))?;
@@ -108,7 +118,7 @@ pub fn run(builder: impl EngineBuilder, files: impl IntoIterator<Item = PathBuf>
 }
 
 /// Recursively find all files in the given directory.
-pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
+fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
     fn inner(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
         if dir.is_dir() {
             for entry in fs::read_dir(dir).context("read dir")? {
