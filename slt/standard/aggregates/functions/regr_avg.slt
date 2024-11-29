@@ -1,0 +1,25 @@
+# REGR_AVGY and REGR_AVGX
+
+query RR
+SELECT regr_avgy(4, 5), regr_avgx(4, 5);
+----
+4  5
+
+query RR
+SELECT regr_avgy(4, NULL), regr_avgx(4, NULL);
+----
+NULL  NULL
+
+query RR
+SELECT regr_avgy(NULL, 5), regr_avgx(NULL, 5)
+----
+NULL  NULL
+
+query RR
+SELECT regr_avgy(a, b), regr_avgx(a, b)
+  FROM (VALUES (4,    5),
+               (6,    10),
+               (NULL, 20),
+               (8,    NULL)) v(a, b);
+----
+5  7.5

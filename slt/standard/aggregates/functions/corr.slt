@@ -3,7 +3,7 @@
 query R
 SELECT corr(1, 1);
 ----
-NaN
+NULL
 
 query RRR
 SELECT corr(1, NULL), corr(NULL, 1), corr(NULL, NULL);

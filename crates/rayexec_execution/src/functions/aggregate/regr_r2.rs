@@ -6,8 +6,7 @@ use rayexec_bullet::executor::aggregate::{AggregateState, BinaryNonNullUpdater};
 use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
-use super::covar::{CovarPopFinalize, CovarState};
-use super::stddev::{StddevPopFinalize, VarianceState};
+use super::corr::CorrelationState;
 use super::{
     primitive_finalize,
     AggregateFunction,
@@ -17,13 +16,12 @@ use super::{
 use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
-/// Pearson coefficient, population.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Corr;
+pub struct RegrR2;
 
-impl FunctionInfo for Corr {
+impl FunctionInfo for RegrR2 {
     fn name(&self) -> &'static str {
-        "corr"
+        "regr_r2"
     }
 
     fn signatures(&self) -> &[Signature] {
@@ -35,9 +33,9 @@ impl FunctionInfo for Corr {
     }
 }
 
-impl AggregateFunction for Corr {
+impl AggregateFunction for RegrR2 {
     fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(CorrImpl))
+        Ok(Box::new(RegrR2Impl))
     }
 
     fn plan_from_datatypes(
@@ -46,18 +44,18 @@ impl AggregateFunction for Corr {
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(CorrImpl)),
+            (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrR2Impl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CorrImpl;
+pub struct RegrR2Impl;
 
-impl PlannedAggregateFunction for CorrImpl {
+impl PlannedAggregateFunction for RegrR2Impl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &Corr
+        &RegrR2
     }
 
     fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
@@ -74,7 +72,7 @@ impl PlannedAggregateFunction for CorrImpl {
         fn update(
             arrays: &[&Array],
             mapping: ChunkGroupAddressIter,
-            states: &mut [CorrelationState],
+            states: &mut [RegrCountState],
         ) -> Result<()> {
             BinaryNonNullUpdater::update::<PhysicalF64, PhysicalF64, _, _, _>(
                 arrays[0], arrays[1], mapping, states,
@@ -88,60 +86,27 @@ impl PlannedAggregateFunction for CorrImpl {
 }
 
 #[derive(Debug, Default)]
-pub struct CorrelationState {
-    covar: CovarState<CovarPopFinalize>,
-    stddev_x: VarianceState<StddevPopFinalize>,
-    stddev_y: VarianceState<StddevPopFinalize>,
+pub struct RegrCountState {
+    corr: CorrelationState,
 }
 
-impl AggregateState<(f64, f64), f64> for CorrelationState {
+impl AggregateState<(f64, f64), f64> for RegrCountState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
-        self.covar.merge(&mut other.covar)?;
-        self.stddev_x.merge(&mut other.stddev_x)?;
-        self.stddev_y.merge(&mut other.stddev_y)?;
+        self.corr.merge(&mut other.corr)?;
         Ok(())
     }
 
     fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        self.covar.update(input)?;
-
-        // Note input is passed in as (y, x)
-        self.stddev_x.update(input.1)?;
-        self.stddev_y.update(input.0)?;
-
+        self.corr.update(input)?;
         Ok(())
     }
 
     fn finalize(&mut self) -> Result<(f64, bool)> {
-        let (cov, cov_valid) = self.covar.finalize()?;
-        let (stddev_x, stddev_x_valid) = self.stddev_x.finalize()?;
-        let (stddev_y, stddev_y_valid) = self.stddev_y.finalize()?;
-
-        if cov_valid && stddev_x_valid && stddev_y_valid {
-            let div = stddev_x * stddev_y;
-            if div == 0.0 {
-                // Matches Postgres.
-                //
-                // Note duckdb returns NaN here.
-                return Ok((0.0, false));
-            }
-            Ok((cov / div, true))
+        let (v, valid) = self.corr.finalize()?;
+        if valid {
+            Ok((v.powi(2), true))
         } else {
             Ok((0.0, false))
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn correlation_state_single_input() {
-        let mut state = CorrelationState::default();
-        state.update((1.0, 1.0)).unwrap();
-
-        let (_v, valid) = state.finalize().unwrap();
-        assert!(!valid);
     }
 }
