@@ -116,13 +116,13 @@ pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
 
     // Print results.
     println!(
-        "{:<40}\t{:>7}\t{:>14}",
+        "{:<60}\t{:>6}\t{:>14}",
         "benchmark_name", "count", "time_ms"
     );
 
     for (name, times) in &all_times {
         for (idx, query_time) in times.query_times_ms.iter().enumerate() {
-            println!("{:<40}\t{:>7}\t{:>14}", name, idx + 1, query_time);
+            println!("{:<60}\t{:>6}\t{:>14}", name, idx + 1, query_time);
         }
     }
 

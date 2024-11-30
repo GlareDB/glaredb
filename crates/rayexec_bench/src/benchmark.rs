@@ -20,6 +20,27 @@ impl Benchmark {
         Self::from_buf_read(reader)
     }
 
+    /// Construct a benchmark run from some reader.
+    ///
+    /// The content should include setup queries and benchmark queries.
+    ///
+    /// Setup queries are annotated with "setup":
+    ///
+    /// ```text
+    /// setup
+    /// CREATE TABLE ...
+    /// ```
+    ///
+    /// Benchmark queries are annotated with "run":
+    ///
+    /// ```text
+    /// run
+    /// SELECT * FROM ...
+    /// ```
+    ///
+    /// Any number of setup and benchmark queries can be provided, however a
+    /// setup query cannot be defined after a benchmark query has already been
+    /// defined.
     pub fn from_buf_read(reader: impl BufRead) -> Result<Self> {
         let lines = reader.lines();
 
