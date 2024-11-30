@@ -1,0 +1,30 @@
+# Values configuration for the runner set for benchmarks.
+
+githubConfigUrl: "https://github.com/glaredb/glaredb"
+
+minRunners: 0
+maxRunners: 2
+
+template:
+  spec:
+    nodeSelector:
+      cloud.google.com/machine-family: c3
+      cloud.google.com/compute-class: Performance # Dedicated node per pod
+    containers:
+    - name: runner
+      image: ghcr.io/actions/actions-runner:latest
+      command: ["/home/runner/run.sh"]
+      env:
+        - name: ACTIONS_RUNNER_CONTAINER_HOOKS
+          value: /home/runner/k8s/index.js
+        - name: ACTIONS_RUNNER_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+          value: "true"
+      resources:
+        requests:
+          cpu: 12
+          memory: "32Gi"
+          ephemeral: "200Gi"
