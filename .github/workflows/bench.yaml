@@ -8,6 +8,6 @@ on:
 
 jobs:
   benchmark:
-    runs-on: arc-runner-set-bench
+    runs-on: arc-runners-set-bench
     steps:
     - run: echo "hello"

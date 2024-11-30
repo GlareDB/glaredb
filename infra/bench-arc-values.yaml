@@ -8,7 +8,7 @@ maxRunners: 2
 template:
   spec:
     nodeSelector:
-      cloud.google.com/machine-family: c3
+      cloud.google.com/machine-family: n4
       cloud.google.com/compute-class: Performance # Dedicated node per pod
     containers:
     - name: runner
@@ -27,4 +27,4 @@ template:
         requests:
           cpu: 12
           memory: "32Gi"
-          ephemeral: "200Gi"
+          ephemeral-storage: "200Gi"

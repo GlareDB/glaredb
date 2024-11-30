@@ -6,12 +6,13 @@ set -eux
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
-INSTALLATION_NAME="arc-runner-set-bench"
+INSTALLATION_NAME="arc-runners-set-bench"
 NAMESPACE="arc-runners-bench"
 
 helm install arc \
     --namespace "${NAMESPACE}" \
     --create-namespace \
+    --version "0.9.3" \
     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
 
 helm install "${INSTALLATION_NAME}" \
