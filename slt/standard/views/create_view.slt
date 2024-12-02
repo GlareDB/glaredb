@@ -1,0 +1,6 @@
+# Create view
+
+# Similar to tables, persistent views not yet supported.
+
+statement error Persistent views not yet supported, use CREATE TEMP VIEW
+CREATE VIEW v AS SELECT 1;
