@@ -59,6 +59,7 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
         Box::new(regr_avg::RegrAvgX),
         Box::new(regr_r2::RegrR2),
         Box::new(regr_slope::RegrSlope),
+        Box::new(string_agg::StringAgg),
     ]
 });
 
