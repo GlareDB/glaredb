@@ -1,0 +1,16 @@
+# ascii function
+
+statement ok
+CREATE TEMP TABLE strings (v TEXT);
+
+statement ok
+INSERT INTO strings VALUES (''), ('a'), ('abc'), (NULL), ('😤🤝👀');
+
+query TI
+SELECT v, ascii(v) FROM strings ORDER BY 1;
+----
+NULL     NULL
+(empty)  0
+a        97
+abc      97
+😤🤝👀   128548

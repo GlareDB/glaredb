@@ -1,5 +1,8 @@
 //! String functions.
 
+mod ascii;
+pub use ascii::*;
+
 mod case;
 pub use case::*;
 
