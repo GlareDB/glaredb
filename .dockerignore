@@ -1,6 +1,9 @@
 # Cargo target directories.
 /*target
 
+# Submodules
+/submodules
+
 # Temp dir for slts
 /slt_tmp
 
