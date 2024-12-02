@@ -1,0 +1,24 @@
+# STRING_AGG tests
+
+query T
+SELECT string_agg('hello', ',');
+----
+hello
+
+query T
+SELECT string_agg(NULL, ',');
+----
+NULL
+
+statement error Invalid inputs
+SELECT string_agg('hello');
+
+query T
+SELECT string_agg(a, ',') FROM (VALUES ('a'), (NULL), (NULL)) v(a);
+----
+a
+
+statement error Second argument to STRING_AGG must be constant
+SELECT string_agg(a, a) FROM (VALUES ('a'), (NULL), (NULL)) v(a);
+
+# TODO: Additional tests with an ORDER BY.

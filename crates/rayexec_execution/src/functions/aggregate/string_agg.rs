@@ -4,22 +4,15 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalUtf8};
+use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 
-use super::covar::{CovarPopFinalize, CovarState};
-use super::stddev::{StddevPopFinalize, VarianceState};
-use super::{
-    primitive_finalize,
-    AggregateFunction,
-    DefaultGroupedStates,
-    PlannedAggregateFunction,
-};
+use super::{AggregateFunction, DefaultGroupedStates, PlannedAggregateFunction};
 use crate::expr::Expression;
 use crate::functions::aggregate::ChunkGroupAddressIter;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
