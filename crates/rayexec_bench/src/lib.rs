@@ -117,7 +117,7 @@ pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
     // Print results.
     println!(
         "{:<60}\t{:>6}\t{:>14}",
-        "benchmark_name", "count", "time_ms"
+        "benchmark_name", "count", "time_millis"
     );
 
     for (name, times) in &all_times {
