@@ -1,0 +1,12 @@
+FROM rust AS builder
+
+WORKDIR /usr/src
+COPY . .
+
+RUN cargo build --release --bin lakefront
+
+FROM debian:bookworm-slim
+
+COPY --from=builder /usr/src/target/release/lakefront /usr/local/bin/lakefront
+
+CMD ["lakefront"]

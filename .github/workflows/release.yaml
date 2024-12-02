@@ -137,7 +137,7 @@ jobs:
           args: ./*.whl
 
   docker:
-    name: Build, push, and deploy docker image
+    name: Build, push, and deploy docker images
     runs-on: ubuntu-latest
 
     steps:
@@ -155,10 +155,17 @@ jobs:
       - name: Configure gcloud docker
         run: gcloud auth configure-docker -q
 
-      - name: Build and push docker image
+      - name: Build and push server docker image
         run: |
-          docker build . -t gcr.io/glaredb-artifacts/rayexec-dev
+          docker build . -f Dockerfile.server -t gcr.io/glaredb-artifacts/rayexec-dev
           docker push gcr.io/glaredb-artifacts/rayexec-dev
+
+      - name: Build and push lakefront docker image
+        run: |
+          docker build . -f Dockerfile.lakefront -t gcr.io/glaredb-artifacts/lakefront
+          docker push gcr.io/glaredb-artifacts/lakefront
+
+      # TODO: Remove deploy stuff, move to mono
 
       - name: GKE Credentials
         uses: 'google-github-actions/get-gke-credentials@v2'

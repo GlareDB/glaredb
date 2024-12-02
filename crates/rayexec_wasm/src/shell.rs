@@ -100,7 +100,7 @@ impl WasmShell {
         let terminal = TerminalWrapper::new(terminal);
         let shell = Rc::new(Shell::new(BufWriter::new(terminal)));
 
-        shell.attach(engine, "Rayexec WASM Shell")?;
+        shell.attach(engine, "GlareDB WASM Shell")?;
 
         Ok(WasmShell { shell })
     }

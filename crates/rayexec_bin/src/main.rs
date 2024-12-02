@@ -140,7 +140,7 @@ async fn inner(
 
     let shell = Shell::new(stdout);
     shell.set_cols(cols as usize);
-    shell.attach(engine, "Rayexec Shell")?;
+    shell.attach(engine, "GlareDB Shell")?;
 
     let inner_loop = || async move {
         loop {
