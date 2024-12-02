@@ -198,6 +198,7 @@ impl AvgDecimal64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let this = *self;
         Box::new(DefaultGroupedStates::new(
+            AvgStateDecimal::<i64>::default,
             unary_update::<AvgStateDecimal<i64>, PhysicalI64, (i128, i64)>,
             move |states| this.finalize(states),
         ))
@@ -243,6 +244,7 @@ impl AvgDecimal128Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let this = *self;
         Box::new(DefaultGroupedStates::new(
+            AvgStateDecimal::<i128>::default,
             unary_update::<AvgStateDecimal<i128>, PhysicalI128, (i128, i64)>,
             move |states| this.finalize(states),
         ))
@@ -255,6 +257,7 @@ pub struct AvgFloat64Impl;
 impl AvgFloat64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(
+            AvgStateF64::<f64, f64>::default,
             unary_update::<AvgStateF64<f64, f64>, PhysicalF64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
         ))
@@ -267,6 +270,7 @@ pub struct AvgInt64Impl;
 impl AvgInt64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(
+            AvgStateF64::<i64, i128>::default,
             unary_update::<AvgStateF64<i64, i128>, PhysicalI64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
         ))

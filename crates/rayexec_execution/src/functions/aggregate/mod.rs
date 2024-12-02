@@ -9,6 +9,7 @@ pub mod regr_count;
 pub mod regr_r2;
 pub mod regr_slope;
 pub mod stddev;
+pub mod string_agg;
 pub mod sum;
 
 use std::any::Any;
@@ -58,6 +59,7 @@ pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = 
         Box::new(regr_avg::RegrAvgX),
         Box::new(regr_r2::RegrR2),
         Box::new(regr_slope::RegrSlope),
+        Box::new(string_agg::StringAgg),
     ]
 });
 
@@ -201,11 +203,14 @@ pub trait GroupedStates: Debug + Send {
 ///
 /// This essetially provides a wrapping around functions provided by the
 /// aggregate executors, and some number of aggregate states.
-pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn> {
+pub struct DefaultGroupedStates<State, InputType, OutputType, CreateFn, UpdateFn, FinalizeFn> {
     /// All states we're tracking.
     ///
     /// Each state corresponds to a single group.
     states: Vec<State>,
+
+    /// How new states shoudl be created.
+    create_fn: CreateFn,
 
     /// How we should update states given inputs and a mapping array.
     update_fn: UpdateFn,
@@ -217,16 +222,18 @@ pub struct DefaultGroupedStates<State, InputType, OutputType, UpdateFn, Finalize
     _o: PhantomData<OutputType>,
 }
 
-impl<State, InputType, OutputType, UpdateFn, FinalizeFn>
-    DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn>
+impl<State, InputType, OutputType, CreateFn, UpdateFn, FinalizeFn>
+    DefaultGroupedStates<State, InputType, OutputType, CreateFn, UpdateFn, FinalizeFn>
 where
     State: AggregateState<InputType, OutputType>,
+    CreateFn: Fn() -> State,
     UpdateFn: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()>,
     FinalizeFn: Fn(&mut [State]) -> Result<Array>,
 {
-    fn new(update_fn: UpdateFn, finalize_fn: FinalizeFn) -> Self {
+    fn new(create_fn: CreateFn, update_fn: UpdateFn, finalize_fn: FinalizeFn) -> Self {
         DefaultGroupedStates {
             states: Vec::new(),
+            create_fn,
             update_fn,
             finalize_fn,
             _t: PhantomData,
@@ -235,12 +242,13 @@ where
     }
 }
 
-impl<State, InputType, OutputType, UpdateFn, FinalizeFn> GroupedStates
-    for DefaultGroupedStates<State, InputType, OutputType, UpdateFn, FinalizeFn>
+impl<State, InputType, OutputType, CreateFn, UpdateFn, FinalizeFn> GroupedStates
+    for DefaultGroupedStates<State, InputType, OutputType, CreateFn, UpdateFn, FinalizeFn>
 where
     State: AggregateState<InputType, OutputType> + Send + 'static,
     InputType: Send + 'static,
     OutputType: Send + 'static,
+    CreateFn: Fn() -> State + Send + 'static,
     UpdateFn: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Send + 'static,
     FinalizeFn: Fn(&mut [State]) -> Result<Array> + Send + 'static,
 {
@@ -249,7 +257,7 @@ where
     }
 
     fn new_groups(&mut self, count: usize) {
-        self.states.extend((0..count).map(|_| State::default()))
+        self.states.extend((0..count).map(|_| (self.create_fn)()))
     }
 
     fn num_groups(&self) -> usize {
@@ -283,7 +291,7 @@ where
     }
 }
 
-impl<S, T, O, UF, FF> Debug for DefaultGroupedStates<S, T, O, UF, FF>
+impl<S, T, O, CF, UF, FF> Debug for DefaultGroupedStates<S, T, O, CF, UF, FF>
 where
     S: Debug,
 {

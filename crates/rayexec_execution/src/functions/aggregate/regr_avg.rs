@@ -79,9 +79,11 @@ impl PlannedAggregateFunction for RegrAvgYImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            RegrAvgState::<RegrAvgYImpl>::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 
@@ -155,9 +157,11 @@ impl PlannedAggregateFunction for RegrAvgXImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            RegrAvgState::<RegrAvgXImpl>::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 

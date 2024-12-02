@@ -68,6 +68,7 @@ impl PlannedAggregateFunction for StddevPopImpl {
     fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
+            VarianceState::<StddevPopFinalize>::default,
             unary_update::<VarianceState<StddevPopFinalize>, PhysicalF64, f64>,
             move |states| primitive_finalize(datatype.clone(), states),
         )))
@@ -131,6 +132,7 @@ impl PlannedAggregateFunction for StddevSampImpl {
     fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
+            VarianceState::<StddevSampFinalize>::default,
             unary_update::<VarianceState<StddevSampFinalize>, PhysicalF64, f64>,
             move |states| primitive_finalize(datatype.clone(), states),
         )))
@@ -190,6 +192,7 @@ impl PlannedAggregateFunction for VarPopImpl {
     fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
+            VarianceState::<VariancePopFinalize>::default,
             unary_update::<VarianceState<VariancePopFinalize>, PhysicalF64, f64>,
             move |states| primitive_finalize(datatype.clone(), states),
         )))
@@ -249,6 +252,7 @@ impl PlannedAggregateFunction for VarSampImpl {
     fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
+            VarianceState::<VarianceSampFinalize>::default,
             unary_update::<VarianceState<VarianceSampFinalize>, PhysicalF64, f64>,
             move |states| primitive_finalize(datatype.clone(), states),
         )))

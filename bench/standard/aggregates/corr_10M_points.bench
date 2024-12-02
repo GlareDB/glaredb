@@ -1,0 +1,7 @@
+# Correlation between 10M linear points
+
+run
+SELECT corr(a, b * 5) FROM
+    generate_series(1, 10000000) t1(a),
+    generate_series(1, 10000000) t2(b)
+  WHERE a = b
