@@ -78,6 +78,8 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(concat::Concat),
         Box::new(string::RegexpReplace),
         Box::new(string::Ascii),
+        Box::new(string::LeftPad),
+        Box::new(string::RightPad),
         // Like
         Box::new(like::Like),
         // Struct

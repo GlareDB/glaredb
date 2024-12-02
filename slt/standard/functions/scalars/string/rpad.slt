@@ -1,0 +1,38 @@
+# rpad function
+
+query T
+SELECT rpad('aaa', 6, 'bb');
+----
+aaabbb
+
+query T
+SELECT rpad(NULL, 6, 'bb');
+----
+NULL
+
+query T
+SELECT rpad('aaa', 6) || 'end';
+----
+aaa   end
+
+query T
+SELECT rpad('aaa', 2, 'bb');
+----
+aa
+
+query T
+SELECT rpad('aaa', 6, '');
+----
+aaa
+
+query TT
+SELECT a, rpad(a, b, c) FROM
+  (VALUES ('aaa', 6, '>'),
+          ('bb',  7, '$'),
+          ('c',   3, '<')) v(a,b,c) ORDER BY 1;
+----
+aaa  aaa>>>
+bb   bb$$$$$
+c    c<<
+
+

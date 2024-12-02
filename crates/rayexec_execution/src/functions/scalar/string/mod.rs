@@ -1,5 +1,8 @@
 //! String functions.
 
+mod pad;
+pub use pad::*;
+
 mod ascii;
 pub use ascii::*;
 

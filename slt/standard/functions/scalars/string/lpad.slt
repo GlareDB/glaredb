@@ -1,0 +1,43 @@
+# lpad function
+
+query T
+SELECT lpad('aaa', 6, 'bb');
+----
+bbbaaa
+
+query T
+SELECT lpad(NULL, 6, 'bb');
+----
+NULL
+
+query T
+SELECT lpad('aaa', 6);
+----
+   aaa
+
+query T
+SELECT lpad('aaa', 2, 'bb');
+----
+aa
+
+query T
+SELECT lpad('aaa', 6, '');
+----
+aaa
+
+query T
+SELECT lpad('😤🤝👀', 14, '👁️');
+----
+👁️👁️👁️👁️👁️👁😤🤝👀
+
+query TT
+SELECT a, lpad(a, b, c) FROM
+  (VALUES ('aaa', 6, '>'),
+          ('bb',  7, '$'),
+          ('c',   3, '<')) v(a,b,c) ORDER BY 1;
+----
+aaa  >>>aaa
+bb   $$$$$bb
+c    <<c
+
+

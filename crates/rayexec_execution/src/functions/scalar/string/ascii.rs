@@ -1,9 +1,9 @@
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer, PrimitiveBuffer};
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
