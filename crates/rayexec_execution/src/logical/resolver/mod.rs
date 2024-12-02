@@ -421,6 +421,10 @@ impl<'a> Resolver<'a> {
             if name.0.len() == 2 {
                 name.0.insert(0, "temp".to_string()); // Catalog
             }
+        } else {
+            return Err(RayexecError::new(
+                "Persistent tables not yet supported, use CREATE TEMP TABLE",
+            ));
         }
 
         let columns = create
@@ -466,6 +470,10 @@ impl<'a> Resolver<'a> {
             if name.0.len() == 2 {
                 name.0.insert(0, "temp".to_string()); // Catalog
             }
+        } else {
+            return Err(RayexecError::new(
+                "Persistent views not yet supported, use CREATE TEMP VIEW",
+            ));
         }
 
         let query = self.resolve_query(create.query, resolve_context).await?;
