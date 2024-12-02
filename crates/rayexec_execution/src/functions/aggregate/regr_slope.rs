@@ -80,9 +80,11 @@ impl PlannedAggregateFunction for RegrSlopeImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            RegrSlopeState::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 

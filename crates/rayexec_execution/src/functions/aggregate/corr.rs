@@ -81,9 +81,11 @@ impl PlannedAggregateFunction for CorrImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            CorrelationState::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 

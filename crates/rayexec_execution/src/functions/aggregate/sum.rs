@@ -181,7 +181,11 @@ impl SumInt64Impl {
     }
 
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(Self::update, Self::finalize))
+        Box::new(DefaultGroupedStates::new(
+            SumStateCheckedAdd::<i64>::default,
+            Self::update,
+            Self::finalize,
+        ))
     }
 }
 
@@ -191,6 +195,7 @@ pub struct SumFloat64Impl;
 impl SumFloat64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         Box::new(DefaultGroupedStates::new(
+            SumStateAdd::<f64>::default,
             unary_update::<SumStateAdd<f64>, PhysicalF64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
         ))
@@ -207,6 +212,7 @@ impl SumDecimal64Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let datatype = DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale));
         Box::new(DefaultGroupedStates::new(
+            SumStateCheckedAdd::<i64>::default,
             unary_update::<SumStateCheckedAdd<i64>, PhysicalI64, i64>,
             move |states| primitive_finalize(datatype.clone(), states),
         ))
@@ -223,6 +229,7 @@ impl SumDecimal128Impl {
     fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
         let datatype = DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale));
         Box::new(DefaultGroupedStates::new(
+            SumStateCheckedAdd::<i128>::default,
             unary_update::<SumStateCheckedAdd<i128>, PhysicalI128, i128>,
             move |states| primitive_finalize(datatype.clone(), states),
         ))

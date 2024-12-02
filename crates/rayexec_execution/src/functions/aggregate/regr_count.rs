@@ -78,9 +78,11 @@ impl PlannedAggregateFunction for RegrCountImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            RegrCountState::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 

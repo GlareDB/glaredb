@@ -72,25 +72,27 @@ impl PlannedAggregateFunction for RegrR2Impl {
         fn update(
             arrays: &[&Array],
             mapping: ChunkGroupAddressIter,
-            states: &mut [RegrCountState],
+            states: &mut [RegrR2State],
         ) -> Result<()> {
             BinaryNonNullUpdater::update::<PhysicalF64, PhysicalF64, _, _, _>(
                 arrays[0], arrays[1], mapping, states,
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            RegrR2State::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 
 #[derive(Debug, Default)]
-pub struct RegrCountState {
+pub struct RegrR2State {
     corr: CorrelationState,
 }
 
-impl AggregateState<(f64, f64), f64> for RegrCountState {
+impl AggregateState<(f64, f64), f64> for RegrR2State {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.corr.merge(&mut other.corr)?;
         Ok(())

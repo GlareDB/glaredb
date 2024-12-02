@@ -79,9 +79,11 @@ impl PlannedAggregateFunction for CovarPopImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            CovarState::<CovarPopFinalize>::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 
@@ -148,9 +150,11 @@ impl PlannedAggregateFunction for CovarSampImpl {
             )
         }
 
-        Ok(Box::new(DefaultGroupedStates::new(update, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })))
+        Ok(Box::new(DefaultGroupedStates::new(
+            CovarState::<CovarSampFinalize>::default,
+            update,
+            move |states| primitive_finalize(datatype.clone(), states),
+        )))
     }
 }
 

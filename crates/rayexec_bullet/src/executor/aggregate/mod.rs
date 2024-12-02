@@ -18,7 +18,7 @@ use crate::bitmap::Bitmap;
 ///
 /// An example state for SUM would be a struct that takes a running sum from
 /// values provided in `update`.
-pub trait AggregateState<Input, Output>: Default + Debug {
+pub trait AggregateState<Input, Output>: Debug {
     /// Merge other state into this state.
     fn merge(&mut self, other: &mut Self) -> Result<()>;
 
