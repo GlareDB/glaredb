@@ -1,5 +1,14 @@
 //! String functions.
 
+mod trim;
+pub use trim::*;
+
+mod pad;
+pub use pad::*;
+
+mod ascii;
+pub use ascii::*;
+
 mod case;
 pub use case::*;
 
