@@ -29,7 +29,7 @@ pub mod unnest;
 pub mod values;
 pub mod window;
 
-mod util;
+pub mod util;
 
 #[cfg(test)]
 mod test_util;
