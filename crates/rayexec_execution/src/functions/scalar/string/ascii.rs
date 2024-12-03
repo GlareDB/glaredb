@@ -59,7 +59,7 @@ impl PlannedScalarFunction for AsciiImpl {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Int32,
-            buffer: PrimitiveBuffer::with_len(inputs.len()),
+            buffer: PrimitiveBuffer::with_len(inputs[0].logical_len()),
         };
 
         UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
