@@ -1,0 +1,43 @@
+# ltrim, rtrim, btrim functions
+
+query T
+SELECT btrim('xyxtrimyyx', 'xy');
+----
+trim
+
+# Alias
+query T
+SELECT trim('xyxtrimyyx', 'xy');
+----
+trim
+
+query T
+SELECT btrim('xyxtrimyyx', NULL);
+----
+NULL
+
+query T
+SELECT ltrim('xyxtrimyyx', 'xy');
+----
+trimyyx
+
+query T
+SELECT rtrim('xyxtrimyyx', 'xy');
+----
+xyxtrim
+
+query T
+SELECT 'left' || btrim('  trim ') || 'right';
+----
+lefttrimright
+
+query T
+SELECT 'left' || ltrim('  trim ') || 'right';
+----
+lefttrim right
+
+query T
+SELECT 'left' || rtrim('  trim ') || 'right';
+----
+left  trimright
+

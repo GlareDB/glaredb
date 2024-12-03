@@ -1,5 +1,8 @@
 //! String functions.
 
+mod trim;
+pub use trim::*;
+
 mod pad;
 pub use pad::*;
 

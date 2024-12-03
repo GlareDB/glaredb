@@ -80,6 +80,9 @@ pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::
         Box::new(string::Ascii),
         Box::new(string::LeftPad),
         Box::new(string::RightPad),
+        Box::new(string::LeftTrim::new()),
+        Box::new(string::RightTrim::new()),
+        Box::new(string::BTrim::new()),
         // Like
         Box::new(like::Like),
         // Struct
