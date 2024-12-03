@@ -1,0 +1,9 @@
+# trim on large input strings with small patterns to trim on the ends.
+
+setup
+CREATE TEMP TABLE strings AS
+  SELECT repeat(a::string, a % 100) AS s
+    FROM generate_series(1, 100000) g1(a), generate_series(1, 3) g2(b);
+
+run
+SELECT s, trim(s, '12345') FROM strings;
