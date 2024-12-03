@@ -74,6 +74,12 @@ impl<F: StringTrimOp> Trim<F> {
     }
 }
 
+impl<F: StringTrimOp> Default for Trim<F> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<F: StringTrimOp> FunctionInfo for Trim<F> {
     fn name(&self) -> &'static str {
         F::NAME
@@ -158,7 +164,7 @@ impl<F: StringTrimOp> PlannedScalarFunction for TrimImpl<F> {
                 builder,
                 |s, pattern, buf| {
                     let trimmed = F::trim_func(s, pattern);
-                    buf.put(&trimmed)
+                    buf.put(trimmed)
                 },
             ),
             other => unreachable!("num inputs checked, got {other}"),
