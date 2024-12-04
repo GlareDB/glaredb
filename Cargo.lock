@@ -2293,6 +2293,7 @@ dependencies = [
  "rayexec_proto",
  "reqwest",
  "serde",
+ "serde_json",
  "sha2",
  "tracing",
  "url",
@@ -2463,6 +2464,7 @@ dependencies = [
  "rayexec_io",
  "serde",
  "tracing",
+ "url",
 ]
 
 [[package]]

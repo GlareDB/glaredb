@@ -8,6 +8,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 pub use reqwest;
 use reqwest::header::{HeaderMap, CONTENT_LENGTH, RANGE};
 use reqwest::{Method, Request, StatusCode};
+use serde::de::DeserializeOwned;
 use tracing::debug;
 use url::Url;
 
@@ -33,6 +34,11 @@ pub trait HttpResponse {
 pub async fn read_text(resp: impl HttpResponse) -> Result<String> {
     let full = resp.bytes().await?;
     Ok(String::from_utf8_lossy(&full).to_string())
+}
+
+pub async fn read_json<T: DeserializeOwned>(resp: impl HttpResponse) -> Result<T> {
+    let full = resp.bytes().await?;
+    serde_json::from_slice(&full).context("failed to parse response as json")
 }
 
 #[derive(Debug)]

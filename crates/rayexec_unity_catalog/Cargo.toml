@@ -11,4 +11,4 @@ rayexec_error = { path = '../rayexec_error' }
 futures = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
-
+url = { workspace = true }

@@ -1,3 +1,6 @@
+pub mod connection;
+pub mod rest;
+
 use std::collections::HashMap;
 
 use futures::future::BoxFuture;
