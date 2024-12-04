@@ -44,7 +44,7 @@ impl<'a, const N: usize> ZipBitmapsIter<'a, N> {
     }
 }
 
-impl<'a, const N: usize> Iterator for ZipBitmapsIter<'a, N> {
+impl<const N: usize> Iterator for ZipBitmapsIter<'_, N> {
     type Item = bool;
 
     #[inline]
@@ -83,4 +83,4 @@ impl<'a, const N: usize> Iterator for ZipBitmapsIter<'a, N> {
     }
 }
 
-impl<'a, const N: usize> ExactSizeIterator for ZipBitmapsIter<'a, N> {}
+impl<const N: usize> ExactSizeIterator for ZipBitmapsIter<'_, N> {}

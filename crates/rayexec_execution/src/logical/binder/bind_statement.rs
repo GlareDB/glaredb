@@ -55,7 +55,7 @@ pub struct StatementBinder<'a> {
     pub resolve_context: &'a ResolveContext,
 }
 
-impl<'a> StatementBinder<'a> {
+impl StatementBinder<'_> {
     pub fn bind(
         &self,
         statement: Statement<ResolvedMeta>,

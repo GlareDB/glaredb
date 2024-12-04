@@ -153,7 +153,7 @@ impl<'a, O: OffsetIndex> Iterator for ContiguousVarlenIter<'a, O> {
     }
 }
 
-impl<'a, O: OffsetIndex> ExactSizeIterator for ContiguousVarlenIter<'a, O> {}
+impl<O: OffsetIndex> ExactSizeIterator for ContiguousVarlenIter<'_, O> {}
 
 #[derive(Debug)]
 pub struct ContiguousVarlenStorageSlice<'a, O> {

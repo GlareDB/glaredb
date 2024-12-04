@@ -85,9 +85,9 @@ pub enum ScalarValue<'a> {
 
 // TODO: TBD if we want this. We may need to implement PartialEq to exact
 // equality semantics for floats.
-impl<'a> Eq for ScalarValue<'a> {}
+impl Eq for ScalarValue<'_> {}
 
-impl<'a> Hash for ScalarValue<'a> {
+impl Hash for ScalarValue<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::Null => 0_u8.hash(state),
@@ -121,7 +121,7 @@ impl<'a> Hash for ScalarValue<'a> {
 
 pub type OwnedScalarValue = ScalarValue<'static>;
 
-impl<'a> ScalarValue<'a> {
+impl ScalarValue<'_> {
     pub fn datatype(&self) -> DataType {
         match self {
             ScalarValue::Null => DataType::Null,
@@ -407,79 +407,79 @@ impl fmt::Display for ScalarValue<'_> {
     }
 }
 
-impl<'a> From<bool> for ScalarValue<'a> {
+impl From<bool> for ScalarValue<'_> {
     fn from(value: bool) -> Self {
         ScalarValue::Boolean(value)
     }
 }
 
-impl<'a> From<f16> for ScalarValue<'a> {
+impl From<f16> for ScalarValue<'_> {
     fn from(value: f16) -> Self {
         ScalarValue::Float16(value)
     }
 }
 
-impl<'a> From<f32> for ScalarValue<'a> {
+impl From<f32> for ScalarValue<'_> {
     fn from(value: f32) -> Self {
         ScalarValue::Float32(value)
     }
 }
 
-impl<'a> From<f64> for ScalarValue<'a> {
+impl From<f64> for ScalarValue<'_> {
     fn from(value: f64) -> Self {
         ScalarValue::Float64(value)
     }
 }
 
-impl<'a> From<i8> for ScalarValue<'a> {
+impl From<i8> for ScalarValue<'_> {
     fn from(value: i8) -> Self {
         ScalarValue::Int8(value)
     }
 }
 
-impl<'a> From<i16> for ScalarValue<'a> {
+impl From<i16> for ScalarValue<'_> {
     fn from(value: i16) -> Self {
         ScalarValue::Int16(value)
     }
 }
 
-impl<'a> From<i32> for ScalarValue<'a> {
+impl From<i32> for ScalarValue<'_> {
     fn from(value: i32) -> Self {
         ScalarValue::Int32(value)
     }
 }
 
-impl<'a> From<i64> for ScalarValue<'a> {
+impl From<i64> for ScalarValue<'_> {
     fn from(value: i64) -> Self {
         ScalarValue::Int64(value)
     }
 }
 
-impl<'a> From<u8> for ScalarValue<'a> {
+impl From<u8> for ScalarValue<'_> {
     fn from(value: u8) -> Self {
         ScalarValue::UInt8(value)
     }
 }
 
-impl<'a> From<u16> for ScalarValue<'a> {
+impl From<u16> for ScalarValue<'_> {
     fn from(value: u16) -> Self {
         ScalarValue::UInt16(value)
     }
 }
 
-impl<'a> From<u32> for ScalarValue<'a> {
+impl From<u32> for ScalarValue<'_> {
     fn from(value: u32) -> Self {
         ScalarValue::UInt32(value)
     }
 }
 
-impl<'a> From<u64> for ScalarValue<'a> {
+impl From<u64> for ScalarValue<'_> {
     fn from(value: u64) -> Self {
         ScalarValue::UInt64(value)
     }
 }
 
-impl<'a> From<Interval> for ScalarValue<'a> {
+impl From<Interval> for ScalarValue<'_> {
     fn from(value: Interval) -> Self {
         ScalarValue::Interval(value)
     }

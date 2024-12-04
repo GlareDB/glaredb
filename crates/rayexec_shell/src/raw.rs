@@ -13,7 +13,7 @@ impl<'a, W: io::Write> RawTerminalWriter<'a, W> {
     }
 }
 
-impl<'a, W: io::Write> io::Write for RawTerminalWriter<'a, W> {
+impl<W: io::Write> io::Write for RawTerminalWriter<'_, W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut current = buf;
         let mut n = 0;

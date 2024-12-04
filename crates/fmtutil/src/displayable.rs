@@ -11,7 +11,7 @@ pub trait IntoDisplayableSlice<T: Display> {
     fn display_as_list(&self) -> DisplayableSlice<T>;
 }
 
-impl<'a, T: Display> IntoDisplayableSlice<T> for &'a [T] {
+impl<T: Display> IntoDisplayableSlice<T> for &[T] {
     fn display_with_brackets(&self) -> DisplayableSlice<T> {
         DisplayableSlice {
             left_delim: "[",
@@ -83,7 +83,7 @@ impl<'a, T: Display, V: AsRef<[T]>> From<&'a V> for DisplayableSlice<'a, T> {
     }
 }
 
-impl<'a, T: Display> Display for DisplayableSlice<'a, T> {
+impl<T: Display> Display for DisplayableSlice<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.left_delim)?;
         for (idx, item) in self.slice.iter().enumerate() {

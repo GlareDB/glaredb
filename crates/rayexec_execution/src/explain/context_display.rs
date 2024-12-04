@@ -54,7 +54,7 @@ impl<'a, D> ContextDisplayWrapper<'a, D> {
     }
 }
 
-impl<'a, D: ContextDisplay> fmt::Display for ContextDisplayWrapper<'a, D> {
+impl<D: ContextDisplay> fmt::Display for ContextDisplayWrapper<'_, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.item.fmt_using_context(self.mode, f)
     }

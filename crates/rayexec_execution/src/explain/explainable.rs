@@ -178,7 +178,7 @@ pub trait Explainable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnIndexes<'a>(pub &'a [usize]);
 
-impl<'a> fmt::Display for ColumnIndexes<'a> {
+impl fmt::Display for ColumnIndexes<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (idx, col) in self.0.iter().enumerate() {
             if idx > 0 {

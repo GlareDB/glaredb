@@ -84,7 +84,7 @@ pub struct GroupByColumnBinder<'a> {
     select_list: &'a mut SelectList,
 }
 
-impl<'a> ExpressionColumnBinder for GroupByColumnBinder<'a> {
+impl ExpressionColumnBinder for GroupByColumnBinder<'_> {
     fn bind_from_root_literal(
         &mut self,
         _bind_scope: BindScopeRef,

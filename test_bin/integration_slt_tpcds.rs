@@ -43,7 +43,7 @@ pub fn main() -> Result<()> {
 async fn create_views(
     session: &SingleUserSession<ThreadedNativeExecutor, NativeRuntime>,
 ) -> Result<()> {
-    const TABLES: &'static [&'static str] = &[
+    const TABLES: &[&str] = &[
         "call_center",
         "catalog_page",
         "catalog_returns",

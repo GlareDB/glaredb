@@ -195,7 +195,7 @@ pub struct OrderByColumnBinder<'a> {
     did_bind_to_select: bool,
 }
 
-impl<'a> ExpressionColumnBinder for OrderByColumnBinder<'a> {
+impl ExpressionColumnBinder for OrderByColumnBinder<'_> {
     fn bind_from_root_literal(
         &mut self,
         _bind_scope: BindScopeRef,
