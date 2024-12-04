@@ -9,6 +9,7 @@ use rayexec_parquet::ParquetDataSource;
 use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_server::serve_with_engine;
+use rayexec_unity_catalog::UnityCatalogDataSource;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_server")]
@@ -50,6 +51,10 @@ fn main() -> Result<()> {
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
         .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
+        .with_datasource(
+            "unity_catalog",
+            UnityCatalogDataSource::initialize(runtime.clone()),
+        )?
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
         .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?;
     let engine = Engine::new_with_registry(sched.clone(), runtime.clone(), registry)?;

@@ -9,6 +9,7 @@ use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
 use rayexec_shell::result_table::{MaterializedColumn, MaterializedResultTable};
 use rayexec_shell::session::SingleUserEngine;
+use rayexec_unity_catalog::UnityCatalogDataSource;
 use tracing::trace;
 use wasm_bindgen::prelude::*;
 
@@ -31,6 +32,10 @@ impl WasmSession {
             .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
             .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
             .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
+            .with_datasource(
+                "unity_catalog",
+                UnityCatalogDataSource::initialize(runtime.clone()),
+            )?
             .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
 
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone(), registry)?;

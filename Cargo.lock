@@ -2127,6 +2127,7 @@ dependencies = [
  "rayexec_postgres",
  "rayexec_rt_native",
  "rayexec_shell",
+ "rayexec_unity_catalog",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2407,6 +2408,7 @@ dependencies = [
  "rayexec_postgres",
  "rayexec_proto",
  "rayexec_rt_native",
+ "rayexec_unity_catalog",
  "serde",
  "serde_json",
  "tokio",
@@ -2451,6 +2453,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayexec_unity_catalog"
+version = "0.0.86"
+dependencies = [
+ "futures",
+ "rayexec_bullet",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_io",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "rayexec_wasm"
 version = "0.0.86"
 dependencies = [
@@ -2470,6 +2485,7 @@ dependencies = [
  "rayexec_io",
  "rayexec_parquet",
  "rayexec_shell",
+ "rayexec_unity_catalog",
  "reqwest",
  "tokio",
  "tracing",
