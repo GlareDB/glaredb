@@ -19,6 +19,7 @@ rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
 rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
 rayexec_debug = { path = '../crates/rayexec_debug' }
+rayexec_dbgen = { path = '../crates/rayexec_dbgen' }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 
 [[test]]
@@ -40,6 +41,11 @@ path = "integration_slt_tpch.rs"
 harness = false
 name = "integration_slt_tpcds"
 path = "integration_slt_tpcds.rs"
+
+[[test]]
+harness = false
+name = "integration_slt_dbgen"
+path = "integration_slt_dbgen.rs"
 
 [[test]]
 harness = false
