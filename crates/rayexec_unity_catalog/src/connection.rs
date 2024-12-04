@@ -4,18 +4,18 @@ use std::marker::PhantomData;
 use futures::future::BoxFuture;
 use futures::{stream, Stream};
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::database::catalog_entry::TableEntry;
 use rayexec_execution::database::memory_catalog::MemoryCatalog;
 use rayexec_execution::datasource::take_option;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::catalog_storage::CatalogStorage;
-use rayexec_io::http::reqwest::{Method, Request};
-use rayexec_io::http::{read_json, HttpClient};
+use rayexec_io::http::reqwest::{Method, Request, StatusCode};
+use rayexec_io::http::{read_json, read_text, HttpClient, HttpResponse};
 use serde::de::DeserializeOwned;
 use url::Url;
 
-use crate::rest::ListUnitySchemasResponse;
+use crate::rest::{UnityListSchemasResponse, UnityListTablesResponse};
 
 /// Key for specifying the endpoint to connect to.
 pub const ENDPOINT_OPTION_KEY: &str = "endpoint";
@@ -50,7 +50,7 @@ impl<R: Runtime> UnityCatalogConnection<R> {
     pub fn list_schemas(
         &self,
         catalog_name: &str,
-    ) -> Result<UnityListStream<R::HttpClient, ListUnitySchemasResponse>> {
+    ) -> Result<UnityListStream<R::HttpClient, UnityListSchemasResponse>> {
         let mut url = self
             .endpoint
             .join("/api/2.1/unity-catalog/schemas")
@@ -58,6 +58,24 @@ impl<R: Runtime> UnityCatalogConnection<R> {
 
         url.query_pairs_mut()
             .append_pair("catalog_name", catalog_name);
+
+        Ok(UnityListStream::new(self.client.clone(), url))
+    }
+
+    pub fn list_tables(
+        &self,
+        catalog_name: &str,
+        schema_name: &str,
+    ) -> Result<UnityListStream<R::HttpClient, UnityListTablesResponse>> {
+        let mut url = self
+            .endpoint
+            .join("/api/2.1/unity-catalog/tables")
+            .context("failed to build url")?;
+
+        url.query_pairs_mut()
+            .append_pair("catalog_name", catalog_name);
+        url.query_pairs_mut()
+            .append_pair("schema_name", schema_name);
 
         Ok(UnityListStream::new(self.client.clone(), url))
     }
@@ -113,14 +131,38 @@ where
         }
     }
 
+    /// Read the next set of results.
+    ///
+    /// Returns Ok(None) once the list has been exhausted.
     pub async fn read_next(&mut self) -> Result<Option<R>> {
         if self.did_request && self.page_token.is_none() {
             // Nothing more the request.
             return Ok(None);
         }
 
+        let mut url = self.url.clone();
+        // Set page token to get the next page in the list if we need to.
+        if let Some(page_token) = &self.page_token {
+            url.query_pairs_mut().append_pair("page_token", page_token);
+        }
+
         let req = Request::new(Method::GET, self.url.clone());
         let resp = self.client.do_request(req).await?;
+        if resp.status() != StatusCode::OK {
+            let status = resp.status();
+            match read_text(resp).await {
+                Ok(text) => {
+                    return Err(RayexecError::new(format!(
+                        "Expect 200 OK, got {status}. Response text: {text}",
+                    )))
+                }
+                Err(_) => {
+                    // TODO: Do something with the error.
+                    return Err(RayexecError::new(format!("Expect 200 OK, got {status}",)));
+                }
+            }
+        }
+
         let resp = read_json::<R>(resp).await?;
 
         self.page_token = resp.next_page_token().map(|s| s.to_string());
@@ -129,6 +171,7 @@ where
         Ok(Some(resp))
     }
 
+    /// Turns self into an async stream returning response bodies.
     pub fn into_stream(self) -> impl Stream<Item = Result<R>> {
         stream::unfold(self, |mut state| async move {
             match state.read_next().await {
