@@ -68,7 +68,7 @@ impl ScalarFunction for RegexpReplace {
             .collect::<Result<Vec<_>>>()?;
 
         for datatype in &datatypes {
-            if (datatype != &DataType::Utf8) && (datatype != &DataType::LargeUtf8) {
+            if datatype != &DataType::Utf8 {
                 return Err(invalid_input_types_error(self, &datatypes));
             }
         }

@@ -73,7 +73,7 @@ struct MagicScanColumnReplacer<'a> {
     updated: &'a HashMap<ColumnExpr, Expression>,
 }
 
-impl<'a> MagicScanColumnReplacer<'a> {
+impl MagicScanColumnReplacer<'_> {
     fn walk_plan(&self, plan: &mut LogicalOperator) -> Result<()> {
         match plan {
             LogicalOperator::MagicMaterializationScan(scan) if scan.node.mat == self.mat => {

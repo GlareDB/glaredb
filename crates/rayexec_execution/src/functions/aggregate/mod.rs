@@ -321,7 +321,7 @@ impl<'a> ChunkGroupAddressIter<'a> {
     }
 }
 
-impl<'a> Iterator for ChunkGroupAddressIter<'a> {
+impl Iterator for ChunkGroupAddressIter<'_> {
     type Item = RowToStateMapping;
 
     #[inline]

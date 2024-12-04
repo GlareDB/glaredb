@@ -20,18 +20,11 @@ impl FunctionInfo for Repeat {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64],
-                variadic: None,
-                return_type: DataTypeId::Utf8,
-            },
-            Signature {
-                input: &[DataTypeId::LargeUtf8, DataTypeId::Int64],
-                variadic: None,
-                return_type: DataTypeId::LargeUtf8,
-            },
-        ]
+        &[Signature {
+            input: &[DataTypeId::Utf8, DataTypeId::Int64],
+            variadic: None,
+            return_type: DataTypeId::Utf8,
+        }]
     }
 }
 
@@ -44,7 +37,6 @@ impl ScalarFunction for Repeat {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8Impl)),
-            (DataType::LargeUtf8, DataType::Int64) => Ok(Box::new(RepeatUtf8Impl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }

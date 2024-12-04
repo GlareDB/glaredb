@@ -145,12 +145,10 @@ fn to_parquet_type(field: &Field) -> Result<Type> {
                 .with_logical_type(logical_type)
                 .build()
         }
-        DataType::Utf8 | DataType::LargeUtf8 => {
-            Type::primitive_type_builder(&field.name, PhysicalType::BYTE_ARRAY)
-                .with_repetition(rep)
-                .with_logical_type(Some(LogicalType::String))
-                .build()
-        }
+        DataType::Utf8 => Type::primitive_type_builder(&field.name, PhysicalType::BYTE_ARRAY)
+            .with_repetition(rep)
+            .with_logical_type(Some(LogicalType::String))
+            .build(),
         other => {
             return Err(RayexecError::new(format!(
                 "Unimplemented type conversion to parquet type: {other}"

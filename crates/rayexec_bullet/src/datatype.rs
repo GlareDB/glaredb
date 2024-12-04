@@ -8,6 +8,11 @@ use crate::executor::physical_type::PhysicalType;
 use crate::field::Field;
 use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 
+/// The 'type' of the dataype.
+///
+/// This is mostly used for determining the input and return types functions
+/// without needing to worry about extra type info (e.g. precision/scale for
+/// decimals).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
     /// Any datatype.
@@ -40,9 +45,7 @@ pub enum DataTypeId {
     Date64,
     Interval,
     Utf8,
-    LargeUtf8,
     Binary,
-    LargeBinary,
     Struct,
     List,
 }
@@ -75,9 +78,7 @@ impl ProtoConv for DataTypeId {
             Self::Date64 => Self::ProtoType::Date64,
             Self::Interval => Self::ProtoType::Interval,
             Self::Utf8 => Self::ProtoType::Utf8,
-            Self::LargeUtf8 => Self::ProtoType::LargeUtf8,
             Self::Binary => Self::ProtoType::Binary,
-            Self::LargeBinary => Self::ProtoType::LargeBinary,
             Self::Struct => Self::ProtoType::Struct,
             Self::List => Self::ProtoType::List,
         })
@@ -109,9 +110,7 @@ impl ProtoConv for DataTypeId {
             Self::ProtoType::Date64 => Self::Date64,
             Self::ProtoType::Interval => Self::Interval,
             Self::ProtoType::Utf8 => Self::Utf8,
-            Self::ProtoType::LargeUtf8 => Self::LargeUtf8,
             Self::ProtoType::Binary => Self::Binary,
-            Self::ProtoType::LargeBinary => Self::LargeBinary,
             Self::ProtoType::Struct => Self::Struct,
             Self::ProtoType::List => Self::List,
         })
@@ -144,9 +143,7 @@ impl fmt::Display for DataTypeId {
             Self::Date64 => write!(f, "Date64"),
             Self::Interval => write!(f, "Interval"),
             Self::Utf8 => write!(f, "Utf8"),
-            Self::LargeUtf8 => write!(f, "LargeUtf8"),
             Self::Binary => write!(f, "Binary"),
-            Self::LargeBinary => write!(f, "LargeBinary"),
             Self::Struct => write!(f, "Struct"),
             Self::List => write!(f, "List"),
         }
@@ -353,9 +350,7 @@ pub enum DataType {
     /// Some time interval with nanosecond resolution.
     Interval,
     Utf8,
-    LargeUtf8,
     Binary,
-    LargeBinary,
     /// A struct of different types.
     Struct(StructTypeMeta),
     /// A list of values all of the same type.
@@ -403,9 +398,7 @@ impl DataType {
             DataTypeId::Date64 => DataType::Date64,
             DataTypeId::Interval => DataType::Interval,
             DataTypeId::Utf8 => DataType::Utf8,
-            DataTypeId::LargeUtf8 => DataType::LargeUtf8,
             DataTypeId::Binary => DataType::Binary,
-            DataTypeId::LargeBinary => DataType::LargeBinary,
             DataTypeId::Struct => {
                 return Err(RayexecError::new("Cannot create a default Struct datatype"))
             }
@@ -440,9 +433,7 @@ impl DataType {
             DataType::Date64 => DataTypeId::Date64,
             DataType::Interval => DataTypeId::Interval,
             DataType::Utf8 => DataTypeId::Utf8,
-            DataType::LargeUtf8 => DataTypeId::LargeUtf8,
             DataType::Binary => DataTypeId::Binary,
-            DataType::LargeBinary => DataTypeId::LargeBinary,
             DataType::Struct(_) => DataTypeId::Struct,
             DataType::List(_) => DataTypeId::List,
         }
@@ -472,9 +463,7 @@ impl DataType {
             DataType::Date64 => PhysicalType::Int64,
             DataType::Interval => PhysicalType::Interval,
             DataType::Utf8 => PhysicalType::Utf8,
-            DataType::LargeUtf8 => PhysicalType::Utf8,
             DataType::Binary => PhysicalType::Binary,
-            DataType::LargeBinary => PhysicalType::Binary,
             DataType::Struct(_) => not_implemented!("struct data type to physical type"),
             DataType::List(_) => PhysicalType::List,
         })
@@ -491,7 +480,7 @@ impl DataType {
     }
 
     pub const fn is_utf8(&self) -> bool {
-        matches!(self, DataType::Utf8 | DataType::LargeUtf8)
+        matches!(self, DataType::Utf8)
     }
 
     pub const fn is_primitive_numeric(&self) -> bool {
@@ -585,9 +574,7 @@ impl ProtoConv for DataType {
             DataType::Date64 => Value::TypeDate64(EmptyMeta {}),
             DataType::Interval => Value::TypeInterval(EmptyMeta {}),
             DataType::Utf8 => Value::TypeUtf8(EmptyMeta {}),
-            DataType::LargeUtf8 => Value::TypeLargeUtf8(EmptyMeta {}),
             DataType::Binary => Value::TypeBinary(EmptyMeta {}),
-            DataType::LargeBinary => Value::TypeLargeBinary(EmptyMeta {}),
             DataType::Struct(m) => Value::TypeStruct(m.to_proto()?),
             DataType::List(m) => Value::TypeList(Box::new(m.to_proto()?)),
         };
@@ -620,9 +607,7 @@ impl ProtoConv for DataType {
             Value::TypeDate64(_) => DataType::Date64,
             Value::TypeInterval(_) => DataType::Interval,
             Value::TypeUtf8(_) => DataType::Utf8,
-            Value::TypeLargeUtf8(_) => DataType::LargeUtf8,
             Value::TypeBinary(_) => DataType::Binary,
-            Value::TypeLargeBinary(_) => DataType::LargeBinary,
             Value::TypeStruct(m) => DataType::Struct(StructTypeMeta::from_proto(m)?),
             Value::TypeList(m) => DataType::List(ListTypeMeta::from_proto(*m)?),
         })
@@ -654,9 +639,7 @@ impl fmt::Display for DataType {
             Self::Date64 => write!(f, "Date64"),
             Self::Interval => write!(f, "Interval"),
             Self::Utf8 => write!(f, "Utf8"),
-            Self::LargeUtf8 => write!(f, "LargeUtf8"),
             Self::Binary => write!(f, "Binary"),
-            Self::LargeBinary => write!(f, "LargeBinary"),
             Self::Struct(meta) => {
                 write!(
                     f,

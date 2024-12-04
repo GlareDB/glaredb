@@ -265,7 +265,7 @@ impl<W: io::Write> LineEditor<W> {
 
     /// Compute number of rows of the current buffer.
     const fn rows(&self) -> usize {
-        (self.prompt.len() + self.len + self.cols - 1) / self.cols
+        (self.prompt.len() + self.len).div_ceil(self.cols)
     }
 
     /// Get the current row relative to the cursor.

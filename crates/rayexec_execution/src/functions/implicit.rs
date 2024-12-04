@@ -34,7 +34,7 @@ pub const fn implicit_cast_score(have: &DataType, want: DataTypeId) -> Option<u3
         DataType::Float64 => return float64_cast_score(want),
 
         // String casts
-        DataType::Utf8 | DataType::LargeUtf8 => match want {
+        DataType::Utf8 => match want {
             DataTypeId::Int8
             | DataTypeId::Int16
             | DataTypeId::Int32
@@ -50,7 +50,7 @@ pub const fn implicit_cast_score(have: &DataType, want: DataTypeId) -> Option<u3
 
             // Non-zero since it's a valid cast, just we would prefer something
             // else.
-            DataTypeId::Utf8 | DataTypeId::LargeUtf8 => return Some(1),
+            DataTypeId::Utf8 => return Some(1),
             _ => (),
         },
         _ => (),
@@ -233,10 +233,6 @@ mod tests {
         assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Int32).is_some());
         assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Timestamp).is_some());
         assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Interval).is_some());
-
-        assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::Int32).is_some());
-        assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::Timestamp).is_some());
-        assert!(implicit_cast_score(&DataType::LargeUtf8, DataTypeId::Interval).is_some());
     }
 
     #[test]

@@ -332,7 +332,7 @@ impl<'a> BitmapIter<'a> {
     }
 }
 
-impl<'a> Iterator for BitmapIter<'a> {
+impl Iterator for BitmapIter<'_> {
     type Item = bool;
 
     #[inline]
@@ -367,7 +367,7 @@ impl<'a> Iterator for BitmapIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for BitmapIter<'a> {}
+impl ExactSizeIterator for BitmapIter<'_> {}
 
 /// Iterator over all "valid" indexes in the bitmap.
 #[derive(Debug)]
@@ -377,7 +377,7 @@ pub struct BitmapIndexIter<'a> {
     bitmap: &'a Bitmap,
 }
 
-impl<'a> Iterator for BitmapIndexIter<'a> {
+impl Iterator for BitmapIndexIter<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -398,7 +398,7 @@ impl<'a> Iterator for BitmapIndexIter<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for BitmapIndexIter<'a> {
+impl DoubleEndedIterator for BitmapIndexIter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             if self.front >= self.back {

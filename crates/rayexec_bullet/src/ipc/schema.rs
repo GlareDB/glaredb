@@ -16,7 +16,6 @@ use crate::ipc::gen::schema::{
     DecimalBuilder,
     FieldBuilder,
     IntBuilder,
-    LargeUtf8Builder,
     NullBuilder,
     SchemaBuilder,
     Utf8Builder,
@@ -102,10 +101,8 @@ pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
                 }
             }
         }
-        IpcType::Utf8 => DataType::Utf8,
-        IpcType::LargeUtf8 => DataType::LargeUtf8,
-        IpcType::Binary => DataType::Binary,
-        IpcType::LargeBinary => DataType::LargeBinary,
+        IpcType::Utf8 | IpcType::LargeUtf8 => DataType::Utf8,
+        IpcType::Binary | IpcType::LargeBinary => DataType::Binary,
         other => {
             return Err(RayexecError::new(format!(
                 "Unsupported ipc type: {:?}",
@@ -208,11 +205,6 @@ pub fn field_to_ipc<'a>(
         DataType::Utf8 => (
             IpcType::Utf8,
             Utf8Builder::new(builder).finish().as_union_value(),
-            empty_children.clone(),
-        ),
-        DataType::LargeUtf8 => (
-            IpcType::LargeUtf8,
-            LargeUtf8Builder::new(builder).finish().as_union_value(),
             empty_children.clone(),
         ),
 

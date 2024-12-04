@@ -185,7 +185,7 @@ mod tests {
             buffer: GermanVarlenBuffer::<str>::with_len(4),
         };
 
-        fn my_string_double<'a, B>(s: &str, buf: &mut OutputBuffer<B>)
+        fn my_string_double<B>(s: &str, buf: &mut OutputBuffer<B>)
         where
             B: ArrayDataBuffer<Type = str>,
         {

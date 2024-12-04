@@ -89,7 +89,7 @@ pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Resu
         }
 
         // String to anything else.
-        DataType::Utf8 | DataType::LargeUtf8 => cast_from_utf8(arr, to, behavior)?,
+        DataType::Utf8 => cast_from_utf8(arr, to, behavior)?,
 
         // Primitive numerics to other primitive numerics.
         DataType::Int8 if to.is_primitive_numeric() => {

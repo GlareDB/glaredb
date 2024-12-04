@@ -33,7 +33,7 @@ impl From<Bitmap> for BooleanStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanStorageRef<'a>(&'a Bitmap);
 
-impl<'a> AddressableStorage for BooleanStorageRef<'a> {
+impl AddressableStorage for BooleanStorageRef<'_> {
     type T = bool;
 
     fn len(&self) -> usize {

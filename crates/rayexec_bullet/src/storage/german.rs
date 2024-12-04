@@ -242,7 +242,7 @@ impl<'a> Iterator for GermanVarlenIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for GermanVarlenIter<'a> {}
+impl ExactSizeIterator for GermanVarlenIter<'_> {}
 
 #[derive(Debug)]
 pub struct GermanVarlenStorageSlice<'a> {

@@ -40,7 +40,7 @@ pub struct AwsRequestAuthorizer<'a> {
     pub region: &'a str,
 }
 
-impl<'a> AwsRequestAuthorizer<'a> {
+impl AwsRequestAuthorizer<'_> {
     /// Authorizes a request for s3 with a set of credentials.
     ///
     /// See <https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html>

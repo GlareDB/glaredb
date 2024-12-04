@@ -249,7 +249,7 @@ impl Array {
     pub fn physical_type(&self) -> PhysicalType {
         match self.data.physical_type() {
             PhysicalType::Binary => match self.datatype {
-                DataType::Utf8 | DataType::LargeUtf8 => PhysicalType::Utf8,
+                DataType::Utf8 => PhysicalType::Utf8,
                 _ => PhysicalType::Binary,
             },
             other => other,
@@ -549,7 +549,7 @@ impl Array {
                 ArrayData::Interval(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Utf8 | DataType::LargeUtf8 => {
+            DataType::Utf8 => {
                 let v = match &self.data {
                     ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
@@ -565,7 +565,7 @@ impl Array {
                 let s = std::str::from_utf8(v).context("binary data not valid utf8")?;
                 s.into()
             }
-            DataType::Binary | DataType::LargeBinary => {
+            DataType::Binary => {
                 let v = match &self.data {
                     ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)

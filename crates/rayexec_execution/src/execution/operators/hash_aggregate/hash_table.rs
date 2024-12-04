@@ -545,7 +545,7 @@ mod tests {
         // 17 unique groups (> initial 16 capacity)
 
         let groups = [Array::from_iter(0..17)];
-        let inputs = [Array::from_iter(0 as i64..17 as i64)];
+        let inputs = [Array::from_iter(0_i64..17_i64)];
 
         let hashes = vec![44; 17]; // All hashes collide.
 
@@ -561,7 +561,7 @@ mod tests {
         // resize by doubling didn't increase capacity enough.
 
         let groups = [Array::from_iter(0..33)];
-        let inputs = [Array::from_iter(0 as i64..33 as i64)];
+        let inputs = [Array::from_iter(0_i64..33_i64)];
 
         let hashes = vec![44; 33]; // All hashes collide.
 

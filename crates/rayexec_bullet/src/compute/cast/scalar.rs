@@ -255,7 +255,6 @@ pub fn cast_scalar(scalar: ScalarValue, to: &DataType) -> Result<OwnedScalarValu
 
         // To Utf8
         (v, DataType::Utf8) => ScalarValue::Utf8(v.to_string().into()),
-        (v, DataType::LargeUtf8) => ScalarValue::Utf8(v.to_string().into()),
 
         (scalar, to) => {
             return Err(RayexecError::new(format!(

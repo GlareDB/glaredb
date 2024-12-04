@@ -58,7 +58,7 @@ impl AggregateFunction for StringAgg {
             .collect::<Result<Vec<_>>>()?;
 
         match &datatypes[0] {
-            DataType::Utf8 | DataType::LargeUtf8 => (),
+            DataType::Utf8 => (),
             _ => return Err(invalid_input_types_error(self, &datatypes)),
         }
 
