@@ -28,8 +28,6 @@
 //!   as it can. Once the statement is returned, we can send it off to an
 //!   instance (the cloud) this is able to complete the binding process. This is
 //!   for hybrid exec.
-pub mod scope;
-
 pub mod plan_from;
 pub mod plan_statement;
 
