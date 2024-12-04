@@ -27,18 +27,11 @@ impl FunctionInfo for StartsWith {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Utf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-            Signature {
-                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
-        ]
+        &[Signature {
+            input: &[DataTypeId::Utf8, DataTypeId::Utf8],
+            variadic: None,
+            return_type: DataTypeId::Boolean,
+        }]
     }
 }
 
@@ -66,7 +59,6 @@ impl ScalarFunction for StartsWith {
 
         match (&datatypes[0], &datatypes[1]) {
             (DataType::Utf8, DataType::Utf8) => (),
-            (DataType::LargeUtf8, DataType::LargeUtf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
 

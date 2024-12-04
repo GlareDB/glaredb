@@ -119,17 +119,7 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
         return_type: DataTypeId::Boolean,
     },
     Signature {
-        input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
-        variadic: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
         input: &[DataTypeId::Binary, DataTypeId::Binary],
-        variadic: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        input: &[DataTypeId::LargeBinary, DataTypeId::LargeBinary],
         variadic: None,
         return_type: DataTypeId::Boolean,
     },
@@ -474,9 +464,7 @@ impl ScalarFunction for Eq {
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
-            | (DataType::LargeUtf8, DataType::LargeUtf8)
-            | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(EqImpl)),
+            | (DataType::Binary, DataType::Binary) => Ok(Box::new(EqImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -545,9 +533,7 @@ impl ScalarFunction for Neq {
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
-            | (DataType::LargeUtf8, DataType::LargeUtf8)
-            | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(NeqImpl)),
+            | (DataType::Binary, DataType::Binary) => Ok(Box::new(NeqImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -612,9 +598,7 @@ impl ScalarFunction for Lt {
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
-            | (DataType::LargeUtf8, DataType::LargeUtf8)
-            | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtImpl)),
+            | (DataType::Binary, DataType::Binary) => Ok(Box::new(LtImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -679,9 +663,7 @@ impl ScalarFunction for LtEq {
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
-            | (DataType::LargeUtf8, DataType::LargeUtf8)
-            | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(LtEqImpl)),
+            | (DataType::Binary, DataType::Binary) => Ok(Box::new(LtEqImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -746,9 +728,7 @@ impl ScalarFunction for Gt {
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
-            | (DataType::LargeUtf8, DataType::LargeUtf8)
-            | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtImpl)),
+            | (DataType::Binary, DataType::Binary) => Ok(Box::new(GtImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -813,9 +793,7 @@ impl ScalarFunction for GtEq {
             | (DataType::Date32, DataType::Date32)
             | (DataType::Date64, DataType::Date64)
             | (DataType::Utf8, DataType::Utf8)
-            | (DataType::LargeUtf8, DataType::LargeUtf8)
-            | (DataType::Binary, DataType::Binary)
-            | (DataType::LargeBinary, DataType::LargeBinary) => Ok(Box::new(GtEqImpl)),
+            | (DataType::Binary, DataType::Binary) => Ok(Box::new(GtEqImpl)),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }

@@ -43,7 +43,7 @@ pub fn schema_to_types(schema: &Schema) -> Vec<DefaultColumnType> {
             | DataType::UInt32
             | DataType::UInt64 => DefaultColumnType::Integer,
             DataType::Float32 | DataType::Float64 => DefaultColumnType::FloatingPoint,
-            DataType::Utf8 | DataType::LargeUtf8 | DataType::Boolean => DefaultColumnType::Text,
+            DataType::Utf8 | DataType::Boolean => DefaultColumnType::Text,
             _ => DefaultColumnType::Any,
         };
         typs.push(typ);

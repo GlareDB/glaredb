@@ -158,8 +158,7 @@ impl RowGroupWriter {
                 | DataType::Timestamp(_)
                 | DataType::Decimal64(_)
                 | DataType::Decimal128(_)
-                | DataType::Utf8
-                | DataType::LargeUtf8 => {
+                | DataType::Utf8 => {
                     let page_writer = BufferedPageWriter {
                         buf: ColumnBuffer(Vec::new()), // TODO: Could reuse across row groups.
                     };

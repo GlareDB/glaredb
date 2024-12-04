@@ -31,11 +31,6 @@ impl FunctionInfo for Like {
                 variadic: None,
                 return_type: DataTypeId::Boolean,
             },
-            Signature {
-                input: &[DataTypeId::LargeUtf8, DataTypeId::LargeUtf8],
-                variadic: None,
-                return_type: DataTypeId::Boolean,
-            },
         ]
     }
 }
@@ -69,7 +64,6 @@ impl ScalarFunction for Like {
 
         match (&datatypes[0], &datatypes[1]) {
             (DataType::Utf8, DataType::Utf8) => (),
-            (DataType::LargeUtf8, DataType::LargeUtf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
 
