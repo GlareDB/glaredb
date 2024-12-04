@@ -11,6 +11,11 @@ pub struct Benchmark {
     pub setup: Vec<String>,
     /// The benchmark queries.
     pub queries: Vec<String>,
+    /// Rows that we should expect in the results.
+    ///
+    /// Optional since we need to differentiate between 'results' not provided,
+    /// or if we expect no rows.
+    pub expected_rows: Option<Vec<String>>,
 }
 
 impl Benchmark {
@@ -46,11 +51,13 @@ impl Benchmark {
 
         let mut setup = Vec::new();
         let mut queries = Vec::new();
+        let mut result_lines = Vec::new();
 
         let mut current_section: Option<&mut Vec<String>> = None;
 
         let mut setup_finished = false;
-        let mut query_buffer = String::new();
+        let mut results_specified = false;
+        let mut string_buf = String::new();
 
         for line in lines {
             let line = line.context("failed to get line")?;
@@ -66,44 +73,72 @@ impl Benchmark {
                     // Files should be read and executed top-to-bottom, enforce
                     // that by not allowing a setup to happen after reading in a
                     // 'run' query.
-                    if setup_finished {
+                    if setup_finished || results_specified {
                         return Err(RayexecError::new(
-                            "'setup' queries must come before 'run' queries",
+                            "'setup' queries must come before 'run' queries and 'results'",
                         ));
                     }
 
-                    flush_query_buffer(&mut query_buffer, &mut current_section)?;
+                    flush_string_buffer(&mut string_buf, &mut current_section)?;
                     current_section = Some(&mut setup);
                 }
                 "run" => {
+                    if results_specified {
+                        return Err(RayexecError::new("'run' queries must come before results"));
+                    }
+
                     setup_finished = true;
-                    flush_query_buffer(&mut query_buffer, &mut current_section)?;
+                    flush_string_buffer(&mut string_buf, &mut current_section)?;
                     current_section = Some(&mut queries);
+                }
+                "results" => {
+                    if results_specified {
+                        return Err(RayexecError::new("Cannot specify 'results' multiple times"));
+                    }
+
+                    results_specified = true;
+                    flush_string_buffer(&mut string_buf, &mut current_section)?;
+
+                    current_section = Some(&mut result_lines);
+
+                    if queries.len() != 1 {
+                        return Err(RayexecError::new(
+                            "'results' may only be specified for a single benchmark query",
+                        ));
+                    }
                 }
                 _ => {
                     // Append the line to the query buffer
-                    if !query_buffer.is_empty() {
-                        query_buffer.push('\n');
+                    if !string_buf.is_empty() {
+                        string_buf.push('\n');
                     }
                     // Push the original line to preserve whitespace.
-                    query_buffer.push_str(&line);
+                    string_buf.push_str(&line);
                 }
             }
         }
 
-        flush_query_buffer(&mut query_buffer, &mut current_section)?;
+        flush_string_buffer(&mut string_buf, &mut current_section)?;
 
         // Setup can be empty, but benchmark queries cannot.
         if queries.is_empty() {
             return Err(RayexecError::new("No benchmark queries"));
         }
 
-        Ok(Benchmark { setup, queries })
+        Ok(Benchmark {
+            setup,
+            queries,
+            expected_rows: if results_specified {
+                Some(result_lines)
+            } else {
+                None
+            },
+        })
     }
 }
 
 /// Flush the query buffer to the current section
-fn flush_query_buffer(
+fn flush_string_buffer(
     query_buffer: &mut String,
     current_section: &mut Option<&mut Vec<String>>,
 ) -> Result<()> {
