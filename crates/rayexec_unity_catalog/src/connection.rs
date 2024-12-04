@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::pin::Pin;
 
-use futures::future::BoxFuture;
 use futures::{stream, Stream};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::database::catalog_entry::TableEntry;
-use rayexec_execution::database::memory_catalog::MemoryCatalog;
 use rayexec_execution::datasource::take_option;
 use rayexec_execution::runtime::Runtime;
-use rayexec_execution::storage::catalog_storage::CatalogStorage;
 use rayexec_io::http::reqwest::{Method, Request, StatusCode};
 use rayexec_io::http::{read_json, read_text, HttpClient, HttpResponse};
 use serde::de::DeserializeOwned;
@@ -17,15 +14,26 @@ use url::Url;
 
 use crate::rest::{UnityListSchemasResponse, UnityListTablesResponse};
 
+/// Key for specifying the name of the catalog within the unity catalog we want
+/// to connect to.
+pub const CATALOG_OPTION_KEY: &str = "catalog";
+
 /// Key for specifying the endpoint to connect to.
 pub const ENDPOINT_OPTION_KEY: &str = "endpoint";
 
 #[derive(Debug, Clone)]
 pub struct UnityCatalogConnection<R: Runtime> {
+    /// Runtime for providing http client.
     runtime: R,
+    /// Client to use.
     client: R::HttpClient,
     /// Configured endpoint we'll be using for all requests.
     endpoint: Url,
+    /// Catalog name we want to connect to.
+    ///
+    /// Unity can hold multiple "catalogs", but we just want to connect to one
+    /// at a time.
+    catalog_name: String,
 }
 
 impl<R: Runtime> UnityCatalogConnection<R> {
@@ -36,6 +44,8 @@ impl<R: Runtime> UnityCatalogConnection<R> {
         let endpoint = take_option(ENDPOINT_OPTION_KEY, &mut options)?.try_into_string()?;
         let endpoint = Url::parse(&endpoint).context("failed to parse endpoint")?;
 
+        let catalog_name = take_option(CATALOG_OPTION_KEY, &mut options)?.try_into_string()?;
+
         let client = runtime.http_client();
 
         // TODO: Probably a request to ensure endpoint actually exists.
@@ -44,27 +54,24 @@ impl<R: Runtime> UnityCatalogConnection<R> {
             runtime,
             client,
             endpoint,
+            catalog_name,
         })
     }
 
-    pub fn list_schemas(
-        &self,
-        catalog_name: &str,
-    ) -> Result<UnityListStream<R::HttpClient, UnityListSchemasResponse>> {
+    pub fn list_schemas(&self) -> Result<UnityListStream<R::HttpClient, UnityListSchemasResponse>> {
         let mut url = self
             .endpoint
             .join("/api/2.1/unity-catalog/schemas")
             .context("failed to build url")?;
 
         url.query_pairs_mut()
-            .append_pair("catalog_name", catalog_name);
+            .append_pair("catalog_name", &self.catalog_name);
 
         Ok(UnityListStream::new(self.client.clone(), url))
     }
 
     pub fn list_tables(
         &self,
-        catalog_name: &str,
         schema_name: &str,
     ) -> Result<UnityListStream<R::HttpClient, UnityListTablesResponse>> {
         let mut url = self
@@ -73,25 +80,11 @@ impl<R: Runtime> UnityCatalogConnection<R> {
             .context("failed to build url")?;
 
         url.query_pairs_mut()
-            .append_pair("catalog_name", catalog_name);
+            .append_pair("catalog_name", &self.catalog_name);
         url.query_pairs_mut()
             .append_pair("schema_name", schema_name);
 
         Ok(UnityListStream::new(self.client.clone(), url))
-    }
-}
-
-impl<R: Runtime> CatalogStorage for UnityCatalogConnection<R> {
-    fn initial_load(&self, catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>> {
-        unimplemented!()
-    }
-
-    fn persist(&self, catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>> {
-        unimplemented!()
-    }
-
-    fn load_table(&self, schema: &str, name: &str) -> BoxFuture<'_, Result<Option<TableEntry>>> {
-        unimplemented!()
     }
 }
 
