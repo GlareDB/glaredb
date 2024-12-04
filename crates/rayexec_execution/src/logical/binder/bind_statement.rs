@@ -74,7 +74,7 @@ impl StatementBinder<'_> {
             Statement::SetVariable(set) => BoundStatement::SetVar(
                 SetVarBinder::new(root_scope, self.session_vars).bind_set(&mut context, set)?,
             ),
-            Statement::ShowVariable(set) => BoundStatement::ShowVar(
+            Statement::Show(set) => BoundStatement::ShowVar(
                 SetVarBinder::new(root_scope, self.session_vars).bind_show(&mut context, set)?,
             ),
             Statement::ResetVariable(set) => BoundStatement::ResetVar(

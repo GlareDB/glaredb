@@ -1,0 +1,22 @@
+# SHOW SCHEMAS
+
+query T
+SHOW SCHEMAS;
+----
+glare_catalog
+information_schema
+pg_catalog
+temp
+
+statement ok
+CREATE SCHEMA temp.s1;
+
+query T
+SHOW SCHEMAS;
+----
+glare_catalog
+information_schema
+pg_catalog
+s1
+temp
+

@@ -33,19 +33,6 @@ impl AstParseable for SetVariable<Raw> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ShowVariable<T: AstMeta> {
-    pub reference: T::ItemReference,
-}
-
-impl AstParseable for ShowVariable<Raw> {
-    fn parse(parser: &mut Parser) -> Result<Self> {
-        parser.expect_keyword(Keyword::SHOW)?;
-        let name = ObjectReference::parse(parser)?;
-        Ok(ShowVariable { reference: name })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum VariableOrAll<T: AstMeta> {
     Variable(T::ItemReference),
     All,

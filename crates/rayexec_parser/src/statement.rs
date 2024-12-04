@@ -14,7 +14,7 @@ use crate::ast::{
     QueryNode,
     ResetVariable,
     SetVariable,
-    ShowVariable,
+    Show,
 };
 use crate::meta::{AstMeta, Raw};
 
@@ -56,7 +56,9 @@ pub enum Statement<T: AstMeta> {
     SetVariable(SetVariable<T>),
 
     /// SHOW <variable>
-    ShowVariable(ShowVariable<T>),
+    /// SHOW DATABASES
+    /// ...
+    Show(Show<T>),
 
     /// RESET <variable>
     ResetVariable(ResetVariable<T>),

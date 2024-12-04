@@ -1,5 +1,7 @@
 pub mod copy;
+pub mod show;
 pub use copy::*;
+pub use show::*;
 pub mod describe;
 pub use describe::*;
 pub mod create_table;

@@ -30,6 +30,12 @@ use serde::{Deserialize, Serialize};
 
 use super::binder::bind_context::TableAlias;
 use super::binder::expr_binder::BaseExpressionBinder;
+use crate::database::builtin_views::{
+    BuiltinView,
+    SHOW_DATABASES_VIEW,
+    SHOW_SCHEMAS_VIEW,
+    SHOW_TABLES_VIEW,
+};
 use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::DatabaseContext;
@@ -63,6 +69,10 @@ impl AstMeta for ResolvedMeta {
     type DataType = DataType;
     type CopyToDestination = FileLocation;
     type CopyToOptions = CopyToArgs;
+    /// SHOW statements will be converted to views if need during the resolve
+    /// step (e.g. for SHOW DATABASES). If we produce a resolved SHOW, it will
+    /// always be pointing to a variable.
+    type ShowReference = ItemReference;
 }
 
 /// Options for a resolved subquery.
@@ -183,9 +193,7 @@ impl<'a> Resolver<'a> {
                     .resolve_expression(set.value, &mut resolve_context)
                     .await?,
             }),
-            Statement::ShowVariable(show) => Statement::ShowVariable(ast::ShowVariable {
-                reference: Self::reference_to_strings(show.reference).into(),
-            }),
+            Statement::Show(show) => self.resolve_show(show, &mut resolve_context).await?,
             Statement::ResetVariable(reset) => Statement::ResetVariable(ast::ResetVariable {
                 var: match reset.var {
                     ast::VariableOrAll::All => ast::VariableOrAll::All,
@@ -201,6 +209,58 @@ impl<'a> Resolver<'a> {
         };
 
         Ok((bound, resolve_context))
+    }
+
+    /// Resolve a SHOW statement.
+    ///
+    /// This may replace the SHOW with a SELECT for special statements (e.g.
+    /// SHOW DATABASES).
+    async fn resolve_show(
+        &self,
+        show: ast::Show<Raw>,
+        resolve_context: &mut ResolveContext,
+    ) -> Result<ResolvedStatement> {
+        let get_view_query = |view: BuiltinView| {
+            let mut stmts = parser::parse(&view.view)?;
+            let stmt = match stmts.len() {
+                1 => stmts.pop().unwrap(),
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected 1 statement, got {other}"
+                    )))
+                }
+            };
+
+            match stmt {
+                Statement::Query(q) => Ok(q),
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected query statement, got {other:?}"
+                    )))
+                }
+            }
+        };
+
+        match show.reference {
+            ast::ShowReference::Variable(var) => Ok(Statement::Show(ast::Show {
+                reference: Self::reference_to_strings(var).into(),
+            })),
+            ast::ShowReference::Databases => {
+                let query = get_view_query(SHOW_DATABASES_VIEW)?;
+                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+                Ok(Statement::Query(query))
+            }
+            ast::ShowReference::Schemas => {
+                let query = get_view_query(SHOW_SCHEMAS_VIEW)?;
+                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+                Ok(Statement::Query(query))
+            }
+            ast::ShowReference::Tables => {
+                let query = get_view_query(SHOW_TABLES_VIEW)?;
+                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+                Ok(Statement::Query(query))
+            }
+        }
     }
 
     async fn resolve_attach(

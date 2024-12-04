@@ -27,7 +27,7 @@ impl<R: Runtime> UnityCatalog<R> {
                     tx,
                     &CreateSchemaInfo {
                         name: schema.name,
-                        on_conflict: OnConflict::Replace,
+                        on_conflict: OnConflict::Ignore,
                     },
                 )?;
             }
