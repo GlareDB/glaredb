@@ -420,8 +420,7 @@ mod tests {
                     .rev(),
             ),
             make_i32_batch(
-                (DEFAULT_TARGET_BATCH_SIZE as i32..(DEFAULT_TARGET_BATCH_SIZE as i32 * 2))
-                    .rev(),
+                (DEFAULT_TARGET_BATCH_SIZE as i32..(DEFAULT_TARGET_BATCH_SIZE as i32 * 2)).rev(),
             ),
             make_i32_batch((0..DEFAULT_TARGET_BATCH_SIZE as i32).rev()),
         ];
