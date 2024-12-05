@@ -1,3 +1,4 @@
+pub mod builtin_views;
 pub mod catalog;
 pub mod catalog_entry;
 pub mod create;

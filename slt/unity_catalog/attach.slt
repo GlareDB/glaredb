@@ -1,0 +1,12 @@
+# ATTACH unity catalog
+
+statement ok
+ATTACH unity DATABASE AS my_unity (endpoint 'http://localhost:8080', catalog 'unity');
+
+query T
+SHOW CATALOGS;
+----
+my_unity
+system
+temp
+

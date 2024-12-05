@@ -59,6 +59,8 @@ use crate::database::create::OnConflict;
 // us have consistent types for catalog/table access without requiring data
 // sources implement that logic.
 
+// TODO: Indicate "caching" variant when caching external catalog objects.
+
 #[derive(Debug, Default)]
 pub struct MemoryCatalog {
     schemas: scc::HashIndex<String, Arc<MemorySchema>>,

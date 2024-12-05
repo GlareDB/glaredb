@@ -782,7 +782,8 @@ where
     Array: FromIterator<F>,
 {
     fn from_iter<T: IntoIterator<Item = Option<F>>>(iter: T) -> Self {
-        // TODO: Whatever. Just need it for tests.
+        // TODO: Make a bit more performant, this is used for more than just
+        // tests now.
         let vals: Vec<_> = iter.into_iter().collect();
         let mut validity = Bitmap::new_with_all_true(vals.len());
 

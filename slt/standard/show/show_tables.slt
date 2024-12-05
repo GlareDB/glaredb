@@ -1,0 +1,6 @@
+# SHOW TABLES
+
+# No asserts yet, need to be able to filter out tables to make testing
+# consistent.
+statement ok
+SHOW TABLES

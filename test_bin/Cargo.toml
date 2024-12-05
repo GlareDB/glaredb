@@ -17,6 +17,7 @@ rayexec_postgres = { path = '../crates/rayexec_postgres' }
 rayexec_parquet = { path = '../crates/rayexec_parquet' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
+rayexec_unity_catalog = { path = '../crates/rayexec_unity_catalog' }
 rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
 rayexec_debug = { path = '../crates/rayexec_debug' }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
@@ -65,6 +66,11 @@ path = "integration_slt_parquet.rs"
 harness = false
 name = "integration_slt_delta"
 path = "integration_slt_delta.rs"
+
+[[test]]
+harness = false
+name = "integration_slt_unity_catalog"
+path = "integration_slt_unity_catalog.rs"
 
 [[test]]
 harness = false

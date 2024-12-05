@@ -1,0 +1,18 @@
+# SHOW DATABASES
+
+# TODO: We probably want to prune out what we actually show.
+query T
+SHOW DATABASES;
+----
+system
+temp
+
+statement ok
+ATTACH memory DATABASE AS my_db;
+
+query T
+SHOW DATABASES;
+----
+my_db
+system
+temp

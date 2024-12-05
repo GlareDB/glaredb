@@ -1,0 +1,14 @@
+[package]
+name = "rayexec_unity_catalog"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_execution = { path = '../rayexec_execution' }
+rayexec_bullet = { path = '../rayexec_bullet' }
+rayexec_io = { path = '../rayexec_io' }
+rayexec_error = { path = '../rayexec_error' }
+futures = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+url = { workspace = true }

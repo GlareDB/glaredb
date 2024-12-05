@@ -61,6 +61,7 @@ pub struct DataSourceConnection {
 ///   the postgres data source will initialize the connection on the tokio
 ///   runtime, but them move the actual streaming of data to the
 ///   ComputeScheduler.
+// TODO: Rename to DataConnector?
 pub trait DataSource: Sync + Send + Debug {
     fn connect(
         &self,

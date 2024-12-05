@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{CopyOption, CopyToTarget, DataType, FunctionArg, ObjectReference};
+use crate::ast::{CopyOption, CopyToTarget, DataType, FunctionArg, ObjectReference, ShowReference};
 
 /// Metadata associated with sql statements.
 ///
@@ -48,6 +48,9 @@ pub trait AstMeta: Clone {
 
     /// Options provided in a COPY TO statement.
     type CopyToOptions: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
+
+    /// Reference for SHOW commands.
+    type ShowReference: Debug + Clone + PartialEq + Serialize + DeserializeOwned;
 }
 
 /// The raw representation of a statement.
@@ -64,4 +67,5 @@ impl AstMeta for Raw {
     type DataType = DataType;
     type CopyToDestination = CopyToTarget;
     type CopyToOptions = Vec<CopyOption<Raw>>;
+    type ShowReference = ShowReference;
 }

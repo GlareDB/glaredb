@@ -32,11 +32,11 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
         &["parquet_scan"]
     }
 
-    fn plan_and_initialize(
+    fn plan_and_initialize<'a>(
         &self,
-        _context: &DatabaseContext,
+        _context: &'a DatabaseContext,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadParquetImpl::initialize(self.clone(), args))
     }
 

@@ -1,6 +1,7 @@
 use rayexec_error::Result;
 
-use super::create::CreateCopyToFunctionInfo;
+use super::builtin_views::BUILTIN_VIEWS;
+use super::create::{CreateCopyToFunctionInfo, CreateViewInfo};
 use super::memory_catalog::MemoryCatalog;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::{
@@ -115,6 +116,19 @@ pub fn new_system_catalog(registry: &DataSourceRegistry) -> Result<MemoryCatalog
                 },
             )?;
         }
+    }
+
+    // Add builtin views.
+    for view in BUILTIN_VIEWS {
+        builtin.create_view(
+            tx,
+            &CreateViewInfo {
+                name: view.name.to_string(),
+                column_aliases: None,
+                on_conflict: OnConflict::Error,
+                query_string: view.view.to_string(),
+            },
+        )?;
     }
 
     // Add data source functions.

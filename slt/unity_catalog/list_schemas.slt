@@ -1,0 +1,13 @@
+# unity_list_schemas function
+
+query TT
+DESCRIBE unity_list_schemas('http://localhost:8080', 'unity');
+----
+name          Utf8
+catalog_name  Utf8
+comment       Utf8
+
+query TTT
+SELECT * FROM unity_list_schemas('http://localhost:8080', 'unity');
+----
+default   unity   Default schema

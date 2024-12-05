@@ -79,7 +79,7 @@ impl<'a> SetVarBinder<'a> {
     pub fn bind_show(
         &self,
         bind_context: &mut BindContext,
-        mut show: ast::ShowVariable<ResolvedMeta>,
+        mut show: ast::Show<ResolvedMeta>,
     ) -> Result<Node<LogicalShowVar>> {
         let name = show.reference.pop()?; // TODO: Allow compound references?
         let var = self.vars.get_var(&name)?;
@@ -109,7 +109,7 @@ mod tests {
         let _ = SetVarBinder::new(scope, &vars)
             .bind_show(
                 &mut context,
-                ast::ShowVariable {
+                ast::Show {
                     reference: vec!["application_name".to_string()].into(),
                 },
             )

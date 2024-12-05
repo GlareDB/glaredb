@@ -1,3 +1,4 @@
+pub mod refresh;
 pub mod series;
 pub mod system;
 
@@ -81,6 +82,12 @@ impl TableFunctionArgs {
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Expected named argument '{name}'")))
     }
+
+    pub fn try_get_position(&self, pos: usize) -> Result<&OwnedScalarValue> {
+        self.positional
+            .get(pos)
+            .ok_or_else(|| RayexecError::new(format!("Expected argument at position {pos}")))
+    }
 }
 
 /// A generic table function provides a way to dispatch to a more specialized
@@ -106,11 +113,11 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
     /// Intialization may include opening connections a remote database, and
     /// should be used determine the schema of the table we'll be returning. Any
     /// connections should remain open through execution.
-    fn plan_and_initialize(
+    fn plan_and_initialize<'a>(
         &self,
-        context: &DatabaseContext,
+        context: &'a DatabaseContext,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>>;
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
 
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>>;
 }

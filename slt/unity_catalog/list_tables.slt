@@ -1,0 +1,21 @@
+# unity_list_tables function
+
+query TT
+DESCRIBE unity_list_tables('http://localhost:8080', 'unity', 'default');
+----
+name                Utf8
+catalog_name        Utf8
+schema_name         Utf8
+table_type          Utf8
+data_source_format  Utf8
+storage_location    Utf8
+comment             Utf8
+
+query TTTTTTT
+SELECT * FROM unity_list_tables('http://localhost:8080', 'unity', 'default') ORDER BY 1;
+----
+marksheet           unity   default   MANAGED    DELTA   file:///opt/unitycatalog/etc/data/managed/unity/default/tables/marksheet/         Managed table
+marksheet_uniform   unity   default   EXTERNAL   DELTA   file:///tmp/marksheet_uniform                                                     Uniform table
+numbers             unity   default   EXTERNAL   DELTA   file:///opt/unitycatalog/etc/data/external/unity/default/tables/numbers/          External table
+user_countries      unity   default   EXTERNAL   DELTA   file:///opt/unitycatalog/etc/data/external/unity/default/tables/user_countries/   Partitioned table
+
