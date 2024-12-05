@@ -16,6 +16,10 @@ pub struct UnityCatalog<R: Runtime> {
 }
 
 impl<R: Runtime> UnityCatalog<R> {
+    pub fn new(connection: UnityCatalogConnection<R>) -> Self {
+        UnityCatalog { connection }
+    }
+
     async fn load_schemas_inner(&self, catalog: &MemoryCatalog) -> Result<()> {
         let mut stream = Box::pin(self.connection.list_schemas()?.into_stream());
 
