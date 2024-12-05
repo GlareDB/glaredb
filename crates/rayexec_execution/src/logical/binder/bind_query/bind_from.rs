@@ -310,7 +310,7 @@ impl<'a> FromBinder<'a> {
         subquery: ast::FromSubquery<ResolvedMeta>,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
-        // We can automaticallly detect lateral joins, doesn't matter what this
+        // We can automatically detect lateral joins, doesn't matter what this
         // is.
         let _ = subquery.lateral;
 
@@ -448,8 +448,7 @@ impl<'a> FromBinder<'a> {
         // Lateral columns are columns from the right the reference the output
         // of the left.
         //
-        // These will be appended to the join conditions to trigger subquery
-        // decorrelation.
+        // These will be passed to the subquery planner for flattening.
         let lateral_columns: Vec<_> = bind_context
             .correlated_columns(right_idx)?
             .iter()
