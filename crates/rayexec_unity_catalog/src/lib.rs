@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod connection;
+pub mod functions;
 pub mod rest;
 
 use std::collections::HashMap;

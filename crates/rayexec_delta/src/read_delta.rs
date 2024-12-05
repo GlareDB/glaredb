@@ -28,12 +28,13 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
         &["delta_scan"]
     }
 
-    fn plan_and_initialize(
+    fn plan_and_initialize<'a>(
         &self,
-        _context: &DatabaseContext,
+        _context: &'a DatabaseContext,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { ReadDeltaImpl::initialize(self.clone(), args).await })
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+        let func = self.clone();
+        Box::pin(async move { ReadDeltaImpl::initialize(func, args).await })
     }
 
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {

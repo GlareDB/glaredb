@@ -246,11 +246,11 @@ impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
         F::NAME
     }
 
-    fn plan_and_initialize(
+    fn plan_and_initialize<'a>(
         &self,
-        context: &DatabaseContext,
+        context: &'a DatabaseContext,
         _args: TableFunctionArgs,
-    ) -> BoxFuture<'_, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         // TODO: Method on args returning an error if not empty.
 
         let databases = context
@@ -264,10 +264,11 @@ impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
             })
             .collect();
 
+        let function = *self;
         Box::pin(async move {
             Ok(Box::new(PlannedSystemFunction {
                 databases,
-                function: *self,
+                function,
             }) as _)
         })
     }

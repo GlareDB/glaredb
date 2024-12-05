@@ -27,11 +27,11 @@ impl TableFunction for GenerateSeries {
         "generate_series"
     }
 
-    fn plan_and_initialize(
+    fn plan_and_initialize<'a>(
         &self,
-        _context: &DatabaseContext,
+        _context: &'a DatabaseContext,
         args: TableFunctionArgs,
-    ) -> BoxFuture<Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { Self::plan_and_initialize_inner(args) })
     }
 

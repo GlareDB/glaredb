@@ -83,11 +83,11 @@ impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
         O::NAME
     }
 
-    fn plan_and_initialize(
+    fn plan_and_initialize<'a>(
         &self,
-        context: &DatabaseContext,
+        context: &'a DatabaseContext,
         args: TableFunctionArgs,
-    ) -> BoxFuture<'_, Result<Box<dyn super::PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn super::PlannedTableFunction>>> {
         unimplemented!()
     }
 
