@@ -47,14 +47,14 @@ pub struct UnityTableInfo {
     pub data_source_format: String,
     pub columns: Vec<UnityColumnInfo>,
     pub storage_location: String,
-    pub comment: String,
+    pub comment: Option<String>,
     // pub properties: HashMap<String, String>,
-    pub owner: String,
-    pub created_at: i64,
-    pub created_by: String,
-    pub updated_at: i64,
-    pub updated_by: String,
-    pub table_id: String,
+    pub owner: Option<String>,
+    pub created_at: Option<i64>,
+    pub created_by: Option<String>,
+    pub updated_at: Option<i64>,
+    pub updated_by: Option<String>,
+    pub table_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,13 +66,13 @@ pub struct UnityColumnInfo {
     /// TIMESTAMP_NTZ, STRING, BINARY, DECIMAL, INTERVAL, ARRAY, STRUCT, MAP,
     /// CHAR, NULL, USER_DEFINED_TYPE, or TABLE_TYPE
     pub type_name: String,
-    pub type_precision: i32,
-    pub type_scale: i32,
-    pub type_interval_type: String,
+    pub type_precision: Option<i32>,
+    pub type_scale: Option<i32>,
+    pub type_interval_type: Option<String>,
     pub position: i32,
-    pub comment: String,
+    pub comment: Option<String>,
     pub nullable: bool,
-    pub partition_index: i32,
+    pub partition_index: Option<i32>,
 }
 
 impl ListResponseBody for UnityListTablesResponse {

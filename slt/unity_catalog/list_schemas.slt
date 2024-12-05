@@ -7,7 +7,7 @@ name          Utf8
 catalog_name  Utf8
 comment       Utf8
 
-query T
+query TTT
 SELECT * FROM unity_list_schemas('http://localhost:8080', 'unity');
 ----
 default   unity   Default schema

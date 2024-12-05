@@ -20,7 +20,7 @@ use rayexec_execution::storage::table_storage::{
     Projections,
 };
 
-use crate::connection::{UnityCatalogConnection, UnityListStream};
+use crate::connection::UnityCatalogConnection;
 use crate::rest::{UnityListSchemasResponse, UnityListTablesResponse};
 
 pub trait UnityObjectsOperation<R: Runtime>:
@@ -120,6 +120,106 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
                     );
 
                     let batch = Batch::try_new([names, catalog_names, comments])?;
+                    Ok(Some(batch))
+                }
+                None => Ok(None),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListTablesOperation;
+
+#[derive(Debug, Clone)]
+pub struct ListTablesConnectionState<R: Runtime> {
+    conn: UnityCatalogConnection<R>,
+    schema: String,
+}
+
+pub struct ListTablesStreamState {
+    stream: BoxStream<'static, Result<UnityListTablesResponse>>,
+}
+
+impl fmt::Debug for ListTablesStreamState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ListTablesStreamState ").finish()
+    }
+}
+
+impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
+    const NAME: &'static str = "unity_list_tables";
+
+    type ConnectionState = ListTablesConnectionState<R>;
+    type StreamState = ListTablesStreamState;
+
+    fn schema() -> Schema {
+        Schema::new([
+            Field::new("name", DataType::Utf8, false),
+            Field::new("catalog_name", DataType::Utf8, false),
+            Field::new("schema_name", DataType::Utf8, false),
+            Field::new("table_type", DataType::Utf8, false),
+            Field::new("data_source_format", DataType::Utf8, false),
+            Field::new("storage_location", DataType::Utf8, false),
+            Field::new("comment", DataType::Utf8, true),
+        ])
+    }
+
+    fn create_connection_state(
+        runtime: R,
+        _context: &DatabaseContext,
+        args: TableFunctionArgs,
+    ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
+        Box::pin(async move {
+            let endpoint = args.try_get_position(0)?.try_as_str()?;
+            let catalog = args.try_get_position(1)?.try_as_str()?;
+            let schema = args.try_get_position(2)?.try_as_str()?;
+
+            let conn = UnityCatalogConnection::connect(runtime, endpoint, catalog).await?;
+
+            Ok(ListTablesConnectionState {
+                conn,
+                schema: schema.to_string(),
+            })
+        })
+    }
+
+    fn create_stream_state(state: &Self::ConnectionState) -> Result<Self::StreamState> {
+        let stream = Box::pin(state.conn.list_tables(&state.schema)?.into_stream());
+        Ok(ListTablesStreamState { stream })
+    }
+
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>> {
+        Box::pin(async {
+            let resp = state.stream.try_next().await?;
+            match resp {
+                Some(resp) => {
+                    let names = Array::from_iter(resp.tables.iter().map(|s| s.name.as_str()));
+                    let catalog_names =
+                        Array::from_iter(resp.tables.iter().map(|s| s.catalog_name.as_str()));
+                    let schema_names =
+                        Array::from_iter(resp.tables.iter().map(|s| s.schema_name.as_str()));
+                    let table_types =
+                        Array::from_iter(resp.tables.iter().map(|s| s.table_type.as_str()));
+                    let data_source_formats =
+                        Array::from_iter(resp.tables.iter().map(|s| s.data_source_format.as_str()));
+                    let storage_locations =
+                        Array::from_iter(resp.tables.iter().map(|s| s.storage_location.as_str()));
+                    let comments = Array::from_iter(
+                        resp.tables
+                            .iter()
+                            .map(|s| s.comment.as_ref().map(|c| c.as_str())),
+                    );
+
+                    let batch = Batch::try_new([
+                        names,
+                        catalog_names,
+                        schema_names,
+                        table_types,
+                        data_source_formats,
+                        storage_locations,
+                        comments,
+                    ])?;
                     Ok(Some(batch))
                 }
                 None => Ok(None),

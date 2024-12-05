@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use catalog::UnityCatalog;
 use connection::{UnityCatalogConnection, CATALOG_OPTION_KEY, ENDPOINT_OPTION_KEY};
-use functions::{ListSchemasOperation, UnityObjects};
+use functions::{ListSchemasOperation, ListTablesOperation, UnityObjects};
 use futures::future::BoxFuture;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
@@ -53,8 +53,15 @@ impl<R: Runtime> DataSource for UnityCatalogDataSource<R> {
     }
 
     fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
-        vec![Box::new(UnityObjects::<_, ListSchemasOperation>::new(
-            self.runtime.clone(),
-        ))]
+        vec![
+            // `unity_list_schemas`
+            Box::new(UnityObjects::<_, ListSchemasOperation>::new(
+                self.runtime.clone(),
+            )),
+            // `unity_list_tables`
+            Box::new(UnityObjects::<_, ListTablesOperation>::new(
+                self.runtime.clone(),
+            )),
+        ]
     }
 }
