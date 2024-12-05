@@ -910,6 +910,7 @@ impl<'a> Resolver<'a> {
                         // on the alias too. Need to see what we're doing for
                         // tables and just do the same here.
                         ast::FromNodeBody::Subquery(ast::FromSubquery {
+                            lateral: false,
                             options: ResolvedSubqueryOptions::View {
                                 table_alias: TableAlias {
                                     database: None,
@@ -928,12 +929,15 @@ impl<'a> Resolver<'a> {
                     }
                 }
             }
-            ast::FromNodeBody::Subquery(ast::FromSubquery { options: (), query }) => {
-                ast::FromNodeBody::Subquery(ast::FromSubquery {
-                    options: ResolvedSubqueryOptions::Normal,
-                    query: Box::pin(self.resolve_query(query, resolve_context)).await?,
-                })
-            }
+            ast::FromNodeBody::Subquery(ast::FromSubquery {
+                lateral,
+                options: (),
+                query,
+            }) => ast::FromNodeBody::Subquery(ast::FromSubquery {
+                lateral,
+                options: ResolvedSubqueryOptions::Normal,
+                query: Box::pin(self.resolve_query(query, resolve_context)).await?,
+            }),
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
                 match self.file_handlers.find_match(&path) {
                     Some(handler) => {
@@ -954,6 +958,7 @@ impl<'a> Resolver<'a> {
                         );
 
                         ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                            lateral: false,
                             reference: resolve_idx,
                             // TODO: Not needed.
                             args,
@@ -966,7 +971,11 @@ impl<'a> Resolver<'a> {
                     }
                 }
             }
-            ast::FromNodeBody::TableFunction(ast::FromTableFunction { reference, args }) => {
+            ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                lateral,
+                reference,
+                args,
+            }) => {
                 let args = ExpressionResolver::new(self)
                     .resolve_table_function_args(args)
                     .await?;
@@ -1015,6 +1024,7 @@ impl<'a> Resolver<'a> {
                     .table_functions
                     .push_maybe_resolved(function);
                 ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                    lateral,
                     reference: resolve_idx,
                     // TODO: These args aren't actually needed when bound. Not
                     // sure completely sure what we want to do here.

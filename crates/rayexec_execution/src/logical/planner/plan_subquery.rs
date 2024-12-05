@@ -36,17 +36,79 @@ use crate::logical::statistics::StatisticsValue;
 pub struct SubqueryPlanner;
 
 impl SubqueryPlanner {
-    pub fn plan(
+    /// Plans a subquery expression.
+    pub fn plan_expression(
         &self,
         bind_context: &mut BindContext,
         expr: &mut Expression,
         mut plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
-        self.plan_inner(bind_context, expr, &mut plan)?;
+        self.plan_expression_inner(bind_context, expr, &mut plan)?;
         Ok(plan)
     }
 
-    fn plan_inner(
+    pub fn plan_lateral_join(
+        &self,
+        bind_context: &mut BindContext,
+        left: LogicalOperator,
+        mut right: LogicalOperator,
+        join_type: JoinType,
+        mut conditions: Vec<ComparisonCondition>,
+        lateral_columns: Vec<CorrelatedColumn>,
+    ) -> Result<LogicalOperator> {
+        // Very similar to planning correlated subqueries (becuase it is), just
+        // we already have the correlated columns we're flattening for.
+
+        // Materialize left.
+        let mat_ref = bind_context.new_materialization(left)?;
+        let left = LogicalOperator::MaterializationScan(Node {
+            node: LogicalMaterializationScan { mat: mat_ref },
+            location: LocationRequirement::Any,
+            children: Vec::new(),
+            estimated_cardinality: StatisticsValue::Unknown,
+        });
+        bind_context.inc_materialization_scan_count(mat_ref, 1)?;
+
+        // Flatten right side.
+        let mut planner = DependentJoinPushdown::new(mat_ref, lateral_columns);
+        planner.find_correlations(&right)?;
+        planner.pushdown(bind_context, &mut right)?;
+
+        // Generate additional conditions.
+        for correlated in planner.columns {
+            // Correlated points to left, the materialized side.
+            let left = Expression::Column(ColumnExpr {
+                table_scope: correlated.table,
+                column: correlated.col_idx,
+            });
+
+            let right = planner.column_map.get(&correlated).ok_or_else(|| {
+                RayexecError::new(format!(
+                    "Missing updated right side for correlate column: {correlated:?}"
+                ))
+            })?;
+
+            conditions.push(ComparisonCondition {
+                left,
+                right: Expression::Column(*right),
+                op: ComparisonOperator::Eq,
+            });
+        }
+
+        // Produce the output join with additional comparison conditions.
+        Ok(LogicalOperator::MagicJoin(Node {
+            node: LogicalMagicJoin {
+                mat_ref,
+                join_type,
+                conditions,
+            },
+            location: LocationRequirement::Any,
+            children: vec![left, right],
+            estimated_cardinality: StatisticsValue::Unknown,
+        }))
+    }
+
+    fn plan_expression_inner(
         &self,
         bind_context: &mut BindContext,
         expr: &mut Expression,
@@ -61,7 +123,7 @@ impl SubqueryPlanner {
                 }
             }
             other => other.for_each_child_mut(&mut |expr| {
-                self.plan_inner(bind_context, expr, plan)?;
+                self.plan_expression_inner(bind_context, expr, plan)?;
                 Ok(())
             })?,
         }

@@ -1,7 +1,8 @@
 use rayexec_bullet::scalar::ScalarValue;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use super::plan_query::QueryPlanner;
+use super::plan_subquery::SubqueryPlanner;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
@@ -192,15 +193,16 @@ impl FromPlanner {
         bind_context: &mut BindContext,
         join: BoundJoin,
     ) -> Result<LogicalOperator> {
-        if join.lateral {
-            not_implemented!("LATERAL join")
-        }
-
         let mut left = self.plan(bind_context, *join.left)?;
         let mut right = self.plan(bind_context, *join.right)?;
 
+        let is_lateral = !join.lateral_columns.is_empty();
+
         // Cross join.
-        if join.conditions.is_empty() {
+        //
+        // Note that a CROSS JOIN LATERAL is implicitly an inner join, so we
+        // need to keep planning that.
+        if !is_lateral && join.conditions.is_empty() {
             if !join.conditions.is_empty() {
                 return Err(RayexecError::new("CROSS JOIN should not have conditions"));
             }
@@ -216,7 +218,6 @@ impl FromPlanner {
         let right_tables = right.get_output_table_refs(bind_context);
 
         let extractor = JoinConditionExtractor::new(&left_tables, &right_tables, join.join_type);
-
         let extracted = extractor.extract(join.conditions)?;
 
         if !extracted.left_filter.is_empty() {
@@ -241,6 +242,28 @@ impl FromPlanner {
             })
         }
 
+        if is_lateral {
+            // Special join planning, needing to kick it to subquery planner. We
+            // currently don't support arbitrary expressions for lateral join.
+            if !extracted.arbitrary.is_empty() {
+                return Err(RayexecError::new(
+                    "Arbitrary expressions not yet supported for LATERAL joins",
+                ));
+            }
+
+            let planned = SubqueryPlanner.plan_lateral_join(
+                bind_context,
+                left,
+                right,
+                join.join_type,
+                extracted.comparisons,
+                join.lateral_columns,
+            )?;
+
+            return Ok(planned);
+        }
+
+        // Normal join planning.
         self.plan_join_from_conditions(
             join.join_type,
             extracted.comparisons,

@@ -1,0 +1,22 @@
+# Lateral join tests.
+
+query TTT
+SELECT * FROM (VALUES ('aaa'), ('bbb')) v1(c1),
+    LATERAL (SELECT c1, c2 FROM (VALUES ('ccc'), ('ddd')) v2(c2))
+  ORDER BY 1, 2, 3;
+----
+aaa  aaa  ccc
+aaa  aaa  ddd
+bbb  bbb  ccc
+bbb  bbb  ddd
+
+# Same thing without LATERAL keyword.
+query TTT
+SELECT * FROM (VALUES ('aaa'), ('bbb')) v1(c1),
+    (SELECT c1, c2 FROM (VALUES ('ccc'), ('ddd')) v2(c2))
+  ORDER BY 1, 2, 3;
+----
+aaa  aaa  ccc
+aaa  aaa  ddd
+bbb  bbb  ccc
+bbb  bbb  ddd
