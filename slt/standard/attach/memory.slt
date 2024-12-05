@@ -18,7 +18,7 @@ attach memory database as my_db;
 
 # Memory takes no arguments
 statement error Memory data source takes no options
-attach memory database as my_db2 arg 'hello';
+attach memory database as my_db2 (arg 'hello');
 
 # Can't detach a db that doesn't exist
 statement error Database with name 'does_not_exist' doesn't exist
