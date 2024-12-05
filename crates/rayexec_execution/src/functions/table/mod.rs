@@ -1,3 +1,4 @@
+pub mod refresh;
 pub mod series;
 pub mod system;
 
@@ -80,6 +81,12 @@ impl TableFunctionArgs {
         self.named
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Expected named argument '{name}'")))
+    }
+
+    pub fn try_get_position(&self, pos: usize) -> Result<&OwnedScalarValue> {
+        self.positional
+            .get(pos)
+            .ok_or_else(|| RayexecError::new(format!("Expected argument at position {pos}")))
     }
 }
 
