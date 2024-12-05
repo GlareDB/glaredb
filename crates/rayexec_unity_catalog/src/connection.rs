@@ -23,8 +23,6 @@ pub const ENDPOINT_OPTION_KEY: &str = "endpoint";
 
 #[derive(Debug, Clone)]
 pub struct UnityCatalogConnection<R: Runtime> {
-    /// Runtime for providing http client.
-    runtime: R,
     /// Client to use.
     client: R::HttpClient,
     /// Configured endpoint we'll be using for all requests.
@@ -37,24 +35,16 @@ pub struct UnityCatalogConnection<R: Runtime> {
 }
 
 impl<R: Runtime> UnityCatalogConnection<R> {
-    pub async fn connect(
-        runtime: R,
-        mut options: HashMap<String, OwnedScalarValue>,
-    ) -> Result<Self> {
-        let endpoint = take_option(ENDPOINT_OPTION_KEY, &mut options)?.try_into_string()?;
-        let endpoint = Url::parse(&endpoint).context("failed to parse endpoint")?;
-
-        let catalog_name = take_option(CATALOG_OPTION_KEY, &mut options)?.try_into_string()?;
-
+    pub async fn connect(runtime: R, endpoint: &str, catalog: &str) -> Result<Self> {
+        let endpoint = Url::parse(endpoint).context("failed to parse endpoint")?;
         let client = runtime.http_client();
 
         // TODO: Probably a request to ensure endpoint actually exists.
 
         Ok(UnityCatalogConnection {
-            runtime,
             client,
             endpoint,
-            catalog_name,
+            catalog_name: catalog.to_string(),
         })
     }
 
@@ -98,6 +88,7 @@ pub trait ListResponseBody: DeserializeOwned + Sync + Send + 'static {
 ///
 /// Note that everything is configured as query params in the url (e.g. catalog
 /// name) so no body.
+#[derive(Debug)]
 pub struct UnityListStream<C: HttpClient, R: ListResponseBody> {
     client: C,
     /// Url we're making the request to.

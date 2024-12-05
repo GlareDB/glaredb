@@ -38,6 +38,10 @@ pub async fn read_text(resp: impl HttpResponse) -> Result<String> {
 
 pub async fn read_json<T: DeserializeOwned>(resp: impl HttpResponse) -> Result<T> {
     let full = resp.bytes().await?;
+
+    // let s = str::from_utf8(&full).unwrap();
+    // print!("RESP: {s}");
+
     serde_json::from_slice(&full).context("failed to parse response as json")
 }
 

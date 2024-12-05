@@ -14,14 +14,14 @@ pub struct UnityListSchemasResponse {
 pub struct UnitySchemaInfo {
     pub name: String,
     pub catalog_name: String,
-    pub comment: String,
+    pub comment: Option<String>,
     // pub properties: HashMap<String, String>,
-    pub full_name: String,
-    pub owner: String,
-    pub created_at: i64,
-    pub created_by: String,
-    pub updated_at: i64,
-    pub schema_id: String,
+    pub full_name: Option<String>,
+    pub owner: Option<String>,
+    pub created_at: Option<i64>,
+    pub created_by: Option<String>,
+    pub updated_at: Option<i64>,
+    pub schema_id: Option<String>,
 }
 
 impl ListResponseBody for UnityListSchemasResponse {
