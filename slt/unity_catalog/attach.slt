@@ -1,0 +1,3 @@
+# ATTACH unity catalog
+
+ATTACH unity DATABASE AS my_unity

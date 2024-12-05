@@ -7,6 +7,7 @@ use super::{AstParseable, Expr, Ident, ObjectReference};
 use crate::keywords::Keyword;
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
+use crate::tokens::Token;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttachType {
@@ -41,14 +42,22 @@ impl AstParseable for Attach<Raw> {
         let alias = ObjectReference::parse(parser)?;
 
         let mut options = HashMap::new();
-        loop {
-            let key = match Ident::parse(parser) {
-                Ok(ident) => ident,
-                Err(_) => break,
-            };
+        if parser.consume_token(&Token::LeftParen) {
+            loop {
+                let key = match Ident::parse(parser) {
+                    Ok(ident) => ident,
+                    Err(_) => return Err(RayexecError::new("Expected identifier for option key")),
+                };
 
-            let val = Expr::parse(parser)?;
-            options.insert(key, val);
+                let val = Expr::parse(parser)?;
+                options.insert(key, val);
+
+                if parser.consume_token(&Token::RightParen) {
+                    break;
+                }
+
+                parser.expect_token(&Token::Comma)?;
+            }
         }
 
         Ok(Attach {
@@ -95,7 +104,7 @@ mod tests {
 
     #[test]
     fn attach_pg_database() {
-        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES DATABASE AS my_pg CONNECTION_STRING 'postgres://sean:pass@localhost/db'").unwrap();
+        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES DATABASE AS my_pg (CONNECTION_STRING 'postgres://sean:pass@localhost/db')").unwrap();
         let expected = Attach {
             datasource_name: Ident::new_unquoted("POSTGRES"),
             attach_type: AttachType::Database,
@@ -115,7 +124,7 @@ mod tests {
 
     #[test]
     fn attach_pg_table() {
-        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES TABLE AS my_pg_table CONNECTION_STRING 'postgres://sean:pass@localhost/db' SCHEMA 'public' TABLE 'users'").unwrap();
+        let got = parse_ast::<Attach<_>>("ATTACH POSTGRES TABLE AS my_pg_table (CONNECTION_STRING 'postgres://sean:pass@localhost/db', SCHEMA 'public', TABLE 'users')").unwrap();
         let expected = Attach {
             datasource_name: Ident::new_unquoted("POSTGRES"),
             attach_type: AttachType::Table,
