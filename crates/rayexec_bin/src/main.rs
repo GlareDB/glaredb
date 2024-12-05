@@ -84,10 +84,7 @@ async fn inner(
         .with_datasource("memory", Box::new(MemoryDataSource))?
         .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
         .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
-        .with_datasource(
-            "unity_catalog",
-            UnityCatalogDataSource::initialize(runtime.clone()),
-        )?
+        .with_datasource("unity", UnityCatalogDataSource::initialize(runtime.clone()))?
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
         .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
         .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
