@@ -1,6 +1,6 @@
 use futures::future::BoxFuture;
-use futures::{StreamExt, TryStreamExt};
-use rayexec_error::{RayexecError, Result, ResultExt};
+use futures::TryStreamExt;
+use rayexec_error::Result;
 use rayexec_execution::database::catalog::CatalogTx;
 use rayexec_execution::database::catalog_entry::TableEntry;
 use rayexec_execution::database::create::{CreateSchemaInfo, OnConflict};
@@ -46,15 +46,15 @@ impl<R: Runtime> CatalogStorage for UnityCatalog<R> {
         Box::pin(async move { Ok(()) })
     }
 
-    fn persist(&self, catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>> {
+    fn persist(&self, _catalog: &MemoryCatalog) -> BoxFuture<'_, Result<()>> {
         unimplemented!()
     }
 
-    fn load_schemas<'a>(&'a self, catalog: &'a MemoryCatalog) -> Result<BoxFuture<'_, Result<()>>> {
+    fn load_schemas<'a>(&'a self, catalog: &'a MemoryCatalog) -> Result<BoxFuture<'a, Result<()>>> {
         Ok(Box::pin(async { self.load_schemas_inner(catalog).await }))
     }
 
-    fn load_table(&self, schema: &str, name: &str) -> BoxFuture<'_, Result<Option<TableEntry>>> {
+    fn load_table(&self, _schema: &str, _name: &str) -> BoxFuture<'_, Result<Option<TableEntry>>> {
         unimplemented!()
     }
 }

@@ -1,11 +1,7 @@
-use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::pin::Pin;
 
 use futures::{stream, Stream};
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::datasource::take_option;
 use rayexec_execution::runtime::Runtime;
 use rayexec_io::http::reqwest::{Method, Request, StatusCode};
 use rayexec_io::http::{read_json, read_text, HttpClient, HttpResponse};

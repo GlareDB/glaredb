@@ -85,13 +85,13 @@ impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
 
     fn plan_and_initialize<'a>(
         &self,
-        context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        _context: &'a DatabaseContext,
+        _args: TableFunctionArgs,
     ) -> BoxFuture<'a, Result<Box<dyn super::PlannedTableFunction>>> {
         unimplemented!()
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
         unimplemented!()
     }
 }
@@ -99,7 +99,7 @@ impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
 #[derive(Debug, Clone)]
 pub struct RefreshObjectsImpl<O: RefreshOperation> {
     func: RefreshObjects<O>,
-    state: Option<O::State>,
+    _state: Option<O::State>,
     _op: PhantomData<O>,
 }
 

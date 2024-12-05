@@ -113,11 +113,8 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
                     let names = Array::from_iter(resp.schemas.iter().map(|s| s.name.as_str()));
                     let catalog_names =
                         Array::from_iter(resp.schemas.iter().map(|s| s.catalog_name.as_str()));
-                    let comments = Array::from_iter(
-                        resp.schemas
-                            .iter()
-                            .map(|s| s.comment.as_ref().map(|c| c.as_str())),
-                    );
+                    let comments =
+                        Array::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
 
                     let batch = Batch::try_new([names, catalog_names, comments])?;
                     Ok(Some(batch))
@@ -205,11 +202,8 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
                         Array::from_iter(resp.tables.iter().map(|s| s.data_source_format.as_str()));
                     let storage_locations =
                         Array::from_iter(resp.tables.iter().map(|s| s.storage_location.as_str()));
-                    let comments = Array::from_iter(
-                        resp.tables
-                            .iter()
-                            .map(|s| s.comment.as_ref().map(|c| c.as_str())),
-                    );
+                    let comments =
+                        Array::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
 
                     let batch = Batch::try_new([
                         names,

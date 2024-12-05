@@ -221,7 +221,7 @@ impl<'a> Resolver<'a> {
         resolve_context: &mut ResolveContext,
     ) -> Result<ResolvedStatement> {
         let get_view_query = |view: BuiltinView| {
-            let mut stmts = parser::parse(&view.view)?;
+            let mut stmts = parser::parse(view.view)?;
             let stmt = match stmts.len() {
                 1 => stmts.pop().unwrap(),
                 other => {
@@ -233,11 +233,9 @@ impl<'a> Resolver<'a> {
 
             match stmt {
                 Statement::Query(q) => Ok(q),
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected query statement, got {other:?}"
-                    )))
-                }
+                other => Err(RayexecError::new(format!(
+                    "Expected query statement, got {other:?}"
+                ))),
             }
         };
 
