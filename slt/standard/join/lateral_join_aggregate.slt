@@ -1,0 +1,35 @@
+# Lateral join with aggregates in the right side.
+
+statement ok
+CREATE TEMP TABLE t1 (i INT);
+
+statement ok
+INSERT INTO t1 VALUES (4), (5), (6), (7);
+
+# TODO: Postgres errors for this:
+# "aggregate functions are not allowed in FROM clause of their own query level"
+# Duckdb fails for this query too but allows the others to succeed.
+query II
+SELECT * FROM t1, LATERAL (SELECT sum(i)) ORDER BY i;
+----
+4  4
+5  5
+6  6
+7  7
+
+# Postgres also fails with this, can't see t1.i
+query II
+SELECT * FROM t1, LATERAL (SELECT sum(t1.i * t2.i) FROM t1 AS t2) ORDER BY 1;
+----
+4  88
+5  110
+6  132
+7  154
+
+query II
+SELECT * FROM t1, LATERAL (SELECT sum(t1.i * i) FROM t1 AS t2) ORDER BY 1;
+----
+4  88
+5  110
+6  132
+7  154
