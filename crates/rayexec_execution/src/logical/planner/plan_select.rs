@@ -28,7 +28,7 @@ impl SelectPlanner {
 
         // Handle WHERE
         if let Some(mut filter) = select.filter {
-            plan = SubqueryPlanner.plan(bind_context, &mut filter, plan)?;
+            plan = SubqueryPlanner.plan_expression(bind_context, &mut filter, plan)?;
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter { filter },
                 location: LocationRequirement::Any,
@@ -49,11 +49,11 @@ impl SelectPlanner {
             };
 
             for expr in &mut group_exprs {
-                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
+                plan = SubqueryPlanner.plan_expression(bind_context, expr, plan)?;
             }
 
             for expr in &mut select.select_list.aggregates {
-                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
+                plan = SubqueryPlanner.plan_expression(bind_context, expr, plan)?;
             }
 
             let agg = LogicalAggregate {
@@ -76,7 +76,7 @@ impl SelectPlanner {
 
         // Handle HAVING
         if let Some(mut expr) = select.having {
-            plan = SubqueryPlanner.plan(bind_context, &mut expr, plan)?;
+            plan = SubqueryPlanner.plan_expression(bind_context, &mut expr, plan)?;
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter { filter: expr },
                 location: LocationRequirement::Any,
@@ -88,7 +88,7 @@ impl SelectPlanner {
         // Handle windows
         if !select.select_list.windows.is_empty() {
             for expr in &mut select.select_list.windows {
-                plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
+                plan = SubqueryPlanner.plan_expression(bind_context, expr, plan)?;
             }
             plan = LogicalOperator::Window(Node {
                 node: LogicalWindow {
@@ -103,7 +103,7 @@ impl SelectPlanner {
 
         // Handle projections.
         for expr in &mut select.select_list.projections {
-            plan = SubqueryPlanner.plan(bind_context, expr, plan)?;
+            plan = SubqueryPlanner.plan_expression(bind_context, expr, plan)?;
         }
 
         plan = LogicalOperator::Project(Node {

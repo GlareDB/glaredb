@@ -1,0 +1,27 @@
+# LEFT JOIN LATERAL
+
+statement ok
+CREATE TEMP TABLE t (a INT);
+
+statement ok
+INSERT INTO t VALUES (4), (5), (6), (7), (NULL);
+
+query II
+SELECT * FROM t LEFT JOIN LATERAL (SELECT t.a + 1) t1(b) ON a = b ORDER BY 1;
+----
+NULL  NULL
+4     NULL
+5     NULL
+6     NULL
+7     NULL
+
+# Same thing, no LATERAL keyword.
+query TT
+SELECT * FROM t LEFT JOIN (SELECT t.a + 1) t1(b) ON a = b ORDER BY 1;
+----
+NULL  NULL
+4     NULL
+5     NULL
+6     NULL
+7     NULL
+

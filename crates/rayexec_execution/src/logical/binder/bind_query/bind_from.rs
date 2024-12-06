@@ -86,10 +86,8 @@ pub struct BoundJoin {
     pub join_type: JoinType,
     /// Expressions we're joining on, if any.
     pub conditions: Vec<Expression>,
-    /// Columns on right side that are correlated with the left side of a join.
-    pub right_correlated_columns: Vec<CorrelatedColumn>,
-    /// If this is a lateral join.
-    pub lateral: bool,
+    /// Columns from the left side of the join being referenced on the right.
+    pub lateral_columns: Vec<CorrelatedColumn>,
 }
 
 #[derive(Debug)]
@@ -312,6 +310,10 @@ impl<'a> FromBinder<'a> {
         subquery: ast::FromSubquery<ResolvedMeta>,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
+        // We can automatically detect lateral joins, doesn't matter what this
+        // is.
+        let _ = subquery.lateral;
+
         let nested_scope = match &subquery.options {
             ResolvedSubqueryOptions::Normal => bind_context.new_child_scope(self.current),
             ResolvedSubqueryOptions::View { .. } => bind_context.new_orphan_scope(), // View can only reference itself.
@@ -363,6 +365,9 @@ impl<'a> FromBinder<'a> {
             self.push_table_scope_with_from_alias(bind_context, None, names, types, alias)?
         };
 
+        // Move correlated columns into current scope.
+        bind_context.append_correlated_columns(self.current, nested_scope)?;
+
         Ok(BoundFrom {
             bind_ref: self.current,
             item: BoundFromItem::Subquery(BoundSubquery {
@@ -378,6 +383,9 @@ impl<'a> FromBinder<'a> {
         function: ast::FromTableFunction<ResolvedMeta>,
         alias: Option<ast::FromAlias>,
     ) -> Result<BoundFrom> {
+        // See above, lateral joins automatically detected.
+        let _ = function.lateral;
+
         let (reference, location) = self
             .resolve_context
             .table_functions
@@ -430,17 +438,23 @@ impl<'a> FromBinder<'a> {
         // Bind right.
         //
         // The right bind context is created as a child of the left bind context
-        // to easily check if this is a lateral join (distance between right and
-        // left contexts == 1).
+        // to easily check if this is a lateral join. All we need to do is check
+        // if there's any correlated columns that come out of the bind that
+        // match the left bind scope.
         let right_idx = bind_context.new_child_scope(left_idx);
         let right = FromBinder::new(right_idx, self.resolve_context)
             .bind(bind_context, Some(*join.right))?;
 
-        let right_correlated_columns = bind_context.correlated_columns(right_idx)?.clone();
-
-        // If any column in right is correlated with left, then this is a
-        // lateral join.
-        let any_lateral = right_correlated_columns.iter().any(|c| c.outer == left_idx);
+        // Lateral columns are columns from the right the reference the output
+        // of the left.
+        //
+        // These will be passed to the subquery planner for flattening.
+        let lateral_columns: Vec<_> = bind_context
+            .correlated_columns(right_idx)?
+            .iter()
+            .filter(|c| c.outer == left_idx)
+            .cloned()
+            .collect();
 
         let (conditions, using_cols) = match join.join_condition {
             ast::JoinCondition::On(exprs) => (vec![exprs], Vec::new()),
@@ -559,8 +573,7 @@ impl<'a> FromBinder<'a> {
                 right: Box::new(right),
                 join_type,
                 conditions,
-                right_correlated_columns,
-                lateral: any_lateral,
+                lateral_columns,
             }),
         })
     }

@@ -187,6 +187,8 @@ impl FromNode<Raw> {
     /// Parses the first part of a FROM statement (a table, file, or table
     /// function).
     pub(crate) fn parse_base_from(parser: &mut Parser) -> Result<Self> {
+        let lateral = parser.parse_keyword(Keyword::LATERAL);
+
         if parser.consume_token(&Token::LeftParen) {
             // Subquery
             //
@@ -197,6 +199,7 @@ impl FromNode<Raw> {
             Ok(FromNode {
                 alias,
                 body: FromNodeBody::Subquery(FromSubquery {
+                    lateral,
                     options: (),
                     query: subquery,
                 }),
@@ -210,6 +213,7 @@ impl FromNode<Raw> {
             Ok(FromNode {
                 alias,
                 body: FromNodeBody::Subquery(FromSubquery {
+                    lateral,
                     options: (),
                     query: QueryNode {
                         ctes: None,
@@ -244,9 +248,19 @@ impl FromNode<Raw> {
             let body = match parser.peek() {
                 Some(TokenWithLocation { token, .. }) if token == &Token::LeftParen => {
                     let args = parser.parse_parenthesized_comma_separated(FunctionArg::parse)?;
-                    FromNodeBody::TableFunction(FromTableFunction { reference, args })
+                    FromNodeBody::TableFunction(FromTableFunction {
+                        lateral,
+                        reference,
+                        args,
+                    })
                 }
-                _ => FromNodeBody::BaseTable(FromBaseTable { reference }),
+                _ => {
+                    if lateral {
+                        return Err(RayexecError::new("LATERAL can only be used with subqueries and table functions on the right side"));
+                    }
+
+                    FromNodeBody::BaseTable(FromBaseTable { reference })
+                }
             };
 
             let alias = Self::maybe_parse_alias(parser)?;
@@ -298,12 +312,14 @@ pub struct FromBaseTable<T: AstMeta> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FromSubquery<T: AstMeta> {
+    pub lateral: bool,
     pub options: T::SubqueryOptions,
     pub query: QueryNode<T>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FromTableFunction<T: AstMeta> {
+    pub lateral: bool,
     pub reference: T::TableFunctionReference,
     pub args: T::TableFunctionArgs,
 }
@@ -473,6 +489,7 @@ mod tests {
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::TableFunction(FromTableFunction {
+                lateral: false,
                 reference: ObjectReference(vec![Ident {
                     value: "my_table_func".into(),
                     quoted: false,
@@ -489,6 +506,7 @@ mod tests {
         let expected = FromNode {
             alias: None,
             body: FromNodeBody::TableFunction(FromTableFunction {
+                lateral: false,
                 reference: ObjectReference(vec![Ident {
                     value: "my_table_func".into(),
                     quoted: false,
@@ -630,6 +648,38 @@ mod tests {
                         }),
                         join_type: JoinType::Right,
                         join_condition: JoinCondition::None,
+                    }),
+                }),
+                join_type: JoinType::Left,
+                join_condition: JoinCondition::None,
+            }),
+        };
+        assert_eq!(expected, node, "left:\n{expected:#?}\nright:\n{node:#?}");
+    }
+
+    #[test]
+    fn left_join_lateral() {
+        let node: FromNode<_> = parse_ast("t1 LEFT JOIN LATERAL unnest(t1.a)").unwrap();
+        let expected = FromNode {
+            alias: None,
+            body: FromNodeBody::Join(FromJoin {
+                left: Box::new(FromNode {
+                    alias: None,
+                    body: FromNodeBody::BaseTable(FromBaseTable {
+                        reference: ObjectReference::from_strings(["t1"]),
+                    }),
+                }),
+                right: Box::new(FromNode {
+                    alias: None,
+                    body: FromNodeBody::TableFunction(FromTableFunction {
+                        lateral: true,
+                        reference: ObjectReference::from_strings(["unnest"]),
+                        args: vec![FunctionArg::Unnamed {
+                            arg: FunctionArgExpr::Expr(Expr::CompoundIdent(vec![
+                                Ident::new_unquoted("t1"),
+                                Ident::new_unquoted("a"),
+                            ])),
+                        }],
                     }),
                 }),
                 join_type: JoinType::Left,

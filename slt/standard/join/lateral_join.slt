@@ -1,0 +1,66 @@
+# Lateral join tests.
+
+query TTT
+SELECT * FROM (VALUES ('aaa'), ('bbb')) v1(c1),
+    LATERAL (SELECT c1, c2 FROM (VALUES ('ccc'), ('ddd')) v2(c2))
+  ORDER BY 1, 2, 3;
+----
+aaa  aaa  ccc
+aaa  aaa  ddd
+bbb  bbb  ccc
+bbb  bbb  ddd
+
+# Same thing without LATERAL keyword.
+query TTT
+SELECT * FROM (VALUES ('aaa'), ('bbb')) v1(c1),
+    (SELECT c1, c2 FROM (VALUES ('ccc'), ('ddd')) v2(c2))
+  ORDER BY 1, 2, 3;
+----
+aaa  aaa  ccc
+aaa  aaa  ddd
+bbb  bbb  ccc
+bbb  bbb  ddd
+
+# Same thing, with extra CROSS JOIN keywords
+query TTT
+SELECT * FROM (VALUES ('aaa'), ('bbb')) v1(c1)
+    CROSS JOIN LATERAL (SELECT c1, c2 FROM (VALUES ('ccc'), ('ddd')) v2(c2))
+  ORDER BY 1, 2, 3;
+----
+aaa  aaa  ccc
+aaa  aaa  ddd
+bbb  bbb  ccc
+bbb  bbb  ddd
+
+# Inside expression
+query II
+SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i + 1) t2(j) ORDER BY i;
+----
+1  2
+2  3
+3  4
+4  5
+
+# TODO
+# query II
+# SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i AS j WHERE i >= 2) ORDER BY i;
+# ----
+
+# TODO
+# query II
+# SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i WHERE i >= 2) ORDER BY i;
+# ----
+
+
+# Nested laterals.
+query IIII
+SELECT * FROM generate_series(1, 2) g(i),
+         LATERAL (SELECT i, * FROM generate_series(1, 2) g2(j),
+                              LATERAL (SELECT j + 8))
+  ORDER BY 1,2,3,4;
+----
+1  1  1  9
+1  1  2  10
+2  2  1  9
+2  2  2  10
+
