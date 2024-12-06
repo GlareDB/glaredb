@@ -4,6 +4,7 @@ pub mod filter_pushdown;
 pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
+pub mod redundant_groups;
 
 use std::time::Duration;
 

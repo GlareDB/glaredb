@@ -1,0 +1,18 @@
+# GROUP BY with duplicated columns
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b INT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (3, 100),
+  (4, 200),
+  (4, 300),
+  (5, 400);
+
+query II
+SELECT a, a-1, a-2, sum(b) FROM t1 GROUP BY a, a-1, a-2 ORDER BY a;
+----
+3  2  1  100
+4  3  2  500
+5  4  3  400

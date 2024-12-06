@@ -296,27 +296,29 @@ impl Expression {
         }
     }
 
-    // TODO: Probably remove.
-    pub fn is_constant(&self) -> bool {
-        match self {
-            Self::Literal(_) => true,
-            Self::Column(_) => false,
-            _ => {
-                let mut is_constant = true;
-                self.for_each_child(&mut |expr| {
-                    if !is_constant {
-                        return Ok(());
-                    }
-                    is_constant = is_constant && expr.is_constant();
-                    Ok(())
-                })
-                .expect("constant check to not fail");
-                is_constant
-            }
-        }
+    /// Checks if this expression can be folded into a constant.
+    pub fn is_const_foldable(&self) -> bool {
+        // Encountering any column means we can't fold.
+        self.is_const_foldable_with_column_check(|_col| false)
     }
 
-    pub fn is_const_foldable(&self) -> bool {
+    /// Checks if this expression can be folded into a constant assuming that
+    /// the given column expression is fixed.
+    ///
+    /// This will return true if the only columns encountered equal the fixed
+    /// column, and if the rest of the epxression is const foldable.
+    pub fn is_const_foldable_with_fixed_column(&self, fixed: &ColumnExpr) -> bool {
+        self.is_const_foldable_with_column_check(|col| col == fixed)
+    }
+
+    /// Helper function when checking if an expression is const foldable.
+    ///
+    /// `check_col` indicates the behavior when encountering a column
+    /// expression.
+    fn is_const_foldable_with_column_check<F>(&self, check_col: F) -> bool
+    where
+        F: Fn(&ColumnExpr) -> bool,
+    {
         match self {
             Self::Literal(v) => {
                 match &v.literal {
@@ -332,7 +334,7 @@ impl Expression {
                     _ => true,
                 }
             }
-            Self::Column(_) => false,
+            Self::Column(col) => check_col(col),
             Self::Aggregate(_) => false,
             Self::Window(_) => false,
             Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
