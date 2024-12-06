@@ -87,7 +87,7 @@ pub struct BindContext {
     materializations: Vec<PlanMaterialization>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
     pub outer: BindScopeRef,

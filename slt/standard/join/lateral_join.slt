@@ -41,16 +41,35 @@ SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i + 1) t2(j) ORDER BY 
 3  4
 4  5
 
-# TODO
-# query II
-# SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i AS j WHERE i >= 2) ORDER BY i;
-# ----
+# Multiple references to column
+query II
+SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i AS j, i + 1) t2 ORDER BY i;
+----
+1  1  2
+2  2  3
+3  3  4
+4  4  5
 
-# TODO
-# query II
-# SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i WHERE i >= 2) ORDER BY i;
-# ----
+query II
+SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT 4 AS j WHERE i >= 2) ORDER BY i;
+----
+2  4
+3  4
+4  4
 
+query II
+SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i AS j WHERE i >= 2) ORDER BY i;
+----
+2  2
+3  3
+4  4
+
+query II
+SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i WHERE i >= 2) ORDER BY 1;
+----
+2  2
+3  3
+4  4
 
 # Nested laterals.
 query IIII
