@@ -10,8 +10,22 @@ INSERT INTO t1 VALUES
   (4, 300),
   (5, 400);
 
-query II
+query IIII
 SELECT a, a-1, a-2, sum(b) FROM t1 GROUP BY a, a-1, a-2 ORDER BY a;
+----
+3  2  1  100
+4  3  2  500
+5  4  3  400
+
+query IIII
+SELECT a, a-1, a-2, sum(b) FROM t1 GROUP BY a-1, a, a-2 ORDER BY a;
+----
+3  2  1  100
+4  3  2  500
+5  4  3  400
+
+query IIII
+SELECT a, a-1, a-2, sum(b) FROM t1 GROUP BY a-1, a, a-2, a, a, a ORDER BY a;
 ----
 3  2  1  100
 4  3  2  500
