@@ -16,6 +16,13 @@ pub struct ColumnExpr {
 }
 
 impl ColumnExpr {
+    pub fn new(table: impl Into<TableRef>, column: usize) -> Self {
+        ColumnExpr {
+            table_scope: table.into(),
+            column,
+        }
+    }
+
     pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
         let table = bind_context.get_table(self.table_scope)?;
         table

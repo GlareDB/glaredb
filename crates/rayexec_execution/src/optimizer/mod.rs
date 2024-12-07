@@ -4,6 +4,7 @@ pub mod filter_pushdown;
 pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
+pub mod redundant_groups;
 
 use std::time::Duration;
 
@@ -13,6 +14,7 @@ use filter_pushdown::FilterPushdown;
 use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
 use rayexec_error::Result;
+use redundant_groups::RemoveRedundantGroups;
 use tracing::debug;
 
 use crate::logical::binder::bind_context::BindContext;
@@ -86,6 +88,13 @@ impl Optimizer {
         self.profile_data
             .timings
             .push(("column_pruning", timer.stop()));
+
+        let timer = Timer::<I>::start();
+        let mut rule = RemoveRedundantGroups::default();
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("remove_redundant_groups", timer.stop()));
 
         // // Join reordering.
         let timer = Timer::<I>::start();
