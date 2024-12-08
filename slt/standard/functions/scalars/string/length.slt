@@ -9,42 +9,41 @@ INSERT INTO strings VALUES (''), (NULL), ('😤🤝👀'), ('my_string');
 query TI
 SELECT v, length(v) FROM strings ORDER BY 1;
 ----
-NULL       NULL
 (empty)    0
 my_string  9
 😤🤝👀     3
+NULL       NULL
 
 # Alias
 query TI
 SELECT v, char_length(v) FROM strings ORDER BY 1;
 ----
-NULL       NULL
 (empty)    0
 my_string  9
 😤🤝👀     3
+NULL       NULL
 
 query TI
 SELECT v, byte_length(v) FROM strings ORDER BY 1;
 ----
-NULL       NULL
 (empty)    0
 my_string  9
 😤🤝👀     12
+NULL       NULL
 
 # Alias
 query TI
 SELECT v, octet_length(v) FROM strings ORDER BY 1;
 ----
-NULL       NULL
 (empty)    0
 my_string  9
 😤🤝👀     12
+NULL       NULL
 
 query TI
 SELECT v, bit_length(v) FROM strings ORDER BY 1;
 ----
-NULL       NULL
 (empty)    0
 my_string  72
 😤🤝👀     96
-
+NULL       NULL

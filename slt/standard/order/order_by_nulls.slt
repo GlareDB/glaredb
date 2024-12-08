@@ -1,0 +1,79 @@
+# ORDER BY with NULL values
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (4,     'cat'),
+  (5,     'dog'),
+  (6,     NULL),
+  (NULL, 'goose');
+
+query IT
+SELECT a, b FROM t1 ORDER BY a;
+----
+4     cat
+5     dog
+6     NULL
+NULL  goose
+
+query IT
+SELECT a, b FROM t1 ORDER BY a ASC;
+----
+4     cat
+5     dog
+6     NULL
+NULL  goose
+
+query IT
+SELECT a, b FROM t1 ORDER BY a DESC;
+----
+NULL  goose
+6     NULL
+5     dog
+4     cat
+
+query IT
+SELECT a, b FROM t1 ORDER BY a DESC NULLS LAST;
+----
+6     NULL
+5     dog
+4     cat
+NULL  goose
+
+query IT
+SELECT a, b FROM t1 ORDER BY a NULLS FIRST;
+----
+NULL  goose
+4     cat
+5     dog
+6     NULL
+
+query IT
+SELECT a, b FROM t1 ORDER BY b;
+----
+4     cat
+5     dog
+NULL  goose
+6     NULL
+
+query IT
+SELECT a, b FROM t1 ORDER BY b NULLS FIRST;
+----
+6     NULL
+4     cat
+5     dog
+NULL  goose
+
+query TT
+DESCRIBE SELECT * FROM (VALUES (NULL), (NULL), (NULL)) ORDER BY 1
+----
+column1 Null
+
+query ?
+SELECT * FROM (VALUES (NULL), (NULL), (NULL)) ORDER BY 1;
+----
+NULL
+NULL
+NULL
