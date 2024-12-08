@@ -16,7 +16,10 @@ use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::executor::scalar::HashExecutor;
+use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::physical_type::PhysicalU64;
+use rayexec_bullet::executor::scalar::{HashExecutor, UnaryExecutor};
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
@@ -35,6 +38,7 @@ use crate::execution::operators::{
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::{GroupedStates, PlannedAggregateFunction};
+use crate::logical::logical_aggregate::GroupingFunction;
 
 #[derive(Debug)]
 pub struct Aggregate {
@@ -159,6 +163,8 @@ struct SharedOutputPartitionState {
 /// group by columns.
 #[derive(Debug)]
 pub struct PhysicalHashAggregate {
+    /// Grouping functions that we should compute at the end.
+    grouping_functions: Vec<GroupingFunction>,
     /// Null masks for determining which column values should be part of a
     /// group.
     null_masks: Vec<Bitmap>,
@@ -167,15 +173,13 @@ pub struct PhysicalHashAggregate {
     /// Union of all column indices that are inputs to the aggregate functions.
     aggregate_columns: Vec<usize>,
     exprs: Vec<PhysicalAggregateExpression>,
-    /// If we should include the group id in the output.
-    include_group_id: bool,
 }
 
 impl PhysicalHashAggregate {
     pub fn new(
         exprs: Vec<PhysicalAggregateExpression>,
         grouping_sets: Vec<BTreeSet<usize>>,
-        include_group_id: bool,
+        grouping_functions: Vec<GroupingFunction>,
     ) -> Self {
         // Collect all unique column indices that are part of computing the
         // aggregate.
@@ -186,7 +190,7 @@ impl PhysicalHashAggregate {
 
         // Used to generate intial null masks. This doesn't take into account
         // the physical column offset.
-        let mut distinct_group_cols = BTreeSet::new();
+        let mut distinct_group_cols: BTreeSet<usize> = BTreeSet::new();
         for set in &grouping_sets {
             distinct_group_cols.extend(set.iter());
         }
@@ -194,10 +198,11 @@ impl PhysicalHashAggregate {
         let null_masks = grouping_sets
             .iter()
             .map(|set| {
-                let mut mask = Bitmap::new_with_all_false(distinct_group_cols.len());
-                for (idx, col_idx) in distinct_group_cols.iter().enumerate() {
-                    mask.set_unchecked(idx, !set.contains(col_idx))
+                let mut mask = Bitmap::new_with_all_true(distinct_group_cols.len());
+                for &col_idx in set {
+                    mask.set_unchecked(col_idx, false);
                 }
+
                 mask
             })
             .collect();
@@ -209,11 +214,11 @@ impl PhysicalHashAggregate {
             .collect();
 
         PhysicalHashAggregate {
+            grouping_functions,
             null_masks,
             group_columns,
             aggregate_columns: agg_input_cols.into_iter().collect(),
             exprs,
-            include_group_id,
         }
     }
 }
@@ -415,18 +420,54 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 }
 
                 // Drain should be Some by here.
-                let mut batch = match state.hashtable_drain.as_mut().unwrap().next() {
+                let batch = match state.hashtable_drain.as_mut().unwrap().next() {
                     Some(Ok(batch)) => batch,
                     Some(Err(e)) => return Err(e),
                     None => return Ok(PollPull::Exhausted),
                 };
 
-                // Prune off GROUP ID column if needed.
-                if !self.include_group_id {
-                    let mut arrays = batch.into_arrays();
-                    let _ = arrays.pop(); // Group id is last column.
-                    batch = Batch::try_new(arrays)?;
+                // Prune off GROUP ID column, generate appropriate GROUPING
+                // outputs.
+                let mut arrays = batch.into_arrays();
+                let group_ids = arrays
+                    .pop()
+                    .ok_or_else(|| RayexecError::new("Missing group ids arrays"))?;
+
+                // TODO: This can be pre-computed, we don't need to compute this
+                // on the output.
+                for grouping_function in &self.grouping_functions {
+                    let builder = ArrayBuilder {
+                        datatype: DataType::UInt64,
+                        buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
+                    };
+
+                    let array = UnaryExecutor::execute::<PhysicalU64, _, _>(
+                        &group_ids,
+                        builder,
+                        |id, buf| {
+                            // Compute the output for GROUPING.
+                            let mut v: u64 = 0;
+
+                            // Reverse iter to match postgres, the right-most
+                            // column the GROUPING corresponds to the least
+                            // significant bit.
+                            for (idx, &group_col) in
+                                grouping_function.group_exprs.iter().rev().enumerate()
+                            {
+                                let col_bit = 1 << group_col;
+                                if id & col_bit != 0 {
+                                    v |= 1 << idx;
+                                }
+                            }
+
+                            buf.put(&v);
+                        },
+                    )?;
+
+                    arrays.push(array);
                 }
+
+                let batch = Batch::try_new(arrays)?;
 
                 Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }
@@ -474,8 +515,6 @@ impl PhysicalHashAggregate {
         state.hash_buf.resize(num_rows, 0);
         state.partitions_idx_buf.resize(num_rows, 0);
 
-        let null_col = Array::new_untyped_null_array(num_rows);
-
         let mut masked_grouping_columns: Vec<Array> = Vec::with_capacity(grouping_columns.len());
 
         // Reused to select hashes per partition.
@@ -488,7 +527,12 @@ impl PhysicalHashAggregate {
 
             for (col_idx, col_is_null) in null_mask.iter().enumerate() {
                 if col_is_null {
-                    masked_grouping_columns.push(null_col.clone());
+                    // Create column with all nulls but retain the datatype.
+                    let null_col = Array::new_typed_null_array(
+                        grouping_columns[col_idx].datatype().clone(),
+                        num_rows,
+                    )?;
+                    masked_grouping_columns.push(null_col);
                 } else {
                     masked_grouping_columns.push(grouping_columns[col_idx].clone());
                 }
