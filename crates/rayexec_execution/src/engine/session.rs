@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;
 use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream};
-use super::verifier::{self, QueryVerifier};
+use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
 use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
 use crate::config::session::SessionConfig;
@@ -161,6 +161,14 @@ where
             portals: HashMap::new(),
             hybrid_client: None,
         }
+    }
+
+    pub(crate) fn config(&self) -> &SessionConfig {
+        &self.config
+    }
+
+    pub(crate) fn config_mut(&mut self) -> &mut SessionConfig {
+        &mut self.config
     }
 
     /// Get execution results from one or more sql queries.
@@ -323,9 +331,11 @@ where
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
                 profile.plan_logical_step = Some(timer.stop());
 
-                let mut optimizer = Optimizer::new();
-                logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
-                profile.optimizer_step = Some(optimizer.profile_data);
+                if self.config.enable_optimizer {
+                    let mut optimizer = Optimizer::new();
+                    logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
+                    profile.optimizer_step = Some(optimizer.profile_data);
+                }
 
                 // If we're an explain, put a copy of the optimized plan on the
                 // node.
@@ -438,16 +448,18 @@ where
             .executor
             .spawn_pipelines(portal.executable_pipelines, Arc::new(portal.error_sink));
 
-        if let Some(verifier) = portal.verifier {
-            unimplemented!()
-        }
-
-        Ok(ExecutionResult {
+        let exec_result = ExecutionResult {
             planning_profile: portal.profile,
             output_schema: portal.output_schema,
             stream: portal.result_stream,
             handle: handle.into(),
-        })
+        };
+
+        if let Some(verifier) = portal.verifier {
+            unimplemented!()
+        }
+
+        Ok(exec_result)
     }
 
     async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {

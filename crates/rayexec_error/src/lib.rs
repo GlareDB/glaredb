@@ -15,6 +15,7 @@ macro_rules! not_implemented {
     }};
 }
 
+// TODO: Implement partial eq on msg
 #[derive(Debug)]
 pub struct RayexecError {
     inner: Box<RayexecErrorInner>,
@@ -53,6 +54,10 @@ impl RayexecError {
                 backtrace: Backtrace::capture(),
             }),
         }
+    }
+
+    pub fn get_msg(&self) -> &str {
+        self.inner.msg.as_str()
     }
 
     pub fn get_backtrace(&self) -> &Backtrace {
