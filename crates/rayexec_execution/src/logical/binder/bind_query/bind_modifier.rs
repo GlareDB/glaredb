@@ -107,16 +107,26 @@ impl<'a> ModifierBinder<'a> {
                     Expression::Column(col)
                 };
 
+                // ASC is default.
+                let desc = matches!(
+                    order_by.typ.unwrap_or(ast::OrderByType::Asc),
+                    ast::OrderByType::Desc
+                );
+
+                // Nulls ordered as if larger than any other value (to match
+                // postgres).
+                //
+                // ASC => NULLS LAST
+                // DESC => NULLS FIRST
+                let nulls_first = match order_by.nulls {
+                    Some(nulls) => matches!(nulls, ast::OrderByNulls::First),
+                    None => desc,
+                };
+
                 Ok(BoundOrderByExpr {
                     expr,
-                    desc: matches!(
-                        order_by.typ.unwrap_or(ast::OrderByType::Asc),
-                        ast::OrderByType::Desc
-                    ),
-                    nulls_first: matches!(
-                        order_by.nulls.unwrap_or(ast::OrderByNulls::First),
-                        ast::OrderByNulls::First
-                    ),
+                    desc,
+                    nulls_first,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
