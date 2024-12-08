@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 
 use super::pipeline::{ExecutablePipeline, PipelineId};
-use crate::config::ExecutablePlanConfig;
+use crate::config::execution::ExecutablePlanConfig;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::execution::intermediate::{

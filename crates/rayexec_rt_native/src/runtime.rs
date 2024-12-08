@@ -54,6 +54,10 @@ impl<S: Scheduler> NativeExecutor<S> {
 }
 
 impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
+    fn default_partitions(&self) -> usize {
+        num_cpus::get()
+    }
+
     fn spawn_pipelines(
         &self,
         pipelines: Vec<ExecutablePipeline>,
