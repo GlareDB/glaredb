@@ -34,6 +34,8 @@ pub trait Scheduler: Sync + Send + Debug + Sized + Clone {
 
     fn try_new(num_threads: usize) -> Result<Self>;
 
+    fn num_threads(&self) -> usize;
+
     fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> Self::Handle
     where
         P: IntoIterator<Item = ExecutablePartitionPipeline>;
@@ -54,6 +56,10 @@ impl<S: Scheduler> NativeExecutor<S> {
 }
 
 impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
+    fn default_partitions(&self) -> usize {
+        self.0.num_threads()
+    }
+
     fn spawn_pipelines(
         &self,
         pipelines: Vec<ExecutablePipeline>,

@@ -3,7 +3,6 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::{BindContext, TableRef};
 use super::operator::{LogicalNode, Node};
-use crate::config::vars::SessionVar;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -41,7 +40,7 @@ impl LogicalNode for Node<LogicalSetVar> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum VariableOrAll {
-    Variable(SessionVar),
+    Variable(String),
     All,
 }
 
@@ -78,7 +77,8 @@ impl LogicalNode for Node<LogicalResetVar> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalShowVar {
-    pub var: SessionVar,
+    pub name: String,
+    pub value: OwnedScalarValue,
 }
 
 impl Explainable for LogicalShowVar {

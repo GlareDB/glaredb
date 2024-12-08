@@ -21,6 +21,9 @@ use crate::execution::executable::pipeline::ExecutablePipeline;
 /// This will likely only ever have two implementations; one for when we're
 /// executing "natively" (running pipelines on a thread pool), and one for wasm.
 pub trait PipelineExecutor: Debug + Sync + Send + Clone {
+    /// Number of partitions to default to when executing.
+    fn default_partitions(&self) -> usize;
+
     /// Spawn execution of multiple pipelines for a query.
     ///
     /// A query handle will be returned allowing for canceling and dumping a

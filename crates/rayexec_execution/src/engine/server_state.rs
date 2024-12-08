@@ -6,8 +6,8 @@ use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
-use crate::config::vars::SessionVars;
-use crate::config::{ExecutablePlanConfig, IntermediatePlanConfig};
+use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
+use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
@@ -46,7 +46,7 @@ pub struct ServerState<P: PipelineExecutor, R: Runtime> {
     executing_pipelines: DashMap<Uuid, Box<dyn QueryHandle>>,
 
     executor: P,
-    _runtime: R,
+    runtime: R,
 }
 
 #[derive(Debug)]
@@ -71,7 +71,7 @@ where
             pending_pipelines: DashMap::new(),
             executing_pipelines: DashMap::new(),
             executor,
-            _runtime: runtime,
+            runtime,
         }
     }
 
@@ -98,11 +98,11 @@ where
         let resolver = HybridResolver::new(&tx, &context);
         let resolve_context = resolver.resolve_remaining(bind_data).await?;
 
-        // TODO: Remove session var requirement.
-        let vars = SessionVars::new_local();
+        // TODO: Remove session config requirement.
+        let session_config = SessionConfig::new(&self.executor, &self.runtime);
 
         let binder = StatementBinder {
-            session_vars: &vars,
+            session_config: &session_config,
             resolve_context: &resolve_context,
         };
         let (bound_stmt, mut bind_context) = binder.bind(stmt)?;

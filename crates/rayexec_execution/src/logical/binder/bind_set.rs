@@ -4,7 +4,7 @@ use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ErroringColumnBinder;
-use crate::config::vars::SessionVars;
+use crate::config::session::SessionConfig;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll};
 use crate::logical::operator::{LocationRequirement, Node};
@@ -15,12 +15,12 @@ use crate::logical::statistics::StatisticsValue;
 #[derive(Debug)]
 pub struct SetVarBinder<'a> {
     pub current: BindScopeRef,
-    pub vars: &'a SessionVars,
+    pub config: &'a SessionConfig,
 }
 
 impl<'a> SetVarBinder<'a> {
-    pub fn new(current: BindScopeRef, vars: &'a SessionVars) -> Self {
-        SetVarBinder { current, vars }
+    pub fn new(current: BindScopeRef, config: &'a SessionConfig) -> Self {
+        SetVarBinder { current, config }
     }
 
     pub fn bind_set(
@@ -44,7 +44,7 @@ impl<'a> SetVarBinder<'a> {
         let value = expr.try_into_scalar()?;
 
         // Verify exists.
-        let _ = self.vars.get_var(&name)?;
+        let _ = self.config.get_as_scalar(&name)?;
 
         Ok(Node {
             node: LogicalSetVar { name, value },
@@ -62,8 +62,8 @@ impl<'a> SetVarBinder<'a> {
         let var = match reset.var {
             ast::VariableOrAll::Variable(mut v) => {
                 let name = v.pop()?; // TODO: Allow compound references?
-                let var = self.vars.get_var(&name)?;
-                VariableOrAll::Variable(var.clone())
+                let _ = self.config.get_as_scalar(&name)?; // Verify exists
+                VariableOrAll::Variable(name)
             }
             ast::VariableOrAll::All => VariableOrAll::All,
         };
@@ -82,41 +82,15 @@ impl<'a> SetVarBinder<'a> {
         mut show: ast::Show<ResolvedMeta>,
     ) -> Result<Node<LogicalShowVar>> {
         let name = show.reference.pop()?; // TODO: Allow compound references?
-        let var = self.vars.get_var(&name)?;
+        let var = self.config.get_as_scalar(&name)?;
 
-        bind_context.push_table(self.current, None, vec![DataType::Utf8], vec![name])?;
+        bind_context.push_table(self.current, None, vec![DataType::Utf8], vec![name.clone()])?;
 
         Ok(Node {
-            node: LogicalShowVar { var: var.clone() },
+            node: LogicalShowVar { name, value: var },
             location: LocationRequirement::ClientLocal, // Technically could be any since the variable is copied.
             children: Vec::new(),
             estimated_cardinality: StatisticsValue::Unknown,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::logical::binder::bind_context::testutil::columns_in_scope;
-
-    #[test]
-    fn bind_show_has_column() {
-        let mut context = BindContext::new();
-        let scope = context.root_scope_ref();
-
-        let vars = SessionVars::new_local();
-        let _ = SetVarBinder::new(scope, &vars)
-            .bind_show(
-                &mut context,
-                ast::Show {
-                    reference: vec!["application_name".to_string()].into(),
-                },
-            )
-            .unwrap();
-
-        let cols = columns_in_scope(&context, scope);
-        let expected = vec![("application_name".to_string(), DataType::Utf8)];
-        assert_eq!(expected, cols);
     }
 }
