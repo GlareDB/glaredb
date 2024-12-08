@@ -42,7 +42,7 @@ impl SelectPlanner {
             let (mut group_exprs, group_table, grouping_sets) = match select.group_by {
                 Some(group_by) => (
                     group_by.expressions,
-                    Some(group_by.group_table),
+                    Some(group_by.group_exprs_table),
                     Some(group_by.grouping_sets),
                 ),
                 None => (Vec::new(), None, None),
@@ -56,13 +56,24 @@ impl SelectPlanner {
                 plan = SubqueryPlanner.plan_expression(bind_context, expr, plan)?;
             }
 
+            let (grouping_functions, grouping_functions_table) =
+                if select.select_list.grouping_functions.is_empty() {
+                    (Vec::new(), None)
+                } else {
+                    (
+                        select.select_list.grouping_functions,
+                        Some(select.select_list.grouping_functions_table),
+                    )
+                };
+
             let agg = LogicalAggregate {
                 aggregates_table: select.select_list.aggregates_table,
                 aggregates: select.select_list.aggregates,
                 group_exprs,
                 group_table,
                 grouping_sets,
-                grouping_set_table: None,
+                grouping_functions_table,
+                grouping_functions,
             };
 
             plan = LogicalOperator::Aggregate(Node {

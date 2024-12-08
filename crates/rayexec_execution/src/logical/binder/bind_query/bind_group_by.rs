@@ -14,7 +14,7 @@ use crate::logical::resolver::ResolvedMeta;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundGroupBy {
     pub expressions: Vec<Expression>,
-    pub group_table: TableRef,
+    pub group_exprs_table: TableRef,
     pub grouping_sets: Vec<BTreeSet<usize>>,
 }
 
@@ -73,7 +73,7 @@ impl<'a> GroupByBinder<'a> {
 
         Ok(BoundGroupBy {
             expressions,
-            group_table,
+            group_exprs_table: group_table,
             grouping_sets: sets.grouping_sets,
         })
     }

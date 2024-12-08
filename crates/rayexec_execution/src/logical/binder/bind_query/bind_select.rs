@@ -31,6 +31,7 @@ pub struct BoundSelect {
     pub order_by: Option<BoundOrderBy>,
     /// Bound LIMIT.
     pub limit: Option<BoundLimit>,
+    pub groupings: Vec<Vec<usize>>,
 }
 
 #[derive(Debug)]
@@ -147,6 +148,7 @@ impl<'a> SelectBinder<'a> {
             group_by,
             order_by,
             limit,
+            groupings: Vec::new(),
         })
     }
 }

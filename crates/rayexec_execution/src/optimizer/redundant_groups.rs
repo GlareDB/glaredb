@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use rayexec_error::{RayexecError, Result};
 
@@ -127,7 +127,7 @@ impl RemoveRedundantGroups {
         agg: &mut Node<LogicalAggregate>,
     ) -> Result<()> {
         // TODO: Don't know yet.
-        if agg.node.grouping_set_table.is_some() {
+        if agg.node.grouping_functions_table.is_some() {
             return Ok(());
         }
 
@@ -219,10 +219,12 @@ impl RemoveRedundantGroups {
         // Update grouping sets.
         if let Some(grouping_sets) = &mut agg.node.grouping_sets {
             for grouping_set in grouping_sets {
+                let mut new_grouping_set = BTreeSet::new();
+
                 // Update expressions we're keeping.
                 for (original, updated) in &original_to_deduplicated {
-                    if grouping_set.remove(original) {
-                        grouping_set.insert(*updated);
+                    if grouping_set.contains(original) {
+                        new_grouping_set.insert(*updated);
                     }
                 }
 
@@ -235,10 +237,12 @@ impl RemoveRedundantGroups {
                 // point to the same `i` column since we'll be keeping the
                 // expression for `i`.
                 for (original, updated) in &removed_to_deduplicated {
-                    if grouping_set.remove(original) {
-                        grouping_set.insert(*updated);
+                    if grouping_set.contains(original) {
+                        new_grouping_set.insert(*updated);
                     }
                 }
+
+                *grouping_set = new_grouping_set;
             }
         }
 

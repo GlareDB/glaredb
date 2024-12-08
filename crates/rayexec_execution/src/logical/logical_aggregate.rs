@@ -7,7 +7,13 @@ use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupingFunction {
+    /// Indices pointing to expressions in the GROUP BY.
+    pub group_exprs: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalAggregate {
     /// Table ref that represents output of aggregate expressions.
     pub aggregates_table: TableRef,
@@ -31,7 +37,11 @@ pub struct LogicalAggregate {
     ///
     /// Follows postgres semantics.
     /// See: <https://www.postgresql.org/docs/current/functions-aggregate.html#FUNCTIONS-GROUPING-TABLE>
-    pub grouping_set_table: Option<TableRef>,
+    pub grouping_functions_table: Option<TableRef>,
+    /// Grouping function calls.
+    ///
+    /// Empty if `grouping_set_table` is None.
+    pub grouping_functions: Vec<GroupingFunction>,
 }
 
 impl Explainable for LogicalAggregate {
@@ -45,7 +55,7 @@ impl Explainable for LogicalAggregate {
         if conf.verbose {
             ent = ent.with_value("table_ref", self.aggregates_table);
 
-            if let Some(grouping_set_table) = self.grouping_set_table {
+            if let Some(grouping_set_table) = self.grouping_functions_table {
                 ent = ent.with_value("grouping_set_table_ref", grouping_set_table);
             }
         }
@@ -68,7 +78,7 @@ impl LogicalNode for Node<LogicalAggregate> {
         if let Some(group_table) = self.node.group_table {
             refs.push(group_table);
         }
-        if let Some(grouping_set_table) = self.node.grouping_set_table {
+        if let Some(grouping_set_table) = self.node.grouping_functions_table {
             refs.push(grouping_set_table);
         }
         refs

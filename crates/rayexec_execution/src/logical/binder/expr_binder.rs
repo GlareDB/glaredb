@@ -14,6 +14,7 @@ use crate::expr::case_expr::{CaseExpr, WhenThen};
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::grouping_set_expr::GroupingSetExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::negate_expr::{NegateExpr, NegateOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
@@ -1214,6 +1215,45 @@ impl<'a> BaseExpressionBinder<'a> {
                         let _ = unnest_expr.datatype(bind_context)?;
 
                         Ok(unnest_expr)
+                    }
+                    SpecialBuiltinFunction::Grouping => {
+                        if func.distinct || func.filter.is_some() || func.over.is_some() {
+                            return Err(RayexecError::new(
+                                "GROUPING does not support DISTINCT, FILTER, or OVER",
+                            ));
+                        }
+
+                        if func.args.is_empty() {
+                            return Err(RayexecError::new(
+                                "GROUPING requires at least one argument",
+                            ));
+                        }
+
+                        let inputs = func
+                            .args
+                            .iter()
+                            .map(|arg| match arg {
+                                ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                                    "GROUPING does not accept named arguments",
+                                )),
+                                ast::FunctionArg::Unnamed { arg } => match arg {
+                                    ast::FunctionArgExpr::Wildcard => Err(RayexecError::new(
+                                        "GROUPING does not support wildcard arguments",
+                                    )),
+                                    ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
+                                        bind_context,
+                                        expr,
+                                        column_binder,
+                                        RecursionContext {
+                                            is_root: false,
+                                            ..recur
+                                        },
+                                    ),
+                                },
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+
+                        Ok(Expression::GroupingSet(GroupingSetExpr { inputs }))
                     }
                 }
             }

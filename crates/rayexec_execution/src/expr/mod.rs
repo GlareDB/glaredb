@@ -6,6 +6,7 @@ pub mod cast_expr;
 pub mod column_expr;
 pub mod comparison_expr;
 pub mod conjunction_expr;
+pub mod grouping_set_expr;
 pub mod is_expr;
 pub mod literal_expr;
 pub mod negate_expr;
@@ -27,6 +28,7 @@ use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
 use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
@@ -59,6 +61,7 @@ pub enum Expression {
     Subquery(SubqueryExpr),
     Window(WindowExpr),
     Unnest(UnnestExpr),
+    GroupingSet(GroupingSetExpr),
 }
 
 impl Expression {
@@ -85,6 +88,7 @@ impl Expression {
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(window) => window.agg.return_type(),
             Self::Unnest(expr) => expr.datatype(bind_context)?,
+            Self::GroupingSet(expr) => expr.datatype(),
         })
     }
 
@@ -153,6 +157,11 @@ impl Expression {
                 }
             }
             Self::Unnest(unnest) => func(&mut unnest.expr)?,
+            Self::GroupingSet(grouping) => {
+                for input in &mut grouping.inputs {
+                    func(input)?;
+                }
+            }
         }
         Ok(())
     }
@@ -222,6 +231,11 @@ impl Expression {
                 }
             }
             Self::Unnest(unnest) => func(&unnest.expr)?,
+            Self::GroupingSet(grouping) => {
+                for input in &grouping.inputs {
+                    func(input)?;
+                }
+            }
         }
         Ok(())
     }
@@ -566,6 +580,7 @@ impl ContextDisplay for Expression {
             Self::Subquery(expr) => expr.fmt_using_context(mode, f),
             Self::Window(expr) => expr.fmt_using_context(mode, f),
             Self::Unnest(expr) => expr.fmt_using_context(mode, f),
+            Self::GroupingSet(expr) => expr.fmt_using_context(mode, f),
         }
     }
 }

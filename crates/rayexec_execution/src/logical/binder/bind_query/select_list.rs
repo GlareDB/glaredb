@@ -8,13 +8,8 @@ use super::bind_select_list::SelectListBinder;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::logical_aggregate::GroupingFunction;
 use crate::logical::resolver::ResolvedMeta;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Preprojection {
-    pub table: TableRef,
-    pub expressions: Vec<Expression>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputProjectionTable {
@@ -51,6 +46,10 @@ pub struct BoundSelectList {
     pub windows_table: TableRef,
     /// All extracted windows.
     pub windows: Vec<Expression>,
+    /// Output table for group indices for GROUPING calls.
+    pub grouping_functions_table: TableRef,
+    /// List of grouping functions.
+    pub grouping_functions: Vec<GroupingFunction>,
 }
 
 #[derive(Debug)]
@@ -78,6 +77,10 @@ pub struct SelectList {
     pub windows_table: TableRef,
     /// All extracted windows.
     pub windows: Vec<Expression>,
+    /// Table for the group output for use with GROUPING calls.
+    pub grouping_functions_table: TableRef,
+    /// All extracted GROUPING function calls.
+    pub grouping_set_references: Vec<Expression>,
 }
 
 impl SelectList {
@@ -90,6 +93,8 @@ impl SelectList {
         bind_context: &mut BindContext,
         mut group_by: Option<&mut BoundGroupBy>,
     ) -> Result<BoundSelectList> {
+        let grouping_functions = self.expressions_to_grouping_functions(&group_by)?;
+
         // Have projections point to the GROUP BY instead of the other way
         // around.
         if let Some(group_by) = group_by.as_mut() {
@@ -99,6 +104,7 @@ impl SelectList {
         self.verify_column_references(
             bind_context,
             self.aggregates_table,
+            self.grouping_functions_table,
             &self.aggregates,
             group_by,
         )?;
@@ -153,6 +159,9 @@ impl SelectList {
             aggregates: self.aggregates,
             windows_table: self.windows_table,
             windows: self.windows,
+
+            grouping_functions_table: self.grouping_functions_table,
+            grouping_functions,
         })
     }
 
@@ -162,6 +171,7 @@ impl SelectList {
         &self,
         bind_context: &BindContext,
         agg_table: TableRef,
+        groupings_table: TableRef,
         aggs: &[Expression],
         group_by: Option<&mut BoundGroupBy>,
     ) -> Result<()> {
@@ -169,31 +179,39 @@ impl SelectList {
             return Ok(());
         }
 
-        let [t1, t2] = match group_by {
-            Some(group_by) => [agg_table, group_by.group_table],
-            None => [agg_table, agg_table], // Using agg table twice just to make below logic easier.
-        };
-
-        fn inner(
-            bind_context: &BindContext,
-            expr: &Expression,
-            [t1, t2]: [TableRef; 2],
-        ) -> Result<()> {
+        fn inner(bind_context: &BindContext, expr: &Expression, refs: &[TableRef]) -> Result<()> {
             match expr {
                 Expression::Column(col) => {
-                    if col.table_scope != t1 && col.table_scope != t2 {
+                    if !refs.iter().any(|table_ref| &col.table_scope == table_ref) {
                         let (col_name, _) =
                             bind_context.get_column_info(col.table_scope, col.column)?;
                         return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
                     }
                 }
-                other => other.for_each_child(&mut |child| inner(bind_context, child, [t1, t2]))?,
+                other => other.for_each_child(&mut |child| inner(bind_context, child, refs))?,
             }
             Ok(())
         }
 
-        for expr in self.projections.iter().chain(&self.appended) {
-            inner(bind_context, expr, [t1, t2])?
+        match group_by {
+            Some(group_by) => {
+                for expr in self.projections.iter().chain(&self.appended) {
+                    // Expression needs to reference:
+                    // - An aggregate
+                    // - An expression in the group by
+                    // - A GROUPING call
+                    inner(
+                        bind_context,
+                        expr,
+                        &[agg_table, group_by.group_exprs_table, groupings_table],
+                    )?
+                }
+            }
+            None => {
+                for expr in self.projections.iter().chain(&self.appended) {
+                    inner(bind_context, expr, &[agg_table])?
+                }
+            }
         }
 
         Ok(())
@@ -211,9 +229,11 @@ impl SelectList {
 
         SelectListBinder::extract_aggregates(
             self.aggregates_table,
+            self.grouping_functions_table,
             bind_context,
             &mut expr,
             &mut self.aggregates,
+            &mut self.grouping_set_references,
         )?;
 
         self.appended.push(expr);
@@ -255,7 +275,7 @@ impl SelectList {
                 .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
             if n < 1 || n as usize > self.projections.len() {
                 return Err(RayexecError::new(format!(
-                    "Column out of range, expected 1 - {}",
+                    "Column out of range, expected 1 to {}",
                     self.projections.len()
                 )))?;
             }
@@ -266,6 +286,59 @@ impl SelectList {
             }));
         }
         Ok(None)
+    }
+
+    /// Find the indices to use for the GROUPING expressions.
+    ///
+    /// The output vec length equals the number of GROUPING calls. The vec may
+    /// contain duplicates.
+    fn expressions_to_grouping_functions(
+        &self,
+        group_by: &Option<&mut BoundGroupBy>,
+    ) -> Result<Vec<GroupingFunction>> {
+        let group_by = match group_by {
+            Some(group_by) => group_by,
+            None => {
+                if self.grouping_set_references.is_empty() {
+                    return Ok(Vec::new());
+                } else {
+                    return Err(RayexecError::new(
+                        "GROUPING cannot be used without any GROUP BY expressions",
+                    ));
+                }
+            }
+        };
+
+        let mut grouping_functions = Vec::new();
+
+        for grouping_expr in &self.grouping_set_references {
+            let mut expr_indices = Vec::new();
+
+            let grouping_expr = match grouping_expr {
+                Expression::GroupingSet(expr) => expr,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected grouping set expression, got {other}"
+                    )))
+                }
+            };
+
+            // Find the expressions the inputs match with.
+            for input in &grouping_expr.inputs {
+                let idx = match group_by.expressions.iter().position(|expr| expr == input) {
+                    Some(idx) => idx,
+                    None => return Err(RayexecError::new(format!("'{input}' was not found in the GROUP BY and cannot be used as an argument to GROUPING"))),
+                };
+
+                expr_indices.push(idx);
+            }
+
+            grouping_functions.push(GroupingFunction {
+                group_exprs: expr_indices,
+            });
+        }
+
+        Ok(grouping_functions)
     }
 
     /// Updates expressions in the select list and bound group to ensure the
@@ -290,7 +363,7 @@ impl SelectList {
                     let orig = std::mem::replace(
                         proj_expr,
                         Expression::Column(ColumnExpr {
-                            table_scope: group_by.group_table,
+                            table_scope: group_by.group_exprs_table,
                             column: idx,
                         }),
                     );
@@ -319,7 +392,7 @@ impl SelectList {
         // BY expressions.
         for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
             let group_by_col = ColumnExpr {
-                table_scope: group_by.group_table,
+                table_scope: group_by.group_exprs_table,
                 column: idx,
             };
 
