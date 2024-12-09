@@ -14,7 +14,7 @@ use crate::database::create::{
 use crate::datasource::DataSourceRegistry;
 use crate::functions::aggregate::BUILTIN_AGGREGATE_FUNCTIONS;
 use crate::functions::scalar::BUILTIN_SCALAR_FUNCTIONS;
-use crate::functions::table::BUILTIN_TABLE_FUNCTIONS;
+use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTIONS;
 
 /// Create a new system catalog with builtin functions.
 ///

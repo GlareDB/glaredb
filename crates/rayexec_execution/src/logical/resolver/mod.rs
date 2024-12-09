@@ -42,7 +42,7 @@ use crate::database::DatabaseContext;
 use crate::datasource::FileHandlers;
 use crate::functions::copy::CopyToArgs;
 use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
-use crate::functions::table::TableFunctionArgs;
+use crate::functions::table::arguments::TableFunctionArgs;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.

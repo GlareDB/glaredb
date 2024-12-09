@@ -3,7 +3,8 @@ use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
 
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunctionArgs};
+use crate::functions::table::arguments::TableFunctionArgs;
+use crate::functions::table::PlannedTableFunction;
 use crate::proto::DatabaseProtoConv;
 
 /// A resolved table function reference.
