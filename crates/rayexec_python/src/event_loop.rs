@@ -72,7 +72,7 @@ fn get_event_loop(py: Python<'_>) -> &Py<PyAny> {
         // TODO: Handle unwraps a bit better (`get_or_try_init` would be real
         // cool right now).
         // Use once_cell crate if this becomes an issue.
-        py.import_bound("asyncio")
+        py.import("asyncio")
             .unwrap()
             .call_method0("new_event_loop")
             .unwrap()
