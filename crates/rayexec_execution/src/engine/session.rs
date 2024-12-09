@@ -163,10 +163,6 @@ where
         }
     }
 
-    pub(crate) fn config(&self) -> &SessionConfig {
-        &self.config
-    }
-
     pub(crate) fn config_mut(&mut self) -> &mut SessionConfig {
         &mut self.config
     }
@@ -455,11 +451,17 @@ where
             handle: handle.into(),
         };
 
-        if let Some(verifier) = portal.verifier {
-            unimplemented!()
+        match portal.verifier {
+            Some(verifier) => {
+                // TODO: Try to avoid the box pin here. `verify` should probably
+                // be split up into to functions, one for creating a stream from
+                // the session, the other for actually executing the stream and
+                // doing the checking.
+                let new_exec_result = Box::pin(verifier.verify(self, exec_result)).await?;
+                Ok(new_exec_result)
+            }
+            None => Ok(exec_result),
         }
-
-        Ok(exec_result)
     }
 
     async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {

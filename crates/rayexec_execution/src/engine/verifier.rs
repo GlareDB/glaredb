@@ -1,13 +1,9 @@
 use futures::TryStreamExt;
-use rayexec_bullet::batch::Batch;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::statement::RawStatement;
 
-use super::result::{ExecutionResult, ResultErrorSink, ResultSink};
+use super::result::ExecutionResult;
 use super::session::Session;
-use crate::execution::intermediate::{IntermediateMaterializationGroup, IntermediatePipelineGroup};
-use crate::logical::binder::bind_context::BindContext;
-use crate::logical::operator::LogicalOperator;
 use crate::runtime::{PipelineExecutor, Runtime};
 
 /// Verify the results of a query.
@@ -92,6 +88,8 @@ impl QueryVerifier {
             _ => (),
         }
 
-        unimplemented!()
+        // TODO: Need to move the materialized table in and allow equality
+        // checking.
+        not_implemented!("query verification")
     }
 }
