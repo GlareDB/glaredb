@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, FunctionArg, ReplaceColumn};
 use rayexec_parser::meta::Raw;
-use stackutil::check_stack_redline;
 
 use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
@@ -209,7 +208,7 @@ impl<'a> ExpressionResolver<'a> {
         // have to.
         //
         // See <https://github.com/rust-lang/rust/issues/34283>
-        check_stack_redline("resolve expression")?;
+        // check_stack_redline("resolve expression")?;
 
         match expr {
             ast::Expr::Ident(ident) => Ok(ast::Expr::Ident(ident)),
