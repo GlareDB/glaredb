@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use super::client::{IpcBatch, PullStatus};
 use crate::database::DatabaseContext;
-use crate::execution::intermediate::StreamId;
+use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::{PartitionSink, SinkOperation};
 use crate::execution::operators::source::{PartitionSource, SourceOperation};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
