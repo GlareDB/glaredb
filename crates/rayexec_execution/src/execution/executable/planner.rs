@@ -8,7 +8,7 @@ use super::pipeline::{ExecutablePipeline, PipelineId};
 use crate::config::execution::ExecutablePlanConfig;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
-use crate::execution::intermediate::{
+use crate::execution::intermediate::pipeline::{
     IntermediateMaterializationGroup,
     IntermediateOperator,
     IntermediatePipelineGroup,

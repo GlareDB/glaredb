@@ -16,7 +16,7 @@ use url::{Host, Url};
 use uuid::Uuid;
 
 use crate::database::DatabaseContext;
-use crate::execution::intermediate::{IntermediatePipelineGroup, StreamId};
+use crate::execution::intermediate::pipeline::{IntermediatePipelineGroup, StreamId};
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedStatement;
 use crate::proto::DatabaseProtoConv;

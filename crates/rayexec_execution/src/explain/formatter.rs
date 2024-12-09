@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::explainable::{ExplainConfig, ExplainEntry};
-use crate::execution::intermediate::{
+use crate::execution::intermediate::pipeline::{
     IntermediatePipeline,
     IntermediatePipelineGroup,
     PipelineSink,

@@ -18,8 +18,11 @@ use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
 use crate::execution::executable::pipeline::ExecutablePipeline;
 use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
+use crate::execution::intermediate::pipeline::{
+    IntermediateMaterializationGroup,
+    IntermediatePipelineGroup,
+};
 use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
-use crate::execution::intermediate::{IntermediateMaterializationGroup, IntermediatePipelineGroup};
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_attach::LogicalAttachDatabase;

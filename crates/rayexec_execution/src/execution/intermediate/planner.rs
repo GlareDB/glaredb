@@ -7,19 +7,19 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt}
 use tracing::error;
 use uuid::Uuid;
 
-use super::{
+use super::pipeline::{
     IntermediateMaterialization,
     IntermediateMaterializationGroup,
     IntermediateOperator,
     IntermediatePipeline,
     IntermediatePipelineGroup,
     IntermediatePipelineId,
+    PipelineSink,
     PipelineSource,
     StreamId,
 };
 use crate::config::execution::IntermediatePlanConfig;
 use crate::database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
-use crate::execution::intermediate::PipelineSink;
 use crate::execution::operators::batch_resizer::PhysicalBatchResizer;
 use crate::execution::operators::copy_to::CopyToOperation;
 use crate::execution::operators::create_schema::PhysicalCreateSchema;

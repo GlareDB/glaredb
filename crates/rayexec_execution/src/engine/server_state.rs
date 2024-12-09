@@ -12,12 +12,12 @@ use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
 use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
-use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
-use crate::execution::intermediate::{
+use crate::execution::intermediate::pipeline::{
     IntermediateMaterializationGroup,
     IntermediatePipelineGroup,
     StreamId,
 };
+use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::buffer::ServerStreamBuffers;
 use crate::hybrid::client::{HybridPlanResponse, PullStatus};
 use crate::logical::binder::bind_statement::StatementBinder;
