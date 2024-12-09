@@ -9,8 +9,8 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
-use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use crate::database::DatabaseContext;
+use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,

@@ -8,7 +8,7 @@ use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::{ResolveContext, ResolvedMeta, Resolver};
 use crate::database::catalog_entry::CatalogEntryType;
-use crate::functions::table::TableFunctionArgs;
+use crate::functions::table::arguments::TableFunctionArgs;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 

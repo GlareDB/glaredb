@@ -7,9 +7,9 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 
-use super::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::DatabaseContext;
+use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::table_storage::DataTable;
 
@@ -19,8 +19,10 @@ pub trait RefreshOperation: Debug + Clone + Copy + PartialEq + Eq + Sync + Send 
 
     fn schema() -> Schema;
 
+    #[allow(dead_code)]
     fn create_state(context: &DatabaseContext, args: TableFunctionArgs) -> Result<Self::State>;
 
+    #[allow(dead_code)]
     fn refresh(state: &Self::State) -> Result<BoxFuture<'_, Result<()>>>;
 }
 
@@ -87,7 +89,7 @@ impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
         &self,
         _context: &'a DatabaseContext,
         _args: TableFunctionArgs,
-    ) -> BoxFuture<'a, Result<Box<dyn super::PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         unimplemented!()
     }
 

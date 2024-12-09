@@ -1,94 +1,18 @@
-pub mod refresh;
-pub mod series;
-pub mod system;
+pub mod arguments;
+pub mod builtin;
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 
+use arguments::TableFunctionArgs;
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use once_cell::sync::Lazy;
 use rayexec_bullet::field::Schema;
-use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::{RayexecError, Result};
-use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::s3::credentials::AwsCredentials;
-use rayexec_io::s3::S3Location;
-use serde::{Deserialize, Serialize};
-use series::GenerateSeries;
-use system::{ListDatabases, ListFunctions, ListSchemas, ListTables};
+use rayexec_error::Result;
 
 use crate::database::DatabaseContext;
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::DataTable;
-
-pub static BUILTIN_TABLE_FUNCTIONS: Lazy<Vec<Box<dyn TableFunction>>> = Lazy::new(|| {
-    vec![
-        Box::new(GenerateSeries),
-        // Various list system object functions.
-        Box::new(ListDatabases::new()),
-        Box::new(ListSchemas::new()),
-        Box::new(ListTables::new()),
-        Box::new(ListFunctions::new()),
-    ]
-});
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TableFunctionArgs {
-    /// Named arguments to a table function.
-    pub named: HashMap<String, OwnedScalarValue>,
-
-    /// Positional arguments to a table function.
-    pub positional: Vec<OwnedScalarValue>,
-}
-
-impl TableFunctionArgs {
-    /// Try to get a file location and access config from the table args.
-    // TODO: Secrets provider that we pass in allowing us to get creds from some
-    // secrets store.
-    pub fn try_location_and_access_config(&self) -> Result<(FileLocation, AccessConfig)> {
-        let loc = match self.positional.first() {
-            Some(loc) => {
-                let loc = loc.try_as_str()?;
-                FileLocation::parse(loc)
-            }
-            None => return Err(RayexecError::new("Expected at least one position argument")),
-        };
-
-        let conf = match &loc {
-            FileLocation::Url(url) => {
-                if S3Location::is_s3_location(url) {
-                    let key_id = self.try_get_named("key_id")?.try_as_str()?.to_string();
-                    let secret = self.try_get_named("secret")?.try_as_str()?.to_string();
-                    let region = self.try_get_named("region")?.try_as_str()?.to_string();
-
-                    AccessConfig::S3 {
-                        credentials: AwsCredentials { key_id, secret },
-                        region,
-                    }
-                } else {
-                    AccessConfig::None
-                }
-            }
-            FileLocation::Path(_) => AccessConfig::None,
-        };
-
-        Ok((loc, conf))
-    }
-
-    pub fn try_get_named(&self, name: &str) -> Result<&OwnedScalarValue> {
-        self.named
-            .get(name)
-            .ok_or_else(|| RayexecError::new(format!("Expected named argument '{name}'")))
-    }
-
-    pub fn try_get_position(&self, pos: usize) -> Result<&OwnedScalarValue> {
-        self.positional
-            .get(pos)
-            .ok_or_else(|| RayexecError::new(format!("Expected argument at position {pos}")))
-    }
-}
 
 /// A generic table function provides a way to dispatch to a more specialized
 /// table functions.
@@ -198,14 +122,4 @@ impl Clone for Box<dyn PlannedTableFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
-}
-
-pub fn check_named_args_is_empty(func: &dyn TableFunction, args: &TableFunctionArgs) -> Result<()> {
-    if !args.named.is_empty() {
-        return Err(RayexecError::new(format!(
-            "'{}' does not take named arguments",
-            func.name()
-        )));
-    }
-    Ok(())
 }
