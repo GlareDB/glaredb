@@ -4,7 +4,6 @@ use rayexec_bullet::scalar::interval::Interval;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
-use stackutil::check_stack_redline;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
@@ -88,7 +87,7 @@ impl<'a> BaseExpressionBinder<'a> {
         column_binder: &mut impl ExpressionColumnBinder,
         recur: RecursionContext,
     ) -> Result<Expression> {
-        check_stack_redline("bind expression")?;
+        // check_stack_redline("bind expression")?;
 
         match expr {
             ast::Expr::Ident(ident) => {
