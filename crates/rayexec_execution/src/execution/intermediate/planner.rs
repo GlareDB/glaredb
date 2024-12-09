@@ -17,7 +17,7 @@ use super::{
     PipelineSource,
     StreamId,
 };
-use crate::config::IntermediatePlanConfig;
+use crate::config::execution::IntermediatePlanConfig;
 use crate::database::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
 use crate::execution::intermediate::PipelineSink;
 use crate::execution::operators::batch_resizer::PhysicalBatchResizer;
@@ -1093,7 +1093,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                Batch::try_new([Array::from_iter([show.var.value.to_string().as_str()])])?,
+                Batch::try_new([Array::from_iter([show.value.to_string().as_str()])])?,
             ]))),
             partitioning_requirement: Some(1),
         };

@@ -9,8 +9,10 @@ use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;
 use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream};
+use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
-use crate::config::vars::SessionVars;
+use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
+use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
@@ -62,14 +64,13 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     context: DatabaseContext,
 
     /// Variables for this session.
-    vars: SessionVars,
+    config: SessionConfig,
 
     /// Reference configured data source implementations.
     registry: Arc<DataSourceRegistry>,
 
     /// Runtime for accessing external resources like the filesystem or http
     /// clients.
-    #[allow(dead_code)] // TODO: Might just remove this field.
     runtime: R,
 
     /// Pipeline executor.
@@ -79,7 +80,7 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     prepared: HashMap<String, PreparedStatement>,
 
     /// Portals for statements ready to be executed.
-    portals: HashMap<String, Portal>,
+    portals: HashMap<String, ExecutablePortal>,
 
     /// Client for hybrid execution if enabled.
     hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
@@ -87,6 +88,7 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
 
 #[derive(Debug)]
 struct PreparedStatement {
+    verifier: Option<QueryVerifier>,
     statement: RawStatement,
 }
 
@@ -99,8 +101,20 @@ enum ExecutionMode {
     Hybrid,
 }
 
+/// Intermediate struct hold on to pipelines that still need to be planned for
+/// execution.
 #[derive(Debug)]
-struct Portal {
+struct IntermediatePortal {
+    query_id: Uuid,
+    execution_mode: ExecutionMode,
+    intermediate_pipelines: IntermediatePipelineGroup,
+    intermediate_materializations: IntermediateMaterializationGroup,
+    output_schema: Schema,
+}
+
+/// Portal containing executable pipelines.
+#[derive(Debug)]
+struct ExecutablePortal {
     /// Query id for this query. Used to begin execution on the remote side if
     /// needed.
     query_id: Uuid,
@@ -120,6 +134,8 @@ struct Portal {
     error_sink: ResultErrorSink,
     /// Profile data we've collected during resolving/binding/planning.
     profile: PlanningProfileData,
+    /// Optional verifier that we're carrying through planning.
+    verifier: Option<QueryVerifier>,
 }
 
 impl<P, R> Session<P, R>
@@ -133,16 +149,22 @@ where
         runtime: R,
         registry: Arc<DataSourceRegistry>,
     ) -> Self {
+        let config = SessionConfig::new(&executor, &runtime);
+
         Session {
             context,
             runtime,
             executor,
             registry,
-            vars: SessionVars::new_local(),
+            config,
             prepared: HashMap::new(),
             portals: HashMap::new(),
             hybrid_client: None,
         }
+    }
+
+    pub(crate) fn config_mut(&mut self) -> &mut SessionConfig {
+        &mut self.config
     }
 
     /// Get execution results from one or more sql queries.
@@ -171,11 +193,24 @@ where
 
     // TODO: Typed parameters at some point.
     pub fn prepare(&mut self, prepared_name: impl Into<String>, stmt: RawStatement) -> Result<()> {
-        self.prepared
-            .insert(prepared_name.into(), PreparedStatement { statement: stmt });
+        let verifier = if self.config.verify_optimized_plan {
+            Some(QueryVerifier::new(stmt.clone()))
+        } else {
+            None
+        };
+
+        self.prepared.insert(
+            prepared_name.into(),
+            PreparedStatement {
+                statement: stmt,
+                verifier,
+            },
+        );
         Ok(())
     }
 
+    /// Gets a prepared statement by name and generates intermedidate executable
+    /// pipelines that get placed into a portal.
     pub async fn bind(
         &mut self,
         prepared_name: &str,
@@ -186,6 +221,7 @@ where
                 "Missing named prepared statement: '{prepared_name}'"
             ))
         })?;
+        let verifier = stmt.verifier.clone();
 
         let mut profile = PlanningProfileData::default();
 
@@ -209,7 +245,7 @@ where
         .await?;
         profile.resolve_step = Some(timer.stop());
 
-        let (execution_mode, query_id, pipelines, materializations, schema) = self
+        let intermediate_portal = self
             .plan_intermediate(resolved_stmt, resolve_context, resolve_mode, &mut profile)
             .await?;
 
@@ -217,7 +253,9 @@ where
 
         let mut planner = ExecutablePipelinePlanner::<R>::new(
             &self.context,
-            self.vars.executable_plan_config(),
+            ExecutablePlanConfig {
+                partitions: self.config.partitions as usize,
+            },
             PlanLocationState::Client {
                 output_sink: Some(sink),
                 hybrid_client: self.hybrid_client.as_ref(),
@@ -225,60 +263,60 @@ where
         );
 
         let timer = Timer::<R::Instant>::start();
-        let pipelines = planner.plan_from_intermediate(pipelines, materializations)?;
+        let pipelines = planner.plan_from_intermediate(
+            intermediate_portal.intermediate_pipelines,
+            intermediate_portal.intermediate_materializations,
+        )?;
         profile.plan_executable_step = Some(timer.stop());
 
         self.portals.insert(
             portal_name.into(),
-            Portal {
-                query_id,
-                execution_mode,
+            ExecutablePortal {
+                query_id: intermediate_portal.query_id,
+                execution_mode: intermediate_portal.execution_mode,
                 executable_pipelines: pipelines,
-                output_schema: schema,
+                output_schema: intermediate_portal.output_schema,
                 result_stream: stream,
                 error_sink: errors,
                 profile,
+                verifier,
             },
         );
         Ok(())
     }
 
     /// Plans the intermediate pipelines from a resolved statement.
+    ///
+    /// If the resolve context indicates that not all objects were resolved,
+    /// we'll call out to the remote side to complete planning.
     async fn plan_intermediate(
         &mut self,
         stmt: ResolvedStatement,
         resolve_context: ResolveContext,
         resolve_mode: ResolveMode,
         profile: &mut PlanningProfileData,
-    ) -> Result<(
-        ExecutionMode,
-        Uuid,
-        IntermediatePipelineGroup,
-        IntermediateMaterializationGroup,
-        Schema,
-    )> {
+    ) -> Result<IntermediatePortal> {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
                 // Hybrid planning, send to remote to complete planning.
-
                 let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
                 let resp = hybrid_client
                     .remote_plan(stmt, resolve_context, &self.context)
                     .await?;
 
-                Ok((
-                    ExecutionMode::Hybrid,
-                    resp.query_id,
-                    resp.pipelines,
-                    IntermediateMaterializationGroup::default(),
-                    resp.schema,
-                ))
+                Ok(IntermediatePortal {
+                    query_id: resp.query_id,
+                    execution_mode: ExecutionMode::Hybrid,
+                    intermediate_pipelines: resp.pipelines,
+                    intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
+                    output_schema: resp.schema,
+                })
             }
             _ => {
                 // Normal all-local planning.
 
                 let binder = StatementBinder {
-                    session_vars: &self.vars,
+                    session_config: &self.config,
                     resolve_context: &resolve_context,
                 };
                 let timer = Timer::<R::Instant>::start();
@@ -289,9 +327,11 @@ where
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
                 profile.plan_logical_step = Some(timer.stop());
 
-                let mut optimizer = Optimizer::new();
-                logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
-                profile.optimizer_step = Some(optimizer.profile_data);
+                if self.config.enable_optimizer {
+                    let mut optimizer = Optimizer::new();
+                    logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
+                    profile.optimizer_step = Some(optimizer.profile_data);
+                }
 
                 // If we're an explain, put a copy of the optimized plan on the
                 // node.
@@ -316,7 +356,9 @@ where
 
                 let query_id = Uuid::new_v4();
                 let planner = IntermediatePipelinePlanner::new(
-                    self.vars.intermediate_plan_config(),
+                    IntermediatePlanConfig {
+                        allow_nested_loop_join: self.config.allow_nested_loop_join,
+                    },
                     query_id,
                 );
 
@@ -341,18 +383,19 @@ where
                         // We could have an implementation for the local session, and a
                         // separate implementation used for nodes taking part in
                         // distributed execution.
-                        let set_var = set_var.into_inner();
-                        let val = self
-                            .vars
-                            .try_cast_scalar_value(&set_var.name, set_var.value)?;
-                        self.vars.set_var(&set_var.name, val)?;
+                        self.config
+                            .set_from_scalar(&set_var.node.name, set_var.node.value)?;
                         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
                     LogicalOperator::ResetVar(reset) => {
                         // Same TODO as above.
                         match &reset.as_ref().var {
-                            VariableOrAll::Variable(v) => self.vars.reset_var(v.name)?,
-                            VariableOrAll::All => self.vars.reset_all(),
+                            VariableOrAll::Variable(v) => {
+                                self.config.reset(v, &self.executor, &self.runtime)?
+                            }
+                            VariableOrAll::All => {
+                                self.config.reset_all(&self.executor, &self.runtime)
+                            }
                         }
                         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
                     }
@@ -370,17 +413,21 @@ where
                     ));
                 }
 
-                Ok((
-                    ExecutionMode::LocalOnly,
+                Ok(IntermediatePortal {
                     query_id,
-                    pipelines.local,
-                    pipelines.materializations,
-                    schema,
-                ))
+                    execution_mode: ExecutionMode::LocalOnly,
+                    intermediate_pipelines: pipelines.local,
+                    intermediate_materializations: pipelines.materializations,
+                    output_schema: schema,
+                })
             }
         }
     }
 
+    /// Executes the pipelines in the given portal.
+    ///
+    /// This will go through the final phase of planning (producing executable
+    /// pipelines) then spawn those on the executor.
     pub async fn execute(&mut self, portal_name: &str) -> Result<ExecutionResult> {
         let portal = self
             .portals
@@ -397,12 +444,24 @@ where
             .executor
             .spawn_pipelines(portal.executable_pipelines, Arc::new(portal.error_sink));
 
-        Ok(ExecutionResult {
+        let exec_result = ExecutionResult {
             planning_profile: portal.profile,
             output_schema: portal.output_schema,
             stream: portal.result_stream,
             handle: handle.into(),
-        })
+        };
+
+        match portal.verifier {
+            Some(verifier) => {
+                // TODO: Try to avoid the box pin here. `verify` should probably
+                // be split up into to functions, one for creating a stream from
+                // the session, the other for actually executing the stream and
+                // doing the checking.
+                let new_exec_result = Box::pin(verifier.verify(self, exec_result)).await?;
+                Ok(new_exec_result)
+            }
+            None => Ok(exec_result),
+        }
     }
 
     async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {

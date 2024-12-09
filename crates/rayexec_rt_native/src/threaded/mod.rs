@@ -44,6 +44,10 @@ impl Scheduler for ThreadedScheduler {
         })
     }
 
+    fn num_threads(&self) -> usize {
+        self.pool.current_num_threads()
+    }
+
     /// Spawn execution of a query graph on the thread pool.
     ///
     /// Each partition pipeline in the query graph will be independently
