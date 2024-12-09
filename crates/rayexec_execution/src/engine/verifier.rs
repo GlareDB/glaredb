@@ -36,7 +36,7 @@ impl QueryVerifier {
         config.enable_optimizer = false;
         config.verify_optimized_plan = false;
 
-        const VERIFIED_NAME: &'static str = "__verify_optimized_plan";
+        const VERIFIED_NAME: &str = "__verify_optimized_plan";
 
         session.prepare(VERIFIED_NAME, self.statement.clone())?;
         session.bind(VERIFIED_NAME, VERIFIED_NAME).await?;
