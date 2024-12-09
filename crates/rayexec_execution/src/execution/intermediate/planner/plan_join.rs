@@ -20,7 +20,7 @@ use crate::logical::logical_join::{
 };
 use crate::logical::operator::{self, LocationRequirement, LogicalNode, Node};
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_magic_join(
         &mut self,
         id_gen: &mut PipelineIdGen,

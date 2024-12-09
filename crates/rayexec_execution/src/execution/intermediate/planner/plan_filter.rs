@@ -10,7 +10,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_filter(
         &mut self,
         id_gen: &mut PipelineIdGen,

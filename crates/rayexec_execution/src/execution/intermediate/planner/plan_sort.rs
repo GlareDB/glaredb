@@ -15,7 +15,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::operator::{LocationRequirement, LogicalNode, Node};
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_sort(
         &mut self,
         id_gen: &mut PipelineIdGen,

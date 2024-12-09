@@ -5,7 +5,7 @@ use crate::execution::intermediate::pipeline::PipelineSource;
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::operator::{LocationRequirement, Node};
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_materialize_scan(
         &mut self,
         id_gen: &mut PipelineIdGen,

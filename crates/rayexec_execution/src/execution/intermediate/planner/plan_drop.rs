@@ -9,7 +9,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::Node;
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_drop(&mut self, id_gen: &mut PipelineIdGen, drop: Node<LogicalDrop>) -> Result<()> {
         let location = drop.location;
 

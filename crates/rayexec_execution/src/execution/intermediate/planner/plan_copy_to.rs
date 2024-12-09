@@ -10,7 +10,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_copy::LogicalCopyTo;
 use crate::logical::operator::Node;
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_copy_to(
         &mut self,
         id_gen: &mut PipelineIdGen,

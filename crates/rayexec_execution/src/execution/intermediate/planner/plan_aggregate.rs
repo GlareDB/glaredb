@@ -14,7 +14,7 @@ use crate::expr::Expression;
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_aggregate(
         &mut self,
         id_gen: &mut PipelineIdGen,

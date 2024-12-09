@@ -15,7 +15,7 @@ use crate::explain::formatter::ExplainFormatter;
 use crate::logical::logical_explain::LogicalExplain;
 use crate::logical::operator::Node;
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_explain(
         &mut self,
         id_gen: &mut PipelineIdGen,

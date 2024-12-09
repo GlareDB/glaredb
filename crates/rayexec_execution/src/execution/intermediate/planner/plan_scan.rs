@@ -15,7 +15,7 @@ use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::operator::Node;
 use crate::storage::table_storage::Projections;
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {
         let location = scan.location;
 

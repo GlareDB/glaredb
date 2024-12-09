@@ -11,7 +11,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::operator::Node;
 
-impl<'a> IntermediatePipelineBuildState<'a> {
+impl IntermediatePipelineBuildState<'_> {
     pub fn plan_show_var(
         &mut self,
         id_gen: &mut PipelineIdGen,
