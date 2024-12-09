@@ -1,5 +1,7 @@
 pub mod arguments;
 pub mod builtin;
+pub mod inout;
+pub mod out;
 
 use std::fmt::Debug;
 
@@ -86,10 +88,6 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     fn table_function(&self) -> &dyn TableFunction;
 
     /// Get the schema for the function output.
-    ///
-    /// Admittedly passing a runtime here feels a bit weird, but I don't think
-    /// is a terrible solution. This might change as we implement more data
-    /// sources.
     fn schema(&self) -> Schema;
 
     /// Get the cardinality of the output.
