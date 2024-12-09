@@ -47,7 +47,7 @@ impl From<PyErr> for PythonError {
 impl From<PythonError> for PyErr {
     fn from(value: PythonError) -> Self {
         match value {
-            PythonError::Rayexec(error) => PyRuntimeError::new_err(error.msg),
+            PythonError::Rayexec(error) => PyRuntimeError::new_err(error.to_string()),
             PythonError::PyErr(error) => error,
         }
     }

@@ -6,6 +6,7 @@ pub mod cast_expr;
 pub mod column_expr;
 pub mod comparison_expr;
 pub mod conjunction_expr;
+pub mod grouping_set_expr;
 pub mod is_expr;
 pub mod literal_expr;
 pub mod negate_expr;
@@ -27,6 +28,7 @@ use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
 use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
@@ -59,6 +61,7 @@ pub enum Expression {
     Subquery(SubqueryExpr),
     Window(WindowExpr),
     Unnest(UnnestExpr),
+    GroupingSet(GroupingSetExpr),
 }
 
 impl Expression {
@@ -85,6 +88,7 @@ impl Expression {
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(window) => window.agg.return_type(),
             Self::Unnest(expr) => expr.datatype(bind_context)?,
+            Self::GroupingSet(expr) => expr.datatype(),
         })
     }
 
@@ -153,6 +157,11 @@ impl Expression {
                 }
             }
             Self::Unnest(unnest) => func(&mut unnest.expr)?,
+            Self::GroupingSet(grouping) => {
+                for input in &mut grouping.inputs {
+                    func(input)?;
+                }
+            }
         }
         Ok(())
     }
@@ -222,6 +231,11 @@ impl Expression {
                 }
             }
             Self::Unnest(unnest) => func(&unnest.expr)?,
+            Self::GroupingSet(grouping) => {
+                for input in &grouping.inputs {
+                    func(input)?;
+                }
+            }
         }
         Ok(())
     }
@@ -296,27 +310,29 @@ impl Expression {
         }
     }
 
-    // TODO: Probably remove.
-    pub fn is_constant(&self) -> bool {
-        match self {
-            Self::Literal(_) => true,
-            Self::Column(_) => false,
-            _ => {
-                let mut is_constant = true;
-                self.for_each_child(&mut |expr| {
-                    if !is_constant {
-                        return Ok(());
-                    }
-                    is_constant = is_constant && expr.is_constant();
-                    Ok(())
-                })
-                .expect("constant check to not fail");
-                is_constant
-            }
-        }
+    /// Checks if this expression can be folded into a constant.
+    pub fn is_const_foldable(&self) -> bool {
+        // Encountering any column means we can't fold.
+        self.is_const_foldable_with_column_check(&|_col| false)
     }
 
-    pub fn is_const_foldable(&self) -> bool {
+    /// Checks if this expression can be folded into a constant assuming that
+    /// the given column expression is fixed.
+    ///
+    /// This will return true if the only columns encountered equal the fixed
+    /// column, and if the rest of the epxression is const foldable.
+    pub fn is_const_foldable_with_fixed_column(&self, fixed: &ColumnExpr) -> bool {
+        self.is_const_foldable_with_column_check(&|col| col == fixed)
+    }
+
+    /// Helper function when checking if an expression is const foldable.
+    ///
+    /// `check_col` indicates the behavior when encountering a column
+    /// expression.
+    fn is_const_foldable_with_column_check<F>(&self, check_col: &F) -> bool
+    where
+        F: Fn(&ColumnExpr) -> bool,
+    {
         match self {
             Self::Literal(v) => {
                 match &v.literal {
@@ -332,7 +348,7 @@ impl Expression {
                     _ => true,
                 }
             }
-            Self::Column(_) => false,
+            Self::Column(col) => check_col(col),
             Self::Aggregate(_) => false,
             Self::Window(_) => false,
             Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
@@ -347,13 +363,36 @@ impl Expression {
                     if !is_foldable {
                         return Ok(());
                     }
-                    is_foldable = is_foldable && expr.is_const_foldable();
+                    is_foldable =
+                        is_foldable && expr.is_const_foldable_with_column_check(check_col);
                     Ok(())
                 })
                 .expect("fold check to not fail");
                 is_foldable
             }
         }
+    }
+
+    /// Replace all instances of `from` with `to`.
+    pub fn replace_column(mut self, from: ColumnExpr, to: ColumnExpr) -> Self {
+        fn inner(expr: &mut Expression, from: ColumnExpr, to: ColumnExpr) {
+            match expr {
+                Expression::Column(col) => {
+                    if col == &from {
+                        *col = to
+                    }
+                }
+                other => other
+                    .for_each_child_mut(&mut |child| {
+                        inner(child, from, to);
+                        Ok(())
+                    })
+                    .expect("replace to not fail"),
+            }
+        }
+
+        inner(&mut self, from, to);
+        self
     }
 
     /// Get all column references in the expression.
@@ -541,6 +580,7 @@ impl ContextDisplay for Expression {
             Self::Subquery(expr) => expr.fmt_using_context(mode, f),
             Self::Window(expr) => expr.fmt_using_context(mode, f),
             Self::Unnest(expr) => expr.fmt_using_context(mode, f),
+            Self::GroupingSet(expr) => expr.fmt_using_context(mode, f),
         }
     }
 }
@@ -590,5 +630,41 @@ mod tests {
 
         let got = expr.get_column_references();
         assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn is_const_foldable() {
+        let expr = and([
+            gt_eq(add(lit(4), lit(8)), lit(12)), // ((4 + 8) >= 12)
+            lit(false),
+        ])
+        .unwrap();
+
+        let is_foldable = expr.is_const_foldable();
+        assert!(is_foldable);
+
+        let expr = and([
+            gt_eq(add(lit(4), lit(8)), col_ref(1, 1)), // ((4 + 8) >= #column)
+            lit(false),
+        ])
+        .unwrap();
+
+        let is_foldable = expr.is_const_foldable();
+        assert!(!is_foldable);
+    }
+
+    #[test]
+    fn is_const_foldable_fixed() {
+        let expr = and([
+            gt_eq(add(lit(4), lit(8)), col_ref(1, 1)), // ((4 + 8) >= #column)
+            lit(false),
+        ])
+        .unwrap();
+
+        let is_foldable = expr.is_const_foldable_with_fixed_column(&ColumnExpr::new(0, 1));
+        assert!(!is_foldable);
+
+        let is_foldable = expr.is_const_foldable_with_fixed_column(&ColumnExpr::new(1, 1));
+        assert!(is_foldable);
     }
 }

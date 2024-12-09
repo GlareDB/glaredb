@@ -207,16 +207,14 @@ impl Bitmap {
         }
 
         let mut val = [0; 8];
-        let mut last = 0;
         for (idx, byte) in self.data.iter().enumerate() {
             val[idx] = *byte;
-            last = idx;
         }
 
         let rem = self.len % 8;
         if rem != 0 {
-            let mask = (255 << (8 - rem)) >> (8 - rem);
-            val[last] &= mask;
+            let mask = (1u8 << rem) - 1;
+            val[(self.len + 7) / 8 - 1] &= mask;
         }
 
         Ok(u64::from_le_bytes(val))

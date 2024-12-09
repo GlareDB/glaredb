@@ -47,9 +47,11 @@ impl<'a> HavingBinder<'a> {
         // Extract out the aggregates from the expression.
         SelectListBinder::extract_aggregates(
             select_list.aggregates_table,
+            select_list.grouping_functions_table,
             bind_context,
             &mut expr,
             &mut select_list.aggregates,
+            &mut select_list.grouping_set_references,
         )?;
 
         Ok(expr)
@@ -85,7 +87,7 @@ impl<'a> HavingBinder<'a> {
             // BY expressions.
             for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
                 let group_by_col = ColumnExpr {
-                    table_scope: group_by.group_table,
+                    table_scope: group_by.group_exprs_table,
                     column: idx,
                 };
 
@@ -98,7 +100,7 @@ impl<'a> HavingBinder<'a> {
         let mut refs = having_expr.get_table_references();
         refs.remove(&select_list.aggregates_table);
         if let Some(group_by) = group_by {
-            refs.remove(&group_by.group_table);
+            refs.remove(&group_by.group_exprs_table);
         }
 
         if !refs.is_empty() {

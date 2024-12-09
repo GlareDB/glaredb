@@ -67,7 +67,7 @@ impl fmt::Display for CteRef {
 ///
 /// Physical planning will then use the bind context for determining physical
 /// column ordering.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BindContext {
     /// All child scopes used for binding.
     ///
@@ -87,7 +87,7 @@ pub struct BindContext {
     materializations: Vec<PlanMaterialization>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CorrelatedColumn {
     /// Reference to an outer context the column is referencing.
     pub outer: BindScopeRef,
@@ -96,7 +96,7 @@ pub struct CorrelatedColumn {
     pub col_idx: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoundCte {
     /// Scope used for binding the CTE.
     pub bind_scope: BindScopeRef,
@@ -127,7 +127,7 @@ pub struct UsingColumn {
     pub col_idx: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct BindScope {
     /// Index to the parent bind context.
     ///
@@ -187,7 +187,7 @@ impl fmt::Display for TableAlias {
 /// "aggregates" table will be created for hold columns that produce aggregates,
 /// and the original select list will have their expressions replaced with
 /// column references that point to this table.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Table {
     pub reference: TableRef,
     pub alias: Option<TableAlias>,
@@ -203,7 +203,7 @@ impl Table {
 
 /// A node in the logical plan that will be materialized to allow for multiple
 /// scans.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlanMaterialization {
     pub mat_ref: MaterializationRef,
     /// Plan we'll be materializing.

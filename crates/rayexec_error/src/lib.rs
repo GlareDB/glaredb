@@ -15,8 +15,14 @@ macro_rules! not_implemented {
     }};
 }
 
+// TODO: Implement partial eq on msg
 #[derive(Debug)]
 pub struct RayexecError {
+    inner: Box<RayexecErrorInner>,
+}
+
+#[derive(Debug)]
+struct RayexecErrorInner {
     /// Message for the error.
     pub msg: String,
 
@@ -32,22 +38,30 @@ pub struct RayexecError {
 impl RayexecError {
     pub fn new(msg: impl Into<String>) -> Self {
         RayexecError {
-            msg: msg.into(),
-            source: None,
-            backtrace: Backtrace::capture(),
+            inner: Box::new(RayexecErrorInner {
+                msg: msg.into(),
+                source: None,
+                backtrace: Backtrace::capture(),
+            }),
         }
     }
 
     pub fn with_source(msg: impl Into<String>, source: Box<dyn Error + Send + Sync>) -> Self {
         RayexecError {
-            msg: msg.into(),
-            source: Some(source),
-            backtrace: Backtrace::capture(),
+            inner: Box::new(RayexecErrorInner {
+                msg: msg.into(),
+                source: Some(source),
+                backtrace: Backtrace::capture(),
+            }),
         }
     }
 
+    pub fn get_msg(&self) -> &str {
+        self.inner.msg.as_str()
+    }
+
     pub fn get_backtrace(&self) -> &Backtrace {
-        &self.backtrace
+        &self.inner.backtrace
     }
 }
 
@@ -81,13 +95,13 @@ impl From<std::num::TryFromIntError> for RayexecError {
 
 impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.msg)?;
-        if let Some(source) = &self.source {
+        write!(f, "{}", self.inner.msg)?;
+        if let Some(source) = &self.inner.source {
             write!(f, "\nError source: {}", source)?;
         }
 
-        if self.backtrace.status() == BacktraceStatus::Captured {
-            write!(f, "\nBacktrace: {}", self.backtrace)?
+        if self.inner.backtrace.status() == BacktraceStatus::Captured {
+            write!(f, "\nBacktrace: {}", self.inner.backtrace)?
         }
 
         Ok(())
@@ -96,7 +110,7 @@ impl fmt::Display for RayexecError {
 
 impl Error for RayexecError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref() as _)
+        self.inner.source.as_ref().map(|e| e.as_ref() as _)
     }
 }
 

@@ -3,6 +3,8 @@ pub mod result;
 pub mod server_state;
 pub mod session;
 
+mod verifier;
+
 use std::sync::Arc;
 
 use rayexec_error::Result;

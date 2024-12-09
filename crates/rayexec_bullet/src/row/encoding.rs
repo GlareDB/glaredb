@@ -192,7 +192,9 @@ impl ComparableRowEncoder {
             let mut row_offset = *offsets.last().unwrap();
             for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
                 row_offset = match arr.array_data() {
-                    ArrayData::UntypedNull(_) => not_implemented!("Row enc untyped null"),
+                    ArrayData::UntypedNull(_) => {
+                        Self::encode_untyped_null(cmp_col, data, row_offset)?
+                    }
                     ArrayData::Boolean(_) => Self::encode_primitive::<PhysicalBool>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
@@ -327,6 +329,12 @@ impl ComparableRowEncoder {
                 Ok(start + 1)
             }
         }
+    }
+
+    fn encode_untyped_null(col: &ComparableColumn, buf: &mut [u8], start: usize) -> Result<usize> {
+        let null_byte = col.null_byte();
+        buf[start] = null_byte;
+        Ok(start + 1)
     }
 
     /// Encodes a primitive length array into `buf` starting at `start`.

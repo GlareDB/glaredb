@@ -5,6 +5,9 @@ pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
 
+#[allow(dead_code)] // Until it's more robust
+pub mod redundant_groups;
+
 use std::time::Duration;
 
 use column_prune::ColumnPrune;
@@ -86,6 +89,15 @@ impl Optimizer {
         self.profile_data
             .timings
             .push(("column_pruning", timer.stop()));
+
+        // TODO: Re-enable this when it works better with duplicated expressions
+        // across grouping sets.
+        // let timer = Timer::<I>::start();
+        // let mut rule = RemoveRedundantGroups::default();
+        // let plan = rule.optimize(bind_context, plan)?;
+        // self.profile_data
+        //     .timings
+        //     .push(("remove_redundant_groups", timer.stop()));
 
         // // Join reordering.
         let timer = Timer::<I>::start();

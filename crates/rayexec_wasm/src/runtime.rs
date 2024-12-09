@@ -77,6 +77,10 @@ impl TokioHandlerProvider for MissingTokioHandle {
 pub struct WasmExecutor;
 
 impl PipelineExecutor for WasmExecutor {
+    fn default_partitions(&self) -> usize {
+        1
+    }
+
     fn spawn_pipelines(
         &self,
         pipelines: Vec<ExecutablePipeline>,

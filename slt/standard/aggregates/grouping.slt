@@ -1,0 +1,115 @@
+# GROUPING function call
+
+statement ok
+CREATE TEMP TABLE items_sold (
+  make TEXT,
+  model TEXT,
+  sales INT
+);
+
+statement ok
+INSERT INTO items_sold VALUES
+  ('Foo', 'GT', 10),
+  ('Foo', 'Tour', 20),
+  ('Bar', 'City', 15),
+  ('Bar', 'Sport', 5);
+
+query IIT
+SELECT GROUPING(make), sum(sales), make FROM items_sold GROUP BY make ORDER BY 1, 2;
+----
+0  20  Bar
+0  30  Foo
+
+query IIT
+SELECT GROUPING(make) + 4, sum(sales), make FROM items_sold GROUP BY make ORDER BY 1, 2;
+----
+4  20  Bar
+4  30  Foo
+
+# TODO
+# query TTII
+# select make as m2, model, sum(sales), grouping(make) from items_sold group by m2, model order by 1,2;
+# ----
+
+query TTII
+SELECT make, model, GROUPING(make,model), sum(sales)
+  FROM items_sold
+  GROUP BY ROLLUP(make,model)
+  ORDER BY 1 NULLS LAST, 2 NULLS LAST;
+----
+Bar   City   0  15
+Bar   Sport  0  5
+Bar   NULL   1  20
+Foo   GT     0  10
+Foo   Tour   0  20
+Foo   NULL   1  30
+NULL  NULL   3  50
+
+query TTIII
+SELECT make, model, GROUPING(make,model), GROUPING(model), sum(sales)
+  FROM items_sold
+  GROUP BY ROLLUP(make,model)
+  ORDER BY 1 NULLS LAST, 2 NULLS LAST;
+----
+Bar   City   0  0  15
+Bar   Sport  0  0  5
+Bar   NULL   1  1  20
+Foo   GT     0  0  10
+Foo   Tour   0  0  20
+Foo   NULL   1  1  30
+NULL  NULL   3  1  50
+
+query TTIII
+SELECT make, model, GROUPING(make,model), GROUPING(model), sum(sales)
+  FROM items_sold
+  GROUP BY CUBE(make,model)
+  ORDER BY 1 NULLS LAST, 2 NULLS LAST;
+----
+Bar   City   0  0  15
+Bar   Sport  0  0  5
+Bar   NULL   1  1  20
+Foo   GT     0  0  10
+Foo   Tour   0  0  20
+Foo   NULL   1  1  30
+NULL  City   2  0  15
+NULL  GT     2  0  10
+NULL  Sport  2  0  5
+NULL  Tour   2  0  20
+NULL  NULL   3  1  50
+
+query TTIII
+SELECT make, model, GROUPING(make,make,make), GROUPING(model), sum(sales)
+  FROM items_sold
+  GROUP BY CUBE(make,model)
+  ORDER BY 1 NULLS LAST, 2 NULLS LAST;
+----
+Bar   City   0  0  15
+Bar   Sport  0  0  5
+Bar   NULL   0  1  20
+Foo   GT     0  0  10
+Foo   Tour   0  0  20
+Foo   NULL   0  1  30
+NULL  City   7  0  15
+NULL  GT     7  0  10
+NULL  Sport  7  0  5
+NULL  Tour   7  0  20
+NULL  NULL   7  1  50
+
+query TTIII
+SELECT make, model, GROUPING(make,make,make), GROUPING(model), sum(sales)
+  FROM items_sold
+  GROUP BY CUBE(make,model)
+  ORDER BY GROUPING(make), 1, 2 NULLS LAST;
+----
+Bar   City   0  0  15
+Bar   Sport  0  0  5
+Bar   NULL   0  1  20
+Foo   GT     0  0  10
+Foo   Tour   0  0  20
+Foo   NULL   0  1  30
+NULL  City   7  0  15
+NULL  GT     7  0  10
+NULL  Sport  7  0  5
+NULL  Tour   7  0  20
+NULL  NULL   7  1  50
+

@@ -13,7 +13,7 @@ use super::bind_explain::{BoundExplain, ExplainBinder};
 use super::bind_insert::{BoundInsert, InsertBinder};
 use super::bind_query::BoundQuery;
 use super::bind_set::SetVarBinder;
-use crate::config::vars::SessionVars;
+use crate::config::session::SessionConfig;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_create::{LogicalCreateSchema, LogicalCreateView};
 use crate::logical::logical_describe::LogicalDescribe;
@@ -51,7 +51,7 @@ pub enum BoundStatement {
 
 #[derive(Debug)]
 pub struct StatementBinder<'a> {
-    pub session_vars: &'a SessionVars,
+    pub session_config: &'a SessionConfig,
     pub resolve_context: &'a ResolveContext,
 }
 
@@ -72,13 +72,13 @@ impl StatementBinder<'_> {
                 BoundStatement::Query(binder.bind(&mut context, query)?)
             }
             Statement::SetVariable(set) => BoundStatement::SetVar(
-                SetVarBinder::new(root_scope, self.session_vars).bind_set(&mut context, set)?,
+                SetVarBinder::new(root_scope, self.session_config).bind_set(&mut context, set)?,
             ),
             Statement::Show(set) => BoundStatement::ShowVar(
-                SetVarBinder::new(root_scope, self.session_vars).bind_show(&mut context, set)?,
+                SetVarBinder::new(root_scope, self.session_config).bind_show(&mut context, set)?,
             ),
             Statement::ResetVariable(set) => BoundStatement::ResetVar(
-                SetVarBinder::new(root_scope, self.session_vars).bind_reset(&mut context, set)?,
+                SetVarBinder::new(root_scope, self.session_config).bind_reset(&mut context, set)?,
             ),
             Statement::Attach(attach) => BoundStatement::Attach(
                 AttachBinder::new(root_scope).bind_attach(&mut context, attach)?,

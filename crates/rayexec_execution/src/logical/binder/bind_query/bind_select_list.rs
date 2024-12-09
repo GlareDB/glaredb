@@ -108,13 +108,22 @@ impl<'a> SelectListBinder<'a> {
 
         // Extract aggregates and windows into separate tables.
         let aggregates_table = bind_context.new_ephemeral_table()?;
+        let groupings_table = bind_context.new_ephemeral_table()?;
         let windows_table = bind_context.new_ephemeral_table()?;
 
         let mut aggregates = Vec::new();
+        let mut groupings = Vec::new();
         let mut windows = Vec::new();
 
         for expr in &mut exprs {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, &mut aggregates)?;
+            Self::extract_aggregates(
+                aggregates_table,
+                groupings_table,
+                bind_context,
+                expr,
+                &mut aggregates,
+                &mut groupings,
+            )?;
             Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
         }
 
@@ -125,44 +134,76 @@ impl<'a> SelectListBinder<'a> {
             appended: Vec::new(),
             aggregates_table,
             aggregates,
-            windows,
             windows_table,
+            windows,
+            grouping_functions_table: groupings_table,
+            grouping_set_references: groupings,
         })
     }
 
     /// Extracts aggregates from `expression` into `aggregates`.
+    ///
+    /// This will also handle extracting GROUPING calls.
     pub(crate) fn extract_aggregates(
         aggregates_table: TableRef,
+        groupings_table: TableRef,
         bind_context: &mut BindContext,
         expression: &mut Expression,
         aggregates: &mut Vec<Expression>,
+        groupings: &mut Vec<Expression>,
     ) -> Result<()> {
-        if let Expression::Aggregate(agg) = expression {
-            // Replace the aggregate in the projections list with a column
-            // reference that points to the extracted aggregate.
-            let datatype = agg.datatype(bind_context)?;
-            let col_idx = bind_context.push_column_for_table(
-                aggregates_table,
-                "__generated_agg_ref",
-                datatype,
-            )?;
-            let agg = std::mem::replace(
-                expression,
-                Expression::Column(ColumnExpr {
-                    table_scope: aggregates_table,
-                    column: col_idx,
-                }),
-            );
+        match expression {
+            Expression::Aggregate(agg) => {
+                // Replace the aggregate in the projections list with a column
+                // reference that points to the extracted aggregate.
+                let datatype = agg.datatype(bind_context)?;
+                let col_idx = bind_context.push_column_for_table(
+                    aggregates_table,
+                    "__generated_agg_ref",
+                    datatype,
+                )?;
+                let agg = std::mem::replace(
+                    expression,
+                    Expression::Column(ColumnExpr {
+                        table_scope: aggregates_table,
+                        column: col_idx,
+                    }),
+                );
 
-            aggregates.push(agg);
-            return Ok(());
+                aggregates.push(agg);
+                Ok(())
+            }
+            Expression::GroupingSet(grouping) => {
+                // Similar to above, replace with column reference.
+                let datatype = grouping.datatype();
+                let col_idx = bind_context.push_column_for_table(
+                    groupings_table,
+                    "__generated_grouping_ref",
+                    datatype,
+                )?;
+
+                let grouping = std::mem::replace(
+                    expression,
+                    Expression::Column(ColumnExpr {
+                        table_scope: groupings_table,
+                        column: col_idx,
+                    }),
+                );
+
+                groupings.push(grouping);
+                Ok(())
+            }
+            other => other.for_each_child_mut(&mut |expr| {
+                Self::extract_aggregates(
+                    aggregates_table,
+                    groupings_table,
+                    bind_context,
+                    expr,
+                    aggregates,
+                    groupings,
+                )
+            }),
         }
-
-        expression.for_each_child_mut(&mut |expr| {
-            Self::extract_aggregates(aggregates_table, bind_context, expr, aggregates)
-        })?;
-
-        Ok(())
     }
 
     /// Extracts windows from `expression` into `windows`.

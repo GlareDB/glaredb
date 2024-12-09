@@ -439,7 +439,8 @@ impl SubqueryPlanner {
                             group_table: None,
                             group_exprs: Vec::new(),
                             grouping_sets: None,
-                            grouping_set_table: None,
+                            grouping_functions_table: None,
+                            grouping_functions: Vec::new(),
                         },
                         location: LocationRequirement::Any,
                         children: vec![LogicalOperator::Limit(Node {
@@ -566,12 +567,21 @@ struct DependentJoinPushdown {
     /// This is updated as we walk back up the plan to allow expressions further
     /// up the tree to be rewritten to point to now decorrelated columns.
     column_map: HashMap<CorrelatedColumn, ColumnExpr>,
-    /// List of correlated columns we're looking for in the plan.
-    columns: Vec<CorrelatedColumn>,
+    /// Set of correlated columns we're looking for in the plan.
+    columns: BTreeSet<CorrelatedColumn>,
 }
 
 impl DependentJoinPushdown {
-    fn new(mat_ref: MaterializationRef, columns: Vec<CorrelatedColumn>) -> Self {
+    /// Creates a new dependent join pushdown for pushing down the given
+    /// correlated columns.
+    ///
+    /// This will deduplicate correlated columns.
+    fn new(
+        mat_ref: MaterializationRef,
+        columns: impl IntoIterator<Item = CorrelatedColumn>,
+    ) -> Self {
+        let columns: BTreeSet<_> = columns.into_iter().collect();
+
         // Initial column map points to itself.
         let column_map: HashMap<_, _> = columns
             .iter()
