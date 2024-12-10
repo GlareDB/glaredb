@@ -10,7 +10,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::builtin::boolean::AndImpl;
+use crate::functions::scalar::builtin::boolean::AndImpl2;
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,
@@ -164,7 +164,7 @@ impl IntermediatePipelineBuildState<'_> {
                 .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;
 
             let condition = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-                function: Box::new(AndImpl),
+                function: Box::new(AndImpl2),
                 inputs: conditions,
             });
 

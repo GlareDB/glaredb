@@ -8,7 +8,7 @@ use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::builtin::boolean::AndImpl;
+use crate::functions::scalar::builtin::boolean::AndImpl2;
 use crate::functions::scalar::PlannedScalarFunction2;
 
 #[derive(Debug, Clone)]
@@ -133,7 +133,7 @@ impl LeftPrecomputedJoinConditions {
 
         // AND the results.
         let refs: Vec<_> = results.iter().collect();
-        let out = AndImpl.execute(&refs)?;
+        let out = AndImpl2.execute(&refs)?;
 
         // Generate a selection for the left and right selections.
         let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());

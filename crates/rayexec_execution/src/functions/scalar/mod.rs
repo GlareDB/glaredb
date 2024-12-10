@@ -4,7 +4,6 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use once_cell::sync::Lazy;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
@@ -31,7 +30,9 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         FunctionVolatility::Consistent
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
+        unimplemented!()
+    }
 
     /// Plan a scalar function based on datatype inputs.
     ///
@@ -41,7 +42,9 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     ///
     /// Most functions will only need to implement this as data types are often
     /// times sufficient for function planning.
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>>;
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
+        unimplemented!()
+    }
 
     /// Plan a scalar function based on expression inputs.
     ///

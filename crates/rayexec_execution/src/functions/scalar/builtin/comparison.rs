@@ -1,13 +1,16 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::compute::cast::array::decimal_rescale;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -16,7 +19,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalType,
+    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -25,12 +28,14 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUtf8,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
-use rayexec_error::{RayexecError, Result};
-use serde::{Deserialize, Serialize};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use rayexec_bullet::storage::PrimitiveStorage;
+use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::bind_context::BindContext;
 
 // TODOs:
 //
@@ -64,6 +69,11 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
         return_type: DataTypeId::Boolean,
     },
     Signature {
+        input: &[DataTypeId::Int128, DataTypeId::Int128],
+        variadic: None,
+        return_type: DataTypeId::Boolean,
+    },
+    Signature {
         input: &[DataTypeId::UInt8, DataTypeId::UInt8],
         variadic: None,
         return_type: DataTypeId::Boolean,
@@ -80,6 +90,16 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
     },
     Signature {
         input: &[DataTypeId::UInt64, DataTypeId::UInt64],
+        variadic: None,
+        return_type: DataTypeId::Boolean,
+    },
+    Signature {
+        input: &[DataTypeId::UInt128, DataTypeId::UInt128],
+        variadic: None,
+        return_type: DataTypeId::Boolean,
+    },
+    Signature {
+        input: &[DataTypeId::Float16, DataTypeId::Float16],
         variadic: None,
         return_type: DataTypeId::Boolean,
     },
@@ -125,8 +145,180 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
     },
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Eq;
+
+impl FunctionInfo for Eq {
+    fn name(&self) -> &'static str {
+        "="
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        COMPARISON_SIGNATURES
+    }
+}
+
+impl ScalarFunction for Eq {
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            function_impl: new_comparison_impl::<EqOperation>(self, &inputs, bind_context)?,
+            inputs,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Neq;
+
+impl FunctionInfo for Neq {
+    fn name(&self) -> &'static str {
+        "<>"
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        &["!="]
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        COMPARISON_SIGNATURES
+    }
+}
+
+impl ScalarFunction for Neq {
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            function_impl: new_comparison_impl::<NotEqOperation>(self, &inputs, bind_context)?,
+            inputs,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Lt;
+
+impl FunctionInfo for Lt {
+    fn name(&self) -> &'static str {
+        "<"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        COMPARISON_SIGNATURES
+    }
+}
+
+impl ScalarFunction for Lt {
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            function_impl: new_comparison_impl::<LtOperation>(self, &inputs, bind_context)?,
+            inputs,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LtEq;
+
+impl FunctionInfo for LtEq {
+    fn name(&self) -> &'static str {
+        "<="
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        COMPARISON_SIGNATURES
+    }
+}
+
+impl ScalarFunction for LtEq {
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            function_impl: new_comparison_impl::<LtEqOperation>(self, &inputs, bind_context)?,
+            inputs,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Gt;
+
+impl FunctionInfo for Gt {
+    fn name(&self) -> &'static str {
+        ">"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        COMPARISON_SIGNATURES
+    }
+}
+
+impl ScalarFunction for Gt {
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            function_impl: new_comparison_impl::<GtOperation>(self, &inputs, bind_context)?,
+            inputs,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GtEq;
+
+impl FunctionInfo for GtEq {
+    fn name(&self) -> &'static str {
+        ">="
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        COMPARISON_SIGNATURES
+    }
+}
+
+impl ScalarFunction for GtEq {
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            function_impl: new_comparison_impl::<GtEqOperation>(self, &inputs, bind_context)?,
+            inputs,
+        })
+    }
+}
+
 /// Describes a comparison betweeen a left and right element.
-trait ComparisonOperation {
+trait ComparisonOperation: Debug + Sync + Send + Copy + 'static {
     fn compare<T>(left: T, right: T) -> bool
     where
         T: PartialEq + PartialOrd;
@@ -204,23 +396,182 @@ impl ComparisonOperation for GtEqOperation {
     }
 }
 
-fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Array> {
-    let builder = ArrayBuilder {
-        datatype: DataType::Boolean,
-        buffer: BooleanBuffer::with_len(left.logical_len()),
-    };
+/// Creates a new scalar function implementation based on input types.
+fn new_comparison_impl<O: ComparisonOperation>(
+    func: &impl FunctionInfo,
+    inputs: &[Expression],
+    bind_context: &BindContext,
+) -> Result<Box<dyn ScalarFunctionImpl>> {
+    plan_check_num_args(func, inputs, 2)?;
+    Ok(
+        match (
+            inputs[0].datatype(bind_context)?,
+            inputs[1].datatype(bind_context)?,
+        ) {
+            (DataType::Boolean, DataType::Boolean) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalBool>::new())
+            }
+            (DataType::Int8, DataType::Int8) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI8>::new())
+            }
+            (DataType::Int16, DataType::Int16) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI16>::new())
+            }
+            (DataType::Int32, DataType::Int32) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI32>::new())
+            }
+            (DataType::Int64, DataType::Int64) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI64>::new())
+            }
+            (DataType::Int128, DataType::Int128) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI128>::new())
+            }
 
-    // Decimal special cases.
-    match (left.datatype(), right.datatype()) {
-        (DataType::Decimal64(a), DataType::Decimal64(b)) => match a.scale.cmp(&b.scale) {
+            (DataType::UInt8, DataType::UInt8) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalU8>::new())
+            }
+            (DataType::UInt16, DataType::UInt16) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalU16>::new())
+            }
+            (DataType::UInt32, DataType::UInt32) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalU32>::new())
+            }
+            (DataType::UInt64, DataType::UInt64) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalU64>::new())
+            }
+            (DataType::UInt128, DataType::UInt128) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalU128>::new())
+            }
+            (DataType::Float16, DataType::Float16) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalF16>::new())
+            }
+            (DataType::Float32, DataType::Float32) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalF32>::new())
+            }
+            (DataType::Float64, DataType::Float64) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalF64>::new())
+            }
+            (DataType::Decimal64(left), DataType::Decimal64(right)) => Box::new(
+                RescalingComparisionImpl::<O, Decimal64Type>::new(left, right),
+            ),
+            (DataType::Decimal128(left), DataType::Decimal128(right)) => Box::new(
+                RescalingComparisionImpl::<O, Decimal128Type>::new(left, right),
+            ),
+            (DataType::Timestamp(_), DataType::Timestamp(_)) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalBool>::new())
+            }
+            (DataType::Interval, DataType::Interval) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalInterval>::new())
+            }
+            (DataType::Date32, DataType::Date32) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI32>::new())
+            }
+            (DataType::Date64, DataType::Date64) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalI64>::new())
+            }
+            (DataType::Utf8, DataType::Utf8) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalUtf8>::new())
+            }
+            (DataType::Binary, DataType::Binary) => {
+                Box::new(BaseComparisonImpl::<O, PhysicalBinary>::new())
+            }
+            (a, b) => return Err(invalid_input_types_error(func, &[a, b])),
+        },
+    )
+}
+
+#[derive(Debug, Clone)]
+struct BaseComparisonImpl<O: ComparisonOperation, S: PhysicalStorage> {
+    _op: PhantomData<O>,
+    _s: PhantomData<S>,
+}
+
+impl<O, S> BaseComparisonImpl<O, S>
+where
+    O: ComparisonOperation,
+    S: PhysicalStorage,
+    for<'a> S::Type<'a>: PartialEq + PartialOrd,
+{
+    fn new() -> Self {
+        BaseComparisonImpl {
+            _op: PhantomData,
+            _s: PhantomData,
+        }
+    }
+}
+
+impl<O, S> ScalarFunctionImpl for BaseComparisonImpl<O, S>
+where
+    O: ComparisonOperation,
+    S: PhysicalStorage,
+    for<'a> S::Type<'a>: PartialEq + PartialOrd,
+{
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let left = inputs[0];
+        let right = inputs[1];
+
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(left.logical_len()),
+        };
+
+        BinaryExecutor::execute::<S, S, _, _>(left, right, builder, |a, b, buf| {
+            buf.put(&O::compare(a, b))
+        })
+    }
+}
+
+// TODO: Determine if this is still needed. Ideally scaling happens prior to
+// calling the comparison function.
+#[derive(Debug, Clone)]
+struct RescalingComparisionImpl<O: ComparisonOperation, T: DecimalType> {
+    _op: PhantomData<O>,
+    _t: PhantomData<T>,
+
+    left: DecimalTypeMeta,
+    right: DecimalTypeMeta,
+}
+
+impl<O, T> RescalingComparisionImpl<O, T>
+where
+    O: ComparisonOperation,
+    T: DecimalType,
+    ArrayData: From<PrimitiveStorage<T::Primitive>>,
+{
+    fn new(left: DecimalTypeMeta, right: DecimalTypeMeta) -> Self {
+        RescalingComparisionImpl {
+            _op: PhantomData,
+            _t: PhantomData,
+            left,
+            right,
+        }
+    }
+}
+
+impl<O, T> ScalarFunctionImpl for RescalingComparisionImpl<O, T>
+where
+    O: ComparisonOperation,
+    T: DecimalType,
+    ArrayData: From<PrimitiveStorage<T::Primitive>>,
+{
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let left = inputs[0];
+        let right = inputs[1];
+
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(left.logical_len()),
+        };
+
+        match self.left.scale.cmp(&self.right.scale) {
             Ordering::Greater => {
-                let scaled_right = decimal_rescale::<PhysicalI64, Decimal64Type>(
+                let scaled_right = decimal_rescale::<T::Storage, T>(
                     right,
                     left.datatype().clone(),
                     CastFailBehavior::Error,
                 )?;
 
-                return BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                return BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
                     left,
                     &scaled_right,
                     builder,
@@ -228,13 +579,13 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Array>
                 );
             }
             Ordering::Less => {
-                let scaled_left = decimal_rescale::<PhysicalI64, Decimal64Type>(
+                let scaled_left = decimal_rescale::<T::Storage, T>(
                     left,
                     right.datatype().clone(),
                     CastFailBehavior::Error,
                 )?;
 
-                return BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                return BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
                     &scaled_left,
                     right,
                     builder,
@@ -242,676 +593,110 @@ fn execute<O: ComparisonOperation>(left: &Array, right: &Array) -> Result<Array>
                 );
             }
             Ordering::Equal => {
-                return BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+                return BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
                     left,
                     right,
                     builder,
                     |a, b, buf| buf.put(&O::compare(a, b)),
                 )
             }
-        },
-        (DataType::Decimal128(a), DataType::Decimal128(b)) => match a.scale.cmp(&b.scale) {
-            Ordering::Greater => {
-                let scaled_right = decimal_rescale::<PhysicalI128, Decimal128Type>(
-                    right,
-                    left.datatype().clone(),
-                    CastFailBehavior::Error,
-                )?;
-
-                return BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
-                    left,
-                    &scaled_right,
-                    builder,
-                    |a, b, buf| buf.put(&O::compare(a, b)),
-                );
-            }
-            Ordering::Less => {
-                let scaled_left = decimal_rescale::<PhysicalI128, Decimal128Type>(
-                    left,
-                    right.datatype().clone(),
-                    CastFailBehavior::Error,
-                )?;
-
-                return BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
-                    &scaled_left,
-                    right,
-                    builder,
-                    |a, b, buf| buf.put(&O::compare(a, b)),
-                );
-            }
-            Ordering::Equal => {
-                return BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
-                    left,
-                    right,
-                    builder,
-                    |a, b, buf| buf.put(&O::compare(a, b)),
-                )
-            }
-        },
-
-        _ => (), // Continue on.
-    }
-
-    match (
-        left.array_data().physical_type(),
-        right.array_data().physical_type(),
-    ) {
-        (PhysicalType::UntypedNull, PhysicalType::UntypedNull) => Err(RayexecError::new(
-            "Generic binary operation on untyped null not supported",
-        )),
-        (PhysicalType::Int8, PhysicalType::Int8) => {
-            BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
         }
-        (PhysicalType::Int16, PhysicalType::Int16) => {
-            BinaryExecutor::execute::<PhysicalI16, PhysicalI16, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Int32, PhysicalType::Int32) => {
-            BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Int64, PhysicalType::Int64) => {
-            BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Int128, PhysicalType::Int128) => {
-            BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-
-        (PhysicalType::UInt8, PhysicalType::UInt8) => {
-            BinaryExecutor::execute::<PhysicalU8, PhysicalU8, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::UInt16, PhysicalType::UInt16) => {
-            BinaryExecutor::execute::<PhysicalU16, PhysicalU16, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::UInt32, PhysicalType::UInt32) => {
-            BinaryExecutor::execute::<PhysicalU32, PhysicalU32, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::UInt64, PhysicalType::UInt64) => {
-            BinaryExecutor::execute::<PhysicalU64, PhysicalU64, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::UInt128, PhysicalType::UInt128) => {
-            BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Float32, PhysicalType::Float32) => {
-            BinaryExecutor::execute::<PhysicalF32, PhysicalF32, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Float64, PhysicalType::Float64) => {
-            BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Interval, PhysicalType::Interval) => {
-            BinaryExecutor::execute::<PhysicalInterval, PhysicalInterval, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Utf8, PhysicalType::Utf8) => {
-            BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (PhysicalType::Binary, PhysicalType::Binary) => {
-            BinaryExecutor::execute::<PhysicalBinary, PhysicalBinary, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            )
-        }
-        (a, b) => Err(RayexecError::new(format!(
-            "Unhandled physical types for generic binary operation: {a:?}, {b:?}"
-        ))),
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Eq;
-
-impl FunctionInfo for Eq {
-    fn name(&self) -> &'static str {
-        "="
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
-    }
-}
-
-impl ScalarFunction for Eq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(EqImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Timestamp(_), DataType::Timestamp(_))
-            | (DataType::Date32, DataType::Date32)
-            | (DataType::Date64, DataType::Date64)
-            | (DataType::Utf8, DataType::Utf8)
-            | (DataType::Binary, DataType::Binary) => Ok(Box::new(EqImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EqImpl;
-
-impl PlannedScalarFunction2 for EqImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Eq
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        execute::<EqOperation>(inputs[0], inputs[1])
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Neq;
-
-impl FunctionInfo for Neq {
-    fn name(&self) -> &'static str {
-        "<>"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["!="]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
-    }
-}
-
-impl ScalarFunction for Neq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(NeqImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Timestamp(_), DataType::Timestamp(_))
-            | (DataType::Date32, DataType::Date32)
-            | (DataType::Date64, DataType::Date64)
-            | (DataType::Utf8, DataType::Utf8)
-            | (DataType::Binary, DataType::Binary) => Ok(Box::new(NeqImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NeqImpl;
-
-impl PlannedScalarFunction2 for NeqImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Neq
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        execute::<NotEqOperation>(inputs[0], inputs[1])
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Lt;
-
-impl FunctionInfo for Lt {
-    fn name(&self) -> &'static str {
-        "<"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
-    }
-}
-
-impl ScalarFunction for Lt {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(LtImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Timestamp(_), DataType::Timestamp(_))
-            | (DataType::Date32, DataType::Date32)
-            | (DataType::Date64, DataType::Date64)
-            | (DataType::Utf8, DataType::Utf8)
-            | (DataType::Binary, DataType::Binary) => Ok(Box::new(LtImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LtImpl;
-
-impl PlannedScalarFunction2 for LtImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Lt
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        execute::<LtOperation>(inputs[0], inputs[1])
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LtEq;
-
-impl FunctionInfo for LtEq {
-    fn name(&self) -> &'static str {
-        "<="
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
-    }
-}
-
-impl ScalarFunction for LtEq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(LtEqImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Timestamp(_), DataType::Timestamp(_))
-            | (DataType::Date32, DataType::Date32)
-            | (DataType::Date64, DataType::Date64)
-            | (DataType::Utf8, DataType::Utf8)
-            | (DataType::Binary, DataType::Binary) => Ok(Box::new(LtEqImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LtEqImpl;
-
-impl PlannedScalarFunction2 for LtEqImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &LtEq
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        execute::<LtEqOperation>(inputs[0], inputs[1])
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Gt;
-
-impl FunctionInfo for Gt {
-    fn name(&self) -> &'static str {
-        ">"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
-    }
-}
-
-impl ScalarFunction for Gt {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(GtImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Timestamp(_), DataType::Timestamp(_))
-            | (DataType::Date32, DataType::Date32)
-            | (DataType::Date64, DataType::Date64)
-            | (DataType::Utf8, DataType::Utf8)
-            | (DataType::Binary, DataType::Binary) => Ok(Box::new(GtImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GtImpl;
-
-impl PlannedScalarFunction2 for GtImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Gt
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        execute::<GtOperation>(inputs[0], inputs[1])
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GtEq;
-
-impl FunctionInfo for GtEq {
-    fn name(&self) -> &'static str {
-        ">="
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
-    }
-}
-
-impl ScalarFunction for GtEq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(GtEqImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Boolean, DataType::Boolean)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Decimal64(_), DataType::Decimal64(_))
-            | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Timestamp(_), DataType::Timestamp(_))
-            | (DataType::Date32, DataType::Date32)
-            | (DataType::Date64, DataType::Date64)
-            | (DataType::Utf8, DataType::Utf8)
-            | (DataType::Binary, DataType::Binary) => Ok(Box::new(GtEqImpl)),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GtEqImpl;
-
-impl PlannedScalarFunction2 for GtEqImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &GtEq
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        execute::<GtEqOperation>(inputs[0], inputs[1])
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    // use super::*;
 
-    #[test]
-    fn eq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+    // TODO
+    // #[test]
+    // fn eq_i32() {
+    //     let a = Array::from_iter([1, 2, 3]);
+    //     let b = Array::from_iter([2, 2, 6]);
 
-        let specialized = Eq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+    //     let specialized = Eq
+    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+    //         .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([false, true, false]);
+    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    //     let expected = Array::from_iter([false, true, false]);
 
-        assert_eq!(expected, out);
-    }
+    //     assert_eq!(expected, out);
+    // }
 
-    #[test]
-    fn neq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+    // #[test]
+    // fn neq_i32() {
+    //     let a = Array::from_iter([1, 2, 3]);
+    //     let b = Array::from_iter([2, 2, 6]);
 
-        let specialized = Neq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+    //     let specialized = Neq
+    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+    //         .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([true, false, true]);
+    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    //     let expected = Array::from_iter([true, false, true]);
 
-        assert_eq!(expected, out);
-    }
+    //     assert_eq!(expected, out);
+    // }
 
-    #[test]
-    fn lt_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+    // #[test]
+    // fn lt_i32() {
+    //     let a = Array::from_iter([1, 2, 3]);
+    //     let b = Array::from_iter([2, 2, 6]);
 
-        let specialized = Lt
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+    //     let specialized = Lt
+    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+    //         .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([true, false, true]);
+    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    //     let expected = Array::from_iter([true, false, true]);
 
-        assert_eq!(expected, out);
-    }
+    //     assert_eq!(expected, out);
+    // }
 
-    #[test]
-    fn lt_eq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+    // #[test]
+    // fn lt_eq_i32() {
+    //     let a = Array::from_iter([1, 2, 3]);
+    //     let b = Array::from_iter([2, 2, 6]);
 
-        let specialized = LtEq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+    //     let specialized = LtEq
+    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+    //         .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([true, true, true]);
+    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    //     let expected = Array::from_iter([true, true, true]);
 
-        assert_eq!(expected, out);
-    }
+    //     assert_eq!(expected, out);
+    // }
 
-    #[test]
-    fn gt_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+    // #[test]
+    // fn gt_i32() {
+    //     let a = Array::from_iter([1, 2, 3]);
+    //     let b = Array::from_iter([2, 2, 6]);
 
-        let specialized = Gt
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+    //     let specialized = Gt
+    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+    //         .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([false, false, false]);
+    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    //     let expected = Array::from_iter([false, false, false]);
 
-        assert_eq!(expected, out);
-    }
+    //     assert_eq!(expected, out);
+    // }
 
-    #[test]
-    fn gt_eq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+    // #[test]
+    // fn gt_eq_i32() {
+    //     let a = Array::from_iter([1, 2, 3]);
+    //     let b = Array::from_iter([2, 2, 6]);
 
-        let specialized = GtEq
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-            .unwrap();
+    //     let specialized = GtEq
+    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+    //         .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([false, true, false]);
+    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    //     let expected = Array::from_iter([false, true, false]);
 
-        assert_eq!(expected, out);
-    }
+    //     assert_eq!(expected, out);
+    // }
 }

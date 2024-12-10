@@ -65,6 +65,9 @@ pub enum Expression {
 }
 
 impl Expression {
+    // TODO: This should accept a "table list" instead of bind context. Having
+    // just a vec of tables will be easier to serialize than trying to serialize
+    // a bind context.
     pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type(),

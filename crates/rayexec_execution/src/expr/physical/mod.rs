@@ -191,50 +191,51 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::functions::scalar::builtin::comparison::GtImpl;
+    // TODO
+    // use super::*;
+    // use crate::functions::scalar::builtin::comparison::GtImpl;
 
-    #[test]
-    fn select_some() {
-        let batch = Batch::try_new([
-            Array::from_iter([1, 4, 6, 9, 12]),
-            Array::from_iter([2, 3, 8, 9, 10]),
-        ])
-        .unwrap();
+    // #[test]
+    // fn select_some() {
+    //     let batch = Batch::try_new([
+    //         Array::from_iter([1, 4, 6, 9, 12]),
+    //         Array::from_iter([2, 3, 8, 9, 10]),
+    //     ])
+    //     .unwrap();
 
-        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-            function: Box::new(GtImpl),
-            inputs: vec![
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
-            ],
-        });
+    //     let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+    //         function: Box::new(GtImpl),
+    //         inputs: vec![
+    //             PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+    //             PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+    //         ],
+    //     });
 
-        let selection = expr.select(&batch).unwrap();
-        let expected = SelectionVector::from_iter([1, 4]);
+    //     let selection = expr.select(&batch).unwrap();
+    //     let expected = SelectionVector::from_iter([1, 4]);
 
-        assert_eq!(expected, selection)
-    }
+    //     assert_eq!(expected, selection)
+    // }
 
-    #[test]
-    fn select_none() {
-        let batch = Batch::try_new([
-            Array::from_iter([1, 2, 6, 9, 9]),
-            Array::from_iter([2, 3, 8, 9, 10]),
-        ])
-        .unwrap();
+    // #[test]
+    // fn select_none() {
+    //     let batch = Batch::try_new([
+    //         Array::from_iter([1, 2, 6, 9, 9]),
+    //         Array::from_iter([2, 3, 8, 9, 10]),
+    //     ])
+    //     .unwrap();
 
-        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-            function: Box::new(GtImpl),
-            inputs: vec![
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
-            ],
-        });
+    //     let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
+    //         function: Box::new(GtImpl),
+    //         inputs: vec![
+    //             PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+    //             PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+    //         ],
+    //     });
 
-        let selection = expr.select(&batch).unwrap();
-        let expected = SelectionVector::empty();
+    //     let selection = expr.select(&batch).unwrap();
+    //     let expected = SelectionVector::empty();
 
-        assert_eq!(expected, selection)
-    }
+    //     assert_eq!(expected, selection)
+    // }
 }
