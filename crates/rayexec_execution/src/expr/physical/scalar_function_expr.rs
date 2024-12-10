@@ -8,12 +8,12 @@ use rayexec_error::{OptionExt, Result};
 
 use super::PhysicalScalarExpression;
 use crate::database::DatabaseContext;
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction2;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalScalarFunctionExpr {
-    pub function: Box<dyn PlannedScalarFunction>,
+    pub function: Box<dyn PlannedScalarFunction2>,
     pub inputs: Vec<PhysicalScalarExpression>,
 }
 

@@ -19,8 +19,8 @@ impl UnaryExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(S::Type, &mut OutputBuffer<B>),
-        S: PhysicalStorage<'a>,
+        Op: FnMut(S::Type<'a>, &mut OutputBuffer<B>),
+        S: PhysicalStorage,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array)?;
@@ -82,8 +82,8 @@ impl UnaryExecutor {
     /// either Some(val) if the value is valid, or None if it's not.
     pub fn for_each<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
     where
-        Op: FnMut(usize, Option<S::Type>),
-        S: PhysicalStorage<'a>,
+        Op: FnMut(usize, Option<S::Type<'a>>),
+        S: PhysicalStorage,
     {
         let selection = array.selection_vector();
         let len = array.logical_len();
@@ -119,9 +119,9 @@ impl UnaryExecutor {
     /// Gets the value some index in the array.
     ///
     /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at<'a, S>(array: &'a Array, idx: usize) -> Result<Option<S::Type>>
+    pub fn value_at<'a, S>(array: &'a Array, idx: usize) -> Result<Option<S::Type<'a>>>
     where
-        S: PhysicalStorage<'a>,
+        S: PhysicalStorage,
     {
         let selection = array.selection_vector();
 

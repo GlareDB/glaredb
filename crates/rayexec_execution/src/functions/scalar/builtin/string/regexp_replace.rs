@@ -9,7 +9,7 @@ use rayexec_proto::util_types;
 use regex::Regex;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -33,7 +33,7 @@ impl FunctionInfo for RegexpReplace {
 }
 
 impl ScalarFunction for RegexpReplace {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let mut decoder = PackedDecoder::new(state);
 
         let pattern: util_types::OptionalString = decoder.decode_next()?;
@@ -52,7 +52,7 @@ impl ScalarFunction for RegexpReplace {
         }))
     }
 
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
@@ -60,7 +60,7 @@ impl ScalarFunction for RegexpReplace {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 3)?;
         let datatypes = inputs
             .iter()
@@ -107,7 +107,7 @@ pub struct RegexpReplaceImpl {
     pub replacement: Option<String>,
 }
 
-impl PlannedScalarFunction for RegexpReplaceImpl {
+impl PlannedScalarFunction2 for RegexpReplaceImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &RegexpReplace
     }

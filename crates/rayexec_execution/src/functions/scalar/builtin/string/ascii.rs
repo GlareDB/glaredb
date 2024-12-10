@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,11 +26,11 @@ impl FunctionInfo for Ascii {
 }
 
 impl ScalarFunction for Ascii {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(AsciiImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Utf8 => Ok(Box::new(AsciiImpl)),
@@ -42,7 +42,7 @@ impl ScalarFunction for Ascii {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AsciiImpl;
 
-impl PlannedScalarFunction for AsciiImpl {
+impl PlannedScalarFunction2 for AsciiImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Ascii
     }

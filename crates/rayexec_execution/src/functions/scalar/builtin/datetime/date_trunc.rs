@@ -8,7 +8,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -44,11 +44,11 @@ impl FunctionInfo for DateTrunc {
 }
 
 impl ScalarFunction for DateTrunc {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         not_implemented!("decoding date_part")
     }
 
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
@@ -56,7 +56,7 @@ impl ScalarFunction for DateTrunc {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(bind_context))
@@ -128,7 +128,7 @@ pub struct DateTruncImpl {
     field: TruncField,
 }
 
-impl PlannedScalarFunction for DateTruncImpl {
+impl PlannedScalarFunction2 for DateTruncImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &DateTrunc
     }

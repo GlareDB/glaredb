@@ -13,7 +13,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use super::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args,
@@ -52,11 +52,11 @@ impl FunctionInfo for IsNan {
 }
 
 impl ScalarFunction for IsNan {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(IsNanImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanImpl)),
@@ -68,7 +68,7 @@ impl ScalarFunction for IsNan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IsNanImpl;
 
-impl PlannedScalarFunction for IsNanImpl {
+impl PlannedScalarFunction2 for IsNanImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &IsNan
     }
@@ -94,8 +94,8 @@ impl PlannedScalarFunction for IsNanImpl {
 
 fn is_nan_execute<'a, S>(input: &'a Array) -> Result<Array>
 where
-    S: PhysicalStorage<'a>,
-    S::Type: Float,
+    S: PhysicalStorage,
+    S::Type<'a>: Float,
 {
     let builder = ArrayBuilder {
         datatype: DataType::Boolean,

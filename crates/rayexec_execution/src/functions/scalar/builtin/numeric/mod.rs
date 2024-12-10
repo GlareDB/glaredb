@@ -50,7 +50,7 @@ pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args,
@@ -96,9 +96,9 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
 
     fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
     where
-        S: PhysicalStorage<'a>,
-        S::Type: Float + Default,
-        ArrayData: From<PrimitiveStorage<S::Type>>;
+        S: PhysicalStorage,
+        S::Type<'a>: Float + Default,
+        ArrayData: From<PrimitiveStorage<S::Type<'a>>>;
 }
 
 /// Helper struct for creating functions that accept and produce a single
@@ -129,7 +129,7 @@ impl<O: UnaryInputNumericOperation> FunctionInfo for UnaryInputNumericScalar<O> 
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O> {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let ret = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
         Ok(Box::new(UnaryInputNumericScalarImpl::<O> {
             ret,
@@ -138,7 +138,7 @@ impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O
         }))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         check_is_unary_numeric_input(self, inputs)?;
         Ok(Box::new(UnaryInputNumericScalarImpl {
             scalar: *self,
@@ -155,7 +155,7 @@ pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
     _op: PhantomData<O>,
 }
 
-impl<O: UnaryInputNumericOperation> PlannedScalarFunction for UnaryInputNumericScalarImpl<O> {
+impl<O: UnaryInputNumericOperation> PlannedScalarFunction2 for UnaryInputNumericScalarImpl<O> {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &self.scalar
     }

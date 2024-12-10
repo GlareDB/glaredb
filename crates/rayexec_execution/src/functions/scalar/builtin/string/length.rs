@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalUtf8};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,11 +30,11 @@ impl FunctionInfo for Length {
 }
 
 impl ScalarFunction for Length {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(StrLengthImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Utf8 => Ok(Box::new(StrLengthImpl)),
@@ -46,7 +46,7 @@ impl ScalarFunction for Length {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrLengthImpl;
 
-impl PlannedScalarFunction for StrLengthImpl {
+impl PlannedScalarFunction2 for StrLengthImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Length
     }
@@ -103,11 +103,11 @@ impl FunctionInfo for ByteLength {
 }
 
 impl ScalarFunction for ByteLength {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(ByteLengthImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Utf8 | DataType::Binary => Ok(Box::new(ByteLengthImpl)),
@@ -119,7 +119,7 @@ impl ScalarFunction for ByteLength {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteLengthImpl;
 
-impl PlannedScalarFunction for ByteLengthImpl {
+impl PlannedScalarFunction2 for ByteLengthImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &ByteLength
     }
@@ -172,11 +172,11 @@ impl FunctionInfo for BitLength {
 }
 
 impl ScalarFunction for BitLength {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(BitLengthImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Utf8 | DataType::Binary => Ok(Box::new(BitLengthImpl)),
@@ -188,7 +188,7 @@ impl ScalarFunction for BitLength {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BitLengthImpl;
 
-impl PlannedScalarFunction for BitLengthImpl {
+impl PlannedScalarFunction2 for BitLengthImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &BitLength
     }

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -12,6 +13,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
+    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -20,12 +22,19 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU8,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{
+    PlannedScalarFunction2,
+    PlannedScalarFuntion,
+    ScalarFunction,
+    ScalarFunctionImpl,
+};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args,
@@ -33,6 +42,7 @@ use crate::functions::{
     FunctionInfo,
     Signature,
 };
+use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;
@@ -123,12 +133,12 @@ impl FunctionInfo for Add {
 }
 
 impl ScalarFunction for Add {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
-        Ok(Box::new(AddImpl { datatype }))
+        Ok(Box::new(AddImpl2 { datatype }))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float16, DataType::Float16)
@@ -144,20 +154,72 @@ impl ScalarFunction for Add {
             | (DataType::UInt64, DataType::UInt64)
             | (DataType::Decimal64(_), DataType::Decimal64(_)) // TODO: Split out decimal
             | (DataType::Decimal128(_), DataType::Decimal128(_))
-            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddImpl {
+            | (DataType::Date32, DataType::Int64) => Ok(Box::new(AddImpl2 {
                 datatype: inputs[0].clone(),
             })),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
+
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        let function_impl = match (
+            inputs[0].datatype(bind_context)?,
+            inputs[1].datatype(bind_context)?,
+        ) {
+            (DataType::Float16, DataType::Float16) => {
+                AddImpl::<PhysicalF16>::new(DataType::Float16)
+            }
+            _ => unimplemented!(),
+        };
+
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AddImpl<S> {
+    datatype: DataType,
+    _s: PhantomData<S>,
+}
+
+impl<S> AddImpl<S> {
+    fn new(datatype: DataType) -> Self {
+        AddImpl {
+            datatype,
+            _s: PhantomData,
+        }
+    }
+}
+
+impl<S> ScalarFunctionImpl for AddImpl<S>
+where
+    S: PhysicalStorage,
+    for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
+    ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
+{
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+        let b = inputs[1];
+
+        let builder = ArrayBuilder {
+            datatype: self.datatype.clone(),
+            buffer: PrimitiveBuffer::with_len(a.logical_len()),
+        };
+
+        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a + b)))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddImpl {
+pub struct AddImpl2 {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for AddImpl {
+impl PlannedScalarFunction2 for AddImpl2 {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Add
     }

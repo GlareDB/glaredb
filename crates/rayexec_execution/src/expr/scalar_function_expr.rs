@@ -4,11 +4,11 @@ use fmtutil::IntoDisplayableSlice;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScalarFunctionExpr {
-    pub function: Box<dyn PlannedScalarFunction>,
+    pub function: Box<dyn PlannedScalarFunction2>,
     pub inputs: Vec<Expression>,
 }
 

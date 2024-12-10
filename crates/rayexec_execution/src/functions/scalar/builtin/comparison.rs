@@ -29,7 +29,7 @@ use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 // TODOs:
@@ -440,11 +440,11 @@ impl FunctionInfo for Eq {
 }
 
 impl ScalarFunction for Eq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(EqImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -473,7 +473,7 @@ impl ScalarFunction for Eq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EqImpl;
 
-impl PlannedScalarFunction for EqImpl {
+impl PlannedScalarFunction2 for EqImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Eq
     }
@@ -509,11 +509,11 @@ impl FunctionInfo for Neq {
 }
 
 impl ScalarFunction for Neq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(NeqImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -542,7 +542,7 @@ impl ScalarFunction for Neq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NeqImpl;
 
-impl PlannedScalarFunction for NeqImpl {
+impl PlannedScalarFunction2 for NeqImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Neq
     }
@@ -574,11 +574,11 @@ impl FunctionInfo for Lt {
 }
 
 impl ScalarFunction for Lt {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(LtImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -607,7 +607,7 @@ impl ScalarFunction for Lt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LtImpl;
 
-impl PlannedScalarFunction for LtImpl {
+impl PlannedScalarFunction2 for LtImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Lt
     }
@@ -639,11 +639,11 @@ impl FunctionInfo for LtEq {
 }
 
 impl ScalarFunction for LtEq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(LtEqImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -672,7 +672,7 @@ impl ScalarFunction for LtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LtEqImpl;
 
-impl PlannedScalarFunction for LtEqImpl {
+impl PlannedScalarFunction2 for LtEqImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &LtEq
     }
@@ -704,11 +704,11 @@ impl FunctionInfo for Gt {
 }
 
 impl ScalarFunction for Gt {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(GtImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -737,7 +737,7 @@ impl ScalarFunction for Gt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GtImpl;
 
-impl PlannedScalarFunction for GtImpl {
+impl PlannedScalarFunction2 for GtImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Gt
     }
@@ -769,11 +769,11 @@ impl FunctionInfo for GtEq {
 }
 
 impl ScalarFunction for GtEq {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(GtEqImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Boolean, DataType::Boolean)
@@ -802,7 +802,7 @@ impl ScalarFunction for GtEq {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GtEqImpl;
 
-impl PlannedScalarFunction for GtEqImpl {
+impl PlannedScalarFunction2 for GtEqImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &GtEq
     }

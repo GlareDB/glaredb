@@ -6,7 +6,7 @@ use rayexec_error::{not_implemented, Result};
 use rayexec_parser::ast;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -42,11 +42,11 @@ impl FunctionInfo for DatePart {
 }
 
 impl ScalarFunction for DatePart {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         not_implemented!("decoding date_part")
     }
 
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
@@ -54,7 +54,7 @@ impl ScalarFunction for DatePart {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(bind_context))
@@ -85,7 +85,7 @@ pub struct DatePartImpl {
     part: date::DatePart,
 }
 
-impl PlannedScalarFunction for DatePartImpl {
+impl PlannedScalarFunction2 for DatePartImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &DatePart
     }

@@ -348,9 +348,9 @@ pub fn unary_update<State, Storage, Output>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage: for<'a> PhysicalStorage<'a>,
+    Storage: PhysicalStorage,
     State: for<'a> AggregateState<
-        <<Storage as PhysicalStorage<'a>>::Storage as AddressableStorage>::T,
+        <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
         Output,
     >,
 {

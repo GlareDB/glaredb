@@ -10,7 +10,7 @@ use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,11 +31,11 @@ impl FunctionInfo for And {
 }
 
 impl ScalarFunction for And {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(AndImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         for input in inputs {
             if input.datatype_id() != DataTypeId::Boolean {
                 return Err(invalid_input_types_error(self, inputs));
@@ -49,7 +49,7 @@ impl ScalarFunction for And {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AndImpl;
 
-impl PlannedScalarFunction for AndImpl {
+impl PlannedScalarFunction2 for AndImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &And
     }
@@ -134,11 +134,11 @@ impl FunctionInfo for Or {
 }
 
 impl ScalarFunction for Or {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(OrImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         for input in inputs {
             if input.datatype_id() != DataTypeId::Boolean {
                 return Err(invalid_input_types_error(self, inputs));
@@ -152,7 +152,7 @@ impl ScalarFunction for Or {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrImpl;
 
-impl PlannedScalarFunction for OrImpl {
+impl PlannedScalarFunction2 for OrImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Or
     }

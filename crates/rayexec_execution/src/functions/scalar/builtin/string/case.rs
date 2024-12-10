@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{RayexecError, Result};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,11 +26,11 @@ impl FunctionInfo for Lower {
 }
 
 impl ScalarFunction for Lower {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(LowerImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Utf8 => Ok(Box::new(LowerImpl)),
@@ -42,7 +42,7 @@ impl ScalarFunction for Lower {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LowerImpl;
 
-impl PlannedScalarFunction for LowerImpl {
+impl PlannedScalarFunction2 for LowerImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Lower
     }
@@ -79,11 +79,11 @@ impl FunctionInfo for Upper {
 }
 
 impl ScalarFunction for Upper {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(UpperImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Utf8 => Ok(Box::new(UpperImpl)),
@@ -95,7 +95,7 @@ impl ScalarFunction for Upper {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UpperImpl;
 
-impl PlannedScalarFunction for UpperImpl {
+impl PlannedScalarFunction2 for UpperImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Upper
     }

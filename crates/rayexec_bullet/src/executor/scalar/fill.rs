@@ -74,9 +74,9 @@ where
     /// where they should be placed in the buffer.
     pub fn fill<'a, S, I>(&mut self, array: &'a Array, fill_map: I) -> Result<()>
     where
-        S: PhysicalStorage<'a>,
+        S: PhysicalStorage,
         I: IntoIterator<Item = FillMapping>,
-        S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
+        S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
     {
         let selection = array.selection_vector();
 
@@ -283,9 +283,9 @@ fn concat_with_fill_state<'a, S, B>(
     mut fill_state: FillState<B>,
 ) -> Result<Array>
 where
-    S: PhysicalStorage<'a>,
+    S: PhysicalStorage,
     B: ArrayDataBuffer,
-    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     let mut offset = 0;
 
@@ -458,9 +458,9 @@ fn interleave_with_fill_state<'a, S, B>(
     mut fill_state: FillState<B>,
 ) -> Result<Array>
 where
-    S: PhysicalStorage<'a>,
+    S: PhysicalStorage,
     B: ArrayDataBuffer,
-    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     for (idx, array) in arrays.iter().enumerate() {
         // Generates an iter that maps rows from the array we're currently on to

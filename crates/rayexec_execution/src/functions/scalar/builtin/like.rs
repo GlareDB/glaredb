@@ -9,7 +9,7 @@ use rayexec_proto::util_types;
 use regex::{escape, Regex};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -36,11 +36,11 @@ impl FunctionInfo for Like {
 }
 
 impl ScalarFunction for Like {
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
         let constant = constant
             .value
@@ -56,7 +56,7 @@ impl ScalarFunction for Like {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(bind_context))
@@ -88,7 +88,7 @@ pub struct LikeImpl {
     pub constant: Option<Regex>,
 }
 
-impl PlannedScalarFunction for LikeImpl {
+impl PlannedScalarFunction2 for LikeImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Like
     }

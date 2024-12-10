@@ -23,10 +23,10 @@ impl TernaryExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(S1::Type, S2::Type, S3::Type, &mut OutputBuffer<B>),
-        S1: PhysicalStorage<'a>,
-        S2: PhysicalStorage<'a>,
-        S3: PhysicalStorage<'a>,
+        Op: FnMut(S1::Type<'a>, S2::Type<'a>, S3::Type<'a>, &mut OutputBuffer<B>),
+        S1: PhysicalStorage,
+        S2: PhysicalStorage,
+        S3: PhysicalStorage,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;

@@ -7,7 +7,7 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,13 +28,13 @@ impl FunctionInfo for ListValues {
 }
 
 impl ScalarFunction for ListValues {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(ListValuesImpl {
             list_datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
         }))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let first = match inputs.first() {
             Some(dt) => dt,
             None => {
@@ -67,7 +67,7 @@ pub struct ListValuesImpl {
     list_datatype: DataType,
 }
 
-impl PlannedScalarFunction for ListValuesImpl {
+impl PlannedScalarFunction2 for ListValuesImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &ListValues
     }

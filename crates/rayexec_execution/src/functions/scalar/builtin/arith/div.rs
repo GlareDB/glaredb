@@ -27,7 +27,7 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args,
@@ -130,12 +130,12 @@ impl FunctionInfo for Div {
 }
 
 impl ScalarFunction for Div {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
         Ok(Box::new(DivImpl { datatype }))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float16, DataType::Float16)
@@ -168,7 +168,7 @@ pub struct DivImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for DivImpl {
+impl PlannedScalarFunction2 for DivImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Div
     }

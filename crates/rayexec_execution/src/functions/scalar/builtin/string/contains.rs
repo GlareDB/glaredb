@@ -8,7 +8,7 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::util_types;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -32,14 +32,14 @@ impl FunctionInfo for Contains {
 }
 
 impl ScalarFunction for Contains {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
         Ok(Box::new(StringContainsImpl {
             constant: constant.value,
         }))
     }
 
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
@@ -47,7 +47,7 @@ impl ScalarFunction for Contains {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(bind_context))
@@ -77,7 +77,7 @@ pub struct StringContainsImpl {
     pub constant: Option<String>,
 }
 
-impl PlannedScalarFunction for StringContainsImpl {
+impl PlannedScalarFunction2 for StringContainsImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Contains
     }

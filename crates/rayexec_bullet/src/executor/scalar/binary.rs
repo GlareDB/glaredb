@@ -20,9 +20,9 @@ impl BinaryExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(S1::Type, S2::Type, &mut OutputBuffer<B>),
-        S1: PhysicalStorage<'a>,
-        S2: PhysicalStorage<'a>,
+        Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
+        S1: PhysicalStorage,
+        S2: PhysicalStorage,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;

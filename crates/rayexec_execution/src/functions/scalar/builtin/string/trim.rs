@@ -8,7 +8,7 @@ use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -106,11 +106,11 @@ impl<F: StringTrimOp> FunctionInfo for Trim<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunction for Trim<F> {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(TrimImpl::<F> { _op: PhantomData }))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args_one_of(self, inputs, [1, 2])?;
 
         match inputs.len() {
@@ -134,7 +134,7 @@ pub struct TrimImpl<F: StringTrimOp> {
     _op: PhantomData<F>,
 }
 
-impl<F: StringTrimOp> PlannedScalarFunction for TrimImpl<F> {
+impl<F: StringTrimOp> PlannedScalarFunction2 for TrimImpl<F> {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Trim::<F> { _op: PhantomData }
     }

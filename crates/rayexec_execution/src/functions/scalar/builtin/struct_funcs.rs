@@ -4,7 +4,7 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,11 +25,11 @@ impl FunctionInfo for StructPack {
 }
 
 impl ScalarFunction for StructPack {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unimplemented!()
     }
 
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(StructPackDynamic))
     }
 }
@@ -42,7 +42,7 @@ impl ScalarFunction for StructPack {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructPackDynamic;
 
-impl PlannedScalarFunction for StructPackDynamic {
+impl PlannedScalarFunction2 for StructPackDynamic {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &StructPack
     }
@@ -78,11 +78,11 @@ impl FunctionInfo for StructExtract {
 }
 
 impl ScalarFunction for StructExtract {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unimplemented!()
     }
 
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unimplemented!()
     }
 }

@@ -39,7 +39,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -63,11 +63,11 @@ impl FunctionInfo for ListExtract {
 }
 
 impl ScalarFunction for ListExtract {
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let mut packed = PackedDecoder::new(state);
         let datatype = DataType::from_proto(packed.decode_next()?)?;
         let index: u64 = packed.decode_next()?;
@@ -81,7 +81,7 @@ impl ScalarFunction for ListExtract {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(bind_context))
@@ -120,7 +120,7 @@ pub struct ListExtractImpl {
     index: usize,
 }
 
-impl PlannedScalarFunction for ListExtractImpl {
+impl PlannedScalarFunction2 for ListExtractImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &ListExtract
     }
@@ -273,9 +273,9 @@ fn extract_inner<'a, S, B>(
     el_idx: usize,
 ) -> Result<Array>
 where
-    S: PhysicalStorage<'a>,
+    S: PhysicalStorage,
     B: ArrayDataBuffer,
-    S::Type: Borrow<<B as ArrayDataBuffer>::Type>,
+    S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
 {
     let el_idx = el_idx as i32;
 

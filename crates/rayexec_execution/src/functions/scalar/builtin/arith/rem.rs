@@ -25,7 +25,7 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args,
@@ -123,12 +123,12 @@ impl FunctionInfo for Rem {
 }
 
 impl ScalarFunction for Rem {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
         Ok(Box::new(RemImpl { datatype }))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float16, DataType::Float16)
@@ -156,7 +156,7 @@ pub struct RemImpl {
     datatype: DataType,
 }
 
-impl PlannedScalarFunction for RemImpl {
+impl PlannedScalarFunction2 for RemImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Rem
     }

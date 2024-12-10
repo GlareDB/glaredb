@@ -31,7 +31,7 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         FunctionVolatility::Consistent
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>>;
 
     /// Plan a scalar function based on datatype inputs.
     ///
@@ -41,7 +41,7 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     ///
     /// Most functions will only need to implement this as data types are often
     /// times sufficient for function planning.
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>>;
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>>;
 
     /// Plan a scalar function based on expression inputs.
     ///
@@ -55,13 +55,21 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         &self,
         bind_context: &BindContext,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
+    ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(bind_context))
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)
+    }
+
+    fn plan(
+        &self,
+        bind_context: &BindContext,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        unimplemented!()
     }
 }
 
@@ -85,8 +93,41 @@ impl PartialEq for dyn ScalarFunction + '_ {
 
 impl Eq for dyn ScalarFunction {}
 
+#[derive(Debug, Clone)]
+pub struct PlannedScalarFuntion {
+    pub function: Box<dyn ScalarFunction>,
+    /// Return type of the functions.
+    pub return_type: DataType,
+    /// Inputs to the functions.
+    pub inputs: Vec<Expression>,
+    /// The function implmentation.
+    pub function_impl: Box<dyn ScalarFunctionImpl>,
+}
+
+/// Assumes that a function with same inputs and return type is using the same
+/// function implementation.
+impl PartialEq for PlannedScalarFuntion {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.return_type == other.return_type
+            && self.inputs == other.inputs
+    }
+}
+
+impl Eq for PlannedScalarFuntion {}
+
+pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
+    fn execute(&self, inputs: &[&Array]) -> Result<Array>;
+}
+
+impl Clone for Box<dyn ScalarFunctionImpl> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
 /// A scalar function with potentially some state associated with it.
-pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
+pub trait PlannedScalarFunction2: Debug + Sync + Send + DynClone {
     /// The scalar function that's able to produce an instance of this planned
     /// function.
     fn scalar_function(&self) -> &dyn ScalarFunction;
@@ -104,28 +145,28 @@ pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
     fn execute(&self, inputs: &[&Array]) -> Result<Array>;
 }
 
-impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_> {
-    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
+impl PartialEq<dyn PlannedScalarFunction2> for Box<dyn PlannedScalarFunction2 + '_> {
+    fn eq(&self, other: &dyn PlannedScalarFunction2) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn PlannedScalarFunction + '_ {
-    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
+impl PartialEq for dyn PlannedScalarFunction2 + '_ {
+    fn eq(&self, other: &dyn PlannedScalarFunction2) -> bool {
         self.scalar_function() == other.scalar_function()
             && self.return_type() == other.return_type()
     }
 }
 
-impl Eq for dyn PlannedScalarFunction {}
+impl Eq for dyn PlannedScalarFunction2 {}
 
-impl Clone for Box<dyn PlannedScalarFunction> {
+impl Clone for Box<dyn PlannedScalarFunction2> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl Hash for dyn PlannedScalarFunction {
+impl Hash for dyn PlannedScalarFunction2 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.scalar_function().name().hash(state);
         self.return_type().hash(state);

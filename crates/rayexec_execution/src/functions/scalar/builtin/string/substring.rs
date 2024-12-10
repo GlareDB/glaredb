@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::{RayexecError, Result};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -44,11 +44,11 @@ impl FunctionInfo for Substring {
 }
 
 impl ScalarFunction for Substring {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(SubstringImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args_one_of(self, inputs, [2, 3])?;
 
         if inputs.len() == 2 {
@@ -68,7 +68,7 @@ impl ScalarFunction for Substring {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SubstringImpl;
 
-impl PlannedScalarFunction for SubstringImpl {
+impl PlannedScalarFunction2 for SubstringImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Substring
     }

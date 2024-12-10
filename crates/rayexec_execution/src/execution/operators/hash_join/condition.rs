@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::functions::scalar::builtin::boolean::AndImpl;
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction2;
 
 #[derive(Debug, Clone)]
 pub struct HashJoinCondition {
@@ -22,7 +22,7 @@ pub struct HashJoinCondition {
     /// This should be planned function for the comparison operator this
     /// condition was created for. Assumed to take exactly two inputs (left and
     /// right).
-    pub function: Box<dyn PlannedScalarFunction>,
+    pub function: Box<dyn PlannedScalarFunction2>,
 }
 
 impl fmt::Display for HashJoinCondition {
@@ -48,7 +48,7 @@ pub struct LeftPrecomputedJoinCondition {
     pub left_precomputed: Vec<Array>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
-    pub function: Box<dyn PlannedScalarFunction>,
+    pub function: Box<dyn PlannedScalarFunction2>,
 }
 
 impl LeftPrecomputedJoinCondition {

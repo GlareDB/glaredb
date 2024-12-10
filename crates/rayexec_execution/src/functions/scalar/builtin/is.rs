@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::{PhysicalAny, PhysicalBool};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,11 +26,11 @@ impl FunctionInfo for IsNull {
 }
 
 impl ScalarFunction for IsNull {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(CheckNullImpl::<true>))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(CheckNullImpl::<true>))
     }
@@ -54,11 +54,11 @@ impl FunctionInfo for IsNotNull {
 }
 
 impl ScalarFunction for IsNotNull {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(CheckNullImpl::<false>))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(CheckNullImpl::<false>))
     }
@@ -67,7 +67,7 @@ impl ScalarFunction for IsNotNull {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckNullImpl<const IS_NULL: bool>;
 
-impl<const IS_NULL: bool> PlannedScalarFunction for CheckNullImpl<IS_NULL> {
+impl<const IS_NULL: bool> PlannedScalarFunction2 for CheckNullImpl<IS_NULL> {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         if IS_NULL {
             &IsNull
@@ -128,11 +128,11 @@ impl FunctionInfo for IsTrue {
 }
 
 impl ScalarFunction for IsTrue {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(CheckBoolImpl::<false, true>))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(CheckBoolImpl::<false, true>))
     }
@@ -156,11 +156,11 @@ impl FunctionInfo for IsNotTrue {
 }
 
 impl ScalarFunction for IsNotTrue {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(CheckBoolImpl::<true, true>))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(CheckBoolImpl::<true, true>))
     }
@@ -184,11 +184,11 @@ impl FunctionInfo for IsFalse {
 }
 
 impl ScalarFunction for IsFalse {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(CheckBoolImpl::<false, false>))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(CheckBoolImpl::<false, false>))
     }
@@ -212,11 +212,11 @@ impl FunctionInfo for IsNotFalse {
 }
 
 impl ScalarFunction for IsNotFalse {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(CheckBoolImpl::<true, false>))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(CheckBoolImpl::<true, false>))
     }
@@ -225,7 +225,7 @@ impl ScalarFunction for IsNotFalse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckBoolImpl<const NOT: bool, const BOOL: bool>;
 
-impl<const NOT: bool, const BOOL: bool> PlannedScalarFunction for CheckBoolImpl<NOT, BOOL> {
+impl<const NOT: bool, const BOOL: bool> PlannedScalarFunction2 for CheckBoolImpl<NOT, BOOL> {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         match (NOT, BOOL) {
             (false, true) => &IsTrue,

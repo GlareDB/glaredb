@@ -13,7 +13,7 @@ use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::PhysicalType;
 use rayexec_error::{RayexecError, Result};
-use scalar::PlannedScalarFunction;
+use scalar::PlannedScalarFunction2;
 
 /// Function signature.
 #[derive(Debug, Clone, PartialEq)]
@@ -329,7 +329,7 @@ pub fn plan_check_num_args_one_of<T, const N: usize>(
 }
 
 pub fn unhandled_physical_types_err(
-    scalar: &impl PlannedScalarFunction,
+    scalar: &impl PlannedScalarFunction2,
     types: impl IntoIterator<Item = PhysicalType>,
 ) -> RayexecError {
     let types: Vec<_> = types.into_iter().collect();

@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use super::copy::{CopyToArgs, CopyToFunction};
-use super::scalar::{PlannedScalarFunction, ScalarFunction};
+use super::scalar::{PlannedScalarFunction2, ScalarFunction};
 use super::table::inputs::TableFunctionInputs;
 use super::table::{PlannedTableFunction, TableFunction};
 use crate::database::catalog::CatalogTx;
@@ -38,7 +38,7 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction> {
     }
 }
 
-impl DatabaseProtoConv for Box<dyn PlannedScalarFunction> {
+impl DatabaseProtoConv for Box<dyn PlannedScalarFunction2> {
     type ProtoType = rayexec_proto::generated::functions::PlannedScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {

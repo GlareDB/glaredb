@@ -20,9 +20,9 @@ impl UnaryInputNumericOperation for CbrtOp {
 
     fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
     where
-        S: PhysicalStorage<'a>,
-        S::Type: Float + Default,
-        ArrayData: From<PrimitiveStorage<S::Type>>,
+        S: PhysicalStorage,
+        S::Type<'a>: Float + Default,
+        ArrayData: From<PrimitiveStorage<S::Type<'a>>>,
     {
         let builder = ArrayBuilder {
             datatype: ret,

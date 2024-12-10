@@ -8,7 +8,7 @@ use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,11 +29,11 @@ impl FunctionInfo for Repeat {
 }
 
 impl ScalarFunction for Repeat {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(RepeatUtf8Impl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8Impl)),
@@ -45,7 +45,7 @@ impl ScalarFunction for Repeat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RepeatUtf8Impl;
 
-impl PlannedScalarFunction for RepeatUtf8Impl {
+impl PlannedScalarFunction2 for RepeatUtf8Impl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Repeat
     }

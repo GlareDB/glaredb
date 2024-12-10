@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -38,11 +38,11 @@ impl FunctionInfo for LeftPad {
 }
 
 impl ScalarFunction for LeftPad {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(LeftPadImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args_one_of(self, inputs, [2, 3])?;
 
         match inputs.len() {
@@ -62,7 +62,7 @@ impl ScalarFunction for LeftPad {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LeftPadImpl;
 
-impl PlannedScalarFunction for LeftPadImpl {
+impl PlannedScalarFunction2 for LeftPadImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &LeftPad
     }
@@ -132,11 +132,11 @@ impl FunctionInfo for RightPad {
 }
 
 impl ScalarFunction for RightPad {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(RightPadImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args_one_of(self, inputs, [2, 3])?;
 
         match inputs.len() {
@@ -156,7 +156,7 @@ impl ScalarFunction for RightPad {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RightPadImpl;
 
-impl PlannedScalarFunction for RightPadImpl {
+impl PlannedScalarFunction2 for RightPadImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &RightPad
     }

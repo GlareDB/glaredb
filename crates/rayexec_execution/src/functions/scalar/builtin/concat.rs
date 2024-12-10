@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 // TODO: Currently '||' aliases to this, however there should be two separate
@@ -30,11 +30,11 @@ impl FunctionInfo for Concat {
 }
 
 impl ScalarFunction for Concat {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(StringConcatImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         for input in inputs {
             if input.datatype_id() != DataTypeId::Utf8 {
                 return Err(invalid_input_types_error(self, inputs));
@@ -48,7 +48,7 @@ impl ScalarFunction for Concat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StringConcatImpl;
 
-impl PlannedScalarFunction for StringConcatImpl {
+impl PlannedScalarFunction2 for StringConcatImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &Concat
     }

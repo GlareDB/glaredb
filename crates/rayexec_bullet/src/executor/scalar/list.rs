@@ -22,8 +22,8 @@ impl ListExecutor {
         mut builder: ArrayBuilder<B>,
     ) -> Result<Array>
     where
-        R: BinaryListReducer<S::Type, B::Type>,
-        S: PhysicalStorage<'a>,
+        R: BinaryListReducer<S::Type<'a>, B::Type>,
+        S: PhysicalStorage,
         B: ArrayDataBuffer,
         <B as ArrayDataBuffer>::Type: Sized,
     {
@@ -95,9 +95,9 @@ impl ListExecutor {
 
 /// Gets the inner array storage. Checks to ensure the inner array does not
 /// contain NULLs.
-fn get_inner_array_storage<'a, S>(array: &'a Array) -> Result<S::Storage>
+fn get_inner_array_storage<'a, S>(array: &'a Array) -> Result<S::Storage<'a>>
 where
-    S: PhysicalStorage<'a>,
+    S: PhysicalStorage,
 {
     match array.array_data() {
         ArrayData::List(d) => {

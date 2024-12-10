@@ -13,7 +13,7 @@ use rayexec_bullet::executor::physical_type::{
 use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
 use rayexec_error::{RayexecError, Result};
 
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 /// Euclidean distance.
@@ -41,11 +41,11 @@ impl FunctionInfo for L2Distance {
 }
 
 impl ScalarFunction for L2Distance {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
         Ok(Box::new(L2DistanceImpl))
     }
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>> {
+    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::List(a), DataType::List(b)) => {
@@ -64,7 +64,7 @@ impl ScalarFunction for L2Distance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct L2DistanceImpl;
 
-impl PlannedScalarFunction for L2DistanceImpl {
+impl PlannedScalarFunction2 for L2DistanceImpl {
     fn scalar_function(&self) -> &dyn ScalarFunction {
         &L2Distance
     }
