@@ -28,8 +28,8 @@ use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
-use super::binder::bind_context::TableAlias;
 use super::binder::expr_binder::BaseExpressionBinder;
+use super::binder::table_list::TableAlias;
 use crate::database::builtin_views::{
     BuiltinView,
     SHOW_DATABASES_VIEW,

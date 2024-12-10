@@ -3,7 +3,8 @@ use std::fmt;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::binder::bind_context::{BindContext, TableRef};
+use super::binder::bind_context::BindContext;
+use super::binder::table_list::TableRef;
 use super::logical_aggregate::LogicalAggregate;
 use super::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
 use super::logical_copy::LogicalCopyTo;

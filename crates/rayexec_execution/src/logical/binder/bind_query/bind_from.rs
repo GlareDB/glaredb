@@ -15,12 +15,11 @@ use crate::logical::binder::bind_context::{
     BindScopeRef,
     CorrelatedColumn,
     CteRef,
-    TableAlias,
-    TableRef,
     UsingColumn,
 };
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::table_list::{TableAlias, TableRef};
 use crate::logical::logical_join::JoinType;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;

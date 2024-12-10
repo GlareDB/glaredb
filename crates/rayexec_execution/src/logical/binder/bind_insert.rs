@@ -4,10 +4,10 @@ use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
+use super::table_list::TableRef;
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::TableRef;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;

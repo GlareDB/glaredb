@@ -4,7 +4,8 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 
 /// Reference to a column in a query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

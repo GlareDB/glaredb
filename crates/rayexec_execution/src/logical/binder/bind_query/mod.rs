@@ -16,7 +16,8 @@ use bind_values::{BoundValues, ValuesBinder};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::bind_context::{BindContext, BindScopeRef, TableRef};
+use super::bind_context::{BindContext, BindScopeRef};
+use super::table_list::TableRef;
 use crate::logical::binder::bind_context::BoundCte;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;

@@ -3,7 +3,8 @@ use rayexec_error::Result;
 
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;

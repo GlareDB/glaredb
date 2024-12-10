@@ -33,7 +33,8 @@ use super::statistics::propagate_estimated_cardinality;
 use super::subgraph::Subgraph;
 use super::ReorderableCondition;
 use crate::expr;
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
     JoinType,

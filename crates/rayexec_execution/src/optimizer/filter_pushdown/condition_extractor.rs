@@ -5,7 +5,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::TableRef;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_join::{ComparisonCondition, JoinType};
 use crate::optimizer::filter_pushdown::split::split_conjunction;
 

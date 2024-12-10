@@ -12,8 +12,9 @@ use crate::execution::operators::hash_join::condition::HashJoinCondition;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_join::ComparisonCondition;
 
 /// Plans logical expressions into their physical equivalents.

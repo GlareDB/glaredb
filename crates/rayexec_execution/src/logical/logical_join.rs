@@ -2,7 +2,8 @@ use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::binder::bind_context::{BindContext, MaterializationRef, TableRef};
+use super::binder::bind_context::{BindContext, MaterializationRef};
+use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

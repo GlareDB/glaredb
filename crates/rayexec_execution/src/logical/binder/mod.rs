@@ -13,3 +13,4 @@ pub mod bind_set;
 pub mod bind_statement;
 pub mod column_binder;
 pub mod expr_binder;
+pub mod table_list;

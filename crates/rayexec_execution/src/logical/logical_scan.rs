@@ -3,7 +3,8 @@ use std::sync::Arc;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
-use super::binder::bind_context::{BindContext, TableRef};
+use super::binder::bind_context::BindContext;
+use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use super::scan_filter::ScanFilter;
 use super::statistics::StatisticsValue;

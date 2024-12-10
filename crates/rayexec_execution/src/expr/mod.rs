@@ -42,7 +42,8 @@ use window_expr::WindowExpr;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::scalar::{FunctionVolatility, ScalarFunction};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
