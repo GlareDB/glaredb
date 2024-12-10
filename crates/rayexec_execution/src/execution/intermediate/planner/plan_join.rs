@@ -10,7 +10,7 @@ use crate::execution::operators::PhysicalOperator;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::boolean::AndImpl;
+use crate::functions::scalar::builtin::boolean::AndImpl;
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,

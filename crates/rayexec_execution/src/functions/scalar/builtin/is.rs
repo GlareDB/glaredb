@@ -5,7 +5,7 @@ use rayexec_bullet::executor::physical_type::{PhysicalAny, PhysicalBool};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

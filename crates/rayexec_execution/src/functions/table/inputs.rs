@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::TableFunction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TableFunctionArgs {
+pub struct TableFunctionInputs {
     /// Named arguments to a table function.
     pub named: HashMap<String, OwnedScalarValue>,
 
@@ -19,7 +19,7 @@ pub struct TableFunctionArgs {
     pub positional: Vec<OwnedScalarValue>,
 }
 
-impl TableFunctionArgs {
+impl TableFunctionInputs {
     /// Try to get a file location and access config from the table args.
     // TODO: Secrets provider that we pass in allowing us to get creds from some
     // secrets store.
@@ -66,7 +66,10 @@ impl TableFunctionArgs {
     }
 }
 
-pub fn check_named_args_is_empty(func: &dyn TableFunction, args: &TableFunctionArgs) -> Result<()> {
+pub fn check_named_args_is_empty(
+    func: &dyn TableFunction,
+    args: &TableFunctionInputs,
+) -> Result<()> {
     if !args.named.is_empty() {
         return Err(RayexecError::new(format!(
             "'{}' does not take named arguments",

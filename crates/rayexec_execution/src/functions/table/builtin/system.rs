@@ -17,7 +17,7 @@ use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,
@@ -249,7 +249,7 @@ impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
     fn plan_and_initialize<'a>(
         &self,
         context: &'a DatabaseContext,
-        _args: TableFunctionArgs,
+        _args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         // TODO: Method on args returning an error if not empty.
 

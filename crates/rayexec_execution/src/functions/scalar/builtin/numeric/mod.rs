@@ -50,7 +50,7 @@ pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args,

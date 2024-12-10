@@ -29,7 +29,7 @@ use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type};
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 // TODOs:

@@ -2,7 +2,8 @@ use std::fmt;
 
 use super::{AsScalarFunction, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::{arith, ScalarFunction};
+use crate::functions::scalar::builtin::arith;
+use crate::functions::scalar::ScalarFunction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArithOperator {

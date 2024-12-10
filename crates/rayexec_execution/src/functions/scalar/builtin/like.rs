@@ -8,8 +8,8 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::util_types;
 use regex::{escape, Regex};
 
-use super::{PlannedScalarFunction, ScalarFunction};
 use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;

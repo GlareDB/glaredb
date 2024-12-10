@@ -5,7 +5,8 @@ use rayexec_error::Result;
 
 use super::{AsScalarFunction, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::{negate, ScalarFunction};
+use crate::functions::scalar::builtin::negate;
+use crate::functions::scalar::ScalarFunction;
 use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

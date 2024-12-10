@@ -10,7 +10,7 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, Result};
 use rayexec_execution::database::DatabaseContext;
-use rayexec_execution::functions::table::arguments::TableFunctionArgs;
+use rayexec_execution::functions::table::inputs::TableFunctionInputs;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{
@@ -42,7 +42,7 @@ pub trait UnityObjectsOperation<R: Runtime>:
     fn create_connection_state(
         runtime: R,
         context: &DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>>;
 
     /// Create a stream state from the connection state.
@@ -89,7 +89,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
     fn create_connection_state(
         runtime: R,
         _context: &DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
         Box::pin(async move {
             let endpoint = args.try_get_position(0)?.try_as_str()?;
@@ -166,7 +166,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
     fn create_connection_state(
         runtime: R,
         _context: &DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
         Box::pin(async move {
             let endpoint = args.try_get_position(0)?.try_as_str()?;
@@ -246,7 +246,7 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, 
     fn plan_and_initialize<'a>(
         &self,
         context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         let func = self.clone();
         let runtime = self.runtime.clone();

@@ -192,7 +192,7 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::functions::scalar::comparison::GtImpl;
+    use crate::functions::scalar::builtin::comparison::GtImpl;
 
     #[test]
     fn select_some() {

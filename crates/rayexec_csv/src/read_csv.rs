@@ -3,7 +3,7 @@ use futures::StreamExt;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
-use rayexec_execution::functions::table::arguments::TableFunctionArgs;
+use rayexec_execution::functions::table::inputs::TableFunctionInputs;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
@@ -34,7 +34,7 @@ impl<R: Runtime> TableFunction for ReadCsv<R> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadCsvImpl::initialize(self.clone(), args))
     }
@@ -99,7 +99,7 @@ struct ReadCsvImpl<R: Runtime> {
 impl<R: Runtime> ReadCsvImpl<R> {
     async fn initialize(
         func: ReadCsv<R>,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
 

@@ -122,7 +122,7 @@ mod tests {
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
-    use crate::functions::scalar::comparison::EqImpl;
+    use crate::functions::scalar::builtin::comparison::EqImpl;
 
     #[test]
     fn case_simple() {

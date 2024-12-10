@@ -2,7 +2,8 @@ use std::fmt;
 
 use super::{AsScalarFunction, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::{boolean, ScalarFunction};
+use crate::functions::scalar::builtin::boolean;
+use crate::functions::scalar::ScalarFunction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConjunctionOperator {

@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 // TODO: Currently '||' aliases to this, however there should be two separate

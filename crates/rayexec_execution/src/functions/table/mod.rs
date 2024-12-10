@@ -1,14 +1,16 @@
-pub mod arguments;
 pub mod builtin;
 pub mod inout;
+pub mod inputs;
 pub mod out;
 
 use std::fmt::Debug;
 
-use arguments::TableFunctionArgs;
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use inout::TableInOutFunction;
+use inputs::TableFunctionInputs;
+use out::TableOutFunction;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 
@@ -42,8 +44,24 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
     fn plan_and_initialize<'a>(
         &self,
         context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
+
+    fn initialize<'a>(
+        &self,
+        context: &'a DatabaseContext,
+        args: TableFunctionInputs,
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+        unimplemented!()
+    }
+
+    fn reinitialize<'a>(
+        &self,
+        _context: &'a DatabaseContext,
+        state: TableFunctionState,
+    ) -> BoxFuture<'a, Result<TableFunctionState>> {
+        async move { Ok(state) }.boxed()
+    }
 
     fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>>;
 }
@@ -67,6 +85,16 @@ impl PartialEq for dyn TableFunction + '_ {
 }
 
 impl Eq for dyn TableFunction {}
+
+#[derive(Debug)]
+pub struct TableFunctionState {
+    pub table_function: Box<dyn TableFunction>,
+    pub inputs: TableFunctionInputs,
+    pub out_function: Option<Box<dyn TableOutFunction>>,
+    pub inout_function: Option<Box<dyn TableInOutFunction>>,
+    pub cardinality: StatisticsValue<usize>,
+    pub schema: Schema,
+}
 
 pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     /// Reinitialize the table function, including re-opening any connections

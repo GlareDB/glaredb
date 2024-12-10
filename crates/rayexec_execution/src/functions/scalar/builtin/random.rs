@@ -4,7 +4,7 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{FunctionVolatility, PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction, ScalarFunction};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

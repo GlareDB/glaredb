@@ -11,9 +11,9 @@ pub trait TableOutFunction: Debug + Sync + Send {
         &self,
         projections: Projections,
         num_partitions: usize,
-    ) -> Result<Vec<Box<dyn TableOutScan>>>;
+    ) -> Result<Vec<Box<dyn TableOutState>>>;
 }
 
-pub trait TableOutScan: Debug + Sync + Send {
+pub trait TableOutState: Debug + Sync + Send {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>>;
 }

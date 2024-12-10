@@ -10,7 +10,7 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,
@@ -30,7 +30,7 @@ impl TableFunction for GenerateSeries {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(async move { Self::plan_and_initialize_inner(args) })
     }
@@ -45,7 +45,9 @@ impl TableFunction for GenerateSeries {
 }
 
 impl GenerateSeries {
-    fn plan_and_initialize_inner(args: TableFunctionArgs) -> Result<Box<dyn PlannedTableFunction>> {
+    fn plan_and_initialize_inner(
+        args: TableFunctionInputs,
+    ) -> Result<Box<dyn PlannedTableFunction>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "generate_series does not accept named arguments",

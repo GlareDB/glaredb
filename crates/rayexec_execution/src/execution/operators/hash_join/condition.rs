@@ -8,7 +8,7 @@ use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::boolean::AndImpl;
+use crate::functions::scalar::builtin::boolean::AndImpl;
 use crate::functions::scalar::PlannedScalarFunction;
 
 #[derive(Debug, Clone)]

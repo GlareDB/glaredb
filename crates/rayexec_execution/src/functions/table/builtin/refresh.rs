@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::table_storage::DataTable;
 
@@ -20,7 +20,7 @@ pub trait RefreshOperation: Debug + Clone + Copy + PartialEq + Eq + Sync + Send 
     fn schema() -> Schema;
 
     #[allow(dead_code)]
-    fn create_state(context: &DatabaseContext, args: TableFunctionArgs) -> Result<Self::State>;
+    fn create_state(context: &DatabaseContext, args: TableFunctionInputs) -> Result<Self::State>;
 
     #[allow(dead_code)]
     fn refresh(state: &Self::State) -> Result<BoxFuture<'_, Result<()>>>;
@@ -44,7 +44,7 @@ impl RefreshOperation for RefreshSchemas {
         Schema::new([Field::new("count", DataType::Int64, false)])
     }
 
-    fn create_state(context: &DatabaseContext, args: TableFunctionArgs) -> Result<Self::State> {
+    fn create_state(context: &DatabaseContext, args: TableFunctionInputs) -> Result<Self::State> {
         let database_name = args.try_get_position(0)?.try_as_str()?;
 
         let database = context.get_database(database_name)?;
@@ -88,7 +88,7 @@ impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,
-        _args: TableFunctionArgs,
+        _args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         unimplemented!()
     }

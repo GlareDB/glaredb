@@ -10,7 +10,7 @@ use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use super::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

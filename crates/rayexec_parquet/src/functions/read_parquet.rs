@@ -5,7 +5,7 @@ use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::database::DatabaseContext;
-use rayexec_execution::functions::table::arguments::TableFunctionArgs;
+use rayexec_execution::functions::table::inputs::TableFunctionInputs;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
 use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
@@ -36,7 +36,7 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadParquetImpl::initialize(self.clone(), args))
     }
@@ -94,7 +94,7 @@ pub struct ReadParquetImpl<R: Runtime> {
 impl<R: Runtime> ReadParquetImpl<R> {
     async fn initialize(
         func: ReadParquet<R>,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
         let mut source = func
