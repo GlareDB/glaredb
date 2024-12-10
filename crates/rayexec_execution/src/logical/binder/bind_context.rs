@@ -164,6 +164,10 @@ impl BindContext {
         BindScopeRef { context_idx: 0 }
     }
 
+    pub fn get_table_list(&self) -> &TableList {
+        &self.tables
+    }
+
     /// Creates a new bind scope, with current being the parent scope.
     ///
     /// The resulting scope should have visibility into parent scopes (for
@@ -342,11 +346,14 @@ impl BindContext {
     /// Errors on duplicate table aliases.
     pub fn append_context(&mut self, current: BindScopeRef, other: BindScopeRef) -> Result<()> {
         let left_aliases: HashSet<_> = self
-            .iter_tables(current)?
+            .iter_tables_in_scope(current)?
             .filter_map(|t| t.alias.as_ref())
             .collect();
 
-        for right_alias in self.iter_tables(other)?.filter_map(|t| t.alias.as_ref()) {
+        for right_alias in self
+            .iter_tables_in_scope(other)?
+            .filter_map(|t| t.alias.as_ref())
+        {
             if left_aliases.contains(right_alias) {
                 return Err(RayexecError::new(format!(
                     "Duplicate table name: {}",
@@ -496,21 +503,8 @@ impl BindContext {
         Ok(idx)
     }
 
-    pub fn get_column_info(
-        &self,
-        table_ref: TableRef,
-        col_idx: usize,
-    ) -> Result<(&str, &DataType)> {
-        let table = self.get_table(table_ref)?;
-        let name = table
-            .column_names
-            .get(col_idx)
-            .map(|s| s.as_str())
-            .ok_or_else(|| {
-                RayexecError::new(format!("Missing column {col_idx} in table {table_ref}"))
-            })?;
-        let datatype = &table.column_types[col_idx];
-        Ok((name, datatype))
+    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
+        self.tables.get_column(table_ref, col_idx)
     }
 
     pub fn get_table(&self, table_ref: TableRef) -> Result<&Table> {
@@ -531,27 +525,17 @@ impl BindContext {
         if let Some(alias) = &alias {
             // If we have multiple tables in scope, they need to have unique
             // alias (e.g. by ensure one is more qualified than the other)
-            for have_alias in self.iter_tables(idx)?.filter_map(|t| t.alias.as_ref()) {
+            for have_alias in self
+                .iter_tables_in_scope(idx)?
+                .filter_map(|t| t.alias.as_ref())
+            {
                 if have_alias == alias {
                     return Err(RayexecError::new(format!("Duplicate table name: {alias}")));
                 }
             }
         }
 
-        let table_idx = self.tables.tables.len();
-        let reference = TableRef { table_idx };
-        let scope = Table {
-            reference,
-            alias,
-            column_types,
-            column_names,
-        };
-        self.tables.tables.push(scope);
-
-        let child = self.get_scope_mut(idx)?;
-        child.tables.push(reference);
-
-        Ok(reference)
+        self.tables.push_table(alias, column_types, column_names)
     }
 
     pub fn append_table_to_scope(&mut self, scope: BindScopeRef, table: TableRef) -> Result<()> {
@@ -608,7 +592,7 @@ impl BindContext {
 
         let mut found = None;
 
-        for table in self.iter_tables(current)? {
+        for table in self.iter_tables_in_scope(current)? {
             match (&table.alias, &alias) {
                 (Some(a1), Some(a2)) => {
                     if !a1.matches(a2) {
@@ -635,7 +619,10 @@ impl BindContext {
     }
 
     /// Iterate tables in the given bind scope.
-    pub fn iter_tables(&self, current: BindScopeRef) -> Result<impl Iterator<Item = &Table>> {
+    pub fn iter_tables_in_scope(
+        &self,
+        current: BindScopeRef,
+    ) -> Result<impl Iterator<Item = &Table>> {
         let context = self.get_scope(current)?;
         Ok(context
             .tables
@@ -680,7 +667,7 @@ pub(crate) mod testutil {
         scope: BindScopeRef,
     ) -> Vec<(String, DataType)> {
         bind_context
-            .iter_tables(scope)
+            .iter_tables_in_scope(scope)
             .unwrap()
             .flat_map(|t| {
                 t.column_names

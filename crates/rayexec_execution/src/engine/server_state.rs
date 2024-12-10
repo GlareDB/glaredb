@@ -123,7 +123,7 @@ where
 
         let schema = Schema::new(
             bind_context
-                .iter_tables(bind_context.root_scope_ref())?
+                .iter_tables_in_scope(bind_context.root_scope_ref())?
                 .flat_map(|t| {
                     t.column_names
                         .iter()

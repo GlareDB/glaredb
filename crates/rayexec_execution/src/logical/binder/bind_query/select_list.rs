@@ -184,8 +184,7 @@ impl SelectList {
             match expr {
                 Expression::Column(col) => {
                     if !refs.iter().any(|table_ref| &col.table_scope == table_ref) {
-                        let (col_name, _) =
-                            bind_context.get_column_info(col.table_scope, col.column)?;
+                        let (col_name, _) = bind_context.get_column(col.table_scope, col.column)?;
                         return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
                     }
                 }

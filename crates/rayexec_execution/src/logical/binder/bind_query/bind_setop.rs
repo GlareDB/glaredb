@@ -94,13 +94,13 @@ impl<'a> SetOpBinder<'a> {
 
         let mut left_types = Vec::new();
         let mut left_names = Vec::new();
-        for table in bind_context.iter_tables(left_scope)? {
+        for table in bind_context.iter_tables_in_scope(left_scope)? {
             left_types.extend_from_slice(&table.column_types);
             left_names.extend_from_slice(&table.column_names);
         }
 
         let right_types: Vec<_> = bind_context
-            .iter_tables(right_scope)?
+            .iter_tables_in_scope(right_scope)?
             .flat_map(|t| t.column_types.iter().cloned())
             .collect();
 

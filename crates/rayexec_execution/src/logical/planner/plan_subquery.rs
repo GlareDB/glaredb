@@ -711,7 +711,7 @@ impl DependentJoinPushdown {
                 );
 
                 let (_, datatype) =
-                    bind_context.get_column_info(correlated.table, correlated.col_idx)?;
+                    bind_context.get_column(correlated.table, correlated.col_idx)?;
 
                 bind_context.push_column_for_table(
                     projection_ref,

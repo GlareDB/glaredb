@@ -111,7 +111,7 @@ impl SetOpPlanner {
         bind_context: &'a BindContext,
         scope_ref: BindScopeRef,
     ) -> Result<&'a Table> {
-        let mut iter = bind_context.iter_tables(scope_ref)?;
+        let mut iter = bind_context.iter_tables_in_scope(scope_ref)?;
         let table = match iter.next() {
             Some(table) => table,
             None => return Err(RayexecError::new("No table is scope")),

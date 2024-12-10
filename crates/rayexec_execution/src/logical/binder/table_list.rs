@@ -106,4 +106,43 @@ impl TableList {
             .get_mut(table_ref.table_idx)
             .ok_or_else(|| RayexecError::new(format!("Missing table in table list: {table_ref}")))
     }
+
+    pub fn push_table(
+        &mut self,
+        alias: Option<TableAlias>,
+        column_types: Vec<DataType>,
+        column_names: Vec<String>,
+    ) -> Result<TableRef> {
+        if column_types.len() != column_names.len() {
+            return Err(
+                RayexecError::new("Column names and types have different lengths")
+                    .with_fields([("types", column_types.len()), ("names", column_names.len())]),
+            );
+        }
+
+        let table_idx = self.tables.len();
+        let reference = TableRef { table_idx };
+        let table = Table {
+            reference,
+            alias,
+            column_types,
+            column_names,
+        };
+        self.tables.push(table);
+
+        Ok(reference)
+    }
+
+    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
+        let table = self.get(table_ref)?;
+        let name = table
+            .column_names
+            .get(col_idx)
+            .map(|s| s.as_str())
+            .ok_or_else(|| {
+                RayexecError::new(format!("Missing column {col_idx} in table {table_ref}"))
+            })?;
+        let datatype = &table.column_types[col_idx];
+        Ok((name, datatype))
+    }
 }

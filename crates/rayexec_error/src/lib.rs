@@ -25,14 +25,24 @@ pub struct RayexecError {
 struct RayexecErrorInner {
     /// Message for the error.
     pub msg: String,
-
     /// Source of the error.
     pub source: Option<Box<dyn Error + Send + Sync>>,
-
     /// Captured backtrace for the error.
     ///
     /// Enable with the RUST_BACKTRACE env var.
     pub backtrace: Backtrace,
+    /// Extra error fields to display.
+    pub extra_fields: Vec<ErrorField>,
+}
+
+pub trait ErrorFieldValue: fmt::Debug + fmt::Display + Sync + Send {}
+
+impl<T: fmt::Debug + fmt::Display + Sync + Send> ErrorFieldValue for T {}
+
+#[derive(Debug)]
+pub struct ErrorField {
+    pub key: String,
+    pub value: Box<dyn ErrorFieldValue>,
 }
 
 impl RayexecError {
@@ -42,6 +52,7 @@ impl RayexecError {
                 msg: msg.into(),
                 source: None,
                 backtrace: Backtrace::capture(),
+                extra_fields: Vec::new(),
             }),
         }
     }
@@ -52,8 +63,37 @@ impl RayexecError {
                 msg: msg.into(),
                 source: Some(source),
                 backtrace: Backtrace::capture(),
+                extra_fields: Vec::new(),
             }),
         }
+    }
+
+    pub fn with_field<K, V>(mut self, (key, value): (K, V)) -> Self
+    where
+        K: Into<String>,
+        V: ErrorFieldValue + 'static,
+    {
+        self.inner.extra_fields.push(ErrorField {
+            key: key.into(),
+            value: Box::new(value),
+        });
+        self
+    }
+
+    // TODO: dyn
+    pub fn with_fields<K, V, I>(mut self, fields: I) -> Self
+    where
+        K: Into<String>,
+        V: ErrorFieldValue + 'static,
+        I: IntoIterator<Item = (K, V)>,
+    {
+        self.inner
+            .extra_fields
+            .extend(fields.into_iter().map(|(key, value)| ErrorField {
+                key: key.into(),
+                value: Box::new(value),
+            }));
+        self
     }
 
     pub fn get_msg(&self) -> &str {
@@ -96,6 +136,11 @@ impl From<std::num::TryFromIntError> for RayexecError {
 impl fmt::Display for RayexecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.inner.msg)?;
+
+        for extra in &self.inner.extra_fields {
+            write!(f, "\n{}: {}", extra.key, extra.value)?;
+        }
+
         if let Some(source) = &self.inner.source {
             write!(f, "\nError source: {}", source)?;
         }

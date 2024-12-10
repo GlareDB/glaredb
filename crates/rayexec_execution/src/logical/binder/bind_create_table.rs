@@ -74,7 +74,7 @@ impl<'a> CreateTableBinder<'a> {
                 let bound_query = query_binder.bind(bind_context, source)?;
 
                 let fields: Vec<_> = bind_context
-                    .iter_tables(source_scope)?
+                    .iter_tables_in_scope(source_scope)?
                     .flat_map(|t| {
                         t.column_names
                             .iter()

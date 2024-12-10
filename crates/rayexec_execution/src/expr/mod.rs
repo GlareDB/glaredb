@@ -82,7 +82,7 @@ impl Expression {
             Self::Between(_) => DataType::Boolean,
             Self::Case(expr) => expr.datatype(bind_context)?,
             Self::Cast(expr) => expr.to.clone(),
-            Self::Column(expr) => expr.datatype(bind_context)?,
+            Self::Column(expr) => expr.datatype(bind_context.get_table_list())?,
             Self::Comparison(_) => DataType::Boolean,
             Self::Conjunction(_) => DataType::Boolean,
             Self::Is(_) => DataType::Boolean,

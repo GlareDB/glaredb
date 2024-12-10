@@ -323,7 +323,7 @@ impl<'a> FromBinder<'a> {
 
         let mut names = Vec::new();
         let mut types = Vec::new();
-        for table in bind_context.iter_tables(nested_scope)? {
+        for table in bind_context.iter_tables_in_scope(nested_scope)? {
             types.extend(table.column_types.iter().cloned());
             names.extend(table.column_names.iter().cloned());
         }
@@ -557,7 +557,7 @@ impl<'a> FromBinder<'a> {
         // Remove right columns from scope for semi joins.
         if join_type == JoinType::Semi {
             let right_tables: Vec<_> = bind_context
-                .iter_tables(right_idx)?
+                .iter_tables_in_scope(right_idx)?
                 .map(|t| t.reference)
                 .collect();
             bind_context.remove_tables(self.current, &right_tables)?;

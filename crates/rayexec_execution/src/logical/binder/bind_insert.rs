@@ -91,7 +91,7 @@ impl<'a> InsertBinder<'a> {
 
         // Types from the source plan.
         let source_types: Vec<(TableRef, usize, &DataType)> = bind_context
-            .iter_tables(source_scope)?
+            .iter_tables_in_scope(source_scope)?
             .flat_map(|t| {
                 let table_ref = t.reference;
                 t.column_types

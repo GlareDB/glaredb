@@ -124,7 +124,7 @@ impl<'a> QueryBinder<'a> {
 
         let mut names = Vec::new();
         let mut types = Vec::new();
-        for table in bind_context.iter_tables(nested)? {
+        for table in bind_context.iter_tables_in_scope(nested)? {
             types.extend(table.column_types.iter().cloned());
             names.extend(table.column_names.iter().cloned());
         }
