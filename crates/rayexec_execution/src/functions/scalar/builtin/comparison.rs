@@ -571,12 +571,12 @@ where
                     CastFailBehavior::Error,
                 )?;
 
-                return BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
                     left,
                     &scaled_right,
                     builder,
                     |a, b, buf| buf.put(&O::compare(a, b)),
-                );
+                )
             }
             Ordering::Less => {
                 let scaled_left = decimal_rescale::<T::Storage, T>(
@@ -585,15 +585,15 @@ where
                     CastFailBehavior::Error,
                 )?;
 
-                return BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
                     &scaled_left,
                     right,
                     builder,
                     |a, b, buf| buf.put(&O::compare(a, b)),
-                );
+                )
             }
             Ordering::Equal => {
-                return BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
                     left,
                     right,
                     builder,

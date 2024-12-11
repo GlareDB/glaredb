@@ -63,14 +63,14 @@ impl ScalarFunction for ListValues {
             datatype: Box::new(first.clone()),
         });
 
-        return Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: return_type.clone(),
             inputs,
             function_impl: Box::new(ListValuesImpl {
                 list_datatype: return_type,
             }),
-        });
+        })
     }
 }
 

@@ -95,7 +95,7 @@ impl ListExecutor {
 
 /// Gets the inner array storage. Checks to ensure the inner array does not
 /// contain NULLs.
-fn get_inner_array_storage<'a, S>(array: &'a Array) -> Result<S::Storage<'a>>
+fn get_inner_array_storage<S>(array: &Array) -> Result<S::Storage<'_>>
 where
     S: PhysicalStorage,
 {
