@@ -9,12 +9,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{
-    PlannedScalarFunction,
-    PlannedScalarFunction2,
-    ScalarFunction,
-    ScalarFunctionImpl,
-};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,

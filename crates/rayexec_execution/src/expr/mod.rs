@@ -72,13 +72,7 @@ impl Expression {
     pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type(),
-            Self::Arith(expr) => {
-                let func = expr
-                    .op
-                    .as_scalar_function()
-                    .plan_from_expressions(table_list, &[&expr.left, &expr.right])?;
-                func.return_type()
-            }
+            Self::Arith(expr) => expr.datatype(table_list)?,
             Self::Between(_) => DataType::Boolean,
             Self::Case(expr) => expr.datatype(table_list)?,
             Self::Cast(expr) => expr.to.clone(),

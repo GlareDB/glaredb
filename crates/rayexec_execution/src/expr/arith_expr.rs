@@ -1,9 +1,13 @@
 use std::fmt;
 
+use rayexec_bullet::datatype::DataType;
+use rayexec_error::Result;
+
 use super::{AsScalarFunction, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::builtin::arith;
 use crate::functions::scalar::ScalarFunction;
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArithOperator {
@@ -43,6 +47,20 @@ pub struct ArithExpr {
     pub left: Box<Expression>,
     pub right: Box<Expression>,
     pub op: ArithOperator,
+}
+
+impl ArithExpr {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+        // TODO: Be more efficient here.
+        Ok(self
+            .op
+            .as_scalar_function()
+            .plan(
+                table_list,
+                vec![self.left.as_ref().clone(), self.right.as_ref().clone()],
+            )?
+            .return_type)
+    }
 }
 
 impl ContextDisplay for ArithExpr {

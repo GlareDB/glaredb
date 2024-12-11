@@ -30,43 +30,14 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         FunctionVolatility::Consistent
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unimplemented!()
-    }
-
-    /// Plan a scalar function based on datatype inputs.
-    ///
-    /// The datatypes passed in correspond directly to the arguments to the
-    /// function. This is expected to error if the number of arguments or the
-    /// data types are incorrect.
-    ///
-    /// Most functions will only need to implement this as data types are often
-    /// times sufficient for function planning.
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unimplemented!()
-    }
-
     /// Plan a scalar function based on expression inputs.
     ///
     /// This allows functions to check for constant expressions and generate a
     /// function state for use throughout the entire query.
     ///
-    /// Most functions won't need to implement this, and the default
-    /// implementation will forward to `plan_from_datatypes` by extracting the
-    /// data types from the function.
-    fn plan_from_expressions(
-        &self,
-        table_list: &TableList,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        self.plan_from_datatypes(&datatypes)
-    }
-
+    /// The returned planned function will hold onto its logical inputs. These
+    /// inputs can be modified during optimization, but the datatype is
+    /// guaranteed to remain constant.
     fn plan(
         &self,
         table_list: &TableList,
@@ -132,53 +103,6 @@ pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
 impl Clone for Box<dyn ScalarFunctionImpl> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
-    }
-}
-
-/// A scalar function with potentially some state associated with it.
-pub trait PlannedScalarFunction2: Debug + Sync + Send + DynClone {
-    /// The scalar function that's able to produce an instance of this planned
-    /// function.
-    fn scalar_function(&self) -> &dyn ScalarFunction;
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()>;
-
-    /// Return type of the function.
-    fn return_type(&self) -> DataType;
-
-    /// Execution the function array inputs.
-    ///
-    /// For functions that accept no input (e.g. random), an array of length one
-    /// should be returned. During evaluation, this one element array will be
-    /// extended to be of the appropriate size.
-    fn execute(&self, inputs: &[&Array]) -> Result<Array>;
-}
-
-impl PartialEq<dyn PlannedScalarFunction2> for Box<dyn PlannedScalarFunction2 + '_> {
-    fn eq(&self, other: &dyn PlannedScalarFunction2) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn PlannedScalarFunction2 + '_ {
-    fn eq(&self, other: &dyn PlannedScalarFunction2) -> bool {
-        self.scalar_function() == other.scalar_function()
-            && self.return_type() == other.return_type()
-    }
-}
-
-impl Eq for dyn PlannedScalarFunction2 {}
-
-impl Clone for Box<dyn PlannedScalarFunction2> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}
-
-impl Hash for dyn PlannedScalarFunction2 {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.scalar_function().name().hash(state);
-        self.return_type().hash(state);
     }
 }
 

@@ -49,12 +49,7 @@ pub use sqrt::*;
 pub use tan::*;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{
-    PlannedScalarFunction,
-    PlannedScalarFunction2,
-    ScalarFunction,
-    ScalarFunctionImpl,
-};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
