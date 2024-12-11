@@ -1,6 +1,8 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
+use num_traits::{NumCast, PrimInt};
+use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -13,7 +15,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalType,
+    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -23,19 +25,13 @@ use rayexec_bullet::executor::physical_type::{
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::scalar::interval::Interval;
+use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use rayexec_proto::ProtoConv;
-use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
-use crate::functions::{
-    invalid_input_types_error,
-    plan_check_num_args,
-    unhandled_physical_types_err,
-    FunctionInfo,
-    Signature,
-};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Mul;
@@ -131,260 +127,218 @@ impl FunctionInfo for Mul {
 }
 
 impl ScalarFunction for Mul {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let datatype = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
-        Ok(Box::new(MulImpl { datatype }))
-    }
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 2)?;
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Float16, DataType::Float16)
-            | (DataType::Float32, DataType::Float32)
-            | (DataType::Float64, DataType::Float64)
-            | (DataType::Int8, DataType::Int8)
-            | (DataType::Int16, DataType::Int16)
-            | (DataType::Int32, DataType::Int32)
-            | (DataType::Int64, DataType::Int64)
-            | (DataType::UInt8, DataType::UInt8)
-            | (DataType::UInt16, DataType::UInt16)
-            | (DataType::UInt32, DataType::UInt32)
-            | (DataType::UInt64, DataType::UInt64)
-            | (DataType::Date32, DataType::Int64)
-            | (DataType::Interval, DataType::Int32)
-            | (DataType::Interval, DataType::Int64) => Ok(Box::new(MulImpl {
-                datatype: inputs[0].clone(),
-            })),
+        let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Float16, DataType::Float16) => (
+                Box::new(MulImpl::<PhysicalF16>::new(DataType::Float16)),
+                DataType::Float16,
+            ),
+            (DataType::Float32, DataType::Float32) => (
+                Box::new(MulImpl::<PhysicalF32>::new(DataType::Float32)),
+                DataType::Float32,
+            ),
+            (DataType::Float64, DataType::Float64) => (
+                Box::new(MulImpl::<PhysicalF64>::new(DataType::Float64)),
+                DataType::Float64,
+            ),
+            (DataType::Int8, DataType::Int8) => (
+                Box::new(MulImpl::<PhysicalI8>::new(DataType::Int8)),
+                DataType::Int8,
+            ),
+            (DataType::Int16, DataType::Int16) => (
+                Box::new(MulImpl::<PhysicalI16>::new(DataType::Int16)),
+                DataType::Int16,
+            ),
+            (DataType::Int32, DataType::Int32) => (
+                Box::new(MulImpl::<PhysicalI32>::new(DataType::Int32)),
+                DataType::Int32,
+            ),
+            (DataType::Int64, DataType::Int64) => (
+                Box::new(MulImpl::<PhysicalI64>::new(DataType::Int64)),
+                DataType::Int64,
+            ),
+            (DataType::Int128, DataType::Int128) => (
+                Box::new(MulImpl::<PhysicalI128>::new(DataType::Int128)),
+                DataType::Int128,
+            ),
+            (DataType::UInt8, DataType::UInt8) => (
+                Box::new(MulImpl::<PhysicalU8>::new(DataType::UInt8)),
+                DataType::UInt8,
+            ),
+            (DataType::UInt16, DataType::UInt16) => (
+                Box::new(MulImpl::<PhysicalU16>::new(DataType::UInt16)),
+                DataType::UInt16,
+            ),
+            (DataType::UInt32, DataType::UInt32) => (
+                Box::new(MulImpl::<PhysicalU32>::new(DataType::UInt32)),
+                DataType::UInt32,
+            ),
+            (DataType::UInt64, DataType::UInt64) => (
+                Box::new(MulImpl::<PhysicalU64>::new(DataType::UInt64)),
+                DataType::UInt64,
+            ),
+            (DataType::UInt128, DataType::UInt128) => (
+                Box::new(MulImpl::<PhysicalU128>::new(DataType::UInt128)),
+                DataType::UInt128,
+            ),
+
+            // Decimal
             (DataType::Decimal64(a), DataType::Decimal64(b)) => {
                 // Since we're multiplying, might as well go wide as possible.
                 // Eventually we'll want to bumpt up to 128 if the precision is
                 // over some threshold to be more resilient to overflows.
                 let precision = Decimal64Type::MAX_PRECISION;
                 let scale = a.scale + b.scale;
-                Ok(Box::new(MulImpl {
-                    datatype: DataType::Decimal64(DecimalTypeMeta { precision, scale }),
-                }))
+                let return_type = DataType::Decimal64(DecimalTypeMeta { precision, scale });
+                (
+                    Box::new(DecimalMulImpl::<Decimal64Type>::new(return_type.clone())),
+                    return_type,
+                )
             }
             (DataType::Decimal128(a), DataType::Decimal128(b)) => {
                 let precision = Decimal128Type::MAX_PRECISION;
                 let scale = a.scale + b.scale;
-                Ok(Box::new(MulImpl {
-                    datatype: DataType::Decimal128(DecimalTypeMeta { precision, scale }),
-                }))
+                let return_type = DataType::Decimal128(DecimalTypeMeta { precision, scale });
+                (
+                    Box::new(DecimalMulImpl::<Decimal128Type>::new(return_type.clone())),
+                    return_type,
+                )
             }
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
+
+            // Interval
+            (DataType::Interval, DataType::Int32) => (
+                Box::new(IntervalMulImpl::<PhysicalI32>::new()),
+                DataType::Interval,
+            ),
+            (DataType::Interval, DataType::Int64) => (
+                Box::new(IntervalMulImpl::<PhysicalI64>::new()),
+                DataType::Interval,
+            ),
+
+            // TODO: Date
+            (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
+        };
+
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type,
+            inputs,
+            function_impl,
+        })
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MulImpl {
-    datatype: DataType,
+#[derive(Debug, Clone)]
+pub struct IntervalMulImpl<Rhs> {
+    _rhs: PhantomData<Rhs>,
 }
 
-impl PlannedScalarFunction2 for MulImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Mul
+impl<Rhs> IntervalMulImpl<Rhs> {
+    fn new() -> Self {
+        IntervalMulImpl { _rhs: PhantomData }
     }
+}
 
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&self.datatype.to_proto()?)
-    }
-
-    fn return_type(&self) -> DataType {
-        self.datatype.clone()
-    }
-
+impl<Rhs> ScalarFunctionImpl for IntervalMulImpl<Rhs>
+where
+    Rhs: PhysicalStorage,
+    for<'a> Rhs::Type<'a>: PrimInt,
+{
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
 
-        let datatype = self.datatype.clone();
+        let builder = ArrayBuilder {
+            datatype: DataType::Interval,
+            buffer: PrimitiveBuffer::<Interval>::with_len(a.logical_len()),
+        };
 
-        // TODO: Checked decimal
+        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(a, b, builder, |a, b, buf| {
+            // TODO: Overflow check
+            buf.put(&Interval {
+                months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
+                days: a.days * (<i32 as NumCast>::from(b).unwrap_or_default()),
+                nanos: a.nanos * (<i64 as NumCast>::from(b).unwrap_or_default()),
+            })
+        })
+    }
+}
 
-        match (a.physical_type(), b.physical_type()) {
-            (PhysicalType::Int8, PhysicalType::Int8) => {
-                BinaryExecutor::execute::<PhysicalI8, PhysicalI8, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Int16, PhysicalType::Int16) => {
-                BinaryExecutor::execute::<PhysicalI16, PhysicalI16, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Int32, PhysicalType::Int32) => {
-                BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Int64, PhysicalType::Int64) => {
-                BinaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Int128, PhysicalType::Int128) => {
-                BinaryExecutor::execute::<PhysicalI128, PhysicalI128, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
+#[derive(Debug, Clone)]
+pub struct DecimalMulImpl<D> {
+    datatype: DataType,
+    _d: PhantomData<D>,
+}
 
-            (PhysicalType::UInt8, PhysicalType::UInt8) => {
-                BinaryExecutor::execute::<PhysicalU8, PhysicalU8, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::UInt16, PhysicalType::UInt16) => {
-                BinaryExecutor::execute::<PhysicalU16, PhysicalU16, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::UInt32, PhysicalType::UInt32) => {
-                BinaryExecutor::execute::<PhysicalU32, PhysicalU32, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::UInt64, PhysicalType::UInt64) => {
-                BinaryExecutor::execute::<PhysicalU64, PhysicalU64, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::UInt128, PhysicalType::UInt128) => {
-                BinaryExecutor::execute::<PhysicalU128, PhysicalU128, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Float16, PhysicalType::Float16) => {
-                BinaryExecutor::execute::<PhysicalF16, PhysicalF16, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Float32, PhysicalType::Float32) => {
-                BinaryExecutor::execute::<PhysicalF32, PhysicalF32, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Float64, PhysicalType::Float64) => {
-                BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a * b)),
-                )
-            }
-            (PhysicalType::Interval, PhysicalType::Int32) => {
-                BinaryExecutor::execute::<PhysicalInterval, PhysicalI32, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| {
-                        buf.put(&Interval {
-                            months: a.months * b,
-                            days: a.days * b,
-                            nanos: a.nanos * b as i64,
-                        })
-                    },
-                )
-            }
-            (PhysicalType::Interval, PhysicalType::Int64) => {
-                BinaryExecutor::execute::<PhysicalInterval, PhysicalI64, _, _>(
-                    a,
-                    b,
-                    ArrayBuilder {
-                        datatype,
-                        buffer: PrimitiveBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| {
-                        buf.put(&Interval {
-                            months: a.months * (b as i32),
-                            days: a.days * (b as i32),
-                            nanos: a.nanos * b,
-                        })
-                    },
-                )
-            }
-
-            (a, b) => Err(unhandled_physical_types_err(self, [a, b])),
+impl<D> DecimalMulImpl<D> {
+    fn new(datatype: DataType) -> Self {
+        DecimalMulImpl {
+            datatype,
+            _d: PhantomData,
         }
+    }
+}
+
+impl<D> ScalarFunctionImpl for DecimalMulImpl<D>
+where
+    D: DecimalType,
+    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+{
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+        let b = inputs[1];
+
+        let builder = ArrayBuilder {
+            datatype: self.datatype.clone(),
+            buffer: PrimitiveBuffer::<D::Primitive>::with_len(a.logical_len()),
+        };
+
+        BinaryExecutor::execute::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
+            buf.put(&(a * b))
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MulImpl<S> {
+    datatype: DataType,
+    _s: PhantomData<S>,
+}
+
+impl<S> MulImpl<S> {
+    fn new(datatype: DataType) -> Self {
+        MulImpl {
+            datatype,
+            _s: PhantomData,
+        }
+    }
+}
+
+impl<S> ScalarFunctionImpl for MulImpl<S>
+where
+    S: PhysicalStorage,
+    for<'a> S::Type<'a>: std::ops::Mul<Output = S::Type<'static>> + Default + Copy,
+    ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
+{
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let a = inputs[0];
+        let b = inputs[1];
+
+        let builder = ArrayBuilder {
+            datatype: self.datatype.clone(),
+            buffer: PrimitiveBuffer::with_len(a.logical_len()),
+        };
+
+        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
     }
 }
 
