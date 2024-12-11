@@ -9,9 +9,14 @@ use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 
-use super::{AggregateFunction, DefaultGroupedStates, PlannedAggregateFunction};
 use crate::expr::Expression;
-use crate::functions::aggregate::ChunkGroupAddressIter;
+use crate::functions::aggregate::{
+    AggregateFunction,
+    ChunkGroupAddressIter,
+    DefaultGroupedStates,
+    GroupedStates,
+    PlannedAggregateFunction,
+};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -100,7 +105,7 @@ impl PlannedAggregateFunction for StringAggImpl {
         DataType::Utf8
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         fn update(
             arrays: &[&Array],
             mapping: ChunkGroupAddressIter,

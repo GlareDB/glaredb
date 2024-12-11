@@ -31,7 +31,7 @@ use rayexec_error::{not_implemented, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 
-use super::{
+use crate::functions::aggregate::{
     boolean_finalize,
     primitive_finalize,
     unary_update,

@@ -13,7 +13,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use serde::{Deserialize, Serialize};
 
-use super::{
+use crate::functions::aggregate::{
     primitive_finalize,
     unary_update,
     AggregateFunction,

@@ -28,14 +28,14 @@ use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use super::{
+use crate::functions::aggregate::{
     primitive_finalize,
     unary_update,
     AggregateFunction,
+    DefaultGroupedStates,
     GroupedStates,
     PlannedAggregateFunction,
 };
-use crate::functions::aggregate::DefaultGroupedStates;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

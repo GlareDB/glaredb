@@ -7,13 +7,14 @@ use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
 use super::corr::CorrelationState;
-use super::{
+use crate::functions::aggregate::{
     primitive_finalize,
     AggregateFunction,
+    ChunkGroupAddressIter,
     DefaultGroupedStates,
+    GroupedStates,
     PlannedAggregateFunction,
 };
-use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,7 +67,7 @@ impl PlannedAggregateFunction for RegrR2Impl {
         DataType::Float64
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.return_type();
 
         fn update(

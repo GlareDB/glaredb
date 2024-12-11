@@ -481,7 +481,7 @@ mod tests {
     use rayexec_bullet::datatype::DataType;
 
     use super::*;
-    use crate::functions::aggregate::sum::Sum;
+    use crate::functions::aggregate::builtin::sum::Sum;
     use crate::functions::aggregate::AggregateFunction;
 
     fn make_hash_table() -> HashTable {

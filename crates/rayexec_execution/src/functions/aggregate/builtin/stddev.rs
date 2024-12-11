@@ -6,11 +6,12 @@ use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
-use super::{
+use crate::functions::aggregate::{
     primitive_finalize,
     unary_update,
     AggregateFunction,
     DefaultGroupedStates,
+    GroupedStates,
     PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -65,7 +66,7 @@ impl PlannedAggregateFunction for StddevPopImpl {
         DataType::Float64
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
             VarianceState::<StddevPopFinalize>::default,
@@ -129,7 +130,7 @@ impl PlannedAggregateFunction for StddevSampImpl {
         DataType::Float64
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
             VarianceState::<StddevSampFinalize>::default,
@@ -189,7 +190,7 @@ impl PlannedAggregateFunction for VarPopImpl {
         DataType::Float64
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
             VarianceState::<VariancePopFinalize>::default,
@@ -249,7 +250,7 @@ impl PlannedAggregateFunction for VarSampImpl {
         DataType::Float64
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         let datatype = self.return_type();
         Ok(Box::new(DefaultGroupedStates::new(
             VarianceState::<VarianceSampFinalize>::default,

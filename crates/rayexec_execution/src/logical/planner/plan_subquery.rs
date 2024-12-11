@@ -11,7 +11,7 @@ use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::negate_expr::{NegateExpr, NegateOperator};
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::Expression;
-use crate::functions::aggregate::count::CountNonNullImpl;
+use crate::functions::aggregate::builtin::count::CountNonNullImpl;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{

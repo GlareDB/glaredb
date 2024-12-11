@@ -522,7 +522,7 @@ impl SimilarEntry {
 mod tests {
     use super::*;
     use crate::database::create::CreateAggregateFunctionInfo;
-    use crate::functions::aggregate::sum::Sum;
+    use crate::functions::aggregate::builtin::sum::Sum;
 
     fn create_test_catalog() -> MemoryCatalog {
         let catalog = MemoryCatalog::default();

@@ -6,7 +6,7 @@ use rayexec_bullet::executor::physical_type::PhysicalAny;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::{
+use crate::functions::aggregate::{
     AggregateFunction,
     ChunkGroupAddressIter,
     DefaultGroupedStates,
