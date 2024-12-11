@@ -5,8 +5,10 @@ use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{RayexecError, Result};
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lower;
@@ -26,14 +28,19 @@ impl FunctionInfo for Lower {
 }
 
 impl ScalarFunction for Lower {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(LowerImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Utf8 => Ok(Box::new(LowerImpl)),
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 1)?;
+        match inputs[0].datatype(table_list)? {
+            DataType::Utf8 => Ok(PlannedScalarFuntion {
+                function: Box::new(*self),
+                return_type: DataType::Utf8,
+                inputs,
+                function_impl: Box::new(LowerImpl),
+            }),
             a => Err(invalid_input_types_error(self, &[a])),
         }
     }
@@ -42,19 +49,7 @@ impl ScalarFunction for Lower {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LowerImpl;
 
-impl PlannedScalarFunction2 for LowerImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Lower
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Utf8
-    }
-
+impl ScalarFunctionImpl for LowerImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         case_convert_execute(input, str::to_lowercase)
@@ -79,14 +74,19 @@ impl FunctionInfo for Upper {
 }
 
 impl ScalarFunction for Upper {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(UpperImpl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Utf8 => Ok(Box::new(UpperImpl)),
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 1)?;
+        match inputs[0].datatype(table_list)? {
+            DataType::Utf8 => Ok(PlannedScalarFuntion {
+                function: Box::new(*self),
+                return_type: DataType::Utf8,
+                inputs,
+                function_impl: Box::new(UpperImpl),
+            }),
             a => Err(invalid_input_types_error(self, &[a])),
         }
     }
@@ -95,19 +95,7 @@ impl ScalarFunction for Upper {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UpperImpl;
 
-impl PlannedScalarFunction2 for UpperImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Upper
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Utf8
-    }
-
+impl ScalarFunctionImpl for UpperImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         case_convert_execute(input, str::to_uppercase)
