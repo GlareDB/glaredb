@@ -10,7 +10,6 @@ use rayexec_error::Result;
 
 use super::FunctionInfo;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

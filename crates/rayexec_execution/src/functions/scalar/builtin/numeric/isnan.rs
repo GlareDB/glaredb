@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use num_traits::Float;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
@@ -7,20 +9,15 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalF32,
     PhysicalF64,
     PhysicalStorage,
-    PhysicalType,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
-use serde::{Deserialize, Serialize};
 
-use super::{PlannedScalarFunction2, ScalarFunction};
-use crate::functions::{
-    invalid_input_types_error,
-    plan_check_num_args,
-    unhandled_physical_types_err,
-    FunctionInfo,
-    Signature,
-};
+use super::ScalarFunction;
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunctionImpl};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IsNan;
@@ -52,55 +49,52 @@ impl FunctionInfo for IsNan {
 }
 
 impl ScalarFunction for IsNan {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(IsNanImpl))
-    }
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 1)?;
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Float32 | DataType::Float64 => Ok(Box::new(IsNanImpl)),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+        let function_impl: Box<dyn ScalarFunctionImpl> = match inputs[0].datatype(table_list)? {
+            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16>::new()),
+            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32>::new()),
+            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64>::new()),
+            other => return Err(invalid_input_types_error(self, &[other])),
+        };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IsNanImpl;
-
-impl PlannedScalarFunction2 for IsNanImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &IsNan
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        match input.physical_type() {
-            PhysicalType::Float16 => is_nan_execute::<PhysicalF16>(input),
-            PhysicalType::Float32 => is_nan_execute::<PhysicalF32>(input),
-            PhysicalType::Float64 => is_nan_execute::<PhysicalF64>(input),
-            other => Err(unhandled_physical_types_err(self, [other])),
-        }
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            inputs,
+            function_impl,
+        })
     }
 }
 
-fn is_nan_execute<'a, S>(input: &'a Array) -> Result<Array>
+#[derive(Debug, Clone, Copy)]
+pub struct IsNanImpl<S: PhysicalStorage> {
+    _s: PhantomData<S>,
+}
+
+impl<S: PhysicalStorage> IsNanImpl<S> {
+    fn new() -> Self {
+        IsNanImpl { _s: PhantomData }
+    }
+}
+
+impl<S> ScalarFunctionImpl for IsNanImpl<S>
 where
     S: PhysicalStorage,
-    S::Type<'a>: Float,
+    for<'a> S::Type<'a>: Float,
 {
-    let builder = ArrayBuilder {
-        datatype: DataType::Boolean,
-        buffer: BooleanBuffer::with_len(input.logical_len()),
-    };
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let input = inputs[0];
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(input.logical_len()),
+        };
 
-    UnaryExecutor::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
+        UnaryExecutor::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
+    }
 }
