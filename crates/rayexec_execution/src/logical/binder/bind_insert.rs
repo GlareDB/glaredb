@@ -4,10 +4,10 @@ use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
+use super::table_list::TableRef;
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::TableRef;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -91,7 +91,7 @@ impl<'a> InsertBinder<'a> {
 
         // Types from the source plan.
         let source_types: Vec<(TableRef, usize, &DataType)> = bind_context
-            .iter_tables(source_scope)?
+            .iter_tables_in_scope(source_scope)?
             .flat_map(|t| {
                 let table_ref = t.reference;
                 t.column_types
@@ -134,7 +134,7 @@ impl<'a> InsertBinder<'a> {
             let projection_table = bind_context.new_ephemeral_table_with_columns(
                 projections
                     .iter()
-                    .map(|p| p.datatype(bind_context))
+                    .map(|p| p.datatype(bind_context.get_table_list()))
                     .collect::<Result<Vec<_>>>()?,
                 (0..projections.len())
                     .map(|idx| format!("__generated_insert_project_{idx}"))

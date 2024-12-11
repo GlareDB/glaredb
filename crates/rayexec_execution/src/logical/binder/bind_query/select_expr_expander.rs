@@ -5,7 +5,8 @@ use rayexec_parser::ast;
 use regex::Regex;
 
 use crate::expr::column_expr::ColumnExpr;
-use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableAlias};
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
+use crate::logical::binder::table_list::TableAlias;
 use crate::logical::resolver::ResolvedMeta;
 
 /// An expanded select expression.
@@ -97,7 +98,7 @@ impl<'a> SelectExprExpander<'a> {
                     handled.insert(&using.column);
                 }
 
-                for table in self.bind_context.iter_tables(self.current)? {
+                for table in self.bind_context.iter_tables_in_scope(self.current)? {
                     for (col_idx, name) in table.column_names.iter().enumerate() {
                         // If column is already added from USING, skip it.
                         if handled.contains(name) {
@@ -135,7 +136,7 @@ impl<'a> SelectExprExpander<'a> {
 
                 let table = self
                     .bind_context
-                    .iter_tables(self.current)?
+                    .iter_tables_in_scope(self.current)?
                     .find(|t| match &t.alias {
                         Some(have_alias) => have_alias.matches(&alias),
                         None => false,
@@ -178,7 +179,7 @@ impl<'a> SelectExprExpander<'a> {
                             let mut exprs = Vec::new();
                             // Iter all columns in the context, select the ones
                             // that match the regex.
-                            for table in self.bind_context.iter_tables(self.current)? {
+                            for table in self.bind_context.iter_tables_in_scope(self.current)? {
                                 for (col_idx, name) in table.column_names.iter().enumerate() {
                                     if !regex.is_match(name) {
                                         continue;

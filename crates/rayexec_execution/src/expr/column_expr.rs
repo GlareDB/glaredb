@@ -1,10 +1,10 @@
 use std::fmt;
 
 use rayexec_bullet::datatype::DataType;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::table_list::{TableList, TableRef};
 
 /// Reference to a column in a query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -23,13 +23,9 @@ impl ColumnExpr {
         }
     }
 
-    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
-        let table = bind_context.get_table(self.table_scope)?;
-        table
-            .column_types
-            .get(self.column)
-            .cloned()
-            .ok_or_else(|| RayexecError::new(format!("Missing column in bind context: {self}")))
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+        let (_, datatype) = table_list.get_column(self.table_scope, self.column)?;
+        Ok(datatype.clone())
     }
 }
 

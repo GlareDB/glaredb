@@ -116,13 +116,16 @@ impl fmt::Display for PhysicalCaseExpr {
 #[cfg(test)]
 mod tests {
 
+    use rayexec_bullet::datatype::DataType;
     use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
-    use crate::expr::physical::column_expr::PhysicalColumnExpr;
-    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
-    use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
-    use crate::functions::scalar::comparison::EqImpl;
+    use crate::expr::case_expr::{CaseExpr, WhenThen};
+    use crate::expr::physical::planner::PhysicalExpressionPlanner;
+    use crate::expr::{self, Expression};
+    use crate::functions::scalar::builtin::comparison::Eq;
+    use crate::functions::scalar::ScalarFunction;
+    use crate::logical::binder::table_list::TableList;
 
     #[test]
     fn case_simple() {
@@ -132,47 +135,54 @@ mod tests {
         ])
         .unwrap();
 
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
         // CASE WHEN a = 2 THEN 'first_case'
         //      WHEN a = 3 THEN 'second_case'
         //      ELSE 'else'
         // END
-        let case = PhysicalCaseExpr {
+
+        let when_expr_0 = Expression::ScalarFunction(
+            Eq.plan(&table_list, vec![expr::col_ref(table_ref, 0), expr::lit(2)])
+                .unwrap()
+                .into(),
+        );
+        let then_expr_0 = expr::lit("first_case");
+
+        let when_expr_1 = Expression::ScalarFunction(
+            Eq.plan(&table_list, vec![expr::col_ref(table_ref, 0), expr::lit(3)])
+                .unwrap()
+                .into(),
+        );
+        let then_expr_1 = expr::lit("second_case");
+
+        let else_expr = expr::lit("else");
+
+        let case_expr = Expression::Case(CaseExpr {
             cases: vec![
-                PhysicalWhenThen {
-                    when: PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-                        function: Box::new(EqImpl),
-                        inputs: vec![
-                            PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                            PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                                literal: ScalarValue::from(2),
-                            }),
-                        ],
-                    }),
-                    then: PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                        literal: ScalarValue::from("first_case"),
-                    }),
+                WhenThen {
+                    when: when_expr_0,
+                    then: then_expr_0,
                 },
-                PhysicalWhenThen {
-                    when: PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-                        function: Box::new(EqImpl),
-                        inputs: vec![
-                            PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                            PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                                literal: ScalarValue::from(3),
-                            }),
-                        ],
-                    }),
-                    then: PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                        literal: ScalarValue::from("second_case"),
-                    }),
+                WhenThen {
+                    when: when_expr_1,
+                    then: then_expr_1,
                 },
             ],
-            else_expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                literal: ScalarValue::from("else"),
-            })),
-        };
+            else_expr: Some(Box::new(else_expr)),
+        });
 
-        let got = case.eval(&batch).unwrap();
+        let planner = PhysicalExpressionPlanner::new(&table_list);
+        let physical_case = planner.plan_scalar(&[table_ref], &case_expr).unwrap();
+
+        let got = physical_case.eval(&batch).unwrap();
 
         assert_eq!(ScalarValue::from("else"), got.logical_value(0).unwrap());
         assert_eq!(

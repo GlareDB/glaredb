@@ -1,6 +1,7 @@
 use rayexec_error::Result;
 
-use super::binder::bind_context::{BindContext, MaterializationRef, TableRef};
+use super::binder::bind_context::{BindContext, MaterializationRef};
+use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;

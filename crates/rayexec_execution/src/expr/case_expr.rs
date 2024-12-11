@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhenThen {
@@ -41,10 +41,10 @@ pub struct CaseExpr {
 }
 
 impl CaseExpr {
-    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         let mut case_iter = self.cases.iter();
         let datatype = match case_iter.next() {
-            Some(case) => case.then.datatype(bind_context)?,
+            Some(case) => case.then.datatype(table_list)?,
             None => {
                 return Err(RayexecError::new(
                     "Case expression must have at least one condition",
@@ -53,7 +53,7 @@ impl CaseExpr {
         };
 
         for case in case_iter {
-            let next_datatype = case.then.datatype(bind_context)?;
+            let next_datatype = case.then.datatype(table_list)?;
             // TODO: Union or cast.
             if next_datatype != datatype {
                 return Err(RayexecError::new(format!(

@@ -1,8 +1,9 @@
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
-use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn, TableAlias};
+use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;
+use super::table_list::TableAlias;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::resolver::ResolvedMeta;

@@ -4,7 +4,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use rayexec_execution::functions::table::inputs::TableFunctionInputs;
+use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -31,7 +32,7 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         let func = self.clone();
         Box::pin(async move { ReadDeltaImpl::initialize(func, args).await })
@@ -85,7 +86,7 @@ pub struct ReadDeltaImpl<R: Runtime> {
 impl<R: Runtime> ReadDeltaImpl<R> {
     async fn initialize(
         func: ReadDelta<R>,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         let (location, conf) = args.try_location_and_access_config()?;
 

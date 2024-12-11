@@ -37,7 +37,7 @@ use rayexec_error::{RayexecError, Result};
 use super::FunctionInfo;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = Lazy::new(|| {
     vec![
@@ -81,12 +81,12 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// call `plan_from_datatype`.
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)
@@ -348,9 +348,9 @@ pub fn unary_update<State, Storage, Output>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage: for<'a> PhysicalStorage<'a>,
+    Storage: PhysicalStorage,
     State: for<'a> AggregateState<
-        <<Storage as PhysicalStorage<'a>>::Storage as AddressableStorage>::T,
+        <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
         Output,
     >,
 {

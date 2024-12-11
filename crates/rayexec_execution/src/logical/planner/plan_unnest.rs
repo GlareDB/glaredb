@@ -3,7 +3,8 @@ use rayexec_error::Result;
 
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;
@@ -71,7 +72,7 @@ impl UnnestPlanner {
         for (idx, expr) in unnest_expressions.iter().enumerate() {
             // Need to store the type that's being produced from the unnest, so
             // unwrap the list data type.
-            let datatype = match expr.datatype(bind_context)? {
+            let datatype = match expr.datatype(bind_context.get_table_list())? {
                 DataType::List(list) => list.datatype.as_ref().clone(),
                 other => other,
             };
@@ -85,7 +86,7 @@ impl UnnestPlanner {
 
         for (idx, expr) in project_expressions.iter().enumerate() {
             // Just plain projections, no need to modify types.
-            let datatype = expr.datatype(bind_context)?;
+            let datatype = expr.datatype(bind_context.get_table_list())?;
             bind_context.push_column_for_table(
                 projection_ref,
                 format!("__generated_project{idx}"),

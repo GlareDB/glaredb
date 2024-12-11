@@ -3,7 +3,8 @@ use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
 
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunctionArgs};
+use crate::functions::table::inputs::TableFunctionInputs;
+use crate::functions::table::PlannedTableFunction;
 use crate::proto::DatabaseProtoConv;
 
 /// A resolved table function reference.
@@ -46,7 +47,7 @@ pub struct UnresolvedTableFunctionReference {
     ///
     /// Note that these are required to be constant and so we don't need to
     /// delay binding.
-    pub args: TableFunctionArgs,
+    pub args: TableFunctionInputs,
 }
 
 impl ProtoConv for UnresolvedTableFunctionReference {
@@ -62,7 +63,7 @@ impl ProtoConv for UnresolvedTableFunctionReference {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {
             reference: ast::ObjectReference::from_proto(proto.reference.required("reference")?)?,
-            args: TableFunctionArgs::from_proto(proto.args.required("args")?)?,
+            args: TableFunctionInputs::from_proto(proto.args.required("args")?)?,
         })
     }
 }

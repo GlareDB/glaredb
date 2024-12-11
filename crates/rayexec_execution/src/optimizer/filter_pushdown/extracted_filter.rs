@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::TableRef;
+use crate::logical::binder::table_list::TableRef;
 
 /// Holds a filtering expression and all table refs the expression references.
 #[derive(Debug, Clone, PartialEq, Eq)]

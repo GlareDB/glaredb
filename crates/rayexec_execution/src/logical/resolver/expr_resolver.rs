@@ -8,7 +8,7 @@ use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::{ResolveContext, ResolvedMeta, Resolver};
 use crate::database::catalog_entry::CatalogEntryType;
-use crate::functions::table::TableFunctionArgs;
+use crate::functions::table::inputs::TableFunctionInputs;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 
@@ -99,7 +99,7 @@ impl<'a> ExpressionResolver<'a> {
     pub async fn resolve_table_function_args(
         &self,
         args: Vec<FunctionArg<Raw>>,
-    ) -> Result<TableFunctionArgs> {
+    ) -> Result<TableFunctionInputs> {
         let resolve_context = &mut ResolveContext::default(); // Empty resolve context since we don't allow complex expressions.
 
         let mut named = HashMap::new();
@@ -159,7 +159,7 @@ impl<'a> ExpressionResolver<'a> {
             }
         }
 
-        Ok(TableFunctionArgs { named, positional })
+        Ok(TableFunctionInputs { named, positional })
     }
 
     pub async fn resolve_expressions(

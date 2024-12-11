@@ -9,7 +9,7 @@ use super::ReorderableCondition;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonOperator;
-use crate::logical::binder::bind_context::TableRef;
+use crate::logical::binder::table_list::TableRef;
 
 pub type HyperEdgeId = usize;
 

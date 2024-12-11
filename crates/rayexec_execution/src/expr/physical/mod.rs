@@ -191,8 +191,11 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 
 #[cfg(test)]
 mod tests {
+    use planner::PhysicalExpressionPlanner;
+
     use super::*;
-    use crate::functions::scalar::comparison::GtImpl;
+    use crate::expr;
+    use crate::logical::binder::table_list::TableList;
 
     #[test]
     fn select_some() {
@@ -202,15 +205,20 @@ mod tests {
         ])
         .unwrap();
 
-        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-            function: Box::new(GtImpl),
-            inputs: vec![
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
-            ],
-        });
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-        let selection = expr.select(&batch).unwrap();
+        let expr = expr::gt(expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1));
+        let planner = PhysicalExpressionPlanner::new(&table_list);
+        let physical = planner.plan_scalar(&[table_ref], &expr).unwrap();
+
+        let selection = physical.select(&batch).unwrap();
         let expected = SelectionVector::from_iter([1, 4]);
 
         assert_eq!(expected, selection)
@@ -224,15 +232,20 @@ mod tests {
         ])
         .unwrap();
 
-        let expr = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-            function: Box::new(GtImpl),
-            inputs: vec![
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
-            ],
-        });
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-        let selection = expr.select(&batch).unwrap();
+        let expr = expr::gt(expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1));
+        let planner = PhysicalExpressionPlanner::new(&table_list);
+        let physical = planner.plan_scalar(&[table_ref], &expr).unwrap();
+
+        let selection = physical.select(&batch).unwrap();
         let expected = SelectionVector::empty();
 
         assert_eq!(expected, selection)

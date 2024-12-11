@@ -5,9 +5,10 @@ use super::bind_modifier::{BoundLimit, BoundOrderBy};
 use super::bind_select_list::SelectListBinder;
 use super::BoundQuery;
 use crate::functions::implicit::implicit_cast_score;
-use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
 use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_setop::SetOpKind;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
@@ -93,13 +94,13 @@ impl<'a> SetOpBinder<'a> {
 
         let mut left_types = Vec::new();
         let mut left_names = Vec::new();
-        for table in bind_context.iter_tables(left_scope)? {
+        for table in bind_context.iter_tables_in_scope(left_scope)? {
             left_types.extend_from_slice(&table.column_types);
             left_names.extend_from_slice(&table.column_names);
         }
 
         let right_types: Vec<_> = bind_context
-            .iter_tables(right_scope)?
+            .iter_tables_in_scope(right_scope)?
             .flat_map(|t| t.column_types.iter().cloned())
             .collect();
 

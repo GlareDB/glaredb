@@ -13,7 +13,7 @@ use super::{AggregateFunction, DefaultGroupedStates, PlannedAggregateFunction};
 use crate::expr::Expression;
 use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -49,12 +49,12 @@ impl AggregateFunction for StringAgg {
 
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedAggregateFunction>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         match &datatypes[0] {
@@ -68,7 +68,7 @@ impl AggregateFunction for StringAgg {
             ));
         }
 
-        let sep = match ConstFold::rewrite(bind_context, inputs[1].clone())?.try_into_scalar()? {
+        let sep = match ConstFold::rewrite(table_list, inputs[1].clone())?.try_into_scalar()? {
             ScalarValue::Null => String::new(),
             ScalarValue::Utf8(v) => v.into_owned(),
             other => {

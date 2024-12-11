@@ -19,8 +19,8 @@ impl UniformExecutor {
         mut op: Op,
     ) -> Result<Array>
     where
-        Op: FnMut(&[S::Type], &mut OutputBuffer<B>),
-        S: PhysicalStorage<'a>,
+        Op: FnMut(&[S::Type<'a>], &mut OutputBuffer<B>),
+        S: PhysicalStorage,
         B: ArrayDataBuffer,
     {
         let len = match arrays.first() {

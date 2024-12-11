@@ -431,9 +431,9 @@ fn unnest_inner<'a, S, B>(
     meta: ListItemMetadata,
 ) -> Result<Array>
 where
-    S: PhysicalStorage<'a>,
+    S: PhysicalStorage,
     B: ArrayDataBuffer,
-    S::Type: Borrow<B::Type>,
+    S::Type<'a>: Borrow<B::Type>,
 {
     let selection = child.selection_vector();
     // Note out len may differ from the length indicated by the list item

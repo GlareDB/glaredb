@@ -2,7 +2,8 @@ use futures::future::BoxFuture;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use rayexec_execution::functions::table::inputs::TableFunctionInputs;
+use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -24,7 +25,7 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         Box::pin(ReadPostgresImpl::initialize(self.clone(), args))
     }
@@ -80,7 +81,7 @@ where
 {
     async fn initialize(
         func: ReadPostgres<R>,
-        args: TableFunctionArgs,
+        args: TableFunctionInputs,
     ) -> Result<Box<dyn PlannedTableFunction>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(

@@ -28,8 +28,8 @@ use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
 use serde::{Deserialize, Serialize};
 
-use super::binder::bind_context::TableAlias;
 use super::binder::expr_binder::BaseExpressionBinder;
+use super::binder::table_list::TableAlias;
 use crate::database::builtin_views::{
     BuiltinView,
     SHOW_DATABASES_VIEW,
@@ -42,7 +42,7 @@ use crate::database::DatabaseContext;
 use crate::datasource::FileHandlers;
 use crate::functions::copy::CopyToArgs;
 use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
-use crate::functions::table::TableFunctionArgs;
+use crate::functions::table::inputs::TableFunctionInputs;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
@@ -62,7 +62,7 @@ impl AstMeta for ResolvedMeta {
     // TODO: Having this be the actual table function args does require that we
     // clone them, and the args that go back into the ast don't actually do
     // anything, they're never referenced again.
-    type TableFunctionArgs = TableFunctionArgs;
+    type TableFunctionArgs = TableFunctionInputs;
     /// Index into the functions bind list in bind data.
     type FunctionReference = ResolveListIdx;
     type SubqueryOptions = ResolvedSubqueryOptions;
@@ -941,7 +941,7 @@ impl<'a> Resolver<'a> {
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
                 match self.file_handlers.find_match(&path) {
                     Some(handler) => {
-                        let args = TableFunctionArgs {
+                        let args = TableFunctionInputs {
                             named: HashMap::new(),
                             positional: vec![OwnedScalarValue::Utf8(path.into())],
                         };

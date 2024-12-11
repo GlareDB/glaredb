@@ -1,116 +1,16 @@
-pub mod arith;
-pub mod boolean;
-pub mod comparison;
-pub mod concat;
-pub mod datetime;
-pub mod is;
-pub mod like;
-pub mod list;
-pub mod negate;
-pub mod numeric;
-pub mod random;
-pub mod similarity;
-pub mod string;
-pub mod struct_funcs;
+pub mod builtin;
 
 use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use once_cell::sync::Lazy;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
 use super::FunctionInfo;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
-
-// List of all scalar functions.
-pub static BUILTIN_SCALAR_FUNCTIONS: Lazy<Vec<Box<dyn ScalarFunction>>> = Lazy::new(|| {
-    vec![
-        // Arith
-        Box::new(arith::Add),
-        Box::new(arith::Sub),
-        Box::new(arith::Mul),
-        Box::new(arith::Div),
-        Box::new(arith::Rem),
-        // Boolean
-        Box::new(boolean::And),
-        Box::new(boolean::Or),
-        // Comparison
-        Box::new(comparison::Eq),
-        Box::new(comparison::Neq),
-        Box::new(comparison::Lt),
-        Box::new(comparison::LtEq),
-        Box::new(comparison::Gt),
-        Box::new(comparison::GtEq),
-        // Numeric
-        Box::new(numeric::Ceil::new()),
-        Box::new(numeric::Floor::new()),
-        Box::new(numeric::Abs::new()),
-        Box::new(numeric::Acos::new()),
-        Box::new(numeric::Asin::new()),
-        Box::new(numeric::Atan::new()),
-        Box::new(numeric::Cbrt::new()),
-        Box::new(numeric::Cos::new()),
-        Box::new(numeric::Exp::new()),
-        Box::new(numeric::Ln::new()),
-        Box::new(numeric::Log::new()),
-        Box::new(numeric::Log2::new()),
-        Box::new(numeric::Sin::new()),
-        Box::new(numeric::Sqrt::new()),
-        Box::new(numeric::Tan::new()),
-        Box::new(numeric::Degrees::new()),
-        Box::new(numeric::Radians::new()),
-        Box::new(numeric::IsNan),
-        // String
-        Box::new(string::Lower),
-        Box::new(string::Upper),
-        Box::new(string::Repeat),
-        Box::new(string::Substring),
-        Box::new(string::StartsWith),
-        Box::new(string::EndsWith),
-        Box::new(string::Contains),
-        Box::new(string::Length),
-        Box::new(string::ByteLength),
-        Box::new(string::BitLength),
-        Box::new(concat::Concat),
-        Box::new(string::RegexpReplace),
-        Box::new(string::Ascii),
-        Box::new(string::LeftPad),
-        Box::new(string::RightPad),
-        Box::new(string::LeftTrim::new()),
-        Box::new(string::RightTrim::new()),
-        Box::new(string::BTrim::new()),
-        // Like
-        Box::new(like::Like),
-        // Struct
-        Box::new(struct_funcs::StructPack),
-        // Unary
-        Box::new(negate::Negate),
-        Box::new(negate::Not),
-        // Random
-        Box::new(random::Random),
-        // List
-        Box::new(list::ListExtract),
-        Box::new(list::ListValues),
-        // Datetime
-        Box::new(datetime::DatePart),
-        Box::new(datetime::DateTrunc),
-        Box::new(datetime::EpochMs),
-        Box::new(datetime::Epoch),
-        // Is
-        Box::new(is::IsNull),
-        Box::new(is::IsNotNull),
-        Box::new(is::IsTrue),
-        Box::new(is::IsNotTrue),
-        Box::new(is::IsFalse),
-        Box::new(is::IsNotFalse),
-        // Distance
-        Box::new(similarity::L2Distance),
-    ]
-});
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionVolatility {
@@ -130,38 +30,19 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         FunctionVolatility::Consistent
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction>>;
-
-    /// Plan a scalar function based on datatype inputs.
-    ///
-    /// The datatypes passed in correspond directly to the arguments to the
-    /// function. This is expected to error if the number of arguments or the
-    /// data types are incorrect.
-    ///
-    /// Most functions will only need to implement this as data types are often
-    /// times sufficient for function planning.
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction>>;
-
     /// Plan a scalar function based on expression inputs.
     ///
     /// This allows functions to check for constant expressions and generate a
     /// function state for use throughout the entire query.
     ///
-    /// Most functions won't need to implement this, and the default
-    /// implementation will forward to `plan_from_datatypes` by extracting the
-    /// data types from the function.
-    fn plan_from_expressions(
+    /// The returned planned function will hold onto its logical inputs. These
+    /// inputs can be modified during optimization, but the datatype is
+    /// guaranteed to remain constant.
+    fn plan(
         &self,
-        bind_context: &BindContext,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction>> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(bind_context))
-            .collect::<Result<Vec<_>>>()?;
-
-        self.plan_from_datatypes(&datatypes)
-    }
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFunction>;
 }
 
 impl Clone for Box<dyn ScalarFunction> {
@@ -184,50 +65,50 @@ impl PartialEq for dyn ScalarFunction + '_ {
 
 impl Eq for dyn ScalarFunction {}
 
-/// A scalar function with potentially some state associated with it.
-pub trait PlannedScalarFunction: Debug + Sync + Send + DynClone {
-    /// The scalar function that's able to produce an instance of this planned
-    /// function.
-    fn scalar_function(&self) -> &dyn ScalarFunction;
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()>;
-
-    /// Return type of the function.
-    fn return_type(&self) -> DataType;
-
-    /// Execution the function array inputs.
+/// Represents a function that knows its inputs and the return type of its
+/// output.
+#[derive(Debug, Clone)]
+pub struct PlannedScalarFunction {
+    /// The function that produced this state.
     ///
-    /// For functions that accept no input (e.g. random), an array of length one
-    /// should be returned. During evaluation, this one element array will be
-    /// extended to be of the appropriate size.
+    /// This is kept around for display user-readable names, as well as for
+    /// serialized/deserializing planned functions.
+    pub function: Box<dyn ScalarFunction>,
+    /// Return type of the functions.
+    pub return_type: DataType,
+    /// Inputs to the functions.
+    pub inputs: Vec<Expression>,
+    /// The function implmentation.
+    pub function_impl: Box<dyn ScalarFunctionImpl>,
+}
+
+/// Assumes that a function with same inputs and return type is using the same
+/// function implementation.
+impl PartialEq for PlannedScalarFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.return_type == other.return_type
+            && self.inputs == other.inputs
+    }
+}
+
+impl Eq for PlannedScalarFunction {}
+
+impl Hash for PlannedScalarFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.function.name().hash(state);
+        self.return_type.hash(state);
+        self.inputs.hash(state);
+    }
+}
+
+pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
     fn execute(&self, inputs: &[&Array]) -> Result<Array>;
 }
 
-impl PartialEq<dyn PlannedScalarFunction> for Box<dyn PlannedScalarFunction + '_> {
-    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn PlannedScalarFunction + '_ {
-    fn eq(&self, other: &dyn PlannedScalarFunction) -> bool {
-        self.scalar_function() == other.scalar_function()
-            && self.return_type() == other.return_type()
-    }
-}
-
-impl Eq for dyn PlannedScalarFunction {}
-
-impl Clone for Box<dyn PlannedScalarFunction> {
+impl Clone for Box<dyn ScalarFunctionImpl> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
-    }
-}
-
-impl Hash for dyn PlannedScalarFunction {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.scalar_function().name().hash(state);
-        self.return_type().hash(state);
     }
 }
 
@@ -237,9 +118,9 @@ mod tests {
 
     #[test]
     fn sanity_eq_check() {
-        let fn1 = Box::new(arith::Add) as Box<dyn ScalarFunction>;
-        let fn2 = Box::new(arith::Sub) as Box<dyn ScalarFunction>;
-        let fn3 = Box::new(arith::Sub) as Box<dyn ScalarFunction>;
+        let fn1 = Box::new(builtin::arith::Add) as Box<dyn ScalarFunction>;
+        let fn2 = Box::new(builtin::arith::Sub) as Box<dyn ScalarFunction>;
+        let fn3 = Box::new(builtin::arith::Sub) as Box<dyn ScalarFunction>;
 
         assert_ne!(fn1, fn2);
         assert_eq!(fn2, fn3);

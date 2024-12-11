@@ -5,26 +5,26 @@ use super::ExpressionRewriteRule;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 /// Pre-compute constant expressions.
 #[derive(Debug)]
 pub struct ConstFold;
 
 impl ExpressionRewriteRule for ConstFold {
-    fn rewrite(bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
-        maybe_fold(bind_context, &mut expression)?;
+    fn rewrite(table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+        maybe_fold(table_list, &mut expression)?;
         Ok(expression)
     }
 }
 
-fn maybe_fold(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
+fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
     if matches!(expr, Expression::Literal(_)) {
         return Ok(());
     }
 
     if expr.is_const_foldable() {
-        let planner = PhysicalExpressionPlanner::new(bind_context);
+        let planner = PhysicalExpressionPlanner::new(table_list);
         let phys_expr = planner.plan_scalar(&[], expr)?;
         let dummy = Batch::empty_with_num_rows(1);
         let val = phys_expr.eval(&dummy)?;
@@ -53,7 +53,7 @@ fn maybe_fold(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
     }
 
     // Otherwise try the children.
-    expr.for_each_child_mut(&mut |child| maybe_fold(bind_context, child))
+    expr.for_each_child_mut(&mut |child| maybe_fold(table_list, child))
 }
 
 #[cfg(test)]
@@ -70,8 +70,8 @@ mod tests {
         // No changes.
         let expected = expr.clone();
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -81,8 +81,8 @@ mod tests {
 
         let expected = lit(3.1_f64);
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -92,8 +92,8 @@ mod tests {
 
         let expected = lit(true);
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -103,8 +103,8 @@ mod tests {
 
         let expected = lit(false);
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -114,8 +114,8 @@ mod tests {
 
         let expected = lit(9);
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -126,8 +126,8 @@ mod tests {
         // No change
         let expected = expr.clone();
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -137,8 +137,8 @@ mod tests {
 
         let expected = add(col_ref(1, 1), lit(9));
 
-        let bind_context = BindContext::new();
-        let got = ConstFold::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = ConstFold::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 }

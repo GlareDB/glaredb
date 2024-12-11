@@ -53,12 +53,14 @@ impl<'a> DescribeBinder<'a> {
             }
         }
 
-        let fields = bind_context.iter_tables(query_scope)?.flat_map(|t| {
-            t.column_names
-                .iter()
-                .zip(&t.column_types)
-                .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
-        });
+        let fields = bind_context
+            .iter_tables_in_scope(query_scope)?
+            .flat_map(|t| {
+                t.column_names
+                    .iter()
+                    .zip(&t.column_types)
+                    .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+            });
 
         Ok(Node {
             node: LogicalDescribe {

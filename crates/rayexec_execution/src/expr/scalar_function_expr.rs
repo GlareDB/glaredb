@@ -2,14 +2,18 @@ use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
 
-use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::PlannedScalarFunction;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScalarFunctionExpr {
-    pub function: Box<dyn PlannedScalarFunction>,
-    pub inputs: Vec<Expression>,
+    pub function: PlannedScalarFunction,
+}
+
+impl From<PlannedScalarFunction> for ScalarFunctionExpr {
+    fn from(value: PlannedScalarFunction) -> Self {
+        ScalarFunctionExpr { function: value }
+    }
 }
 
 impl ContextDisplay for ScalarFunctionExpr {
@@ -19,6 +23,7 @@ impl ContextDisplay for ScalarFunctionExpr {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         let inputs: Vec<_> = self
+            .function
             .inputs
             .iter()
             .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
@@ -26,7 +31,7 @@ impl ContextDisplay for ScalarFunctionExpr {
         write!(
             f,
             "{}({})",
-            self.function.scalar_function().name(),
+            self.function.function.name(),
             inputs.display_as_list()
         )
     }

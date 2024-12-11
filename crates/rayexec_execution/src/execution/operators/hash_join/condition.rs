@@ -8,8 +8,8 @@ use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::boolean::AndImpl;
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::builtin::boolean::AndImpl;
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
 
 #[derive(Debug, Clone)]
 pub struct HashJoinCondition {
@@ -22,7 +22,7 @@ pub struct HashJoinCondition {
     /// This should be planned function for the comparison operator this
     /// condition was created for. Assumed to take exactly two inputs (left and
     /// right).
-    pub function: Box<dyn PlannedScalarFunction>,
+    pub function: PlannedScalarFunction,
 }
 
 impl fmt::Display for HashJoinCondition {
@@ -31,7 +31,7 @@ impl fmt::Display for HashJoinCondition {
             f,
             "(LEFT {}) {} (RIGHT {})",
             self.left,
-            self.function.scalar_function().name(),
+            self.function.function.name(),
             self.right
         )
     }
@@ -48,7 +48,7 @@ pub struct LeftPrecomputedJoinCondition {
     pub left_precomputed: Vec<Array>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
-    pub function: Box<dyn PlannedScalarFunction>,
+    pub function: PlannedScalarFunction,
 }
 
 impl LeftPrecomputedJoinCondition {
@@ -126,6 +126,7 @@ impl LeftPrecomputedJoinConditions {
             // Compute join condition result.
             let result = condition
                 .function
+                .function_impl
                 .execute(&[&left_precomputed, right_arr.as_ref()])?;
 
             results.push(result);

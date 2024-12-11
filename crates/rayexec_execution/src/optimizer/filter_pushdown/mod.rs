@@ -11,7 +11,8 @@ use split::split_conjunction;
 
 use super::OptimizeRule;
 use crate::expr::{self, Expression};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::logical_filter::LogicalFilter;

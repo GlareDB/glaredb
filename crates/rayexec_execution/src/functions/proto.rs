@@ -7,7 +7,8 @@ use rayexec_proto::ProtoConv;
 use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use super::copy::{CopyToArgs, CopyToFunction};
 use super::scalar::{PlannedScalarFunction, ScalarFunction};
-use super::table::{PlannedTableFunction, TableFunction, TableFunctionArgs};
+use super::table::inputs::TableFunctionInputs;
+use super::table::{PlannedTableFunction, TableFunction};
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
@@ -37,32 +38,34 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction> {
     }
 }
 
-impl DatabaseProtoConv for Box<dyn PlannedScalarFunction> {
+impl DatabaseProtoConv for PlannedScalarFunction {
     type ProtoType = rayexec_proto::generated::functions::PlannedScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        let mut state = Vec::new();
-        self.encode_state(&mut state)?;
+        unimplemented!()
+        // let mut state = Vec::new();
+        // self.encode_state(&mut state)?;
 
-        Ok(Self::ProtoType {
-            name: self.scalar_function().name().to_string(),
-            state,
-        })
+        // Ok(Self::ProtoType {
+        //     name: self.scalar_function().name().to_string(),
+        //     state,
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        let tx = &CatalogTx {};
-        let ent = context
-            .system_catalog()?
-            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
-            .required("lookup schema")?
-            .get_scalar_function(tx, &proto.name)?
-            .required("scalar function")?;
-        let ent = ent.try_as_scalar_function_entry()?;
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // let tx = &CatalogTx {};
+        // let ent = context
+        //     .system_catalog()?
+        //     .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
+        //     .required("lookup schema")?
+        //     .get_scalar_function(tx, &proto.name)?
+        //     .required("scalar function")?;
+        // let ent = ent.try_as_scalar_function_entry()?;
 
-        let planned = ent.function.decode_state(&proto.state)?;
+        // let planned = ent.function.decode_state(&proto.state)?;
 
-        Ok(planned)
+        // Ok(planned)
     }
 }
 
@@ -170,7 +173,7 @@ impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
     }
 }
 
-impl ProtoConv for TableFunctionArgs {
+impl ProtoConv for TableFunctionInputs {
     type ProtoType = rayexec_proto::generated::functions::TableFunctionArgs;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {

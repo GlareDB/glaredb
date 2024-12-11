@@ -4,10 +4,10 @@ use super::ExpressionRewriteRule;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
-use crate::functions::scalar::like::Like;
-use crate::functions::scalar::string::{EndsWithImpl, StartsWithImpl, StringContainsImpl};
+use crate::functions::scalar::builtin::string::{Contains, EndsWith, Like, StartsWith};
+use crate::functions::scalar::ScalarFunction;
 use crate::functions::FunctionInfo;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 /// Rewrite LIKE expressions into equivalent prefix/suffix/contains calls if
@@ -16,57 +16,60 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub struct LikeRewrite;
 
 impl ExpressionRewriteRule for LikeRewrite {
-    fn rewrite(bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
-        fn inner(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
+    fn rewrite(table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+        fn inner(table_list: &TableList, expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::ScalarFunction(scalar)
-                    if scalar.function.scalar_function().name() == Like.name() =>
+                    if scalar.function.function.name() == Like.name() =>
                 {
-                    let pattern = &scalar.inputs[1];
+                    let pattern = &scalar.function.inputs[1];
                     if !pattern.is_const_foldable() {
                         return Ok(());
                     }
 
-                    let pattern = ConstFold::rewrite(bind_context, pattern.clone())?
+                    let pattern = ConstFold::rewrite(table_list, pattern.clone())?
                         .try_into_scalar()?
                         .try_into_string()?;
 
                     if can_str_compare(&pattern) {
                         *expr = Expression::Comparison(ComparisonExpr {
-                            left: Box::new(scalar.inputs[0].clone()),
+                            left: Box::new(scalar.function.inputs[0].clone()),
                             right: Box::new(expr::lit(pattern)),
                             op: ComparisonOperator::Eq,
                         });
 
                         Ok(())
                     } else if is_prefix_pattern(&pattern) {
+                        // LIKE -> STARTS_WITH
+
                         let pattern = pattern.trim_matches('%').to_string();
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: Box::new(StartsWithImpl {
-                                constant: Some(pattern.clone()),
-                            }),
-                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
-                        });
+
+                        let inputs = vec![scalar.function.inputs[0].clone(), expr::lit(pattern)];
+                        let function = StartsWith.plan(table_list, inputs)?;
+
+                        *expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
 
                         Ok(())
                     } else if is_suffix_pattern(&pattern) {
+                        // LIKE -> ENDS_WITH
+
                         let pattern = pattern.trim_matches('%').to_string();
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: Box::new(EndsWithImpl {
-                                constant: Some(pattern.clone()),
-                            }),
-                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
-                        });
+
+                        let inputs = vec![scalar.function.inputs[0].clone(), expr::lit(pattern)];
+                        let function = EndsWith.plan(table_list, inputs)?;
+
+                        *expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
 
                         Ok(())
                     } else if is_contains_pattern(&pattern) {
+                        // LIKE -> CONTAINS
+
                         let pattern = pattern.trim_matches('%').to_string();
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: Box::new(StringContainsImpl {
-                                constant: Some(pattern.clone()),
-                            }),
-                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
-                        });
+
+                        let inputs = vec![scalar.function.inputs[0].clone(), expr::lit(pattern)];
+                        let function = Contains.plan(table_list, inputs)?;
+
+                        *expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
 
                         Ok(())
                     } else {
@@ -74,11 +77,11 @@ impl ExpressionRewriteRule for LikeRewrite {
                         Ok(())
                     }
                 }
-                other => other.for_each_child_mut(&mut |child| inner(bind_context, child)),
+                other => other.for_each_child_mut(&mut |child| inner(table_list, child)),
             }
         }
 
-        inner(bind_context, &mut expression)?;
+        inner(table_list, &mut expression)?;
 
         Ok(expression)
     }

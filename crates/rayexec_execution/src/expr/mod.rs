@@ -42,7 +42,7 @@ use window_expr::WindowExpr;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::scalar::{FunctionVolatility, ScalarFunction};
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::table_list::{TableList, TableRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
@@ -65,29 +65,27 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
+    /// Get the return type of the expression.
+    ///
+    /// The provided table list is used when resolving the return type for a
+    /// column expression.
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type(),
-            Self::Arith(expr) => {
-                let func = expr
-                    .op
-                    .as_scalar_function()
-                    .plan_from_expressions(bind_context, &[&expr.left, &expr.right])?;
-                func.return_type()
-            }
+            Self::Arith(expr) => expr.datatype(table_list)?,
             Self::Between(_) => DataType::Boolean,
-            Self::Case(expr) => expr.datatype(bind_context)?,
+            Self::Case(expr) => expr.datatype(table_list)?,
             Self::Cast(expr) => expr.to.clone(),
-            Self::Column(expr) => expr.datatype(bind_context)?,
+            Self::Column(expr) => expr.datatype(table_list)?,
             Self::Comparison(_) => DataType::Boolean,
             Self::Conjunction(_) => DataType::Boolean,
             Self::Is(_) => DataType::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
-            Self::Negate(expr) => expr.datatype(bind_context)?,
-            Self::ScalarFunction(expr) => expr.function.return_type(),
+            Self::Negate(expr) => expr.datatype(table_list)?,
+            Self::ScalarFunction(expr) => expr.function.return_type.clone(),
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(window) => window.agg.return_type(),
-            Self::Unnest(expr) => expr.datatype(bind_context)?,
+            Self::Unnest(expr) => expr.datatype(table_list)?,
             Self::GroupingSet(expr) => expr.datatype(),
         })
     }
@@ -140,7 +138,7 @@ impl Expression {
             Self::Literal(_) => (),
             Self::Negate(negate) => func(&mut negate.expr)?,
             Self::ScalarFunction(scalar) => {
-                for input in &mut scalar.inputs {
+                for input in &mut scalar.function.inputs {
                     func(input)?;
                 }
             }
@@ -214,7 +212,7 @@ impl Expression {
             Self::Literal(_) => (),
             Self::Negate(negate) => func(&negate.expr)?,
             Self::ScalarFunction(scalar) => {
-                for input in &scalar.inputs {
+                for input in &scalar.function.inputs {
                     func(input)?;
                 }
             }
@@ -353,7 +351,7 @@ impl Expression {
             Self::Window(_) => false,
             Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
             Self::ScalarFunction(f)
-                if f.function.scalar_function().volatility() == FunctionVolatility::Volatile =>
+                if f.function.function.volatility() == FunctionVolatility::Volatile =>
             {
                 false
             }

@@ -711,7 +711,7 @@ impl DependentJoinPushdown {
                 );
 
                 let (_, datatype) =
-                    bind_context.get_column_info(correlated.table, correlated.col_idx)?;
+                    bind_context.get_column(correlated.table, correlated.col_idx)?;
 
                 bind_context.push_column_for_table(
                     projection_ref,
@@ -777,7 +777,7 @@ impl DependentJoinPushdown {
                     bind_context.push_column_for_table(
                         project.node.projection_table,
                         format!("__generated_projection_decorrelation_{idx}"),
-                        expr.datatype(bind_context)?,
+                        expr.datatype(bind_context.get_table_list())?,
                     )?;
 
                     project.node.projections.push(expr);
@@ -842,7 +842,7 @@ impl DependentJoinPushdown {
                     bind_context.push_column_for_table(
                         group_by_table,
                         format!("__generated_aggregate_decorrelation_{idx}"),
-                        expr.datatype(bind_context)?,
+                        expr.datatype(bind_context.get_table_list())?,
                     )?;
 
                     // Add to group by.

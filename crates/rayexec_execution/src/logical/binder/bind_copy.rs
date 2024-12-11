@@ -74,12 +74,14 @@ impl<'a> CopyBinder<'a> {
             }
         };
 
-        let source_schema = Schema::new(bind_context.iter_tables(source_scope)?.flat_map(|t| {
-            t.column_names
-                .iter()
-                .zip(&t.column_types)
-                .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
-        }));
+        let source_schema = Schema::new(bind_context.iter_tables_in_scope(source_scope)?.flat_map(
+            |t| {
+                t.column_names
+                    .iter()
+                    .zip(&t.column_types)
+                    .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+            },
+        ));
 
         let resolved_copy_to = self
             .resolve_context

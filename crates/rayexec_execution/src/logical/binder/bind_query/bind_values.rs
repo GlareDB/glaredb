@@ -4,9 +4,10 @@ use rayexec_parser::ast;
 
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
 
@@ -60,7 +61,7 @@ impl<'a> ValuesBinder<'a> {
         let mut types = match rows.first() {
             Some(first) => first
                 .iter()
-                .map(|expr| expr.datatype(bind_context))
+                .map(|expr| expr.datatype(bind_context.get_table_list()))
                 .collect::<Result<Vec<_>>>()?,
             None => return Err(RayexecError::new("Empty VALUES statement")),
         };
@@ -80,7 +81,7 @@ impl<'a> ValuesBinder<'a> {
             for (expr, datatype) in row.iter().zip(&mut types) {
                 if datatype == &DataType::Null {
                     // Replace with current expression type.
-                    *datatype = expr.datatype(bind_context)?;
+                    *datatype = expr.datatype(bind_context.get_table_list())?;
                 }
             }
         }
@@ -88,7 +89,7 @@ impl<'a> ValuesBinder<'a> {
         // Now cast everything to the right type.
         for row in &mut rows {
             for (expr, datatype) in row.iter_mut().zip(&types) {
-                if &expr.datatype(bind_context)? != datatype {
+                if &expr.datatype(bind_context.get_table_list())? != datatype {
                     *expr = Expression::Cast(CastExpr {
                         to: datatype.clone(),
                         expr: Box::new(expr.clone()), // TODO: Could try to take instead of clone.

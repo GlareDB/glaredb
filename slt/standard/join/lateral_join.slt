@@ -83,3 +83,8 @@ SELECT * FROM generate_series(1, 2) g(i),
 2  2  1  9
 2  2  2  10
 
+# TODO
+# # Lateral with function.
+# query II
+# SELECT * FROM generate_series(1, 2) g1(a), generate_series(a, 3) g2(b) ORDER BY a,b;
+# ----

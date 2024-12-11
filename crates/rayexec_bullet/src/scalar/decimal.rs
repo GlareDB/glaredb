@@ -5,6 +5,8 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
+use crate::executor::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage};
+
 pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Default + Debug + Display {
     /// Returns the base 10 log of this number, rounded down.
     ///
@@ -24,9 +26,13 @@ impl DecimalPrimitive for i128 {
     }
 }
 
-pub trait DecimalType: Debug {
+pub trait DecimalType: Debug + Sync + Send + Copy + 'static
+where
+    for<'a> Self::Storage: PhysicalStorage<Type<'a> = Self::Primitive>,
+{
     /// The underlying primitive type storing the decimal's value.
     type Primitive: DecimalPrimitive;
+    type Storage: PhysicalStorage;
 
     /// Max precision for this decimal type.
     const MAX_PRECISION: u8;
@@ -63,6 +69,7 @@ pub struct Decimal64Type;
 
 impl DecimalType for Decimal64Type {
     type Primitive = i64;
+    type Storage = PhysicalI64;
     const MAX_PRECISION: u8 = 18;
     // Note that changing this would require changing some of the date functions
     // since they assume this is 3.
@@ -74,6 +81,7 @@ pub struct Decimal128Type;
 
 impl DecimalType for Decimal128Type {
     type Primitive = i128;
+    type Storage = PhysicalI128;
     const MAX_PRECISION: u8 = 38;
     const DEFAULT_SCALE: i8 = 9;
 }

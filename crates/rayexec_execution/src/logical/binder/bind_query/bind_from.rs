@@ -15,12 +15,11 @@ use crate::logical::binder::bind_context::{
     BindScopeRef,
     CorrelatedColumn,
     CteRef,
-    TableAlias,
-    TableRef,
     UsingColumn,
 };
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::table_list::{TableAlias, TableRef};
 use crate::logical::logical_join::JoinType;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -324,7 +323,7 @@ impl<'a> FromBinder<'a> {
 
         let mut names = Vec::new();
         let mut types = Vec::new();
-        for table in bind_context.iter_tables(nested_scope)? {
+        for table in bind_context.iter_tables_in_scope(nested_scope)? {
             types.extend(table.column_types.iter().cloned());
             names.extend(table.column_names.iter().cloned());
         }
@@ -558,7 +557,7 @@ impl<'a> FromBinder<'a> {
         // Remove right columns from scope for semi joins.
         if join_type == JoinType::Semi {
             let right_tables: Vec<_> = bind_context
-                .iter_tables(right_idx)?
+                .iter_tables_in_scope(right_idx)?
                 .map(|t| t.reference)
                 .collect();
             bind_context.remove_tables(self.current, &right_tables)?;

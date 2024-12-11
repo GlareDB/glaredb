@@ -7,7 +7,8 @@ use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, TableRef};
+use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_aggregate::GroupingFunction;
 use crate::logical::resolver::ResolvedMeta;
 
@@ -183,8 +184,7 @@ impl SelectList {
             match expr {
                 Expression::Column(col) => {
                     if !refs.iter().any(|table_ref| &col.table_scope == table_ref) {
-                        let (col_name, _) =
-                            bind_context.get_column_info(col.table_scope, col.column)?;
+                        let (col_name, _) = bind_context.get_column(col.table_scope, col.column)?;
                         return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
                     }
                 }
@@ -225,7 +225,7 @@ impl SelectList {
         bind_context: &mut BindContext,
         mut expr: Expression,
     ) -> Result<ColumnExpr> {
-        let datatype = expr.datatype(bind_context)?;
+        let datatype = expr.datatype(bind_context.get_table_list())?;
 
         SelectListBinder::extract_aggregates(
             self.aggregates_table,

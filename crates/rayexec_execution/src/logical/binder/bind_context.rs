@@ -3,9 +3,9 @@ use std::fmt;
 
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
-use serde::{Deserialize, Serialize};
 
 use super::bind_query::BoundQuery;
+use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::expr::Expression;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
@@ -13,24 +13,6 @@ use crate::logical::operator::{LogicalNode, LogicalOperator};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BindScopeRef {
     pub context_idx: usize,
-}
-
-/// Reference to a table in a context.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TableRef {
-    pub table_idx: usize,
-}
-
-impl From<usize> for TableRef {
-    fn from(value: usize) -> Self {
-        TableRef { table_idx: value }
-    }
-}
-
-impl fmt::Display for TableRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "#{}", self.table_idx)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -67,16 +49,15 @@ impl fmt::Display for CteRef {
 ///
 /// Physical planning will then use the bind context for determining physical
 /// column ordering.
+// TODO: Move more of the table/table list handling into TableList
 #[derive(Debug, Clone)]
 pub struct BindContext {
     /// All child scopes used for binding.
     ///
     /// Initialized with a single scope (root).
     scopes: Vec<BindScope>,
-    /// All tables in the bind context. Tables may or may not be inside a scope.
-    ///
-    /// Referenced via `TableRef`.
-    tables: Vec<Table>,
+    /// Table list for the query.
+    tables: TableList,
     /// All CTEs in the query.
     ///
     /// Referenced via `CteRef`.
@@ -143,64 +124,6 @@ struct BindScope {
     ctes: HashMap<String, CteRef>,
 }
 
-/// Reference to a table inside a scope.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TableAlias {
-    pub database: Option<String>,
-    pub schema: Option<String>,
-    pub table: String,
-}
-
-impl TableAlias {
-    pub fn matches(&self, other: &TableAlias) -> bool {
-        match (&self.database, &other.database) {
-            (Some(a), Some(b)) if a != b => return false,
-            _ => (),
-        }
-        match (&self.schema, &other.schema) {
-            (Some(a), Some(b)) if a != b => return false,
-            _ => (),
-        }
-
-        self.table == other.table
-    }
-}
-
-impl fmt::Display for TableAlias {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(database) = &self.database {
-            write!(f, "{database}.")?;
-        }
-        if let Some(schema) = &self.schema {
-            write!(f, "{schema}.")?;
-        }
-        write!(f, "{}", self.table)
-    }
-}
-
-/// A "table" in the context.
-///
-/// These may have a direct relationship to an underlying base table, but may
-/// also be used for ephemeral columns.
-///
-/// For example, when a query has aggregates in the select list, a separate
-/// "aggregates" table will be created for hold columns that produce aggregates,
-/// and the original select list will have their expressions replaced with
-/// column references that point to this table.
-#[derive(Debug, Clone)]
-pub struct Table {
-    pub reference: TableRef,
-    pub alias: Option<TableAlias>,
-    pub column_types: Vec<DataType>,
-    pub column_names: Vec<String>,
-}
-
-impl Table {
-    pub fn num_columns(&self) -> usize {
-        self.column_types.len()
-    }
-}
-
 /// A node in the logical plan that will be materialized to allow for multiple
 /// scans.
 #[derive(Debug, Clone)]
@@ -231,7 +154,7 @@ impl BindContext {
                 using_columns: Vec::new(),
                 ctes: HashMap::new(),
             }],
-            tables: Vec::new(),
+            tables: TableList::empty(),
             ctes: Vec::new(),
             materializations: Vec::new(),
         }
@@ -239,6 +162,10 @@ impl BindContext {
 
     pub fn root_scope_ref(&self) -> BindScopeRef {
         BindScopeRef { context_idx: 0 }
+    }
+
+    pub fn get_table_list(&self) -> &TableList {
+        &self.tables
     }
 
     /// Creates a new bind scope, with current being the parent scope.
@@ -419,11 +346,14 @@ impl BindContext {
     /// Errors on duplicate table aliases.
     pub fn append_context(&mut self, current: BindScopeRef, other: BindScopeRef) -> Result<()> {
         let left_aliases: HashSet<_> = self
-            .iter_tables(current)?
+            .iter_tables_in_scope(current)?
             .filter_map(|t| t.alias.as_ref())
             .collect();
 
-        for right_alias in self.iter_tables(other)?.filter_map(|t| t.alias.as_ref()) {
+        for right_alias in self
+            .iter_tables_in_scope(other)?
+            .filter_map(|t| t.alias.as_ref())
+        {
             if left_aliases.contains(right_alias) {
                 return Err(RayexecError::new(format!(
                     "Duplicate table name: {}",
@@ -502,7 +432,7 @@ impl BindContext {
         column_types: Vec<DataType>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
-        let table_idx = self.tables.len();
+        let table_idx = self.tables.tables.len();
         let reference = TableRef { table_idx };
         let scope = Table {
             reference,
@@ -510,7 +440,7 @@ impl BindContext {
             column_types,
             column_names,
         };
-        self.tables.push(scope);
+        self.tables.tables.push(scope);
 
         Ok(reference)
     }
@@ -522,7 +452,7 @@ impl BindContext {
         exprs_iter: impl Iterator<Item = &'a Expression>,
     ) -> Result<TableRef> {
         let column_types = exprs_iter
-            .map(|expr| expr.datatype(self))
+            .map(|expr| expr.datatype(&self.tables))
             .collect::<Result<Vec<_>>>()?;
 
         self.new_ephemeral_table_from_types(generated_prefix, column_types)
@@ -534,10 +464,10 @@ impl BindContext {
     /// to keep the existing column names and types for debuggability.
     pub fn clone_to_new_ephemeral_table(&mut self, table: TableRef) -> Result<TableRef> {
         let table = self.get_table(table)?;
-        let table_idx = self.tables.len();
+        let table_idx = self.tables.tables.len();
         let reference = TableRef { table_idx };
 
-        self.tables.push(Table {
+        self.tables.tables.push(Table {
             reference,
             alias: None,
             column_types: table.column_types.clone(),
@@ -573,32 +503,21 @@ impl BindContext {
         Ok(idx)
     }
 
-    pub fn get_column_info(
-        &self,
-        table_ref: TableRef,
-        col_idx: usize,
-    ) -> Result<(&str, &DataType)> {
-        let table = self.get_table(table_ref)?;
-        let name = table
-            .column_names
-            .get(col_idx)
-            .map(|s| s.as_str())
-            .ok_or_else(|| {
-                RayexecError::new(format!("Missing column {col_idx} in table {table_ref}"))
-            })?;
-        let datatype = &table.column_types[col_idx];
-        Ok((name, datatype))
+    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
+        self.tables.get_column(table_ref, col_idx)
+    }
+
+    pub fn get_table(&self, table_ref: TableRef) -> Result<&Table> {
+        self.tables.get(table_ref)
     }
 
     pub fn get_table_mut(&mut self, table_ref: TableRef) -> Result<&mut Table> {
-        self.tables
-            .get_mut(table_ref.table_idx)
-            .ok_or_else(|| RayexecError::new("Missing table scope in bind context"))
+        self.tables.get_mut(table_ref)
     }
 
     pub fn push_table(
         &mut self,
-        idx: BindScopeRef,
+        bind_ref: BindScopeRef,
         alias: Option<TableAlias>,
         column_types: Vec<DataType>,
         column_names: Vec<String>,
@@ -606,27 +525,21 @@ impl BindContext {
         if let Some(alias) = &alias {
             // If we have multiple tables in scope, they need to have unique
             // alias (e.g. by ensure one is more qualified than the other)
-            for have_alias in self.iter_tables(idx)?.filter_map(|t| t.alias.as_ref()) {
+            for have_alias in self
+                .iter_tables_in_scope(bind_ref)?
+                .filter_map(|t| t.alias.as_ref())
+            {
                 if have_alias == alias {
                     return Err(RayexecError::new(format!("Duplicate table name: {alias}")));
                 }
             }
         }
 
-        let table_idx = self.tables.len();
-        let reference = TableRef { table_idx };
-        let scope = Table {
-            reference,
-            alias,
-            column_types,
-            column_names,
-        };
-        self.tables.push(scope);
+        let table_ref = self.tables.push_table(alias, column_types, column_names)?;
+        let scope = self.get_scope_mut(bind_ref)?;
+        scope.tables.push(table_ref);
 
-        let child = self.get_scope_mut(idx)?;
-        child.tables.push(reference);
-
-        Ok(reference)
+        Ok(table_ref)
     }
 
     pub fn append_table_to_scope(&mut self, scope: BindScopeRef, table: TableRef) -> Result<()> {
@@ -683,7 +596,7 @@ impl BindContext {
 
         let mut found = None;
 
-        for table in self.iter_tables(current)? {
+        for table in self.iter_tables_in_scope(current)? {
             match (&table.alias, &alias) {
                 (Some(a1), Some(a2)) => {
                     if !a1.matches(a2) {
@@ -709,19 +622,16 @@ impl BindContext {
         Ok(found)
     }
 
-    pub fn get_table(&self, scope_ref: TableRef) -> Result<&Table> {
-        self.tables
-            .get(scope_ref.table_idx)
-            .ok_or_else(|| RayexecError::new("Missing table scope"))
-    }
-
     /// Iterate tables in the given bind scope.
-    pub fn iter_tables(&self, current: BindScopeRef) -> Result<impl Iterator<Item = &Table>> {
+    pub fn iter_tables_in_scope(
+        &self,
+        current: BindScopeRef,
+    ) -> Result<impl Iterator<Item = &Table>> {
         let context = self.get_scope(current)?;
         Ok(context
             .tables
             .iter()
-            .map(|table| &self.tables[table.table_idx]))
+            .map(|table| &self.tables.tables[table.table_idx]))
     }
 
     /// Appends a USING column to the current scope.
@@ -761,7 +671,7 @@ pub(crate) mod testutil {
         scope: BindScopeRef,
     ) -> Vec<(String, DataType)> {
         bind_context
-            .iter_tables(scope)
+            .iter_tables_in_scope(scope)
             .unwrap()
             .flat_map(|t| {
                 t.column_names

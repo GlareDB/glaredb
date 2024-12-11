@@ -7,9 +7,10 @@ use super::select_expr_expander::ExpandedSelectExpr;
 use super::select_list::SelectList;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::{BindContext, BindScopeRef, TableRef};
+use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::table_list::TableRef;
 use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug)]
@@ -99,7 +100,7 @@ impl<'a> SelectListBinder<'a> {
 
         let types = exprs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(bind_context.get_table_list()))
             .collect::<Result<Vec<_>>>()?;
 
         // Create table with columns. Now things can bind to the select list if

@@ -19,10 +19,10 @@ impl BinaryNonNullUpdater {
         states: &mut [State],
     ) -> Result<()>
     where
-        S1: PhysicalStorage<'a>,
-        S2: PhysicalStorage<'a>,
+        S1: PhysicalStorage,
+        S2: PhysicalStorage,
         I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<(S1::Type, S2::Type), Output>,
+        State: AggregateState<(S1::Type<'a>, S2::Type<'a>), Output>,
     {
         if array1.logical_len() != array2.logical_len() {
             return Err(RayexecError::new(format!(

@@ -307,8 +307,8 @@ impl ComparableRowEncoder {
         start: usize,
     ) -> Result<usize>
     where
-        S: PhysicalStorage<'a>,
-        S::Type: ComparableEncode + AsBytes,
+        S: PhysicalStorage,
+        S::Type<'a>: ComparableEncode + AsBytes,
     {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
@@ -348,8 +348,8 @@ impl ComparableRowEncoder {
         start: usize,
     ) -> Result<usize>
     where
-        S: PhysicalStorage<'a>,
-        S::Type: ComparableEncode,
+        S: PhysicalStorage,
+        S::Type<'a>: ComparableEncode,
     {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
@@ -357,7 +357,7 @@ impl ComparableRowEncoder {
         match UnaryExecutor::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
-                let end = start + 1 + std::mem::size_of::<S::Type>();
+                let end = start + 1 + std::mem::size_of::<S::Type<'a>>();
                 let write_buf = &mut buf[start + 1..end];
                 val.encode(write_buf);
                 col.invert_if_desc(write_buf);
