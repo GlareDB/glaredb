@@ -34,14 +34,11 @@ use rayexec_bullet::executor::physical_type::{
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -64,25 +61,11 @@ impl FunctionInfo for ListExtract {
 }
 
 impl ScalarFunction for ListExtract {
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unreachable!("plan_from_expressions implemented")
-    }
-
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let mut packed = PackedDecoder::new(state);
-        let datatype = DataType::from_proto(packed.decode_next()?)?;
-        let index: u64 = packed.decode_next()?;
-        Ok(Box::new(ListExtractImpl {
-            inner_datatype: datatype,
-            index: index as usize,
-        }))
-    }
-
-    fn plan_from_expressions(
+    fn plan(
         &self,
         table_list: &TableList,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction2>> {
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -108,10 +91,15 @@ impl ScalarFunction for ListExtract {
             }
         };
 
-        Ok(Box::new(ListExtractImpl {
-            inner_datatype,
-            index,
-        }))
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: inner_datatype.clone(),
+            inputs,
+            function_impl: Box::new(ListExtractImpl {
+                index,
+                inner_datatype,
+            }),
+        })
     }
 }
 
@@ -121,22 +109,7 @@ pub struct ListExtractImpl {
     index: usize,
 }
 
-impl PlannedScalarFunction2 for ListExtractImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &ListExtract
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        let mut packed = PackedEncoder::new(state);
-        packed.encode_next(&self.inner_datatype.to_proto()?)?;
-        packed.encode_next(&(self.index as u64))?;
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        self.inner_datatype.clone()
-    }
-
+impl ScalarFunctionImpl for ListExtractImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         extract(input, self.index)

@@ -3,12 +3,11 @@ use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
 use rayexec_bullet::executor::scalar::concat;
 use rayexec_bullet::storage::ListStorage;
 use rayexec_error::{RayexecError, Result};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use rayexec_proto::ProtoConv;
-use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ListValues;
@@ -28,25 +27,31 @@ impl FunctionInfo for ListValues {
 }
 
 impl ScalarFunction for ListValues {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(ListValuesImpl {
-            list_datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
-        }))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
         let first = match inputs.first() {
-            Some(dt) => dt,
+            Some(expr) => expr.datatype(table_list)?,
             None => {
-                return Ok(Box::new(ListValuesImpl {
-                    list_datatype: DataType::List(ListTypeMeta {
-                        datatype: Box::new(DataType::Null),
+                let return_type = DataType::List(ListTypeMeta {
+                    datatype: Box::new(DataType::Null),
+                });
+                return Ok(PlannedScalarFuntion {
+                    function: Box::new(*self),
+                    return_type: return_type.clone(),
+                    inputs,
+                    function_impl: Box::new(ListValuesImpl {
+                        list_datatype: return_type,
                     }),
-                }))
+                });
             }
         };
 
-        for dt in inputs {
+        for input in &inputs {
+            let dt = input.datatype(table_list)?;
+            // TODO: We can add casts here.
             if dt != first {
                 return Err(RayexecError::new(format!(
                     "Not all inputs are the same type, got {dt}, expected {first}"
@@ -54,32 +59,27 @@ impl ScalarFunction for ListValues {
             }
         }
 
-        Ok(Box::new(ListValuesImpl {
-            list_datatype: DataType::List(ListTypeMeta {
-                datatype: Box::new(first.clone()),
+        let return_type = DataType::List(ListTypeMeta {
+            datatype: Box::new(first.clone()),
+        });
+
+        return Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: return_type.clone(),
+            inputs,
+            function_impl: Box::new(ListValuesImpl {
+                list_datatype: return_type,
             }),
-        }))
+        });
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ListValuesImpl {
     list_datatype: DataType,
 }
 
-impl PlannedScalarFunction2 for ListValuesImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &ListValues
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&self.list_datatype.to_proto()?)
-    }
-
-    fn return_type(&self) -> DataType {
-        self.list_datatype.clone()
-    }
-
+impl ScalarFunctionImpl for ListValuesImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         if inputs.is_empty() {
             let inner_type = match &self.list_datatype {
