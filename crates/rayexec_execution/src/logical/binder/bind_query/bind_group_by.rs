@@ -61,7 +61,7 @@ impl<'a> GroupByBinder<'a> {
                     },
                 )?;
 
-                let datatype = expr.datatype(bind_context)?;
+                let datatype = expr.datatype(bind_context.get_table_list())?;
                 bind_context.push_column_for_table(
                     group_table,
                     format!("__generated_group_{idx}"),

@@ -11,6 +11,7 @@ use rayexec_error::Result;
 use super::FunctionInfo;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionVolatility {
@@ -56,12 +57,12 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// data types from the function.
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)
@@ -69,7 +70,7 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
 
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         unimplemented!()

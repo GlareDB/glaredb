@@ -225,7 +225,7 @@ impl SelectList {
         bind_context: &mut BindContext,
         mut expr: Expression,
     ) -> Result<ColumnExpr> {
-        let datatype = expr.datatype(bind_context)?;
+        let datatype = expr.datatype(bind_context.get_table_list())?;
 
         SelectListBinder::extract_aggregates(
             self.aggregates_table,

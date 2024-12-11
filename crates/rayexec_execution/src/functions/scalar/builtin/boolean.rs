@@ -19,6 +19,7 @@ use crate::functions::scalar::{
 };
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct And;
@@ -40,12 +41,12 @@ impl FunctionInfo for And {
 impl ScalarFunction for And {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         let datatypes = inputs
             .iter()
-            .map(|input| input.datatype(bind_context))
+            .map(|input| input.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {

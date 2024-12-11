@@ -36,6 +36,7 @@ use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 // TODOs:
 //
@@ -161,13 +162,13 @@ impl FunctionInfo for Eq {
 impl ScalarFunction for Eq {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         Ok(PlannedScalarFuntion {
             function: Box::new(*self),
             return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<EqOperation>(self, &inputs, bind_context)?,
+            function_impl: new_comparison_impl::<EqOperation>(self, &inputs, table_list)?,
             inputs,
         })
     }
@@ -193,13 +194,13 @@ impl FunctionInfo for Neq {
 impl ScalarFunction for Neq {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         Ok(PlannedScalarFuntion {
             function: Box::new(*self),
             return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<NotEqOperation>(self, &inputs, bind_context)?,
+            function_impl: new_comparison_impl::<NotEqOperation>(self, &inputs, table_list)?,
             inputs,
         })
     }
@@ -221,13 +222,13 @@ impl FunctionInfo for Lt {
 impl ScalarFunction for Lt {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         Ok(PlannedScalarFuntion {
             function: Box::new(*self),
             return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<LtOperation>(self, &inputs, bind_context)?,
+            function_impl: new_comparison_impl::<LtOperation>(self, &inputs, table_list)?,
             inputs,
         })
     }
@@ -249,13 +250,13 @@ impl FunctionInfo for LtEq {
 impl ScalarFunction for LtEq {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         Ok(PlannedScalarFuntion {
             function: Box::new(*self),
             return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<LtEqOperation>(self, &inputs, bind_context)?,
+            function_impl: new_comparison_impl::<LtEqOperation>(self, &inputs, table_list)?,
             inputs,
         })
     }
@@ -277,13 +278,13 @@ impl FunctionInfo for Gt {
 impl ScalarFunction for Gt {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         Ok(PlannedScalarFuntion {
             function: Box::new(*self),
             return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<GtOperation>(self, &inputs, bind_context)?,
+            function_impl: new_comparison_impl::<GtOperation>(self, &inputs, table_list)?,
             inputs,
         })
     }
@@ -305,13 +306,13 @@ impl FunctionInfo for GtEq {
 impl ScalarFunction for GtEq {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         Ok(PlannedScalarFuntion {
             function: Box::new(*self),
             return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<GtEqOperation>(self, &inputs, bind_context)?,
+            function_impl: new_comparison_impl::<GtEqOperation>(self, &inputs, table_list)?,
             inputs,
         })
     }
@@ -400,13 +401,13 @@ impl ComparisonOperation for GtEqOperation {
 fn new_comparison_impl<O: ComparisonOperation>(
     func: &impl FunctionInfo,
     inputs: &[Expression],
-    bind_context: &BindContext,
+    table_list: &TableList,
 ) -> Result<Box<dyn ScalarFunctionImpl>> {
     plan_check_num_args(func, inputs, 2)?;
     Ok(
         match (
-            inputs[0].datatype(bind_context)?,
-            inputs[1].datatype(bind_context)?,
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
         ) {
             (DataType::Boolean, DataType::Boolean) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalBool>::new())

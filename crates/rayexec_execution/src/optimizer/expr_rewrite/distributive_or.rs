@@ -5,6 +5,7 @@ use super::ExpressionRewriteRule;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 /// Tries to lift up AND expressions through OR expressions
 ///
@@ -13,7 +14,7 @@ use crate::logical::binder::bind_context::BindContext;
 pub struct DistributiveOrRewrite;
 
 impl ExpressionRewriteRule for DistributiveOrRewrite {
-    fn rewrite(_bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
+    fn rewrite(_table_list: &TableList, mut expression: Expression) -> Result<Expression> {
         fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::Or => {
@@ -182,8 +183,8 @@ mod tests {
         // No changes.
         let expected = expr.clone();
 
-        let bind_context = BindContext::new();
-        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -198,8 +199,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1)]).unwrap();
 
-        let bind_context = BindContext::new();
-        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -210,8 +211,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1)]).unwrap();
 
-        let bind_context = BindContext::new();
-        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -232,8 +233,8 @@ mod tests {
         ])
         .unwrap();
 
-        let bind_context = BindContext::new();
-        let got = DistributiveOrRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got, "expected: {expected:#?}\n, got: {got:#?}");
     }
 }

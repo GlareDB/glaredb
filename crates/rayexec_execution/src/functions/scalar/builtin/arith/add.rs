@@ -43,6 +43,7 @@ use crate::functions::{
     Signature,
 };
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;
@@ -163,12 +164,12 @@ impl ScalarFunction for Add {
 
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         let function_impl = match (
-            inputs[0].datatype(bind_context)?,
-            inputs[1].datatype(bind_context)?,
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
         ) {
             (DataType::Float16, DataType::Float16) => {
                 AddImpl::<PhysicalF16>::new(DataType::Float16)

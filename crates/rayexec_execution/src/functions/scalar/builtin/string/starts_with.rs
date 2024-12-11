@@ -10,7 +10,7 @@ use rayexec_proto::util_types;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -49,12 +49,12 @@ impl ScalarFunction for StartsWith {
 
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         match (&datatypes[0], &datatypes[1]) {
@@ -63,7 +63,7 @@ impl ScalarFunction for StartsWith {
         }
 
         let constant = if inputs[1].is_const_foldable() {
-            let search_string = ConstFold::rewrite(bind_context, inputs[1].clone())?
+            let search_string = ConstFold::rewrite(table_list, inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 

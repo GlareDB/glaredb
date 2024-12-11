@@ -8,6 +8,7 @@ use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, Contex
 use crate::functions::scalar::builtin::negate;
 use crate::functions::scalar::ScalarFunction;
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NegateOperator {
@@ -31,13 +32,13 @@ pub struct NegateExpr {
 }
 
 impl NegateExpr {
-    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self.op {
             NegateOperator::Not => DataType::Boolean,
             NegateOperator::Negate => self
                 .op
                 .as_scalar_function()
-                .plan_from_expressions(bind_context, &[&self.expr])?
+                .plan_from_expressions(table_list, &[&self.expr])?
                 .return_type(),
         })
     }

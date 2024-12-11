@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 // TODO: Include recurse depth.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -15,8 +15,8 @@ pub struct UnnestExpr {
 }
 
 impl UnnestExpr {
-    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
-        let child_datatype = self.expr.datatype(bind_context)?;
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+        let child_datatype = self.expr.datatype(table_list)?;
 
         match child_datatype {
             DataType::Null => Ok(DataType::Null),

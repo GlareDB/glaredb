@@ -10,6 +10,7 @@ use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -36,19 +37,19 @@ impl FunctionInfo for Like {
 impl ScalarFunction for Like {
     fn plan(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
         match (
-            inputs[0].datatype(bind_context)?,
-            inputs[1].datatype(bind_context)?,
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
         ) {
             (DataType::Utf8, DataType::Utf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
 
         let function_impl: Box<dyn ScalarFunctionImpl> = if inputs[1].is_const_foldable() {
-            let pattern = ConstFold::rewrite(bind_context, inputs[1].clone())?
+            let pattern = ConstFold::rewrite(table_list, inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 

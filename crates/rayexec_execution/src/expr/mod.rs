@@ -42,8 +42,7 @@ use window_expr::WindowExpr;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::scalar::{FunctionVolatility, ScalarFunction};
-use crate::logical::binder::bind_context::BindContext;
-use crate::logical::binder::table_list::TableRef;
+use crate::logical::binder::table_list::{TableList, TableRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
@@ -69,29 +68,29 @@ impl Expression {
     // TODO: This should accept a "table list" instead of bind context. Having
     // just a vec of tables will be easier to serialize than trying to serialize
     // a bind context.
-    pub fn datatype(&self, bind_context: &BindContext) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type(),
             Self::Arith(expr) => {
                 let func = expr
                     .op
                     .as_scalar_function()
-                    .plan_from_expressions(bind_context, &[&expr.left, &expr.right])?;
+                    .plan_from_expressions(table_list, &[&expr.left, &expr.right])?;
                 func.return_type()
             }
             Self::Between(_) => DataType::Boolean,
-            Self::Case(expr) => expr.datatype(bind_context)?,
+            Self::Case(expr) => expr.datatype(table_list)?,
             Self::Cast(expr) => expr.to.clone(),
-            Self::Column(expr) => expr.datatype(bind_context.get_table_list())?,
+            Self::Column(expr) => expr.datatype(table_list)?,
             Self::Comparison(_) => DataType::Boolean,
             Self::Conjunction(_) => DataType::Boolean,
             Self::Is(_) => DataType::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
-            Self::Negate(expr) => expr.datatype(bind_context)?,
+            Self::Negate(expr) => expr.datatype(table_list)?,
             Self::ScalarFunction(expr) => expr.function.return_type(),
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(window) => window.agg.return_type(),
-            Self::Unnest(expr) => expr.datatype(bind_context)?,
+            Self::Unnest(expr) => expr.datatype(table_list)?,
             Self::GroupingSet(expr) => expr.datatype(),
         })
     }

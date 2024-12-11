@@ -100,7 +100,7 @@ impl<'a> SelectListBinder<'a> {
 
         let types = exprs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(bind_context.get_table_list()))
             .collect::<Result<Vec<_>>>()?;
 
         // Create table with columns. Now things can bind to the select list if

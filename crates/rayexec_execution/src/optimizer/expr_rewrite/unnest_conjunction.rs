@@ -4,6 +4,7 @@ use super::ExpressionRewriteRule;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 
 /// Unnest nested AND or OR expressions.
 ///
@@ -12,7 +13,7 @@ use crate::logical::binder::bind_context::BindContext;
 pub struct UnnestConjunctionRewrite;
 
 impl ExpressionRewriteRule for UnnestConjunctionRewrite {
-    fn rewrite(_bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
+    fn rewrite(_table_list: &TableList, mut expression: Expression) -> Result<Expression> {
         fn inner(expression: &mut Expression) {
             match expression {
                 Expression::Conjunction(ConjunctionExpr { op, expressions }) => {
@@ -73,8 +74,8 @@ mod tests {
         // No change.
         let expected = expr.clone();
 
-        let bind_context = BindContext::new();
-        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -85,8 +86,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1), lit(2)]).unwrap();
 
-        let bind_context = BindContext::new();
-        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -98,8 +99,8 @@ mod tests {
         // No change.
         let expected = expr.clone();
 
-        let bind_context = BindContext::new();
-        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -115,8 +116,8 @@ mod tests {
         // No change.
         let expected = expr.clone();
 
-        let bind_context = BindContext::new();
-        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -139,8 +140,8 @@ mod tests {
         ])
         .unwrap();
 
-        let bind_context = BindContext::new();
-        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -155,8 +156,8 @@ mod tests {
 
         let expected = and([lit(0), lit(1), lit(2), lit(3)]).unwrap();
 
-        let bind_context = BindContext::new();
-        let got = UnnestConjunctionRewrite::rewrite(&bind_context, expr).unwrap();
+        let table_list = TableList::empty();
+        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
         assert_eq!(expected, got);
     }
 }

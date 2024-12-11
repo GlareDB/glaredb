@@ -452,7 +452,7 @@ impl BindContext {
         exprs_iter: impl Iterator<Item = &'a Expression>,
     ) -> Result<TableRef> {
         let column_types = exprs_iter
-            .map(|expr| expr.datatype(self))
+            .map(|expr| expr.datatype(&self.tables))
             .collect::<Result<Vec<_>>>()?;
 
         self.new_ephemeral_table_from_types(generated_prefix, column_types)

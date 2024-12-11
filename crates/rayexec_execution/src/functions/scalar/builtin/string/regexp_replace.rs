@@ -12,6 +12,7 @@ use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -58,13 +59,13 @@ impl ScalarFunction for RegexpReplace {
 
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction2>> {
         plan_check_num_args(self, inputs, 3)?;
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         for datatype in &datatypes {
@@ -74,7 +75,7 @@ impl ScalarFunction for RegexpReplace {
         }
 
         let pattern = if inputs[1].is_const_foldable() {
-            let pattern = ConstFold::rewrite(bind_context, inputs[1].clone())?
+            let pattern = ConstFold::rewrite(table_list, inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
             let pattern = Regex::new(&pattern).context("Failed to build regexp pattern")?;
@@ -85,7 +86,7 @@ impl ScalarFunction for RegexpReplace {
         };
 
         let replacement = if inputs[2].is_const_foldable() {
-            let replacement = ConstFold::rewrite(bind_context, inputs[2].clone())?
+            let replacement = ConstFold::rewrite(table_list, inputs[2].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 

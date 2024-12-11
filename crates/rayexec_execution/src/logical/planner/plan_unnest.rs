@@ -72,7 +72,7 @@ impl UnnestPlanner {
         for (idx, expr) in unnest_expressions.iter().enumerate() {
             // Need to store the type that's being produced from the unnest, so
             // unwrap the list data type.
-            let datatype = match expr.datatype(bind_context)? {
+            let datatype = match expr.datatype(bind_context.get_table_list())? {
                 DataType::List(list) => list.datatype.as_ref().clone(),
                 other => other,
             };
@@ -86,7 +86,7 @@ impl UnnestPlanner {
 
         for (idx, expr) in project_expressions.iter().enumerate() {
             // Just plain projections, no need to modify types.
-            let datatype = expr.datatype(bind_context)?;
+            let datatype = expr.datatype(bind_context.get_table_list())?;
             bind_context.push_column_for_table(
                 projection_ref,
                 format!("__generated_project{idx}"),

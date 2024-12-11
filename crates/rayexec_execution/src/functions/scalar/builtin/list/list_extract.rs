@@ -42,6 +42,7 @@ use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -79,17 +80,17 @@ impl ScalarFunction for ListExtract {
 
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         plan_check_num_args(self, &datatypes, 2)?;
 
-        let index = ConstFold::rewrite(bind_context, inputs[1].clone())?
+        let index = ConstFold::rewrite(table_list, inputs[1].clone())?
             .try_into_scalar()?
             .try_as_i64()?;
 

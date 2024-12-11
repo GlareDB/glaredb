@@ -8,6 +8,7 @@ use crate::functions::scalar::builtin::like::Like;
 use crate::functions::scalar::builtin::string::{EndsWithImpl, StartsWithImpl, StringContainsImpl};
 use crate::functions::FunctionInfo;
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::{self, TableList};
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 /// Rewrite LIKE expressions into equivalent prefix/suffix/contains calls if
@@ -16,8 +17,8 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub struct LikeRewrite;
 
 impl ExpressionRewriteRule for LikeRewrite {
-    fn rewrite(bind_context: &BindContext, mut expression: Expression) -> Result<Expression> {
-        fn inner(bind_context: &BindContext, expr: &mut Expression) -> Result<()> {
+    fn rewrite(table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+        fn inner(table_list: &TableList, expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::ScalarFunction(scalar)
                     if scalar.function.scalar_function().name() == Like.name() =>
@@ -27,7 +28,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         return Ok(());
                     }
 
-                    let pattern = ConstFold::rewrite(bind_context, pattern.clone())?
+                    let pattern = ConstFold::rewrite(table_list, pattern.clone())?
                         .try_into_scalar()?
                         .try_into_string()?;
 
@@ -74,11 +75,11 @@ impl ExpressionRewriteRule for LikeRewrite {
                         Ok(())
                     }
                 }
-                other => other.for_each_child_mut(&mut |child| inner(bind_context, child)),
+                other => other.for_each_child_mut(&mut |child| inner(table_list, child)),
             }
         }
 
-        inner(bind_context, &mut expression)?;
+        inner(table_list, &mut expression)?;
 
         Ok(expression)
     }

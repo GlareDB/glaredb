@@ -154,7 +154,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), exprs)?;
 
                 let refs: Vec<_> = exprs.iter().collect();
-                let planned = scalar.plan_from_expressions(bind_context, &refs)?;
+                let planned = scalar.plan_from_expressions(bind_context.get_table_list(), &refs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function: planned,
@@ -193,8 +193,10 @@ impl<'a> BaseExpressionBinder<'a> {
                         let index = exprs.pop().unwrap();
                         let expr = exprs.pop().unwrap();
 
-                        let planned =
-                            scalar.plan_from_expressions(bind_context, &[&expr, &index])?;
+                        let planned = scalar.plan_from_expressions(
+                            bind_context.get_table_list(),
+                            &[&expr, &index],
+                        )?;
 
                         Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                             function: planned,
@@ -396,8 +398,10 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::StringConcat => {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, Concat, [left, right])?;
-                        let planned =
-                            Concat.plan_from_expressions(bind_context, &[&left, &right])?;
+                        let planned = Concat.plan_from_expressions(
+                            bind_context.get_table_list(),
+                            &[&left, &right],
+                        )?;
                         Expression::ScalarFunction(ScalarFunctionExpr {
                             function: planned,
                             inputs: vec![left, right],
@@ -406,8 +410,10 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::StringStartsWith => {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, StartsWith, [left, right])?;
-                        let planned =
-                            StartsWith.plan_from_expressions(bind_context, &[&left, &right])?;
+                        let planned = StartsWith.plan_from_expressions(
+                            bind_context.get_table_list(),
+                            &[&left, &right],
+                        )?;
                         Expression::ScalarFunction(ScalarFunctionExpr {
                             function: planned,
                             inputs: vec![left, right],
@@ -638,7 +644,8 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = like::Like.plan_from_expressions(bind_context, &[&expr, &pattern])?;
+                let scalar = like::Like
+                    .plan_from_expressions(bind_context.get_table_list(), &[&expr, &pattern])?;
 
                 let mut expr = Expression::ScalarFunction(ScalarFunctionExpr {
                     function: scalar,
@@ -666,9 +673,9 @@ impl<'a> BaseExpressionBinder<'a> {
                 )?;
 
                 let scalar = if !negated {
-                    is::IsNull.plan_from_expressions(bind_context, &[&expr])?
+                    is::IsNull.plan_from_expressions(bind_context.get_table_list(), &[&expr])?
                 } else {
-                    is::IsNotNull.plan_from_expressions(bind_context, &[&expr])?
+                    is::IsNotNull.plan_from_expressions(bind_context.get_table_list(), &[&expr])?
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
@@ -688,12 +695,15 @@ impl<'a> BaseExpressionBinder<'a> {
                 )?;
 
                 let scalar = match (val, negated) {
-                    (true, false) => is::IsTrue.plan_from_expressions(bind_context, &[&expr])?,
-                    (true, true) => is::IsNotTrue.plan_from_expressions(bind_context, &[&expr])?,
-                    (false, false) => is::IsFalse.plan_from_expressions(bind_context, &[&expr])?,
-                    (false, true) => {
-                        is::IsNotFalse.plan_from_expressions(bind_context, &[&expr])?
+                    (true, false) => {
+                        is::IsTrue.plan_from_expressions(bind_context.get_table_list(), &[&expr])?
                     }
+                    (true, true) => is::IsNotTrue
+                        .plan_from_expressions(bind_context.get_table_list(), &[&expr])?,
+                    (false, false) => is::IsFalse
+                        .plan_from_expressions(bind_context.get_table_list(), &[&expr])?,
+                    (false, true) => is::IsNotFalse
+                        .plan_from_expressions(bind_context.get_table_list(), &[&expr])?,
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
@@ -918,9 +928,9 @@ impl<'a> BaseExpressionBinder<'a> {
                         .first()
                         .expect("at least one case")
                         .then
-                        .datatype(bind_context)?;
+                        .datatype(bind_context.get_table_list())?;
 
-                    if expr.datatype(bind_context)? != first_case_dt {
+                    if expr.datatype(bind_context.get_table_list())? != first_case_dt {
                         else_expr = Some(Expression::Cast(CastExpr {
                             to: first_case_dt,
                             expr: Box::new(expr),
@@ -964,7 +974,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 };
 
                 let refs: Vec<_> = inputs.iter().collect();
-                let function = func.plan_from_expressions(bind_context, &refs)?;
+                let function = func.plan_from_expressions(bind_context.get_table_list(), &refs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function,
@@ -980,8 +990,10 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
 
                 let func = Box::new(DatePart);
-                let function =
-                    func.plan_from_expressions(bind_context, &[&date_part_expr, &expr])?;
+                let function = func.plan_from_expressions(
+                    bind_context.get_table_list(),
+                    &[&date_part_expr, &expr],
+                )?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function,
@@ -1041,7 +1053,7 @@ impl<'a> BaseExpressionBinder<'a> {
         // if needed.
         let subquery_type = match subquery_type {
             SubqueryType::Any { expr, op } => {
-                if expr.datatype(bind_context)? != return_type {
+                if expr.datatype(bind_context.get_table_list())? != return_type {
                     SubqueryType::Any {
                         expr: Box::new(Expression::Cast(CastExpr {
                             to: query_return_type,
@@ -1212,7 +1224,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         });
 
                         // To verify input types.
-                        let _ = unnest_expr.datatype(bind_context)?;
+                        let _ = unnest_expr.datatype(bind_context.get_table_list())?;
 
                         Ok(unnest_expr)
                     }
@@ -1273,7 +1285,8 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), inputs)?;
 
                 let refs: Vec<_> = inputs.iter().collect();
-                let function = scalar.plan_from_expressions(bind_context, &refs)?;
+                let function =
+                    scalar.plan_from_expressions(bind_context.get_table_list(), &refs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function,
@@ -1285,7 +1298,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.apply_casts_for_aggregate_function(bind_context, agg.as_ref(), inputs)?;
 
                 let refs: Vec<_> = inputs.iter().collect();
-                let agg = agg.plan_from_expressions(bind_context, &refs)?;
+                let agg = agg.plan_from_expressions(bind_context.get_table_list(), &refs)?;
 
                 match &func.over {
                     Some(over) => {
@@ -1407,7 +1420,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 continue;
             }
 
-            match input.datatype(bind_context)? {
+            match input.datatype(bind_context.get_table_list())? {
                 DataType::Decimal64(m) => decimal64_meta = Some(m),
                 DataType::Decimal128(m) => decimal128_meta = Some(m),
                 _ => (),
@@ -1447,7 +1460,7 @@ impl<'a> BaseExpressionBinder<'a> {
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(bind_context.get_table_list()))
             .collect::<Result<Vec<_>>>()?;
 
         if scalar.exact_signature(&input_datatypes).is_some() {
@@ -1504,7 +1517,7 @@ impl<'a> BaseExpressionBinder<'a> {
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(bind_context.get_table_list()))
             .collect::<Result<Vec<_>>>()?;
 
         if agg.exact_signature(&input_datatypes).is_some() {

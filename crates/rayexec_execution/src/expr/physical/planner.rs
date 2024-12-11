@@ -14,18 +14,18 @@ use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
-use crate::logical::binder::table_list::TableRef;
+use crate::logical::binder::table_list::{TableList, TableRef};
 use crate::logical::logical_join::ComparisonCondition;
 
 /// Plans logical expressions into their physical equivalents.
 #[derive(Debug)]
 pub struct PhysicalExpressionPlanner<'a> {
-    pub bind_context: &'a BindContext,
+    pub table_list: &'a TableList,
 }
 
 impl<'a> PhysicalExpressionPlanner<'a> {
-    pub fn new(bind_context: &'a BindContext) -> Self {
-        PhysicalExpressionPlanner { bind_context }
+    pub fn new(table_list: &'a TableList) -> Self {
+        PhysicalExpressionPlanner { table_list }
     }
 
     /// Plan more than one scalar expression.
@@ -64,7 +64,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
 
                 let mut offset = 0;
                 for &table_ref in table_refs {
-                    let table = self.bind_context.get_table(table_ref)?;
+                    let table = self.table_list.get(table_ref)?;
 
                     if col.table_scope == table_ref {
                         return Ok(PhysicalScalarExpression::Column(PhysicalColumnExpr {
@@ -102,7 +102,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             Expression::Comparison(expr) => {
                 let scalar = expr.op.as_scalar_function();
                 let function =
-                    scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
+                    scalar.plan_from_expressions(self.table_list, &[&expr.left, &expr.right])?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
                     PhysicalScalarFunctionExpr {
@@ -117,7 +117,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             Expression::Conjunction(expr) => {
                 let scalar = expr.op.as_scalar_function();
                 let refs: Vec<_> = expr.expressions.iter().collect();
-                let function = scalar.plan_from_expressions(self.bind_context, &refs)?;
+                let function = scalar.plan_from_expressions(self.table_list, &refs)?;
 
                 let inputs = self.plan_scalars(table_refs, &expr.expressions)?;
 
@@ -128,7 +128,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             Expression::Arith(expr) => {
                 let scalar = expr.op.as_scalar_function();
                 let function =
-                    scalar.plan_from_expressions(self.bind_context, &[&expr.left, &expr.right])?;
+                    scalar.plan_from_expressions(self.table_list, &[&expr.left, &expr.right])?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
                     PhysicalScalarFunctionExpr {
@@ -142,7 +142,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             }
             Expression::Negate(expr) => {
                 let scalar = expr.op.as_scalar_function();
-                let function = scalar.plan_from_expressions(self.bind_context, &[&expr.expr])?;
+                let function = scalar.plan_from_expressions(self.table_list, &[&expr.expr])?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
                     PhysicalScalarFunctionExpr {
@@ -152,7 +152,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 ))
             }
             Expression::Case(expr) => {
-                let datatype = expr.datatype(self.bind_context)?;
+                let datatype = expr.datatype(self.table_list)?;
 
                 let cases = expr
                     .cases
@@ -192,8 +192,8 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         condition: &ComparisonCondition,
     ) -> Result<HashJoinCondition> {
         let scalar = condition.op.as_scalar_function();
-        let function = scalar
-            .plan_from_expressions(self.bind_context, &[&condition.left, &condition.right])?;
+        let function =
+            scalar.plan_from_expressions(self.table_list, &[&condition.left, &condition.right])?;
 
         Ok(HashJoinCondition {
             left: self
@@ -225,8 +225,8 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         condition: &ComparisonCondition,
     ) -> Result<PhysicalScalarExpression> {
         let scalar = condition.op.as_scalar_function();
-        let function = scalar
-            .plan_from_expressions(self.bind_context, &[&condition.left, &condition.right])?;
+        let function =
+            scalar.plan_from_expressions(self.table_list, &[&condition.left, &condition.right])?;
 
         Ok(PhysicalScalarExpression::ScalarFunction(
             PhysicalScalarFunctionExpr {

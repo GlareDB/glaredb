@@ -11,6 +11,7 @@ use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -54,19 +55,19 @@ impl ScalarFunction for DateTrunc {
 
     fn plan_from_expressions(
         &self,
-        bind_context: &BindContext,
+        table_list: &TableList,
         inputs: &[&Expression],
     ) -> Result<Box<dyn PlannedScalarFunction2>> {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context))
+            .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         // TODO: 3rd arg for optional timezone
         plan_check_num_args(self, &datatypes, 2)?;
 
         // Requires first argument to be constant (for now)
-        let field = ConstFold::rewrite(bind_context, inputs[0].clone())?
+        let field = ConstFold::rewrite(table_list, inputs[0].clone())?
             .try_into_scalar()?
             .try_into_string()?
             .to_lowercase();

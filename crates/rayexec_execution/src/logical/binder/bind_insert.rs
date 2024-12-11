@@ -134,7 +134,7 @@ impl<'a> InsertBinder<'a> {
             let projection_table = bind_context.new_ephemeral_table_with_columns(
                 projections
                     .iter()
-                    .map(|p| p.datatype(bind_context))
+                    .map(|p| p.datatype(bind_context.get_table_list()))
                     .collect::<Result<Vec<_>>>()?,
                 (0..projections.len())
                     .map(|idx| format!("__generated_insert_project_{idx}"))

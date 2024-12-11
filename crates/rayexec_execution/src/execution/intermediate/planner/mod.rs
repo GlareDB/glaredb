@@ -154,6 +154,8 @@ struct IntermediatePipelineBuildState<'a> {
     ///
     /// Used to generate physical expressions, and determined data types
     /// returned from operators.
+    ///
+    /// Also holds materialized plans.
     bind_context: &'a BindContext,
     /// Expression planner for converting logical to physical expressions.
     expr_planner: PhysicalExpressionPlanner<'a>,
@@ -161,7 +163,7 @@ struct IntermediatePipelineBuildState<'a> {
 
 impl<'a> IntermediatePipelineBuildState<'a> {
     fn new(config: &'a IntermediatePlanConfig, bind_context: &'a BindContext) -> Self {
-        let expr_planner = PhysicalExpressionPlanner::new(bind_context);
+        let expr_planner = PhysicalExpressionPlanner::new(bind_context.get_table_list());
 
         IntermediatePipelineBuildState {
             config,
