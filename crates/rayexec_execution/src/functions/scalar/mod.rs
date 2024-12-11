@@ -65,8 +65,14 @@ impl PartialEq for dyn ScalarFunction + '_ {
 
 impl Eq for dyn ScalarFunction {}
 
+/// Represents a function that knows its inputs and the return type of its
+/// output.
 #[derive(Debug, Clone)]
 pub struct PlannedScalarFunction {
+    /// The function that produced this state.
+    ///
+    /// This is kept around for display user-readable names, as well as for
+    /// serialized/deserializing planned functions.
     pub function: Box<dyn ScalarFunction>,
     /// Return type of the functions.
     pub return_type: DataType,

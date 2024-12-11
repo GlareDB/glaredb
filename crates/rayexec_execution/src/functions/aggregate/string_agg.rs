@@ -13,7 +13,6 @@ use super::{AggregateFunction, DefaultGroupedStates, PlannedAggregateFunction};
 use crate::expr::Expression;
 use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;

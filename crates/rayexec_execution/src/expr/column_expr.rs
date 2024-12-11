@@ -1,10 +1,9 @@
 use std::fmt;
 
 use rayexec_bullet::datatype::DataType;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::{TableList, TableRef};
 
 /// Reference to a column in a query.

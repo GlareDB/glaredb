@@ -49,8 +49,8 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
 
     fn initialize<'a>(
         &self,
-        context: &'a DatabaseContext,
-        args: TableFunctionInputs,
+        _context: &'a DatabaseContext,
+        _args: TableFunctionInputs,
     ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
         unimplemented!()
     }

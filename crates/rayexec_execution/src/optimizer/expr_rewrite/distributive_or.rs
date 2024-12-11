@@ -4,7 +4,6 @@ use rayexec_error::{RayexecError, Result};
 use super::ExpressionRewriteRule;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 
 /// Tries to lift up AND expressions through OR expressions
