@@ -43,21 +43,20 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalType,
 };
 use rayexec_bullet::storage::PrimitiveStorage;
-use rayexec_error::Result;
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use rayexec_proto::ProtoConv;
+use rayexec_error::{RayexecError, Result};
 pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
-use crate::functions::{
-    invalid_input_types_error,
-    plan_check_num_args,
-    unhandled_physical_types_err,
-    FunctionInfo,
-    Signature,
+use crate::expr::Expression;
+use crate::functions::scalar::{
+    PlannedScalarFunction2,
+    PlannedScalarFuntion,
+    ScalarFunction,
+    ScalarFunctionImpl,
 };
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 /// Signature for functions that accept a single numeric and produce a numeric.
 // TODO: Include decimals.
@@ -78,16 +77,6 @@ const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &[Signature] = &[
         return_type: DataTypeId::Float64,
     },
 ];
-
-/// Helper for checking if the input is a numeric type.
-fn check_is_unary_numeric_input(info: &impl FunctionInfo, inputs: &[DataType]) -> Result<()> {
-    plan_check_num_args(info, inputs, 1)?;
-    // TODO: Decimals too
-    match &inputs[0] {
-        DataType::Float16 | DataType::Float32 | DataType::Float64 => Ok(()),
-        other => Err(invalid_input_types_error(info, &[other])),
-    }
-}
 
 /// Helper trait for defining math functions on floats.
 pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'static {
@@ -129,52 +118,48 @@ impl<O: UnaryInputNumericOperation> FunctionInfo for UnaryInputNumericScalar<O> 
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O> {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let ret = DataType::from_proto(PackedDecoder::new(state).decode_next()?)?;
-        Ok(Box::new(UnaryInputNumericScalarImpl::<O> {
-            ret,
-            scalar: *self,
-            _op: PhantomData,
-        }))
-    }
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 1)?;
+        let datatype = inputs[0].datatype(table_list)?;
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        check_is_unary_numeric_input(self, inputs)?;
-        Ok(Box::new(UnaryInputNumericScalarImpl {
-            scalar: *self,
-            ret: inputs[0].clone(),
-            _op: PhantomData,
-        }))
+        // TODO: Decimals too
+        match &datatype {
+            DataType::Float16 | DataType::Float32 | DataType::Float64 => (),
+            other => return Err(invalid_input_types_error(self, &[other])),
+        }
+
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: datatype.clone(),
+            inputs,
+            function_impl: Box::new(UnaryInputNumericScalarImpl::<O> {
+                ret: datatype,
+                _op: PhantomData,
+            }),
+        })
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
     ret: DataType,
-    scalar: UnaryInputNumericScalar<O>,
     _op: PhantomData<O>,
 }
 
-impl<O: UnaryInputNumericOperation> PlannedScalarFunction2 for UnaryInputNumericScalarImpl<O> {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &self.scalar
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&self.ret.to_proto()?)
-    }
-
-    fn return_type(&self) -> DataType {
-        self.ret.clone()
-    }
-
+impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         match input.physical_type() {
             PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),
             PhysicalType::Float32 => O::execute_float::<PhysicalF32>(input, self.ret.clone()),
             PhysicalType::Float64 => O::execute_float::<PhysicalF64>(input, self.ret.clone()),
-            other => Err(unhandled_physical_types_err(self, [other])),
+            other => Err(RayexecError::new(format!(
+                "Invalid physical type: {other:?}"
+            ))),
         }
     }
 }
