@@ -4,8 +4,7 @@ use super::ExpressionRewriteRule;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
-use crate::functions::scalar::builtin::like::Like;
-use crate::functions::scalar::builtin::string::{EndsWithImpl, StartsWithImpl, StringContainsImpl};
+use crate::functions::scalar::builtin::string::{EndsWithImpl, Like, StartsWithImpl};
 use crate::functions::FunctionInfo;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::{self, TableList};
@@ -41,35 +40,43 @@ impl ExpressionRewriteRule for LikeRewrite {
 
                         Ok(())
                     } else if is_prefix_pattern(&pattern) {
-                        let pattern = pattern.trim_matches('%').to_string();
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: Box::new(StartsWithImpl {
-                                constant: Some(pattern.clone()),
-                            }),
-                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
-                        });
+                        // TODO
+                        unimplemented!()
+                        // let pattern = pattern.trim_matches('%').to_string();
+                        // *expr = Expression::ScalarFunction(ScalarFunctionExpr {
+                        //     function: Box::new(StartsWithImpl {
+                        //         constant: Some(pattern.clone()),
+                        //     }),
+                        //     inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
+                        // });
 
-                        Ok(())
+                        // Ok(())
                     } else if is_suffix_pattern(&pattern) {
-                        let pattern = pattern.trim_matches('%').to_string();
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: Box::new(EndsWithImpl {
-                                constant: Some(pattern.clone()),
-                            }),
-                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
-                        });
+                        // TODO
+                        unimplemented!()
 
-                        Ok(())
+                        // let pattern = pattern.trim_matches('%').to_string();
+                        // *expr = Expression::ScalarFunction(ScalarFunctionExpr {
+                        //     function: Box::new(EndsWithImpl {
+                        //         constant: Some(pattern.clone()),
+                        //     }),
+                        //     inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
+                        // });
+
+                        // Ok(())
                     } else if is_contains_pattern(&pattern) {
-                        let pattern = pattern.trim_matches('%').to_string();
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: Box::new(StringContainsImpl {
-                                constant: Some(pattern.clone()),
-                            }),
-                            inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
-                        });
+                        // TODO
+                        unimplemented!()
 
-                        Ok(())
+                        // let pattern = pattern.trim_matches('%').to_string();
+                        // *expr = Expression::ScalarFunction(ScalarFunctionExpr {
+                        //     function: Box::new(Strign2 {
+                        //         constant: Some(pattern.clone()),
+                        //     }),
+                        //     inputs: vec![scalar.inputs[0].clone(), expr::lit(pattern)],
+                        // });
+
+                        // Ok(())
                     } else {
                         // Leave unchanged.
                         Ok(())

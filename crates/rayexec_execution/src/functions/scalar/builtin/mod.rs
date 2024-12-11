@@ -1,10 +1,8 @@
 pub mod arith;
 pub mod boolean;
 pub mod comparison;
-pub mod concat;
 pub mod datetime;
 pub mod is;
-pub mod like;
 pub mod list;
 pub mod negate;
 pub mod numeric;
@@ -66,7 +64,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: LazyLock<Vec<Box<dyn ScalarFunction>>> = La
         Box::new(string::Length),
         Box::new(string::ByteLength),
         Box::new(string::BitLength),
-        Box::new(concat::Concat),
+        Box::new(string::Concat),
         Box::new(string::RegexpReplace),
         Box::new(string::Ascii),
         Box::new(string::LeftPad),
@@ -74,8 +72,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: LazyLock<Vec<Box<dyn ScalarFunction>>> = La
         Box::new(string::LeftTrim::new()),
         Box::new(string::RightTrim::new()),
         Box::new(string::BTrim::new()),
-        // Like
-        Box::new(like::Like),
+        Box::new(string::Like),
         // Struct
         Box::new(struct_funcs::StructPack),
         // Unary

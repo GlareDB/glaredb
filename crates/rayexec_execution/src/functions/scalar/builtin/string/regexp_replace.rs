@@ -4,14 +4,11 @@ use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExecutor};
 use rayexec_error::{Result, ResultExt};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use rayexec_proto::util_types;
 use regex::Regex;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -34,35 +31,12 @@ impl FunctionInfo for RegexpReplace {
 }
 
 impl ScalarFunction for RegexpReplace {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let mut decoder = PackedDecoder::new(state);
-
-        let pattern: util_types::OptionalString = decoder.decode_next()?;
-        let replacement: util_types::OptionalString = decoder.decode_next()?;
-
-        let pattern = pattern
-            .value
-            .as_ref()
-            .map(|s| Regex::new(s))
-            .transpose()
-            .context("Failed to rebuild regex")?;
-
-        Ok(Box::new(RegexpReplaceImpl {
-            pattern,
-            replacement: replacement.value,
-        }))
-    }
-
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unreachable!("plan_from_expressions implemented")
-    }
-
-    fn plan_from_expressions(
+    fn plan(
         &self,
         table_list: &TableList,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 3)?;
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 3)?;
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -95,10 +69,15 @@ impl ScalarFunction for RegexpReplace {
             None
         };
 
-        Ok(Box::new(RegexpReplaceImpl {
-            pattern,
-            replacement,
-        }))
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Utf8,
+            inputs,
+            function_impl: Box::new(RegexpReplaceImpl {
+                pattern,
+                replacement,
+            }),
+        })
     }
 }
 
@@ -108,27 +87,7 @@ pub struct RegexpReplaceImpl {
     pub replacement: Option<String>,
 }
 
-impl PlannedScalarFunction2 for RegexpReplaceImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &RegexpReplace
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        let mut encoder = PackedEncoder::new(state);
-
-        let pattern = self.pattern.as_ref().map(|c| c.to_string());
-        let replacement = self.replacement.clone();
-
-        encoder.encode_next(&util_types::OptionalString { value: pattern })?;
-        encoder.encode_next(&util_types::OptionalString { value: replacement })?;
-
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Utf8
-    }
-
+impl ScalarFunctionImpl for RegexpReplaceImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,

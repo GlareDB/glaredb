@@ -22,11 +22,10 @@ use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{AsScalarFunction, Expression};
 use crate::functions::aggregate::AggregateFunction;
-use crate::functions::scalar::builtin::concat::Concat;
 use crate::functions::scalar::builtin::datetime::DatePart;
+use crate::functions::scalar::builtin::is;
 use crate::functions::scalar::builtin::list::{ListExtract, ListValues};
-use crate::functions::scalar::builtin::string::{StartsWith, Substring};
-use crate::functions::scalar::builtin::{is, like};
+use crate::functions::scalar::builtin::string::{Concat, Like, StartsWith, Substring};
 use crate::functions::scalar::ScalarFunction;
 use crate::functions::CastType;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
@@ -644,8 +643,8 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = like::Like
-                    .plan_from_expressions(bind_context.get_table_list(), &[&expr, &pattern])?;
+                let scalar =
+                    Like.plan_from_expressions(bind_context.get_table_list(), &[&expr, &pattern])?;
 
                 let mut expr = Expression::ScalarFunction(ScalarFunctionExpr {
                     function: scalar,

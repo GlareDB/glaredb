@@ -18,7 +18,6 @@ use crate::functions::scalar::{
     ScalarFunctionImpl,
 };
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

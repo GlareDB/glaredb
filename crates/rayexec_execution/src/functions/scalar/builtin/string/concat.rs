@@ -4,10 +4,11 @@ use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
-use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and
@@ -30,37 +31,33 @@ impl FunctionInfo for Concat {
 }
 
 impl ScalarFunction for Concat {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(StringConcatImpl))
-    }
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        let datatypes = inputs
+            .iter()
+            .map(|input| input.datatype(table_list))
+            .collect::<Result<Vec<_>>>()?;
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        for input in inputs {
-            if input.datatype_id() != DataTypeId::Utf8 {
-                return Err(invalid_input_types_error(self, inputs));
-            }
+        if !datatypes.iter().all(|dt| dt == &DataType::Utf8) {
+            return Err(invalid_input_types_error(self, &datatypes));
         }
 
-        Ok(Box::new(StringConcatImpl))
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Utf8,
+            inputs,
+            function_impl: Box::new(StringConcatImpl),
+        })
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct StringConcatImpl;
 
-impl PlannedScalarFunction2 for StringConcatImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Concat
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Utf8
-    }
-
+impl ScalarFunctionImpl for StringConcatImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         match inputs.len() {
             0 => {

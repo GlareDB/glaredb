@@ -4,12 +4,10 @@ use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use rayexec_proto::util_types;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -36,28 +34,17 @@ impl FunctionInfo for StartsWith {
 }
 
 impl ScalarFunction for StartsWith {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let constant: util_types::OptionalString = PackedDecoder::new(state).decode_next()?;
-        Ok(Box::new(StartsWithImpl {
-            constant: constant.value,
-        }))
-    }
-
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unreachable!("plan_from_expressions implemented")
-    }
-
-    fn plan_from_expressions(
+    fn plan(
         &self,
         table_list: &TableList,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction2>> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 2)?;
 
-        match (&datatypes[0], &datatypes[1]) {
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
             (DataType::Utf8, DataType::Utf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
@@ -72,7 +59,12 @@ impl ScalarFunction for StartsWith {
             None
         };
 
-        Ok(Box::new(StartsWithImpl { constant }))
+        Ok(PlannedScalarFuntion {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            inputs,
+            function_impl: Box::new(StartsWithImpl { constant }),
+        })
     }
 }
 
@@ -81,21 +73,7 @@ pub struct StartsWithImpl {
     pub constant: Option<String>,
 }
 
-impl PlannedScalarFunction2 for StartsWithImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &StartsWith
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&util_types::OptionalString {
-            value: self.constant.clone(),
-        })
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl ScalarFunctionImpl for StartsWithImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,

@@ -6,10 +6,11 @@ use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
-use serde::{Deserialize, Serialize};
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Repeat;
@@ -29,35 +30,31 @@ impl FunctionInfo for Repeat {
 }
 
 impl ScalarFunction for Repeat {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(RepeatUtf8Impl))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Utf8, DataType::Int64) => Ok(Box::new(RepeatUtf8Impl)),
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 2)?;
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFuntion {
+                function: Box::new(*self),
+                return_type: DataType::Utf8,
+                inputs,
+                function_impl: Box::new(RepeatUtf8Impl),
+            }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct RepeatUtf8Impl;
 
-impl PlannedScalarFunction2 for RepeatUtf8Impl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Repeat
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Utf8
-    }
-
+impl ScalarFunctionImpl for RepeatUtf8Impl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let strings = inputs[0];
         let nums = inputs[1];

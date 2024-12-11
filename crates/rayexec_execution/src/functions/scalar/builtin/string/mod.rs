@@ -32,3 +32,9 @@ pub use length::*;
 
 mod regexp_replace;
 pub use regexp_replace::*;
+
+mod concat;
+pub use concat::*;
+
+mod like;
+pub use like::*;
