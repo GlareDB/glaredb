@@ -517,7 +517,7 @@ impl BindContext {
 
     pub fn push_table(
         &mut self,
-        idx: BindScopeRef,
+        bind_ref: BindScopeRef,
         alias: Option<TableAlias>,
         column_types: Vec<DataType>,
         column_names: Vec<String>,
@@ -526,7 +526,7 @@ impl BindContext {
             // If we have multiple tables in scope, they need to have unique
             // alias (e.g. by ensure one is more qualified than the other)
             for have_alias in self
-                .iter_tables_in_scope(idx)?
+                .iter_tables_in_scope(bind_ref)?
                 .filter_map(|t| t.alias.as_ref())
             {
                 if have_alias == alias {
@@ -535,7 +535,11 @@ impl BindContext {
             }
         }
 
-        self.tables.push_table(alias, column_types, column_names)
+        let table_ref = self.tables.push_table(alias, column_types, column_names)?;
+        let scope = self.get_scope_mut(bind_ref)?;
+        scope.tables.push(table_ref);
+
+        Ok(table_ref)
     }
 
     pub fn append_table_to_scope(&mut self, scope: BindScopeRef, table: TableRef) -> Result<()> {

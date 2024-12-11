@@ -7,7 +7,7 @@ use rayexec_error::{Result, ResultExt};
 use regex::Regex;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -35,7 +35,7 @@ impl ScalarFunction for RegexpReplace {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 3)?;
         let datatypes = inputs
             .iter()
@@ -69,7 +69,7 @@ impl ScalarFunction for RegexpReplace {
             None
         };
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,

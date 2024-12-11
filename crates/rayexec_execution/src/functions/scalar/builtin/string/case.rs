@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -32,10 +32,10 @@ impl ScalarFunction for Lower {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFuntion {
+            DataType::Utf8 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
                 return_type: DataType::Utf8,
                 inputs,
@@ -78,10 +78,10 @@ impl ScalarFunction for Upper {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFuntion {
+            DataType::Utf8 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
                 return_type: DataType::Utf8,
                 inputs,

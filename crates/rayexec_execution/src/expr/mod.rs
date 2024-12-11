@@ -88,7 +88,7 @@ impl Expression {
             Self::Is(_) => DataType::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
             Self::Negate(expr) => expr.datatype(table_list)?,
-            Self::ScalarFunction(expr) => expr.function.return_type(),
+            Self::ScalarFunction(expr) => expr.function.return_type.clone(),
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(window) => window.agg.return_type(),
             Self::Unnest(expr) => expr.datatype(table_list)?,
@@ -144,7 +144,7 @@ impl Expression {
             Self::Literal(_) => (),
             Self::Negate(negate) => func(&mut negate.expr)?,
             Self::ScalarFunction(scalar) => {
-                for input in &mut scalar.inputs {
+                for input in &mut scalar.function.inputs {
                     func(input)?;
                 }
             }
@@ -218,7 +218,7 @@ impl Expression {
             Self::Literal(_) => (),
             Self::Negate(negate) => func(&negate.expr)?,
             Self::ScalarFunction(scalar) => {
-                for input in &scalar.inputs {
+                for input in &scalar.function.inputs {
                     func(input)?;
                 }
             }
@@ -357,7 +357,7 @@ impl Expression {
             Self::Window(_) => false,
             Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
             Self::ScalarFunction(f)
-                if f.function.scalar_function().volatility() == FunctionVolatility::Volatile =>
+                if f.function.function.volatility() == FunctionVolatility::Volatile =>
             {
                 false
             }

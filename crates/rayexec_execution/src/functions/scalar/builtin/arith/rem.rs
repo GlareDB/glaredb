@@ -25,7 +25,7 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -132,7 +132,7 @@ impl ScalarFunction for Rem {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 2)?;
 
         let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
@@ -196,7 +196,7 @@ impl ScalarFunction for Rem {
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         };
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type,
             inputs,
@@ -244,6 +244,7 @@ mod tests {
     use rayexec_bullet::datatype::DataType;
 
     use super::*;
+    use crate::expr;
     use crate::functions::scalar::ScalarFunction;
 
     #[test]
@@ -251,11 +252,23 @@ mod tests {
         let a = Array::from_iter([4, 5, 6]);
         let b = Array::from_iter([1, 2, 3]);
 
-        let specialized = Rem
-            .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
             .unwrap();
 
-        let out = specialized.execute(&[&a, &b]).unwrap();
+        let planned = Rem
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
         let expected = Array::from_iter([0, 1, 0]);
 
         assert_eq!(expected, out);

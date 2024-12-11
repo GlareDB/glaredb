@@ -151,13 +151,10 @@ impl<'a> BaseExpressionBinder<'a> {
                 let scalar = Box::new(ListValues);
                 let exprs =
                     self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), exprs)?;
-
-                let refs: Vec<_> = exprs.iter().collect();
-                let planned = scalar.plan_from_expressions(bind_context.get_table_list(), &refs)?;
+                let planned = scalar.plan(bind_context.get_table_list(), exprs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function: planned,
-                    inputs: exprs,
                 }))
             }
             ast::Expr::ArraySubscript { expr, subscript } => {
@@ -192,14 +189,11 @@ impl<'a> BaseExpressionBinder<'a> {
                         let index = exprs.pop().unwrap();
                         let expr = exprs.pop().unwrap();
 
-                        let planned = scalar.plan_from_expressions(
-                            bind_context.get_table_list(),
-                            &[&expr, &index],
-                        )?;
+                        let planned =
+                            scalar.plan(bind_context.get_table_list(), vec![expr, index])?;
 
                         Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                             function: planned,
-                            inputs: vec![expr, index],
                         }))
                     }
                     ast::ArraySubscript::Slice { .. } => {
@@ -397,26 +391,16 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::StringConcat => {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, Concat, [left, right])?;
-                        let planned = Concat.plan_from_expressions(
-                            bind_context.get_table_list(),
-                            &[&left, &right],
-                        )?;
-                        Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: planned,
-                            inputs: vec![left, right],
-                        })
+                        let planned =
+                            Concat.plan(bind_context.get_table_list(), vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function: planned })
                     }
                     ast::BinaryOperator::StringStartsWith => {
                         let [left, right] =
                             self.apply_cast_for_operator(bind_context, StartsWith, [left, right])?;
-                        let planned = StartsWith.plan_from_expressions(
-                            bind_context.get_table_list(),
-                            &[&left, &right],
-                        )?;
-                        Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: planned,
-                            inputs: vec![left, right],
-                        })
+                        let planned =
+                            StartsWith.plan(bind_context.get_table_list(), vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function: planned })
                     }
                     other => not_implemented!("binary operator {other:?}"),
                 })
@@ -643,13 +627,9 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar =
-                    Like.plan_from_expressions(bind_context.get_table_list(), &[&expr, &pattern])?;
+                let scalar = Like.plan(bind_context.get_table_list(), vec![expr, pattern])?;
 
-                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr {
-                    function: scalar,
-                    inputs: vec![expr, pattern],
-                });
+                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr { function: scalar });
 
                 if *negated {
                     expr = Expression::Negate(NegateExpr {
@@ -672,14 +652,13 @@ impl<'a> BaseExpressionBinder<'a> {
                 )?;
 
                 let scalar = if !negated {
-                    is::IsNull.plan_from_expressions(bind_context.get_table_list(), &[&expr])?
+                    is::IsNull.plan(bind_context.get_table_list(), vec![expr])?
                 } else {
-                    is::IsNotNull.plan_from_expressions(bind_context.get_table_list(), &[&expr])?
+                    is::IsNotNull.plan(bind_context.get_table_list(), vec![expr])?
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function: scalar,
-                    inputs: vec![expr],
                 }))
             }
             ast::Expr::IsBool { expr, val, negated } => {
@@ -694,20 +673,20 @@ impl<'a> BaseExpressionBinder<'a> {
                 )?;
 
                 let scalar = match (val, negated) {
-                    (true, false) => {
-                        is::IsTrue.plan_from_expressions(bind_context.get_table_list(), &[&expr])?
+                    (true, false) => is::IsTrue.plan(bind_context.get_table_list(), vec![expr])?,
+                    (true, true) => {
+                        is::IsNotTrue.plan(bind_context.get_table_list(), vec![expr])?
                     }
-                    (true, true) => is::IsNotTrue
-                        .plan_from_expressions(bind_context.get_table_list(), &[&expr])?,
-                    (false, false) => is::IsFalse
-                        .plan_from_expressions(bind_context.get_table_list(), &[&expr])?,
-                    (false, true) => is::IsNotFalse
-                        .plan_from_expressions(bind_context.get_table_list(), &[&expr])?,
+                    (false, false) => {
+                        is::IsFalse.plan(bind_context.get_table_list(), vec![expr])?
+                    }
+                    (false, true) => {
+                        is::IsNotFalse.plan(bind_context.get_table_list(), vec![expr])?
+                    }
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function: scalar,
-                    inputs: vec![expr],
                 }))
             }
             ast::Expr::Interval(ast::Interval {
@@ -972,13 +951,9 @@ impl<'a> BaseExpressionBinder<'a> {
                     )?,
                 };
 
-                let refs: Vec<_> = inputs.iter().collect();
-                let function = func.plan_from_expressions(bind_context.get_table_list(), &refs)?;
+                let function = func.plan(bind_context.get_table_list(), inputs)?;
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function,
-                    inputs,
-                }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             ast::Expr::Extract { date_part, expr } => {
                 let date_part_expr = Expression::Literal(LiteralExpr {
@@ -989,15 +964,10 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
 
                 let func = Box::new(DatePart);
-                let function = func.plan_from_expressions(
-                    bind_context.get_table_list(),
-                    &[&date_part_expr, &expr],
-                )?;
+                let function =
+                    func.plan(bind_context.get_table_list(), vec![date_part_expr, expr])?;
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function,
-                    inputs: vec![date_part_expr, expr],
-                }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             ast::Expr::Columns(_) => {
                 // TODO: This doens't need to be the case, but there's going to
@@ -1283,14 +1253,9 @@ impl<'a> BaseExpressionBinder<'a> {
                 let inputs =
                     self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), inputs)?;
 
-                let refs: Vec<_> = inputs.iter().collect();
-                let function =
-                    scalar.plan_from_expressions(bind_context.get_table_list(), &refs)?;
+                let function = scalar.plan(bind_context.get_table_list(), inputs)?;
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function,
-                    inputs,
-                }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             (ResolvedFunction::Aggregate(agg), _) => {
                 let inputs =

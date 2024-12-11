@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
 use crate::functions::scalar::{
+    PlannedScalarFunction,
     PlannedScalarFunction2,
-    PlannedScalarFuntion,
     ScalarFunction,
     ScalarFunctionImpl,
 };
@@ -42,7 +42,7 @@ impl ScalarFunction for And {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         let datatypes = inputs
             .iter()
             .map(|input| input.datatype(table_list))
@@ -52,7 +52,7 @@ impl ScalarFunction for And {
             return Err(invalid_input_types_error(self, &datatypes));
         }
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -207,37 +207,33 @@ impl FunctionInfo for Or {
 }
 
 impl ScalarFunction for Or {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(OrImpl))
-    }
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFunction> {
+        let datatypes = inputs
+            .iter()
+            .map(|input| input.datatype(table_list))
+            .collect::<Result<Vec<_>>>()?;
 
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        for input in inputs {
-            if input.datatype_id() != DataTypeId::Boolean {
-                return Err(invalid_input_types_error(self, inputs));
-            }
+        if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
+            return Err(invalid_input_types_error(self, &datatypes));
         }
 
-        Ok(Box::new(OrImpl))
+        Ok(PlannedScalarFunction {
+            function: Box::new(*self),
+            return_type: DataType::Boolean,
+            inputs,
+            function_impl: Box::new(OrImpl),
+        })
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrImpl;
 
-impl PlannedScalarFunction2 for OrImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &Or
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Boolean
-    }
-
+impl ScalarFunctionImpl for OrImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         match inputs.len() {
             0 => {
@@ -279,57 +275,97 @@ impl PlannedScalarFunction2 for OrImpl {
 
 #[cfg(test)]
 mod tests {
-    // TODO
-    // use rayexec_bullet::scalar::ScalarValue;
+    use rayexec_bullet::scalar::ScalarValue;
 
-    // use super::*;
+    use super::*;
+    use crate::expr;
 
-    // #[test]
-    // fn and_bool_2() {
-    //     let a = Array::from_iter([true, false, false]);
-    //     let b = Array::from_iter([true, true, false]);
+    #[test]
+    fn and_bool_2() {
+        let a = Array::from_iter([true, false, false]);
+        let b = Array::from_iter([true, true, false]);
 
-    //     let specialized = And
-    //         .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
-    //         .unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Boolean, DataType::Boolean],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
+        let planned = And
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
 
-    //     assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
-    //     assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
-    //     assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
-    // }
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
 
-    // #[test]
-    // fn and_bool_3() {
-    //     let a = Array::from_iter([true, true, true]);
-    //     let b = Array::from_iter([false, true, true]);
-    //     let c = Array::from_iter([true, true, false]);
+        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+    }
 
-    //     let specialized = And
-    //         .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
-    //         .unwrap();
+    #[test]
+    fn and_bool_3() {
+        let a = Array::from_iter([true, true, true]);
+        let b = Array::from_iter([false, true, true]);
+        let c = Array::from_iter([true, true, false]);
 
-    //     let out = specialized.execute(&[&a, &b, &c]).unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Boolean, DataType::Boolean, DataType::Boolean],
+                vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            )
+            .unwrap();
 
-    //     assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
-    //     assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
-    //     assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
-    // }
+        let planned = And
+            .plan(
+                &table_list,
+                vec![
+                    expr::col_ref(table_ref, 0),
+                    expr::col_ref(table_ref, 1),
+                    expr::col_ref(table_ref, 2),
+                ],
+            )
+            .unwrap();
 
-    // #[test]
-    // fn or_bool_2() {
-    //     let a = Array::from_iter([true, false, false]);
-    //     let b = Array::from_iter([true, true, false]);
+        let out = planned.function_impl.execute(&[&a, &b, &c]).unwrap();
 
-    //     let specialized = Or
-    //         .plan_from_datatypes(&[DataType::Boolean, DataType::Boolean])
-    //         .unwrap();
+        assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+    }
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
+    #[test]
+    fn or_bool_2() {
+        let a = Array::from_iter([true, false, false]);
+        let b = Array::from_iter([true, true, false]);
 
-    //     assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
-    //     assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
-    //     assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
-    // }
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Boolean, DataType::Boolean],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
+        let planned = Or
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+
+        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
+        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
+        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+    }
 }

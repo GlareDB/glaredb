@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -38,7 +38,7 @@ impl ScalarFunction for StartsWith {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 2)?;
 
         match (
@@ -59,7 +59,7 @@ impl ScalarFunction for StartsWith {
             None
         };
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,

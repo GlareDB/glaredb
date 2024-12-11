@@ -12,7 +12,6 @@ use crate::execution::operators::hash_join::condition::HashJoinCondition;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::table_list::{TableList, TableRef};
 use crate::logical::logical_join::ComparisonCondition;
@@ -89,65 +88,75 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                     literal: expr.literal.clone(),
                 }))
             }
-            Expression::ScalarFunction(expr) => Ok(PhysicalScalarExpression::ScalarFunction(
-                PhysicalScalarFunctionExpr {
-                    function: expr.function.clone(),
-                    inputs: self.plan_scalars(table_refs, &expr.inputs)?,
-                },
-            )),
+            Expression::ScalarFunction(expr) => {
+                let physical_inputs = self.plan_scalars(table_refs, &expr.function.inputs)?;
+
+                Ok(PhysicalScalarExpression::ScalarFunction(
+                    PhysicalScalarFunctionExpr {
+                        function: expr.function.clone(),
+                        inputs: physical_inputs,
+                    },
+                ))
+            }
             Expression::Cast(expr) => Ok(PhysicalScalarExpression::Cast(PhysicalCastExpr {
                 to: expr.to.clone(),
                 expr: Box::new(self.plan_scalar(table_refs, &expr.expr)?),
             })),
             Expression::Comparison(expr) => {
                 let scalar = expr.op.as_scalar_function();
-                let function =
-                    scalar.plan_from_expressions(self.table_list, &[&expr.left, &expr.right])?;
+                let function = scalar.plan(
+                    self.table_list,
+                    vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
+                )?;
+
+                let physical_inputs = self.plan_scalars(table_refs, &function.inputs)?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
                     PhysicalScalarFunctionExpr {
                         function,
-                        inputs: vec![
-                            self.plan_scalar(table_refs, &expr.left)?,
-                            self.plan_scalar(table_refs, &expr.right)?,
-                        ],
+                        inputs: physical_inputs,
                     },
                 ))
             }
             Expression::Conjunction(expr) => {
                 let scalar = expr.op.as_scalar_function();
-                let refs: Vec<_> = expr.expressions.iter().collect();
-                let function = scalar.plan_from_expressions(self.table_list, &refs)?;
+                let function = scalar.plan(self.table_list, expr.expressions.clone())?;
 
-                let inputs = self.plan_scalars(table_refs, &expr.expressions)?;
-
-                Ok(PhysicalScalarExpression::ScalarFunction(
-                    PhysicalScalarFunctionExpr { function, inputs },
-                ))
-            }
-            Expression::Arith(expr) => {
-                let scalar = expr.op.as_scalar_function();
-                let function =
-                    scalar.plan_from_expressions(self.table_list, &[&expr.left, &expr.right])?;
+                let physical_inputs = self.plan_scalars(table_refs, &function.inputs)?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
                     PhysicalScalarFunctionExpr {
                         function,
-                        inputs: vec![
-                            self.plan_scalar(table_refs, &expr.left)?,
-                            self.plan_scalar(table_refs, &expr.right)?,
-                        ],
+                        inputs: physical_inputs,
+                    },
+                ))
+            }
+            Expression::Arith(expr) => {
+                let scalar = expr.op.as_scalar_function();
+                let function = scalar.plan(
+                    self.table_list,
+                    vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
+                )?;
+
+                let physical_inputs = self.plan_scalars(table_refs, &function.inputs)?;
+
+                Ok(PhysicalScalarExpression::ScalarFunction(
+                    PhysicalScalarFunctionExpr {
+                        function,
+                        inputs: physical_inputs,
                     },
                 ))
             }
             Expression::Negate(expr) => {
                 let scalar = expr.op.as_scalar_function();
-                let function = scalar.plan_from_expressions(self.table_list, &[&expr.expr])?;
+                let function = scalar.plan(self.table_list, vec![expr.expr.as_ref().clone()])?;
+
+                let physical_inputs = self.plan_scalars(table_refs, &function.inputs)?;
 
                 Ok(PhysicalScalarExpression::ScalarFunction(
                     PhysicalScalarFunctionExpr {
                         function,
-                        inputs: vec![self.plan_scalar(table_refs, &expr.expr)?],
+                        inputs: physical_inputs,
                     },
                 ))
             }
@@ -192,8 +201,10 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         condition: &ComparisonCondition,
     ) -> Result<HashJoinCondition> {
         let scalar = condition.op.as_scalar_function();
-        let function =
-            scalar.plan_from_expressions(self.table_list, &[&condition.left, &condition.right])?;
+        let function = scalar.plan(
+            self.table_list,
+            vec![condition.left.clone(), condition.right.clone()],
+        )?;
 
         Ok(HashJoinCondition {
             left: self
@@ -204,39 +215,6 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 .context("Failed to plan for right side of condition")?,
             function,
         })
-    }
-
-    /// Plans join conditions by ANDind all conditions to produce a single
-    /// physical expression.
-    pub fn plan_join_conditions_as_expression(
-        &self,
-        table_refs: &[TableRef],
-        conditions: &[ComparisonCondition],
-    ) -> Result<Vec<PhysicalScalarExpression>> {
-        conditions
-            .iter()
-            .map(|c| self.plan_join_condition_as_expression(table_refs, c))
-            .collect::<Result<Vec<_>>>()
-    }
-
-    pub fn plan_join_condition_as_expression(
-        &self,
-        table_refs: &[TableRef],
-        condition: &ComparisonCondition,
-    ) -> Result<PhysicalScalarExpression> {
-        let scalar = condition.op.as_scalar_function();
-        let function =
-            scalar.plan_from_expressions(self.table_list, &[&condition.left, &condition.right])?;
-
-        Ok(PhysicalScalarExpression::ScalarFunction(
-            PhysicalScalarFunctionExpr {
-                function,
-                inputs: vec![
-                    self.plan_scalar(table_refs, &condition.left)?,
-                    self.plan_scalar(table_refs, &condition.right)?,
-                ],
-            },
-        ))
     }
 
     pub fn plan_sorts(

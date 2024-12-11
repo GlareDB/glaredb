@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -35,7 +35,7 @@ impl ScalarFunction for Concat {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         let datatypes = inputs
             .iter()
             .map(|input| input.datatype(table_list))
@@ -45,7 +45,7 @@ impl ScalarFunction for Concat {
             return Err(invalid_input_types_error(self, &datatypes));
         }
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,

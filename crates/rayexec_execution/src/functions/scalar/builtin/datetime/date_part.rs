@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -46,7 +46,7 @@ impl ScalarFunction for DatePart {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -65,7 +65,7 @@ impl ScalarFunction for DatePart {
 
         match &datatypes[1] {
             DataType::Date32 | DataType::Date64 | DataType::Timestamp(_) => {
-                Ok(PlannedScalarFuntion {
+                Ok(PlannedScalarFunction {
                     function: Box::new(*self),
                     return_type: DataType::Decimal64(DecimalTypeMeta::new(
                         Decimal64Type::MAX_PRECISION,

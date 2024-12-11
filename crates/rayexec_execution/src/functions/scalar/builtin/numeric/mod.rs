@@ -50,8 +50,8 @@ pub use tan::*;
 
 use crate::expr::Expression;
 use crate::functions::scalar::{
+    PlannedScalarFunction,
     PlannedScalarFunction2,
-    PlannedScalarFuntion,
     ScalarFunction,
     ScalarFunctionImpl,
 };
@@ -122,7 +122,7 @@ impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         let datatype = inputs[0].datatype(table_list)?;
 
@@ -132,7 +132,7 @@ impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O
             other => return Err(invalid_input_types_error(self, &[other])),
         }
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: datatype.clone(),
             inputs,

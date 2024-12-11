@@ -5,7 +5,7 @@ use rayexec_bullet::storage::ListStorage;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -31,14 +31,14 @@ impl ScalarFunction for ListValues {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         let first = match inputs.first() {
             Some(expr) => expr.datatype(table_list)?,
             None => {
                 let return_type = DataType::List(ListTypeMeta {
                     datatype: Box::new(DataType::Null),
                 });
-                return Ok(PlannedScalarFuntion {
+                return Ok(PlannedScalarFunction {
                     function: Box::new(*self),
                     return_type: return_type.clone(),
                     inputs,
@@ -63,7 +63,7 @@ impl ScalarFunction for ListValues {
             datatype: Box::new(first.clone()),
         });
 
-        return Ok(PlannedScalarFuntion {
+        return Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: return_type.clone(),
             inputs,

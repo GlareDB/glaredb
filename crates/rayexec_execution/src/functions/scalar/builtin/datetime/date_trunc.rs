@@ -8,7 +8,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -48,7 +48,7 @@ impl ScalarFunction for DateTrunc {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -66,7 +66,7 @@ impl ScalarFunction for DateTrunc {
         let field = field.parse::<TruncField>()?;
 
         match &datatypes[1] {
-            DataType::Timestamp(m) => Ok(PlannedScalarFuntion {
+            DataType::Timestamp(m) => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
                 return_type: DataType::Timestamp(TimestampTypeMeta { unit: m.unit }),
                 inputs,

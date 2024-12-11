@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -32,10 +32,10 @@ impl ScalarFunction for IsNull {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -66,10 +66,10 @@ impl ScalarFunction for IsNotNull {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -130,10 +130,10 @@ impl ScalarFunction for IsTrue {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -164,10 +164,10 @@ impl ScalarFunction for IsNotTrue {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -198,10 +198,10 @@ impl ScalarFunction for IsFalse {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -232,10 +232,10 @@ impl ScalarFunction for IsNotFalse {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,

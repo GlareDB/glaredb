@@ -10,8 +10,8 @@ use rayexec_error::Result;
 
 use crate::expr::Expression;
 use crate::functions::scalar::{
+    PlannedScalarFunction,
     PlannedScalarFunction2,
-    PlannedScalarFuntion,
     ScalarFunction,
     ScalarFunctionImpl,
 };
@@ -117,7 +117,7 @@ impl<F: StringTrimOp> ScalarFunction for Trim<F> {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args_one_of(self, &inputs, [1, 2])?;
 
         let datatypes = inputs
@@ -127,7 +127,7 @@ impl<F: StringTrimOp> ScalarFunction for Trim<F> {
 
         match datatypes.len() {
             1 => match &datatypes[0] {
-                DataType::Utf8 => Ok(PlannedScalarFuntion {
+                DataType::Utf8 => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,
@@ -136,7 +136,7 @@ impl<F: StringTrimOp> ScalarFunction for Trim<F> {
                 a => Err(invalid_input_types_error(self, &[a])),
             },
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Utf8) => Ok(PlannedScalarFuntion {
+                (DataType::Utf8, DataType::Utf8) => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,

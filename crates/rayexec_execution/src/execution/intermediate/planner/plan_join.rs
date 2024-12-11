@@ -7,10 +7,9 @@ use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_join::PhysicalHashJoin;
 use crate::execution::operators::nl_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::PhysicalOperator;
+use crate::expr;
 use crate::expr::comparison_expr::ComparisonOperator;
-use crate::expr::physical::scalar_function_expr::PhysicalScalarFunctionExpr;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::builtin::boolean::AndImpl2;
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,
@@ -159,16 +158,22 @@ impl IntermediatePipelineBuildState<'_> {
             }
 
             let table_refs = join.get_output_table_refs(self.bind_context);
-            let conditions = self
-                .expr_planner
-                .plan_join_conditions_as_expression(&table_refs, &join.node.conditions)?;
-
-            let condition = PhysicalScalarExpression::ScalarFunction(PhysicalScalarFunctionExpr {
-                function: Box::new(AndImpl2),
-                inputs: conditions,
-            });
-
             let [left, right] = join.take_two_children_exact()?;
+
+            let condition = expr::and(
+                join.node
+                    .conditions
+                    .into_iter()
+                    .map(|cond| cond.into_expression()),
+            );
+
+            let condition = match condition {
+                Some(cond) => {
+                    let cond = self.expr_planner.plan_scalar(&table_refs, &cond)?;
+                    Some(cond)
+                }
+                None => None,
+            };
 
             self.push_nl_join(
                 id_gen,
@@ -176,7 +181,7 @@ impl IntermediatePipelineBuildState<'_> {
                 location,
                 left,
                 right,
-                Some(condition),
+                condition,
                 join.node.join_type,
             )?;
 

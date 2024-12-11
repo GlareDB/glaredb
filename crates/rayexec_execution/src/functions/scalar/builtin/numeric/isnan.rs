@@ -15,7 +15,7 @@ use rayexec_error::Result;
 
 use super::ScalarFunction;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -53,7 +53,7 @@ impl ScalarFunction for IsNan {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
         let function_impl: Box<dyn ScalarFunctionImpl> = match inputs[0].datatype(table_list)? {
@@ -63,7 +63,7 @@ impl ScalarFunction for IsNan {
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,

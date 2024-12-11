@@ -37,7 +37,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -65,7 +65,7 @@ impl ScalarFunction for ListExtract {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -91,7 +91,7 @@ impl ScalarFunction for ListExtract {
             }
         };
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: inner_datatype.clone(),
             inputs,

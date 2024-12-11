@@ -71,9 +71,7 @@ pub trait ScalarFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        unimplemented!()
-    }
+    ) -> Result<PlannedScalarFunction>;
 }
 
 impl Clone for Box<dyn ScalarFunction> {
@@ -97,7 +95,7 @@ impl PartialEq for dyn ScalarFunction + '_ {
 impl Eq for dyn ScalarFunction {}
 
 #[derive(Debug, Clone)]
-pub struct PlannedScalarFuntion {
+pub struct PlannedScalarFunction {
     pub function: Box<dyn ScalarFunction>,
     /// Return type of the functions.
     pub return_type: DataType,
@@ -109,7 +107,7 @@ pub struct PlannedScalarFuntion {
 
 /// Assumes that a function with same inputs and return type is using the same
 /// function implementation.
-impl PartialEq for PlannedScalarFuntion {
+impl PartialEq for PlannedScalarFunction {
     fn eq(&self, other: &Self) -> bool {
         self.function == other.function
             && self.return_type == other.return_type
@@ -117,7 +115,15 @@ impl PartialEq for PlannedScalarFuntion {
     }
 }
 
-impl Eq for PlannedScalarFuntion {}
+impl Eq for PlannedScalarFunction {}
+
+impl Hash for PlannedScalarFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.function.name().hash(state);
+        self.return_type.hash(state);
+        self.inputs.hash(state);
+    }
+}
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
     fn execute(&self, inputs: &[&Array]) -> Result<Array>;

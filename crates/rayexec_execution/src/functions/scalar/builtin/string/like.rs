@@ -7,7 +7,7 @@ use rayexec_error::{Result, ResultExt};
 use regex::{escape, Regex};
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -38,7 +38,7 @@ impl ScalarFunction for Like {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         match (
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
@@ -59,7 +59,7 @@ impl ScalarFunction for Like {
             Box::new(LikeImpl)
         };
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,

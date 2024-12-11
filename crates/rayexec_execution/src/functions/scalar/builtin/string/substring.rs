@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -50,7 +50,7 @@ impl ScalarFunction for Substring {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args_one_of(self, &inputs, [2, 3])?;
 
         let datatypes = inputs
@@ -60,7 +60,7 @@ impl ScalarFunction for Substring {
 
         match datatypes.len() {
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFuntion {
+                (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,
@@ -69,7 +69,7 @@ impl ScalarFunction for Substring {
                 (a, b) => Err(invalid_input_types_error(self, &[a, b])),
             },
             3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Int64) => Ok(PlannedScalarFuntion {
+                (DataType::Utf8, DataType::Int64, DataType::Int64) => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,

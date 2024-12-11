@@ -6,7 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -44,7 +44,7 @@ impl ScalarFunction for LeftPad {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args_one_of(self, &inputs, [2, 3])?;
 
         let datatypes = inputs
@@ -64,7 +64,7 @@ impl ScalarFunction for LeftPad {
             other => unreachable!("num inputs checked, got {other}"),
         }
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,
@@ -138,7 +138,7 @@ impl ScalarFunction for RightPad {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args_one_of(self, &inputs, [2, 3])?;
 
         let datatypes = inputs
@@ -158,7 +158,7 @@ impl ScalarFunction for RightPad {
             other => unreachable!("num inputs checked, got {other}"),
         }
 
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,

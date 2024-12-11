@@ -33,7 +33,7 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
@@ -164,8 +164,8 @@ impl ScalarFunction for Eq {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        Ok(PlannedScalarFuntion {
+    ) -> Result<PlannedScalarFunction> {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             function_impl: new_comparison_impl::<EqOperation>(self, &inputs, table_list)?,
@@ -196,8 +196,8 @@ impl ScalarFunction for Neq {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        Ok(PlannedScalarFuntion {
+    ) -> Result<PlannedScalarFunction> {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             function_impl: new_comparison_impl::<NotEqOperation>(self, &inputs, table_list)?,
@@ -224,8 +224,8 @@ impl ScalarFunction for Lt {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        Ok(PlannedScalarFuntion {
+    ) -> Result<PlannedScalarFunction> {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             function_impl: new_comparison_impl::<LtOperation>(self, &inputs, table_list)?,
@@ -252,8 +252,8 @@ impl ScalarFunction for LtEq {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        Ok(PlannedScalarFuntion {
+    ) -> Result<PlannedScalarFunction> {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             function_impl: new_comparison_impl::<LtEqOperation>(self, &inputs, table_list)?,
@@ -280,8 +280,8 @@ impl ScalarFunction for Gt {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        Ok(PlannedScalarFuntion {
+    ) -> Result<PlannedScalarFunction> {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             function_impl: new_comparison_impl::<GtOperation>(self, &inputs, table_list)?,
@@ -308,8 +308,8 @@ impl ScalarFunction for GtEq {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
-        Ok(PlannedScalarFuntion {
+    ) -> Result<PlannedScalarFunction> {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             function_impl: new_comparison_impl::<GtEqOperation>(self, &inputs, table_list)?,

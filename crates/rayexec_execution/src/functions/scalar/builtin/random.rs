@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::expr::Expression;
 use crate::functions::scalar::{
     FunctionVolatility,
-    PlannedScalarFuntion,
+    PlannedScalarFunction,
     ScalarFunction,
     ScalarFunctionImpl,
 };
@@ -40,9 +40,9 @@ impl ScalarFunction for Random {
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 0)?;
-        Ok(PlannedScalarFuntion {
+        Ok(PlannedScalarFunction {
             function: Box::new(*self),
             return_type: DataType::Float64,
             inputs,

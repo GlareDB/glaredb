@@ -8,7 +8,7 @@ use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -34,13 +34,13 @@ impl ScalarFunction for Repeat {
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFuntion> {
+    ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 2)?;
         match (
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFuntion {
+            (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
                 return_type: DataType::Utf8,
                 inputs,
