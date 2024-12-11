@@ -2,13 +2,12 @@ use rayexec_bullet::array::Array;
 use rayexec_bullet::compute::date::{self, extract_date_part};
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -43,19 +42,11 @@ impl FunctionInfo for DatePart {
 }
 
 impl ScalarFunction for DatePart {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        not_implemented!("decoding date_part")
-    }
-
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unreachable!("plan_from_expressions implemented")
-    }
-
-    fn plan_from_expressions(
+    fn plan(
         &self,
         table_list: &TableList,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedScalarFunction2>> {
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -74,7 +65,15 @@ impl ScalarFunction for DatePart {
 
         match &datatypes[1] {
             DataType::Date32 | DataType::Date64 | DataType::Timestamp(_) => {
-                Ok(Box::new(DatePartImpl { part }))
+                Ok(PlannedScalarFuntion {
+                    function: Box::new(*self),
+                    return_type: DataType::Decimal64(DecimalTypeMeta::new(
+                        Decimal64Type::MAX_PRECISION,
+                        Decimal64Type::DEFAULT_SCALE,
+                    )),
+                    inputs,
+                    function_impl: Box::new(DatePartImpl { part }),
+                })
             }
             other => Err(invalid_input_types_error(self, &[other])),
         }
@@ -86,22 +85,7 @@ pub struct DatePartImpl {
     part: date::DatePart,
 }
 
-impl PlannedScalarFunction2 for DatePartImpl {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &DatePart
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        not_implemented!("encode date_part")
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Decimal64(DecimalTypeMeta::new(
-            Decimal64Type::MAX_PRECISION,
-            Decimal64Type::DEFAULT_SCALE,
-        ))
-    }
-
+impl ScalarFunctionImpl for DatePartImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         // First input ignored (the constant "part" to extract)
         extract_date_part(self.part, inputs[1])

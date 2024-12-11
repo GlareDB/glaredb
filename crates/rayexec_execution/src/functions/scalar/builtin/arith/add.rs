@@ -167,12 +167,12 @@ impl ScalarFunction for Add {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFuntion> {
-        let function_impl = match (
+        let function_impl: Box<dyn ScalarFunctionImpl> = match (
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
             (DataType::Float16, DataType::Float16) => {
-                AddImpl::<PhysicalF16>::new(DataType::Float16)
+                Box::new(AddImpl::<PhysicalF16>::new(DataType::Float16))
             }
             _ => unimplemented!(),
         };

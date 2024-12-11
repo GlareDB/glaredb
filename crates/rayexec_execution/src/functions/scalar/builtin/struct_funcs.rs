@@ -1,11 +1,12 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_error::Result;
+use rayexec_bullet::datatype::DataTypeId;
+use rayexec_error::{not_implemented, Result};
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructPack;
@@ -25,38 +26,12 @@ impl FunctionInfo for StructPack {
 }
 
 impl ScalarFunction for StructPack {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unimplemented!()
-    }
-
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(StructPackDynamic))
-    }
-}
-
-/// Creates a struct array from some input arrays.
-///
-/// Key and values arrays are alternating.
-///
-/// It's assumed key arrays are string arrays containing all of the same value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StructPackDynamic;
-
-impl PlannedScalarFunction2 for StructPackDynamic {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        &StructPack
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn return_type(&self) -> DataType {
-        unimplemented!()
-    }
-
-    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
-        unimplemented!()
+    fn plan(
+        &self,
+        _table_list: &TableList,
+        _inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        not_implemented!("struct pack")
     }
 }
 
@@ -78,11 +53,11 @@ impl FunctionInfo for StructExtract {
 }
 
 impl ScalarFunction for StructExtract {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unimplemented!()
-    }
-
-    fn plan_from_datatypes(&self, _inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        unimplemented!()
+    fn plan(
+        &self,
+        _table_list: &TableList,
+        _inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        not_implemented!("struct extract")
     }
 }

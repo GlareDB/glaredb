@@ -5,8 +5,10 @@ use rayexec_bullet::executor::physical_type::PhysicalI64;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction};
+use crate::expr::Expression;
+use crate::functions::scalar::{PlannedScalarFuntion, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Epoch;
@@ -33,14 +35,21 @@ impl FunctionInfo for Epoch {
 }
 
 impl ScalarFunction for Epoch {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(EpochImpl::<1_000_000>))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(EpochImpl::<1_000_000>)),
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 1)?;
+        match inputs[0].datatype(table_list)? {
+            DataType::Int64 => Ok(PlannedScalarFuntion {
+                function: Box::new(*self),
+                return_type: DataType::Timestamp(TimestampTypeMeta {
+                    unit: TimeUnit::Microsecond,
+                }),
+                inputs,
+                function_impl: Box::new(EpochImpl::<1_000_000>),
+            }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -67,14 +76,21 @@ impl FunctionInfo for EpochMs {
 }
 
 impl ScalarFunction for EpochMs {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        Ok(Box::new(EpochImpl::<1000>))
-    }
-
-    fn plan_from_datatypes(&self, inputs: &[DataType]) -> Result<Box<dyn PlannedScalarFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(EpochImpl::<1000>)),
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFuntion> {
+        plan_check_num_args(self, &inputs, 1)?;
+        match inputs[0].datatype(table_list)? {
+            DataType::Int64 => Ok(PlannedScalarFuntion {
+                function: Box::new(*self),
+                return_type: DataType::Timestamp(TimestampTypeMeta {
+                    unit: TimeUnit::Microsecond,
+                }),
+                inputs,
+                function_impl: Box::new(EpochImpl::<1000>),
+            }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -83,25 +99,7 @@ impl ScalarFunction for EpochMs {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpochImpl<const S: i64>;
 
-impl<const S: i64> PlannedScalarFunction2 for EpochImpl<S> {
-    fn scalar_function(&self) -> &dyn ScalarFunction {
-        match S {
-            1_000_000 => &Epoch,
-            1000 => &EpochMs,
-            other => unreachable!("scale: {other}"),
-        }
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Timestamp(TimestampTypeMeta {
-            unit: TimeUnit::Microsecond,
-        })
-    }
-
+impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         to_timestamp::<S>(input)
