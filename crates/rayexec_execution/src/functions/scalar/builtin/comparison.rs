@@ -592,14 +592,12 @@ where
                     |a, b, buf| buf.put(&O::compare(a, b)),
                 )
             }
-            Ordering::Equal => {
-                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
-                    left,
-                    right,
-                    builder,
-                    |a, b, buf| buf.put(&O::compare(a, b)),
-                )
-            }
+            Ordering::Equal => BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                left,
+                right,
+                builder,
+                |a, b, buf| buf.put(&O::compare(a, b)),
+            ),
         }
     }
 }
@@ -607,96 +605,168 @@ where
 #[cfg(test)]
 mod tests {
 
-    // use super::*;
+    use super::*;
+    use crate::expr;
 
-    // TODO
-    // #[test]
-    // fn eq_i32() {
-    //     let a = Array::from_iter([1, 2, 3]);
-    //     let b = Array::from_iter([2, 2, 6]);
+    #[test]
+    fn eq_i32() {
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
-    //     let specialized = Eq
-    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-    //         .unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
-    //     let expected = Array::from_iter([false, true, false]);
+        let planned = Eq
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
 
-    //     assert_eq!(expected, out);
-    // }
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([false, true, false]);
 
-    // #[test]
-    // fn neq_i32() {
-    //     let a = Array::from_iter([1, 2, 3]);
-    //     let b = Array::from_iter([2, 2, 6]);
+        assert_eq!(expected, out);
+    }
 
-    //     let specialized = Neq
-    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-    //         .unwrap();
+    #[test]
+    fn neq_i32() {
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
-    //     let expected = Array::from_iter([true, false, true]);
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-    //     assert_eq!(expected, out);
-    // }
+        let planned = Neq
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
 
-    // #[test]
-    // fn lt_i32() {
-    //     let a = Array::from_iter([1, 2, 3]);
-    //     let b = Array::from_iter([2, 2, 6]);
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([true, false, true]);
 
-    //     let specialized = Lt
-    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-    //         .unwrap();
+        assert_eq!(expected, out);
+    }
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
-    //     let expected = Array::from_iter([true, false, true]);
+    #[test]
+    fn lt_i32() {
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
-    //     assert_eq!(expected, out);
-    // }
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-    // #[test]
-    // fn lt_eq_i32() {
-    //     let a = Array::from_iter([1, 2, 3]);
-    //     let b = Array::from_iter([2, 2, 6]);
+        let planned = Lt
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
 
-    //     let specialized = LtEq
-    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-    //         .unwrap();
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([true, false, true]);
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
-    //     let expected = Array::from_iter([true, true, true]);
+        assert_eq!(expected, out);
+    }
 
-    //     assert_eq!(expected, out);
-    // }
+    #[test]
+    fn lt_eq_i32() {
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
-    // #[test]
-    // fn gt_i32() {
-    //     let a = Array::from_iter([1, 2, 3]);
-    //     let b = Array::from_iter([2, 2, 6]);
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-    //     let specialized = Gt
-    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-    //         .unwrap();
+        let planned = LtEq
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
-    //     let expected = Array::from_iter([false, false, false]);
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([true, true, true]);
 
-    //     assert_eq!(expected, out);
-    // }
+        assert_eq!(expected, out);
+    }
 
-    // #[test]
-    // fn gt_eq_i32() {
-    //     let a = Array::from_iter([1, 2, 3]);
-    //     let b = Array::from_iter([2, 2, 6]);
+    #[test]
+    fn gt_i32() {
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
 
-    //     let specialized = GtEq
-    //         .plan_from_datatypes(&[DataType::Int32, DataType::Int32])
-    //         .unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
 
-    //     let out = specialized.execute(&[&a, &b]).unwrap();
-    //     let expected = Array::from_iter([false, true, false]);
+        let planned = Gt
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
 
-    //     assert_eq!(expected, out);
-    // }
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([false, false, false]);
+
+        assert_eq!(expected, out);
+    }
+
+    #[test]
+    fn gt_eq_i32() {
+        let a = Array::from_iter([1, 2, 3]);
+        let b = Array::from_iter([2, 2, 6]);
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
+        let planned = GtEq
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let expected = Array::from_iter([false, true, false]);
+
+        assert_eq!(expected, out);
+    }
 }

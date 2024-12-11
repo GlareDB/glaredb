@@ -10,6 +10,12 @@ pub struct ScalarFunctionExpr {
     pub function: PlannedScalarFunction,
 }
 
+impl From<PlannedScalarFunction> for ScalarFunctionExpr {
+    fn from(value: PlannedScalarFunction) -> Self {
+        ScalarFunctionExpr { function: value }
+    }
+}
+
 impl ContextDisplay for ScalarFunctionExpr {
     fn fmt_using_context(
         &self,
