@@ -27,6 +27,26 @@ pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdat
     _output: PhantomData<Output>,
 }
 
+impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
+    TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
+{
+    pub fn new(
+        state_init: StateInit,
+        state_update: StateUpdate,
+        state_finalize: StateFinalize,
+    ) -> Self {
+        TypedAggregateGroupStates {
+            states: Vec::new(),
+            state_init,
+            state_update,
+            state_finalize,
+            _input: PhantomData,
+            _output: PhantomData,
+        }
+    }
+}
+
+/// Helper for create an `AggregateGroupStates` that accepts one input.
 pub fn new_unary_aggregate_states<Storage, State, Output, StateInit, StateFinalize>(
     state_init: StateInit,
     state_finalize: StateFinalize,
@@ -53,6 +73,7 @@ where
     })
 }
 
+/// Helper for create an `AggregateGroupStates` that accepts two inputs.
 pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit, StateFinalize>(
     state_init: StateInit,
     state_finalize: StateFinalize,
@@ -60,13 +81,8 @@ pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit,
 where
     Storage1: PhysicalStorage,
     Storage2: PhysicalStorage,
-    State: for<'a> AggregateState<
-            (
-                <<Storage1 as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
-                <<Storage2 as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
-            ),
-            Output,
-        > + Sync
+    State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
+        + Sync
         + Send
         + 'static,
     Output: Sync + Send + 'static,
@@ -178,10 +194,7 @@ pub fn unary_update<State, Storage, Output>(
 ) -> Result<()>
 where
     Storage: PhysicalStorage,
-    State: for<'a> AggregateState<
-        <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
-        Output,
-    >,
+    State: for<'a> AggregateState<Storage::Type<'a>, Output>,
 {
     UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
 }
