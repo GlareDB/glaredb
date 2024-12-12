@@ -8,20 +8,21 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI128, PhysicalI64};
-use rayexec_error::{RayexecError, Result};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
+use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI64};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
-    unary_update,
     AggregateFunction,
-    DefaultGroupedStates,
-    GroupedStates,
-    PlannedAggregateFunction2,
+    AggregateFunctionImpl,
+    PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Avg;
@@ -58,222 +59,126 @@ impl FunctionInfo for Avg {
 }
 
 impl AggregateFunction for Avg {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        let mut packed = PackedDecoder::new(state);
-        let variant: String = packed.decode_next()?;
-        match variant.as_str() {
-            "decimal_64" => {
-                let precision: i32 = packed.decode_next()?;
-                let scale: i32 = packed.decode_next()?;
-                Ok(Box::new(AvgImpl::Decimal64(AvgDecimal64Impl {
-                    precision: precision as u8,
-                    scale: scale as i8,
-                })))
-            }
-            "decimal_128" => {
-                let precision: i32 = packed.decode_next()?;
-                let scale: i32 = packed.decode_next()?;
-                Ok(Box::new(AvgImpl::Decimal128(AvgDecimal128Impl {
-                    precision: precision as u8,
-                    scale: scale as i8,
-                })))
-            }
-            "float_64" => Ok(Box::new(AvgImpl::Float64(AvgFloat64Impl))),
-            "int_64" => Ok(Box::new(AvgImpl::Int64(AvgInt64Impl))),
-
-            other => Err(RayexecError::new(format!("Invalid avg variant: {other}"))),
-        }
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(AvgImpl::Int64(AvgInt64Impl))),
-            DataType::Float64 => Ok(Box::new(AvgImpl::Float64(AvgFloat64Impl))),
-            DataType::Decimal64(meta) => Ok(Box::new(AvgImpl::Decimal64(AvgDecimal64Impl {
-                precision: meta.precision,
-                scale: meta.scale,
-            }))),
-            DataType::Decimal128(meta) => Ok(Box::new(AvgImpl::Decimal128(AvgDecimal128Impl {
-                precision: meta.precision,
-                scale: meta.scale,
-            }))),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AvgImpl {
-    Decimal64(AvgDecimal64Impl),
-    Decimal128(AvgDecimal128Impl),
-    Float64(AvgFloat64Impl),
-    Int64(AvgInt64Impl),
-}
+        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
+            match inputs[0].datatype(table_list)? {
+                DataType::Int64 => (Box::new(AvgInt64Impl), DataType::Float64),
+                DataType::Float64 => (Box::new(AvgFloat64Impl), DataType::Float64),
+                dt @ DataType::Decimal64(_) => {
+                    // Datatype only used in order to convert decimal to float
+                    // at the end. This always returns Float64.
+                    (
+                        Box::new(AvgDecimalImpl::<Decimal64Type>::new(dt)),
+                        DataType::Float64,
+                    )
+                }
+                dt @ DataType::Decimal128(_) => {
+                    // See above
+                    (
+                        Box::new(AvgDecimalImpl::<Decimal128Type>::new(dt)),
+                        DataType::Float64,
+                    )
+                }
 
-impl PlannedAggregateFunction2 for AvgImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &Avg
-    }
+                other => return Err(invalid_input_types_error(self, &[other])),
+            };
 
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        let mut packed = PackedEncoder::new(state);
-        match self {
-            Self::Decimal64(v) => {
-                packed.encode_next(&"decimal_64".to_string())?;
-                packed.encode_next(&(v.precision as i32))?;
-                packed.encode_next(&(v.scale as i32))?;
-            }
-            Self::Decimal128(v) => {
-                packed.encode_next(&"decimal_128".to_string())?;
-                packed.encode_next(&(v.precision as i32))?;
-                packed.encode_next(&(v.scale as i32))?;
-            }
-            Self::Float64(_) => {
-                packed.encode_next(&"float_64".to_string())?;
-            }
-            Self::Int64(_) => {
-                packed.encode_next(&"int_64".to_string())?;
-            }
-        }
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        // TODO: This used to return decimal is the case of the decimal impl,
-        // but I changed that return floats. We might change it back to return
-        // decimals, but not sure yet.
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        Ok(match self {
-            Self::Decimal64(s) => s.new_grouped_state(),
-            Self::Decimal128(s) => s.new_grouped_state(),
-            Self::Float64(s) => s.new_grouped_state(),
-            Self::Int64(s) => s.new_grouped_state(),
+        Ok(PlannedAggregateFunction {
+            function: Box::new(*self),
+            return_type,
+            inputs,
+            function_impl,
         })
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AvgDecimal64Impl {
-    precision: u8,
-    scale: i8,
+#[derive(Debug, Clone)]
+pub struct AvgDecimalImpl<D> {
+    datatype: DataType,
+    _d: PhantomData<D>,
 }
 
-impl AvgDecimal64Impl {
-    fn finalize(&self, states: &mut [AvgStateDecimal<i64>]) -> Result<Array> {
-        let mut builder = ArrayBuilder {
-            datatype: DataType::Float64,
-            buffer: PrimitiveBuffer::with_len(states.len()),
-        };
+impl<D> AvgDecimalImpl<D> {
+    fn new(datatype: DataType) -> Self {
+        AvgDecimalImpl {
+            datatype,
+            _d: PhantomData,
+        }
+    }
+}
 
-        let mut validities = Bitmap::new_with_all_true(states.len());
+impl<D> AggregateFunctionImpl for AvgDecimalImpl<D>
+where
+    D: DecimalType,
+    D::Primitive: Into<i128>,
+{
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        let datatype = self.datatype.clone();
 
-        let scale = f64::powi(10.0, self.scale.abs() as i32);
+        let state_finalize = move |states: &mut [AvgStateDecimal<D::Primitive>]| {
+            let mut builder = ArrayBuilder {
+                datatype: DataType::Float64,
+                buffer: PrimitiveBuffer::with_len(states.len()),
+            };
 
-        for (idx, state) in states.iter_mut().enumerate() {
-            let ((sum, count), valid) = state.finalize()?;
+            let mut validities = Bitmap::new_with_all_true(states.len());
 
-            if !valid {
-                validities.set_unchecked(idx, false);
-                continue;
+            let m = datatype.clone().try_get_decimal_type_meta()?;
+            let scale = f64::powi(10.0, m.scale.abs() as i32);
+
+            for (idx, state) in states.iter_mut().enumerate() {
+                let ((sum, count), valid) = state.finalize()?;
+
+                if !valid {
+                    validities.set_unchecked(idx, false);
+                    continue;
+                }
+
+                let val = (sum as f64) / (count as f64 * scale);
+                builder.buffer.put(idx, &val);
             }
 
-            let val = (sum as f64) / (count as f64 * scale);
-            builder.buffer.put(idx, &val);
-        }
-
-        Ok(Array::new_with_validity_and_array_data(
-            builder.datatype,
-            validities,
-            builder.buffer.into_data(),
-        ))
-    }
-
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let this = *self;
-        Box::new(DefaultGroupedStates::new(
-            AvgStateDecimal::<i64>::default,
-            unary_update::<AvgStateDecimal<i64>, PhysicalI64, (i128, i64)>,
-            move |states| this.finalize(states),
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AvgDecimal128Impl {
-    precision: u8,
-    scale: i8,
-}
-
-impl AvgDecimal128Impl {
-    fn finalize(&self, states: &mut [AvgStateDecimal<i128>]) -> Result<Array> {
-        let mut builder = ArrayBuilder {
-            datatype: DataType::Float64,
-            buffer: PrimitiveBuffer::with_len(states.len()),
+            Ok(Array::new_with_validity_and_array_data(
+                builder.datatype,
+                validities,
+                builder.buffer.into_data(),
+            ))
         };
 
-        let mut validities = Bitmap::new_with_all_true(states.len());
-
-        let scale = f64::powi(10.0, self.scale.abs() as i32);
-
-        for (idx, state) in states.iter_mut().enumerate() {
-            let ((sum, count), valid) = state.finalize()?;
-
-            if !valid {
-                validities.set_unchecked(idx, false);
-                continue;
-            }
-
-            let val = (sum as f64) / (count as f64 * scale);
-            builder.buffer.put(idx, &val);
-        }
-
-        Ok(Array::new_with_validity_and_array_data(
-            builder.datatype,
-            validities,
-            builder.buffer.into_data(),
-        ))
-    }
-
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let this = *self;
-        Box::new(DefaultGroupedStates::new(
-            AvgStateDecimal::<i128>::default,
-            unary_update::<AvgStateDecimal<i128>, PhysicalI128, (i128, i64)>,
-            move |states| this.finalize(states),
-        ))
+        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+            AvgStateDecimal::<D::Primitive>::default,
+            state_finalize,
+        )
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AvgFloat64Impl;
 
-impl AvgFloat64Impl {
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for AvgFloat64Impl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
             AvgStateF64::<f64, f64>::default,
-            unary_update::<AvgStateF64<f64, f64>, PhysicalF64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
-        ))
+        )
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AvgInt64Impl;
 
-impl AvgInt64Impl {
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for AvgInt64Impl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
             AvgStateF64::<i64, i128>::default,
-            unary_update::<AvgStateF64<i64, i128>, PhysicalI64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
-        ))
+        )
     }
 }
 

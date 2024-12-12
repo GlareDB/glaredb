@@ -38,11 +38,6 @@ impl FunctionInfo for Sum {
                 return_type: DataTypeId::Float64,
             },
             Signature {
-                input: &[DataTypeId::Int32],
-                variadic: None,
-                return_type: DataTypeId::Int64, // TODO: Should be big num
-            },
-            Signature {
                 input: &[DataTypeId::Int64],
                 variadic: None,
                 return_type: DataTypeId::Int64, // TODO: Should be big num
