@@ -68,7 +68,7 @@ impl AggregateFunction for Sum {
         plan_check_num_args(self, &inputs, 1)?;
 
         let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
-            match inputs[0].datatype(&table_list)? {
+            match inputs[0].datatype(table_list)? {
                 DataType::Int64 => (Box::new(SumInt64Impl), DataType::Int64),
                 DataType::Float64 => (Box::new(SumFloat64Impl), DataType::Float64),
                 DataType::Decimal64(m) => {
