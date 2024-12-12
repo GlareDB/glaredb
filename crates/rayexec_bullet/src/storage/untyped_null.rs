@@ -1,7 +1,7 @@
 use super::AddressableStorage;
 
 /// Unit value representing untyped null values.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UntypedNull;
 
 /// Storage for untyped null values.
