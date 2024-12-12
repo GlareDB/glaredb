@@ -6,7 +6,7 @@ use rayexec_error::Result;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::functions::aggregate::PlannedAggregateFunction2;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 
@@ -63,7 +63,7 @@ impl WindowFrameBound {
 pub struct WindowExpr {
     /// The aggregate function.
     // TODO: May need to adjust to allow for window-only functions.
-    pub agg: Box<dyn PlannedAggregateFunction>,
+    pub agg: Box<dyn PlannedAggregateFunction2>,
     /// Inputs to the window function.
     pub inputs: Vec<Expression>,
     /// How to partition the input to the function.

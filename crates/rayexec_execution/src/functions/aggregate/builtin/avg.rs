@@ -19,7 +19,7 @@ use crate::functions::aggregate::{
     AggregateFunction,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -58,7 +58,7 @@ impl FunctionInfo for Avg {
 }
 
 impl AggregateFunction for Avg {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         let mut packed = PackedDecoder::new(state);
         let variant: String = packed.decode_next()?;
         match variant.as_str() {
@@ -88,7 +88,7 @@ impl AggregateFunction for Avg {
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(AvgImpl::Int64(AvgInt64Impl))),
@@ -114,7 +114,7 @@ pub enum AvgImpl {
     Int64(AvgInt64Impl),
 }
 
-impl PlannedAggregateFunction for AvgImpl {
+impl PlannedAggregateFunction2 for AvgImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &Avg
     }

@@ -34,7 +34,7 @@ use crate::functions::aggregate::{
     AggregateFunction,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -56,7 +56,7 @@ impl FunctionInfo for Min {
 }
 
 impl AggregateFunction for Min {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(MinImpl {
             datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
         }))
@@ -65,7 +65,7 @@ impl AggregateFunction for Min {
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int8
@@ -110,7 +110,7 @@ impl FunctionInfo for Max {
 }
 
 impl AggregateFunction for Max {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(MinImpl {
             datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
         }))
@@ -119,7 +119,7 @@ impl AggregateFunction for Max {
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int8
@@ -151,7 +151,7 @@ pub struct MinImpl {
     datatype: DataType,
 }
 
-impl PlannedAggregateFunction for MinImpl {
+impl PlannedAggregateFunction2 for MinImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &Min
     }
@@ -276,7 +276,7 @@ pub struct MaxImpl {
     datatype: DataType,
 }
 
-impl PlannedAggregateFunction for MaxImpl {
+impl PlannedAggregateFunction2 for MaxImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &Max
     }

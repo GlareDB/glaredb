@@ -12,7 +12,7 @@ use crate::functions::aggregate::{
     ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -34,14 +34,14 @@ impl FunctionInfo for RegrCount {
 }
 
 impl AggregateFunction for RegrCount {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(RegrCountImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrCountImpl)),
@@ -53,7 +53,7 @@ impl AggregateFunction for RegrCount {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrCountImpl;
 
-impl PlannedAggregateFunction for RegrCountImpl {
+impl PlannedAggregateFunction2 for RegrCountImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &RegrCount
     }

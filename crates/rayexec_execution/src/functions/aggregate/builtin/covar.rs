@@ -13,7 +13,7 @@ use crate::functions::aggregate::{
     ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -35,14 +35,14 @@ impl FunctionInfo for CovarPop {
 }
 
 impl AggregateFunction for CovarPop {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(CovarPopImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float64, DataType::Float64) => Ok(Box::new(CovarPopImpl)),
@@ -54,7 +54,7 @@ impl AggregateFunction for CovarPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarPopImpl;
 
-impl PlannedAggregateFunction for CovarPopImpl {
+impl PlannedAggregateFunction2 for CovarPopImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &CovarPop
     }
@@ -106,14 +106,14 @@ impl FunctionInfo for CovarSamp {
 }
 
 impl AggregateFunction for CovarSamp {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(CovarSampImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float64, DataType::Float64) => Ok(Box::new(CovarSampImpl)),
@@ -125,7 +125,7 @@ impl AggregateFunction for CovarSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarSampImpl;
 
-impl PlannedAggregateFunction for CovarSampImpl {
+impl PlannedAggregateFunction2 for CovarSampImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &CovarSamp
     }

@@ -11,7 +11,7 @@ use crate::functions::aggregate::{
     ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{FunctionInfo, Signature};
 
@@ -33,14 +33,14 @@ impl FunctionInfo for Count {
 }
 
 impl AggregateFunction for Count {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(CountNonNullImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         if inputs.len() != 1 {
             return Err(RayexecError::new("Expected 1 input"));
         }
@@ -69,7 +69,7 @@ impl CountNonNullImpl {
     }
 }
 
-impl PlannedAggregateFunction for CountNonNullImpl {
+impl PlannedAggregateFunction2 for CountNonNullImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &Count
     }

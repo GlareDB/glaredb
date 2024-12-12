@@ -39,7 +39,7 @@ use crate::functions::aggregate::{
     AggregateFunction,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 
@@ -61,7 +61,7 @@ impl FunctionInfo for First {
 }
 
 impl AggregateFunction for First {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(FirstImpl {
             datatype: DataType::from_proto(PackedDecoder::new(state).decode_next()?)?,
         }))
@@ -70,7 +70,7 @@ impl AggregateFunction for First {
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         Ok(Box::new(FirstImpl {
             datatype: inputs[0].clone(),
@@ -83,7 +83,7 @@ pub struct FirstImpl {
     datatype: DataType,
 }
 
-impl PlannedAggregateFunction for FirstImpl {
+impl PlannedAggregateFunction2 for FirstImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &First
     }

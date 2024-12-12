@@ -23,7 +23,7 @@ use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::database::DatabaseContext;
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::functions::aggregate::PlannedAggregateFunction2;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
@@ -110,7 +110,7 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
-    pub function: Box<dyn PlannedAggregateFunction>,
+    pub function: Box<dyn PlannedAggregateFunction2>,
     /// Column expressions we're aggregating on.
     pub columns: Vec<PhysicalColumnExpr>,
     /// Output type of the aggregate.

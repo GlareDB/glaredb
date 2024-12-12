@@ -12,7 +12,7 @@ use crate::functions::aggregate::{
     AggregateFunction,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -34,14 +34,14 @@ impl FunctionInfo for StddevPop {
 }
 
 impl AggregateFunction for StddevPop {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(StddevPopImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float64 => Ok(Box::new(StddevPopImpl)),
@@ -53,7 +53,7 @@ impl AggregateFunction for StddevPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevPopImpl;
 
-impl PlannedAggregateFunction for StddevPopImpl {
+impl PlannedAggregateFunction2 for StddevPopImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &StddevPop
     }
@@ -98,14 +98,14 @@ impl FunctionInfo for StddevSamp {
 }
 
 impl AggregateFunction for StddevSamp {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(StddevSampImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float64 => Ok(Box::new(StddevSampImpl)),
@@ -117,7 +117,7 @@ impl AggregateFunction for StddevSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevSampImpl;
 
-impl PlannedAggregateFunction for StddevSampImpl {
+impl PlannedAggregateFunction2 for StddevSampImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &StddevSamp
     }
@@ -158,14 +158,14 @@ impl FunctionInfo for VarPop {
 }
 
 impl AggregateFunction for VarPop {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(VarPopImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float64 => Ok(Box::new(VarPopImpl)),
@@ -177,7 +177,7 @@ impl AggregateFunction for VarPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarPopImpl;
 
-impl PlannedAggregateFunction for VarPopImpl {
+impl PlannedAggregateFunction2 for VarPopImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &VarPop
     }
@@ -218,14 +218,14 @@ impl FunctionInfo for VarSamp {
 }
 
 impl AggregateFunction for VarSamp {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(VarSampImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Float64 => Ok(Box::new(VarSampImpl)),
@@ -237,7 +237,7 @@ impl AggregateFunction for VarSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarSampImpl;
 
-impl PlannedAggregateFunction for VarSampImpl {
+impl PlannedAggregateFunction2 for VarSampImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &VarSamp
     }

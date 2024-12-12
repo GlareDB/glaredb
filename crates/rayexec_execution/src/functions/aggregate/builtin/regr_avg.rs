@@ -13,7 +13,7 @@ use crate::functions::aggregate::{
     ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -35,14 +35,14 @@ impl FunctionInfo for RegrAvgY {
 }
 
 impl AggregateFunction for RegrAvgY {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(RegrAvgYImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrAvgYImpl)),
@@ -54,7 +54,7 @@ impl AggregateFunction for RegrAvgY {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegrAvgYImpl;
 
-impl PlannedAggregateFunction for RegrAvgYImpl {
+impl PlannedAggregateFunction2 for RegrAvgYImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &RegrAvgY
     }
@@ -113,14 +113,14 @@ impl FunctionInfo for RegrAvgX {
 }
 
 impl AggregateFunction for RegrAvgX {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         Ok(Box::new(RegrAvgXImpl))
     }
 
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 2)?;
         match (&inputs[0], &inputs[1]) {
             (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrAvgXImpl)),
@@ -132,7 +132,7 @@ impl AggregateFunction for RegrAvgX {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegrAvgXImpl;
 
-impl PlannedAggregateFunction for RegrAvgXImpl {
+impl PlannedAggregateFunction2 for RegrAvgXImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &RegrAvgX
     }

@@ -37,13 +37,13 @@ use crate::execution::operators::{
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::functions::aggregate::{GroupedStates, PlannedAggregateFunction};
+use crate::functions::aggregate::{GroupedStates, PlannedAggregateFunction2};
 use crate::logical::logical_aggregate::GroupingFunction;
 
 #[derive(Debug)]
 pub struct Aggregate {
     /// Function for producing the aggregate state.
-    pub function: Box<dyn PlannedAggregateFunction>,
+    pub function: Box<dyn PlannedAggregateFunction2>,
     /// Columns that will be inputs into the aggregate.
     pub col_selection: Bitmap,
     /// If inputs are distinct.

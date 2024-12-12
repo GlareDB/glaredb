@@ -18,7 +18,7 @@ use crate::functions::aggregate::{
     ChunkGroupAddressIter,
     DefaultGroupedStates,
     GroupedStates,
-    PlannedAggregateFunction,
+    PlannedAggregateFunction2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 
@@ -57,7 +57,7 @@ impl FunctionInfo for Sum {
 }
 
 impl AggregateFunction for Sum {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         let mut packed = PackedDecoder::new(state);
         let variant: String = packed.decode_next()?;
         match variant.as_str() {
@@ -87,7 +87,7 @@ impl AggregateFunction for Sum {
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         plan_check_num_args(self, inputs, 1)?;
         match &inputs[0] {
             DataType::Int64 => Ok(Box::new(SumImpl::Int64(SumInt64Impl))),
@@ -113,7 +113,7 @@ pub enum SumImpl {
     Decimal128(SumDecimal128Impl),
 }
 
-impl PlannedAggregateFunction for SumImpl {
+impl PlannedAggregateFunction2 for SumImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &Sum
     }

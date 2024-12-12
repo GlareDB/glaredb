@@ -5,13 +5,13 @@ use rayexec_error::Result;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::functions::aggregate::PlannedAggregateFunction2;
 use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AggregateExpr {
     /// The function.
-    pub agg: Box<dyn PlannedAggregateFunction>,
+    pub agg: Box<dyn PlannedAggregateFunction2>,
     /// Input expressions to the aggragate.
     pub inputs: Vec<Expression>,
     /// Optional filter to the aggregate.

@@ -4,7 +4,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
-use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use super::aggregate::{AggregateFunction, PlannedAggregateFunction2};
 use super::copy::{CopyToArgs, CopyToFunction};
 use super::scalar::{PlannedScalarFunction, ScalarFunction};
 use super::table::inputs::TableFunctionInputs;
@@ -92,7 +92,7 @@ impl DatabaseProtoConv for Box<dyn AggregateFunction> {
     }
 }
 
-impl DatabaseProtoConv for Box<dyn PlannedAggregateFunction> {
+impl DatabaseProtoConv for Box<dyn PlannedAggregateFunction2> {
     type ProtoType = rayexec_proto::generated::functions::PlannedAggregateFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
