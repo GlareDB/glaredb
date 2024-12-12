@@ -30,7 +30,9 @@ use crate::logical::binder::table_list::TableList;
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
 pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
+        unimplemented!()
+    }
 
     /// Plans an aggregate function from input data types.
     ///
@@ -39,7 +41,9 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     fn plan_from_datatypes(
         &self,
         inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>>;
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
+        unimplemented!()
+    }
 
     /// Plan an aggregate based on expressions.
     ///
@@ -56,6 +60,14 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)
+    }
+
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        unimplemented!()
     }
 }
 
