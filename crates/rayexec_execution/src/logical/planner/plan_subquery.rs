@@ -11,7 +11,8 @@ use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::negate_expr::{NegateExpr, NegateOperator};
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::Expression;
-use crate::functions::aggregate::count::CountNonNullImpl;
+use crate::functions::aggregate::builtin::count::Count;
+use crate::functions::aggregate::AggregateFunction;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
@@ -431,9 +432,11 @@ impl SubqueryPlanner {
                         node: LogicalAggregate {
                             aggregates_table: agg_table,
                             aggregates: vec![Expression::Aggregate(AggregateExpr {
-                                agg: Box::new(CountNonNullImpl),
+                                agg: Count.plan(
+                                    bind_context.get_table_list(),
+                                    vec![Expression::Column(subquery_column)],
+                                )?,
                                 distinct: false,
-                                inputs: vec![Expression::Column(subquery_column)],
                                 filter: None,
                             })],
                             group_table: None,

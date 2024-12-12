@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::executor::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage};
 
-pub trait DecimalPrimitive: PrimInt + FromPrimitive + Signed + Default + Debug + Display {
+pub trait DecimalPrimitive:
+    PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
+{
     /// Returns the base 10 log of this number, rounded down.
     ///
     /// This is guaranteed to be called with a non-zero positive number.

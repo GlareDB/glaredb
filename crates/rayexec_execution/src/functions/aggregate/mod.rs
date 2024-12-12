@@ -1,25 +1,12 @@
-pub mod avg;
-pub mod corr;
-pub mod count;
-pub mod covar;
-pub mod first;
-pub mod minmax;
-pub mod regr_avg;
-pub mod regr_count;
-pub mod regr_r2;
-pub mod regr_slope;
-pub mod stddev;
-pub mod string_agg;
-pub mod sum;
+pub mod builtin;
+pub mod states;
 
 use std::any::Any;
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::vec;
 
 use dyn_clone::DynClone;
-use once_cell::sync::Lazy;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{
@@ -33,47 +20,30 @@ use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBu
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
 use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
+use states::AggregateGroupStates;
 
 use super::FunctionInfo;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 
-pub static BUILTIN_AGGREGATE_FUNCTIONS: Lazy<Vec<Box<dyn AggregateFunction>>> = Lazy::new(|| {
-    vec![
-        Box::new(sum::Sum),
-        Box::new(avg::Avg),
-        Box::new(count::Count),
-        Box::new(minmax::Min),
-        Box::new(minmax::Max),
-        Box::new(first::First),
-        Box::new(stddev::StddevPop),
-        Box::new(stddev::StddevSamp),
-        Box::new(stddev::VarPop),
-        Box::new(stddev::VarSamp),
-        Box::new(covar::CovarPop),
-        Box::new(covar::CovarSamp),
-        Box::new(corr::Corr),
-        Box::new(regr_count::RegrCount),
-        Box::new(regr_avg::RegrAvgY),
-        Box::new(regr_avg::RegrAvgX),
-        Box::new(regr_r2::RegrR2),
-        Box::new(regr_slope::RegrSlope),
-        Box::new(string_agg::StringAgg),
-    ]
-});
-
 /// A generic aggregate function that can be specialized into a more specific
 /// function depending on type.
 pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
+        unimplemented!()
+    }
 
     /// Plans an aggregate function from input data types.
     ///
     /// The data types passed in correspond directly to the arguments to the
     /// aggregate.
-    fn plan_from_datatypes(&self, inputs: &[DataType])
-        -> Result<Box<dyn PlannedAggregateFunction>>;
+    fn plan_from_datatypes(
+        &self,
+        inputs: &[DataType],
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
+        unimplemented!()
+    }
 
     /// Plan an aggregate based on expressions.
     ///
@@ -83,13 +53,21 @@ pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         &self,
         table_list: &TableList,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
         self.plan_from_datatypes(&datatypes)
+    }
+
+    fn plan(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        unimplemented!()
     }
 }
 
@@ -113,7 +91,45 @@ impl PartialEq for dyn AggregateFunction + '_ {
 
 impl Eq for dyn AggregateFunction {}
 
-pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
+#[derive(Debug, Clone)]
+pub struct PlannedAggregateFunction {
+    pub function: Box<dyn AggregateFunction>,
+    pub return_type: DataType,
+    pub inputs: Vec<Expression>,
+    pub function_impl: Box<dyn AggregateFunctionImpl>,
+}
+
+/// Assumes that a function with same inputs and return type is using the same
+/// function implementation.
+impl PartialEq for PlannedAggregateFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.return_type == other.return_type
+            && self.inputs == other.inputs
+    }
+}
+
+impl Eq for PlannedAggregateFunction {}
+
+impl Hash for PlannedAggregateFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.function.name().hash(state);
+        self.return_type.hash(state);
+        self.inputs.hash(state);
+    }
+}
+
+pub trait AggregateFunctionImpl: Debug + Sync + Send + DynClone {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates>;
+}
+
+impl Clone for Box<dyn AggregateFunctionImpl> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
+pub trait PlannedAggregateFunction2: Debug + Sync + Send + DynClone {
     /// The aggregate function that produce this instance.
     fn aggregate_function(&self) -> &dyn AggregateFunction;
 
@@ -127,28 +143,28 @@ pub trait PlannedAggregateFunction: Debug + Sync + Send + DynClone {
     fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>>;
 }
 
-impl Clone for Box<dyn PlannedAggregateFunction> {
+impl Clone for Box<dyn PlannedAggregateFunction2> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn PlannedAggregateFunction> for Box<dyn PlannedAggregateFunction + '_> {
-    fn eq(&self, other: &dyn PlannedAggregateFunction) -> bool {
+impl PartialEq<dyn PlannedAggregateFunction2> for Box<dyn PlannedAggregateFunction2 + '_> {
+    fn eq(&self, other: &dyn PlannedAggregateFunction2) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn PlannedAggregateFunction + '_ {
-    fn eq(&self, other: &dyn PlannedAggregateFunction) -> bool {
+impl PartialEq for dyn PlannedAggregateFunction2 + '_ {
+    fn eq(&self, other: &dyn PlannedAggregateFunction2) -> bool {
         self.aggregate_function() == other.aggregate_function()
             && self.return_type() == other.return_type()
     }
 }
 
-impl Eq for dyn PlannedAggregateFunction {}
+impl Eq for dyn PlannedAggregateFunction2 {}
 
-impl Hash for dyn PlannedAggregateFunction {
+impl Hash for dyn PlannedAggregateFunction2 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.aggregate_function().name().hash(state);
         self.return_type().hash(state);
@@ -195,6 +211,24 @@ pub trait GroupedStates: Debug + Send {
     /// Drains the internal results producing a single output array.
     fn drain(&mut self) -> Result<Array>;
 }
+
+pub trait AggregateGroupedStatesTrait {
+    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()>;
+}
+
+#[derive(Debug)]
+pub struct BoxedStates<S> {
+    states: Vec<S>,
+}
+
+#[derive(Debug)]
+pub struct AggregateGroupedStates<S> {
+    states: Box<dyn Any>,
+
+    _s: PhantomData<S>,
+}
+
+impl<S> AggregateGroupedStates<S> {}
 
 /// Provides a default implementation of `GroupedStates`.
 ///

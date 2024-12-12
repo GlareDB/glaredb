@@ -69,7 +69,7 @@ impl GroupChunk {
         self.hashes.extend(hashes);
 
         for states in &mut self.aggregate_states {
-            states.states.new_groups(new_groups);
+            states.states.new_states(new_groups);
         }
 
         self.num_groups += new_groups;

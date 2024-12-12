@@ -9,9 +9,14 @@ use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 
-use super::{AggregateFunction, DefaultGroupedStates, PlannedAggregateFunction};
 use crate::expr::Expression;
-use crate::functions::aggregate::ChunkGroupAddressIter;
+use crate::functions::aggregate::{
+    AggregateFunction,
+    ChunkGroupAddressIter,
+    DefaultGroupedStates,
+    GroupedStates,
+    PlannedAggregateFunction2,
+};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -35,7 +40,7 @@ impl FunctionInfo for StringAgg {
 }
 
 impl AggregateFunction for StringAgg {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
         let sep: String = PackedDecoder::new(state).decode_next()?;
         Ok(Box::new(StringAggImpl { sep }))
     }
@@ -43,7 +48,7 @@ impl AggregateFunction for StringAgg {
     fn plan_from_datatypes(
         &self,
         _inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         unreachable!("plan_from_expressions implemented")
     }
 
@@ -51,7 +56,7 @@ impl AggregateFunction for StringAgg {
         &self,
         table_list: &TableList,
         inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
+    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -87,7 +92,7 @@ pub struct StringAggImpl {
     pub sep: String,
 }
 
-impl PlannedAggregateFunction for StringAggImpl {
+impl PlannedAggregateFunction2 for StringAggImpl {
     fn aggregate_function(&self) -> &dyn AggregateFunction {
         &StringAgg
     }
@@ -100,7 +105,7 @@ impl PlannedAggregateFunction for StringAggImpl {
         DataType::Utf8
     }
 
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
+    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
         fn update(
             arrays: &[&Array],
             mapping: ChunkGroupAddressIter,
