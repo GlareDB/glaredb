@@ -20,6 +20,7 @@ use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBu
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
 use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
+use states::AggregateGroupStates;
 
 use super::FunctionInfo;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
@@ -78,21 +79,34 @@ impl PartialEq for dyn AggregateFunction + '_ {
 
 impl Eq for dyn AggregateFunction {}
 
+#[derive(Debug, Clone)]
 pub struct PlannedAggregateFunction {
     pub function: Box<dyn AggregateFunction>,
     pub return_type: DataType,
+    pub inputs: Vec<Expression>,
+    pub function_impl: Box<dyn AggregateFunctionImpl>,
 }
 
-pub trait AggregateFunctionImpl {}
+/// Assumes that a function with same inputs and return type is using the same
+/// function implementation.
+impl PartialEq for PlannedAggregateFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.return_type == other.return_type
+            && self.inputs == other.inputs
+    }
+}
 
-pub trait AggregateGroupStates {
-    fn new_groups(&mut self, count: usize);
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()>;
-    fn combine(
-        &mut self,
-        consume: &mut Box<dyn GroupedStates>,
-        mapping: ChunkGroupAddressIter,
-    ) -> Result<()>;
+impl Eq for PlannedAggregateFunction {}
+
+pub trait AggregateFunctionImpl: Debug + Sync + Send + DynClone {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates>;
+}
+
+impl Clone for Box<dyn AggregateFunctionImpl> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
 }
 
 pub trait PlannedAggregateFunction2: Debug + Sync + Send + DynClone {

@@ -179,7 +179,7 @@ impl VarlenType for [u8] {
 /// array data.
 pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     /// The type that gets returned from the underlying array storage.
-    type Type<'a>;
+    type Type<'a>: Sync + Send;
     /// The type of the underlying array storage.
     type Storage<'a>: AddressableStorage<T = Self::Type<'a>>;
 
