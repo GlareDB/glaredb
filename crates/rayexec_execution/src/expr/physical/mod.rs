@@ -15,15 +15,13 @@ use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{not_implemented, OptionExt, Result};
-use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::database::DatabaseContext;
-use crate::functions::aggregate::{PlannedAggregateFunction, PlannedAggregateFunction2};
+use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
@@ -192,6 +190,7 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 #[cfg(test)]
 mod tests {
     use planner::PhysicalExpressionPlanner;
+    use rayexec_bullet::datatype::DataType;
 
     use super::*;
     use crate::expr;

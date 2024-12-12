@@ -5,7 +5,7 @@ use rayexec_error::Result;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::aggregate::{PlannedAggregateFunction, PlannedAggregateFunction2};
+use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

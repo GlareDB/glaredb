@@ -1,16 +1,18 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, BinaryNonNullUpdater};
+use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
 use super::corr::CorrelationState;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{new_binary_aggregate_states, AggregateGroupStates};
-use crate::functions::aggregate::{
+use crate::functions::aggregate::states::{
+    new_binary_aggregate_states,
     primitive_finalize,
+    AggregateGroupStates,
+};
+use crate::functions::aggregate::{
     AggregateFunction,
     AggregateFunctionImpl,
     PlannedAggregateFunction,

@@ -12,9 +12,12 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
-use crate::functions::aggregate::{
+use crate::functions::aggregate::states::{
+    new_unary_aggregate_states,
     primitive_finalize,
+    AggregateGroupStates,
+};
+use crate::functions::aggregate::{
     AggregateFunction,
     AggregateFunctionImpl,
     PlannedAggregateFunction,

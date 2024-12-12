@@ -3,15 +3,18 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{
     AggregateState,
     BinaryNonNullUpdater,
     StateCombiner,
+    StateFinalizer,
     UnaryNonNullUpdater,
 };
+use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
-use rayexec_bullet::storage::AddressableStorage;
+use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
 use super::ChunkGroupAddressIter;
@@ -207,15 +210,40 @@ pub fn binary_update<State, Storage1, Storage2, Output>(
 where
     Storage1: PhysicalStorage,
     Storage2: PhysicalStorage,
-    State: for<'a> AggregateState<
-        (
-            <<Storage1 as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
-            <<Storage2 as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
-        ),
-        Output,
-    >,
+    State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
 {
     BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(
         arrays[0], arrays[1], mapping, states,
     )
+}
+
+pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array> {
+    Ok(Array::new_untyped_null_array(states.len()))
+}
+
+pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array>
+where
+    State: AggregateState<Input, bool>,
+{
+    let builder = ArrayBuilder {
+        datatype,
+        buffer: BooleanBuffer::with_len(states.len()),
+    };
+    StateFinalizer::finalize(states, builder)
+}
+
+pub fn primitive_finalize<State, Input, Output>(
+    datatype: DataType,
+    states: &mut [State],
+) -> Result<Array>
+where
+    State: AggregateState<Input, Output>,
+    Output: Copy + Default,
+    ArrayData: From<PrimitiveStorage<Output>>,
+{
+    let builder = ArrayBuilder {
+        datatype,
+        buffer: PrimitiveBuffer::with_len(states.len()),
+    };
+    StateFinalizer::finalize(states, builder)
 }
