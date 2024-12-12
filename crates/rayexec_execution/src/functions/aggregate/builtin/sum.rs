@@ -1,26 +1,26 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::CheckedAdd;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
-use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI128, PhysicalI64};
-use rayexec_error::{RayexecError, Result};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use serde::{Deserialize, Serialize};
+use rayexec_bullet::array::ArrayData;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::aggregate::AggregateState;
+use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI64};
+use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use rayexec_bullet::storage::PrimitiveStorage;
+use rayexec_error::Result;
 
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
-    unary_update,
     AggregateFunction,
-    ChunkGroupAddressIter,
-    DefaultGroupedStates,
-    GroupedStates,
-    PlannedAggregateFunction2,
+    AggregateFunctionImpl,
+    PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sum;
@@ -57,182 +57,94 @@ impl FunctionInfo for Sum {
 }
 
 impl AggregateFunction for Sum {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        let mut packed = PackedDecoder::new(state);
-        let variant: String = packed.decode_next()?;
-        match variant.as_str() {
-            "decimal_64" => {
-                let precision: i32 = packed.decode_next()?;
-                let scale: i32 = packed.decode_next()?;
-                Ok(Box::new(SumImpl::Decimal64(SumDecimal64Impl {
-                    precision: precision as u8,
-                    scale: scale as i8,
-                })))
-            }
-            "decimal_128" => {
-                let precision: i32 = packed.decode_next()?;
-                let scale: i32 = packed.decode_next()?;
-                Ok(Box::new(SumImpl::Decimal128(SumDecimal128Impl {
-                    precision: precision as u8,
-                    scale: scale as i8,
-                })))
-            }
-            "float_64" => Ok(Box::new(SumImpl::Float64(SumFloat64Impl))),
-            "int_64" => Ok(Box::new(SumImpl::Int64(SumInt64Impl))),
-
-            other => Err(RayexecError::new(format!("Invalid avg variant: {other}"))),
-        }
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Int64 => Ok(Box::new(SumImpl::Int64(SumInt64Impl))),
-            DataType::Float64 => Ok(Box::new(SumImpl::Float64(SumFloat64Impl))),
-            DataType::Decimal64(meta) => Ok(Box::new(SumImpl::Decimal64(SumDecimal64Impl {
-                precision: meta.precision,
-                scale: meta.scale,
-            }))),
-            DataType::Decimal128(meta) => Ok(Box::new(SumImpl::Decimal128(SumDecimal128Impl {
-                precision: meta.precision,
-                scale: meta.scale,
-            }))),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SumImpl {
-    Int64(SumInt64Impl),
-    Float64(SumFloat64Impl),
-    Decimal64(SumDecimal64Impl),
-    Decimal128(SumDecimal128Impl),
-}
+        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
+            match inputs[0].datatype(&table_list)? {
+                DataType::Int64 => (Box::new(SumInt64Impl), DataType::Int64),
+                DataType::Float64 => (Box::new(SumFloat64Impl), DataType::Float64),
+                DataType::Decimal64(m) => {
+                    let datatype = DataType::Decimal64(m);
+                    (
+                        Box::new(SumDecimalImpl::<Decimal64Type>::new(datatype.clone())),
+                        datatype,
+                    )
+                }
+                DataType::Decimal128(m) => {
+                    let datatype = DataType::Decimal128(m);
+                    (
+                        Box::new(SumDecimalImpl::<Decimal128Type>::new(datatype.clone())),
+                        datatype,
+                    )
+                }
+                other => return Err(invalid_input_types_error(self, &[other])),
+            };
 
-impl PlannedAggregateFunction2 for SumImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &Sum
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        let mut packed = PackedEncoder::new(state);
-        match self {
-            Self::Decimal64(v) => {
-                packed.encode_next(&"decimal_64".to_string())?;
-                packed.encode_next(&(v.precision as i32))?;
-                packed.encode_next(&(v.scale as i32))?;
-            }
-            Self::Decimal128(v) => {
-                packed.encode_next(&"decimal_128".to_string())?;
-                packed.encode_next(&(v.precision as i32))?;
-                packed.encode_next(&(v.scale as i32))?;
-            }
-            Self::Float64(_) => {
-                packed.encode_next(&"float_64".to_string())?;
-            }
-            Self::Int64(_) => {
-                packed.encode_next(&"int_64".to_string())?;
-            }
-        }
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        match self {
-            Self::Decimal64(s) => DataType::Decimal64(DecimalTypeMeta::new(s.precision, s.scale)),
-            Self::Decimal128(s) => DataType::Decimal128(DecimalTypeMeta::new(s.precision, s.scale)),
-            Self::Float64(_) => DataType::Float64,
-            Self::Int64(_) => DataType::Int64,
-        }
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        Ok(match self {
-            Self::Decimal64(s) => s.new_grouped_state(),
-            Self::Decimal128(s) => s.new_grouped_state(),
-            Self::Float64(s) => s.new_grouped_state(),
-            Self::Int64(s) => s.new_grouped_state(),
+        Ok(PlannedAggregateFunction {
+            function: Box::new(*self),
+            return_type,
+            inputs,
+            function_impl,
         })
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SumInt64Impl;
 
-impl SumInt64Impl {
-    fn update(
-        arrays: &[&Array],
-        mapping: ChunkGroupAddressIter,
-        states: &mut [SumStateCheckedAdd<i64>],
-    ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalI64, _, _, _>(arrays[0], mapping, states)
-    }
-
-    fn finalize(states: &mut [SumStateCheckedAdd<i64>]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Int64,
-            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
-        };
-        StateFinalizer::finalize(states, builder)
-    }
-
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for SumInt64Impl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
             SumStateCheckedAdd::<i64>::default,
-            Self::update,
-            Self::finalize,
-        ))
+            move |states| primitive_finalize(DataType::Int64, states),
+        )
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SumFloat64Impl;
 
-impl SumFloat64Impl {
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for SumFloat64Impl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
             SumStateAdd::<f64>::default,
-            unary_update::<SumStateAdd<f64>, PhysicalF64, f64>,
             move |states| primitive_finalize(DataType::Float64, states),
-        ))
+        )
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SumDecimal64Impl {
-    precision: u8,
-    scale: i8,
+#[derive(Debug, Clone)]
+pub struct SumDecimalImpl<D> {
+    datatype: DataType,
+    _d: PhantomData<D>,
 }
 
-impl SumDecimal64Impl {
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let datatype = DataType::Decimal64(DecimalTypeMeta::new(self.precision, self.scale));
-        Box::new(DefaultGroupedStates::new(
-            SumStateCheckedAdd::<i64>::default,
-            unary_update::<SumStateCheckedAdd<i64>, PhysicalI64, i64>,
-            move |states| primitive_finalize(datatype.clone(), states),
-        ))
+impl<D> SumDecimalImpl<D> {
+    fn new(datatype: DataType) -> Self {
+        SumDecimalImpl {
+            datatype,
+            _d: PhantomData,
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SumDecimal128Impl {
-    precision: u8,
-    scale: i8,
-}
+impl<D> AggregateFunctionImpl for SumDecimalImpl<D>
+where
+    D: DecimalType,
+    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+{
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        let datatype = self.datatype.clone();
 
-impl SumDecimal128Impl {
-    fn new_grouped_state(&self) -> Box<dyn GroupedStates> {
-        let datatype = DataType::Decimal128(DecimalTypeMeta::new(self.precision, self.scale));
-        Box::new(DefaultGroupedStates::new(
-            SumStateCheckedAdd::<i128>::default,
-            unary_update::<SumStateCheckedAdd<i128>, PhysicalI128, i128>,
+        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+            SumStateCheckedAdd::<D::Primitive>::default,
             move |states| primitive_finalize(datatype.clone(), states),
-        ))
+        )
     }
 }
 
@@ -299,6 +211,7 @@ mod tests {
 
     use super::*;
     use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
+    use crate::functions::aggregate::ChunkGroupAddressIter;
 
     #[test]
     fn sum_i64_single_group_two_partitions() {
