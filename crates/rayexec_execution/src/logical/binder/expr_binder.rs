@@ -1261,8 +1261,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 let inputs =
                     self.apply_casts_for_aggregate_function(bind_context, agg.as_ref(), inputs)?;
 
-                let refs: Vec<_> = inputs.iter().collect();
-                let agg = agg.plan_from_expressions(bind_context.get_table_list(), &refs)?;
+                let agg = agg.plan(bind_context.get_table_list(), inputs)?;
 
                 match &func.over {
                     Some(over) => {
@@ -1336,7 +1335,6 @@ impl<'a> BaseExpressionBinder<'a> {
 
                                 Ok(Expression::Window(WindowExpr {
                                     agg,
-                                    inputs,
                                     partition_by,
                                     order_by,
                                     start,
@@ -1351,7 +1349,6 @@ impl<'a> BaseExpressionBinder<'a> {
                         Ok(Expression::Aggregate(AggregateExpr {
                             agg,
                             distinct: func.distinct,
-                            inputs,
                             filter: None,
                         }))
                     }

@@ -111,6 +111,14 @@ impl PartialEq for PlannedAggregateFunction {
 
 impl Eq for PlannedAggregateFunction {}
 
+impl Hash for PlannedAggregateFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.function.name().hash(state);
+        self.return_type.hash(state);
+        self.inputs.hash(state);
+    }
+}
+
 pub trait AggregateFunctionImpl: Debug + Sync + Send + DynClone {
     fn new_states(&self) -> Box<dyn AggregateGroupStates>;
 }

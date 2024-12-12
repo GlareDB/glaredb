@@ -23,7 +23,7 @@ use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::database::DatabaseContext;
-use crate::functions::aggregate::PlannedAggregateFunction2;
+use crate::functions::aggregate::{PlannedAggregateFunction, PlannedAggregateFunction2};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
@@ -110,11 +110,9 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
-    pub function: Box<dyn PlannedAggregateFunction2>,
+    pub function: PlannedAggregateFunction,
     /// Column expressions we're aggregating on.
     pub columns: Vec<PhysicalColumnExpr>,
-    /// Output type of the aggregate.
-    pub output_type: DataType,
     /// If inputs are distinct.
     pub is_distinct: bool,
     // TODO: Filter
@@ -129,33 +127,35 @@ impl PhysicalAggregateExpression {
 impl DatabaseProtoConv for PhysicalAggregateExpression {
     type ProtoType = rayexec_proto::generated::physical_expr::PhysicalAggregateExpression;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            function: Some(self.function.to_proto_ctx(context)?),
-            columns: self
-                .columns
-                .iter()
-                .map(|c| c.to_proto_ctx(context))
-                .collect::<Result<Vec<_>>>()?,
-            output_type: Some(self.output_type.to_proto()?),
-            is_distinct: self.is_distinct,
-        })
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     function: Some(self.function.to_proto_ctx(context)?),
+        //     columns: self
+        //         .columns
+        //         .iter()
+        //         .map(|c| c.to_proto_ctx(context))
+        //         .collect::<Result<Vec<_>>>()?,
+        //     output_type: Some(self.output_type.to_proto()?),
+        //     is_distinct: self.is_distinct,
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            function: DatabaseProtoConv::from_proto_ctx(
-                proto.function.required("function")?,
-                context,
-            )?,
-            columns: proto
-                .columns
-                .into_iter()
-                .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
-                .collect::<Result<Vec<_>>>()?,
-            output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
-            is_distinct: proto.is_distinct,
-        })
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // Ok(Self {
+        //     function: DatabaseProtoConv::from_proto_ctx(
+        //         proto.function.required("function")?,
+        //         context,
+        //     )?,
+        //     columns: proto
+        //         .columns
+        //         .into_iter()
+        //         .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
+        //         .collect::<Result<Vec<_>>>()?,
+        //     output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
+        //     is_distinct: proto.is_distinct,
+        // })
     }
 }
 

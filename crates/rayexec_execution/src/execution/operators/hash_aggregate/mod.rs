@@ -37,13 +37,14 @@ use crate::execution::operators::{
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::functions::aggregate::{GroupedStates, PlannedAggregateFunction2};
+use crate::functions::aggregate::states::AggregateGroupStates;
+use crate::functions::aggregate::AggregateFunctionImpl;
 use crate::logical::logical_aggregate::GroupingFunction;
 
 #[derive(Debug)]
 pub struct Aggregate {
     /// Function for producing the aggregate state.
-    pub function: Box<dyn PlannedAggregateFunction2>,
+    pub function: Box<dyn AggregateFunctionImpl>,
     /// Columns that will be inputs into the aggregate.
     pub col_selection: Bitmap,
     /// If inputs are distinct.
@@ -53,16 +54,14 @@ pub struct Aggregate {
 impl Aggregate {
     pub fn new_states(&self) -> Result<AggregateStates> {
         if self.is_distinct {
-            let states = Box::new(DistinctGroupedStates::new(
-                self.function.new_grouped_state()?,
-            ));
+            let states = Box::new(DistinctGroupedStates::new(self.function.new_states()));
             Ok(AggregateStates {
                 states,
                 col_selection: self.col_selection.clone(),
             })
         } else {
             Ok(AggregateStates {
-                states: self.function.new_grouped_state()?,
+                states: self.function.new_states(),
                 col_selection: self.col_selection.clone(),
             })
         }
@@ -77,7 +76,7 @@ pub struct AggregateStates {
     /// Internally the state are stored in a vector, with the index of the
     /// vector corresponding to the index of the group in the table's
     /// `group_values` vector.
-    pub states: Box<dyn GroupedStates>,
+    pub states: Box<dyn AggregateGroupStates>,
 
     /// Bitmap for selecting columns from the input to the hash map.
     ///
@@ -264,7 +263,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         .iter()
                         .zip(col_selections.iter())
                         .map(|(expr, col_selection)| Aggregate {
-                            function: expr.function.clone(),
+                            function: expr.function.function_impl.clone(),
                             col_selection: col_selection.clone(),
                             is_distinct: expr.is_distinct,
                         })

@@ -3,7 +3,7 @@ use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalAny;
 use rayexec_error::Result;
 
-use crate::expr::Expression;
+use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
@@ -16,6 +16,18 @@ use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Count;
+
+impl Count {
+    /// Returns a planned aggregate function representing `COUNT(*)`.
+    pub fn count_star(&self) -> PlannedAggregateFunction {
+        PlannedAggregateFunction {
+            function: Box::new(*self),
+            return_type: DataType::Int64,
+            inputs: vec![expr::lit(true)],
+            function_impl: Box::new(CountNonNullImpl),
+        }
+    }
+}
 
 impl FunctionInfo for Count {
     fn name(&self) -> &'static str {

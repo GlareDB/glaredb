@@ -11,7 +11,7 @@ use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
-use crate::expr::Expression;
+use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
@@ -36,6 +36,11 @@ impl FunctionInfo for Sum {
                 input: &[DataTypeId::Float64],
                 variadic: None,
                 return_type: DataTypeId::Float64,
+            },
+            Signature {
+                input: &[DataTypeId::Int32],
+                variadic: None,
+                return_type: DataTypeId::Int64, // TODO: Should be big num
             },
             Signature {
                 input: &[DataTypeId::Int64],

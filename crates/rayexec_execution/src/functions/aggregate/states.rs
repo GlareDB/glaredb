@@ -114,7 +114,7 @@ where
         consume: &mut Box<dyn AggregateGroupStates>,
         mapping: ChunkGroupAddressIter,
     ) -> Result<()> {
-        let mut consume_states = consume.take_opaque_states().downcast::<State>()?;
+        let mut consume_states = consume.take_opaque_states().downcast::<Vec<State>>()?;
         StateCombiner::combine(&mut consume_states, mapping, &mut self.states)
     }
 
@@ -158,11 +158,11 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
 }
 
 #[derive(Debug)]
-pub struct OpaqueStates(Box<dyn Any>);
+pub struct OpaqueStates(pub Box<dyn Any>);
 
 impl OpaqueStates {
-    fn downcast<State: 'static>(self) -> Result<Vec<State>> {
-        let states = self.0.downcast::<Vec<State>>().map_err(|_| {
+    pub fn downcast<T: 'static>(self) -> Result<T> {
+        let states = self.0.downcast::<T>().map_err(|_| {
             RayexecError::new("Attempted to combine aggregate states of different types")
         })?;
 
