@@ -11,7 +11,7 @@ use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
-use crate::expr::{self, Expression};
+use crate::expr::Expression;
 use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
@@ -216,6 +216,7 @@ mod tests {
 
     use super::*;
     use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
+    use crate::expr;
     use crate::functions::aggregate::ChunkGroupAddressIter;
 
     #[test]
@@ -225,13 +226,20 @@ mod tests {
         let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
         let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
 
-        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(None, vec![DataType::Int64], vec!["c0".to_string()])
+            .unwrap();
 
-        let mut states_1 = specialized.new_grouped_state().unwrap();
-        let mut states_2 = specialized.new_grouped_state().unwrap();
+        let specialized = Sum
+            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
+            .unwrap();
 
-        states_1.new_groups(1);
-        states_2.new_groups(1);
+        let mut states_1 = specialized.function_impl.new_states();
+        let mut states_2 = specialized.function_impl.new_states();
+
+        states_1.new_states(1);
+        states_2.new_states(1);
 
         // All inputs map to the same group (no GROUP BY clause)
         let addrs_1: Vec<_> = (0..partition_1_vals.logical_len())
@@ -270,7 +278,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.drain().unwrap();
+        let out = states_1.finalize().unwrap();
 
         assert_eq!(1, out.logical_len());
         assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
@@ -295,17 +303,28 @@ mod tests {
         let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
         let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
 
-        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Utf8, DataType::Int64],
+                vec!["col1".to_string(), "col2".to_string()],
+            )
+            .unwrap();
 
-        let mut states_1 = specialized.new_grouped_state().unwrap();
-        let mut states_2 = specialized.new_grouped_state().unwrap();
+        let specialized = Sum
+            .plan(&table_list, vec![expr::col_ref(table_ref, 1)])
+            .unwrap();
+
+        let mut states_1 = specialized.function_impl.new_states();
+        let mut states_2 = specialized.function_impl.new_states();
 
         // Both partitions are operating on two groups ('a' and 'b').
-        states_1.new_groups(1);
-        states_1.new_groups(1);
+        states_1.new_states(1);
+        states_1.new_states(1);
 
-        states_2.new_groups(1);
-        states_2.new_groups(1);
+        states_2.new_states(1);
+        states_2.new_states(1);
 
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
@@ -372,7 +391,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.drain().unwrap();
+        let out = states_1.finalize().unwrap();
 
         assert_eq!(2, out.logical_len());
         assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
@@ -406,19 +425,30 @@ mod tests {
         let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
         let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
 
-        let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Utf8, DataType::Int64],
+                vec!["col1".to_string(), "col2".to_string()],
+            )
+            .unwrap();
 
-        let mut states_1 = specialized.new_grouped_state().unwrap();
-        let mut states_2 = specialized.new_grouped_state().unwrap();
+        let specialized = Sum
+            .plan(&table_list, vec![expr::col_ref(table_ref, 1)])
+            .unwrap();
+
+        let mut states_1 = specialized.function_impl.new_states();
+        let mut states_2 = specialized.function_impl.new_states();
 
         // Partition 1 sees groups 'x', 'y', and 'z'.
-        states_1.new_groups(1);
-        states_1.new_groups(1);
-        states_1.new_groups(1);
+        states_1.new_states(1);
+        states_1.new_states(1);
+        states_1.new_states(1);
 
         // Partition 2 see groups 'x' and 'z' (no 'y').
-        states_2.new_groups(1);
-        states_2.new_groups(1);
+        states_2.new_states(1);
+        states_2.new_states(1);
 
         // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
         let addrs_1 = vec![
@@ -489,7 +519,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.drain().unwrap();
+        let out = states_1.finalize().unwrap();
 
         assert_eq!(3, out.logical_len());
         assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());
