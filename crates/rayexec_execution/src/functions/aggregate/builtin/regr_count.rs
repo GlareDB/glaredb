@@ -1,20 +1,20 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, BinaryNonNullUpdater};
+use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalAny;
 use rayexec_error::Result;
 
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{new_binary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
     AggregateFunction,
-    ChunkGroupAddressIter,
-    DefaultGroupedStates,
-    GroupedStates,
-    PlannedAggregateFunction2,
+    AggregateFunctionImpl,
+    PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrCount;
@@ -34,17 +34,23 @@ impl FunctionInfo for RegrCount {
 }
 
 impl AggregateFunction for RegrCount {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        Ok(Box::new(RegrCountImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrCountImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 2)?;
+
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(RegrCountImpl),
+            }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -53,37 +59,12 @@ impl AggregateFunction for RegrCount {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrCountImpl;
 
-impl PlannedAggregateFunction2 for RegrCountImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &RegrCount
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Int64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        let datatype = self.return_type();
-
-        fn update(
-            arrays: &[&Array],
-            mapping: ChunkGroupAddressIter,
-            states: &mut [RegrCountState],
-        ) -> Result<()> {
-            BinaryNonNullUpdater::update::<PhysicalAny, PhysicalAny, _, _, _>(
-                arrays[0], arrays[1], mapping, states,
-            )
-        }
-
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for RegrCountImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_binary_aggregate_states::<PhysicalAny, PhysicalAny, _, _, _, _>(
             RegrCountState::default,
-            update,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Int64, states),
+        )
     }
 }
 

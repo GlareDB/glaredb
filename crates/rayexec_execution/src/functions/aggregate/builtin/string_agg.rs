@@ -1,23 +1,20 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
+use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
 
 use crate::expr::Expression;
+use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     AggregateFunction,
-    ChunkGroupAddressIter,
-    DefaultGroupedStates,
-    GroupedStates,
-    PlannedAggregateFunction2,
+    AggregateFunctionImpl,
+    PlannedAggregateFunction,
 };
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
+use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -40,23 +37,13 @@ impl FunctionInfo for StringAgg {
 }
 
 impl AggregateFunction for StringAgg {
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        let sep: String = PackedDecoder::new(state).decode_next()?;
-        Ok(Box::new(StringAggImpl { sep }))
-    }
-
-    fn plan_from_datatypes(
-        &self,
-        _inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        unreachable!("plan_from_expressions implemented")
-    }
-
-    fn plan_from_expressions(
+    fn plan(
         &self,
         table_list: &TableList,
-        inputs: &[&Expression],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 2)?;
+
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -83,7 +70,12 @@ impl AggregateFunction for StringAgg {
             }
         };
 
-        Ok(Box::new(StringAggImpl { sep }))
+        Ok(PlannedAggregateFunction {
+            function: Box::new(*self),
+            return_type: DataType::Utf8,
+            inputs,
+            function_impl: Box::new(StringAggImpl { sep }),
+        })
     }
 }
 
@@ -92,45 +84,21 @@ pub struct StringAggImpl {
     pub sep: String,
 }
 
-impl PlannedAggregateFunction2 for StringAggImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &StringAgg
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        PackedEncoder::new(state).encode_next(&self.sep)
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Utf8
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        fn update(
-            arrays: &[&Array],
-            mapping: ChunkGroupAddressIter,
-            states: &mut [StringAggState],
-        ) -> Result<()> {
-            // Note second array ignored, should be a constant.
-            UnaryNonNullUpdater::update::<PhysicalUtf8, _, _, _>(arrays[0], mapping, states)
-        }
-
+impl AggregateFunctionImpl for StringAggImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let sep = self.sep.clone();
+        let state_init = move || StringAggState {
+            sep: sep.clone(),
+            string: None,
+        };
 
-        Ok(Box::new(DefaultGroupedStates::new(
-            move || StringAggState {
-                sep: sep.clone(),
-                string: None,
-            },
-            update,
-            move |states| {
-                let builder = ArrayBuilder {
-                    datatype: DataType::Utf8,
-                    buffer: GermanVarlenBuffer::<str>::with_len(states.len()),
-                };
-                StateFinalizer::finalize(states, builder)
-            },
-        )))
+        new_unary_aggregate_states::<PhysicalUtf8, _, _, _, _>(state_init, move |states| {
+            let builder = ArrayBuilder {
+                datatype: DataType::Utf8,
+                buffer: GermanVarlenBuffer::<str>::with_len(states.len()),
+            };
+            StateFinalizer::finalize(states, builder)
+        })
     }
 }
 

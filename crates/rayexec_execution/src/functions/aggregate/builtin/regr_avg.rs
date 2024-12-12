@@ -1,21 +1,21 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, BinaryNonNullUpdater};
+use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{new_binary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
     primitive_finalize,
     AggregateFunction,
-    ChunkGroupAddressIter,
-    DefaultGroupedStates,
-    GroupedStates,
-    PlannedAggregateFunction2,
+    AggregateFunctionImpl,
+    PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrAvgY;
@@ -35,17 +35,23 @@ impl FunctionInfo for RegrAvgY {
 }
 
 impl AggregateFunction for RegrAvgY {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        Ok(Box::new(RegrAvgYImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrAvgYImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 2)?;
+
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(RegrAvgYImpl),
+            }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -54,37 +60,12 @@ impl AggregateFunction for RegrAvgY {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegrAvgYImpl;
 
-impl PlannedAggregateFunction2 for RegrAvgYImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &RegrAvgY
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        let datatype = self.return_type();
-
-        fn update(
-            arrays: &[&Array],
-            mapping: ChunkGroupAddressIter,
-            states: &mut [RegrAvgState<RegrAvgYImpl>],
-        ) -> Result<()> {
-            BinaryNonNullUpdater::update::<PhysicalF64, PhysicalF64, _, _, _>(
-                arrays[0], arrays[1], mapping, states,
-            )
-        }
-
-        Ok(Box::new(DefaultGroupedStates::new(
-            RegrAvgState::<RegrAvgYImpl>::default,
-            update,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+impl AggregateFunctionImpl for RegrAvgYImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+            RegrAvgState::<Self>::default,
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 
@@ -113,17 +94,23 @@ impl FunctionInfo for RegrAvgX {
 }
 
 impl AggregateFunction for RegrAvgX {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        Ok(Box::new(RegrAvgXImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(RegrAvgXImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 2)?;
+
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(RegrAvgXImpl),
+            }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -132,37 +119,12 @@ impl AggregateFunction for RegrAvgX {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegrAvgXImpl;
 
-impl PlannedAggregateFunction2 for RegrAvgXImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &RegrAvgX
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        let datatype = self.return_type();
-
-        fn update(
-            arrays: &[&Array],
-            mapping: ChunkGroupAddressIter,
-            states: &mut [RegrAvgState<RegrAvgXImpl>],
-        ) -> Result<()> {
-            BinaryNonNullUpdater::update::<PhysicalF64, PhysicalF64, _, _, _>(
-                arrays[0], arrays[1], mapping, states,
-            )
-        }
-
-        Ok(Box::new(DefaultGroupedStates::new(
-            RegrAvgState::<RegrAvgXImpl>::default,
-            update,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+impl AggregateFunctionImpl for RegrAvgXImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+            RegrAvgState::<Self>::default,
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 
