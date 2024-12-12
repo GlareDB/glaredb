@@ -1,19 +1,18 @@
-use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer, UnaryNonNullUpdater};
-use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalAny;
-use rayexec_error::{RayexecError, Result};
-use serde::{Deserialize, Serialize};
+use rayexec_error::Result;
 
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{
+    primitive_finalize,
     AggregateFunction,
-    ChunkGroupAddressIter,
-    DefaultGroupedStates,
-    GroupedStates,
-    PlannedAggregateFunction2,
+    AggregateFunctionImpl,
+    PlannedAggregateFunction,
 };
-use crate::functions::{FunctionInfo, Signature};
+use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Count;
@@ -33,61 +32,31 @@ impl FunctionInfo for Count {
 }
 
 impl AggregateFunction for Count {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        Ok(Box::new(CountNonNullImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction2>> {
-        if inputs.len() != 1 {
-            return Err(RayexecError::new("Expected 1 input"));
-        }
-        Ok(Box::new(CountNonNullImpl))
+        _table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
+
+        Ok(PlannedAggregateFunction {
+            function: Box::new(*self),
+            return_type: DataType::Int64,
+            inputs,
+            function_impl: Box::new(CountNonNullImpl),
+        })
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CountNonNullImpl;
 
-impl CountNonNullImpl {
-    fn update(
-        arrays: &[&Array],
-        mapping: ChunkGroupAddressIter,
-        states: &mut [CountNonNullState],
-    ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalAny, _, _, _>(arrays[0], mapping, states)
-    }
-
-    fn finalize(states: &mut [CountNonNullState]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Int64,
-            buffer: PrimitiveBuffer::<i64>::with_len(states.len()),
-        };
-        StateFinalizer::finalize(states, builder)
-    }
-}
-
-impl PlannedAggregateFunction2 for CountNonNullImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &Count
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Int64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn GroupedStates>> {
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for CountNonNullImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalAny, _, _, _, _>(
             CountNonNullState::default,
-            Self::update,
-            Self::finalize,
-        )))
+            move |states| primitive_finalize(DataType::Int64, states),
+        )
     }
 }
 
