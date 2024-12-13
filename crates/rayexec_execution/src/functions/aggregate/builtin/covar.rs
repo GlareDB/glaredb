@@ -1,20 +1,24 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, BinaryNonNullUpdater};
+use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
-use super::{
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{
+    new_binary_aggregate_states,
     primitive_finalize,
+    AggregateGroupStates,
+};
+use crate::functions::aggregate::{
     AggregateFunction,
-    DefaultGroupedStates,
+    AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
-use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarPop;
@@ -34,17 +38,23 @@ impl FunctionInfo for CovarPop {
 }
 
 impl AggregateFunction for CovarPop {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(CovarPopImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(CovarPopImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 2)?;
+
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(CovarPopImpl),
+            }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -53,37 +63,12 @@ impl AggregateFunction for CovarPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarPopImpl;
 
-impl PlannedAggregateFunction for CovarPopImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &CovarPop
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
-        let datatype = self.return_type();
-
-        fn update(
-            arrays: &[&Array],
-            mapping: ChunkGroupAddressIter,
-            states: &mut [CovarState<CovarPopFinalize>],
-        ) -> Result<()> {
-            BinaryNonNullUpdater::update::<PhysicalF64, PhysicalF64, _, _, _>(
-                arrays[0], arrays[1], mapping, states,
-            )
-        }
-
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for CovarPopImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
             CovarState::<CovarPopFinalize>::default,
-            update,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 
@@ -105,17 +90,23 @@ impl FunctionInfo for CovarSamp {
 }
 
 impl AggregateFunction for CovarSamp {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(CovarSampImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 2)?;
-        match (&inputs[0], &inputs[1]) {
-            (DataType::Float64, DataType::Float64) => Ok(Box::new(CovarSampImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 2)?;
+
+        match (
+            inputs[0].datatype(table_list)?,
+            inputs[1].datatype(table_list)?,
+        ) {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(CovarSampImpl),
+            }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
@@ -124,37 +115,12 @@ impl AggregateFunction for CovarSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarSampImpl;
 
-impl PlannedAggregateFunction for CovarSampImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &CovarSamp
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
-        let datatype = self.return_type();
-
-        fn update(
-            arrays: &[&Array],
-            mapping: ChunkGroupAddressIter,
-            states: &mut [CovarState<CovarSampFinalize>],
-        ) -> Result<()> {
-            BinaryNonNullUpdater::update::<PhysicalF64, PhysicalF64, _, _, _>(
-                arrays[0], arrays[1], mapping, states,
-            )
-        }
-
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for CovarSampImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
             CovarState::<CovarSampFinalize>::default,
-            update,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 

@@ -15,11 +15,9 @@ use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{not_implemented, OptionExt, Result};
-use rayexec_proto::ProtoConv;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::database::DatabaseContext;
@@ -110,11 +108,9 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
 #[derive(Debug)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
-    pub function: Box<dyn PlannedAggregateFunction>,
+    pub function: PlannedAggregateFunction,
     /// Column expressions we're aggregating on.
     pub columns: Vec<PhysicalColumnExpr>,
-    /// Output type of the aggregate.
-    pub output_type: DataType,
     /// If inputs are distinct.
     pub is_distinct: bool,
     // TODO: Filter
@@ -129,33 +125,35 @@ impl PhysicalAggregateExpression {
 impl DatabaseProtoConv for PhysicalAggregateExpression {
     type ProtoType = rayexec_proto::generated::physical_expr::PhysicalAggregateExpression;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            function: Some(self.function.to_proto_ctx(context)?),
-            columns: self
-                .columns
-                .iter()
-                .map(|c| c.to_proto_ctx(context))
-                .collect::<Result<Vec<_>>>()?,
-            output_type: Some(self.output_type.to_proto()?),
-            is_distinct: self.is_distinct,
-        })
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     function: Some(self.function.to_proto_ctx(context)?),
+        //     columns: self
+        //         .columns
+        //         .iter()
+        //         .map(|c| c.to_proto_ctx(context))
+        //         .collect::<Result<Vec<_>>>()?,
+        //     output_type: Some(self.output_type.to_proto()?),
+        //     is_distinct: self.is_distinct,
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            function: DatabaseProtoConv::from_proto_ctx(
-                proto.function.required("function")?,
-                context,
-            )?,
-            columns: proto
-                .columns
-                .into_iter()
-                .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
-                .collect::<Result<Vec<_>>>()?,
-            output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
-            is_distinct: proto.is_distinct,
-        })
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // Ok(Self {
+        //     function: DatabaseProtoConv::from_proto_ctx(
+        //         proto.function.required("function")?,
+        //         context,
+        //     )?,
+        //     columns: proto
+        //         .columns
+        //         .into_iter()
+        //         .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
+        //         .collect::<Result<Vec<_>>>()?,
+        //     output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
+        //     is_distinct: proto.is_distinct,
+        // })
     }
 }
 
@@ -192,6 +190,7 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 #[cfg(test)]
 mod tests {
     use planner::PhysicalExpressionPlanner;
+    use rayexec_bullet::datatype::DataType;
 
     use super::*;
     use crate::expr;

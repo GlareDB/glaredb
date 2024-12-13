@@ -21,7 +21,8 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
-use crate::functions::aggregate::{ChunkGroupAddressIter, GroupedStates};
+use crate::functions::aggregate::states::AggregateGroupStates;
+use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
@@ -33,7 +34,7 @@ pub enum UngroupedAggregatePartitionState {
 
         /// States for all aggregates with one group each, one per function call
         /// (SUM, AVG, etc).
-        agg_states: Vec<Box<dyn GroupedStates>>,
+        agg_states: Vec<Box<dyn AggregateGroupStates>>,
     },
 
     /// Partition is currently producing.
@@ -61,7 +62,7 @@ struct OperatorStateInner {
 
     /// Global agg states that all partition will combine their local states
     /// with.
-    agg_states: Vec<Box<dyn GroupedStates>>,
+    agg_states: Vec<Box<dyn AggregateGroupStates>>,
 
     /// Pull side wakers for if we're still aggregating.
     ///
@@ -82,17 +83,17 @@ impl PhysicalUngroupedAggregate {
         PhysicalUngroupedAggregate { aggregates }
     }
 
-    fn create_agg_states_with_single_group(&self) -> Result<Vec<Box<dyn GroupedStates>>> {
+    fn create_agg_states_with_single_group(&self) -> Result<Vec<Box<dyn AggregateGroupStates>>> {
         let mut states = Vec::with_capacity(self.aggregates.len());
         for agg in &self.aggregates {
             let mut state = if agg.is_distinct {
                 Box::new(DistinctGroupedStates::new(
-                    agg.function.new_grouped_state()?,
+                    agg.function.function_impl.new_states(),
                 ))
             } else {
-                agg.function.new_grouped_state()?
+                agg.function.function_impl.new_states()
             };
-            state.new_groups(1);
+            state.new_states(1);
             states.push(state);
         }
 
@@ -233,7 +234,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                     let arrays = final_states
                         .iter_mut()
-                        .map(|s| s.drain())
+                        .map(|s| s.finalize())
                         .collect::<Result<Vec<_>>>()?;
 
                     let batch = Batch::try_new(arrays)?;

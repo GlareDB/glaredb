@@ -6,14 +6,19 @@ use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
-use super::{
+use crate::expr::Expression;
+use crate::functions::aggregate::states::{
+    new_unary_aggregate_states,
     primitive_finalize,
-    unary_update,
+    AggregateGroupStates,
+};
+use crate::functions::aggregate::{
     AggregateFunction,
-    DefaultGroupedStates,
+    AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevPop;
@@ -33,17 +38,20 @@ impl FunctionInfo for StddevPop {
 }
 
 impl AggregateFunction for StddevPop {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(StddevPopImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Float64 => Ok(Box::new(StddevPopImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
+
+        match inputs[0].datatype(table_list)? {
+            DataType::Float64 => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(StddevPopImpl),
+            }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -52,26 +60,12 @@ impl AggregateFunction for StddevPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevPopImpl;
 
-impl PlannedAggregateFunction for StddevPopImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &StddevPop
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
-        let datatype = self.return_type();
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for StddevPopImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
             VarianceState::<StddevPopFinalize>::default,
-            unary_update::<VarianceState<StddevPopFinalize>, PhysicalF64, f64>,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 
@@ -97,17 +91,20 @@ impl FunctionInfo for StddevSamp {
 }
 
 impl AggregateFunction for StddevSamp {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(StddevSampImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Float64 => Ok(Box::new(StddevSampImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
+
+        match inputs[0].datatype(table_list)? {
+            DataType::Float64 => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(StddevSampImpl),
+            }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -116,26 +113,12 @@ impl AggregateFunction for StddevSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevSampImpl;
 
-impl PlannedAggregateFunction for StddevSampImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &StddevSamp
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
-        let datatype = self.return_type();
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for StddevSampImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
             VarianceState::<StddevSampFinalize>::default,
-            unary_update::<VarianceState<StddevSampFinalize>, PhysicalF64, f64>,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 
@@ -157,17 +140,20 @@ impl FunctionInfo for VarPop {
 }
 
 impl AggregateFunction for VarPop {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(VarPopImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Float64 => Ok(Box::new(VarPopImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
+
+        match inputs[0].datatype(table_list)? {
+            DataType::Float64 => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(VarPopImpl),
+            }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -176,26 +162,12 @@ impl AggregateFunction for VarPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarPopImpl;
 
-impl PlannedAggregateFunction for VarPopImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &VarPop
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
-        let datatype = self.return_type();
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for VarPopImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
             VarianceState::<VariancePopFinalize>::default,
-            unary_update::<VarianceState<VariancePopFinalize>, PhysicalF64, f64>,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 
@@ -217,17 +189,20 @@ impl FunctionInfo for VarSamp {
 }
 
 impl AggregateFunction for VarSamp {
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedAggregateFunction>> {
-        Ok(Box::new(VarSampImpl))
-    }
-
-    fn plan_from_datatypes(
+    fn plan(
         &self,
-        inputs: &[DataType],
-    ) -> Result<Box<dyn PlannedAggregateFunction>> {
-        plan_check_num_args(self, inputs, 1)?;
-        match &inputs[0] {
-            DataType::Float64 => Ok(Box::new(VarSampImpl)),
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<PlannedAggregateFunction> {
+        plan_check_num_args(self, &inputs, 1)?;
+
+        match inputs[0].datatype(table_list)? {
+            DataType::Float64 => Ok(PlannedAggregateFunction {
+                function: Box::new(*self),
+                return_type: DataType::Float64,
+                inputs,
+                function_impl: Box::new(VarSampImpl),
+            }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
@@ -236,26 +211,12 @@ impl AggregateFunction for VarSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarSampImpl;
 
-impl PlannedAggregateFunction for VarSampImpl {
-    fn aggregate_function(&self) -> &dyn AggregateFunction {
-        &VarSamp
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn return_type(&self) -> DataType {
-        DataType::Float64
-    }
-
-    fn new_grouped_state(&self) -> Result<Box<dyn super::GroupedStates>> {
-        let datatype = self.return_type();
-        Ok(Box::new(DefaultGroupedStates::new(
+impl AggregateFunctionImpl for VarSampImpl {
+    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
+        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
             VarianceState::<VarianceSampFinalize>::default,
-            unary_update::<VarianceState<VarianceSampFinalize>, PhysicalF64, f64>,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )))
+            move |states| primitive_finalize(DataType::Float64, states),
+        )
     }
 }
 

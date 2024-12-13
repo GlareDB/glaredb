@@ -63,9 +63,7 @@ impl WindowFrameBound {
 pub struct WindowExpr {
     /// The aggregate function.
     // TODO: May need to adjust to allow for window-only functions.
-    pub agg: Box<dyn PlannedAggregateFunction>,
-    /// Inputs to the window function.
-    pub inputs: Vec<Expression>,
+    pub agg: PlannedAggregateFunction,
     /// How to partition the input to the function.
     pub partition_by: Vec<Expression>,
     /// How the input is ordered within a partition.
@@ -80,7 +78,7 @@ pub struct WindowExpr {
 
 impl WindowExpr {
     pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
-        Ok(self.agg.return_type())
+        Ok(self.agg.return_type.clone())
     }
 }
 
@@ -90,8 +88,9 @@ impl ContextDisplay for WindowExpr {
         mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}", self.agg.aggregate_function().name())?;
+        write!(f, "{}", self.agg.function.name())?;
         let inputs = self
+            .agg
             .inputs
             .iter()
             .map(|expr| ContextDisplayWrapper::with_mode(expr, mode).to_string())
@@ -103,7 +102,7 @@ impl ContextDisplay for WindowExpr {
             write!(
                 f,
                 "PARTION BY {} ",
-                self.inputs
+                self.partition_by
                     .iter()
                     .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
                     .collect::<Vec<_>>()

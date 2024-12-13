@@ -11,9 +11,7 @@ use crate::logical::binder::bind_context::BindContext;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AggregateExpr {
     /// The function.
-    pub agg: Box<dyn PlannedAggregateFunction>,
-    /// Input expressions to the aggragate.
-    pub inputs: Vec<Expression>,
+    pub agg: PlannedAggregateFunction,
     /// Optional filter to the aggregate.
     pub filter: Option<Box<Expression>>,
     /// If the inputs should be deduplicated.
@@ -22,7 +20,7 @@ pub struct AggregateExpr {
 
 impl AggregateExpr {
     pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
-        Ok(self.agg.return_type())
+        Ok(self.agg.return_type.clone())
     }
 }
 
@@ -32,8 +30,9 @@ impl ContextDisplay for AggregateExpr {
         mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}", self.agg.aggregate_function().name())?;
+        write!(f, "{}", self.agg.function.name())?;
         let inputs = self
+            .agg
             .inputs
             .iter()
             .map(|e| ContextDisplayWrapper::with_mode(e, mode).to_string())

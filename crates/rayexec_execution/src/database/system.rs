@@ -12,7 +12,7 @@ use crate::database::create::{
     OnConflict,
 };
 use crate::datasource::DataSourceRegistry;
-use crate::functions::aggregate::BUILTIN_AGGREGATE_FUNCTIONS;
+use crate::functions::aggregate::builtin::BUILTIN_AGGREGATE_FUNCTIONS;
 use crate::functions::scalar::builtin::BUILTIN_SCALAR_FUNCTIONS;
 use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTIONS;
 

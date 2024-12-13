@@ -1,0 +1,51 @@
+# GROUP BY many columns
+
+statement ok
+CREATE TEMP TABLE t1 (
+    first_name  TEXT,
+    last_name   TEXT,
+    nick_name   TEXT,
+    custkey     INT,
+    amount      INT
+);
+
+statement ok
+INSERT INTO t1 SELECT a::text, a::text, a::text, a, b FROM generate_series(1, 10) g1(a), generate_series(1, 1000) g2(b);
+
+query TII
+SELECT first_name, custkey, sum(amount) FROM t1 GROUP BY first_name, last_name, nick_name, custkey ORDER BY custkey;
+----
+1   1   500500
+2   2   500500
+3   3   500500
+4   4   500500
+5   5   500500
+6   6   500500
+7   7   500500
+8   8   500500
+9   9   500500
+10  10  500500
+
+query IT
+SELECT sum(amount), 'constant' as constant FROM t1 GROUP BY constant;
+----
+5005000  constant
+
+# Now create a table where all rows have the same keys.
+
+statement ok
+CREATE TEMP TABLE t2 (
+    first_name  TEXT,
+    last_name   TEXT,
+    nick_name   TEXT,
+    custkey     INT,
+    amount      INT
+);
+
+statement ok
+INSERT INTO t2 SELECT 'first_name', 'last_name', 'nick_name', 48, b FROM generate_series(1, 10) g1(a), generate_series(1, 1000) g2(b);
+
+query TII
+SELECT first_name, custkey, sum(amount) FROM t2 GROUP BY first_name, last_name, nick_name, custkey ORDER BY custkey;
+----
+first_name  48  5005000

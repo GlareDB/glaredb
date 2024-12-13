@@ -71,7 +71,7 @@ impl Expression {
     /// column expression.
     pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self {
-            Self::Aggregate(expr) => expr.agg.return_type(),
+            Self::Aggregate(expr) => expr.agg.return_type.clone(),
             Self::Arith(expr) => expr.datatype(table_list)?,
             Self::Between(_) => DataType::Boolean,
             Self::Case(expr) => expr.datatype(table_list)?,
@@ -84,7 +84,7 @@ impl Expression {
             Self::Negate(expr) => expr.datatype(table_list)?,
             Self::ScalarFunction(expr) => expr.function.return_type.clone(),
             Self::Subquery(expr) => expr.return_type.clone(),
-            Self::Window(window) => window.agg.return_type(),
+            Self::Window(window) => window.agg.return_type.clone(),
             Self::Unnest(expr) => expr.datatype(table_list)?,
             Self::GroupingSet(expr) => expr.datatype(),
         })
@@ -96,7 +96,7 @@ impl Expression {
     {
         match self {
             Self::Aggregate(agg) => {
-                for expr in &mut agg.inputs {
+                for expr in &mut agg.agg.inputs {
                     func(expr)?;
                 }
                 if let Some(filter) = agg.filter.as_mut() {
@@ -144,7 +144,7 @@ impl Expression {
             }
             Self::Subquery(_) => (),
             Self::Window(window) => {
-                for input in &mut window.inputs {
+                for input in &mut window.agg.inputs {
                     func(input)?;
                 }
                 for partition in &mut window.partition_by {
@@ -170,7 +170,7 @@ impl Expression {
     {
         match self {
             Self::Aggregate(agg) => {
-                for expr in &agg.inputs {
+                for expr in &agg.agg.inputs {
                     func(expr)?;
                 }
                 if let Some(filter) = agg.filter.as_ref() {
@@ -218,7 +218,7 @@ impl Expression {
             }
             Self::Subquery(_) => (),
             Self::Window(window) => {
-                for input in &window.inputs {
+                for input in &window.agg.inputs {
                     func(input)?;
                 }
                 for partition in &window.partition_by {

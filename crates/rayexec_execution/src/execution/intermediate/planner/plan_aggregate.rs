@@ -42,7 +42,7 @@ impl IntermediatePipelineBuildState<'_> {
             };
 
             let start_col_index = preproject_exprs.len();
-            for arg in &agg.inputs {
+            for arg in &agg.agg.inputs {
                 let scalar = self
                     .expr_planner
                     .plan_scalar(&input_refs, arg)
@@ -52,7 +52,6 @@ impl IntermediatePipelineBuildState<'_> {
             let end_col_index = preproject_exprs.len();
 
             let phys_agg = PhysicalAggregateExpression {
-                output_type: agg.agg.return_type(),
                 function: agg.agg,
                 columns: (start_col_index..end_col_index)
                     .map(|idx| PhysicalColumnExpr { idx })
