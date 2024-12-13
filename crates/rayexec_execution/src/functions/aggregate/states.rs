@@ -147,6 +147,7 @@ impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TypedAggregateGroupedStates")
+            .field("num_states", &self.states.len())
             .finish_non_exhaustive()
     }
 }
