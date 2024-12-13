@@ -257,7 +257,7 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> FunctionInfo for UnityObjects<R, O
     }
 
     fn signatures(&self) -> &[Signature] {
-        unimplemented!()
+        O::SIGNATURES
     }
 }
 
