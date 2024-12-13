@@ -299,6 +299,13 @@ impl HashTable {
                             .map(|agg| agg.new_states())
                             .collect::<Result<Vec<_>>>()?;
 
+                        let chunk_hashes: Vec<_> = self
+                            .insert_buffers
+                            .new_group_rows
+                            .iter_locations()
+                            .map(|loc| hashes[loc])
+                            .collect();
+
                         // Initialize the states.
                         for state in &mut states {
                             state.states.new_states(num_new_groups);
@@ -307,12 +314,7 @@ impl HashTable {
                         let chunk = GroupChunk {
                             chunk_idx: chunk_idx as u16,
                             num_groups: num_new_groups,
-                            hashes: self
-                                .insert_buffers
-                                .new_group_rows
-                                .iter_locations()
-                                .map(|loc| hashes[loc])
-                                .collect(),
+                            hashes: chunk_hashes,
                             arrays: group_vals.collect(),
                             aggregate_states: states,
                         };
@@ -620,5 +622,38 @@ mod tests {
         t1.merge_many(&mut [t2]).unwrap();
 
         assert_eq!(3, t1.num_occupied);
+    }
+
+    #[test]
+    fn merge_non_empty_then_merge_empty() {
+        // Tests that we properly resize internal buffers to account for merging
+        // in empty hash tables after already merging in non-empty hash tables.
+        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
+        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+
+        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+
+        let hashes = vec![4, 5, 4];
+        // First hash table, we're merging everything into this one.
+        let mut t1 = make_hash_table(agg.clone());
+        t1.insert(&groups1, &hashes, &inputs1).unwrap();
+
+        // Second hash table, not empty
+        let groups2 = [Array::from_iter(["g1", "g2"])];
+        let inputs2 = [Array::from_iter::<[i64; 2]>([4, 5])];
+        let hashes = vec![4, 5];
+        let mut t2 = make_hash_table(agg.clone());
+        t2.insert(&groups2, &hashes, &inputs2).unwrap();
+
+        // Third hash table, empty.
+        let mut t3 = make_hash_table(agg.clone());
+
+        // Now merge non-empty first.
+        t1.merge(&mut t2).unwrap();
+        assert_eq!(2, t1.num_occupied);
+
+        // Now merge empty.
+        t1.merge(&mut t3).unwrap();
+        assert_eq!(2, t1.num_occupied);
     }
 }

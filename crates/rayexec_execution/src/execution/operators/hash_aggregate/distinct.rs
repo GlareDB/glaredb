@@ -7,7 +7,7 @@ use rayexec_error::Result;
 
 use super::hash_table::HashTable;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
-use crate::functions::aggregate::states::{AggregateGroupStates, OpaqueStates};
+use crate::functions::aggregate::states::{AggregateGroupStates, OpaqueStatesMut};
 use crate::functions::aggregate::ChunkGroupAddressIter;
 
 /// And implementation of GroupedStates that buffers inputs to an aggregate in a
@@ -36,8 +36,8 @@ impl DistinctGroupedStates {
 }
 
 impl AggregateGroupStates for DistinctGroupedStates {
-    fn take_opaque_states(&mut self) -> OpaqueStates {
-        OpaqueStates(Box::new(std::mem::take(&mut self.distinct_inputs)))
+    fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_> {
+        OpaqueStatesMut(&mut self.distinct_inputs)
     }
 
     fn new_states(&mut self, count: usize) {
@@ -101,8 +101,8 @@ impl AggregateGroupStates for DistinctGroupedStates {
         consume: &mut Box<dyn AggregateGroupStates>,
         mapping: ChunkGroupAddressIter,
     ) -> Result<()> {
-        let mut other_distinct_inputs = consume
-            .take_opaque_states()
+        let other_distinct_inputs = consume
+            .opaque_states_mut()
             .downcast::<Vec<Option<HashTable>>>()?;
 
         for mapping in mapping {

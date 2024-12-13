@@ -112,8 +112,8 @@ where
     StateUpdate: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Sync + Send,
     StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send,
 {
-    fn take_opaque_states(&mut self) -> OpaqueStates {
-        OpaqueStates(Box::new(std::mem::take(&mut self.states)))
+    fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_> {
+        OpaqueStatesMut(&mut self.states)
     }
 
     fn new_states(&mut self, count: usize) {
@@ -133,8 +133,8 @@ where
         consume: &mut Box<dyn AggregateGroupStates>,
         mapping: ChunkGroupAddressIter,
     ) -> Result<()> {
-        let mut consume_states = consume.take_opaque_states().downcast::<Vec<State>>()?;
-        StateCombiner::combine(&mut consume_states, mapping, &mut self.states)
+        let consume_states = consume.opaque_states_mut().downcast::<Vec<State>>()?;
+        StateCombiner::combine(consume_states, mapping, &mut self.states)
     }
 
     fn finalize(&mut self) -> Result<Array> {
@@ -153,9 +153,11 @@ impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> fmt::Debug
 }
 
 pub trait AggregateGroupStates: Debug + Sync + Send {
-    /// Take all states and make them opaque so that they can be downcasted when
-    /// combining states across partitions.
-    fn take_opaque_states(&mut self) -> OpaqueStates;
+    /// Get a mutable reference to the underlying states.
+    ///
+    /// This may be called multiple times when combining states from multiple
+    /// partitions.
+    fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_>;
 
     /// Create `count` number of new states.
     fn new_states(&mut self, count: usize);
@@ -178,15 +180,15 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
 }
 
 #[derive(Debug)]
-pub struct OpaqueStates(pub Box<dyn Any>);
+pub struct OpaqueStatesMut<'a>(pub &'a mut dyn Any);
 
-impl OpaqueStates {
-    pub fn downcast<T: 'static>(self) -> Result<T> {
-        let states = self.0.downcast::<T>().map_err(|_| {
+impl<'a> OpaqueStatesMut<'a> {
+    pub fn downcast<T: 'static>(self) -> Result<&'a mut T> {
+        let states = self.0.downcast_mut::<T>().ok_or_else(|| {
             RayexecError::new("Attempted to combine aggregate states of different types")
         })?;
 
-        Ok(*states)
+        Ok(states)
     }
 }
 
