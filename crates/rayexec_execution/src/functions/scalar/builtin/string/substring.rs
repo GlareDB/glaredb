@@ -31,14 +31,14 @@ impl FunctionInfo for Substring {
         &[
             // substring(<string>, <from>, <for>)
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Utf8,
             },
             // substring(<string>, <from>)
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Utf8,
             },
         ]

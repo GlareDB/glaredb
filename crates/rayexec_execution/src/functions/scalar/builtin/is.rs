@@ -20,8 +20,8 @@ impl FunctionInfo for IsNull {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Any],
-            variadic: None,
+            positional_args: &[DataTypeId::Any],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -54,8 +54,8 @@ impl FunctionInfo for IsNotNull {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Any],
-            variadic: None,
+            positional_args: &[DataTypeId::Any],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -118,8 +118,8 @@ impl FunctionInfo for IsTrue {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean],
-            variadic: None,
+            positional_args: &[DataTypeId::Boolean],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -152,8 +152,8 @@ impl FunctionInfo for IsNotTrue {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean],
-            variadic: None,
+            positional_args: &[DataTypeId::Boolean],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -186,8 +186,8 @@ impl FunctionInfo for IsFalse {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean],
-            variadic: None,
+            positional_args: &[DataTypeId::Boolean],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }
@@ -220,8 +220,8 @@ impl FunctionInfo for IsNotFalse {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean],
-            variadic: None,
+            positional_args: &[DataTypeId::Boolean],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }

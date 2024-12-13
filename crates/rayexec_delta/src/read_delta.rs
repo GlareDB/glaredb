@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
+use rayexec_bullet::datatype::DataTypeId;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -20,7 +22,7 @@ pub struct ReadDelta<R: Runtime> {
     pub(crate) runtime: R,
 }
 
-impl<R: Runtime> TableFunction for ReadDelta<R> {
+impl<R: Runtime> FunctionInfo for ReadDelta<R> {
     fn name(&self) -> &'static str {
         "read_delta"
     }
@@ -29,6 +31,16 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
         &["delta_scan"]
     }
 
+    fn signatures(&self) -> &[Signature] {
+        &[Signature {
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: None,
+            return_type: DataTypeId::Any,
+        }]
+    }
+}
+
+impl<R: Runtime> TableFunction for ReadDelta<R> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,

@@ -36,8 +36,8 @@ impl FunctionInfo for L2Distance {
         // TODO: Ideally return type would depend on the primitive type in the
         // list.
         &[Signature {
-            input: &[DataTypeId::List, DataTypeId::List],
-            variadic: None,
+            positional_args: &[DataTypeId::List, DataTypeId::List],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }

@@ -3,13 +3,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::DatabaseContext;
 use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
+use crate::functions::{FunctionInfo, Signature};
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::table_storage::DataTable;
 
@@ -80,11 +81,21 @@ impl<O: RefreshOperation> Default for RefreshObjects<O> {
     }
 }
 
-impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
+impl<O: RefreshOperation> FunctionInfo for RefreshObjects<O> {
     fn name(&self) -> &'static str {
         O::NAME
     }
 
+    fn signatures(&self) -> &[Signature] {
+        &[Signature {
+            positional_args: &[],
+            variadic_arg: None,
+            return_type: DataTypeId::Any,
+        }]
+    }
+}
+
+impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,

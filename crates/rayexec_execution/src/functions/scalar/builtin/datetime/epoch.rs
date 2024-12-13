@@ -26,8 +26,8 @@ impl FunctionInfo for Epoch {
         &[
             // S -> Timestamp
             Signature {
-                input: &[DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Timestamp,
             },
         ]
@@ -67,8 +67,8 @@ impl FunctionInfo for EpochMs {
         &[
             // MS -> Timestamp
             Signature {
-                input: &[DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Timestamp,
             },
         ]

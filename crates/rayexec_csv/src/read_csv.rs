@@ -1,10 +1,12 @@
 use futures::future::BoxFuture;
 use futures::StreamExt;
+use rayexec_bullet::datatype::DataTypeId;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -22,7 +24,7 @@ pub struct ReadCsv<R: Runtime> {
     pub(crate) runtime: R,
 }
 
-impl<R: Runtime> TableFunction for ReadCsv<R> {
+impl<R: Runtime> FunctionInfo for ReadCsv<R> {
     fn name(&self) -> &'static str {
         "read_csv"
     }
@@ -31,6 +33,16 @@ impl<R: Runtime> TableFunction for ReadCsv<R> {
         &["csv_scan"]
     }
 
+    fn signatures(&self) -> &[Signature] {
+        &[Signature {
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: None,
+            return_type: DataTypeId::Any,
+        }]
+    }
+}
+
+impl<R: Runtime> TableFunction for ReadCsv<R> {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,

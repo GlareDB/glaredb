@@ -24,8 +24,8 @@ impl FunctionInfo for Length {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Utf8],
-            variadic: None,
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: None,
             return_type: DataTypeId::Int64,
         }]
     }
@@ -84,13 +84,13 @@ impl FunctionInfo for ByteLength {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Utf8],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8],
+                variadic_arg: None,
                 return_type: DataTypeId::Int64,
             },
             Signature {
-                input: &[DataTypeId::Binary],
-                variadic: None,
+                positional_args: &[DataTypeId::Binary],
+                variadic_arg: None,
                 return_type: DataTypeId::Int64,
             },
         ]
@@ -146,13 +146,13 @@ impl FunctionInfo for BitLength {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Utf8],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8],
+                variadic_arg: None,
                 return_type: DataTypeId::Int64,
             },
             Signature {
-                input: &[DataTypeId::Binary],
-                variadic: None,
+                positional_args: &[DataTypeId::Binary],
+                variadic_arg: None,
                 return_type: DataTypeId::Int64,
             },
         ]

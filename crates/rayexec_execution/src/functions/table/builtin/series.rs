@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use rayexec_bullet::array::{Array, ArrayData};
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::database::DatabaseContext;
 use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
+use crate::functions::{FunctionInfo, Signature};
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,
@@ -22,11 +23,28 @@ use crate::storage::table_storage::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;
 
-impl TableFunction for GenerateSeries {
+impl FunctionInfo for GenerateSeries {
     fn name(&self) -> &'static str {
         "generate_series"
     }
 
+    fn signatures(&self) -> &[Signature] {
+        &[
+            Signature {
+                positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
+                variadic_arg: None,
+                return_type: DataTypeId::Any,
+            },
+            Signature {
+                positional_args: &[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64],
+                variadic_arg: None,
+                return_type: DataTypeId::Any,
+            },
+        ]
+    }
+}
+
+impl TableFunction for GenerateSeries {
     fn plan_and_initialize<'a>(
         &self,
         _context: &'a DatabaseContext,

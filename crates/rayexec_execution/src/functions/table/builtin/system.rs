@@ -18,6 +18,7 @@ use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
 use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
+use crate::functions::{FunctionInfo, Signature};
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,
@@ -241,11 +242,17 @@ impl<F: SystemFunctionImpl> SystemFunction<F> {
     }
 }
 
-impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
+impl<F: SystemFunctionImpl> FunctionInfo for SystemFunction<F> {
     fn name(&self) -> &'static str {
         F::NAME
     }
 
+    fn signatures(&self) -> &[Signature] {
+        unimplemented!()
+    }
+}
+
+impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
     fn plan_and_initialize<'a>(
         &self,
         context: &'a DatabaseContext,

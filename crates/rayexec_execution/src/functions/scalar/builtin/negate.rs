@@ -125,8 +125,8 @@ impl FunctionInfo for Not {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean],
-            variadic: None,
+            positional_args: &[DataTypeId::Boolean],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }

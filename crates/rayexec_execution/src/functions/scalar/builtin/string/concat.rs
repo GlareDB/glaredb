@@ -23,8 +23,8 @@ impl FunctionInfo for Concat {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[],
-            variadic: Some(DataTypeId::Utf8),
+            positional_args: &[],
+            variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
         }]
     }

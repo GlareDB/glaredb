@@ -22,8 +22,8 @@ impl FunctionInfo for Repeat {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Utf8, DataTypeId::Int64],
-            variadic: None,
+            positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
+            variadic_arg: None,
             return_type: DataTypeId::Utf8,
         }]
     }

@@ -14,6 +14,7 @@ use out::TableOutFunction;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 
+use super::FunctionInfo;
 use crate::database::DatabaseContext;
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::DataTable;
@@ -26,15 +27,7 @@ use crate::storage::table_storage::DataTable;
 /// object store, etc.
 ///
 /// The specialized variant should be determined by function argument inputs.
-pub trait TableFunction: Debug + Sync + Send + DynClone {
-    /// Name of the function.
-    fn name(&self) -> &'static str;
-
-    /// Optional aliases for this function.
-    fn aliases(&self) -> &'static [&'static str] {
-        &[]
-    }
-
+pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
     /// Plan the table function using the provide args, and do any necessary
     /// initialization.
     ///
@@ -45,7 +38,9 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
         &self,
         context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+        unimplemented!()
+    }
 
     fn initialize<'a>(
         &self,
@@ -63,7 +58,9 @@ pub trait TableFunction: Debug + Sync + Send + DynClone {
         async move { Ok(state) }.boxed()
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>>;
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+        unimplemented!()
+    }
 }
 
 impl Clone for Box<dyn TableFunction> {

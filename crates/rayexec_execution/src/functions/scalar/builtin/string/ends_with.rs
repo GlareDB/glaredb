@@ -26,8 +26,8 @@ impl FunctionInfo for EndsWith {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Utf8, DataTypeId::Utf8],
-            variadic: None,
+            positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }

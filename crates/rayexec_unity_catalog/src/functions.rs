@@ -6,12 +6,13 @@ use futures::stream::BoxStream;
 use futures::TryStreamExt;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
 use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{
     DataTable,
@@ -29,6 +30,8 @@ pub trait UnityObjectsOperation<R: Runtime>:
 {
     /// Name of the table function.
     const NAME: &'static str;
+    /// Function signatures.
+    const SIGNATURES: &[Signature];
 
     /// State containing the catalog connection.
     type ConnectionState: Debug + Clone + Sync + Send;
@@ -74,6 +77,11 @@ impl fmt::Debug for ListSchemasStreamState {
 
 impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
     const NAME: &'static str = "unity_list_schemas";
+    const SIGNATURES: &[Signature] = &[Signature {
+        positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
+        variadic_arg: None,
+        return_type: DataTypeId::Any,
+    }];
 
     type ConnectionState = ListSchemasConnectionState<R>;
     type StreamState = ListSchemasStreamState;
@@ -147,6 +155,11 @@ impl fmt::Debug for ListTablesStreamState {
 
 impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
     const NAME: &'static str = "unity_list_tables";
+    const SIGNATURES: &[Signature] = &[Signature {
+        positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
+        variadic_arg: None,
+        return_type: DataTypeId::Any,
+    }];
 
     type ConnectionState = ListTablesConnectionState<R>;
     type StreamState = ListTablesStreamState;
@@ -238,11 +251,17 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> UnityObjects<R, O> {
     }
 }
 
-impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, O> {
+impl<R: Runtime, O: UnityObjectsOperation<R>> FunctionInfo for UnityObjects<R, O> {
     fn name(&self) -> &'static str {
         O::NAME
     }
 
+    fn signatures(&self) -> &[Signature] {
+        unimplemented!()
+    }
+}
+
+impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, O> {
     fn plan_and_initialize<'a>(
         &self,
         context: &'a DatabaseContext,

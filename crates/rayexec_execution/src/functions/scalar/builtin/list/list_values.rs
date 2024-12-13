@@ -19,8 +19,8 @@ impl FunctionInfo for ListValues {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[],
-            variadic: Some(DataTypeId::Any),
+            positional_args: &[],
+            variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List,
         }]
     }
