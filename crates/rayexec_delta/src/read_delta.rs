@@ -6,7 +6,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::table::{PlannedTableFunction2, TableFunction};
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
@@ -45,12 +45,12 @@ impl<R: Runtime> TableFunction for ReadDelta<R> {
         &self,
         _context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         let func = self.clone();
         Box::pin(async move { ReadDeltaImpl::initialize(func, args).await })
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         Ok(Box::new(ReadDeltaImpl {
             func: self.clone(),
             state: ReadDeltaState::decode(state)?,
@@ -99,7 +99,7 @@ impl<R: Runtime> ReadDeltaImpl<R> {
     async fn initialize(
         func: ReadDelta<R>,
         args: TableFunctionInputs,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
+    ) -> Result<Box<dyn PlannedTableFunction2>> {
         let (location, conf) = args.try_location_and_access_config()?;
 
         let provider = func.runtime.file_provider();
@@ -119,7 +119,7 @@ impl<R: Runtime> ReadDeltaImpl<R> {
     }
 }
 
-impl<R: Runtime> PlannedTableFunction for ReadDeltaImpl<R> {
+impl<R: Runtime> PlannedTableFunction2 for ReadDeltaImpl<R> {
     fn reinitialize(&self) -> BoxFuture<Result<()>> {
         // TODO: Reinit table.
         // TODO: Needs mut

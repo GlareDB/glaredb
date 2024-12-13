@@ -7,7 +7,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::table::{PlannedTableFunction2, TableFunction};
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
@@ -49,11 +49,11 @@ impl<R: Runtime> TableFunction for ReadParquet<R> {
         &self,
         _context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         Box::pin(ReadParquetImpl::initialize(self.clone(), args))
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         Ok(Box::new(ReadParquetImpl {
             func: self.clone(),
             state: ReadParquetState::decode(state)?,
@@ -107,7 +107,7 @@ impl<R: Runtime> ReadParquetImpl<R> {
     async fn initialize(
         func: ReadParquet<R>,
         args: TableFunctionInputs,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
+    ) -> Result<Box<dyn PlannedTableFunction2>> {
         let (location, conf) = args.try_location_and_access_config()?;
         let mut source = func
             .runtime
@@ -131,7 +131,7 @@ impl<R: Runtime> ReadParquetImpl<R> {
     }
 }
 
-impl<R: Runtime> PlannedTableFunction for ReadParquetImpl<R> {
+impl<R: Runtime> PlannedTableFunction2 for ReadParquetImpl<R> {
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
     }

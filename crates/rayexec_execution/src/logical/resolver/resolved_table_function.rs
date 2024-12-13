@@ -4,7 +4,7 @@ use rayexec_proto::ProtoConv;
 
 use crate::database::DatabaseContext;
 use crate::functions::table::inputs::TableFunctionInputs;
-use crate::functions::table::PlannedTableFunction;
+use crate::functions::table::PlannedTableFunction2;
 use crate::proto::DatabaseProtoConv;
 
 /// A resolved table function reference.
@@ -16,7 +16,7 @@ pub struct ResolvedTableFunctionReference {
     /// if not provided an alias.
     pub name: String,
     /// The function.
-    pub func: Box<dyn PlannedTableFunction>,
+    pub func: Box<dyn PlannedTableFunction2>,
     // TODO: Maybe keep args here?
 }
 

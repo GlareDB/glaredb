@@ -17,7 +17,7 @@ use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
+use crate::functions::table::{PlannedTableFunction2, TableFunction, TableFunctionInputs};
 use crate::functions::{FunctionInfo, Signature};
 use crate::storage::table_storage::{
     DataTable,
@@ -257,7 +257,7 @@ impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
         &self,
         context: &'a DatabaseContext,
         _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         // TODO: Method on args returning an error if not empty.
 
         let databases = context
@@ -280,7 +280,7 @@ impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
         })
     }
 
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         Ok(Box::new(PlannedSystemFunction {
             databases: Vec::new(),
             function: *self,
@@ -294,7 +294,7 @@ pub struct PlannedSystemFunction<F: SystemFunctionImpl> {
     function: SystemFunction<F>,
 }
 
-impl<F: SystemFunctionImpl> PlannedTableFunction for PlannedSystemFunction<F> {
+impl<F: SystemFunctionImpl> PlannedTableFunction2 for PlannedSystemFunction<F> {
     fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
         Ok(())
     }

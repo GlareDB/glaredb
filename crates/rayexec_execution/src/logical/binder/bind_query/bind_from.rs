@@ -9,7 +9,7 @@ use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction;
+use crate::functions::table::PlannedTableFunction2;
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -55,7 +55,7 @@ pub struct BoundBaseTable {
 pub struct BoundTableFunction {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
-    pub function: Box<dyn PlannedTableFunction>,
+    pub function: Box<dyn PlannedTableFunction2>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

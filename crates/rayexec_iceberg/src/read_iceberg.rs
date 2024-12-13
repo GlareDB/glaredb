@@ -6,7 +6,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::table::{PlannedTableFunction2, TableFunction};
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
@@ -43,12 +43,12 @@ impl<R: Runtime> TableFunction for ReadIceberg<R> {
         &self,
         _context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         let func = self.clone();
         Box::pin(async move { ReadIcebergImpl::initialize(func, args).await })
     }
 
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         // TODO
         not_implemented!("decode iceberg state")
     }
@@ -72,7 +72,7 @@ impl<R: Runtime> ReadIcebergImpl<R> {
     async fn initialize(
         func: ReadIceberg<R>,
         args: TableFunctionInputs,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
+    ) -> Result<Box<dyn PlannedTableFunction2>> {
         let (location, conf) = args.try_location_and_access_config()?;
         let provider = func.runtime.file_provider();
 
@@ -92,7 +92,7 @@ impl<R: Runtime> ReadIcebergImpl<R> {
     }
 }
 
-impl<R: Runtime> PlannedTableFunction for ReadIcebergImpl<R> {
+impl<R: Runtime> PlannedTableFunction2 for ReadIcebergImpl<R> {
     fn reinitialize(&self) -> BoxFuture<Result<()>> {
         // TODO: See delta
         Box::pin(async move { not_implemented!("reinit iceberg state") })

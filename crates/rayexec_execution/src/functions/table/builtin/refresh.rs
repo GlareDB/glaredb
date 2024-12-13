@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
+use crate::functions::table::{PlannedTableFunction2, TableFunction, TableFunctionInputs};
 use crate::functions::{FunctionInfo, Signature};
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::table_storage::DataTable;
@@ -100,11 +100,11 @@ impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
         &self,
         _context: &'a DatabaseContext,
         _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         unimplemented!()
     }
 
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         unimplemented!()
     }
 }
@@ -116,7 +116,7 @@ pub struct RefreshObjectsImpl<O: RefreshOperation> {
     _op: PhantomData<O>,
 }
 
-impl<O: RefreshOperation> PlannedTableFunction for RefreshObjectsImpl<O> {
+impl<O: RefreshOperation> PlannedTableFunction2 for RefreshObjectsImpl<O> {
     fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
         Ok(())
     }

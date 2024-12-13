@@ -5,7 +5,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::table::{PlannedTableFunction2, TableFunction};
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
@@ -47,11 +47,11 @@ impl<R: Runtime> TableFunction for ReadCsv<R> {
         &self,
         _context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         Box::pin(ReadCsvImpl::initialize(self.clone(), args))
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         let state = ReadCsvState::decode(state)?;
         Ok(Box::new(ReadCsvImpl {
             func: self.clone(),
@@ -112,7 +112,7 @@ impl<R: Runtime> ReadCsvImpl<R> {
     async fn initialize(
         func: ReadCsv<R>,
         args: TableFunctionInputs,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
+    ) -> Result<Box<dyn PlannedTableFunction2>> {
         let (location, conf) = args.try_location_and_access_config()?;
 
         let mut source = func
@@ -155,7 +155,7 @@ impl<R: Runtime> ReadCsvImpl<R> {
     }
 }
 
-impl<R: Runtime> PlannedTableFunction for ReadCsvImpl<R> {
+impl<R: Runtime> PlannedTableFunction2 for ReadCsvImpl<R> {
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
     }

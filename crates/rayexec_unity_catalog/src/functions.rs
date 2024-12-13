@@ -11,7 +11,7 @@ use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::table::{PlannedTableFunction2, TableFunction};
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{
@@ -266,7 +266,7 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, 
         &self,
         context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         let func = self.clone();
         let runtime = self.runtime.clone();
 
@@ -276,7 +276,7 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, 
         })
     }
 
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         not_implemented!("decode state for unity operation")
     }
 }
@@ -287,7 +287,7 @@ pub struct UnityObjectsImpl<R: Runtime, O: UnityObjectsOperation<R>> {
     state: O::ConnectionState,
 }
 
-impl<R: Runtime, O: UnityObjectsOperation<R>> PlannedTableFunction for UnityObjectsImpl<R, O> {
+impl<R: Runtime, O: UnityObjectsOperation<R>> PlannedTableFunction2 for UnityObjectsImpl<R, O> {
     fn table_function(&self) -> &dyn TableFunction {
         &self.func
     }

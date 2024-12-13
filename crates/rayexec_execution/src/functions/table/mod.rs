@@ -3,6 +3,7 @@ pub mod inout;
 pub mod inputs;
 pub mod out;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use dyn_clone::DynClone;
@@ -12,10 +13,13 @@ use inout::TableInOutFunction;
 use inputs::TableFunctionInputs;
 use out::TableOutFunction;
 use rayexec_bullet::field::Schema;
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 
 use super::FunctionInfo;
 use crate::database::DatabaseContext;
+use crate::expr::Expression;
+use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::DataTable;
 
@@ -38,7 +42,7 @@ pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         &self,
         context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         unimplemented!()
     }
 
@@ -46,19 +50,21 @@ pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         &self,
         _context: &'a DatabaseContext,
         _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         unimplemented!()
     }
 
-    fn reinitialize<'a>(
-        &self,
-        _context: &'a DatabaseContext,
-        state: TableFunctionState,
-    ) -> BoxFuture<'a, Result<TableFunctionState>> {
-        async move { Ok(state) }.boxed()
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
+        unimplemented!()
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn plan<'a>(
+        &self,
+        context: &'a DatabaseContext,
+        table_list: &TableList,
+        positional_inputs: Vec<Expression>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> Result<PlannedTableFunction> {
         unimplemented!()
     }
 }
@@ -83,17 +89,43 @@ impl PartialEq for dyn TableFunction + '_ {
 
 impl Eq for dyn TableFunction {}
 
-#[derive(Debug)]
-pub struct TableFunctionState {
-    pub table_function: Box<dyn TableFunction>,
-    pub inputs: TableFunctionInputs,
-    pub out_function: Option<Box<dyn TableOutFunction>>,
-    pub inout_function: Option<Box<dyn TableInOutFunction>>,
+#[derive(Debug, Clone)]
+pub struct PlannedTableFunction {
+    /// The function that did the planning.
+    pub function: Box<dyn TableFunction>,
+    /// Unnamed positional arguments.
+    pub positional_inputs: Vec<Expression>,
+    /// Named arguments.
+    pub named_inputs: HashMap<String, OwnedScalarValue>, // Requiring constant values for named args is currently a limitation.
+    /// The function implementation.
+    pub function_impl: TableFunctionImpl,
+    /// Output cardinality of the function.
     pub cardinality: StatisticsValue<usize>,
+    /// Output schema of the function.
     pub schema: Schema,
 }
 
-pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
+impl PartialEq for PlannedTableFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.positional_inputs == other.positional_inputs
+            && self.named_inputs == other.named_inputs
+            && self.schema == other.schema
+    }
+}
+
+impl Eq for PlannedTableFunction {}
+
+#[derive(Debug, Clone)]
+pub enum TableFunctionImpl {
+    /// Table function that produces a table as its output.
+    Out(Box<dyn TableOutFunction>),
+    /// A table function that accepts dynamic arguments and produces a table
+    /// output.
+    InOut(Box<dyn TableInOutFunction>),
+}
+
+pub trait PlannedTableFunction2: Debug + Sync + Send + DynClone {
     /// Reinitialize the table function, including re-opening any connections
     /// needed.
     ///
@@ -127,21 +159,21 @@ pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
     fn datatable(&self) -> Result<Box<dyn DataTable>>;
 }
 
-impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> {
-    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
+impl PartialEq<dyn PlannedTableFunction2> for Box<dyn PlannedTableFunction2 + '_> {
+    fn eq(&self, other: &dyn PlannedTableFunction2) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn PlannedTableFunction + '_ {
-    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
+impl PartialEq for dyn PlannedTableFunction2 + '_ {
+    fn eq(&self, other: &dyn PlannedTableFunction2) -> bool {
         self.table_function() == other.table_function() && self.schema() == other.schema()
     }
 }
 
-impl Eq for dyn PlannedTableFunction {}
+impl Eq for dyn PlannedTableFunction2 {}
 
-impl Clone for Box<dyn PlannedTableFunction> {
+impl Clone for Box<dyn PlannedTableFunction2> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }

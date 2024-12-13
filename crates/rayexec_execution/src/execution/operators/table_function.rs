@@ -21,7 +21,7 @@ use super::{
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::functions::table::PlannedTableFunction;
+use crate::functions::table::PlannedTableFunction2;
 use crate::proto::DatabaseProtoConv;
 use crate::storage::table_storage::{DataTableScan, Projections};
 
@@ -40,12 +40,12 @@ impl fmt::Debug for TableFunctionPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
-    function: Box<dyn PlannedTableFunction>,
+    function: Box<dyn PlannedTableFunction2>,
     projections: Projections,
 }
 
 impl PhysicalTableFunction {
-    pub fn new(function: Box<dyn PlannedTableFunction>, projections: Projections) -> Self {
+    pub fn new(function: Box<dyn PlannedTableFunction2>, projections: Projections) -> Self {
         PhysicalTableFunction {
             function,
             projections,

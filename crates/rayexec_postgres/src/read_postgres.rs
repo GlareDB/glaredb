@@ -4,7 +4,7 @@ use rayexec_bullet::field::Schema;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::functions::table::{PlannedTableFunction2, TableFunction};
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::DataTable;
@@ -38,11 +38,11 @@ impl<R: Runtime> TableFunction for ReadPostgres<R> {
         &self,
         _context: &'a DatabaseContext,
         args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
+    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
         Box::pin(ReadPostgresImpl::initialize(self.clone(), args))
     }
 
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
+    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
         Ok(Box::new(ReadPostgresImpl {
             func: self.clone(),
             state: ReadPostgresState::decode(state)?,
@@ -94,7 +94,7 @@ where
     async fn initialize(
         func: ReadPostgres<R>,
         args: TableFunctionInputs,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
+    ) -> Result<Box<dyn PlannedTableFunction2>> {
         if !args.named.is_empty() {
             return Err(RayexecError::new(
                 "read_postgres does not accept named arguments",
@@ -131,7 +131,7 @@ where
     }
 }
 
-impl<R> PlannedTableFunction for ReadPostgresImpl<R>
+impl<R> PlannedTableFunction2 for ReadPostgresImpl<R>
 where
     R: Runtime,
 {

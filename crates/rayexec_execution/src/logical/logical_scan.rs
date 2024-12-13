@@ -11,7 +11,7 @@ use super::statistics::StatisticsValue;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction;
+use crate::functions::table::PlannedTableFunction2;
 
 // TODO: Probably remove view from this.
 // Maybe just split it all up.
@@ -23,7 +23,7 @@ pub enum ScanSource {
         source: Arc<CatalogEntry>,
     },
     TableFunction {
-        function: Box<dyn PlannedTableFunction>,
+        function: Box<dyn PlannedTableFunction2>,
     },
     ExpressionList {
         rows: Vec<Vec<Expression>>,
