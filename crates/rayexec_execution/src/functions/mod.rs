@@ -16,7 +16,7 @@ use rayexec_error::{RayexecError, Result};
 /// Function signature.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Signature {
-    /// Expected input types for this signature.
+    /// Expected positional input types for this signature.
     pub input: &'static [DataTypeId],
 
     /// Type of the variadic args if this function is variadic.
@@ -39,6 +39,14 @@ pub struct Signature {
 }
 
 impl Signature {
+    pub const fn new_positional(input: &'static [DataTypeId], return_type: DataTypeId) -> Self {
+        Signature {
+            input,
+            variadic: None,
+            return_type,
+        }
+    }
+
     /// Check if this signature is a variadic signature.
     pub const fn is_variadic(&self) -> bool {
         self.variadic.is_some()
