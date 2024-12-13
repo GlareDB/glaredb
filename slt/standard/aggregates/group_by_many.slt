@@ -34,7 +34,7 @@ SELECT sum(amount), 'constant' as constant FROM t1 GROUP BY constant;
 # Now create a table where all rows have the same keys.
 
 statement ok
-CREATE TABLE t2 (
+CREATE TEMP TABLE t2 (
     first_name  TEXT,
     last_name   TEXT,
     nick_name   TEXT,
