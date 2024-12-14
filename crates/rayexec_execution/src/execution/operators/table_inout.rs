@@ -28,8 +28,8 @@ pub struct TableInOutPartitionState {
 pub struct PhysicalTableInOut {
     /// The table function.
     pub function: PlannedTableFunction,
-    /// Expressions used to compute the inputs to the functions.
-    pub function_expressions: Vec<PhysicalScalarExpression>,
+    /// Input expressions to the table function.
+    pub function_inputs: Vec<PhysicalScalarExpression>,
 }
 
 impl ExecutableOperator for PhysicalTableInOut {
