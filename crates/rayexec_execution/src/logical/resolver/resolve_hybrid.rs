@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
@@ -11,6 +12,8 @@ use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{Database, DatabaseContext};
 use crate::datasource::{DataSourceRegistry, FileHandlers};
+use crate::functions::table::TableFunctionPlanner;
+use crate::logical::binder::constant_binder::ConstantBinder;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::ResolveMode;
 
@@ -186,19 +189,27 @@ impl<'a> HybridResolver<'a> {
     ) -> Result<()> {
         for item in resolve_context.table_functions.inner.iter_mut() {
             if let MaybeResolved::Unresolved(unresolved) = item {
-                let table_fn = NormalResolver::new(self.resolver.tx, self.resolver.context)
+                let function = NormalResolver::new(self.resolver.tx, self.resolver.context)
                     .require_resolve_table_function(&unresolved.reference)?;
 
-                let name = table_fn.name().to_string();
-                let func = table_fn
-                    .plan_and_initialize(self.resolver.context, unresolved.args.clone())
-                    .await?;
+                let resolved = match function.planner() {
+                    TableFunctionPlanner::InOut(_) => {
+                        ResolvedTableFunctionReference::InOut(function)
+                    }
+                    TableFunctionPlanner::Scan(planner) => {
+                        let planned = planner
+                            .plan(
+                                self.resolver.context,
+                                unresolved.args.positional.clone(),
+                                unresolved.args.named.clone(),
+                            )
+                            .await?;
 
-                // TODO: Marker indicating this needs to be executing remotely.
-                *item = MaybeResolved::Resolved(
-                    ResolvedTableFunctionReference { name, func },
-                    LocationRequirement::Remote,
-                )
+                        ResolvedTableFunctionReference::Scan(planned)
+                    }
+                };
+
+                *item = MaybeResolved::Resolved(resolved, LocationRequirement::Remote)
             }
         }
 

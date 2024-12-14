@@ -9,6 +9,11 @@ use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;
 
+// TODO: This should be extended to support arbitrary table functions.
+//
+// - Left lateral join between function inputs, and the function itself.
+// - Physical plan would need to handle multiple functions at once (similar to
+//   the current unnest plan).
 #[derive(Debug)]
 pub struct UnnestPlanner;
 

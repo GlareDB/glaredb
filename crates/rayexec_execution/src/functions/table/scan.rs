@@ -7,19 +7,19 @@ use rayexec_error::Result;
 
 use crate::storage::table_storage::Projections;
 
-pub trait TableOutFunction: Debug + Sync + Send + DynClone {
+pub trait TableScanFunction: Debug + Sync + Send + DynClone {
     fn scan(
         &self,
         projections: Projections,
         num_partitions: usize,
-    ) -> Result<Vec<Box<dyn TableOutState>>>;
+    ) -> Result<Vec<Box<dyn TableScanState>>>;
 }
 
-pub trait TableOutState: Debug + Sync + Send {
+pub trait TableScanState: Debug + Sync + Send {
     fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>>;
 }
 
-impl Clone for Box<dyn TableOutFunction> {
+impl Clone for Box<dyn TableScanFunction> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }

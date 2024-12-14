@@ -9,7 +9,7 @@ use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction2;
+use crate::functions::table::{PlannedTableFunction, PlannedTableFunction2};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -24,6 +24,7 @@ use crate::logical::logical_join::JoinType;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::ResolvedTableOrCteReference;
+use crate::logical::resolver::resolved_table_function::ResolvedTableFunctionReference;
 use crate::logical::resolver::{ResolvedMeta, ResolvedSubqueryOptions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +56,7 @@ pub struct BoundBaseTable {
 pub struct BoundTableFunction {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
-    pub function: Box<dyn PlannedTableFunction2>,
+    pub function: PlannedTableFunction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -390,38 +391,47 @@ impl<'a> FromBinder<'a> {
             .table_functions
             .try_get_bound(function.reference)?;
 
-        // TODO: For table funcs that are reading files, it'd be nice to have
-        // the default alias be the base file path, not the function name.
-        let default_alias = TableAlias {
-            database: None,
-            schema: None,
-            table: reference.name.clone(),
-        };
+        match reference {
+            ResolvedTableFunctionReference::InOut(_) => {
+                // Handle in/out function planning now. We have everything we
+                // need to plan its inputs.
+                let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
+                unimplemented!()
+            }
+            ResolvedTableFunctionReference::Scan(planned) => {
+                // TODO: For table funcs that are reading files, it'd be nice to have
+                // the default alias be the base file path, not the function name.
+                let default_alias = TableAlias {
+                    database: None,
+                    schema: None,
+                    table: reference.base_table_alias(),
+                };
 
-        let (names, types) = reference
-            .func
-            .schema()
-            .fields
-            .iter()
-            .map(|f| (f.name.clone(), f.datatype.clone()))
-            .unzip();
+                let (names, types) = planned
+                    .schema
+                    .fields
+                    .iter()
+                    .map(|f| (f.name.clone(), f.datatype.clone()))
+                    .unzip();
 
-        let table_ref = self.push_table_scope_with_from_alias(
-            bind_context,
-            Some(default_alias),
-            names,
-            types,
-            alias,
-        )?;
+                let table_ref = self.push_table_scope_with_from_alias(
+                    bind_context,
+                    Some(default_alias),
+                    names,
+                    types,
+                    alias,
+                )?;
 
-        Ok(BoundFrom {
-            bind_ref: self.current,
-            item: BoundFromItem::TableFunction(BoundTableFunction {
-                table_ref,
-                location,
-                function: reference.func.clone(),
-            }),
-        })
+                Ok(BoundFrom {
+                    bind_ref: self.current,
+                    item: BoundFromItem::TableFunction(BoundTableFunction {
+                        table_ref,
+                        location,
+                        function: planned.clone(),
+                    }),
+                })
+            }
+        }
     }
 
     fn bind_join(

@@ -12,5 +12,6 @@ pub mod bind_query;
 pub mod bind_set;
 pub mod bind_statement;
 pub mod column_binder;
+pub mod constant_binder;
 pub mod expr_binder;
 pub mod table_list;

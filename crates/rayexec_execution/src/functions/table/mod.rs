@@ -1,7 +1,7 @@
 pub mod builtin;
 pub mod inout;
 pub mod inputs;
-pub mod out;
+pub mod scan;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -11,10 +11,10 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use inout::TableInOutFunction;
 use inputs::TableFunctionInputs;
-use out::TableOutFunction;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use scan::TableScanFunction;
 
 use super::FunctionInfo;
 use crate::database::DatabaseContext;
@@ -58,13 +58,7 @@ pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
         unimplemented!()
     }
 
-    fn plan<'a>(
-        &self,
-        context: &'a DatabaseContext,
-        table_list: &TableList,
-        positional_inputs: Vec<Expression>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
-    ) -> Result<PlannedTableFunction> {
+    fn planner(&self) -> TableFunctionPlanner {
         unimplemented!()
     }
 }
@@ -89,6 +83,36 @@ impl PartialEq for dyn TableFunction + '_ {
 
 impl Eq for dyn TableFunction {}
 
+#[derive(Debug)]
+pub enum TableFunctionPlanner<'a> {
+    InOut(&'a dyn InOutPlanner),
+    Scan(&'a dyn ScanPlanner),
+}
+
+pub trait InOutPlanner: Debug {
+    /// Plans an in/out function with possibly dynamic positional inputs.
+    fn plan(
+        &self,
+        table_list: &TableList,
+        positional_inputs: Vec<Expression>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> Result<PlannedTableFunction>;
+}
+
+pub trait ScanPlanner: Debug {
+    /// Plans an table scan function.
+    ///
+    /// This only accepts constant arguments as it's meant to be used when
+    /// reading tables from an external resource. Functions like `read_parquet`
+    /// or `read_postgres` should implement this.
+    fn plan<'a>(
+        &self,
+        context: &'a DatabaseContext,
+        positional_inputs: Vec<OwnedScalarValue>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'a, Result<PlannedTableFunction>>;
+}
+
 #[derive(Debug, Clone)]
 pub struct PlannedTableFunction {
     /// The function that did the planning.
@@ -98,6 +122,9 @@ pub struct PlannedTableFunction {
     /// Named arguments.
     pub named_inputs: HashMap<String, OwnedScalarValue>, // Requiring constant values for named args is currently a limitation.
     /// The function implementation.
+    ///
+    /// The variant used here should match the variant of the planner that
+    /// `function` returns from its `planner` method.
     pub function_impl: TableFunctionImpl,
     /// Output cardinality of the function.
     pub cardinality: StatisticsValue<usize>,
@@ -119,7 +146,7 @@ impl Eq for PlannedTableFunction {}
 #[derive(Debug, Clone)]
 pub enum TableFunctionImpl {
     /// Table function that produces a table as its output.
-    Out(Box<dyn TableOutFunction>),
+    Scan(Box<dyn TableScanFunction>),
     /// A table function that accepts dynamic arguments and produces a table
     /// output.
     InOut(Box<dyn TableInOutFunction>),

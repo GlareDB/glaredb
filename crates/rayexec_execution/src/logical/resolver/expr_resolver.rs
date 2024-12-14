@@ -6,6 +6,7 @@ use rayexec_parser::meta::Raw;
 
 use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
+use super::resolved_table_function::ConstantFunctionArgs;
 use super::{ResolveContext, ResolvedMeta, Resolver};
 use crate::database::catalog_entry::CatalogEntryType;
 use crate::functions::table::inputs::TableFunctionInputs;
@@ -88,18 +89,15 @@ impl<'a> ExpressionResolver<'a> {
         })
     }
 
-    /// Resolves functions arguments for a table function.
+    /// Resolves constant function arguments for a table function.
     ///
     /// Slightly different from normal argument resolving since arguments to a
     /// table function are more restrictive. E.g. we only allow literals as
-    /// arguments.
-    ///
-    /// Note in the future we could allow more complex expressions as arguments,
-    /// and we could support table function that accept columns as inputs.
-    pub async fn resolve_table_function_args(
+    /// arguments for scan table functions.
+    pub async fn resolve_constant_table_function_args(
         &self,
         args: Vec<FunctionArg<Raw>>,
-    ) -> Result<TableFunctionInputs> {
+    ) -> Result<ConstantFunctionArgs> {
         let resolve_context = &mut ResolveContext::default(); // Empty resolve context since we don't allow complex expressions.
 
         let mut named = HashMap::new();
@@ -159,7 +157,7 @@ impl<'a> ExpressionResolver<'a> {
             }
         }
 
-        Ok(TableFunctionInputs { named, positional })
+        Ok(ConstantFunctionArgs { named, positional })
     }
 
     pub async fn resolve_expressions(
@@ -658,7 +656,7 @@ impl<'a> ExpressionResolver<'a> {
         ))
     }
 
-    async fn resolve_function_args(
+    pub(crate) async fn resolve_function_args(
         &self,
         args: Vec<ast::FunctionArg<Raw>>,
         resolve_context: &mut ResolveContext,
