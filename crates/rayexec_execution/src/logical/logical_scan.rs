@@ -11,7 +11,7 @@ use super::statistics::StatisticsValue;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction2;
+use crate::functions::table::PlannedTableFunction;
 
 // TODO: Probably remove view from this.
 // Maybe just split it all up.
@@ -23,7 +23,7 @@ pub enum ScanSource {
         source: Arc<CatalogEntry>,
     },
     TableFunction {
-        function: Box<dyn PlannedTableFunction2>,
+        function: PlannedTableFunction,
     },
     ExpressionList {
         rows: Vec<Vec<Expression>>,
@@ -39,7 +39,7 @@ impl ScanSource {
     pub fn cardinality(&self) -> StatisticsValue<usize> {
         match self {
             Self::Table { .. } => StatisticsValue::Unknown,
-            Self::TableFunction { function } => function.cardinality(),
+            Self::TableFunction { function } => function.cardinality,
             Self::ExpressionList { rows } => StatisticsValue::Exact(rows.len()),
             Self::View { .. } => StatisticsValue::Unknown,
         }
@@ -95,7 +95,7 @@ impl Explainable for LogicalScan {
                 source,
             } => ent = ent.with_value("source", format!("{catalog}.{schema}.{}", source.name)),
             ScanSource::TableFunction { function } => {
-                ent = ent.with_value("function_name", function.table_function().name())
+                ent = ent.with_value("function_name", function.function.name())
             }
             ScanSource::ExpressionList { rows } => {
                 ent = ent.with_value("num_rows", rows.len());

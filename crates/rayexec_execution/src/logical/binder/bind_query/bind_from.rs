@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayexec_bullet::datatype::DataType;
@@ -9,7 +10,7 @@ use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::functions::table::{PlannedTableFunction, PlannedTableFunction2};
+use crate::functions::table::{PlannedTableFunction, TableFunctionPlanner};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -26,6 +27,8 @@ use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::ResolvedTableOrCteReference;
 use crate::logical::resolver::resolved_table_function::ResolvedTableFunctionReference;
 use crate::logical::resolver::{ResolvedMeta, ResolvedSubqueryOptions};
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundFrom {
@@ -391,47 +394,111 @@ impl<'a> FromBinder<'a> {
             .table_functions
             .try_get_bound(function.reference)?;
 
-        match reference {
-            ResolvedTableFunctionReference::InOut(_) => {
+        let planned = match reference {
+            ResolvedTableFunctionReference::InOut(inout) => {
                 // Handle in/out function planning now. We have everything we
                 // need to plan its inputs.
                 let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
-                unimplemented!()
+
+                let mut positional = Vec::new();
+                let mut named = HashMap::new();
+
+                for arg in function.args.iter() {
+                    let recur = RecursionContext {
+                        allow_aggregates: false,
+                        allow_windows: false,
+                        is_root: true,
+                    };
+
+                    match arg {
+                        ast::FunctionArg::Unnamed { arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                let expr = expr_binder.bind_expression(
+                                    bind_context,
+                                    expr,
+                                    &mut DefaultColumnBinder,
+                                    recur,
+                                )?;
+
+                                positional.push(expr);
+                            }
+                            ast::FunctionArgExpr::Wildcard => {
+                                return Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ));
+                            }
+                        },
+                        ast::FunctionArg::Named { name, arg } => {
+                            match arg {
+                                ast::FunctionArgExpr::Expr(expr) => {
+                                    // Constants required.
+                                    let expr = expr_binder.bind_expression(
+                                        bind_context,
+                                        expr,
+                                        &mut DefaultColumnBinder,
+                                        recur,
+                                    )?;
+
+                                    let val =
+                                        ConstFold::rewrite(bind_context.get_table_list(), expr)?
+                                            .try_into_scalar()?;
+                                    named.insert(name.as_normalized_string(), val);
+                                }
+                                ast::FunctionArgExpr::Wildcard => {
+                                    return Err(RayexecError::new(
+                                        "Cannot plan a function with '*' as an argument",
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                match inout.planner() {
+                    TableFunctionPlanner::InOut(planner) => {
+                        planner.plan(bind_context.get_table_list(), positional, named)?
+                    }
+                    TableFunctionPlanner::Scan(_) => {
+                        return Err(RayexecError::new(
+                            "Expected in/out planner, got scan planner",
+                        ))
+                    }
+                }
             }
-            ResolvedTableFunctionReference::Scan(planned) => {
-                // TODO: For table funcs that are reading files, it'd be nice to have
-                // the default alias be the base file path, not the function name.
-                let default_alias = TableAlias {
-                    database: None,
-                    schema: None,
-                    table: reference.base_table_alias(),
-                };
+            ResolvedTableFunctionReference::Scan(planned) => planned.clone(),
+        };
 
-                let (names, types) = planned
-                    .schema
-                    .fields
-                    .iter()
-                    .map(|f| (f.name.clone(), f.datatype.clone()))
-                    .unzip();
+        // TODO: For table funcs that are reading files, it'd be nice to have
+        // the default alias be the base file path, not the function name.
+        let default_alias = TableAlias {
+            database: None,
+            schema: None,
+            table: reference.base_table_alias(),
+        };
 
-                let table_ref = self.push_table_scope_with_from_alias(
-                    bind_context,
-                    Some(default_alias),
-                    names,
-                    types,
-                    alias,
-                )?;
+        let (names, types) = planned
+            .schema
+            .fields
+            .iter()
+            .map(|f| (f.name.clone(), f.datatype.clone()))
+            .unzip();
 
-                Ok(BoundFrom {
-                    bind_ref: self.current,
-                    item: BoundFromItem::TableFunction(BoundTableFunction {
-                        table_ref,
-                        location,
-                        function: planned.clone(),
-                    }),
-                })
-            }
-        }
+        let table_ref = self.push_table_scope_with_from_alias(
+            bind_context,
+            Some(default_alias),
+            names,
+            types,
+            alias,
+        )?;
+
+        Ok(BoundFrom {
+            bind_ref: self.current,
+            item: BoundFromItem::TableFunction(BoundTableFunction {
+                table_ref,
+                location,
+                function: planned,
+            }),
+        })
     }
 
     fn bind_join(
