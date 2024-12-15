@@ -66,9 +66,9 @@ impl<R: Runtime> ScanPlanner for ReadCsv<R> {
 }
 
 impl<R: Runtime> ReadCsv<R> {
-    async fn plan_inner<'a>(
+    async fn plan_inner(
         self,
-        _context: &'a DatabaseContext,
+        _context: &DatabaseContext,
         positional_inputs: Vec<OwnedScalarValue>,
         named_inputs: HashMap<String, OwnedScalarValue>,
     ) -> Result<PlannedTableFunction> {

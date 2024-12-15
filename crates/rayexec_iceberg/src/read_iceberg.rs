@@ -64,9 +64,9 @@ impl<R: Runtime> ScanPlanner for ReadIceberg<R> {
 }
 
 impl<R: Runtime> ReadIceberg<R> {
-    async fn plan_inner<'a>(
+    async fn plan_inner(
         self,
-        _context: &'a DatabaseContext,
+        _context: &DatabaseContext,
         positional_inputs: Vec<OwnedScalarValue>,
         named_inputs: HashMap<String, OwnedScalarValue>,
     ) -> Result<PlannedTableFunction> {
