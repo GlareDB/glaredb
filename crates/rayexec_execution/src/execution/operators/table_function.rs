@@ -5,8 +5,7 @@ use std::task::{Context, Poll};
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use rayexec_bullet::batch::Batch;
-use rayexec_error::{OptionExt, RayexecError, Result};
-use rayexec_proto::ProtoConv;
+use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
 use super::{
@@ -21,12 +20,13 @@ use super::{
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::functions::table::PlannedTableFunction2;
+use crate::functions::table::scan::TableScanState;
+use crate::functions::table::{PlannedTableFunction, TableFunctionImpl};
 use crate::proto::DatabaseProtoConv;
-use crate::storage::table_storage::{DataTableScan, Projections};
+use crate::storage::table_storage::Projections;
 
 pub struct TableFunctionPartitionState {
-    scan: Box<dyn DataTableScan>,
+    scan_state: Box<dyn TableScanState>,
     /// In progress pull we're working on.
     future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
 }
@@ -40,12 +40,12 @@ impl fmt::Debug for TableFunctionPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
-    function: Box<dyn PlannedTableFunction2>,
+    function: PlannedTableFunction,
     projections: Projections,
 }
 
 impl PhysicalTableFunction {
-    pub fn new(function: Box<dyn PlannedTableFunction2>, projections: Projections) -> Self {
+    pub fn new(function: PlannedTableFunction, projections: Projections) -> Self {
         PhysicalTableFunction {
             function,
             projections,
@@ -59,15 +59,26 @@ impl ExecutableOperator for PhysicalTableFunction {
         _context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
-        let data_table = self.function.datatable()?;
+        let scan_func = match &self.function.function_impl {
+            TableFunctionImpl::Scan(scan) => scan,
+            _ => {
+                return Err(RayexecError::new(format!(
+                    "Table function '{}' not a scan function",
+                    self.function.function.name()
+                )))
+            }
+        };
 
-        // TODO: Pushdown projections, filters
-        let scans = data_table.scan(self.projections.clone(), partitions[0])?;
+        // TODO: Pushdown  filters
+        let scans = scan_func.scan(self.projections.clone(), partitions[0])?;
 
         let states = scans
             .into_iter()
-            .map(|scan| {
-                PartitionState::TableFunction(TableFunctionPartitionState { scan, future: None })
+            .map(|scan_state| {
+                PartitionState::TableFunction(TableFunctionPartitionState {
+                    scan_state,
+                    future: None,
+                })
             })
             .collect();
 
@@ -119,7 +130,7 @@ impl ExecutableOperator for PhysicalTableFunction {
                     }
                 }
 
-                let mut future = state.scan.pull();
+                let mut future = state.scan_state.pull();
                 match future.poll_unpin(cx) {
                     Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
                     Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
@@ -146,21 +157,23 @@ impl Explainable for PhysicalTableFunction {
 impl DatabaseProtoConv for PhysicalTableFunction {
     type ProtoType = rayexec_proto::generated::execution::PhysicalTableFunction;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            function: Some(self.function.to_proto_ctx(context)?),
-            projections: Some(self.projections.to_proto()?),
-        })
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     function: Some(self.function.to_proto_ctx(context)?),
+        //     projections: Some(self.projections.to_proto()?),
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        // TODO: https://github.com/GlareDB/rayexec/issues/278
-        Ok(Self {
-            function: DatabaseProtoConv::from_proto_ctx(
-                proto.function.required("function")?,
-                context,
-            )?,
-            projections: ProtoConv::from_proto(proto.projections.required("projections")?)?,
-        })
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // // TODO: https://github.com/GlareDB/rayexec/issues/278
+        // Ok(Self {
+        //     function: DatabaseProtoConv::from_proto_ctx(
+        //         proto.function.required("function")?,
+        //         context,
+        //     )?,
+        //     projections: ProtoConv::from_proto(proto.projections.required("projections")?)?,
+        // })
     }
 }
