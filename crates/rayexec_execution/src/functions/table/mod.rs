@@ -1,10 +1,10 @@
 pub mod builtin;
 pub mod inout;
 pub mod inputs;
-pub mod scan;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
@@ -13,8 +13,10 @@ use inout::TableInOutFunction;
 use inputs::TableFunctionInputs;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_error::Result;
-use scan::TableScanFunction;
+use rayexec_error::{RayexecError, Result};
+use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::s3::credentials::AwsCredentials;
+use rayexec_io::s3::S3Location;
 
 use super::FunctionInfo;
 use crate::database::DatabaseContext;
@@ -146,7 +148,7 @@ impl Eq for PlannedTableFunction {}
 #[derive(Debug, Clone)]
 pub enum TableFunctionImpl {
     /// Table function that produces a table as its output.
-    Scan(Box<dyn TableScanFunction>),
+    Scan(Arc<dyn DataTable>),
     /// A table function that accepts dynamic arguments and produces a table
     /// output.
     InOut(Box<dyn TableInOutFunction>),
@@ -204,4 +206,65 @@ impl Clone for Box<dyn PlannedTableFunction2> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
+}
+
+/// Try to get a file location and access config from the table args.
+// TODO: Secrets provider that we pass in allowing us to get creds from some
+// secrets store.
+pub fn try_location_and_access_config_from_args(
+    func: &impl TableFunction,
+    positional: &[OwnedScalarValue],
+    named: &HashMap<String, OwnedScalarValue>,
+) -> Result<(FileLocation, AccessConfig)> {
+    let loc = match positional.first() {
+        Some(loc) => {
+            let loc = loc.try_as_str()?;
+            FileLocation::parse(loc)
+        }
+        None => {
+            return Err(RayexecError::new(format!(
+                "Expected at least one position argument for function {}",
+                func.name(),
+            )))
+        }
+    };
+
+    let conf = match &loc {
+        FileLocation::Url(url) => {
+            if S3Location::is_s3_location(url) {
+                let key_id = try_get_named(func, "key_id", named)?
+                    .try_as_str()?
+                    .to_string();
+                let secret = try_get_named(func, "secret", named)?
+                    .try_as_str()?
+                    .to_string();
+                let region = try_get_named(func, "region", named)?
+                    .try_as_str()?
+                    .to_string();
+
+                AccessConfig::S3 {
+                    credentials: AwsCredentials { key_id, secret },
+                    region,
+                }
+            } else {
+                AccessConfig::None
+            }
+        }
+        FileLocation::Path(_) => AccessConfig::None,
+    };
+
+    Ok((loc, conf))
+}
+
+pub fn try_get_named<'a>(
+    func: &impl TableFunction,
+    name: &str,
+    named: &'a HashMap<String, OwnedScalarValue>,
+) -> Result<&'a OwnedScalarValue> {
+    named.get(name).ok_or_else(|| {
+        RayexecError::new(format!(
+            "Expected named argument '{name}' for function {}",
+            func.name()
+        ))
+    })
 }

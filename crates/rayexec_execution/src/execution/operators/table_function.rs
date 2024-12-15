@@ -20,13 +20,12 @@ use super::{
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::functions::table::scan::TableScanState;
 use crate::functions::table::{PlannedTableFunction, TableFunctionImpl};
 use crate::proto::DatabaseProtoConv;
-use crate::storage::table_storage::Projections;
+use crate::storage::table_storage::{DataTableScan, Projections};
 
 pub struct TableFunctionPartitionState {
-    scan_state: Box<dyn TableScanState>,
+    scan_state: Box<dyn DataTableScan>,
     /// In progress pull we're working on.
     future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
 }

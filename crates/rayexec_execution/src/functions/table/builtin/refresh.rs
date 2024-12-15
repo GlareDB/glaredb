@@ -9,10 +9,9 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction2, TableFunction, TableFunctionInputs};
+use crate::functions::table::{TableFunction, TableFunctionInputs, TableFunctionPlanner};
 use crate::functions::{FunctionInfo, Signature};
 use crate::storage::catalog_storage::CatalogStorage;
-use crate::storage::table_storage::DataTable;
 
 pub trait RefreshOperation: Debug + Clone + Copy + PartialEq + Eq + Sync + Send + 'static {
     const NAME: &'static str;
@@ -96,40 +95,7 @@ impl<O: RefreshOperation> FunctionInfo for RefreshObjects<O> {
 }
 
 impl<O: RefreshOperation> TableFunction for RefreshObjects<O> {
-    fn plan_and_initialize<'a>(
-        &self,
-        _context: &'a DatabaseContext,
-        _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
-        unimplemented!()
-    }
-
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
-        unimplemented!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RefreshObjectsImpl<O: RefreshOperation> {
-    func: RefreshObjects<O>,
-    _state: Option<O::State>,
-    _op: PhantomData<O>,
-}
-
-impl<O: RefreshOperation> PlannedTableFunction2 for RefreshObjectsImpl<O> {
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn table_function(&self) -> &dyn TableFunction {
-        &self.func
-    }
-
-    fn schema(&self) -> Schema {
-        O::schema()
-    }
-
-    fn datatable(&self) -> Result<Box<dyn DataTable>> {
+    fn planner(&self) -> TableFunctionPlanner {
         unimplemented!()
     }
 }
