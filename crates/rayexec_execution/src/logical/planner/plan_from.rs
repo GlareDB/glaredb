@@ -7,10 +7,12 @@ use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
+use crate::functions::table::TableFunctionImpl;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
 use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::logical_filter::LogicalFilter;
+use crate::logical::logical_inout::LogicalInOut;
 use crate::logical::logical_join::{
     ComparisonCondition,
     JoinType,
@@ -72,27 +74,50 @@ impl FromPlanner {
                     names.extend(table.column_names.iter().cloned());
                 }
 
-                let projection = (0..types.len()).collect();
+                match &func.function.function_impl {
+                    TableFunctionImpl::Scan(_) => {
+                        let projection = (0..types.len()).collect();
 
-                let source = ScanSource::TableFunction {
-                    function: func.function,
-                };
-                let estimated_cardinality = source.cardinality();
+                        let source = ScanSource::TableFunction {
+                            function: func.function,
+                        };
+                        let estimated_cardinality = source.cardinality();
 
-                Ok(LogicalOperator::Scan(Node {
-                    node: LogicalScan {
-                        table_ref: func.table_ref,
-                        types,
-                        names,
-                        projection,
-                        did_prune_columns: false,
-                        scan_filters: Vec::new(),
-                        source,
-                    },
-                    location: func.location,
-                    children: Vec::new(),
-                    estimated_cardinality,
-                }))
+                        Ok(LogicalOperator::Scan(Node {
+                            node: LogicalScan {
+                                table_ref: func.table_ref,
+                                types,
+                                names,
+                                projection,
+                                did_prune_columns: false,
+                                scan_filters: Vec::new(),
+                                source,
+                            },
+                            location: func.location,
+                            children: Vec::new(),
+                            estimated_cardinality,
+                        }))
+                    }
+                    TableFunctionImpl::InOut(_) => {
+                        let cardinality = func.function.cardinality;
+
+                        // In/out always requires one input. Initialize its
+                        // input with an empty operator. Subquery planning will
+                        // take care of the lateral binding and changing its
+                        // child as needed.
+                        Ok(LogicalOperator::InOut(Node {
+                            node: LogicalInOut {
+                                function_table_ref: func.table_ref,
+                                function: func.function,
+                                projected_table_ref: None,
+                                projected_outputs: Vec::new(),
+                            },
+                            location: func.location,
+                            children: vec![LogicalOperator::EMPTY],
+                            estimated_cardinality: cardinality,
+                        }))
+                    }
+                }
             }
             BoundFromItem::Subquery(subquery) => {
                 let plan = QueryPlanner.plan(bind_context, *subquery.subquery)?;

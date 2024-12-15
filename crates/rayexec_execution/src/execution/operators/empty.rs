@@ -23,16 +23,10 @@ pub struct EmptyPartitionState {
     finished: bool,
 }
 
+/// A dummy operator that produces a single batch containing no columns and a
+/// single row for each partition.
 #[derive(Debug)]
 pub struct PhysicalEmpty;
-
-impl PhysicalEmpty {
-    pub fn create_states(num_partitions: usize) -> Vec<EmptyPartitionState> {
-        (0..num_partitions)
-            .map(|_| EmptyPartitionState { finished: false })
-            .collect()
-    }
-}
 
 impl ExecutableOperator for PhysicalEmpty {
     fn create_states(

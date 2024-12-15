@@ -7,7 +7,6 @@ use rayexec_proto::ProtoConv;
 use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use super::copy::{CopyToArgs, CopyToFunction};
 use super::scalar::{PlannedScalarFunction, ScalarFunction};
-use super::table::inputs::TableFunctionInputs;
 use super::table::{PlannedTableFunction, TableFunction};
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
@@ -146,68 +145,34 @@ impl DatabaseProtoConv for Box<dyn TableFunction> {
     }
 }
 
-impl DatabaseProtoConv for Box<dyn PlannedTableFunction> {
+impl DatabaseProtoConv for PlannedTableFunction {
     type ProtoType = rayexec_proto::generated::functions::PlannedTableFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        let mut state = Vec::new();
-        self.encode_state(&mut state)?;
+        unimplemented!()
+        // let mut state = Vec::new();
+        // self.encode_state(&mut state)?;
 
-        Ok(Self::ProtoType {
-            name: self.table_function().name().to_string(),
-            state,
-        })
+        // Ok(Self::ProtoType {
+        //     name: self.table_function().name().to_string(),
+        //     state,
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        let tx = &CatalogTx {};
-        let ent = context
-            .system_catalog()?
-            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
-            .required("lookup schema")?
-            .get_table_function(tx, &proto.name)?
-            .required("table function")?;
-        let ent = ent.try_as_table_function_entry()?;
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // let tx = &CatalogTx {};
+        // let ent = context
+        //     .system_catalog()?
+        //     .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
+        //     .required("lookup schema")?
+        //     .get_table_function(tx, &proto.name)?
+        //     .required("table function")?;
+        // let ent = ent.try_as_table_function_entry()?;
 
-        let planned = ent.function.decode_state(&proto.state)?;
+        // let planned = ent.function.decode_state(&proto.state)?;
 
-        Ok(planned)
-    }
-}
-
-impl ProtoConv for TableFunctionInputs {
-    type ProtoType = rayexec_proto::generated::functions::TableFunctionArgs;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        let mut named = HashMap::new();
-        for (key, val) in &self.named {
-            named.insert(key.clone(), val.to_proto()?);
-        }
-
-        Ok(Self::ProtoType {
-            named,
-            positional: self
-                .positional
-                .iter()
-                .map(|v| v.to_proto())
-                .collect::<Result<Vec<_>>>()?,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        let mut named = HashMap::new();
-        for (key, val) in proto.named {
-            named.insert(key, OwnedScalarValue::from_proto(val)?);
-        }
-
-        Ok(Self {
-            named,
-            positional: proto
-                .positional
-                .into_iter()
-                .map(OwnedScalarValue::from_proto)
-                .collect::<Result<Vec<_>>>()?,
-        })
+        // Ok(planned)
     }
 }
 

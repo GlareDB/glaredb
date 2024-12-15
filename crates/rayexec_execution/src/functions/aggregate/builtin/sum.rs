@@ -36,23 +36,23 @@ impl FunctionInfo for Sum {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Float64],
-                variadic: None,
+                positional_args: &[DataTypeId::Float64],
+                variadic_arg: None,
                 return_type: DataTypeId::Float64,
             },
             Signature {
-                input: &[DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Int64, // TODO: Should be big num
             },
             Signature {
-                input: &[DataTypeId::Decimal64],
-                variadic: None,
+                positional_args: &[DataTypeId::Decimal64],
+                variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
             },
             Signature {
-                input: &[DataTypeId::Decimal128],
-                variadic: None,
+                positional_args: &[DataTypeId::Decimal128],
+                variadic_arg: None,
                 return_type: DataTypeId::Decimal128,
             },
         ]

@@ -57,18 +57,18 @@ use crate::logical::binder::table_list::TableList;
 // TODO: Include decimals.
 const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &[Signature] = &[
     Signature {
-        input: &[DataTypeId::Float16],
-        variadic: None,
+        positional_args: &[DataTypeId::Float16],
+        variadic_arg: None,
         return_type: DataTypeId::Float16,
     },
     Signature {
-        input: &[DataTypeId::Float32],
-        variadic: None,
+        positional_args: &[DataTypeId::Float32],
+        variadic_arg: None,
         return_type: DataTypeId::Float32,
     },
     Signature {
-        input: &[DataTypeId::Float64],
-        variadic: None,
+        positional_args: &[DataTypeId::Float64],
+        variadic_arg: None,
         return_type: DataTypeId::Float64,
     },
 ];

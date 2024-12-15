@@ -9,6 +9,7 @@ mod plan_drop;
 mod plan_empty;
 mod plan_explain;
 mod plan_filter;
+mod plan_inout;
 mod plan_insert;
 mod plan_join;
 mod plan_limit;
@@ -264,6 +265,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             LogicalOperator::SetOp(setop) => {
                 self.plan_set_operation(id_gen, materializations, setop)
             }
+            LogicalOperator::InOut(inout) => self.plan_inout(id_gen, materializations, inout),
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
             }

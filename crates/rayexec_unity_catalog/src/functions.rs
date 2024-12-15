@@ -1,17 +1,29 @@
+use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
-use futures::TryStreamExt;
+use futures::{FutureExt, TryStreamExt};
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::field::{Field, Schema};
-use rayexec_error::{not_implemented, Result};
+use rayexec_bullet::scalar::OwnedScalarValue;
+use rayexec_error::Result;
 use rayexec_execution::database::DatabaseContext;
-use rayexec_execution::functions::table::inputs::TableFunctionInputs;
-use rayexec_execution::functions::table::{PlannedTableFunction, TableFunction};
+use rayexec_execution::expr;
+use rayexec_execution::functions::table::{
+    try_get_positional,
+    PlannedTableFunction,
+    ScanPlanner,
+    TableFunction,
+    TableFunctionImpl,
+    TableFunctionPlanner,
+};
+use rayexec_execution::functions::{FunctionInfo, Signature};
+use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{
     DataTable,
@@ -29,6 +41,8 @@ pub trait UnityObjectsOperation<R: Runtime>:
 {
     /// Name of the table function.
     const NAME: &'static str;
+    /// Function signatures.
+    const SIGNATURES: &[Signature];
 
     /// State containing the catalog connection.
     type ConnectionState: Debug + Clone + Sync + Send;
@@ -40,9 +54,10 @@ pub trait UnityObjectsOperation<R: Runtime>:
 
     /// Create the connection state.
     fn create_connection_state(
-        runtime: R,
+        info: UnityObjects<R, Self>,
         context: &DatabaseContext,
-        args: TableFunctionInputs,
+        positional_args: Vec<OwnedScalarValue>,
+        named_args: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>>;
 
     /// Create a stream state from the connection state.
@@ -74,6 +89,11 @@ impl fmt::Debug for ListSchemasStreamState {
 
 impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
     const NAME: &'static str = "unity_list_schemas";
+    const SIGNATURES: &[Signature] = &[Signature {
+        positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
+        variadic_arg: None,
+        return_type: DataTypeId::Any,
+    }];
 
     type ConnectionState = ListSchemasConnectionState<R>;
     type StreamState = ListSchemasStreamState;
@@ -87,15 +107,16 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
     }
 
     fn create_connection_state(
-        runtime: R,
+        info: UnityObjects<R, Self>,
         _context: &DatabaseContext,
-        args: TableFunctionInputs,
+        positional_args: Vec<OwnedScalarValue>,
+        _named_args: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
         Box::pin(async move {
-            let endpoint = args.try_get_position(0)?.try_as_str()?;
-            let catalog = args.try_get_position(1)?.try_as_str()?;
+            let endpoint = try_get_positional(&info, 0, &positional_args)?.try_as_str()?;
+            let catalog = try_get_positional(&info, 1, &positional_args)?.try_as_str()?;
 
-            let conn = UnityCatalogConnection::connect(runtime, endpoint, catalog).await?;
+            let conn = UnityCatalogConnection::connect(info.runtime, endpoint, catalog).await?;
 
             Ok(ListSchemasConnectionState { conn })
         })
@@ -147,6 +168,11 @@ impl fmt::Debug for ListTablesStreamState {
 
 impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
     const NAME: &'static str = "unity_list_tables";
+    const SIGNATURES: &[Signature] = &[Signature {
+        positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
+        variadic_arg: None,
+        return_type: DataTypeId::Any,
+    }];
 
     type ConnectionState = ListTablesConnectionState<R>;
     type StreamState = ListTablesStreamState;
@@ -164,16 +190,17 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
     }
 
     fn create_connection_state(
-        runtime: R,
+        info: UnityObjects<R, Self>,
         _context: &DatabaseContext,
-        args: TableFunctionInputs,
+        positional_args: Vec<OwnedScalarValue>,
+        _named_args: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
         Box::pin(async move {
-            let endpoint = args.try_get_position(0)?.try_as_str()?;
-            let catalog = args.try_get_position(1)?.try_as_str()?;
-            let schema = args.try_get_position(2)?.try_as_str()?;
+            let endpoint = try_get_positional(&info, 0, &positional_args)?.try_as_str()?;
+            let catalog = try_get_positional(&info, 1, &positional_args)?.try_as_str()?;
+            let schema = try_get_positional(&info, 2, &positional_args)?.try_as_str()?;
 
-            let conn = UnityCatalogConnection::connect(runtime, endpoint, catalog).await?;
+            let conn = UnityCatalogConnection::connect(info.runtime, endpoint, catalog).await?;
 
             Ok(ListTablesConnectionState {
                 conn,
@@ -238,53 +265,59 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> UnityObjects<R, O> {
     }
 }
 
-impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, O> {
+impl<R: Runtime, O: UnityObjectsOperation<R>> FunctionInfo for UnityObjects<R, O> {
     fn name(&self) -> &'static str {
         O::NAME
     }
 
-    fn plan_and_initialize<'a>(
+    fn signatures(&self) -> &[Signature] {
+        O::SIGNATURES
+    }
+}
+
+impl<R: Runtime, O: UnityObjectsOperation<R>> TableFunction for UnityObjects<R, O> {
+    fn planner(&self) -> TableFunctionPlanner {
+        TableFunctionPlanner::Scan(self)
+    }
+}
+
+impl<R: Runtime, O: UnityObjectsOperation<R>> ScanPlanner for UnityObjects<R, O> {
+    fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
-        args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        let func = self.clone();
-        let runtime = self.runtime.clone();
+        positional_inputs: Vec<OwnedScalarValue>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
+        Self::plan_inner(self.clone(), context, positional_inputs, named_inputs).boxed()
+    }
+}
 
-        Box::pin(async move {
-            let state = O::create_connection_state(runtime, context, args).await?;
-            Ok(Box::new(UnityObjectsImpl::<R, O> { func, state }) as _)
+impl<R: Runtime, O: UnityObjectsOperation<R>> UnityObjects<R, O> {
+    async fn plan_inner(
+        self,
+        context: &DatabaseContext,
+        positional_inputs: Vec<OwnedScalarValue>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> Result<PlannedTableFunction> {
+        // TODO: Remove clones.
+        let state = O::create_connection_state(
+            self.clone(),
+            context,
+            positional_inputs.clone(),
+            named_inputs.clone(),
+        )
+        .await?;
+
+        Ok(PlannedTableFunction {
+            function: Box::new(self),
+            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
+            named_inputs,
+            function_impl: TableFunctionImpl::Scan(Arc::new(UnityObjectsDataTable::<R, O> {
+                state,
+            })),
+            cardinality: StatisticsValue::Unknown,
+            schema: O::schema(),
         })
-    }
-
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
-        not_implemented!("decode state for unity operation")
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct UnityObjectsImpl<R: Runtime, O: UnityObjectsOperation<R>> {
-    func: UnityObjects<R, O>,
-    state: O::ConnectionState,
-}
-
-impl<R: Runtime, O: UnityObjectsOperation<R>> PlannedTableFunction for UnityObjectsImpl<R, O> {
-    fn table_function(&self) -> &dyn TableFunction {
-        &self.func
-    }
-
-    fn schema(&self) -> Schema {
-        O::schema()
-    }
-
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        not_implemented!("decode state for unity operation")
-    }
-
-    fn datatable(&self) -> Result<Box<dyn DataTable>> {
-        Ok(Box::new(UnityObjectsDataTable::<R, O> {
-            state: self.state.clone(),
-        }))
     }
 }
 

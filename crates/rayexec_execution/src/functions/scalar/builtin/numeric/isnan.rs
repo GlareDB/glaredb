@@ -30,18 +30,18 @@ impl FunctionInfo for IsNan {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Float16],
-                variadic: None,
+                positional_args: &[DataTypeId::Float16],
+                variadic_arg: None,
                 return_type: DataTypeId::Boolean,
             },
             Signature {
-                input: &[DataTypeId::Float32],
-                variadic: None,
+                positional_args: &[DataTypeId::Float32],
+                variadic_arg: None,
                 return_type: DataTypeId::Boolean,
             },
             Signature {
-                input: &[DataTypeId::Float64],
-                variadic: None,
+                positional_args: &[DataTypeId::Float64],
+                variadic_arg: None,
                 return_type: DataTypeId::Boolean,
             },
         ]

@@ -27,6 +27,7 @@ use crate::functions::scalar::builtin::is;
 use crate::functions::scalar::builtin::list::{ListExtract, ListValues};
 use crate::functions::scalar::builtin::string::{Concat, Like, StartsWith, Substring};
 use crate::functions::scalar::ScalarFunction;
+use crate::functions::table::TableFunction;
 use crate::functions::CastType;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
@@ -1492,6 +1493,59 @@ impl<'a> BaseExpressionBinder<'a> {
                 return Err(RayexecError::new(format!(
                     "Invalid inputs to '{}': {}",
                     agg.name(),
+                    input_datatypes.display_with_brackets(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            let inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                            to: DataType::try_default_datatype(to)?,
+                            expr: Box::new(input),
+                        }),
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(inputs)
+        }
+    }
+
+    // TODO: Reduce duplication with scalar one.
+    //
+    // Upcasting to FunctionInfo would be cool.
+    // See: <https://github.com/rust-lang/rust/issues/65991>
+    pub(crate) fn apply_casts_for_table_function(
+        &self,
+        bind_context: &BindContext,
+        table: &dyn TableFunction,
+        inputs: Vec<Expression>,
+    ) -> Result<Vec<Expression>> {
+        let input_datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .collect::<Result<Vec<_>>>()?;
+
+        if table.exact_signature(&input_datatypes).is_some() {
+            // Exact
+            Ok(inputs)
+        } else {
+            // Try to find candidates that we can cast to.
+            let mut candidates = table.candidate(&input_datatypes);
+
+            if candidates.is_empty() {
+                // TODO: Better error.
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    table.name(),
                     input_datatypes.display_with_brackets(),
                 )));
             }

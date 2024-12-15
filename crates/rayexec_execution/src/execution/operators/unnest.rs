@@ -151,7 +151,7 @@ impl ExecutableOperator for PhysicalUnnest {
         state.input_num_rows = batch.num_rows();
         state.current_row = 0;
 
-        if let Some(waker) = state.push_waker.take() {
+        if let Some(waker) = state.pull_waker.take() {
             waker.wake();
         }
 

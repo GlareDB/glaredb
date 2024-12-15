@@ -26,13 +26,13 @@ impl FunctionInfo for LeftPad {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Utf8,
             },
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
+                variadic_arg: None,
                 return_type: DataTypeId::Utf8,
             },
         ]
@@ -120,13 +120,13 @@ impl FunctionInfo for RightPad {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
+                variadic_arg: None,
                 return_type: DataTypeId::Utf8,
             },
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
+                variadic_arg: None,
                 return_type: DataTypeId::Utf8,
             },
         ]

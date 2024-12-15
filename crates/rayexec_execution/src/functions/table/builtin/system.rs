@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -7,9 +7,10 @@ use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_bullet::storage::GermanVarlenStorage;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
@@ -17,7 +18,16 @@ use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
+use crate::expr;
+use crate::functions::table::{
+    PlannedTableFunction,
+    ScanPlanner,
+    TableFunction,
+    TableFunctionImpl,
+    TableFunctionPlanner,
+};
+use crate::functions::{FunctionInfo, Signature};
+use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,
@@ -241,18 +251,41 @@ impl<F: SystemFunctionImpl> SystemFunction<F> {
     }
 }
 
-impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
+impl<F: SystemFunctionImpl> FunctionInfo for SystemFunction<F> {
     fn name(&self) -> &'static str {
         F::NAME
     }
 
-    fn plan_and_initialize<'a>(
+    fn signatures(&self) -> &[Signature] {
+        &[Signature {
+            positional_args: &[],
+            variadic_arg: None,
+            return_type: DataTypeId::Any,
+        }]
+    }
+}
+
+impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
+    fn planner(&self) -> TableFunctionPlanner {
+        TableFunctionPlanner::Scan(&SystemFunctionPlanner::<F> { _f: PhantomData })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SystemFunctionPlanner<F: SystemFunctionImpl> {
+    _f: PhantomData<F>,
+}
+
+impl<F> ScanPlanner for SystemFunctionPlanner<F>
+where
+    F: SystemFunctionImpl,
+{
+    fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
-        _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        // TODO: Method on args returning an error if not empty.
-
+        positional_inputs: Vec<OwnedScalarValue>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
         let databases = context
             .iter_databases()
             .map(|(name, database)| {
@@ -264,55 +297,27 @@ impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
             })
             .collect();
 
-        let function = *self;
-        Box::pin(async move {
-            Ok(Box::new(PlannedSystemFunction {
-                databases,
-                function,
-            }) as _)
-        })
-    }
+        let planned = PlannedTableFunction {
+            function: Box::new(SystemFunction::<F>::new()),
+            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
+            named_inputs,
+            function_impl: TableFunctionImpl::Scan(Arc::new(SystemDataTable::<F> {
+                databases: Arc::new(Mutex::new(Some(databases))),
+                _f: PhantomData,
+            })),
+            cardinality: StatisticsValue::Unknown,
+            schema: F::schema(),
+        };
 
-    fn decode_state(&self, _state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
-        Ok(Box::new(PlannedSystemFunction {
-            databases: Vec::new(),
-            function: *self,
-        }))
+        Box::pin(async move { Ok(planned) })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct PlannedSystemFunction<F: SystemFunctionImpl> {
-    databases: Vec<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    function: SystemFunction<F>,
-}
-
-impl<F: SystemFunctionImpl> PlannedTableFunction for PlannedSystemFunction<F> {
-    fn encode_state(&self, _state: &mut Vec<u8>) -> Result<()> {
-        Ok(())
-    }
-
-    fn table_function(&self) -> &dyn TableFunction {
-        &self.function
-    }
-
-    fn schema(&self) -> Schema {
-        F::schema()
-    }
-
-    fn datatable(&self) -> Result<Box<dyn DataTable>> {
-        Ok(Box::new(SystemDataTable {
-            databases: Mutex::new(Some(self.databases.clone().into_iter().collect())),
-            function: self.function,
-        }))
-    }
-}
-
-#[derive(Debug)]
 struct SystemDataTable<F: SystemFunctionImpl> {
     #[allow(clippy::type_complexity)] // Temp
-    databases: Mutex<Option<VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>>>,
-    function: SystemFunction<F>,
+    databases: Arc<Mutex<Option<VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>>>>,
+    _f: PhantomData<F>,
 }
 
 impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
@@ -328,9 +333,9 @@ impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
             .ok_or_else(|| RayexecError::new("Scan called multiple times"))?;
 
         let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(ProjectedScan::new(
-            SystemDataTableScan {
+            SystemDataTableScan::<F> {
                 databases,
-                _function: self.function,
+                _f: PhantomData,
             },
             projections,
         )) as _];
@@ -344,7 +349,7 @@ impl<F: SystemFunctionImpl> DataTable for SystemDataTable<F> {
 #[derive(Debug)]
 struct SystemDataTableScan<F: SystemFunctionImpl> {
     databases: VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    _function: SystemFunction<F>,
+    _f: PhantomData<F>,
 }
 
 impl<F: SystemFunctionImpl> DataTableScan for SystemDataTableScan<F> {

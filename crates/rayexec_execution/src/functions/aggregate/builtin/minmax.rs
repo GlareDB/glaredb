@@ -57,8 +57,8 @@ impl FunctionInfo for Min {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Any],
-            variadic: None,
+            positional_args: &[DataTypeId::Any],
+            variadic_arg: None,
             return_type: DataTypeId::Any,
         }]
     }
@@ -145,8 +145,8 @@ impl FunctionInfo for Max {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Any],
-            variadic: None,
+            positional_args: &[DataTypeId::Any],
+            variadic_arg: None,
             return_type: DataTypeId::Any,
         }]
     }

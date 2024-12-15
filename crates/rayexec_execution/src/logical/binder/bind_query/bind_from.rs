@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayexec_bullet::datatype::DataType;
@@ -9,7 +10,7 @@ use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction;
+use crate::functions::table::{PlannedTableFunction, TableFunctionPlanner};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -24,7 +25,10 @@ use crate::logical::logical_join::JoinType;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::ResolvedTableOrCteReference;
+use crate::logical::resolver::resolved_table_function::ResolvedTableFunctionReference;
 use crate::logical::resolver::{ResolvedMeta, ResolvedSubqueryOptions};
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundFrom {
@@ -55,7 +59,7 @@ pub struct BoundBaseTable {
 pub struct BoundTableFunction {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
-    pub function: Box<dyn PlannedTableFunction>,
+    pub function: PlannedTableFunction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -390,17 +394,98 @@ impl<'a> FromBinder<'a> {
             .table_functions
             .try_get_bound(function.reference)?;
 
+        let planned = match reference {
+            ResolvedTableFunctionReference::InOut(inout) => {
+                // Handle in/out function planning now. We have everything we
+                // need to plan its inputs.
+                let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
+
+                let mut positional = Vec::new();
+                let mut named = HashMap::new();
+
+                for arg in function.args.iter() {
+                    let recur = RecursionContext {
+                        allow_aggregates: false,
+                        allow_windows: false,
+                        is_root: true,
+                    };
+
+                    match arg {
+                        ast::FunctionArg::Unnamed { arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                let expr = expr_binder.bind_expression(
+                                    bind_context,
+                                    expr,
+                                    &mut DefaultColumnBinder,
+                                    recur,
+                                )?;
+
+                                positional.push(expr);
+                            }
+                            ast::FunctionArgExpr::Wildcard => {
+                                return Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ));
+                            }
+                        },
+                        ast::FunctionArg::Named { name, arg } => {
+                            match arg {
+                                ast::FunctionArgExpr::Expr(expr) => {
+                                    // Constants required.
+                                    let expr = expr_binder.bind_expression(
+                                        bind_context,
+                                        expr,
+                                        &mut DefaultColumnBinder,
+                                        recur,
+                                    )?;
+
+                                    let val =
+                                        ConstFold::rewrite(bind_context.get_table_list(), expr)?
+                                            .try_into_scalar()?;
+                                    named.insert(name.as_normalized_string(), val);
+                                }
+                                ast::FunctionArgExpr::Wildcard => {
+                                    return Err(RayexecError::new(
+                                        "Cannot plan a function with '*' as an argument",
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Note only positional input casts for now. Signatures don't
+                // have a notion of named arguments yet.
+                let positional = expr_binder.apply_casts_for_table_function(
+                    bind_context,
+                    inout.as_ref(),
+                    positional,
+                )?;
+
+                match inout.planner() {
+                    TableFunctionPlanner::InOut(planner) => {
+                        planner.plan(bind_context.get_table_list(), positional, named)?
+                    }
+                    TableFunctionPlanner::Scan(_) => {
+                        return Err(RayexecError::new(
+                            "Expected in/out planner, got scan planner",
+                        ))
+                    }
+                }
+            }
+            ResolvedTableFunctionReference::Scan(planned) => planned.clone(),
+        };
+
         // TODO: For table funcs that are reading files, it'd be nice to have
         // the default alias be the base file path, not the function name.
         let default_alias = TableAlias {
             database: None,
             schema: None,
-            table: reference.name.clone(),
+            table: reference.base_table_alias(),
         };
 
-        let (names, types) = reference
-            .func
-            .schema()
+        let (names, types) = planned
+            .schema
             .fields
             .iter()
             .map(|f| (f.name.clone(), f.datatype.clone()))
@@ -419,7 +504,7 @@ impl<'a> FromBinder<'a> {
             item: BoundFromItem::TableFunction(BoundTableFunction {
                 table_ref,
                 location,
-                function: reference.func.clone(),
+                function: planned,
             }),
         })
     }

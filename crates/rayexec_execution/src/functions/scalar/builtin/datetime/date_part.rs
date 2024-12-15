@@ -23,18 +23,18 @@ impl FunctionInfo for DatePart {
     fn signatures(&self) -> &[Signature] {
         &[
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Date32],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Date32],
+                variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
             },
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Date64],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Date64],
+                variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
             },
             Signature {
-                input: &[DataTypeId::Utf8, DataTypeId::Timestamp],
-                variadic: None,
+                positional_args: &[DataTypeId::Utf8, DataTypeId::Timestamp],
+                variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
             },
         ]

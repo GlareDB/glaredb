@@ -30,8 +30,8 @@ impl FunctionInfo for StddevPop {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Float64],
-            variadic: None,
+            positional_args: &[DataTypeId::Float64],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }
@@ -83,8 +83,8 @@ impl FunctionInfo for StddevSamp {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Float64],
-            variadic: None,
+            positional_args: &[DataTypeId::Float64],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }
@@ -132,8 +132,8 @@ impl FunctionInfo for VarPop {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Float64],
-            variadic: None,
+            positional_args: &[DataTypeId::Float64],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }
@@ -181,8 +181,8 @@ impl FunctionInfo for VarSamp {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Float64],
-            variadic: None,
+            positional_args: &[DataTypeId::Float64],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }

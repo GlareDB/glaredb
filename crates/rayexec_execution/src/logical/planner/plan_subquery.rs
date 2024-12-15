@@ -653,6 +653,11 @@ impl DependentJoinPushdown {
                     self.any_expression_has_correlation(order.node.exprs.iter().map(|e| &e.expr));
                 has_correlation |= self.find_correlations_in_children(&order.children)?;
             }
+            LogicalOperator::InOut(inout) => {
+                has_correlation =
+                    self.any_expression_has_correlation(&inout.node.function.positional_inputs);
+                has_correlation |= self.find_correlations_in_children(&inout.children)?;
+            }
             _ => (),
         }
 
@@ -796,6 +801,49 @@ impl DependentJoinPushdown {
 
                 Ok(())
             }
+            LogicalOperator::InOut(inout) => {
+                self.pushdown_children(bind_context, &mut inout.children)?;
+                self.rewrite_expressions(&mut inout.node.function.positional_inputs)?;
+
+                // Add projections table as needed.
+                let table_ref = match inout.node.projected_table_ref {
+                    Some(table_ref) => table_ref, // TODO: List out how this could be Some already
+                    None => {
+                        let table_ref = bind_context.new_ephemeral_table()?;
+                        inout.node.projected_table_ref = Some(table_ref);
+                        table_ref
+                    }
+                };
+
+                // Append correlated columns to output projections.
+                let offset = inout.node.projected_outputs.len();
+                for (idx, correlated) in self.columns.iter().enumerate() {
+                    let expr =
+                        Expression::Column(*self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending projection to In/Out: {correlated:?}"))
+                        })?);
+
+                    // Append column to table in bind context.
+                    bind_context.push_column_for_table(
+                        table_ref,
+                        format!("__generated_inout_projection_decorrelation_{idx}"),
+                        expr.datatype(bind_context.get_table_list())?,
+                    )?;
+
+                    inout.node.projected_outputs.push(expr);
+
+                    self.column_map.insert(
+                        correlated.clone(),
+                        ColumnExpr {
+                            table_scope: table_ref,
+                            column: offset + idx,
+                        },
+                    );
+                }
+
+                Ok(())
+            }
             LogicalOperator::Filter(filter) => {
                 self.pushdown_children(bind_context, &mut filter.children)?;
                 self.rewrite_expression(&mut filter.node.filter)?;
@@ -896,6 +944,7 @@ impl DependentJoinPushdown {
         Ok(())
     }
 
+    // TODO: Should accept logical node trait.
     fn any_expression_has_correlation<'a>(
         &self,
         exprs: impl IntoIterator<Item = &'a Expression>,

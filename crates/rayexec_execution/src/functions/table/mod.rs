@@ -1,20 +1,24 @@
 pub mod builtin;
 pub mod inout;
-pub mod inputs;
-pub mod out;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
-use futures::FutureExt;
 use inout::TableInOutFunction;
-use inputs::TableFunctionInputs;
-use out::TableOutFunction;
 use rayexec_bullet::field::Schema;
-use rayexec_error::Result;
+use rayexec_bullet::scalar::OwnedScalarValue;
+use rayexec_error::{RayexecError, Result};
+use rayexec_io::location::{AccessConfig, FileLocation};
+use rayexec_io::s3::credentials::AwsCredentials;
+use rayexec_io::s3::S3Location;
 
+use super::FunctionInfo;
 use crate::database::DatabaseContext;
+use crate::expr::Expression;
+use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::DataTable;
 
@@ -26,44 +30,9 @@ use crate::storage::table_storage::DataTable;
 /// object store, etc.
 ///
 /// The specialized variant should be determined by function argument inputs.
-pub trait TableFunction: Debug + Sync + Send + DynClone {
-    /// Name of the function.
-    fn name(&self) -> &'static str;
-
-    /// Optional aliases for this function.
-    fn aliases(&self) -> &'static [&'static str] {
-        &[]
-    }
-
-    /// Plan the table function using the provide args, and do any necessary
-    /// initialization.
-    ///
-    /// Intialization may include opening connections a remote database, and
-    /// should be used determine the schema of the table we'll be returning. Any
-    /// connections should remain open through execution.
-    fn plan_and_initialize<'a>(
-        &self,
-        context: &'a DatabaseContext,
-        args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>>;
-
-    fn initialize<'a>(
-        &self,
-        _context: &'a DatabaseContext,
-        _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        unimplemented!()
-    }
-
-    fn reinitialize<'a>(
-        &self,
-        _context: &'a DatabaseContext,
-        state: TableFunctionState,
-    ) -> BoxFuture<'a, Result<TableFunctionState>> {
-        async move { Ok(state) }.boxed()
-    }
-
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>>;
+pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+    /// Return a planner that will produce a planned table function.
+    fn planner(&self) -> TableFunctionPlanner;
 }
 
 impl Clone for Box<dyn TableFunction> {
@@ -86,66 +55,148 @@ impl PartialEq for dyn TableFunction + '_ {
 
 impl Eq for dyn TableFunction {}
 
+/// The types of table function planners supported.
 #[derive(Debug)]
-pub struct TableFunctionState {
-    pub table_function: Box<dyn TableFunction>,
-    pub inputs: TableFunctionInputs,
-    pub out_function: Option<Box<dyn TableOutFunction>>,
-    pub inout_function: Option<Box<dyn TableInOutFunction>>,
+pub enum TableFunctionPlanner<'a> {
+    /// Produces a table function that accept inputs and produce outputs.
+    InOut(&'a dyn InOutPlanner),
+    /// Produces a table function that acts as a just a scan.
+    Scan(&'a dyn ScanPlanner),
+}
+
+pub trait InOutPlanner: Debug {
+    /// Plans an in/out function with possibly dynamic positional inputs.
+    fn plan(
+        &self,
+        table_list: &TableList,
+        positional_inputs: Vec<Expression>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> Result<PlannedTableFunction>;
+}
+
+pub trait ScanPlanner: Debug {
+    /// Plans an table scan function.
+    ///
+    /// This only accepts constant arguments as it's meant to be used when
+    /// reading tables from an external resource. Functions like `read_parquet`
+    /// or `read_postgres` should implement this.
+    fn plan<'a>(
+        &self,
+        context: &'a DatabaseContext,
+        positional_inputs: Vec<OwnedScalarValue>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> BoxFuture<'a, Result<PlannedTableFunction>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct PlannedTableFunction {
+    /// The function that did the planning.
+    pub function: Box<dyn TableFunction>,
+    /// Unnamed positional arguments.
+    pub positional_inputs: Vec<Expression>,
+    /// Named arguments.
+    pub named_inputs: HashMap<String, OwnedScalarValue>, // Requiring constant values for named args is currently a limitation.
+    /// The function implementation.
+    ///
+    /// The variant used here should match the variant of the planner that
+    /// `function` returns from its `planner` method.
+    pub function_impl: TableFunctionImpl,
+    /// Output cardinality of the function.
     pub cardinality: StatisticsValue<usize>,
+    /// Output schema of the function.
     pub schema: Schema,
 }
 
-pub trait PlannedTableFunction: Debug + Sync + Send + DynClone {
-    /// Reinitialize the table function, including re-opening any connections
-    /// needed.
-    ///
-    /// This is called immediately after deserializing a planned function in
-    /// order populate fields that cannot be serialized and moved across
-    /// machines.
-    ///
-    /// The default implementation does nothing.
-    fn reinitialize(&self) -> BoxFuture<Result<()>> {
-        async move { Ok(()) }.boxed()
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()>;
-
-    /// Returns a reference to the table function that initialized this
-    /// function.
-    fn table_function(&self) -> &dyn TableFunction;
-
-    /// Get the schema for the function output.
-    fn schema(&self) -> Schema;
-
-    /// Get the cardinality of the output.
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        StatisticsValue::Unknown
-    }
-
-    /// Return a data table representing the function output.
-    ///
-    /// An engine runtime is provided for table funcs that return truly async
-    /// data tables.
-    fn datatable(&self) -> Result<Box<dyn DataTable>>;
-}
-
-impl PartialEq<dyn PlannedTableFunction> for Box<dyn PlannedTableFunction + '_> {
-    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
-        self.as_ref() == other
+impl PartialEq for PlannedTableFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+            && self.positional_inputs == other.positional_inputs
+            && self.named_inputs == other.named_inputs
+            && self.schema == other.schema
     }
 }
 
-impl PartialEq for dyn PlannedTableFunction + '_ {
-    fn eq(&self, other: &dyn PlannedTableFunction) -> bool {
-        self.table_function() == other.table_function() && self.schema() == other.schema()
-    }
+impl Eq for PlannedTableFunction {}
+
+#[derive(Debug, Clone)]
+pub enum TableFunctionImpl {
+    /// Table function that produces a table as its output.
+    Scan(Arc<dyn DataTable>),
+    /// A table function that accepts dynamic arguments and produces a table
+    /// output.
+    InOut(Box<dyn TableInOutFunction>),
 }
 
-impl Eq for dyn PlannedTableFunction {}
+/// Try to get a file location and access config from the table args.
+// TODO: Secrets provider that we pass in allowing us to get creds from some
+// secrets store.
+pub fn try_location_and_access_config_from_args(
+    func: &impl TableFunction,
+    positional: &[OwnedScalarValue],
+    named: &HashMap<String, OwnedScalarValue>,
+) -> Result<(FileLocation, AccessConfig)> {
+    let loc = match positional.first() {
+        Some(loc) => {
+            let loc = loc.try_as_str()?;
+            FileLocation::parse(loc)
+        }
+        None => {
+            return Err(RayexecError::new(format!(
+                "Expected at least one position argument for function {}",
+                func.name(),
+            )))
+        }
+    };
 
-impl Clone for Box<dyn PlannedTableFunction> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
+    let conf = match &loc {
+        FileLocation::Url(url) => {
+            if S3Location::is_s3_location(url) {
+                let key_id = try_get_named(func, "key_id", named)?
+                    .try_as_str()?
+                    .to_string();
+                let secret = try_get_named(func, "secret", named)?
+                    .try_as_str()?
+                    .to_string();
+                let region = try_get_named(func, "region", named)?
+                    .try_as_str()?
+                    .to_string();
+
+                AccessConfig::S3 {
+                    credentials: AwsCredentials { key_id, secret },
+                    region,
+                }
+            } else {
+                AccessConfig::None
+            }
+        }
+        FileLocation::Path(_) => AccessConfig::None,
+    };
+
+    Ok((loc, conf))
+}
+
+pub fn try_get_named<'a>(
+    func: &impl TableFunction,
+    name: &str,
+    named: &'a HashMap<String, OwnedScalarValue>,
+) -> Result<&'a OwnedScalarValue> {
+    named.get(name).ok_or_else(|| {
+        RayexecError::new(format!(
+            "Expected named argument '{name}' for function {}",
+            func.name()
+        ))
+    })
+}
+
+pub fn try_get_positional<'a>(
+    func: &impl TableFunction,
+    pos: usize,
+    positional: &'a [OwnedScalarValue],
+) -> Result<&'a OwnedScalarValue> {
+    positional.get(pos).ok_or_else(|| {
+        RayexecError::new(format!(
+            "Expected argument at position {pos} for function {}",
+            func.name()
+        ))
+    })
 }

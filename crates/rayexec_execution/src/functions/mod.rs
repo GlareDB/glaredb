@@ -14,10 +14,11 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
 
 /// Function signature.
-#[derive(Debug, Clone, PartialEq)]
+// TODO: Include named args.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Signature {
-    /// Expected input types for this signature.
-    pub input: &'static [DataTypeId],
+    /// Expected positional input argument types for this signature.
+    pub positional_args: &'static [DataTypeId],
 
     /// Type of the variadic args if this function is variadic.
     ///
@@ -28,29 +29,45 @@ pub struct Signature {
     /// match, and instead a candidate signature search will be triggered. This
     /// allows us to determine a single data type that all variadic args can be
     /// cast to, which simplifies planning and function implementation.
-    pub variadic: Option<DataTypeId>,
+    pub variadic_arg: Option<DataTypeId>,
 
     /// The expected return type.
     ///
     /// This is purely informational (and could be used for documentation). The
     /// concrete data type is determined by the planned function, which is what
     /// gets used during planning.
+    // TODO: Remove?
     pub return_type: DataTypeId,
 }
 
+/// Represents a named argument in the signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NamedArgument {
+    pub name: &'static str,
+    pub arg: DataTypeId,
+}
+
 impl Signature {
+    pub const fn new_positional(input: &'static [DataTypeId], return_type: DataTypeId) -> Self {
+        Signature {
+            positional_args: input,
+            variadic_arg: None,
+            return_type,
+        }
+    }
+
     /// Check if this signature is a variadic signature.
     pub const fn is_variadic(&self) -> bool {
-        self.variadic.is_some()
+        self.variadic_arg.is_some()
     }
 
     /// Return if inputs given data types exactly satisfy the signature.
     fn exact_match(&self, inputs: &[DataType]) -> bool {
-        if self.input.len() != inputs.len() && !self.is_variadic() {
+        if self.positional_args.len() != inputs.len() && !self.is_variadic() {
             return false;
         }
 
-        for (&expected, have) in self.input.iter().zip(inputs.iter()) {
+        for (&expected, have) in self.positional_args.iter().zip(inputs.iter()) {
             if expected == DataTypeId::Any {
                 continue;
             }
@@ -61,8 +78,8 @@ impl Signature {
         }
 
         // Check variadic.
-        if let Some(expected) = self.variadic {
-            let remaining = &inputs[self.input.len()..];
+        if let Some(expected) = self.variadic_arg {
+            let remaining = &inputs[self.positional_args.len()..];
             for have in remaining {
                 if expected == DataTypeId::Any {
                     // If we're matching against any, we're never an exact match.
@@ -160,7 +177,12 @@ impl CandidateSignature {
 
         let mut buf = Vec::new();
         for (idx, sig) in sigs.iter().enumerate() {
-            if !Self::compare_and_fill_types(inputs, sig.input, sig.variadic, &mut buf) {
+            if !Self::compare_and_fill_types(
+                inputs,
+                sig.positional_args,
+                sig.variadic_arg,
+                &mut buf,
+            ) {
                 continue;
             }
 
@@ -350,8 +372,8 @@ mod tests {
     fn find_candidate_no_match() {
         let inputs = &[DataType::Int64];
         let sigs = &[Signature {
-            input: &[DataTypeId::List],
-            variadic: None,
+            positional_args: &[DataTypeId::List],
+            variadic_arg: None,
             return_type: DataTypeId::Int64,
         }];
 
@@ -364,8 +386,8 @@ mod tests {
     fn find_candidate_simple_no_variadic() {
         let inputs = &[DataType::Int64];
         let sigs = &[Signature {
-            input: &[DataTypeId::Int64],
-            variadic: None,
+            positional_args: &[DataTypeId::Int64],
+            variadic_arg: None,
             return_type: DataTypeId::Int64,
         }];
 
@@ -382,8 +404,8 @@ mod tests {
     fn find_candidate_simple_with_variadic() {
         let inputs = &[DataType::Int64, DataType::Int64, DataType::Int64];
         let sigs = &[Signature {
-            input: &[],
-            variadic: Some(DataTypeId::Any),
+            positional_args: &[],
+            variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List,
         }];
 

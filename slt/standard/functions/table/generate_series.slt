@@ -98,3 +98,37 @@ select i * 2 from (select * from generate_series(1, 5)) as t(i);
 8
 10
 
+# Lateral input
+
+query TT
+describe select * from (values (3), (4)) v(a), generate_series(1, a) order by 1,2
+----
+a                Int32
+generate_series  Int64
+
+query II
+select * from (values (3), (4)) v(a), generate_series(1, a) order by 1,2;
+----
+3 1
+3 2
+3 3
+4 1
+4 2
+4 3
+4 4
+
+# TODO: Not yet implemented: dependent join pushdown for node: CrossJoin ...
+# Also need to be careful since this is a nested lateral.
+# query III
+# select * from (values (3), (4)) v(a), generate_series(1, a) g1, generate_series(a, 5) g2 order by 1,2,3;
+# ----
+
+query III
+select * from (values (3, 6), (4, 5)) v(a, b), generate_series(a, b) order by 1,2,3;
+----
+3  6  3
+3  6  4
+3  6  5
+3  6  6
+4  5  4
+4  5  5

@@ -33,53 +33,18 @@ impl FunctionInfo for Negate {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Float16],
-                variadic: None,
-                return_type: DataTypeId::Float16,
-            },
-            Signature {
-                input: &[DataTypeId::Float32],
-                variadic: None,
-                return_type: DataTypeId::Float32,
-            },
-            Signature {
-                input: &[DataTypeId::Float64],
-                variadic: None,
-                return_type: DataTypeId::Float64,
-            },
-            Signature {
-                input: &[DataTypeId::Int8],
-                variadic: None,
-                return_type: DataTypeId::Int8,
-            },
-            Signature {
-                input: &[DataTypeId::Int16],
-                variadic: None,
-                return_type: DataTypeId::Int16,
-            },
-            Signature {
-                input: &[DataTypeId::Int32],
-                variadic: None,
-                return_type: DataTypeId::Int32,
-            },
-            Signature {
-                input: &[DataTypeId::Int64],
-                variadic: None,
-                return_type: DataTypeId::Int64,
-            },
-            Signature {
-                input: &[DataTypeId::Int128],
-                variadic: None,
-                return_type: DataTypeId::Int128,
-            },
-            Signature {
-                input: &[DataTypeId::Interval],
-                variadic: None,
-                return_type: DataTypeId::Interval,
-            },
-        ]
+        const SIGS: &[Signature] = &[
+            Signature::new_positional(&[DataTypeId::Float16], DataTypeId::Float16),
+            Signature::new_positional(&[DataTypeId::Float32], DataTypeId::Float32),
+            Signature::new_positional(&[DataTypeId::Float64], DataTypeId::Float64),
+            Signature::new_positional(&[DataTypeId::Int8], DataTypeId::Int8),
+            Signature::new_positional(&[DataTypeId::Int16], DataTypeId::Int16),
+            Signature::new_positional(&[DataTypeId::Int32], DataTypeId::Int32),
+            Signature::new_positional(&[DataTypeId::Int64], DataTypeId::Int64),
+            Signature::new_positional(&[DataTypeId::Int128], DataTypeId::Int128),
+            Signature::new_positional(&[DataTypeId::Interval], DataTypeId::Interval),
+        ];
+        SIGS
     }
 }
 
@@ -160,8 +125,8 @@ impl FunctionInfo for Not {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Boolean],
-            variadic: None,
+            positional_args: &[DataTypeId::Boolean],
+            variadic_arg: None,
             return_type: DataTypeId::Boolean,
         }]
     }

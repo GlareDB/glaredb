@@ -31,8 +31,8 @@ impl FunctionInfo for RegrSlope {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic: None,
+            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }

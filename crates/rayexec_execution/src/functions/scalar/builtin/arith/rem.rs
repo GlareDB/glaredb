@@ -42,72 +42,45 @@ impl FunctionInfo for Rem {
     }
 
     fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                input: &[DataTypeId::Float16, DataTypeId::Float16],
-                variadic: None,
-                return_type: DataTypeId::Float16,
-            },
-            Signature {
-                input: &[DataTypeId::Float32, DataTypeId::Float32],
-                variadic: None,
-                return_type: DataTypeId::Float32,
-            },
-            Signature {
-                input: &[DataTypeId::Float64, DataTypeId::Float64],
-                variadic: None,
-                return_type: DataTypeId::Float64,
-            },
-            Signature {
-                input: &[DataTypeId::Int8, DataTypeId::Int8],
-                variadic: None,
-                return_type: DataTypeId::Int8,
-            },
-            Signature {
-                input: &[DataTypeId::Int16, DataTypeId::Int16],
-                variadic: None,
-                return_type: DataTypeId::Int16,
-            },
-            Signature {
-                input: &[DataTypeId::Int32, DataTypeId::Int32],
-                variadic: None,
-                return_type: DataTypeId::Int32,
-            },
-            Signature {
-                input: &[DataTypeId::Int64, DataTypeId::Int64],
-                variadic: None,
-                return_type: DataTypeId::Int64,
-            },
-            Signature {
-                input: &[DataTypeId::Int128, DataTypeId::Int128],
-                variadic: None,
-                return_type: DataTypeId::Int128,
-            },
-            Signature {
-                input: &[DataTypeId::UInt8, DataTypeId::UInt8],
-                variadic: None,
-                return_type: DataTypeId::UInt8,
-            },
-            Signature {
-                input: &[DataTypeId::UInt16, DataTypeId::UInt16],
-                variadic: None,
-                return_type: DataTypeId::UInt16,
-            },
-            Signature {
-                input: &[DataTypeId::UInt32, DataTypeId::UInt32],
-                variadic: None,
-                return_type: DataTypeId::UInt32,
-            },
-            Signature {
-                input: &[DataTypeId::UInt64, DataTypeId::UInt64],
-                variadic: None,
-                return_type: DataTypeId::UInt64,
-            },
-            Signature {
-                input: &[DataTypeId::UInt128, DataTypeId::UInt128],
-                variadic: None,
-                return_type: DataTypeId::UInt128,
-            },
+        const SIGS: &[Signature] = &[
+            Signature::new_positional(
+                &[DataTypeId::Float16, DataTypeId::Float16],
+                DataTypeId::Float16,
+            ),
+            Signature::new_positional(
+                &[DataTypeId::Float32, DataTypeId::Float32],
+                DataTypeId::Float32,
+            ),
+            Signature::new_positional(
+                &[DataTypeId::Float64, DataTypeId::Float64],
+                DataTypeId::Float64,
+            ),
+            Signature::new_positional(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
+            Signature::new_positional(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
+            Signature::new_positional(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
+            Signature::new_positional(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
+            Signature::new_positional(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Int128,
+            ),
+            Signature::new_positional(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
+            Signature::new_positional(
+                &[DataTypeId::UInt16, DataTypeId::UInt16],
+                DataTypeId::UInt16,
+            ),
+            Signature::new_positional(
+                &[DataTypeId::UInt32, DataTypeId::UInt32],
+                DataTypeId::UInt32,
+            ),
+            Signature::new_positional(
+                &[DataTypeId::UInt64, DataTypeId::UInt64],
+                DataTypeId::UInt64,
+            ),
+            Signature::new_positional(
+                &[DataTypeId::UInt128, DataTypeId::UInt128],
+                DataTypeId::UInt128,
+            ),
+            // TODO
             // Signature {
             //     input: &[DataTypeId::Date32, DataTypeId::Int64],
             //     variadic: None,
@@ -123,7 +96,8 @@ impl FunctionInfo for Rem {
             //     variadic: None,
             //     return_type: DataTypeId::Decimal64,
             // },
-        ]
+        ];
+        SIGS
     }
 }
 

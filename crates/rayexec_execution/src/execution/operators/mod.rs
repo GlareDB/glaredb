@@ -23,6 +23,7 @@ pub mod sink;
 pub mod sort;
 pub mod source;
 pub mod table_function;
+pub mod table_inout;
 pub mod ungrouped_aggregate;
 pub mod union;
 pub mod unnest;
@@ -68,6 +69,7 @@ use sort::gather_sort::PhysicalGatherSort;
 use sort::scatter_sort::PhysicalScatterSort;
 use source::{SourceOperation, SourceOperator, SourcePartitionState};
 use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
+use table_inout::{PhysicalTableInOut, TableInOutPartitionState};
 use ungrouped_aggregate::{
     PhysicalUngroupedAggregate,
     UngroupedAggregateOperatorState,
@@ -130,6 +132,7 @@ pub enum PartitionState {
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
+    TableInOut(TableInOutPartitionState),
     CreateSchema(CreateSchemaPartitionState),
     CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
@@ -333,6 +336,7 @@ pub enum PhysicalOperator {
     Unnest(PhysicalUnnest),
     Scan(PhysicalScan),
     TableFunction(PhysicalTableFunction),
+    TableInOut(PhysicalTableInOut),
     Insert(PhysicalInsert),
     CopyTo(PhysicalCopyTo),
     CreateTable(PhysicalCreateTable),
@@ -371,6 +375,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Unnest(op) => op.create_states(context, partitions),
             Self::Scan(op) => op.create_states(context, partitions),
             Self::TableFunction(op) => op.create_states(context, partitions),
+            Self::TableInOut(op) => op.create_states(context, partitions),
             Self::Insert(op) => op.create_states(context, partitions),
             Self::CopyTo(op) => op.create_states(context, partitions),
             Self::CreateTable(op) => op.create_states(context, partitions),
@@ -415,6 +420,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Unnest(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Scan(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::TableFunction(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::TableInOut(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Insert(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::CopyTo(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::CreateTable(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -460,6 +466,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Unnest(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Scan(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::TableFunction(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::TableInOut(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Insert(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::CopyTo(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::CreateTable(op) => op.poll_finalize_push(cx, partition_state, operator_state),
@@ -499,6 +506,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Unnest(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Scan(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::TableFunction(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::TableInOut(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Insert(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::CopyTo(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::CreateTable(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -535,6 +543,7 @@ impl Explainable for PhysicalOperator {
             Self::Unnest(op) => op.explain_entry(conf),
             Self::Scan(op) => op.explain_entry(conf),
             Self::TableFunction(op) => op.explain_entry(conf),
+            Self::TableInOut(op) => op.explain_entry(conf),
             Self::Insert(op) => op.explain_entry(conf),
             Self::CopyTo(op) => op.explain_entry(conf),
             Self::CreateTable(op) => op.explain_entry(conf),

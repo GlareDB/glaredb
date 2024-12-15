@@ -24,8 +24,8 @@ impl FunctionInfo for Random {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[],
-            variadic: None,
+            positional_args: &[],
+            variadic_arg: None,
             return_type: DataTypeId::Float64,
         }]
     }

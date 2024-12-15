@@ -20,8 +20,8 @@ impl FunctionInfo for Lower {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Utf8],
-            variadic: None,
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: None,
             return_type: DataTypeId::Utf8,
         }]
     }
@@ -66,8 +66,8 @@ impl FunctionInfo for Upper {
 
     fn signatures(&self) -> &[Signature] {
         &[Signature {
-            input: &[DataTypeId::Utf8],
-            variadic: None,
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: None,
             return_type: DataTypeId::Utf8,
         }]
     }

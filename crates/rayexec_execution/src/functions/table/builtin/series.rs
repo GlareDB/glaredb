@@ -1,158 +1,164 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::task::{Context, Waker};
 
-use futures::future::BoxFuture;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::executor::physical_type::PhysicalI64;
+use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::field::{Field, Schema};
+use rayexec_bullet::scalar::OwnedScalarValue;
+use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
-use rayexec_proto::packed::{PackedDecoder, PackedEncoder};
-use serde::{Deserialize, Serialize};
 
-use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunction, TableFunctionInputs};
-use crate::storage::table_storage::{
-    DataTable,
-    DataTableScan,
-    EmptyTableScan,
-    ProjectedScan,
-    Projections,
+use crate::execution::operators::{PollFinalize, PollPush};
+use crate::expr::{self, Expression};
+use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
+use crate::functions::table::{
+    InOutPlanner,
+    PlannedTableFunction,
+    TableFunction,
+    TableFunctionImpl,
+    TableFunctionPlanner,
 };
+use crate::functions::{
+    invalid_input_types_error,
+    plan_check_num_args_one_of,
+    FunctionInfo,
+    Signature,
+};
+use crate::logical::binder::table_list::TableList;
+use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenerateSeries;
 
-impl TableFunction for GenerateSeries {
+impl FunctionInfo for GenerateSeries {
     fn name(&self) -> &'static str {
         "generate_series"
     }
 
-    fn plan_and_initialize<'a>(
-        &self,
-        _context: &'a DatabaseContext,
-        args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction>>> {
-        Box::pin(async move { Self::plan_and_initialize_inner(args) })
-    }
-
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction>> {
-        let mut packed = PackedDecoder::new(state);
-        let start = packed.decode_next()?;
-        let stop = packed.decode_next()?;
-        let step = packed.decode_next()?;
-        Ok(Box::new(GenerateSeriesI64 { start, stop, step }))
-    }
-}
-
-impl GenerateSeries {
-    fn plan_and_initialize_inner(
-        args: TableFunctionInputs,
-    ) -> Result<Box<dyn PlannedTableFunction>> {
-        if !args.named.is_empty() {
-            return Err(RayexecError::new(
-                "generate_series does not accept named arguments",
-            ));
-        }
-
-        let mut args = args.clone();
-        let [start, stop, step] = match args.positional.len() {
-            2 => {
-                let stop = args.positional.pop().unwrap().try_as_i64()?;
-                let start = args.positional.pop().unwrap().try_as_i64()?;
-                [start, stop, 1]
-            }
-            3 => {
-                let step = args.positional.pop().unwrap().try_as_i64()?;
-                let stop = args.positional.pop().unwrap().try_as_i64()?;
-                let start = args.positional.pop().unwrap().try_as_i64()?;
-                [start, stop, step]
-            }
-            _ => {
-                return Err(RayexecError::new(
-                    "generate_series requires 2 or 3 arguments",
-                ));
-            }
-        };
-
-        if step == 0 {
-            return Err(RayexecError::new("'step' may not be zero"));
-        }
-
-        Ok(Box::new(GenerateSeriesI64 { start, stop, step }) as _)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GenerateSeriesI64 {
-    start: i64,
-    stop: i64,
-    step: i64,
-}
-
-impl PlannedTableFunction for GenerateSeriesI64 {
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()> {
-        let mut packed = PackedEncoder::new(state);
-        packed.encode_next(&self.start)?;
-        packed.encode_next(&self.stop)?;
-        packed.encode_next(&self.step)?;
-        Ok(())
-    }
-
-    fn table_function(&self) -> &dyn TableFunction {
-        &GenerateSeries
-    }
-
-    fn schema(&self) -> Schema {
-        Schema::new([Field::new("generate_series", DataType::Int64, false)])
-    }
-
-    fn datatable(&self) -> Result<Box<dyn DataTable>> {
-        Ok(Box::new(self.clone()))
-    }
-}
-
-impl DataTable for GenerateSeriesI64 {
-    fn scan(
-        &self,
-        projections: Projections,
-        num_partitions: usize,
-    ) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let mut scans: Vec<Box<dyn DataTableScan>> = vec![Box::new(ProjectedScan::new(
-            GenerateSeriesScan {
-                batch_size: 1024,
-                exhausted: false,
-                curr: self.start,
-                stop: self.stop,
-                step: self.step,
+    fn signatures(&self) -> &[Signature] {
+        &[
+            Signature {
+                positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
+                variadic_arg: None,
+                return_type: DataTypeId::Any,
             },
-            projections,
-        ))];
-        scans.extend((1..num_partitions).map(|_| Box::new(EmptyTableScan) as _));
-
-        Ok(scans)
+            Signature {
+                positional_args: &[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64],
+                variadic_arg: None,
+                return_type: DataTypeId::Any,
+            },
+        ]
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct GenerateSeriesScan {
-    batch_size: usize,
+impl TableFunction for GenerateSeries {
+    fn planner(&self) -> TableFunctionPlanner {
+        TableFunctionPlanner::InOut(&GenerateSeriesInOutPlanner)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GenerateSeriesInOutPlanner;
+
+impl InOutPlanner for GenerateSeriesInOutPlanner {
+    fn plan(
+        &self,
+        table_list: &TableList,
+        mut positional_inputs: Vec<Expression>,
+        named_inputs: HashMap<String, OwnedScalarValue>,
+    ) -> Result<PlannedTableFunction> {
+        plan_check_num_args_one_of(&GenerateSeries, &positional_inputs, [2, 3])?;
+        if !named_inputs.is_empty() {
+            return Err(RayexecError::new(format!(
+                "'{}' does not accept named arguments",
+                GenerateSeries.name()
+            )));
+        }
+
+        let datatypes = positional_inputs
+            .iter()
+            .map(|expr| expr.datatype(table_list))
+            .collect::<Result<Vec<_>>>()?;
+
+        for datatype in &datatypes {
+            if datatype != &DataType::Int64 {
+                return Err(invalid_input_types_error(&GenerateSeries, &datatypes));
+            }
+        }
+
+        if positional_inputs.len() == 2 {
+            // Add constant for the 'step' argument.
+            positional_inputs.push(expr::lit(1_i64))
+        }
+
+        Ok(PlannedTableFunction {
+            function: Box::new(GenerateSeries),
+            positional_inputs,
+            named_inputs,
+            function_impl: TableFunctionImpl::InOut(Box::new(GenerateSeriesInOutImpl)),
+            cardinality: StatisticsValue::Unknown,
+            schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GenerateSeriesInOutImpl;
+
+impl TableInOutFunction for GenerateSeriesInOutImpl {
+    fn create_states(
+        &self,
+        num_partitions: usize,
+    ) -> Result<Vec<Box<dyn TableInOutPartitionState>>> {
+        let states: Vec<_> = (0..num_partitions)
+            .map(|_| {
+                Box::new(GenerateSeriesInOutPartitionState {
+                    batch_size: 1024, // TODO
+                    batch: None,
+                    next_row_idx: 0,
+                    finished: false,
+                    params: SeriesParams {
+                        exhausted: true, // Triggers param update on first pull
+                        current_row_idx: 0,
+                        curr: 0,
+                        stop: 0,
+                        step: 0,
+                    },
+                    push_waker: None,
+                    pull_waker: None,
+                }) as _
+            })
+            .collect();
+
+        Ok(states)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SeriesParams {
     exhausted: bool,
+
+    /// Index of the row these parameters were generated from.
+    current_row_idx: usize,
+
     curr: i64,
     stop: i64,
     step: i64,
 }
 
-impl GenerateSeriesScan {
-    fn generate_next(&mut self) -> Option<Batch> {
-        if self.exhausted {
-            return None;
-        }
+impl SeriesParams {
+    /// Generate the next set of rows using the current parameters.
+    fn generate_next(&mut self, batch_size: usize) -> Array {
+        debug_assert!(!self.exhausted);
 
-        let mut series: Vec<_> = Vec::new();
+        let mut series: Vec<i64> = Vec::new();
         if self.curr < self.stop && self.step > 0 {
             // Going up.
             let mut count = 0;
-            while self.curr <= self.stop && count < self.batch_size {
+            while self.curr <= self.stop && count < batch_size {
                 series.push(self.curr);
                 self.curr += self.step;
                 count += 1;
@@ -160,14 +166,14 @@ impl GenerateSeriesScan {
         } else if self.curr > self.stop && self.step < 0 {
             // Going down.
             let mut count = 0;
-            while self.curr >= self.stop && count < self.batch_size {
+            while self.curr >= self.stop && count < batch_size {
                 series.push(self.curr);
                 self.curr += self.step;
                 count += 1;
             }
         }
 
-        if series.len() < self.batch_size {
+        if series.len() < batch_size {
             self.exhausted = true;
         }
 
@@ -176,16 +182,123 @@ impl GenerateSeriesScan {
             self.curr = *last + self.step;
         }
 
-        let col =
-            Array::new_with_array_data(DataType::Int64, ArrayData::Int64(Arc::new(series.into())));
-        let batch = Batch::try_new([col]).expect("batch to be valid");
-
-        Some(batch)
+        Array::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
     }
 }
 
-impl DataTableScan for GenerateSeriesScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        Box::pin(async { Ok(self.generate_next()) })
+#[derive(Debug)]
+pub struct GenerateSeriesInOutPartitionState {
+    batch_size: usize,
+    /// Batch we're working on.
+    batch: Option<Batch>,
+    /// Current row number
+    next_row_idx: usize,
+    /// If we're finished.
+    finished: bool,
+    /// Current params.
+    params: SeriesParams,
+    push_waker: Option<Waker>,
+    pull_waker: Option<Waker>,
+}
+
+impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
+    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+        if self.batch.is_some() {
+            // Still processing current batch, come back later.
+            self.push_waker = Some(cx.waker().clone());
+            if let Some(pull_waker) = self.pull_waker.take() {
+                pull_waker.wake();
+            }
+            return Ok(PollPush::Pending(batch));
+        }
+
+        self.batch = Some(batch);
+        self.next_row_idx = 0;
+
+        Ok(PollPush::Pushed)
+    }
+
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+        self.finished = true;
+        if let Some(waker) = self.pull_waker.take() {
+            waker.wake();
+        }
+
+        Ok(PollFinalize::Finalized)
+    }
+
+    fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
+        if self.params.exhausted {
+            let batch = match &self.batch {
+                Some(batch) => batch,
+                None => {
+                    if self.finished {
+                        return Ok(InOutPollPull::Exhausted);
+                    }
+
+                    // No batch to work on, come back later.
+                    self.pull_waker = Some(cx.waker().clone());
+                    if let Some(push_waker) = self.push_waker.take() {
+                        push_waker.wake()
+                    }
+                    return Ok(InOutPollPull::Pending);
+                }
+            };
+
+            // Generate new params from row.
+            let start = UnaryExecutor::value_at::<PhysicalI64>(
+                batch.column(0).unwrap(),
+                self.next_row_idx,
+            )?;
+            let end = UnaryExecutor::value_at::<PhysicalI64>(
+                batch.column(1).unwrap(),
+                self.next_row_idx,
+            )?;
+            let step = UnaryExecutor::value_at::<PhysicalI64>(
+                batch.column(2).unwrap(),
+                self.next_row_idx,
+            )?;
+
+            // Use values from start/end if they're both not null. Otherwise use
+            // parameters that produce an empty array.
+            match (start, end, step) {
+                (Some(start), Some(end), Some(step)) => {
+                    if step == 0 {
+                        return Err(RayexecError::new("'step' may not be zero"));
+                    }
+
+                    self.params = SeriesParams {
+                        exhausted: false,
+                        current_row_idx: self.next_row_idx,
+                        curr: start,
+                        stop: end,
+                        step,
+                    }
+                }
+                _ => {
+                    self.params = SeriesParams {
+                        exhausted: false,
+                        current_row_idx: self.next_row_idx,
+                        curr: 1,
+                        stop: 0,
+                        step: 1,
+                    }
+                }
+            }
+
+            // Increment next row to use when current row exhausted.
+            self.next_row_idx += 1;
+            if self.next_row_idx >= batch.num_rows() {
+                // Need more input.
+                self.batch = None;
+            }
+        }
+
+        let out = self.params.generate_next(self.batch_size);
+        let batch = Batch::try_new([out])?;
+
+        let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
+
+        Ok(InOutPollPull::Batch { batch, row_nums })
     }
 }

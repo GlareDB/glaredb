@@ -23,7 +23,7 @@ pub enum ScanSource {
         source: Arc<CatalogEntry>,
     },
     TableFunction {
-        function: Box<dyn PlannedTableFunction>,
+        function: PlannedTableFunction,
     },
     ExpressionList {
         rows: Vec<Vec<Expression>>,
@@ -39,7 +39,7 @@ impl ScanSource {
     pub fn cardinality(&self) -> StatisticsValue<usize> {
         match self {
             Self::Table { .. } => StatisticsValue::Unknown,
-            Self::TableFunction { function } => function.cardinality(),
+            Self::TableFunction { function } => function.cardinality,
             Self::ExpressionList { rows } => StatisticsValue::Exact(rows.len()),
             Self::View { .. } => StatisticsValue::Unknown,
         }
@@ -95,7 +95,7 @@ impl Explainable for LogicalScan {
                 source,
             } => ent = ent.with_value("source", format!("{catalog}.{schema}.{}", source.name)),
             ScanSource::TableFunction { function } => {
-                ent = ent.with_value("function_name", function.table_function().name())
+                ent = ent.with_value("function_name", function.function.name())
             }
             ScanSource::ExpressionList { rows } => {
                 ent = ent.with_value("num_rows", rows.len());
