@@ -9,7 +9,6 @@ use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::resolved_table_function::ConstantFunctionArgs;
 use super::{ResolveContext, ResolvedMeta, Resolver};
 use crate::database::catalog_entry::CatalogEntryType;
-use crate::functions::table::inputs::TableFunctionInputs;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 

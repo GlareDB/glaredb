@@ -11,7 +11,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 
-use crate::execution::operators::{PollFinalize, PollPull, PollPush};
+use crate::execution::operators::{PollFinalize, PollPush};
 use crate::expr::{self, Expression};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{

@@ -1,6 +1,5 @@
 pub mod builtin;
 pub mod inout;
-pub mod inputs;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -8,9 +7,7 @@ use std::sync::Arc;
 
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
-use futures::FutureExt;
 use inout::TableInOutFunction;
-use inputs::TableFunctionInputs;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
@@ -34,35 +31,8 @@ use crate::storage::table_storage::DataTable;
 ///
 /// The specialized variant should be determined by function argument inputs.
 pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    /// Plan the table function using the provide args, and do any necessary
-    /// initialization.
-    ///
-    /// Intialization may include opening connections a remote database, and
-    /// should be used determine the schema of the table we'll be returning. Any
-    /// connections should remain open through execution.
-    fn plan_and_initialize<'a>(
-        &self,
-        context: &'a DatabaseContext,
-        args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
-        unimplemented!()
-    }
-
-    fn initialize<'a>(
-        &self,
-        _context: &'a DatabaseContext,
-        _args: TableFunctionInputs,
-    ) -> BoxFuture<'a, Result<Box<dyn PlannedTableFunction2>>> {
-        unimplemented!()
-    }
-
-    fn decode_state(&self, state: &[u8]) -> Result<Box<dyn PlannedTableFunction2>> {
-        unimplemented!()
-    }
-
-    fn planner(&self) -> TableFunctionPlanner {
-        unimplemented!()
-    }
+    /// Return a planner that will produce a planned table function.
+    fn planner(&self) -> TableFunctionPlanner;
 }
 
 impl Clone for Box<dyn TableFunction> {
@@ -85,9 +55,12 @@ impl PartialEq for dyn TableFunction + '_ {
 
 impl Eq for dyn TableFunction {}
 
+/// The types of table function planners supported.
 #[derive(Debug)]
 pub enum TableFunctionPlanner<'a> {
+    /// Produces a table function that accept inputs and produce outputs.
     InOut(&'a dyn InOutPlanner),
+    /// Produces a table function that acts as a just a scan.
     Scan(&'a dyn ScanPlanner),
 }
 
@@ -152,60 +125,6 @@ pub enum TableFunctionImpl {
     /// A table function that accepts dynamic arguments and produces a table
     /// output.
     InOut(Box<dyn TableInOutFunction>),
-}
-
-pub trait PlannedTableFunction2: Debug + Sync + Send + DynClone {
-    /// Reinitialize the table function, including re-opening any connections
-    /// needed.
-    ///
-    /// This is called immediately after deserializing a planned function in
-    /// order populate fields that cannot be serialized and moved across
-    /// machines.
-    ///
-    /// The default implementation does nothing.
-    fn reinitialize(&self) -> BoxFuture<Result<()>> {
-        async move { Ok(()) }.boxed()
-    }
-
-    fn encode_state(&self, state: &mut Vec<u8>) -> Result<()>;
-
-    /// Returns a reference to the table function that initialized this
-    /// function.
-    fn table_function(&self) -> &dyn TableFunction;
-
-    /// Get the schema for the function output.
-    fn schema(&self) -> Schema;
-
-    /// Get the cardinality of the output.
-    fn cardinality(&self) -> StatisticsValue<usize> {
-        StatisticsValue::Unknown
-    }
-
-    /// Return a data table representing the function output.
-    ///
-    /// An engine runtime is provided for table funcs that return truly async
-    /// data tables.
-    fn datatable(&self) -> Result<Box<dyn DataTable>>;
-}
-
-impl PartialEq<dyn PlannedTableFunction2> for Box<dyn PlannedTableFunction2 + '_> {
-    fn eq(&self, other: &dyn PlannedTableFunction2) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn PlannedTableFunction2 + '_ {
-    fn eq(&self, other: &dyn PlannedTableFunction2) -> bool {
-        self.table_function() == other.table_function() && self.schema() == other.schema()
-    }
-}
-
-impl Eq for dyn PlannedTableFunction2 {}
-
-impl Clone for Box<dyn PlannedTableFunction2> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
 }
 
 /// Try to get a file location and access config from the table args.

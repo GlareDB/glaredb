@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
@@ -13,7 +12,6 @@ use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{Database, DatabaseContext};
 use crate::datasource::{DataSourceRegistry, FileHandlers};
 use crate::functions::table::TableFunctionPlanner;
-use crate::logical::binder::constant_binder::ConstantBinder;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::ResolveMode;
 

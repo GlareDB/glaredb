@@ -12,7 +12,6 @@ use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
-use scalar::ScalarFunction;
 
 /// Function signature.
 // TODO: Include named args.

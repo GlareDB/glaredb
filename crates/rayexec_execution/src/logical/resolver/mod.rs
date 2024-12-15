@@ -16,7 +16,7 @@ use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
-use rayexec_parser::ast::{self, ColumnDef, FunctionArg, ObjectReference};
+use rayexec_parser::ast::{self, ColumnDef, ObjectReference};
 use rayexec_parser::meta::{AstMeta, Raw};
 use rayexec_parser::parser;
 use rayexec_parser::statement::{RawStatement, Statement};
@@ -43,7 +43,6 @@ use crate::database::DatabaseContext;
 use crate::datasource::FileHandlers;
 use crate::functions::copy::CopyToArgs;
 use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
-use crate::functions::table::inputs::TableFunctionInputs;
 use crate::functions::table::TableFunctionPlanner;
 use crate::logical::operator::LocationRequirement;
 

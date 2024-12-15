@@ -38,7 +38,7 @@ impl ResolvedTableFunctionReference {
 impl DatabaseProtoConv for ResolvedTableFunctionReference {
     type ProtoType = rayexec_proto::generated::resolver::ResolvedTableFunctionReference;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
+    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
         unimplemented!()
         // Ok(Self::ProtoType {
         //     name: self.name.clone(),
@@ -46,7 +46,7 @@ impl DatabaseProtoConv for ResolvedTableFunctionReference {
         // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         unimplemented!()
         // Ok(Self {
         //     name: proto.name,
@@ -82,7 +82,7 @@ impl ProtoConv for UnresolvedTableFunctionReference {
         // })
     }
 
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
         unimplemented!()
         // Ok(Self {
         //     reference: ast::ObjectReference::from_proto(proto.reference.required("reference")?)?,
