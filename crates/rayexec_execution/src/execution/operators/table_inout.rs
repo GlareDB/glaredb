@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::task::Context;
 
+use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
+use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
@@ -22,6 +24,8 @@ use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 #[derive(Debug)]
 pub struct TableInOutPartitionState {
     function_state: Box<dyn inout::TableInOutPartitionState>,
+    /// Additional outputs that will be included on the output batch.
+    additional_outputs: Vec<Array>,
 }
 
 #[derive(Debug)]
@@ -30,6 +34,8 @@ pub struct PhysicalTableInOut {
     pub function: PlannedTableFunction,
     /// Input expressions to the table function.
     pub function_inputs: Vec<PhysicalScalarExpression>,
+    /// Output projections.
+    pub projected_outputs: Vec<PhysicalScalarExpression>,
 }
 
 impl ExecutableOperator for PhysicalTableInOut {
@@ -55,6 +61,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             .map(|state| {
                 PartitionState::TableInOut(TableInOutPartitionState {
                     function_state: state,
+                    additional_outputs: Vec::new(),
                 })
             })
             .collect();
@@ -79,18 +86,48 @@ impl ExecutableOperator for PhysicalTableInOut {
             other => panic!("invalid partition state: {other:?}"),
         };
 
+        // TODO: Don't do this.
+        let orig = batch.clone();
+
         let inputs = self
             .function_inputs
             .iter()
-            .map(|function| {
-                let arr = function.eval(&batch)?;
+            .map(|expr| {
+                let arr = expr.eval(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;
 
         let inputs = Batch::try_new(inputs)?;
 
-        state.function_state.poll_push(cx, inputs)
+        // Try to push first to avoid overwriting any buffered additional
+        // outputs.
+        //
+        // If we get a Pending, we need to return early with the original batch.
+        //
+        // TODO: Remove needing to do this, the clones should be cheap, but the
+        // expression execution is wasteful.
+        match state.function_state.poll_push(cx, inputs)? {
+            PollPush::Pending(_) => {
+                return Ok(PollPush::Pending(orig));
+            }
+            other => {
+                // Batch was pushed to the function state, compute additional
+                // outputs.
+                let additional_outputs = self
+                    .projected_outputs
+                    .iter()
+                    .map(|expr| {
+                        let arr = expr.eval(&batch)?;
+                        Ok(arr.into_owned())
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                state.additional_outputs = additional_outputs;
+
+                Ok(other)
+            }
+        }
     }
 
     fn poll_finalize_push(
@@ -118,7 +155,35 @@ impl ExecutableOperator for PhysicalTableInOut {
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        state.function_state.poll_pull(cx)
+        match state.function_state.poll_pull(cx)? {
+            inout::InOutPollPull::Batch { batch, row_nums } => {
+                // We got a batch, append additional outputs according to
+                // returned row numbers.
+                if batch.num_rows() != row_nums.len() {
+                    return Err(RayexecError::new("Row number mismatch").with_fields([
+                        ("batch_num_rows", batch.num_rows()),
+                        ("row_nums_len", row_nums.len()),
+                    ]));
+                }
+
+                let selection = Arc::new(SelectionVector::from(row_nums));
+
+                let mut arrays = batch.into_arrays();
+                arrays.reserve(state.additional_outputs.len());
+
+                for additional in &state.additional_outputs {
+                    let mut additional = additional.clone();
+                    additional.select_mut(selection.clone());
+                    arrays.push(additional);
+                }
+
+                let new_batch = Batch::try_new(arrays)?;
+
+                Ok(PollPull::Computed(new_batch.into()))
+            }
+            inout::InOutPollPull::Pending => Ok(PollPull::Pending),
+            inout::InOutPollPull::Exhausted => Ok(PollPull::Exhausted),
+        }
     }
 }
 

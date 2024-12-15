@@ -11,9 +11,17 @@ use crate::functions::table::PlannedTableFunction;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalInOut {
     /// Table ref for referencing the output of this function.
-    pub table_ref: TableRef,
+    pub function_table_ref: TableRef,
     /// The table function.
     pub function: PlannedTableFunction,
+    /// Table ref for referencing the projected expressions.
+    ///
+    /// This only gets set during subquery decorrelation to project the original
+    /// inputs through the node.
+    pub projected_table_ref: Option<TableRef>,
+    /// Expressions that get projected out of this node alongside the results of
+    /// the table function.
+    pub projected_outputs: Vec<Expression>,
 }
 
 impl Explainable for LogicalInOut {
@@ -23,7 +31,13 @@ impl Explainable for LogicalInOut {
             .with_values_context("inputs", conf, &self.function.positional_inputs);
 
         if conf.verbose {
-            ent = ent.with_value("table_ref", self.table_ref);
+            ent = ent.with_value("function_table_ref", self.function_table_ref);
+
+            if let Some(projected_table_ref) = self.projected_table_ref {
+                ent = ent
+                    .with_value("projected_table_ref", projected_table_ref)
+                    .with_values_context("projected_outputs", conf, &self.projected_outputs);
+            }
         }
 
         ent
@@ -32,7 +46,11 @@ impl Explainable for LogicalInOut {
 
 impl LogicalNode for Node<LogicalInOut> {
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
-        vec![self.node.table_ref]
+        if let Some(projected_table_ref) = self.node.projected_table_ref {
+            vec![self.node.function_table_ref, projected_table_ref]
+        } else {
+            vec![self.node.function_table_ref]
+        }
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
@@ -42,6 +60,10 @@ impl LogicalNode for Node<LogicalInOut> {
         for expr in &self.node.function.positional_inputs {
             func(expr)?
         }
+        for expr in &self.node.projected_outputs {
+            func(expr)?
+        }
+
         Ok(())
     }
 
@@ -52,6 +74,10 @@ impl LogicalNode for Node<LogicalInOut> {
         for expr in &mut self.node.function.positional_inputs {
             func(expr)?
         }
+        for expr in &mut self.node.projected_outputs {
+            func(expr)?
+        }
+
         Ok(())
     }
 }

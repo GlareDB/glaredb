@@ -57,7 +57,6 @@ impl SubqueryPlanner {
         mut conditions: Vec<ComparisonCondition>,
         lateral_columns: Vec<CorrelatedColumn>,
     ) -> Result<LogicalOperator> {
-        println!("PLANNING LATERAL");
         // Very similar to planning correlated subqueries (becuase it is), just
         // we already have the correlated columns we're flattening for.
 
@@ -806,8 +805,42 @@ impl DependentJoinPushdown {
                 self.pushdown_children(bind_context, &mut inout.children)?;
                 self.rewrite_expressions(&mut inout.node.function.positional_inputs)?;
 
-                // TODO: Need to check if we should propagate columns through
-                // the inout. If we do, it should just be a cross join.
+                // Add projections table as needed.
+                let table_ref = match inout.node.projected_table_ref {
+                    Some(table_ref) => table_ref, // TODO: List out how this could be Some already
+                    None => {
+                        let table_ref = bind_context.new_ephemeral_table()?;
+                        inout.node.projected_table_ref = Some(table_ref);
+                        table_ref
+                    }
+                };
+
+                // Append correlated columns to output projections.
+                let offset = inout.node.projected_outputs.len();
+                for (idx, correlated) in self.columns.iter().enumerate() {
+                    let expr =
+                        Expression::Column(*self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending projection to In/Out: {correlated:?}"))
+                        })?);
+
+                    // Append column to table in bind context.
+                    bind_context.push_column_for_table(
+                        table_ref,
+                        format!("__generated_inout_projection_decorrelation_{idx}"),
+                        expr.datatype(bind_context.get_table_list())?,
+                    )?;
+
+                    inout.node.projected_outputs.push(expr);
+
+                    self.column_map.insert(
+                        correlated.clone(),
+                        ColumnExpr {
+                            table_scope: table_ref,
+                            column: offset + idx,
+                        },
+                    );
+                }
 
                 Ok(())
             }

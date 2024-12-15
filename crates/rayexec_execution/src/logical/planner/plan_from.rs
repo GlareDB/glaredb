@@ -107,8 +107,10 @@ impl FromPlanner {
                         // child as needed.
                         Ok(LogicalOperator::InOut(Node {
                             node: LogicalInOut {
-                                table_ref: func.table_ref,
+                                function_table_ref: func.table_ref,
                                 function: func.function,
+                                projected_table_ref: None,
+                                projected_outputs: Vec::new(),
                             },
                             location: func.location,
                             children: vec![LogicalOperator::EMPTY],

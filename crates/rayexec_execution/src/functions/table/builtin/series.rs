@@ -13,7 +13,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::{PollFinalize, PollPull, PollPush};
 use crate::expr::{self, Expression};
-use crate::functions::table::inout::{TableInOutFunction, TableInOutPartitionState};
+use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{
     InOutPlanner,
     PlannedTableFunction,
@@ -122,6 +122,7 @@ impl TableInOutFunction for GenerateSeriesInOutImpl {
                     finished: false,
                     params: SeriesParams {
                         exhausted: true, // Triggers param update on first pull
+                        current_row_idx: 0,
                         curr: 0,
                         stop: 0,
                         step: 0,
@@ -139,6 +140,9 @@ impl TableInOutFunction for GenerateSeriesInOutImpl {
 #[derive(Debug, Clone)]
 struct SeriesParams {
     exhausted: bool,
+
+    /// Index of the row these parameters were generated from.
+    current_row_idx: usize,
 
     curr: i64,
     stop: i64,
@@ -187,7 +191,7 @@ pub struct GenerateSeriesInOutPartitionState {
     batch_size: usize,
     /// Batch we're working on.
     batch: Option<Batch>,
-    /// Row index we should try next.
+    /// Current row number
     next_row_idx: usize,
     /// If we're finished.
     finished: bool,
@@ -223,13 +227,13 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         Ok(PollFinalize::Finalized)
     }
 
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
+    fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
         if self.params.exhausted {
             let batch = match &self.batch {
                 Some(batch) => batch,
                 None => {
                     if self.finished {
-                        return Ok(PollPull::Exhausted);
+                        return Ok(InOutPollPull::Exhausted);
                     }
 
                     // No batch to work on, come back later.
@@ -237,7 +241,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
                     if let Some(push_waker) = self.push_waker.take() {
                         push_waker.wake()
                     }
-                    return Ok(PollPull::Pending);
+                    return Ok(InOutPollPull::Pending);
                 }
             };
 
@@ -265,6 +269,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
 
                     self.params = SeriesParams {
                         exhausted: false,
+                        current_row_idx: self.next_row_idx,
                         curr: start,
                         stop: end,
                         step,
@@ -273,6 +278,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
                 _ => {
                     self.params = SeriesParams {
                         exhausted: false,
+                        current_row_idx: self.next_row_idx,
                         curr: 1,
                         stop: 0,
                         step: 1,
@@ -291,6 +297,8 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         let out = self.params.generate_next(self.batch_size);
         let batch = Batch::try_new([out])?;
 
-        Ok(PollPull::Computed(batch.into()))
+        let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
+
+        Ok(InOutPollPull::Batch { batch, row_nums })
     }
 }
