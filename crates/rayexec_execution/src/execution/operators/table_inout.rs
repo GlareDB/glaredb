@@ -79,7 +79,18 @@ impl ExecutableOperator for PhysicalTableInOut {
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        state.function_state.poll_push(cx, batch)
+        let inputs = self
+            .function_inputs
+            .iter()
+            .map(|function| {
+                let arr = function.eval(&batch)?;
+                Ok(arr.into_owned())
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let inputs = Batch::try_new(inputs)?;
+
+        state.function_state.poll_push(cx, inputs)
     }
 
     fn poll_finalize_push(

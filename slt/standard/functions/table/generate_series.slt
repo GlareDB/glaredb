@@ -98,3 +98,9 @@ select i * 2 from (select * from generate_series(1, 5)) as t(i);
 8
 10
 
+# Lateral input
+
+query II
+select * from (values (3), (4)) v(a), generate_series(1, a) order by 1,2;
+----
+

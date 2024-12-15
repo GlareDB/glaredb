@@ -118,9 +118,14 @@ impl TableInOutFunction for GenerateSeriesInOutImpl {
                 Box::new(GenerateSeriesInOutPartitionState {
                     batch_size: 1024, // TODO
                     batch: None,
-                    row_idx: 0,
+                    next_row_idx: 0,
                     finished: false,
-                    params: SeriesParams::default(),
+                    params: SeriesParams {
+                        exhausted: true, // Triggers param update on first pull
+                        curr: 0,
+                        stop: 0,
+                        step: 0,
+                    },
                     push_waker: None,
                     pull_waker: None,
                 }) as _
@@ -131,9 +136,8 @@ impl TableInOutFunction for GenerateSeriesInOutImpl {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct SeriesParams {
-    batch_size: usize,
     exhausted: bool,
 
     curr: i64,
@@ -143,14 +147,14 @@ struct SeriesParams {
 
 impl SeriesParams {
     /// Generate the next set of rows using the current parameters.
-    fn generate_next(&mut self) -> Array {
+    fn generate_next(&mut self, batch_size: usize) -> Array {
         debug_assert!(!self.exhausted);
 
         let mut series: Vec<i64> = Vec::new();
         if self.curr < self.stop && self.step > 0 {
             // Going up.
             let mut count = 0;
-            while self.curr <= self.stop && count < self.batch_size {
+            while self.curr <= self.stop && count < batch_size {
                 series.push(self.curr);
                 self.curr += self.step;
                 count += 1;
@@ -158,14 +162,14 @@ impl SeriesParams {
         } else if self.curr > self.stop && self.step < 0 {
             // Going down.
             let mut count = 0;
-            while self.curr >= self.stop && count < self.batch_size {
+            while self.curr >= self.stop && count < batch_size {
                 series.push(self.curr);
                 self.curr += self.step;
                 count += 1;
             }
         }
 
-        if series.len() < self.batch_size {
+        if series.len() < batch_size {
             self.exhausted = true;
         }
 
@@ -183,8 +187,8 @@ pub struct GenerateSeriesInOutPartitionState {
     batch_size: usize,
     /// Batch we're working on.
     batch: Option<Batch>,
-    /// Row index we're on.
-    row_idx: usize,
+    /// Row index we should try next.
+    next_row_idx: usize,
     /// If we're finished.
     finished: bool,
     /// Current params.
@@ -205,62 +209,61 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         self.batch = Some(batch);
-        self.row_idx = 0;
+        self.next_row_idx = 0;
 
         Ok(PollPush::Pushed)
     }
 
     fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
         self.finished = true;
+        if let Some(waker) = self.pull_waker.take() {
+            waker.wake();
+        }
+
         Ok(PollFinalize::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull> {
-        let batch = match &self.batch {
-            Some(batch) => batch,
-            None => {
-                if self.finished {
-                    return Ok(PollPull::Exhausted);
-                }
-
-                // No batch to work on, come back later.
-                self.pull_waker = Some(cx.waker().clone());
-                if let Some(push_waker) = self.push_waker.take() {
-                    push_waker.wake()
-                }
-                return Ok(PollPull::Pending);
-            }
-        };
-
         if self.params.exhausted {
-            // Move to next row to process.
-            self.row_idx += 1;
+            let batch = match &self.batch {
+                Some(batch) => batch,
+                None => {
+                    if self.finished {
+                        return Ok(PollPull::Exhausted);
+                    }
 
-            if self.row_idx >= batch.num_rows() {
-                // Need more input.
-                self.batch = None;
-                self.pull_waker = Some(cx.waker().clone());
-                if let Some(push_waker) = self.push_waker.take() {
-                    push_waker.wake()
+                    // No batch to work on, come back later.
+                    self.pull_waker = Some(cx.waker().clone());
+                    if let Some(push_waker) = self.push_waker.take() {
+                        push_waker.wake()
+                    }
+                    return Ok(PollPull::Pending);
                 }
-
-                return Ok(PollPull::Pending);
-            }
+            };
 
             // Generate new params from row.
-            let start =
-                UnaryExecutor::value_at::<PhysicalI64>(batch.column(0).unwrap(), self.row_idx)?;
-            let end =
-                UnaryExecutor::value_at::<PhysicalI64>(batch.column(1).unwrap(), self.row_idx)?;
-            let step =
-                UnaryExecutor::value_at::<PhysicalI64>(batch.column(2).unwrap(), self.row_idx)?;
+            let start = UnaryExecutor::value_at::<PhysicalI64>(
+                batch.column(0).unwrap(),
+                self.next_row_idx,
+            )?;
+            let end = UnaryExecutor::value_at::<PhysicalI64>(
+                batch.column(1).unwrap(),
+                self.next_row_idx,
+            )?;
+            let step = UnaryExecutor::value_at::<PhysicalI64>(
+                batch.column(2).unwrap(),
+                self.next_row_idx,
+            )?;
 
             // Use values from start/end if they're both not null. Otherwise use
             // parameters that produce an empty array.
             match (start, end, step) {
                 (Some(start), Some(end), Some(step)) => {
+                    if step == 0 {
+                        return Err(RayexecError::new("'step' may not be zero"));
+                    }
+
                     self.params = SeriesParams {
-                        batch_size: self.batch_size,
                         exhausted: false,
                         curr: start,
                         stop: end,
@@ -269,7 +272,6 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
                 }
                 _ => {
                     self.params = SeriesParams {
-                        batch_size: self.batch_size,
                         exhausted: false,
                         curr: 1,
                         stop: 0,
@@ -278,10 +280,15 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
                 }
             }
 
-            // TODO: Validate params.
+            // Increment next row to use when current row exhausted.
+            self.next_row_idx += 1;
+            if self.next_row_idx >= batch.num_rows() {
+                // Need more input.
+                self.batch = None;
+            }
         }
 
-        let out = self.params.generate_next();
+        let out = self.params.generate_next(self.batch_size);
         let batch = Batch::try_new([out])?;
 
         Ok(PollPull::Computed(batch.into()))

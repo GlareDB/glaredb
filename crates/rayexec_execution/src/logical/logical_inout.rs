@@ -17,8 +17,16 @@ pub struct LogicalInOut {
 }
 
 impl Explainable for LogicalInOut {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("TableInOut").with_value("function", self.function.function.name())
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = ExplainEntry::new("TableInOut")
+            .with_value("function", self.function.function.name())
+            .with_values_context("inputs", conf, &self.function.positional_inputs);
+
+        if conf.verbose {
+            ent = ent.with_value("table_ref", self.table_ref);
+        }
+
+        ent
     }
 }
 

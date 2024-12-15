@@ -57,6 +57,7 @@ impl SubqueryPlanner {
         mut conditions: Vec<ComparisonCondition>,
         lateral_columns: Vec<CorrelatedColumn>,
     ) -> Result<LogicalOperator> {
+        println!("PLANNING LATERAL");
         // Very similar to planning correlated subqueries (becuase it is), just
         // we already have the correlated columns we're flattening for.
 
@@ -653,6 +654,11 @@ impl DependentJoinPushdown {
                     self.any_expression_has_correlation(order.node.exprs.iter().map(|e| &e.expr));
                 has_correlation |= self.find_correlations_in_children(&order.children)?;
             }
+            LogicalOperator::InOut(inout) => {
+                has_correlation =
+                    self.any_expression_has_correlation(&inout.node.function.positional_inputs);
+                has_correlation |= self.find_correlations_in_children(&inout.children)?;
+            }
             _ => (),
         }
 
@@ -796,6 +802,15 @@ impl DependentJoinPushdown {
 
                 Ok(())
             }
+            LogicalOperator::InOut(inout) => {
+                self.pushdown_children(bind_context, &mut inout.children)?;
+                self.rewrite_expressions(&mut inout.node.function.positional_inputs)?;
+
+                // TODO: Need to check if we should propagate columns through
+                // the inout. If we do, it should just be a cross join.
+
+                Ok(())
+            }
             LogicalOperator::Filter(filter) => {
                 self.pushdown_children(bind_context, &mut filter.children)?;
                 self.rewrite_expression(&mut filter.node.filter)?;
@@ -896,6 +911,7 @@ impl DependentJoinPushdown {
         Ok(())
     }
 
+    // TODO: Should accept logical node trait.
     fn any_expression_has_correlation<'a>(
         &self,
         exprs: impl IntoIterator<Item = &'a Expression>,

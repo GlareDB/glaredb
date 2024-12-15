@@ -454,6 +454,14 @@ impl<'a> FromBinder<'a> {
                     }
                 }
 
+                // Note only positional input casts for now. Signatures don't
+                // have a notion of named arguments yet.
+                let positional = expr_binder.apply_casts_for_table_function(
+                    bind_context,
+                    inout.as_ref(),
+                    positional,
+                )?;
+
                 match inout.planner() {
                     TableFunctionPlanner::InOut(planner) => {
                         planner.plan(bind_context.get_table_list(), positional, named)?

@@ -15,7 +15,7 @@ pub trait TableInOutFunction: Debug + Sync + Send + DynClone {
 }
 
 pub trait TableInOutPartitionState: Debug + Sync + Send {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush>;
+    fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush>;
     fn poll_finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
     fn poll_pull(&mut self, cx: &mut Context) -> Result<PollPull>;
 }
