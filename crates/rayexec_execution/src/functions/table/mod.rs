@@ -268,3 +268,16 @@ pub fn try_get_named<'a>(
         ))
     })
 }
+
+pub fn try_get_positional<'a>(
+    func: &impl TableFunction,
+    pos: usize,
+    positional: &'a [OwnedScalarValue],
+) -> Result<&'a OwnedScalarValue> {
+    positional.get(pos).ok_or_else(|| {
+        RayexecError::new(format!(
+            "Expected argument at position {pos} for function {}",
+            func.name()
+        ))
+    })
+}
