@@ -44,7 +44,7 @@ impl FunctionInfo for Negate {
             Signature::new_positional(&[DataTypeId::Int128], DataTypeId::Int128),
             Signature::new_positional(&[DataTypeId::Interval], DataTypeId::Interval),
         ];
-        &SIGS
+        SIGS
     }
 }
 

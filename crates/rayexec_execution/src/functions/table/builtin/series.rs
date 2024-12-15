@@ -91,7 +91,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
 
         if positional_inputs.len() == 2 {
             // Add constant for the 'step' argument.
-            positional_inputs.push(expr::lit(1 as i64))
+            positional_inputs.push(expr::lit(1_i64))
         }
 
         Ok(PlannedTableFunction {

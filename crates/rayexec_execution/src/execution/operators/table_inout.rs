@@ -108,9 +108,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         // TODO: Remove needing to do this, the clones should be cheap, but the
         // expression execution is wasteful.
         match state.function_state.poll_push(cx, inputs)? {
-            PollPush::Pending(_) => {
-                return Ok(PollPush::Pending(orig));
-            }
+            PollPush::Pending(_) => Ok(PollPush::Pending(orig)),
             other => {
                 // Batch was pushed to the function state, compute additional
                 // outputs.
