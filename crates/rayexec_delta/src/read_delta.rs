@@ -65,7 +65,7 @@ impl<R: Runtime> ScanPlanner for ReadDelta<R> {
 
 impl<R: Runtime> ReadDelta<R> {
     async fn plan_inner<'a>(
-        self: Self,
+        self,
         _context: &'a DatabaseContext,
         positional_inputs: Vec<OwnedScalarValue>,
         named_inputs: HashMap<String, OwnedScalarValue>,

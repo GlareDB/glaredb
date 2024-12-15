@@ -294,7 +294,7 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> ScanPlanner for UnityObjects<R, O>
 
 impl<R: Runtime, O: UnityObjectsOperation<R>> UnityObjects<R, O> {
     async fn plan_inner<'a>(
-        self: Self,
+        self,
         context: &'a DatabaseContext,
         positional_inputs: Vec<OwnedScalarValue>,
         named_inputs: HashMap<String, OwnedScalarValue>,

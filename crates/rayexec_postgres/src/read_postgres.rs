@@ -60,7 +60,7 @@ impl<R: Runtime> ScanPlanner for ReadPostgres<R> {
 
 impl<R: Runtime> ReadPostgres<R> {
     async fn plan_inner<'a>(
-        self: Self,
+        self,
         _context: &'a DatabaseContext,
         positional_inputs: Vec<OwnedScalarValue>,
         named_inputs: HashMap<String, OwnedScalarValue>,
@@ -74,13 +74,13 @@ impl<R: Runtime> ReadPostgres<R> {
             return Err(RayexecError::new("read_postgres requires 3 arguments"));
         }
 
-        let conn_str = positional_inputs.get(0).unwrap().try_as_str()?;
+        let conn_str = positional_inputs.first().unwrap().try_as_str()?;
         let schema = positional_inputs.get(1).unwrap().try_as_str()?;
         let table = positional_inputs.get(2).unwrap().try_as_str()?;
 
         let client = PostgresClient::connect(conn_str, &self.runtime).await?;
 
-        let fields = match client.get_fields_and_types(&schema, &table).await? {
+        let fields = match client.get_fields_and_types(schema, table).await? {
             Some((fields, _)) => fields,
             None => return Err(RayexecError::new("Table not found")),
         };
