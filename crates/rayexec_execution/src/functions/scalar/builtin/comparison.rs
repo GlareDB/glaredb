@@ -29,12 +29,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::{
-    BinaryExecutor,
-    BinaryListReducer,
-    FlexibleListExecutor,
-    ListExecutor,
-};
+use rayexec_bullet::executor::scalar::{BinaryExecutor, BinaryListReducer, FlexibleListExecutor};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
