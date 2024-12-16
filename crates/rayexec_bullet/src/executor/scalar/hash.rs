@@ -2,7 +2,7 @@ use ahash::RandomState;
 use half::f16;
 use rayexec_error::{RayexecError, Result};
 
-use crate::array::Array;
+use crate::array::{Array, ArrayData};
 use crate::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -15,6 +15,7 @@ use crate::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
+    PhysicalList,
     PhysicalStorage,
     PhysicalType,
     PhysicalU16,
@@ -40,28 +41,60 @@ impl HashExecutor {
     pub fn hash_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
         match array.physical_type() {
             PhysicalType::UntypedNull => {
-                Self::hash_one_combine::<PhysicalUntypedNull>(array, hashes)?
+                Self::hash_one_inner::<PhysicalUntypedNull, CombineSetHash>(array, hashes)?
             }
-            PhysicalType::Boolean => Self::hash_one_combine::<PhysicalBool>(array, hashes)?,
-            PhysicalType::Int8 => Self::hash_one_combine::<PhysicalI8>(array, hashes)?,
-            PhysicalType::Int16 => Self::hash_one_combine::<PhysicalI16>(array, hashes)?,
-            PhysicalType::Int32 => Self::hash_one_combine::<PhysicalI32>(array, hashes)?,
-            PhysicalType::Int64 => Self::hash_one_combine::<PhysicalI64>(array, hashes)?,
-            PhysicalType::Int128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
-            PhysicalType::UInt8 => Self::hash_one_combine::<PhysicalU8>(array, hashes)?,
-            PhysicalType::UInt16 => Self::hash_one_combine::<PhysicalU16>(array, hashes)?,
-            PhysicalType::UInt32 => Self::hash_one_combine::<PhysicalU32>(array, hashes)?,
-            PhysicalType::UInt64 => Self::hash_one_combine::<PhysicalU64>(array, hashes)?,
-            PhysicalType::UInt128 => Self::hash_one_combine::<PhysicalI128>(array, hashes)?,
-            PhysicalType::Float16 => Self::hash_one_combine::<PhysicalF16>(array, hashes)?,
-            PhysicalType::Float32 => Self::hash_one_combine::<PhysicalF32>(array, hashes)?,
-            PhysicalType::Float64 => Self::hash_one_combine::<PhysicalF64>(array, hashes)?,
-            PhysicalType::Binary => Self::hash_one_combine::<PhysicalBinary>(array, hashes)?,
-            PhysicalType::Utf8 => Self::hash_one_combine::<PhysicalUtf8>(array, hashes)?,
-            PhysicalType::Interval => Self::hash_one_combine::<PhysicalInterval>(array, hashes)?,
-            PhysicalType::List => {
-                return Err(RayexecError::new("Hashing list array not yet supported"))
+            PhysicalType::Boolean => {
+                Self::hash_one_inner::<PhysicalBool, CombineSetHash>(array, hashes)?
             }
+            PhysicalType::Int8 => {
+                Self::hash_one_inner::<PhysicalI8, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Int16 => {
+                Self::hash_one_inner::<PhysicalI16, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Int32 => {
+                Self::hash_one_inner::<PhysicalI32, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Int64 => {
+                Self::hash_one_inner::<PhysicalI64, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Int128 => {
+                Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt8 => {
+                Self::hash_one_inner::<PhysicalU8, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt16 => {
+                Self::hash_one_inner::<PhysicalU16, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt32 => {
+                Self::hash_one_inner::<PhysicalU32, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt64 => {
+                Self::hash_one_inner::<PhysicalU64, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt128 => {
+                Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Float16 => {
+                Self::hash_one_inner::<PhysicalF16, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Float32 => {
+                Self::hash_one_inner::<PhysicalF32, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Float64 => {
+                Self::hash_one_inner::<PhysicalF64, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Binary => {
+                Self::hash_one_inner::<PhysicalBinary, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Utf8 => {
+                Self::hash_one_inner::<PhysicalUtf8, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::Interval => {
+                Self::hash_one_inner::<PhysicalInterval, CombineSetHash>(array, hashes)?
+            }
+            PhysicalType::List => Self::hash_list::<CombineSetHash>(array, hashes)?,
         }
 
         Ok(())
@@ -72,28 +105,60 @@ impl HashExecutor {
     pub fn hash_no_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
         match array.physical_type() {
             PhysicalType::UntypedNull => {
-                Self::hash_one_no_combine::<PhysicalUntypedNull>(array, hashes)?
+                Self::hash_one_inner::<PhysicalUntypedNull, OverwriteSetHash>(array, hashes)?
             }
-            PhysicalType::Boolean => Self::hash_one_no_combine::<PhysicalBool>(array, hashes)?,
-            PhysicalType::Int8 => Self::hash_one_no_combine::<PhysicalI8>(array, hashes)?,
-            PhysicalType::Int16 => Self::hash_one_no_combine::<PhysicalI16>(array, hashes)?,
-            PhysicalType::Int32 => Self::hash_one_no_combine::<PhysicalI32>(array, hashes)?,
-            PhysicalType::Int64 => Self::hash_one_no_combine::<PhysicalI64>(array, hashes)?,
-            PhysicalType::Int128 => Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?,
-            PhysicalType::UInt8 => Self::hash_one_no_combine::<PhysicalU8>(array, hashes)?,
-            PhysicalType::UInt16 => Self::hash_one_no_combine::<PhysicalU16>(array, hashes)?,
-            PhysicalType::UInt32 => Self::hash_one_no_combine::<PhysicalU32>(array, hashes)?,
-            PhysicalType::UInt64 => Self::hash_one_no_combine::<PhysicalU64>(array, hashes)?,
-            PhysicalType::UInt128 => Self::hash_one_no_combine::<PhysicalI128>(array, hashes)?,
-            PhysicalType::Float16 => Self::hash_one_no_combine::<PhysicalF16>(array, hashes)?,
-            PhysicalType::Float32 => Self::hash_one_no_combine::<PhysicalF32>(array, hashes)?,
-            PhysicalType::Float64 => Self::hash_one_no_combine::<PhysicalF64>(array, hashes)?,
-            PhysicalType::Binary => Self::hash_one_no_combine::<PhysicalBinary>(array, hashes)?,
-            PhysicalType::Utf8 => Self::hash_one_no_combine::<PhysicalUtf8>(array, hashes)?,
-            PhysicalType::Interval => Self::hash_one_no_combine::<PhysicalInterval>(array, hashes)?,
-            PhysicalType::List => {
-                return Err(RayexecError::new("Hashing list array not yet supported"))
+            PhysicalType::Boolean => {
+                Self::hash_one_inner::<PhysicalBool, OverwriteSetHash>(array, hashes)?
             }
+            PhysicalType::Int8 => {
+                Self::hash_one_inner::<PhysicalI8, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Int16 => {
+                Self::hash_one_inner::<PhysicalI16, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Int32 => {
+                Self::hash_one_inner::<PhysicalI32, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Int64 => {
+                Self::hash_one_inner::<PhysicalI64, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Int128 => {
+                Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt8 => {
+                Self::hash_one_inner::<PhysicalU8, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt16 => {
+                Self::hash_one_inner::<PhysicalU16, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt32 => {
+                Self::hash_one_inner::<PhysicalU32, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt64 => {
+                Self::hash_one_inner::<PhysicalU64, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::UInt128 => {
+                Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Float16 => {
+                Self::hash_one_inner::<PhysicalF16, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Float32 => {
+                Self::hash_one_inner::<PhysicalF32, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Float64 => {
+                Self::hash_one_inner::<PhysicalF64, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Binary => {
+                Self::hash_one_inner::<PhysicalBinary, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Utf8 => {
+                Self::hash_one_inner::<PhysicalUtf8, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::Interval => {
+                Self::hash_one_inner::<PhysicalInterval, OverwriteSetHash>(array, hashes)?
+            }
+            PhysicalType::List => Self::hash_list::<OverwriteSetHash>(array, hashes)?,
         }
 
         Ok(())
@@ -113,10 +178,11 @@ impl HashExecutor {
         Ok(hashes)
     }
 
-    fn hash_one_no_combine<'a, 'b, S>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
+    fn hash_one_inner<'a, 'b, S, H>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
     where
         S: PhysicalStorage,
         S::Type<'a>: HashValue,
+        H: SetHash,
     {
         let selection = array.selection_vector();
 
@@ -129,9 +195,9 @@ impl HashExecutor {
 
                     if validity.value(sel) {
                         let val = unsafe { values.get_unchecked(sel) };
-                        *hash = val.hash_one();
+                        H::set_hash(val.hash_one(), hash);
                     } else {
-                        *hash = null_hash_value();
+                        H::set_hash(null_hash_value(), hash)
                     }
                 }
             }
@@ -141,7 +207,7 @@ impl HashExecutor {
                 for (idx, hash) in hashes.iter_mut().enumerate() {
                     let sel = unsafe { selection::get_unchecked(selection, idx) };
                     let val = unsafe { values.get_unchecked(sel) };
-                    *hash = val.hash_one();
+                    H::set_hash(val.hash_one(), hash);
                 }
             }
         }
@@ -149,40 +215,92 @@ impl HashExecutor {
         Ok(())
     }
 
-    fn hash_one_combine<'a, 'b, S>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
+    fn hash_list<H>(array: &Array, hashes: &mut [u64]) -> Result<()>
     where
-        S: PhysicalStorage,
-        S::Type<'a>: HashValue,
+        H: SetHash,
     {
+        let inner = match array.array_data() {
+            ArrayData::List(list) => &list.array,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unexpected array data for list hashing: {:?}",
+                    other.physical_type(),
+                )))
+            }
+        };
+
+        // TODO: Try to avoid this.
+        let mut list_hashes_buf = vec![0; inner.logical_len()];
+        Self::hash_no_combine(inner, &mut list_hashes_buf)?;
+
+        let metadata = PhysicalList::get_storage(&array.data)?;
         let selection = array.selection_vector();
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
-
                 for (idx, hash) in hashes.iter_mut().enumerate() {
                     let sel = unsafe { selection::get_unchecked(selection, idx) };
 
                     if validity.value(sel) {
-                        let val = unsafe { values.get_unchecked(sel) };
-                        *hash = combine_hashes(val.hash_one(), *hash);
+                        let val = unsafe { metadata.get_unchecked(sel) };
+
+                        // Set first hash.
+                        H::set_hash(list_hashes_buf[val.offset as usize], hash);
+
+                        // Combine all the rest.
+                        for hash_idx in 1..val.len {
+                            CombineSetHash::set_hash(
+                                list_hashes_buf[(val.offset + hash_idx) as usize],
+                                hash,
+                            );
+                        }
                     } else {
-                        *hash = combine_hashes(null_hash_value(), *hash);
+                        H::set_hash(null_hash_value(), hash);
                     }
                 }
             }
             None => {
-                let values = S::get_storage(&array.data)?;
-
                 for (idx, hash) in hashes.iter_mut().enumerate() {
                     let sel = unsafe { selection::get_unchecked(selection, idx) };
-                    let val = unsafe { values.get_unchecked(sel) };
-                    *hash = combine_hashes(val.hash_one(), *hash);
+                    let val = unsafe { metadata.get_unchecked(sel) };
+
+                    // Set first hash.
+                    H::set_hash(list_hashes_buf[val.offset as usize], hash);
+
+                    // Combine all the rest.
+                    for hash_idx in 1..val.len {
+                        CombineSetHash::set_hash(
+                            list_hashes_buf[(val.offset + hash_idx) as usize],
+                            hash,
+                        );
+                    }
                 }
             }
         }
 
         Ok(())
+    }
+}
+
+trait SetHash {
+    fn set_hash(new_hash_value: u64, existing: &mut u64);
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OverwriteSetHash;
+
+impl SetHash for OverwriteSetHash {
+    fn set_hash(new_hash_value: u64, existing: &mut u64) {
+        *existing = new_hash_value
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CombineSetHash;
+
+impl SetHash for CombineSetHash {
+    fn set_hash(new_hash_value: u64, existing: &mut u64) {
+        *existing = combine_hashes(new_hash_value, *existing)
     }
 }
 

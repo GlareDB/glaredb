@@ -2,8 +2,9 @@ use std::borrow::Borrow;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::array::Array;
+use crate::array::{Array, ArrayData};
 use crate::bitmap::Bitmap;
+use crate::datatype::DataType;
 use crate::executor::builder::{
     ArrayBuilder,
     ArrayDataBuffer,
@@ -23,6 +24,7 @@ use crate::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
+    PhysicalList,
     PhysicalStorage,
     PhysicalType,
     PhysicalU128,
@@ -32,8 +34,15 @@ use crate::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
+use crate::executor::scalar::UnaryExecutor;
 use crate::selection;
-use crate::storage::{AddressableStorage, UntypedNullStorage};
+use crate::storage::{
+    AddressableStorage,
+    ListItemMetadata,
+    ListStorage,
+    PrimitiveStorage,
+    UntypedNullStorage,
+};
 
 /// Singular mapping of a `from` index to a `to` index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,13 +278,63 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
             });
             concat_with_fill_state::<PhysicalBinary, _>(arrays, state)
         }
-        PhysicalType::List => {
-            // TODO: Very doable
-            Err(RayexecError::new(
-                "concatenating list arrays not yet supported",
-            ))
-        }
+        PhysicalType::List => concat_lists(datatype.clone(), arrays, total_len),
     }
+}
+
+fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Result<Array> {
+    let inner_arrays = arrays
+        .iter()
+        .map(|arr| match arr.array_data() {
+            ArrayData::List(list) => {
+                if list.array.has_selection() {
+                    return Err(RayexecError::new("List child array has selection"));
+                }
+                Ok(&list.array)
+            }
+            other => Err(RayexecError::new(format!(
+                "Invalid inner array data for concatenating lists, got {:?}",
+                other.physical_type()
+            ))),
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let concatenated = concat(&inner_arrays)?;
+
+    // Update metadata objects.
+    let mut metadatas = Vec::with_capacity(total_len);
+    let mut validity = Bitmap::new_with_all_true(total_len);
+
+    let mut acc_rows = 0;
+
+    for array in arrays {
+        UnaryExecutor::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
+            Some(metadata) => {
+                metadatas.push(ListItemMetadata {
+                    offset: metadata.offset + acc_rows,
+                    len: metadata.len,
+                });
+            }
+            None => {
+                metadatas.push(ListItemMetadata::default());
+                validity.set_unchecked(metadatas.len() - 1, false);
+            }
+        })?;
+
+        acc_rows += array.logical_len() as i32;
+    }
+
+    let data = ListStorage {
+        metadata: PrimitiveStorage::from(metadatas),
+        array: concatenated,
+    };
+
+    Ok(Array {
+        datatype,
+        selection: None,
+        validity: Some(validity.into()),
+        data: data.into(),
+    })
 }
 
 fn concat_with_fill_state<'a, S, B>(
