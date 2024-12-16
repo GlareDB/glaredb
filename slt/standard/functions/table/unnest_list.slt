@@ -1,5 +1,33 @@
 # UNNEST as a table function operating on lists.
 
+query TT
+DESCRIBE SELECT * FROM unnest([3,4,5]) ORDER BY 1;
+----
+unnest  Int32
+
 query I
-SELECT * FROM unnest([3,4,5]);
+SELECT * FROM unnest([3,4,5]) ORDER BY 1;
+----
+3
+4
+5
+
+query TT
+DESCRIBE SELECT * FROM unnest(NULL);
+----
+unnest  Null
+
+query ?
+SELECT * FROM unnest(NULL);
+----
+NULL
+
+query ?
+SELECT * FROM unnest([]);
+----
+
+# Lateral
+
+query ?I
+SELECT * FROM (VALUES ([1,2,3]), ([8,9])) v(a), unnest(v.a) ORDER BY 2;
 ----

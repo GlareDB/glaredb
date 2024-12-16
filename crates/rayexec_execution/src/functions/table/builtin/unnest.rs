@@ -51,7 +51,7 @@ impl FunctionInfo for Unnest {
 
 impl TableFunction for Unnest {
     fn planner(&self) -> TableFunctionPlanner {
-        unimplemented!()
+        TableFunctionPlanner::InOut(self)
     }
 }
 
