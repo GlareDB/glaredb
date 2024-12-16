@@ -307,7 +307,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
 
     let mut acc_rows = 0;
 
-    for array in arrays {
+    for (array, child_array) in arrays.iter().zip(inner_arrays) {
         UnaryExecutor::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
             Some(metadata) => {
                 metadatas.push(ListItemMetadata {
@@ -321,7 +321,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
             }
         })?;
 
-        acc_rows += array.logical_len() as i32;
+        acc_rows += child_array.logical_len() as i32;
     }
 
     let data = ListStorage {
@@ -699,5 +699,26 @@ mod tests {
         assert_eq!(ScalarValue::from(6), got.logical_value(2).unwrap());
         assert_eq!(ScalarValue::from(7), got.logical_value(3).unwrap());
         assert_eq!(ScalarValue::from(8), got.logical_value(4).unwrap());
+    }
+
+    #[test]
+    fn concat_lists() {
+        let arr1 = ScalarValue::List(vec![1.into(), 2.into()])
+            .as_array(1)
+            .unwrap();
+        let arr2 = ScalarValue::List(vec![3.into(), 4.into(), 5.into()])
+            .as_array(1)
+            .unwrap();
+
+        let got = concat(&[&arr1, &arr2]).unwrap();
+
+        assert_eq!(
+            ScalarValue::List(vec![1.into(), 2.into()]),
+            got.logical_value(0).unwrap()
+        );
+        assert_eq!(
+            ScalarValue::List(vec![3.into(), 4.into(), 5.into()]),
+            got.logical_value(1).unwrap()
+        );
     }
 }
