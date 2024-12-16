@@ -109,7 +109,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        ListExecutor::execute_binary_reduce::<S, _, L2DistanceReducer<_>>(a, b, builder)
+        ListExecutor::<false, false>::binary_reduce::<S, _, L2DistanceReducer<_>>(a, b, builder)
     }
 }
 
@@ -122,6 +122,11 @@ impl<F> BinaryListReducer<F, f64> for L2DistanceReducer<F>
 where
     F: Float + AddAssign + AsPrimitive<f64> + Default,
 {
+    fn new(left_len: i32, right_len: i32) -> Self {
+        debug_assert_eq!(left_len, right_len);
+        Self::default()
+    }
+
     fn put_values(&mut self, v1: F, v2: F) {
         let diff = v1 - v2;
         self.distance += diff * diff;

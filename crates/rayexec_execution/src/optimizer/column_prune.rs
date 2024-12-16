@@ -157,6 +157,57 @@ impl PruneState {
         bind_context: &mut BindContext,
         plan: &mut LogicalOperator,
     ) -> Result<()> {
+        // TODO: Implement this. It'd let us remove lateral joins from the plan in cases
+        // where only the output of the right side is projected out.
+        //
+        // E.g. `SELECT u.* FROM my_table t, unnest(t.a) u` would let us remove
+        // the left side as it would only be feeding into the `unnest`.
+        //
+        // // Check if this is a magic join first, as we might be able to remove it
+        // // entirely.
+        // //
+        // // We can remove the join if:
+        // //
+        // // - We're not referencing anything from the left side in any of the
+        // //   parent nodes.
+        // // - Join type is INNER
+        // if let LogicalOperator::MagicJoin(join) = plan {
+        //     if join.node.join_type == JoinType::Inner && !self.implicit_reference {
+        //         match join.get_nth_child(0)? {
+        //             LogicalOperator::MaterializationScan(scan) => {
+        //                 let mat_plan = bind_context.get_materialization_mut(scan.node.mat)?;
+
+        //                 let plan_references_left = self
+        //                     .current_references
+        //                     .iter()
+        //                     .any(|col_expr| mat_plan.table_refs.contains(&col_expr.table_scope));
+
+        //                 if !plan_references_left {
+        //                     // We can remove the left! Update the plan the
+        //                     // just be the right child and continue pruning.
+        //                     let [_left, right] = join.take_two_children_exact()?;
+        //                     *plan = right;
+
+        //                     // Decrement scan count. We should be able to
+        //                     // remove it entirely if count == 1.
+        //                     mat_plan.scan_count -= 1;
+
+        //                     // And now just walk the updated plan.
+        //                     self.walk_plan(bind_context, plan)?;
+        //                     self.apply_updated_expressions(plan)?;
+
+        //                     return Ok(());
+        //                 }
+        //             }
+        //             other => {
+        //                 return Err(RayexecError::new(format!(
+        //                     "unexpected left child for magic join: {other:?}"
+        //                 )))
+        //             }
+        //         }
+        //     }
+        // }
+
         // Extract columns reference in this plan.
         //
         // Note that this may result in references tracked that we don't care
@@ -180,6 +231,8 @@ impl PruneState {
             LogicalOperator::MagicJoin(join) => {
                 // Left child is materialization, right child is normal plan
                 // with some number of magic scans.
+                //
+                // Push down on both sides:
                 //
                 // 1. Extract all column references to the materialized plan on
                 //    the right. This should get us the complete set of column

@@ -68,7 +68,7 @@ impl RayexecError {
         }
     }
 
-    pub fn with_field<K, V>(mut self, (key, value): (K, V)) -> Self
+    pub fn with_field<K, V>(mut self, key: K, value: V) -> Self
     where
         K: Into<String>,
         V: ErrorFieldValue + 'static,

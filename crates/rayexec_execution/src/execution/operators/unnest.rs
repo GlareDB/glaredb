@@ -304,7 +304,7 @@ impl Explainable for PhysicalUnnest {
     }
 }
 
-fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
+pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
     let datatype = child.datatype().clone();
 
     match child.physical_type() {
