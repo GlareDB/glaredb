@@ -1,5 +1,5 @@
 # UNNEST as a table function operating on lists.
 
-# query I
-# SELECT * FROM unnest([3,4,5]);
-# ----
+query I
+SELECT * FROM unnest([3,4,5]);
+----
