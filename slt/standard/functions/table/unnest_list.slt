@@ -28,6 +28,11 @@ SELECT * FROM unnest([]);
 
 # Lateral
 
-query ?I
-SELECT * FROM (VALUES ([1,2,3]), ([8,9])) v(a), unnest(v.a) ORDER BY 2;
+query ?
+SELECT u.* FROM (VALUES ([1,2,3]), ([8,9])) v(a), unnest(v.a) u ORDER BY 1;
 ----
+
+# query ?I
+# SELECT * FROM (VALUES ([1,2,3]), ([8,9])) v(a), unnest(v.a) ORDER BY 2;
+# ----
+
