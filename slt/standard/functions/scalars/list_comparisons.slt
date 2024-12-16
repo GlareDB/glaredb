@@ -1,0 +1,89 @@
+# Comparisons between lists
+
+query T
+SELECT [] = [];
+----
+true
+
+query T
+SELECT [] <= [];
+----
+true
+
+query T
+SELECT [] < [];
+----
+false
+
+# TODO: Cast
+# query T
+# SELECT [] < [3];
+# ----
+# true
+
+query T
+SELECT [3] = [3];
+----
+true
+
+query T
+SELECT [3] != [3];
+----
+false
+
+query T
+SELECT [NULL] = [NULL];
+----
+true
+
+# TODO: Cast
+# query T
+# SELECT [NULL] = [4];
+# ----
+# true
+
+query T
+SELECT [3, 4] = [4];
+----
+false
+
+query T
+SELECT [3, 4] > [4];
+----
+false
+
+query T
+SELECT [3] < [3, 4];
+----
+true
+
+query T
+SELECT [3, 4, 5] < [3, 4];
+----
+false
+
+query T
+SELECT [5] < [3, 4];
+----
+false
+
+query T
+SELECT [3, 4] < [4];
+----
+true
+
+query T
+SELECT [NULL, 4] = [4];
+----
+false
+
+query T
+SELECT [NULL, 4] > [4];
+----
+true
+
+query T
+SELECT [NULL, 4] = [NULL, 4];
+----
+true
+

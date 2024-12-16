@@ -20,17 +20,24 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalStorage,
+    PhysicalType,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
+    PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::BinaryExecutor;
+use rayexec_bullet::executor::scalar::{
+    BinaryExecutor,
+    BinaryListReducer,
+    FlexibleListExecutor,
+    ListExecutor,
+};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::storage::PrimitiveStorage;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -140,6 +147,11 @@ const COMPARISON_SIGNATURES: &[Signature] = &[
     },
     Signature {
         positional_args: &[DataTypeId::Binary, DataTypeId::Binary],
+        variadic_arg: None,
+        return_type: DataTypeId::Boolean,
+    },
+    Signature {
+        positional_args: &[DataTypeId::List, DataTypeId::List],
         variadic_arg: None,
         return_type: DataTypeId::Boolean,
     },
@@ -475,9 +487,192 @@ fn new_comparison_impl<O: ComparisonOperation>(
             (DataType::Binary, DataType::Binary) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalBinary>::new())
             }
+            (DataType::List(m1), DataType::List(m2)) if m1 == m2 => {
+                // TODO: We'll want to figure out casting for lists.
+                Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type()?))
+            }
             (a, b) => return Err(invalid_input_types_error(func, &[a, b])),
         },
     )
+}
+
+#[derive(Debug)]
+struct ListComparisonReducer<T, O> {
+    left_len: i32,
+    right_len: i32,
+    all_equal: bool,
+    result: Option<bool>,
+    _typ: PhantomData<T>,
+    _op: PhantomData<O>,
+}
+
+impl<T, O> BinaryListReducer<T, bool> for ListComparisonReducer<T, O>
+where
+    T: PartialEq + PartialOrd,
+    O: ComparisonOperation,
+{
+    fn new(left_len: i32, right_len: i32) -> Self {
+        ListComparisonReducer {
+            all_equal: true,
+            result: None,
+            left_len,
+            right_len,
+            _op: PhantomData,
+            _typ: PhantomData,
+        }
+    }
+
+    fn put_values(&mut self, v1: T, v2: T) {
+        if self.result.is_some() {
+            return;
+        }
+        if v1 != v2 {
+            self.all_equal = false;
+            self.result = Some(O::compare(v1, v2));
+        }
+    }
+
+    fn finish(self) -> bool {
+        if let Some(result) = self.result {
+            return result;
+        }
+
+        if self.all_equal {
+            O::compare(self.left_len, self.right_len)
+        } else {
+            true
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ListComparisonImpl<O> {
+    inner_physical_type: PhysicalType,
+    _op: PhantomData<O>,
+}
+
+impl<O> ListComparisonImpl<O> {
+    fn new(inner_physical_type: PhysicalType) -> Self {
+        ListComparisonImpl {
+            _op: PhantomData,
+            inner_physical_type,
+        }
+    }
+}
+
+impl<O> ScalarFunctionImpl for ListComparisonImpl<O>
+where
+    O: ComparisonOperation,
+{
+    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+        let left = inputs[0];
+        let right = inputs[1];
+
+        let builder = ArrayBuilder {
+            datatype: DataType::Boolean,
+            buffer: BooleanBuffer::with_len(left.logical_len()),
+        };
+
+        let array = match self.inner_physical_type {
+            PhysicalType::UntypedNull => FlexibleListExecutor::binary_reduce::<
+                PhysicalUntypedNull,
+                _,
+                ListComparisonReducer<_, O>,
+            >(left, right, builder)?,
+            PhysicalType::Boolean => {
+                FlexibleListExecutor::binary_reduce::<PhysicalBool, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Int8 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalI8, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Int16 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalI16, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Int32 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalI32, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Int64 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalI64, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Int128 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalI128, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::UInt8 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalU8, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::UInt16 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalU16, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::UInt32 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalU32, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::UInt64 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalU64, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::UInt128 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalU128, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Float16 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalF16, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Float32 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalF32, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Float64 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalF64, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Interval => FlexibleListExecutor::binary_reduce::<
+                PhysicalInterval,
+                _,
+                ListComparisonReducer<_, O>,
+            >(left, right, builder)?,
+            PhysicalType::Binary => {
+                FlexibleListExecutor::binary_reduce::<PhysicalBinary, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::Utf8 => {
+                FlexibleListExecutor::binary_reduce::<PhysicalUtf8, _, ListComparisonReducer<_, O>>(
+                    left, right, builder,
+                )?
+            }
+            PhysicalType::List => {
+                return Err(RayexecError::new(
+                    "Comparison between nested lists not yet supported",
+                ))
+            }
+        };
+
+        Ok(array)
+    }
 }
 
 #[derive(Debug, Clone)]
