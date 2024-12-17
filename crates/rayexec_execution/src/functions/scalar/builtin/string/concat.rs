@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -26,6 +27,15 @@ impl FunctionInfo for Concat {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Concatenate many strings into a single string.",
+                arguments: &["var_args"],
+                example: Some(Example {
+                    example: "concat('cat', 'dog', 'mouse')",
+                    output: "catdogmouse",
+                }),
+            }),
         }]
     }
 }

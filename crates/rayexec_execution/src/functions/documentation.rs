@@ -9,6 +9,8 @@ pub enum Category {
     Interval,
     List,
     String,
+    Regexp,
+    Binary,
 }
 
 /// Documentation for a single function variant.

@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
@@ -34,12 +35,30 @@ impl FunctionInfo for Substring {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(&Documentation{
+                    category: Category::String,
+                    description: "Get a substring of a string starting at an index for some number of characters. The index is 1-based.",
+                    arguments: &["string", "index", "for"],
+                    example: Some(Example{
+                        example: "substring('alphabet', 3, 2)",
+                        output: "ph",
+                    })
+                })
             },
             // substring(<string>, <from>)
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(&Documentation{
+                    category: Category::String,
+                    description: "Get a substring of a string starting at an index until the end of the string. The index is 1-based.",
+                    arguments: &["string", "index"],
+                    example: Some(Example{
+                        example: "substring('alphabet', 3)",
+                        output: "phabet",
+                    }),
+                }),
             },
         ]
     }

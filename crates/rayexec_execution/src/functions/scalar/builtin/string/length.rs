@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -27,6 +28,15 @@ impl FunctionInfo for Length {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Get the number of characters in a string.",
+                arguments: &["string"],
+                example: Some(Example {
+                    example: "length('tschüß')",
+                    output: "6",
+                }),
+            }),
         }]
     }
 }
@@ -87,11 +97,26 @@ impl FunctionInfo for ByteLength {
                 positional_args: &[DataTypeId::Utf8],
                 variadic_arg: None,
                 return_type: DataTypeId::Int64,
+                doc: Some(&Documentation {
+                    category: Category::String,
+                    description: "Get the number of bytes in a string.",
+                    arguments: &["string"],
+                    example: Some(Example {
+                        example: "byte_length('tschüß')",
+                        output: "6",
+                    }),
+                }),
             },
             Signature {
                 positional_args: &[DataTypeId::Binary],
                 variadic_arg: None,
                 return_type: DataTypeId::Int64,
+                doc: Some(&Documentation {
+                    category: Category::String,
+                    description: "Get the number of bytes in a binary blob.",
+                    arguments: &["blob"],
+                    example: None,
+                }),
             },
         ]
     }
@@ -149,11 +174,26 @@ impl FunctionInfo for BitLength {
                 positional_args: &[DataTypeId::Utf8],
                 variadic_arg: None,
                 return_type: DataTypeId::Int64,
+                doc: Some(&Documentation {
+                    category: Category::String,
+                    description: "Get the number of bits in a string.",
+                    arguments: &["string"],
+                    example: Some(Example {
+                        example: "bit_length('tschüß')",
+                        output: "64",
+                    }),
+                }),
             },
             Signature {
                 positional_args: &[DataTypeId::Binary],
                 variadic_arg: None,
                 return_type: DataTypeId::Int64,
+                doc: Some(&Documentation {
+                    category: Category::String,
+                    description: "Get the number of bits in a binary blob.",
+                    arguments: &["blob"],
+                    example: None,
+                }),
             },
         ]
     }

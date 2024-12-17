@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
@@ -29,11 +30,29 @@ impl FunctionInfo for LeftPad {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(&Documentation{
+                    category: Category::String,
+                    description: "Left pad a string with spaces until the resulting string contains 'count' characters.",
+                    arguments: &["string", "count"],
+                    example: Some(Example{
+                        example: "lpad('house', 8)",
+                        output: "   house",
+                    }),
+                }),
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(&Documentation{
+                    category: Category::String,
+                    description: "Left pad a string with another string until the resulting string contains 'count' characters.",
+                    arguments: &["string", "count", "pad"],
+                    example: Some(Example{
+                        example: "lpad('house', 8, '_')",
+                        output: "___house",
+                    }),
+                }),
             },
         ]
     }
@@ -123,11 +142,30 @@ impl FunctionInfo for RightPad {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(&Documentation{
+                    category: Category::String,
+                    description: "Right pad a string with spaces until the resulting string contains 'count' characters.",
+                    arguments: &["string", "count"],
+                    example: Some(Example{
+                        example: "rpad('house', 8)",
+                        output: "house   ",
+                    }),
+                }),
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(&Documentation{
+                    category: Category::String,
+                    description: "Right pad a string with another string until the resulting string contains 'count' characters.",
+                    arguments: &["string", "count", "pad"],
+                    example: Some(Example{
+                        example: "rpad('house', 8, '_')",
+                        output: "house___",
+                    }),
+                }),
+
             },
         ]
     }

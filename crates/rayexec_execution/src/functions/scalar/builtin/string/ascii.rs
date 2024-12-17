@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -23,6 +24,15 @@ impl FunctionInfo for Ascii {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Int32,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Get the ascii code of the first character of the argument.",
+                arguments: &["string"],
+                example: Some(Example {
+                    example: "ascii('h')",
+                    output: "104",
+                }),
+            }),
         }]
     }
 }
