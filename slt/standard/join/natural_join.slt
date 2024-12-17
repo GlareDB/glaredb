@@ -80,6 +80,16 @@ SELECT * FROM t1 NATURAL JOIN (SELECT * FROM t2) ORDER BY 1;
 3  c  yyy
 
 query IT
+SELECT * FROM t1 NATURAL JOIN (SELECT 3) s(num);
+----
+3  c
+
+query IT
 SELECT * FROM t1 NATURAL JOIN (SELECT 3) s(num) ORDER BY 1;
+----
+3  c
+
+query IT
+SELECT * FROM t1 NATURAL JOIN (SELECT 3 AS num);
 ----
 3  c
