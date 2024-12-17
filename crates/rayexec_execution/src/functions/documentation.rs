@@ -1,6 +1,8 @@
 /// Function categories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
+    General,
+    Aggregate,
     Numeric,
     Date,
     Time,
