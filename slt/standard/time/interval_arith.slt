@@ -19,3 +19,14 @@ query T
 select '1998-10-11'::date - 4;
 ----
 1998-10-07
+
+query T
+select y * x as z from (select 4 as x, interval '2 day' as y);
+----
+8 days
+
+# Commutative int*interval
+query T
+select x*y as z from (select 4 as x, interval '2 day' as y);
+----
+8 days

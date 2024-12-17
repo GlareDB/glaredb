@@ -1,0 +1,11 @@
+# Date arithmetic
+
+query T
+SELECT date '2001-09-28' + 7;
+----
+2001-10-05
+
+query T
+SELECT 7 + date '2001-09-28';
+----
+2001-10-05
