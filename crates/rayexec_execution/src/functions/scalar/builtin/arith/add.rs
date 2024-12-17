@@ -73,6 +73,7 @@ impl FunctionInfo for Add {
                 DataTypeId::UInt64,
             ),
             Signature::new_positional(&[DataTypeId::Date32, DataTypeId::Int32], DataTypeId::Date32),
+            Signature::new_positional(&[DataTypeId::Int32, DataTypeId::Date32], DataTypeId::Date32),
             Signature::new_positional(
                 &[DataTypeId::Interval, DataTypeId::Int64],
                 DataTypeId::Interval,
@@ -163,6 +164,12 @@ impl ScalarFunction for Add {
 
             // Date + days
             (DataType::Date32, DataType::Int32) => (
+                Box::new(AddImpl::<PhysicalI32>::new(DataType::Date32)),
+                DataType::Date32,
+            ),
+            // Days + date
+            // Note both are represented as i32 physical type, we don't need to worry about flipping the sides.
+            (DataType::Int32, DataType::Date32) => (
                 Box::new(AddImpl::<PhysicalI32>::new(DataType::Date32)),
                 DataType::Date32,
             ),

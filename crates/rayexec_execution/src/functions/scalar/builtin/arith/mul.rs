@@ -77,14 +77,24 @@ impl FunctionInfo for Mul {
                 DataTypeId::UInt64,
             ),
             Signature::new_positional(&[DataTypeId::Date32, DataTypeId::Int64], DataTypeId::Date32),
+            // Interval * Int (commutative)
             Signature::new_positional(
                 &[DataTypeId::Interval, DataTypeId::Int32],
+                DataTypeId::Interval,
+            ),
+            Signature::new_positional(
+                &[DataTypeId::Int32, DataTypeId::Interval],
                 DataTypeId::Interval,
             ),
             Signature::new_positional(
                 &[DataTypeId::Interval, DataTypeId::Int64],
                 DataTypeId::Interval,
             ),
+            Signature::new_positional(
+                &[DataTypeId::Int64, DataTypeId::Interval],
+                DataTypeId::Interval,
+            ),
+            // Decimal
             Signature::new_positional(
                 &[DataTypeId::Decimal64, DataTypeId::Decimal64],
                 DataTypeId::Decimal64,
@@ -184,11 +194,19 @@ impl ScalarFunction for Mul {
 
             // Interval
             (DataType::Interval, DataType::Int32) => (
-                Box::new(IntervalMulImpl::<PhysicalI32>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI32, false>::new()),
                 DataType::Interval,
             ),
             (DataType::Interval, DataType::Int64) => (
-                Box::new(IntervalMulImpl::<PhysicalI64>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI64, false>::new()),
+                DataType::Interval,
+            ),
+            (DataType::Int32, DataType::Interval) => (
+                Box::new(IntervalMulImpl::<PhysicalI32, true>::new()),
+                DataType::Interval,
+            ),
+            (DataType::Int64, DataType::Interval) => (
+                Box::new(IntervalMulImpl::<PhysicalI64, true>::new()),
                 DataType::Interval,
             ),
 
@@ -206,31 +224,34 @@ impl ScalarFunction for Mul {
 }
 
 #[derive(Debug, Clone)]
-pub struct IntervalMulImpl<Rhs> {
+pub struct IntervalMulImpl<Rhs, const LHS_RHS_FLIPPED: bool> {
     _rhs: PhantomData<Rhs>,
 }
 
-impl<Rhs> IntervalMulImpl<Rhs> {
+impl<Rhs, const LHS_RHS_FLIPPED: bool> IntervalMulImpl<Rhs, LHS_RHS_FLIPPED> {
     fn new() -> Self {
         IntervalMulImpl { _rhs: PhantomData }
     }
 }
 
-impl<Rhs> ScalarFunctionImpl for IntervalMulImpl<Rhs>
+impl<Rhs, const LHS_RHS_FLIPPED: bool> ScalarFunctionImpl for IntervalMulImpl<Rhs, LHS_RHS_FLIPPED>
 where
     Rhs: PhysicalStorage,
     for<'a> Rhs::Type<'a>: PrimInt,
 {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+        let (lhs, rhs) = if LHS_RHS_FLIPPED {
+            (inputs[1], inputs[0])
+        } else {
+            (inputs[0], inputs[1])
+        };
 
         let builder = ArrayBuilder {
             datatype: DataType::Interval,
-            buffer: PrimitiveBuffer::<Interval>::with_len(a.logical_len()),
+            buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(a, b, builder, |a, b, buf| {
+        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
             // TODO: Overflow check
             buf.put(&Interval {
                 months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
