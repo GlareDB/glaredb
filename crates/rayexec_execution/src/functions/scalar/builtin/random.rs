@@ -5,6 +5,7 @@ use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::scalar::{
     FunctionVolatility,
     PlannedScalarFunction,
@@ -27,6 +28,12 @@ impl FunctionInfo for Random {
             positional_args: &[],
             variadic_arg: None,
             return_type: DataTypeId::Float64,
+            doc: Some(&Documentation {
+                category: Category::Numeric,
+                description: "Return a random float.",
+                arguments: &[],
+                example: None,
+            }),
         }]
     }
 }

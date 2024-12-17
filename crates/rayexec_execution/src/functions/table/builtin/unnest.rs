@@ -13,6 +13,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::execution::operators::unnest::unnest;
 use crate::execution::operators::{PollFinalize, PollPush};
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{
     InOutPlanner,
@@ -34,16 +35,25 @@ impl FunctionInfo for Unnest {
     }
 
     fn signatures(&self) -> &[Signature] {
+        const DOC: &Documentation = &Documentation {
+            category: Category::Table,
+            description: "Unnest a list, producing a table of unnested values.",
+            arguments: &["list"],
+            example: None,
+        };
+
         &[
             Signature {
                 positional_args: &[DataTypeId::List],
                 variadic_arg: None,
                 return_type: DataTypeId::Any,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Null],
                 variadic_arg: None,
                 return_type: DataTypeId::Null,
+                doc: Some(DOC),
             },
         ]
     }

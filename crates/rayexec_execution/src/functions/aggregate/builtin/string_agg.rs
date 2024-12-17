@@ -14,6 +14,7 @@ use crate::functions::aggregate::{
     AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -32,6 +33,12 @@ impl FunctionInfo for StringAgg {
             positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Utf8,
+            doc: Some(&Documentation {
+                category: Category::Aggregate,
+                description: "Concatenate all non-NULL input string values using a delimiter.",
+                arguments: &["inputs", "delimiter"],
+                example: None,
+            }),
         }]
     }
 }

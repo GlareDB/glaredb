@@ -11,6 +11,7 @@ pub enum Category {
     String,
     Regexp,
     Binary,
+    Table,
 }
 
 /// Documentation for a single function variant.

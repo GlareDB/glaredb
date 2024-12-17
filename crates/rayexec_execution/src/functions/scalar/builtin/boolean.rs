@@ -11,6 +11,7 @@ use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -28,6 +29,15 @@ impl FunctionInfo for And {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Boolean and all inputs.",
+                arguments: &["var_args"],
+                example: Some(Example {
+                    example: "and(true, false, true)",
+                    output: "false",
+                }),
+            }),
         }]
     }
 }
@@ -127,6 +137,15 @@ impl FunctionInfo for Or {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Boolean or all inputs.",
+                arguments: &["var_args"],
+                example: Some(Example {
+                    example: "or(true, false, true)",
+                    output: "true",
+                }),
+            }),
         }]
     }
 }

@@ -44,6 +44,7 @@ use crate::functions::aggregate::{
     AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -60,6 +61,12 @@ impl FunctionInfo for First {
             positional_args: &[DataTypeId::Any],
             variadic_arg: None,
             return_type: DataTypeId::Any,
+            doc: Some(&Documentation {
+                category: Category::Aggregate,
+                description: "Return the first non-NULL value.",
+                arguments: &["input"],
+                example: None,
+            }),
         }]
     }
 }

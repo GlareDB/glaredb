@@ -15,6 +15,7 @@ use rayexec_error::Result;
 
 use super::ScalarFunction;
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -28,21 +29,34 @@ impl FunctionInfo for IsNan {
     }
 
     fn signatures(&self) -> &[Signature] {
+        const DOC: &Documentation = &Documentation {
+            category: Category::Numeric,
+            description: "Return if the given float is a NaN.",
+            arguments: &["float"],
+            example: Some(Example {
+                example: "isnan('NaN'::FLOAT)",
+                output: "true",
+            }),
+        };
+
         &[
             Signature {
                 positional_args: &[DataTypeId::Float16],
                 variadic_arg: None,
                 return_type: DataTypeId::Boolean,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Float32],
                 variadic_arg: None,
                 return_type: DataTypeId::Boolean,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Float64],
                 variadic_arg: None,
                 return_type: DataTypeId::Boolean,
+                doc: Some(DOC),
             },
         ]
     }

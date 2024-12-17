@@ -24,6 +24,7 @@ use crate::functions::aggregate::{
     AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -36,26 +37,37 @@ impl FunctionInfo for Avg {
     }
 
     fn signatures(&self) -> &[Signature] {
+        const DOC: &Documentation = &Documentation {
+            category: Category::Aggregate,
+            description: "Return the average value from the inputs.",
+            arguments: &["input"],
+            example: None,
+        };
+
         &[
             Signature {
                 positional_args: &[DataTypeId::Float64],
                 variadic_arg: None,
                 return_type: DataTypeId::Float64,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Float64, // TODO: Should be decimal // TODO: Should it though?
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Decimal64],
                 variadic_arg: None,
                 return_type: DataTypeId::Float64,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Decimal128],
                 variadic_arg: None,
                 return_type: DataTypeId::Float64,
+                doc: Some(DOC),
             },
         ]
     }
