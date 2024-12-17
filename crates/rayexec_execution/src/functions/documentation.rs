@@ -7,6 +7,7 @@ pub enum Category {
     Date,
     Time,
     Interval,
+    List,
     String,
 }
 

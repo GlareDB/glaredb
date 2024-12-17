@@ -37,6 +37,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -56,6 +57,15 @@ impl FunctionInfo for ListExtract {
             positional_args: &[DataTypeId::List, DataTypeId::Int64],
             variadic_arg: None,
             return_type: DataTypeId::Any,
+            doc: Some(&Documentation {
+                category: Category::List,
+                description: "Extract an item from the list. Used 1-based indexing.",
+                arguments: &["list", "index"],
+                example: Some(Example {
+                    example: "list_extract([4,5,6], 2)",
+                    output: "5",
+                }),
+            }),
         }]
     }
 }

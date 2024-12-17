@@ -187,7 +187,7 @@ impl FunctionInfo for Eq {
     fn signatures(&self) -> &[Signature] {
         const DOC: Documentation = Documentation {
             category: Category::General,
-            description: "Check if two values are equal. Returns NULL if either argument is NULL",
+            description: "Check if two values are equal. Returns NULL if either argument is NULL.",
             arguments: &["a", "b"],
             example: Some(Example {
                 example: "a = b",
@@ -232,7 +232,7 @@ impl FunctionInfo for Neq {
         const DOC: Documentation = Documentation {
             category: Category::General,
             description:
-                "Check if two values are not equal. Returns NULL if either argument is NULL",
+                "Check if two values are not equal. Returns NULL if either argument is NULL.",
             arguments: &["a", "b"],
             example: Some(Example {
                 example: "a != b",
@@ -273,7 +273,7 @@ impl FunctionInfo for Lt {
         const DOC: Documentation = Documentation {
             category: Category::General,
             description:
-                "Check if the left argument is less than the right. Returns NULL if either argument is NULL",
+                "Check if the left argument is less than the right. Returns NULL if either argument is NULL.",
             arguments: &["a", "b"],
             example: Some(Example {
                 example: "a < b",
@@ -314,7 +314,7 @@ impl FunctionInfo for LtEq {
         const DOC: Documentation = Documentation {
             category: Category::General,
             description:
-                "Check if the left argument is less than or equal to the right. Returns NULL if either argument is NULL",
+                "Check if the left argument is less than or equal to the right. Returns NULL if either argument is NULL.",
             arguments: &["a", "b"],
             example: Some(Example {
                 example: "a <= b",
@@ -355,7 +355,7 @@ impl FunctionInfo for Gt {
         const DOC: Documentation = Documentation {
             category: Category::General,
             description:
-                "Check if the left argument is greater than the right. Returns NULL if either argument is NULL",
+                "Check if the left argument is greater than the right. Returns NULL if either argument is NULL.",
             arguments: &["a", "b"],
             example: Some(Example {
                 example: "a > b",
@@ -396,7 +396,7 @@ impl FunctionInfo for GtEq {
         const DOC: Documentation = Documentation {
             category: Category::General,
             description:
-                "Check if the left argument is greater than or equal to the right. Returns NULL if either argument is NULL",
+                "Check if the left argument is greater than or equal to the right. Returns NULL if either argument is NULL.",
             arguments: &["a", "b"],
             example: Some(Example {
                 example: "a >= b",

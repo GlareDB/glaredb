@@ -29,6 +29,7 @@ impl FunctionInfo for Epoch {
                 positional_args: &[DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Timestamp,
+                doc: None,
             },
         ]
     }
@@ -70,6 +71,7 @@ impl FunctionInfo for EpochMs {
                 positional_args: &[DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Timestamp,
+                doc: None,
             },
         ]
     }
