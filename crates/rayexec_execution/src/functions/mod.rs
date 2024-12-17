@@ -1,5 +1,6 @@
 pub mod aggregate;
 pub mod copy;
+pub mod documentation;
 pub mod implicit;
 pub mod proto;
 pub mod scalar;
@@ -8,14 +9,15 @@ pub mod table;
 use std::borrow::Borrow;
 use std::fmt::Display;
 
+use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
 
 /// Function signature.
-// TODO: Include named args.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// TODO: Include named args. Also make sure to update PartialEq too.
+#[derive(Debug, Clone, Copy)]
 pub struct Signature {
     /// Expected positional input argument types for this signature.
     pub positional_args: &'static [DataTypeId],
@@ -38,6 +40,9 @@ pub struct Signature {
     /// gets used during planning.
     // TODO: Remove?
     pub return_type: DataTypeId,
+
+    /// Optional documentation for this function.
+    pub doc: Option<&'static Documentation>,
 }
 
 /// Represents a named argument in the signature.
@@ -53,6 +58,7 @@ impl Signature {
             positional_args: input,
             variadic_arg: None,
             return_type,
+            doc: None,
         }
     }
 
@@ -95,6 +101,16 @@ impl Signature {
         true
     }
 }
+
+impl PartialEq for Signature {
+    fn eq(&self, other: &Self) -> bool {
+        self.positional_args == other.positional_args
+            && self.variadic_arg == other.variadic_arg
+            && self.return_type == other.return_type
+    }
+}
+
+impl Eq for Signature {}
 
 /// Trait for defining informating about functions.
 pub trait FunctionInfo {
@@ -375,6 +391,7 @@ mod tests {
             positional_args: &[DataTypeId::List],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
+            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -389,6 +406,7 @@ mod tests {
             positional_args: &[DataTypeId::Int64],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
+            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -407,6 +425,7 @@ mod tests {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List,
+            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);

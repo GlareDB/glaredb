@@ -23,21 +23,35 @@ impl FunctionInfo for DateTrunc {
     }
 
     fn signatures(&self) -> &[Signature] {
+        // TODO: Need to fix
+        // const DOC: &Documentation = &Documentation {
+        //     category: Category::Date,
+        //     description: "Truncate to a specified precision.",
+        //     arguments: &["part", "date"],
+        //     example: Some(Example {
+        //         example: "date_trunc('month', DATE '2024-12-17')",
+        //         output: "17.000",
+        //     }),
+        // };
+
         &[
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Date32],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: None,
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Date64],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: None,
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Timestamp],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: None,
             },
         ]
     }

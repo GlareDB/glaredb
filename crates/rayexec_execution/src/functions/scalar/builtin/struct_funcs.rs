@@ -21,6 +21,7 @@ impl FunctionInfo for StructPack {
             positional_args: &[DataTypeId::Struct],
             variadic_arg: None,
             return_type: DataTypeId::Struct,
+            doc: None,
         }]
     }
 }
@@ -48,6 +49,7 @@ impl FunctionInfo for StructExtract {
             positional_args: &[DataTypeId::Struct],
             variadic_arg: None,
             return_type: DataTypeId::Any,
+            doc: None,
         }]
     }
 }

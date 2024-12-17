@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -23,6 +24,15 @@ impl FunctionInfo for IsNull {
             positional_args: &[DataTypeId::Any],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Check if a value is NULL.",
+                arguments: &["value"],
+                example: Some(Example {
+                    example: "is_null(NULL)",
+                    output: "true",
+                }),
+            }),
         }]
     }
 }
@@ -57,6 +67,15 @@ impl FunctionInfo for IsNotNull {
             positional_args: &[DataTypeId::Any],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Check if a value is not NULL.",
+                arguments: &["value"],
+                example: Some(Example {
+                    example: "is_not_null(NULL)",
+                    output: "false",
+                }),
+            }),
         }]
     }
 }
@@ -121,6 +140,15 @@ impl FunctionInfo for IsTrue {
             positional_args: &[DataTypeId::Boolean],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Check if a value is true.",
+                arguments: &["value"],
+                example: Some(Example {
+                    example: "is_true(false)",
+                    output: "false",
+                }),
+            }),
         }]
     }
 }
@@ -155,6 +183,15 @@ impl FunctionInfo for IsNotTrue {
             positional_args: &[DataTypeId::Boolean],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Check if a value is not true.",
+                arguments: &["value"],
+                example: Some(Example {
+                    example: "is_not_true(false)",
+                    output: "true",
+                }),
+            }),
         }]
     }
 }
@@ -189,6 +226,15 @@ impl FunctionInfo for IsFalse {
             positional_args: &[DataTypeId::Boolean],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Check if a value is false.",
+                arguments: &["value"],
+                example: Some(Example {
+                    example: "is_false(false)",
+                    output: "true",
+                }),
+            }),
         }]
     }
 }
@@ -223,6 +269,15 @@ impl FunctionInfo for IsNotFalse {
             positional_args: &[DataTypeId::Boolean],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Check if a value is not false.",
+                arguments: &["value"],
+                example: Some(Example {
+                    example: "is_not_false(false)",
+                    output: "false",
+                }),
+            }),
         }]
     }
 }

@@ -20,6 +20,7 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -128,6 +129,15 @@ impl FunctionInfo for Not {
             positional_args: &[DataTypeId::Boolean],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::General,
+                description: "Return the inverse bool of the input. Returns NULL if input is NULL.",
+                arguments: &["input"],
+                example: Some(Example {
+                    example: "not(true)",
+                    output: "false",
+                }),
+            }),
         }]
     }
 }

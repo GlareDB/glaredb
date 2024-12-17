@@ -18,6 +18,7 @@ use crate::functions::aggregate::{
     AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -34,6 +35,12 @@ impl FunctionInfo for RegrSlope {
             positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
             variadic_arg: None,
             return_type: DataTypeId::Float64,
+            doc: Some(&Documentation {
+                category: Category::Aggregate,
+                description: "Compute the slope of the least-squares-fit linear equation.",
+                arguments: &["y", "x"],
+                example: None,
+            }),
         }]
     }
 }

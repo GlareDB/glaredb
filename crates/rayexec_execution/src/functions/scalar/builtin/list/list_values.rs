@@ -5,6 +5,7 @@ use rayexec_bullet::storage::ListStorage;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -22,6 +23,15 @@ impl FunctionInfo for ListValues {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List,
+            doc: Some(&Documentation {
+                category: Category::List,
+                description: "Create a list fromt the given values.",
+                arguments: &["var_arg"],
+                example: Some(Example {
+                    example: "list_values('cat', 'dog', 'mouse')",
+                    output: "[cat, dog, mouse]",
+                }),
+            }),
         }]
     }
 }

@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -23,6 +24,15 @@ impl FunctionInfo for Lower {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Utf8,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Convert the string to lowercase.",
+                arguments: &["string"],
+                example: Some(Example {
+                    example: "lower('ABC')",
+                    output: "abc",
+                }),
+            }),
         }]
     }
 }
@@ -69,6 +79,15 @@ impl FunctionInfo for Upper {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Utf8,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Convert the string to uppercase.",
+                arguments: &["string"],
+                example: Some(Example {
+                    example: "lower('abc')",
+                    output: "ABC",
+                }),
+            }),
         }]
     }
 }

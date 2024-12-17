@@ -14,6 +14,7 @@ use crate::functions::aggregate::{
     AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -42,6 +43,12 @@ impl FunctionInfo for Count {
             positional_args: &[DataTypeId::Any],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
+            doc: Some(&Documentation {
+                category: Category::Aggregate,
+                description: "Return the count of non-NULL inputs.",
+                arguments: &["input"],
+                example: None,
+            }),
         }]
     }
 }

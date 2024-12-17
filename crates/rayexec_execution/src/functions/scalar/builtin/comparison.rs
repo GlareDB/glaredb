@@ -35,6 +35,7 @@ use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -44,113 +45,136 @@ use crate::logical::binder::table_list::TableList;
 // - Normalize scales for decimals for comparisons (will be needed elsewhere too).
 // - Normalize intervals for comparisons
 
-const COMPARISON_SIGNATURES: &[Signature] = &[
-    Signature {
-        positional_args: &[DataTypeId::Boolean, DataTypeId::Boolean],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Int8, DataTypeId::Int8],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Int16, DataTypeId::Int16],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Int32, DataTypeId::Int32],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Int128, DataTypeId::Int128],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::UInt8, DataTypeId::UInt8],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::UInt16, DataTypeId::UInt16],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::UInt32, DataTypeId::UInt32],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::UInt64, DataTypeId::UInt64],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::UInt128, DataTypeId::UInt128],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Float16, DataTypeId::Float16],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Float32, DataTypeId::Float32],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Decimal128, DataTypeId::Decimal128],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Timestamp, DataTypeId::Timestamp],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Date32, DataTypeId::Date32],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Binary, DataTypeId::Binary],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-    Signature {
-        positional_args: &[DataTypeId::List, DataTypeId::List],
-        variadic_arg: None,
-        return_type: DataTypeId::Boolean,
-    },
-];
+const fn generate_comparison_sigs(doc: &'static Documentation) -> [Signature; 21] {
+    [
+        Signature {
+            positional_args: &[DataTypeId::Boolean, DataTypeId::Boolean],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Int8, DataTypeId::Int8],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Int16, DataTypeId::Int16],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Int32, DataTypeId::Int32],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Int128, DataTypeId::Int128],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::UInt8, DataTypeId::UInt8],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::UInt16, DataTypeId::UInt16],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::UInt32, DataTypeId::UInt32],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::UInt64, DataTypeId::UInt64],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::UInt128, DataTypeId::UInt128],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Float16, DataTypeId::Float16],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Float32, DataTypeId::Float32],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Decimal128, DataTypeId::Decimal128],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Timestamp, DataTypeId::Timestamp],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Date32, DataTypeId::Date32],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::Binary, DataTypeId::Binary],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+        Signature {
+            positional_args: &[DataTypeId::List, DataTypeId::List],
+            variadic_arg: None,
+            return_type: DataTypeId::Boolean,
+            doc: Some(doc),
+        },
+    ]
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Eq;
@@ -161,7 +185,19 @@ impl FunctionInfo for Eq {
     }
 
     fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description: "Check if two values are equal. Returns NULL if either argument is NULL.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a = b",
+                output: "true",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
     }
 }
 
@@ -193,7 +229,20 @@ impl FunctionInfo for Neq {
     }
 
     fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if two values are not equal. Returns NULL if either argument is NULL.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a != b",
+                output: "false",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
     }
 }
 
@@ -221,7 +270,20 @@ impl FunctionInfo for Lt {
     }
 
     fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if the left argument is less than the right. Returns NULL if either argument is NULL.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a < b",
+                output: "false",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
     }
 }
 
@@ -249,7 +311,20 @@ impl FunctionInfo for LtEq {
     }
 
     fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if the left argument is less than or equal to the right. Returns NULL if either argument is NULL.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a <= b",
+                output: "true",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
     }
 }
 
@@ -277,7 +352,20 @@ impl FunctionInfo for Gt {
     }
 
     fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if the left argument is greater than the right. Returns NULL if either argument is NULL.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a > b",
+                output: "false",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
     }
 }
 
@@ -305,7 +393,20 @@ impl FunctionInfo for GtEq {
     }
 
     fn signatures(&self) -> &[Signature] {
-        COMPARISON_SIGNATURES
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if the left argument is greater than or equal to the right. Returns NULL if either argument is NULL.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a >= b",
+                output: "true",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
     }
 }
 

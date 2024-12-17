@@ -13,6 +13,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::{PollFinalize, PollPush};
 use crate::expr::{self, Expression};
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{
     InOutPlanner,
@@ -44,11 +45,23 @@ impl FunctionInfo for GenerateSeries {
                 positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Any,
+                doc: Some(&Documentation{
+                    category: Category::Table,
+                    description: "Generate a series of values from 'start' to 'end' incrementing by a step of 1. 'start' and 'end' are both inclusive.",
+                    arguments: &["start", "end"],
+                    example: None,
+                })
             },
             Signature {
                 positional_args: &[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Any,
+                doc: Some(&Documentation{
+                    category: Category::Table,
+                    description: "Generate a series of values from 'start' to 'end' incrementing by 'step'. 'start' and 'end' are both inclusive.",
+                    arguments: &["start", "end", "step"],
+                    example: None,
+                })
             },
         ]
     }

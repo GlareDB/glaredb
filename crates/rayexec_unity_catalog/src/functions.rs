@@ -93,6 +93,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
         positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
         variadic_arg: None,
         return_type: DataTypeId::Any,
+        doc: None,
     }];
 
     type ConnectionState = ListSchemasConnectionState<R>;
@@ -172,6 +173,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
         positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
         variadic_arg: None,
         return_type: DataTypeId::Any,
+        doc: None,
     }];
 
     type ConnectionState = ListTablesConnectionState<R>;

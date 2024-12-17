@@ -60,16 +60,19 @@ const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &[Signature] = &[
         positional_args: &[DataTypeId::Float16],
         variadic_arg: None,
         return_type: DataTypeId::Float16,
+        doc: None,
     },
     Signature {
         positional_args: &[DataTypeId::Float32],
         variadic_arg: None,
         return_type: DataTypeId::Float32,
+        doc: None,
     },
     Signature {
         positional_args: &[DataTypeId::Float64],
         variadic_arg: None,
         return_type: DataTypeId::Float64,
+        doc: None,
     },
 ];
 
@@ -101,10 +104,6 @@ impl<O: UnaryInputNumericOperation> UnaryInputNumericScalar<O> {
 impl<O: UnaryInputNumericOperation> FunctionInfo for UnaryInputNumericScalar<O> {
     fn name(&self) -> &'static str {
         O::NAME
-    }
-
-    fn description(&self) -> &'static str {
-        O::DESCRIPTION
     }
 
     fn signatures(&self) -> &[Signature] {

@@ -6,6 +6,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -29,6 +30,15 @@ impl FunctionInfo for EndsWith {
             positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Boolean,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Check if a string ends with a given suffix.",
+                arguments: &["string", "suffix"],
+                example: Some(Example {
+                    example: "ends_with('house', 'se')",
+                    output: "true",
+                }),
+            }),
         }]
     }
 }

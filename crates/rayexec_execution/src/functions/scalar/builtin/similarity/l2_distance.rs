@@ -15,6 +15,7 @@ use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -39,6 +40,15 @@ impl FunctionInfo for L2Distance {
             positional_args: &[DataTypeId::List, DataTypeId::List],
             variadic_arg: None,
             return_type: DataTypeId::Float64,
+            doc: Some(&Documentation{
+                category: Category::List,
+                description: "Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.",
+                arguments: &["list1", "list2"],
+                example: Some(Example{
+                    example: "l2_distance([1.0, 1.0], [2.0, 4.0])",
+                    output: "3.1622776601683795",
+                }),
+            }),
         }]
     }
 }

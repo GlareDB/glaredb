@@ -22,6 +22,7 @@ use crate::functions::aggregate::{
     AggregateFunctionImpl,
     PlannedAggregateFunction,
 };
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -34,26 +35,37 @@ impl FunctionInfo for Sum {
     }
 
     fn signatures(&self) -> &[Signature] {
+        const DOC: &Documentation = &Documentation {
+            category: Category::Aggregate,
+            description: "Compute the sum of all non-NULL inputs.",
+            arguments: &["inputs"],
+            example: None,
+        };
+
         &[
             Signature {
                 positional_args: &[DataTypeId::Float64],
                 variadic_arg: None,
                 return_type: DataTypeId::Float64,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Int64],
                 variadic_arg: None,
                 return_type: DataTypeId::Int64, // TODO: Should be big num
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Decimal64],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Decimal128],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal128,
+                doc: Some(DOC),
             },
         ]
     }

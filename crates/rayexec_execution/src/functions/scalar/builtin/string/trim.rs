@@ -9,6 +9,7 @@ use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
@@ -26,6 +27,9 @@ pub trait StringTrimOp: Sync + Send + Debug + Clone + Copy + PartialEq + Eq + 's
     const NAME: &'static str;
     const ALIASES: &'static [&'static str];
 
+    const DOC_ONE_ARG: &'static Documentation;
+    const DOC_TWO_ARGS: &'static Documentation;
+
     fn trim_func<'a>(input: &'a str, pattern: &str) -> &'a str;
 }
 
@@ -35,6 +39,26 @@ pub struct BothTrimOp;
 impl StringTrimOp for BothTrimOp {
     const NAME: &'static str = "btrim";
     const ALIASES: &'static [&'static str] = &["trim"];
+
+    const DOC_ONE_ARG: &'static Documentation = &Documentation {
+        category: Category::String,
+        description: "Trim whitespace from both sides of the string.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "trim('  hello ')",
+            output: "hello",
+        }),
+    };
+
+    const DOC_TWO_ARGS: &'static Documentation = &Documentation {
+        category: Category::String,
+        description: "Trim matching characters from both sides of the string.",
+        arguments: &["string", "characters"],
+        example: Some(Example {
+            example: "trim('->hello<', '<>-')",
+            output: "hello",
+        }),
+    };
 
     fn trim_func<'a>(input: &'a str, pattern: &str) -> &'a str {
         input.trim_matches(|c| pattern.contains(c))
@@ -48,6 +72,26 @@ impl StringTrimOp for LeftTrimOp {
     const NAME: &'static str = "ltrim";
     const ALIASES: &'static [&'static str] = &[];
 
+    const DOC_ONE_ARG: &'static Documentation = &Documentation {
+        category: Category::String,
+        description: "Trim whitespace from the left side of the string.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "ltrim('  hello ')",
+            output: "hello ",
+        }),
+    };
+
+    const DOC_TWO_ARGS: &'static Documentation = &Documentation {
+        category: Category::String,
+        description: "Trim matching characters from the left side of the string.",
+        arguments: &["string", "characters"],
+        example: Some(Example {
+            example: "ltrim('->hello<', '<>-')",
+            output: "hello<",
+        }),
+    };
+
     fn trim_func<'a>(input: &'a str, pattern: &str) -> &'a str {
         input.trim_start_matches(|c| pattern.contains(c))
     }
@@ -59,6 +103,26 @@ pub struct RightTrimOp;
 impl StringTrimOp for RightTrimOp {
     const NAME: &'static str = "rtrim";
     const ALIASES: &'static [&'static str] = &[];
+
+    const DOC_ONE_ARG: &'static Documentation = &Documentation {
+        category: Category::String,
+        description: "Trim whitespace from the right side of the string.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "rtrim('  hello ')",
+            output: "  hello",
+        }),
+    };
+
+    const DOC_TWO_ARGS: &'static Documentation = &Documentation {
+        category: Category::String,
+        description: "Trim matching characters from the right side of the string.",
+        arguments: &["string", "characters"],
+        example: Some(Example {
+            example: "rtrim('->hello<', '<>-')",
+            output: "->hello",
+        }),
+    };
 
     fn trim_func<'a>(input: &'a str, pattern: &str) -> &'a str {
         input.trim_end_matches(|c| pattern.contains(c))
@@ -97,11 +161,13 @@ impl<F: StringTrimOp> FunctionInfo for Trim<F> {
                 positional_args: &[DataTypeId::Utf8],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(F::DOC_ONE_ARG),
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
                 variadic_arg: None,
                 return_type: DataTypeId::Utf8,
+                doc: Some(F::DOC_TWO_ARGS),
             },
         ]
     }

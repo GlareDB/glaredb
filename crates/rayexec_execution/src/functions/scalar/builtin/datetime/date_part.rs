@@ -6,6 +6,7 @@ use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -21,21 +22,35 @@ impl FunctionInfo for DatePart {
     }
 
     fn signatures(&self) -> &[Signature] {
+        // TODO: Specific docs for each.
+        const DOC: &Documentation = &Documentation {
+            category: Category::Date,
+            description: "Get a subfield.",
+            arguments: &["part", "date"],
+            example: Some(Example {
+                example: "date_part('day', DATE '2024-12-17')",
+                output: "17.000", // TODO: Gotta fix the trailing zeros.
+            }),
+        };
+
         &[
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Date32],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Date64],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: Some(DOC),
             },
             Signature {
                 positional_args: &[DataTypeId::Utf8, DataTypeId::Timestamp],
                 variadic_arg: None,
                 return_type: DataTypeId::Decimal64,
+                doc: Some(DOC),
             },
         ]
     }

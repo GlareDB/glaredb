@@ -8,6 +8,7 @@ use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -25,6 +26,15 @@ impl FunctionInfo for Repeat {
             positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
             variadic_arg: None,
             return_type: DataTypeId::Utf8,
+            doc: Some(&Documentation {
+                category: Category::String,
+                description: "Repeat a string some number of times.",
+                arguments: &["string", "count"],
+                example: Some(Example {
+                    example: "repeat('abc', 3)",
+                    output: "abcabcabc",
+                }),
+            }),
         }]
     }
 }

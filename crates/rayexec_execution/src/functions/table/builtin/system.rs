@@ -261,6 +261,7 @@ impl<F: SystemFunctionImpl> FunctionInfo for SystemFunction<F> {
             positional_args: &[],
             variadic_arg: None,
             return_type: DataTypeId::Any,
+            doc: None,
         }]
     }
 }
