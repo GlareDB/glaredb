@@ -60,6 +60,9 @@ impl AstParseable for FromNode<Raw> {
                     }),
                 }
             } else {
+                // Optional NATURAL prefixing the join type.
+                let natural = parser.parse_keyword(Keyword::NATURAL);
+
                 let kw = match parser.peek() {
                     Some(tok) => match tok.keyword() {
                         Some(kw) => kw,
@@ -166,7 +169,13 @@ impl AstParseable for FromNode<Raw> {
                             parser.parse_parenthesized_comma_separated(Ident::parse)?,
                         )
                     }
-                    _ => JoinCondition::None,
+                    _ => {
+                        if natural {
+                            JoinCondition::Natural
+                        } else {
+                            JoinCondition::None
+                        }
+                    }
                 };
 
                 node = FromNode {
@@ -684,6 +693,31 @@ mod tests {
                 }),
                 join_type: JoinType::Left,
                 join_condition: JoinCondition::None,
+            }),
+        };
+        assert_eq!(expected, node, "left:\n{expected:#?}\nright:\n{node:#?}");
+    }
+
+    #[test]
+    fn natural_inner_join_lateral() {
+        let node: FromNode<_> = parse_ast("t1 NATURAL INNER JOIN t2").unwrap();
+        let expected = FromNode {
+            alias: None,
+            body: FromNodeBody::Join(FromJoin {
+                left: Box::new(FromNode {
+                    alias: None,
+                    body: FromNodeBody::BaseTable(FromBaseTable {
+                        reference: ObjectReference::from_strings(["t1"]),
+                    }),
+                }),
+                right: Box::new(FromNode {
+                    alias: None,
+                    body: FromNodeBody::BaseTable(FromBaseTable {
+                        reference: ObjectReference::from_strings(["t2"]),
+                    }),
+                }),
+                join_type: JoinType::Inner,
+                join_condition: JoinCondition::Natural,
             }),
         };
         assert_eq!(expected, node, "left:\n{expected:#?}\nright:\n{node:#?}");

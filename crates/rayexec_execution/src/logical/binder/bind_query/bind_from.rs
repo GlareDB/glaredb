@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rayexec_bullet::datatype::DataType;
@@ -550,7 +550,41 @@ impl<'a> FromBinder<'a> {
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {
-                not_implemented!("NATURAL join")
+                // Get tables refs from the left.
+                //
+                // We want to prune these tables out from the right. Tables are
+                // implicitly in scope on the right for lateral references.
+                let left_tables: HashSet<_> = bind_context
+                    .iter_tables_in_scope(left_idx)?
+                    .map(|table| table.reference)
+                    .collect();
+
+                // Get columns from the left.
+                let left_cols: HashSet<_> = bind_context
+                    .iter_tables_in_scope(left_idx)?
+                    .flat_map(|table| table.column_names.iter())
+                    .collect();
+
+                // Get columns from the right, skipping columns from tables that
+                // would generate a lateral reference.
+                let right_cols = bind_context
+                    .iter_tables_in_scope(right_idx)?
+                    .filter(|table| !left_tables.contains(&table.reference))
+                    .flat_map(|table| table.column_names.iter());
+
+                let mut common = Vec::new();
+
+                // Now collect the columns that are common in both.
+                //
+                // Manually iterate over using a hash set intersection to keep
+                // the order of columns consistent.
+                for right_col in right_cols {
+                    if left_cols.contains(right_col) {
+                        common.push(right_col.clone());
+                    }
+                }
+
+                (Vec::new(), common)
             }
             ast::JoinCondition::None => (Vec::new(), Vec::new()),
         };
@@ -612,8 +646,16 @@ impl<'a> FromBinder<'a> {
                 },
             };
 
-            // Add USING column to _current_ scope.
-            bind_context.append_using_column(self.current, using_column)?;
+            // Add USING column to _current_ scope if we don't already have an
+            // equivalent column in our using set.
+            let already_using = bind_context
+                .get_using_columns(self.current)?
+                .iter()
+                .any(|c| c.column == using_column.column);
+
+            if !already_using {
+                bind_context.append_using_column(self.current, using_column)?;
+            }
 
             // Generate additional equality condition.
             // TODO: Probably make this a method on the expr binder. Easy to miss the cast.
