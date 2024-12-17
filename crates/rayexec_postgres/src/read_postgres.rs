@@ -37,6 +37,7 @@ impl<R: Runtime> FunctionInfo for ReadPostgres<R> {
             positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Any,
+            doc: None,
         }]
     }
 }

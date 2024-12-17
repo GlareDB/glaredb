@@ -242,7 +242,7 @@ impl FunctionInfo for Neq {
 
         const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
 
-        &SIGS
+        SIGS
     }
 }
 
@@ -283,7 +283,7 @@ impl FunctionInfo for Lt {
 
         const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
 
-        &SIGS
+        SIGS
     }
 }
 
@@ -324,7 +324,7 @@ impl FunctionInfo for LtEq {
 
         const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
 
-        &SIGS
+        SIGS
     }
 }
 
@@ -365,7 +365,7 @@ impl FunctionInfo for Gt {
 
         const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
 
-        &SIGS
+        SIGS
     }
 }
 
@@ -406,7 +406,7 @@ impl FunctionInfo for GtEq {
 
         const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
 
-        &SIGS
+        SIGS
     }
 }
 

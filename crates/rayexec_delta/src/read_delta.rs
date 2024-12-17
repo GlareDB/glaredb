@@ -42,6 +42,7 @@ impl<R: Runtime> FunctionInfo for ReadDelta<R> {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: None,
             return_type: DataTypeId::Any,
+            doc: None,
         }]
     }
 }
