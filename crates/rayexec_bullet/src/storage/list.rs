@@ -1,3 +1,5 @@
+use rayexec_error::{RayexecError, Result};
+
 use super::PrimitiveStorage;
 use crate::array::Array;
 
@@ -14,6 +16,31 @@ pub struct ListStorage {
 }
 
 impl ListStorage {
+    pub fn try_new(
+        metadata: impl Into<PrimitiveStorage<ListItemMetadata>>,
+        array: Array,
+    ) -> Result<Self> {
+        let metadata = metadata.into();
+
+        let mut max_idx = 0;
+        for m in metadata.as_ref() {
+            let end_idx = m.offset + m.len;
+            if end_idx > max_idx {
+                max_idx = end_idx;
+            }
+        }
+
+        if max_idx as usize > array.logical_len() {
+            return Err(
+                RayexecError::new("Metadata index exceeds child array length")
+                    .with_field("max_idx", max_idx)
+                    .with_field("logical_len", array.logical_len()),
+            );
+        }
+
+        Ok(ListStorage { metadata, array })
+    }
+
     pub fn empty_list(array: Array) -> Self {
         ListStorage {
             metadata: vec![ListItemMetadata { offset: 0, len: 0 }].into(),

@@ -7,11 +7,12 @@ use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
 use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::bitmap::Bitmap;
+use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_bullet::storage::GermanVarlenStorage;
+use rayexec_bullet::storage::{GermanVarlenStorage, ListItemMetadata, ListStorage};
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use crate::database::catalog::CatalogTx;
@@ -98,6 +99,20 @@ impl SystemFunctionImpl for ListFunctionsImpl {
             Field::new("schema_name", DataType::Utf8, false),
             Field::new("function_name", DataType::Utf8, false),
             Field::new("function_type", DataType::Utf8, false),
+            Field::new(
+                "argument_types",
+                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                false,
+            ),
+            Field::new(
+                "argument_names",
+                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                false,
+            ),
+            Field::new("return_type", DataType::Utf8, false),
+            Field::new("description", DataType::Utf8, true),
+            Field::new("example", DataType::Utf8, true),
+            Field::new("example_output", DataType::Utf8, true),
         ])
     }
 
@@ -111,30 +126,104 @@ impl SystemFunctionImpl for ListFunctionsImpl {
         let mut function_names = GermanVarlenStorage::with_metadata_capacity(0);
         let mut function_types = GermanVarlenStorage::with_metadata_capacity(0);
 
+        // TODO: List ergonomics.
+        let mut argument_types_metadatas = Vec::new();
+        let mut argument_types = GermanVarlenStorage::with_metadata_capacity(0);
+
+        let mut argument_names_metadatas = Vec::new();
+        let mut argument_names = GermanVarlenStorage::with_metadata_capacity(0);
+
+        let mut return_types = GermanVarlenStorage::with_metadata_capacity(0);
+
+        let mut descriptions_validity = Bitmap::default();
+        let mut descriptions = GermanVarlenStorage::with_metadata_capacity(0);
+
+        let mut examples_validity = Bitmap::default();
+        let mut examples = GermanVarlenStorage::with_metadata_capacity(0);
+
+        let mut example_outputs_validity = Bitmap::default();
+        let mut example_outputs = GermanVarlenStorage::with_metadata_capacity(0);
+
         let tx = &CatalogTx {};
 
         database.1.for_each_schema(tx, &mut |schema_name, schema| {
             schema.for_each_entry(tx, &mut |_, entry| {
-                match &entry.entry {
-                    CatalogEntryInner::ScalarFunction(_) => {
-                        database_names.try_push(database.0.as_bytes())?;
-                        schema_names.try_push(schema_name.as_bytes())?;
-                        function_names.try_push(entry.name.as_bytes())?;
-                        function_types.try_push("scalar".as_bytes())?;
+                let (sigs, function_type) = match &entry.entry {
+                    CatalogEntryInner::ScalarFunction(func) => {
+                        (func.function.signatures(), "scalar")
                     }
-                    CatalogEntryInner::AggregateFunction(_) => {
-                        database_names.try_push(database.0.as_bytes())?;
-                        schema_names.try_push(schema_name.as_bytes())?;
-                        function_names.try_push(entry.name.as_bytes())?;
-                        function_types.try_push("aggregate".as_bytes())?;
+                    CatalogEntryInner::AggregateFunction(func) => {
+                        (func.function.signatures(), "aggregate")
                     }
-                    CatalogEntryInner::TableFunction(_) => {
-                        database_names.try_push(database.0.as_bytes())?;
-                        schema_names.try_push(schema_name.as_bytes())?;
-                        function_names.try_push(entry.name.as_bytes())?;
-                        function_types.try_push("table".as_bytes())?;
+                    CatalogEntryInner::TableFunction(func) => (func.function.signatures(), "table"),
+                    _ => return Ok(()),
+                };
+
+                for sig in sigs {
+                    database_names.try_push(database.0.as_bytes())?;
+                    schema_names.try_push(schema_name.as_bytes())?;
+                    function_names.try_push(entry.name.as_bytes())?;
+                    function_types.try_push(function_type.as_bytes())?;
+
+                    argument_types_metadatas.push(ListItemMetadata {
+                        offset: argument_types.len() as i32,
+                        len: sig.positional_args.len() as i32,
+                    });
+                    for arg in sig.positional_args {
+                        argument_types.try_push(arg.as_str().as_bytes())?;
                     }
-                    _ => (),
+
+                    argument_names_metadatas.push(ListItemMetadata {
+                        offset: argument_names.len() as i32,
+                        len: sig.positional_args.len() as i32,
+                    });
+                    match sig.doc {
+                        Some(doc) => {
+                            for idx in 0..sig.positional_args.len() {
+                                match doc.arguments.get(idx) {
+                                    Some(name) => argument_names.try_push(name.as_bytes())?,
+                                    None => {
+                                        argument_names.try_push(format!("col{idx}").as_bytes())?
+                                    }
+                                }
+                            }
+                        }
+                        None => {
+                            for idx in 0..sig.positional_args.len() {
+                                argument_names.try_push(format!("col{idx}").as_bytes())?;
+                            }
+                        }
+                    }
+
+                    return_types.try_push(sig.return_type.as_str().as_bytes())?;
+
+                    match sig.doc {
+                        Some(doc) => {
+                            descriptions_validity.push(true);
+                            descriptions.try_push(doc.description.as_bytes())?;
+                        }
+                        None => {
+                            descriptions_validity.push(false);
+                            descriptions.try_push(&[])?;
+                        }
+                    }
+
+                    match sig.doc.and_then(|doc| doc.example.as_ref()) {
+                        Some(example) => {
+                            examples_validity.push(true);
+                            examples.try_push(example.example.as_bytes())?;
+
+                            example_outputs_validity.push(true);
+                            example_outputs.try_push(example.output.as_bytes())?;
+                        }
+                        None => {
+                            examples_validity.push(false);
+                            examples.try_push(&[])?;
+
+                            example_outputs_validity.push(false);
+                            example_outputs.try_push(&[])?;
+                        }
+                    }
                 }
 
                 Ok(())
@@ -147,6 +236,32 @@ impl SystemFunctionImpl for ListFunctionsImpl {
             Array::new_with_array_data(DataType::Utf8, schema_names),
             Array::new_with_array_data(DataType::Utf8, function_names),
             Array::new_with_array_data(DataType::Utf8, function_types),
+            Array::new_with_array_data(
+                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                ListStorage::try_new(
+                    argument_types_metadatas,
+                    Array::new_with_array_data(DataType::Utf8, argument_types),
+                )?,
+            ),
+            Array::new_with_array_data(
+                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                ListStorage::try_new(
+                    argument_names_metadatas,
+                    Array::new_with_array_data(DataType::Utf8, argument_names),
+                )?,
+            ),
+            Array::new_with_array_data(DataType::Utf8, return_types),
+            Array::new_with_validity_and_array_data(
+                DataType::Utf8,
+                descriptions_validity,
+                descriptions,
+            ),
+            Array::new_with_validity_and_array_data(DataType::Utf8, examples_validity, examples),
+            Array::new_with_validity_and_array_data(
+                DataType::Utf8,
+                example_outputs_validity,
+                example_outputs,
+            ),
         ])
     }
 }
