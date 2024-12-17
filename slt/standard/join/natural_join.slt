@@ -1,0 +1,95 @@
+# Natural join tests
+
+statement ok
+CREATE TEMP TABLE t1 (num INT, name TEXT);
+
+statement ok
+CREATE TEMP TABLE t2 (num INT, value TEXT);
+
+statement ok
+INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
+
+statement ok
+INSERT INTO t2 VALUES (1, 'xxx'), (3, 'yyy'), (5, 'zzz');
+
+query ITT
+SELECT * FROM t1 NATURAL INNER JOIN t2 ORDER BY num;
+----
+1  a  xxx
+3  c  yyy
+
+# Order by qualified name.
+query ITT
+SELECT * FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.num;
+----
+1  a  xxx
+3  c  yyy
+
+query ITT
+SELECT * FROM t1 NATURAL INNER JOIN t2 ORDER BY t2.num;
+----
+1  a  xxx
+3  c  yyy
+
+statement ok
+CREATE TEMP TABLE t3 (extra TEXT, num INT);
+
+statement ok
+INSERT INTO t3 VALUES ('cat', 3), ('dog', 4), ('goose', 5);
+
+query ITTT
+SELECT * FROM t1 NATURAL INNER JOIN t2 NATURAL INNER JOIN t3;
+----
+3  c  yyy  cat
+
+query IITT
+SELECT t1.num, * FROM t1 NATURAL INNER JOIN t2 NATURAL INNER JOIN t3;
+----
+3  3  c  yyy  cat
+
+query I
+SELECT t1.num FROM t1 NATURAL INNER JOIN t2 NATURAL INNER JOIN t3;
+----
+3
+
+query ITTT
+SELECT * FROM t1 NATURAL INNER JOIN t2 NATURAL LEFT JOIN t3 ORDER BY 1;
+----
+1  a  xxx  NULL
+3  c  yyy  cat
+
+query ITTT
+SELECT * FROM t1 NATURAL RIGHT JOIN t2 NATURAL LEFT JOIN t3 ORDER BY value;
+----
+1  a     xxx  NULL
+3  c     yyy  cat
+5  NULL  zzz  goose
+
+query ITTT
+SELECT * FROM t1 NATURAL RIGHT JOIN t2 NATURAL LEFT JOIN t3 ORDER BY t3.num, t1.num;
+----
+3  c     yyy  cat
+5  NULL  zzz  goose
+1  a     xxx  NULL
+
+# USING columns from subqueries
+query ITT
+SELECT * FROM t1 NATURAL JOIN (SELECT * FROM t2) ORDER BY 1;
+----
+1  a  xxx
+3  c  yyy
+
+query IT
+SELECT * FROM t1 NATURAL JOIN (SELECT 3) s(num);
+----
+3  c
+
+query IT
+SELECT * FROM t1 NATURAL JOIN (SELECT 3) s(num) ORDER BY 1;
+----
+3  c
+
+query IT
+SELECT * FROM t1 NATURAL JOIN (SELECT 3 AS num);
+----
+3  c
