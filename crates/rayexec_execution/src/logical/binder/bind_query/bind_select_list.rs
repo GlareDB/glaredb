@@ -268,7 +268,7 @@ struct SelectAliasColumnBinder<'a> {
     previous_exprs: &'a [Expression],
 }
 
-impl<'a> ExpressionColumnBinder for SelectAliasColumnBinder<'a> {
+impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
     fn bind_from_root_literal(
         &mut self,
         bind_scope: BindScopeRef,
