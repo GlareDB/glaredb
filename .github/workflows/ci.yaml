@@ -199,6 +199,13 @@ jobs:
         run: |
           cargo test slt/clickbench
 
+      - name: Run docgen
+        run: cargo run --bin docgen
+
+        # Ensures all generated docs are up-to-date.
+      - name: Check clean repo
+        run: ./scripts/check_clean.sh
+
   wasm:
     name: Build wasm
     runs-on: ubuntu-latest
