@@ -2,6 +2,8 @@
 
 Before
 
+## Scalar functions
+
 <!-- DOCSGEN_START scalar_functions -->
 
 | Function name | Description |
@@ -442,6 +444,69 @@ Before
 | trim | Trim whitespace from both sides of the string. |
 | trim | Trim matching characters from both sides of the string. |
 | upper | Convert the string to uppercase. |
+
+<!-- DOCSGEN_END -->
+
+## Aggregate functions
+
+<!-- DOCSGEN_START aggregate_functions -->
+
+| Function name | Description |
+| --- | --- |
+| avg | Return the average value from the inputs. |
+| avg | Return the average value from the inputs. |
+| avg | Return the average value from the inputs. |
+| avg | Return the average value from the inputs. |
+| corr | Return the population correlation coefficient. |
+| count | Return the count of non-NULL inputs. |
+| covar_pop | Compute population covariance. |
+| covar_samp | Compute sample covariance. |
+| first | Return the first non-NULL value. |
+| max | Return the maximum non-NULL value seen from input. |
+| min | Return the minimum non-NULL value seen from input. |
+| regr_avgx | Compute the average of the independent variable ('x'). |
+| regr_avgy | Compute the average of the dependent variable ('y'). |
+| regr_count | Compute the count where both inputs are not NULL. |
+| regr_r2 | Compute the square of the correlation coefficient. |
+| regr_slope | Compute the slope of the least-squares-fit linear equation. |
+| stddev | Compute the sample standard deviation. |
+| stddev_pop | Compute the population standard deviation. |
+| stddev_samp | Compute the sample standard deviation. |
+| string_agg | Concatenate all non-NULL input string values using a delimiter. |
+| sum | Compute the sum of all non-NULL inputs. |
+| sum | Compute the sum of all non-NULL inputs. |
+| sum | Compute the sum of all non-NULL inputs. |
+| sum | Compute the sum of all non-NULL inputs. |
+| var_pop | Compute the population variance. |
+| var_samp | Compute the sample variance. |
+
+<!-- DOCSGEN_END -->
+
+## Table functions
+
+<!-- DOCSGEN_START table_functions -->
+
+| Function name | Description |
+| --- | --- |
+| csv_scan |  |
+| delta_scan |  |
+| generate_series | Generate a series of values from 'start' to 'end' incrementing by a step of 1. 'start' and 'end' are both inclusive. |
+| generate_series | Generate a series of values from 'start' to 'end' incrementing by 'step'. 'start' and 'end' are both inclusive. |
+| iceberg_scan |  |
+| list_databases |  |
+| list_functions |  |
+| list_schemas |  |
+| list_tables |  |
+| parquet_scan |  |
+| read_csv |  |
+| read_delta |  |
+| read_iceberg |  |
+| read_parquet |  |
+| read_postgres |  |
+| unity_list_schemas |  |
+| unity_list_tables |  |
+| unnest | Unnest a list, producing a table of unnested values. |
+| unnest | Unnest a list, producing a table of unnested values. |
 
 <!-- DOCSGEN_END -->
 

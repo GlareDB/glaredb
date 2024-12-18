@@ -98,6 +98,12 @@ impl DocFile {
             }
         }
 
+        if in_docsgen_section {
+            return Err(RayexecError::new(
+                "Reached end of file, still in docsgen section",
+            ));
+        }
+
         let file = fs::OpenOptions::new()
             .write(true)
             .truncate(true)

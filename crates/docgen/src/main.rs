@@ -14,13 +14,17 @@ use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_unity_catalog::UnityCatalogDataSource;
-use section::ScalarFunctionWriter;
+use section::{AggregateFunctionWriter, ScalarFunctionWriter, TableFunctionWriter};
 use session::DocsSession;
 use tracing::info;
 
 const FILES: &[DocFile] = &[DocFile {
     path: "docs/sql/functions.md",
-    sections: &[("scalar_functions", &ScalarFunctionWriter)],
+    sections: &[
+        ("scalar_functions", &ScalarFunctionWriter),
+        ("aggregate_functions", &AggregateFunctionWriter),
+        ("table_functions", &TableFunctionWriter),
+    ],
 }];
 
 fn main() -> Result<()> {
