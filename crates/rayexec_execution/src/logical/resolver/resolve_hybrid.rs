@@ -13,7 +13,7 @@ use crate::database::{Database, DatabaseContext};
 use crate::datasource::{DataSourceRegistry, FileHandlers};
 use crate::functions::table::TableFunctionPlanner;
 use crate::logical::operator::LocationRequirement;
-use crate::logical::resolver::ResolveMode;
+use crate::logical::resolver::{ResolveConfig, ResolveMode};
 
 /// Extends a context by attaching additional databases using information
 /// provided by partially bound objects supplied by the client.
@@ -139,7 +139,15 @@ impl<'a> HybridResolver<'a> {
         // Note we're using bindmode normal here since everything we attempt to
         // bind in this resolver should succeed.
         HybridResolver {
-            resolver: Resolver::new(ResolveMode::Normal, tx, context, EMPTY_FILE_HANDLER_REF),
+            resolver: Resolver::new(
+                ResolveMode::Normal,
+                tx,
+                context,
+                EMPTY_FILE_HANDLER_REF,
+                ResolveConfig {
+                    enable_function_chaining: true, // TODO: We'll need to get this from the client.
+                },
+            ),
         }
     }
 

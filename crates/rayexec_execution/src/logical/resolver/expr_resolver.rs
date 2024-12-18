@@ -12,6 +12,7 @@ use crate::database::catalog_entry::CatalogEntryType;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 
+#[derive(Debug)]
 pub struct ExpressionResolver<'a> {
     resolver: &'a Resolver<'a>,
 }
@@ -237,7 +238,10 @@ impl<'a> ExpressionResolver<'a> {
                 op,
                 right: Box::new(Box::pin(self.resolve_expression(*right, resolve_context)).await?),
             }),
-            ast::Expr::Function(func) => self.resolve_function(func, resolve_context).await,
+            ast::Expr::Function(func) => {
+                self.resolve_scalar_or_aggregate_function(func, resolve_context)
+                    .await
+            }
             ast::Expr::Subquery(subquery) => self.resolve_subquery(subquery, resolve_context).await,
             ast::Expr::Exists {
                 subquery,
@@ -556,20 +560,82 @@ impl<'a> ExpressionResolver<'a> {
         }
     }
 
-    async fn resolve_function(
+    async fn resolve_scalar_or_aggregate_function(
         &self,
-        func: Box<ast::Function<Raw>>,
+        mut func: Box<ast::Function<Raw>>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::Expr<ResolvedMeta>> {
         // TODO: Search path (with system being the first to check)
-        if func.reference.0.len() != 1 {
-            return Err(RayexecError::new(
-                "Qualified function names not yet supported",
-            ));
+        let (catalog, schema, func_name) = match func.reference.0.len() {
+            0 => return Err(RayexecError::new("Missing idents for function reference")), // Shouldn't happen.
+            1 => (
+                "system".to_string(),
+                "glare_catalog".to_string(),
+                func.reference.0[0].as_normalized_string(),
+            ),
+            2 => (
+                "system".to_string(),
+                func.reference.0[0].as_normalized_string(),
+                func.reference.0[1].as_normalized_string(),
+            ),
+            3 => (
+                func.reference.0[0].as_normalized_string(),
+                func.reference.0[1].as_normalized_string(),
+                func.reference.0[2].as_normalized_string(),
+            ),
+            _ => {
+                // TODO: This could technically be from chained syntax on a
+                // fully qualified column.
+                return Err(RayexecError::new("Too many idents for function reference")
+                    .with_field("idents", func.reference.to_string()));
+            }
+        };
+
+        let context = self.resolver.context;
+
+        // See if we can resolve the catalog & schema. If we can't assume we're
+        // using chained function syntax.
+        //
+        // TODO: Make `get_database` return Option.
+        // TODO: We should be exhaustive about what's part of the qualified
+        //       function call vs what's part of the column.
+        let is_qualified = func.reference.0.len() > 1;
+        if self.resolver.config.enable_function_chaining
+            && is_qualified
+            && (!context.database_exists(&catalog)
+                || context
+                    .get_database(&catalog)?
+                    .catalog
+                    .get_schema(self.resolver.tx, &schema)?
+                    .is_none())
+        {
+            let unqualified_name = func.reference.0.pop().unwrap(); // Length checked above.
+            let unqualified_ref = ast::ObjectReference(vec![unqualified_name]);
+
+            let mut prefix_ref = std::mem::replace(&mut func.reference, unqualified_ref);
+
+            // Now add the prefix we took from the reference as the first
+            // argument to the function.
+
+            // TODO: Expr binder should probably take of this for us.
+            let arg_expr = match prefix_ref.0.len() {
+                1 => ast::Expr::Ident(prefix_ref.0.pop().unwrap()),
+                _ => ast::Expr::CompoundIdent(prefix_ref.0),
+            };
+
+            func.args.insert(
+                0,
+                ast::FunctionArg::Unnamed {
+                    arg: ast::FunctionArgExpr::Expr(arg_expr),
+                },
+            );
+
+            // Now try to resolve with just the unqualified reference.
+            let resolved =
+                Box::pin(self.resolve_scalar_or_aggregate_function(func, resolve_context)).await?;
+
+            return Ok(resolved);
         }
-        let func_name = &func.reference.0[0].as_normalized_string();
-        let catalog = "system";
-        let schema = "glare_catalog";
 
         let filter = self
             .resolve_optional_expression(func.filter.map(|e| *e), resolve_context)
@@ -582,16 +648,14 @@ impl<'a> ExpressionResolver<'a> {
         };
         let args = Box::pin(self.resolve_function_args(func.args, resolve_context)).await?;
 
-        let schema_ent = self
-            .resolver
-            .context
-            .get_database(catalog)?
+        let schema_ent = context
+            .get_database(&catalog)?
             .catalog
-            .get_schema(self.resolver.tx, schema)?
+            .get_schema(self.resolver.tx, &schema)?
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
         // Check if this is a special function.
-        if let Some(special) = SpecialBuiltinFunction::try_from_name(func_name) {
+        if let Some(special) = SpecialBuiltinFunction::try_from_name(&func_name) {
             let resolve_idx = resolve_context
                 .functions
                 .push_resolved(ResolvedFunction::Special(special), LocationRequirement::Any);
@@ -606,7 +670,7 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         // Now check scalars.
-        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, func_name)? {
+        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, &func_name)? {
             // TODO: Allow unresolved scalars?
             // TODO: This also assumes scalars (and aggs) are the same everywhere, which
             // they probably should be for now.
@@ -624,7 +688,7 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         // Now check aggregates.
-        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, func_name)? {
+        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, &func_name)? {
             // TODO: Allow unresolved aggregates?
             let resolve_idx = resolve_context.functions.push_resolved(
                 ResolvedFunction::Aggregate(
@@ -651,7 +715,7 @@ impl<'a> ExpressionResolver<'a> {
                 CatalogEntryType::ScalarFunction,
                 CatalogEntryType::AggregateFunction,
             ],
-            func_name,
+            &func_name,
         ))
     }
 

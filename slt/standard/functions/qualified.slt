@@ -1,0 +1,11 @@
+# Ensure we can call functions partially and fully qualified.
+
+query I
+SELECT glare_catalog.abs(-48);
+----
+48
+
+query I
+SELECT system.glare_catalog.abs(-48);
+----
+48

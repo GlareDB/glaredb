@@ -15,6 +15,7 @@ pub struct SessionConfig {
     pub partitions: u64,
     pub batch_size: u64,
     pub verify_optimized_plan: bool,
+    pub enable_function_chaining: bool,
 }
 
 impl SessionConfig {
@@ -30,6 +31,7 @@ impl SessionConfig {
             partitions: executor.default_partitions() as u64,
             batch_size: 4096,
             verify_optimized_plan: false,
+            enable_function_chaining: true,
         }
     }
 
@@ -103,6 +105,7 @@ static GET_SET_FUNCTIONS: LazyLock<HashMap<&'static str, SettingFunctions>> = La
     insert_setting::<AllowNestedLoopJoin>(&mut map);
     insert_setting::<Partitions>(&mut map);
     insert_setting::<BatchSize>(&mut map);
+    insert_setting::<EnableFunctionChaining>(&mut map);
 
     map
 });
@@ -218,6 +221,23 @@ impl SessionSetting for VerifyOptimizedPlan {
     }
 }
 
+pub struct EnableFunctionChaining;
+
+impl SessionSetting for EnableFunctionChaining {
+    const NAME: &'static str = "enable_function_chaining";
+    const DESCRIPTION: &'static str = "If function chaining syntax is enabled.";
+
+    fn set_from_scalar(scalar: ScalarValue, conf: &mut SessionConfig) -> Result<()> {
+        let val = scalar.try_as_bool()?;
+        conf.enable_function_chaining = val;
+        Ok(())
+    }
+
+    fn get_as_scalar(conf: &SessionConfig) -> OwnedScalarValue {
+        conf.enable_function_chaining.into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,6 +250,7 @@ mod tests {
             partitions: 8,
             batch_size: 4096,
             verify_optimized_plan: false,
+            enable_function_chaining: true,
         }
     }
 

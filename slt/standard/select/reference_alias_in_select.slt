@@ -1,0 +1,38 @@
+# Allow referencing previously defined aliases in later select items.
+
+query II
+SELECT 1 AS a, a + 2;
+----
+1  3
+
+statement error 'a' can only be referenced after it's been defined in the SELECT list
+SELECT a + 2, 1 AS a;
+
+# TODO: Unsure if this is even wanted.
+# query II
+# SELECT 3 AS a, (SELECT a + 5);
+# ----
+
+query III
+SELECT 1 AS a, 2 AS a, a + 3;
+----
+1  2  5
+
+# Prefer unaliased columns.
+query TI rowsort
+SELECT 'select' AS a, a FROM (VALUES (1), (2)) v(a);
+----
+select  1
+select  2
+
+# Prefer unaliased columns.
+query TI rowsort
+SELECT a, 'select' AS a FROM (VALUES (1), (2)) v(a);
+----
+1  select
+2  select
+
+query TT
+SELECT 'select' AS a, upper(a);
+----
+select  SELECT
