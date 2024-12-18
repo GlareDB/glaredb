@@ -89,7 +89,11 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
 }
 
 impl DefaultColumnBinder {
-    fn bind_column(
+    /// Binds a column with the given name and optional table alias.
+    ///
+    /// This will handle appending correlated columns to the bind context as
+    /// necessary.
+    pub fn bind_column(
         &self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,

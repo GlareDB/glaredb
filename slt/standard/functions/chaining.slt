@@ -1,0 +1,15 @@
+# Function chaining.
+
+statement ok
+CREATE TEMP TABLE t (a INT, b TEXT);
+
+statement ok
+INSERT INTO t VALUES
+  (3, 'cat'),
+  (4, 'dog'),
+  (NULL, 'mouse'),
+  (5, NULL);
+
+# query T
+# SELECT b.upper() FROM t ORDER BY 1;
+# ----

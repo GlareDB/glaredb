@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::select_expr_expander::ExpandedSelectExpr;
@@ -8,10 +8,11 @@ use super::select_list::SelectList;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
-use crate::logical::binder::column_binder::DefaultColumnBinder;
+use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub struct SelectListBinder<'a> {
@@ -77,13 +78,19 @@ impl<'a> SelectListBinder<'a> {
         // Bind the expressions.
         let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
         let mut exprs = Vec::with_capacity(projections.len());
-        for proj in projections {
+        for (idx, proj) in projections.into_iter().enumerate() {
             match proj {
                 ExpandedSelectExpr::Expr { expr, .. } => {
+                    let mut col_binder = SelectAliasColumnBinder {
+                        current_idx: idx,
+                        alias_map: &alias_map,
+                        previous_exprs: &exprs,
+                    };
+
                     let expr = expr_binder.bind_expression(
                         bind_context,
                         &expr,
-                        &mut DefaultColumnBinder,
+                        &mut col_binder,
                         RecursionContext {
                             allow_windows: true,
                             allow_aggregates: true,
@@ -240,5 +247,78 @@ impl<'a> SelectListBinder<'a> {
         })?;
 
         Ok(())
+    }
+}
+
+/// Column binder that allows binding to previously defined user aliases.
+///
+/// If an ident isn't found in the alias map, then default column binding is
+/// used.
+///
+/// Aliases are only checked if normal column binding cannot find a column.
+#[derive(Debug, Clone, Copy)]
+struct SelectAliasColumnBinder<'a> {
+    /// Index of the expression we're currently planning in the select list.
+    ///
+    /// Used to determine if an alias is valid to use.
+    current_idx: usize,
+    /// User provided aliases.
+    alias_map: &'a HashMap<String, usize>,
+    /// Previously planned expressions.
+    previous_exprs: &'a [Expression],
+}
+
+impl<'a> ExpressionColumnBinder for SelectAliasColumnBinder<'a> {
+    fn bind_from_root_literal(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        literal: &ast::Literal<ResolvedMeta>,
+    ) -> Result<Option<Expression>> {
+        DefaultColumnBinder.bind_from_root_literal(bind_scope, bind_context, literal)
+    }
+
+    fn bind_from_ident(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        ident: &ast::Ident,
+        _recur: RecursionContext,
+    ) -> Result<Option<Expression>> {
+        let col = ident.as_normalized_string();
+
+        match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, &col)? {
+            Some(expr) => Ok(Some(expr)),
+            None => {
+                match self.alias_map.get(&col) {
+                    Some(&col_idx) => {
+                        if col_idx < self.current_idx {
+                            // Valid alias reference, use the existing expression.
+                            let aliased_expr =
+                                self.previous_exprs.get(col_idx).ok_or_else(|| {
+                                    RayexecError::new("Missing select expression?")
+                                        .with_field("idx", col_idx)
+                                })?;
+
+                            Ok(Some(aliased_expr.clone()))
+                        } else {
+                            // Not a valid alias expression.
+                            Err(RayexecError::new(format!("'{col}' can only be referenced after it's been defined in the SELECT list")))
+                        }
+                    }
+                    None => Ok(None),
+                }
+            }
+        }
+    }
+
+    fn bind_from_idents(
+        &mut self,
+        bind_scope: BindScopeRef,
+        bind_context: &mut BindContext,
+        idents: &[ast::Ident],
+        recur: RecursionContext,
+    ) -> Result<Option<Expression>> {
+        DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents, recur)
     }
 }

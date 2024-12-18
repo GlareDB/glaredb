@@ -12,8 +12,22 @@ use crate::database::catalog_entry::CatalogEntryType;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 
+#[derive(Debug)]
 pub struct ExpressionResolver<'a> {
     resolver: &'a Resolver<'a>,
+}
+
+/// Change behavior with how 'reference.function()' is resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FunctionResolveMode {
+    /// Assume that any references prefixing the function call are
+    /// catalog/scheme qualifications.
+    Qualified,
+    /// Assume any references prefixing the function call are a reference to a
+    /// column.
+    ///
+    /// This will then lookup the function from the builting catalogs.
+    Chained,
 }
 
 impl<'a> ExpressionResolver<'a> {
@@ -237,7 +251,10 @@ impl<'a> ExpressionResolver<'a> {
                 op,
                 right: Box::new(Box::pin(self.resolve_expression(*right, resolve_context)).await?),
             }),
-            ast::Expr::Function(func) => self.resolve_function(func, resolve_context).await,
+            ast::Expr::Function(func) => {
+                self.resolve_scalar_or_aggregate_function(func, resolve_context)
+                    .await
+            }
             ast::Expr::Subquery(subquery) => self.resolve_subquery(subquery, resolve_context).await,
             ast::Expr::Exists {
                 subquery,
@@ -556,7 +573,7 @@ impl<'a> ExpressionResolver<'a> {
         }
     }
 
-    async fn resolve_function(
+    async fn resolve_scalar_or_aggregate_function(
         &self,
         func: Box<ast::Function<Raw>>,
         resolve_context: &mut ResolveContext,
