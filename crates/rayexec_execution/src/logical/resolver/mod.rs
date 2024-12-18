@@ -112,6 +112,11 @@ impl ResolveMode {
     }
 }
 
+#[derive(Debug)]
+pub struct ResolveConfig {
+    pub enable_function_chaining: bool,
+}
+
 /// Resolves references in a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
 pub struct Resolver<'a> {
@@ -119,6 +124,7 @@ pub struct Resolver<'a> {
     pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
     pub file_handlers: &'a FileHandlers,
+    pub config: ResolveConfig,
 }
 
 impl<'a> Resolver<'a> {
@@ -127,12 +133,14 @@ impl<'a> Resolver<'a> {
         tx: &'a CatalogTx,
         context: &'a DatabaseContext,
         file_handlers: &'a FileHandlers,
+        config: ResolveConfig,
     ) -> Self {
         Resolver {
             resolve_mode,
             tx,
             context,
             file_handlers,
+            config,
         }
     }
 

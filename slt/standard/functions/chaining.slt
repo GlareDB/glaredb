@@ -10,6 +10,11 @@ INSERT INTO t VALUES
   (NULL, 'mouse'),
   (5, NULL);
 
-# query T
-# SELECT b.upper() FROM t ORDER BY 1;
-# ----
+query T
+SELECT b.upper() FROM t ORDER BY 1;
+----
+CAT
+DOG
+MOUSE
+NULL
+

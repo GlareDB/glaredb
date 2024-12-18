@@ -30,7 +30,7 @@ use crate::logical::logical_set::VariableOrAll;
 use crate::logical::operator::{LogicalOperator, Node};
 use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
-use crate::logical::resolver::{ResolveMode, ResolvedStatement, Resolver};
+use crate::logical::resolver::{ResolveConfig, ResolveMode, ResolvedStatement, Resolver};
 use crate::optimizer::Optimizer;
 use crate::runtime::time::Timer;
 use crate::runtime::{PipelineExecutor, Runtime};
@@ -243,6 +243,9 @@ where
             &tx,
             &self.context,
             self.registry.get_file_handlers(),
+            ResolveConfig {
+                enable_function_chaining: self.config.enable_function_chaining,
+            },
         )
         .resolve_statement(stmt.statement.clone())
         .await?;
