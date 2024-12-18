@@ -15,6 +15,7 @@ SELECT
     description as "Description"
 FROM list_functions()
 WHERE function_type = 'scalar'
+GROUP BY "Function name", "Description"
 ORDER BY "Function name";
 "#;
 
@@ -34,6 +35,7 @@ SELECT
     description as "Description"
 FROM list_functions()
 WHERE function_type = 'aggregate'
+GROUP BY "Function name", "Description"
 ORDER BY "Function name";
 "#;
 
@@ -53,6 +55,7 @@ SELECT
     description as "Description"
 FROM list_functions()
 WHERE function_type = 'table'
+GROUP BY "Function name", "Description"
 ORDER BY "Function name";
 "#;
 

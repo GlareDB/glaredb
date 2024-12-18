@@ -10,10 +10,10 @@ use tracing::info;
 use crate::section::SectionWriter;
 use crate::session::DocsSession;
 
-const DOCSGEN_START_REGEX: LazyLock<Regex> =
+static DOCSGEN_START_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<!--\s*DOCSGEN_START\s+([a-zA-Z0-9_]+)\s*-->").unwrap());
 
-const DOCSGEN_END_REGEX: LazyLock<Regex> =
+static DOCSGEN_END_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<!--\s*DOCSGEN_END\s*-->").unwrap());
 
 fn expand_path(path: &str) -> String {
@@ -67,7 +67,7 @@ impl DocFile {
 
                     // Write original line + extra newline
                     writeln!(buf, "{}", line)?;
-                    writeln!(buf, "")?;
+                    writeln!(buf)?;
 
                     // Write out section.
                     section.write(session, &mut buf)?;
@@ -84,7 +84,7 @@ impl DocFile {
                         in_docsgen_section = false;
 
                         // Write extra newline + original line
-                        writeln!(buf, "")?;
+                        writeln!(buf)?;
                         writeln!(buf, "{}", line)?;
                     } else {
                         // Only write out stuff outside of the docgen section.
@@ -107,7 +107,7 @@ impl DocFile {
         let file = fs::OpenOptions::new()
             .write(true)
             .truncate(true)
-            .open(&self.path)?;
+            .open(&path)?;
 
         let mut writer = BufWriter::new(file);
         writer.write_all(buf.as_bytes())?;

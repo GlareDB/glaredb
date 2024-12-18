@@ -45,7 +45,7 @@ pub fn write_markdown_table<'a>(
                 let val = FORMATTER.format_array_value(column, row)?;
                 write!(output, " {val} |")?;
             }
-            writeln!(output, "")?;
+            writeln!(output)?;
         }
     }
 

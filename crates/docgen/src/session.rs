@@ -2,7 +2,7 @@ use rayexec_error::Result;
 use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::result_table::MaterializedResultTable;
-use rayexec_shell::session::{SingleUserEngine, SingleUserSession};
+use rayexec_shell::session::SingleUserEngine;
 
 #[derive(Debug)]
 pub struct DocsSession {
