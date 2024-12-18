@@ -32,3 +32,7 @@ SELECT a, 'select' AS a FROM (VALUES (1), (2)) v(a);
 1  select
 2  select
 
+query TT
+SELECT 'select' AS a, upper(a);
+----
+select  SELECT

@@ -18,3 +18,72 @@ DOG
 MOUSE
 NULL
 
+query T
+SELECT t.b.upper() FROM t ORDER BY 1;
+----
+CAT
+DOG
+MOUSE
+NULL
+
+statement error Cannot resolve scalar function or aggregate function with name 'missing_function'
+SELECT t.b.missing_function() FROM t ORDER BY 1;
+
+statement error Invalid inputs to 'upper'
+SELECT t.b.upper(4) FROM t ORDER BY 1;
+
+query T
+SELECT b.repeat(a) FROM t ORDER BY 1;
+----
+catcatcat
+dogdogdogdog
+NULL
+NULL
+
+query TTT
+SELECT
+    t.b.upper() AS my_upper,
+    my_upper.repeat(t.a) AS my_repeat,
+    my_repeat.lower() AS my_lower
+  FROM t
+  ORDER BY 1;
+----
+CAT    CATCATCAT     catcatcat
+DOG    DOGDOGDOGDOG  dogdogdogdog
+MOUSE  NULL          NULL
+NULL   NULL          NULL
+
+# Should work on aggregates too.
+query I
+SELECT a.sum() FROM t;
+----
+12
+
+# TODO: Literals
+# query T
+# SELECT 'hello'.repeat(3);
+# ----
+
+query T
+SELECT 'hello' AS s, s.repeat(3);
+----
+hello  hellohellohello
+
+# Ensure we can disable the behavior.
+statement ok
+SET enable_function_chaining TO false;
+
+statement error Missing schema
+SELECT b.upper() FROM t ORDER BY 1;
+
+statement error Missing catalog
+SELECT t.b.upper() FROM t ORDER BY 1;
+
+query T
+SELECT system.glare_catalog.upper(t.b) FROM t ORDER BY 1;
+----
+CAT
+DOG
+MOUSE
+NULL
+

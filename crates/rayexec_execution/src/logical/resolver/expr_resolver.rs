@@ -600,7 +600,8 @@ impl<'a> ExpressionResolver<'a> {
         // TODO: We should be exhaustive about what's part of the qualified
         //       function call vs what's part of the column.
         let is_qualified = func.reference.0.len() > 1;
-        if is_qualified
+        if self.resolver.config.enable_function_chaining
+            && is_qualified
             && (!context.database_exists(&catalog)
                 || context
                     .get_database(&catalog)?
@@ -611,14 +612,21 @@ impl<'a> ExpressionResolver<'a> {
             let unqualified_name = func.reference.0.pop().unwrap(); // Length checked above.
             let unqualified_ref = ast::ObjectReference(vec![unqualified_name]);
 
-            let prefix_ref = std::mem::replace(&mut func.reference, unqualified_ref);
+            let mut prefix_ref = std::mem::replace(&mut func.reference, unqualified_ref);
 
             // Now add the prefix we took from the reference as the first
             // argument to the function.
+
+            // TODO: Expr binder should probably take of this for us.
+            let arg_expr = match prefix_ref.0.len() {
+                1 => ast::Expr::Ident(prefix_ref.0.pop().unwrap()),
+                _ => ast::Expr::CompoundIdent(prefix_ref.0),
+            };
+
             func.args.insert(
                 0,
                 ast::FunctionArg::Unnamed {
-                    arg: ast::FunctionArgExpr::Expr(ast::Expr::CompoundIdent(prefix_ref.0)),
+                    arg: ast::FunctionArgExpr::Expr(arg_expr),
                 },
             );
 
