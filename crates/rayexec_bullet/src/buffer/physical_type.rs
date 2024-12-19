@@ -31,6 +31,7 @@ impl PhysicalType {
     pub fn buffer_mem_size(&self) -> usize {
         match self {
             Self::Int8 => PhysicalI8::buffer_mem_size(),
+            Self::Int32 => PhysicalI32::buffer_mem_size(),
             Self::Interval => PhysicalInterval::buffer_mem_size(),
             _ => unimplemented!(),
         }
@@ -102,6 +103,22 @@ impl PhysicalStorage for PhysicalI8 {
 }
 
 impl MutablePhysicalStorage for PhysicalI8 {
+    type MutableStorage<'a> = &'a mut [Self::StorageType];
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicalI32;
+
+impl PhysicalStorage for PhysicalI32 {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Int32;
+
+    type PrimaryBufferType = i32;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+}
+
+impl MutablePhysicalStorage for PhysicalI32 {
     type MutableStorage<'a> = &'a mut [Self::StorageType];
 }
 
