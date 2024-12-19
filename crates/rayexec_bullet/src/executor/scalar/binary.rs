@@ -58,7 +58,7 @@ impl BinaryExecutor {
                     output_buffer.idx = idx;
                     op(val1, val2, &mut output_buffer);
                 } else {
-                    out_validity_builder.set_unchecked(idx, false);
+                    out_validity_builder.set(idx, false);
                 }
             }
 

@@ -96,7 +96,7 @@ impl ArrayDataBuffer for BooleanBuffer {
     }
 
     fn put(&mut self, idx: usize, val: &Self::Type) {
-        self.values.set_unchecked(idx, *val)
+        self.values.set(idx, *val)
     }
 
     fn into_data(self) -> ArrayData {

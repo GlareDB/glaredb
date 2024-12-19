@@ -103,7 +103,7 @@ impl Bitmap {
         }
         let idx = self.len;
         self.len += 1;
-        self.set_unchecked(idx, val);
+        self.set(idx, val);
     }
 
     /// Get the value at index.
@@ -119,7 +119,7 @@ impl Bitmap {
     ///
     /// Panics if index is out of bounds.
     #[inline]
-    pub fn set_unchecked(&mut self, idx: usize, val: bool) {
+    pub fn set(&mut self, idx: usize, val: bool) {
         if val {
             // Set bit.
             self.data[idx / 8] |= 1 << (idx % 8)
@@ -464,10 +464,10 @@ mod tests {
         let bits = [true, false, true, false, true, true, true, true];
         let mut bm = Bitmap::from_iter(bits);
 
-        bm.set_unchecked(0, false);
+        bm.set(0, false);
         assert!(!bm.value(0));
 
-        bm.set_unchecked(1, true);
+        bm.set(1, true);
         assert!(bm.value(1));
     }
 

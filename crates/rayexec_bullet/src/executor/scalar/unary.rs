@@ -41,7 +41,7 @@ impl UnaryExecutor {
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);
                     if !validity.value(sel) {
-                        out_validity_builder.set_unchecked(idx, false);
+                        out_validity_builder.set(idx, false);
                         continue;
                     }
 

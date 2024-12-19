@@ -1,11 +1,8 @@
-mod shared_or_owned;
-
 use std::fmt::Debug;
 use std::sync::Arc;
 
 use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use shared_or_owned::SharedOrOwned;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
@@ -37,6 +34,7 @@ use crate::scalar::interval::Interval;
 use crate::scalar::timestamp::TimestampScalar;
 use crate::scalar::ScalarValue;
 use crate::selection::SelectionVector;
+use crate::shared_or_owned::SharedOrOwned;
 use crate::storage::{
     AddressableStorage,
     BooleanStorage,
@@ -159,13 +157,13 @@ impl Array {
         match &mut self.validity {
             Some(validity) => {
                 let validity = validity.get_mut();
-                validity.set_unchecked(idx, valid);
+                validity.set(idx, valid);
             }
             None => {
                 // Initialize validity.
                 let len = self.data.len();
                 let mut validity = Bitmap::new_with_all_true(len);
-                validity.set_unchecked(idx, valid);
+                validity.set(idx, valid);
 
                 self.validity = Some(validity.into())
             }
@@ -793,7 +791,7 @@ where
                 Some(val) => new_vals.push(val),
                 None => {
                     new_vals.push(F::default());
-                    validity.set_unchecked(idx, false);
+                    validity.set(idx, false);
                 }
             }
         }

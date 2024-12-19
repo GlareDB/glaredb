@@ -187,7 +187,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             Some(indices) => {
                 let mut bitmap = Bitmap::new_with_all_false(schema.fields.len());
                 for &idx in indices {
-                    bitmap.set_unchecked(idx, true);
+                    bitmap.set(idx, true);
                 }
                 bitmap
             }

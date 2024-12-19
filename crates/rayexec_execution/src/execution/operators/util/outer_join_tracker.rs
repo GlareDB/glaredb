@@ -46,7 +46,7 @@ impl LeftOuterJoinTracker {
     ) {
         let bitmap = self.bitmaps.get_mut(batch_idx).expect("bitmap to exist");
         for row in visited_rows {
-            bitmap.set_unchecked(row, true);
+            bitmap.set(row, true);
         }
     }
 }
@@ -217,7 +217,7 @@ impl RightOuterJoinTracker {
     /// Mark the given row indices as visited.
     pub fn mark_rows_visited(&mut self, visited_rows: impl IntoIterator<Item = usize>) {
         for idx in visited_rows {
-            self.unvisited.set_unchecked(idx, false);
+            self.unvisited.set(idx, false);
         }
     }
 

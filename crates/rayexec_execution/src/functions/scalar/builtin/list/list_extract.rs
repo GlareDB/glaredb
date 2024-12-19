@@ -269,7 +269,7 @@ where
         if let Some(metadata) = metadata {
             if el_idx >= metadata.len {
                 // Indexing outside of the list. Mark null
-                validity.set_unchecked(idx, false);
+                validity.set(idx, false);
                 return;
             }
 
@@ -287,7 +287,7 @@ where
         }
 
         // Metadata null, tried to extract from null array, mark null.
-        validity.set_unchecked(idx, false);
+        validity.set(idx, false);
     })?;
 
     Ok(Array::new_with_validity_and_array_data(

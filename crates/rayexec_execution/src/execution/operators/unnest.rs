@@ -455,7 +455,7 @@ where
                 }
 
                 let val = unsafe { values.get_unchecked(sel) };
-                out_validity.set_unchecked(out_idx, true);
+                out_validity.set(out_idx, true);
                 builder.buffer.put(out_idx, val.borrow());
             }
 
@@ -478,7 +478,7 @@ where
                 let sel = selection::get(selection, child_idx);
 
                 let val = unsafe { values.get_unchecked(sel) };
-                out_validity.set_unchecked(out_idx, true);
+                out_validity.set(out_idx, true);
                 builder.buffer.put(out_idx, val.borrow());
             }
 

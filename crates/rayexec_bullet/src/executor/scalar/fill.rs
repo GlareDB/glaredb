@@ -100,7 +100,7 @@ where
                         let val = unsafe { values.get_unchecked(sel) };
                         self.builder.buffer.put(mapping.to, val.borrow());
                     } else {
-                        self.validity.set_unchecked(mapping.to, false)
+                        self.validity.set(mapping.to, false)
                     }
                 }
             }
@@ -317,7 +317,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
             }
             None => {
                 metadatas.push(ListItemMetadata::default());
-                validity.set_unchecked(metadatas.len() - 1, false);
+                validity.set(metadatas.len() - 1, false);
             }
         })?;
 
