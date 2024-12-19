@@ -8,9 +8,10 @@ use std::marker::PhantomData;
 use physical_type::{PhysicalI32, PhysicalStorage, PhysicalType, PhysicalUtf8};
 use rayexec_error::{RayexecError, Result};
 use reservation::{NopReservationTracker, Reservation, ReservationTracker};
-use string_view::{StringViewBuffer, StringViewHeap, StringViewMetadataUnion};
+use string_view::{StringViewBuffer, StringViewBufferMut, StringViewHeap, StringViewMetadataUnion};
 
 use crate::compute::util::{FromExactSizedIterator, IntoExactSizedIterator};
+use crate::executor::physical_type::PhysicalI8;
 
 #[derive(Debug)]
 pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
@@ -22,12 +23,6 @@ pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
     data: RawBufferParts<R>,
     /// Child buffers for extra data.
     child: ChildBuffer,
-}
-
-#[derive(Debug)]
-pub enum ChildBuffer {
-    StringViewHeap(StringViewHeap),
-    None,
 }
 
 impl<R> ArrayBuffer<R>
@@ -48,14 +43,14 @@ where
     pub fn with_len_and_child_buffer<S: PhysicalStorage>(
         tracker: &R,
         len: usize,
-        child: ChildBuffer,
+        child: impl Into<ChildBuffer>,
     ) -> Result<Self> {
         let data = RawBufferParts::try_new::<S::PrimaryBufferType>(tracker, len)?;
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
             data,
-            child,
+            child: child.into(),
         })
     }
 
@@ -103,6 +98,24 @@ where
             _ => Err(RayexecError::new("Missing string heap")),
         }
     }
+
+    pub fn try_as_string_view_buffer_mut(&mut self) -> Result<StringViewBufferMut<'_>> {
+        // TODO: Duplicated, but let's us take each field mutably.
+        if PhysicalUtf8::PHYSICAL_TYPE != self.physical_type {
+            return Err(
+                RayexecError::new("Attempted to cast buffer to wrong physical type")
+                    .with_field("expected_type", self.physical_type)
+                    .with_field("requested_type", PhysicalUtf8::PHYSICAL_TYPE),
+            );
+        }
+
+        let metadata = unsafe { self.data.as_slice_mut::<StringViewMetadataUnion>() };
+
+        match &mut self.child {
+            ChildBuffer::StringViewHeap(heap) => Ok(StringViewBufferMut { metadata, heap }),
+            _ => Err(RayexecError::new("Missing string heap")),
+        }
+    }
 }
 
 impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
@@ -116,6 +129,18 @@ impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
         std::mem::drop(vec);
 
         self.data.reservation.free()
+    }
+}
+
+#[derive(Debug)]
+pub enum ChildBuffer {
+    StringViewHeap(StringViewHeap),
+    None,
+}
+
+impl From<StringViewHeap> for ChildBuffer {
+    fn from(value: StringViewHeap) -> Self {
+        ChildBuffer::StringViewHeap(value)
     }
 }
 
@@ -171,6 +196,9 @@ impl<R: ReservationTracker> RawBufferParts<R> {
         std::slice::from_raw_parts_mut(self.ptr.cast::<T>(), self.len)
     }
 }
+
+pub type Int8Builder = PrimBufferBuilder<PhysicalI8>;
+pub type Int32Builder = PrimBufferBuilder<PhysicalI32>;
 
 #[derive(Debug)]
 pub struct PrimBufferBuilder<S: PhysicalStorage> {

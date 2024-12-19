@@ -4,7 +4,7 @@ use rayexec_error::Result;
 
 use super::addressable::{AddressableStorage, MutableAddressableStorage};
 use super::reservation::ReservationTracker;
-use super::string_view::{StringViewBuffer, StringViewMetadataUnion};
+use super::string_view::{StringViewBuffer, StringViewBufferMut, StringViewMetadataUnion};
 use super::ArrayBuffer;
 use crate::scalar::interval::Interval;
 
@@ -209,5 +209,16 @@ impl PhysicalStorage for PhysicalUtf8 {
         R: ReservationTracker,
     {
         buffer.try_as_string_view_buffer()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalUtf8 {
+    type MutableStorage<'a> = StringViewBufferMut<'a>;
+
+    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_string_view_buffer_mut()
     }
 }

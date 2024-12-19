@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::addressable::AddressableStorage;
+use super::addressable::{AddressableStorage, MutableAddressableStorage};
 
 #[derive(Debug)]
 pub struct StringViewBuffer<'a> {
@@ -19,6 +19,40 @@ impl<'a> AddressableStorage for StringViewBuffer<'a> {
         let m = self.metadata.get(idx)?;
         let bs = self.heap.get(m)?;
         Some(unsafe { std::str::from_utf8_unchecked(bs) })
+    }
+}
+
+#[derive(Debug)]
+pub struct StringViewBufferMut<'a> {
+    pub(crate) metadata: &'a mut [StringViewMetadataUnion],
+    pub(crate) heap: &'a mut StringViewHeap,
+}
+
+impl<'a> AddressableStorage for StringViewBufferMut<'a> {
+    type T = str;
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        let m = self.metadata.get(idx)?;
+        let bs = self.heap.get(m)?;
+        Some(unsafe { std::str::from_utf8_unchecked(bs) })
+    }
+}
+
+impl<'a> MutableAddressableStorage for StringViewBufferMut<'a> {
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        let m = self.metadata.get_mut(idx)?;
+        let bs = self.heap.get_mut(m)?;
+        Some(unsafe { std::str::from_utf8_unchecked_mut(bs) })
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        let bs = val.as_bytes();
+        let new_m = self.heap.push_bytes(bs);
+        self.metadata[idx] = new_m;
     }
 }
 
@@ -182,6 +216,22 @@ impl StringViewHeap {
                 let len = metadata.large.len as usize;
 
                 self.buffer.get(offset..(offset + len))
+            }
+        }
+    }
+
+    pub fn get_mut<'a, 'b: 'a>(
+        &'b mut self,
+        metadata: &'a mut StringViewMetadataUnion,
+    ) -> Option<&'a mut [u8]> {
+        if metadata.is_small() {
+            unsafe { Some(&mut metadata.small.inline[..(metadata.small.len as usize)]) }
+        } else {
+            unsafe {
+                let offset = metadata.large.offset as usize;
+                let len = metadata.large.len as usize;
+
+                self.buffer.get_mut(offset..(offset + len))
             }
         }
     }

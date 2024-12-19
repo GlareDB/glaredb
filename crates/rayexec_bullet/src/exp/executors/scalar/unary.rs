@@ -2,19 +2,19 @@ use rayexec_error::Result;
 
 use super::OutputBuffer;
 use crate::exp::array::Array;
-use crate::exp::buffer::addressable::AddressableStorage;
+use crate::exp::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
 use crate::exp::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::exp::buffer::ArrayBuffer;
 use crate::exp::validity::Validity;
-use crate::selection::SelectionVector;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
 
 impl UnaryExecutor {
+    /// Execute a unary operation on `array`, placing results in `out`.
     pub fn execute<'b, S, O, Op>(
         array: &Array,
-        selection: &SelectionVector,
+        selection: impl IntoIterator<Item = usize>,
         out: &mut ArrayBuffer,
         out_validity: &mut Validity,
         mut op: Op,
@@ -30,7 +30,7 @@ impl UnaryExecutor {
         let validity = array.validity();
 
         if validity.all_valid() {
-            for (output_idx, input_idx) in selection.iter_locations().enumerate() {
+            for (output_idx, input_idx) in selection.into_iter().enumerate() {
                 op(
                     input.get(input_idx).unwrap(),
                     OutputBuffer {
@@ -40,7 +40,7 @@ impl UnaryExecutor {
                 );
             }
         } else {
-            for (output_idx, input_idx) in selection.iter_locations().enumerate() {
+            for (output_idx, input_idx) in selection.into_iter().enumerate() {
                 if validity.is_valid(input_idx) {
                     op(
                         input.get(input_idx).unwrap(),
@@ -54,6 +54,203 @@ impl UnaryExecutor {
                 }
             }
         }
+
         Ok(())
+    }
+
+    /// Executes an operation in place.
+    ///
+    /// Note that changing the lengths for variable length data is not yet
+    /// supported, as the length change won't persist since the metadata isn't
+    /// being changed.
+    pub fn execute_in_place<S, Op>(array: &mut Array, mut op: Op) -> Result<()>
+    where
+        S: MutablePhysicalStorage,
+        for<'a> Op: FnMut(&mut S::StorageType),
+    {
+        let validity = &array.validity;
+        let mut input = S::get_storage_mut(&mut array.buffer)?;
+
+        if validity.all_valid() {
+            for idx in 0..input.len() {
+                op(input.get_mut(idx).unwrap());
+            }
+        } else {
+            for idx in 0..input.len() {
+                if validity.is_valid(idx) {
+                    op(input.get_mut(idx).unwrap());
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::datatype::DataType;
+    use crate::exp::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::exp::buffer::reservation::NopReservationTracker;
+    use crate::exp::buffer::string_view::{StringViewBufferMut, StringViewHeap};
+    use crate::exp::buffer::{Int32Builder, StringViewBufferBuilder};
+
+    #[test]
+    fn int32_inc_by_2() {
+        let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut validity = Validity::new_all_valid(3);
+
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+            &array,
+            0..3,
+            &mut out,
+            &mut validity,
+            |&v, buf| buf.put(&(v + 2)),
+        )
+        .unwrap();
+        assert!(validity.all_valid());
+
+        let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(&[3, 4, 5], out_slice);
+    }
+
+    #[test]
+    fn int32_inc_by_2_in_place() {
+        let mut array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+
+        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, |v| *v = *v + 2).unwrap();
+
+        let arr_slice = array.buffer().try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(&[3, 4, 5], arr_slice);
+    }
+
+    #[test]
+    fn string_double_named_func() {
+        // Example with defined function, and allocating a new string every time.
+        let array = Array::new(
+            DataType::Utf8,
+            StringViewBufferBuilder::from_iter([
+                "a",
+                "bb",
+                "ccc",
+                "dddd",
+                "heapafter", // Inlined, will be moved to heap after doubling.
+                "alongerstringdontinline",
+            ])
+            .unwrap(),
+        );
+
+        let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
+            &NopReservationTracker,
+            6,
+            StringViewHeap::new(),
+        )
+        .unwrap();
+        let mut validity = Validity::new_all_valid(6);
+
+        fn my_string_double(s: &str, buf: OutputBuffer<StringViewBufferMut>) {
+            let mut double = s.to_string();
+            double.push_str(s);
+            buf.put(&double);
+        }
+
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &array,
+            0..6,
+            &mut out,
+            &mut validity,
+            my_string_double,
+        )
+        .unwrap();
+        assert!(validity.all_valid());
+
+        let out = out.try_as_string_view_buffer().unwrap();
+
+        assert_eq!("aa", out.get(0).unwrap());
+        assert_eq!("bbbb", out.get(1).unwrap());
+        assert_eq!("cccccc", out.get(2).unwrap());
+        assert_eq!("dddddddd", out.get(3).unwrap());
+        assert_eq!("heapafterheapafter", out.get(4).unwrap());
+        assert_eq!(
+            "alongerstringdontinlinealongerstringdontinline",
+            out.get(5).unwrap()
+        );
+    }
+
+    #[test]
+    fn string_double_closure_reused_buf() {
+        // Same thing, but with closure reusing a string buffer.
+        let array = Array::new(
+            DataType::Utf8,
+            StringViewBufferBuilder::from_iter([
+                "a",
+                "bb",
+                "ccc",
+                "dddd",
+                "heapafter", // Inlined, will be moved to heap after doubling.
+                "alongerstringdontinline",
+            ])
+            .unwrap(),
+        );
+
+        let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
+            &NopReservationTracker,
+            6,
+            StringViewHeap::new(),
+        )
+        .unwrap();
+        let mut validity = Validity::new_all_valid(6);
+
+        let mut string_buf = String::new();
+
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &array,
+            0..6,
+            &mut out,
+            &mut validity,
+            |s, buf| {
+                string_buf.clear();
+
+                string_buf.push_str(s);
+                string_buf.push_str(s);
+
+                buf.put(&string_buf);
+            },
+        )
+        .unwrap();
+        assert!(validity.all_valid());
+
+        let out = out.try_as_string_view_buffer().unwrap();
+
+        assert_eq!("aa", out.get(0).unwrap());
+        assert_eq!("bbbb", out.get(1).unwrap());
+        assert_eq!("cccccc", out.get(2).unwrap());
+        assert_eq!("dddddddd", out.get(3).unwrap());
+        assert_eq!("heapafterheapafter", out.get(4).unwrap());
+        assert_eq!(
+            "alongerstringdontinlinealongerstringdontinline",
+            out.get(5).unwrap()
+        );
+    }
+
+    #[test]
+    fn string_uppercase_in_place() {
+        let mut array = Array::new(
+            DataType::Utf8,
+            StringViewBufferBuilder::from_iter(["a", "bb", "ccc"]).unwrap(),
+        );
+
+        UnaryExecutor::execute_in_place::<PhysicalUtf8, _>(&mut array, |v| {
+            v.make_ascii_uppercase()
+        })
+        .unwrap();
+
+        let out = array.buffer().try_as_string_view_buffer().unwrap();
+
+        assert_eq!("A", out.get(0).unwrap());
+        assert_eq!("BB", out.get(1).unwrap());
+        assert_eq!("CCC", out.get(2).unwrap());
     }
 }

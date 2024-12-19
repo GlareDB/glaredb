@@ -1,7 +1,5 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
-
 /// In-memory array storage that can be directly indexed into.
 pub trait AddressableStorage: Debug {
     /// The type we can get from the storage.
