@@ -1,5 +1,7 @@
 use std::fmt::{self, Debug};
 
+use super::addressable::{AddressableStorage, MutableAddressableStorage};
+use super::string_view::{StringViewBuffer, StringViewMetadataUnion};
 use crate::scalar::interval::Interval;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,12 +70,23 @@ impl fmt::Display for PhysicalType {
 pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
 
-    /// The native types being stored in the primary buffers.
-    type BufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
+    /// The types being stored in the primary buffer.
+    type PrimaryBufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
+
+    /// The native value type being stored.
+    ///
+    /// For many storage types, this is the same as `BufferType`.
+    type StorageType: ?Sized;
+
+    type Storage<'a>: AddressableStorage<T = Self::StorageType>;
 
     fn buffer_mem_size() -> usize {
-        std::mem::size_of::<Self::BufferType>()
+        std::mem::size_of::<Self::PrimaryBufferType>()
     }
+}
+
+pub trait MutablePhysicalStorage: PhysicalStorage {
+    type MutableStorage<'a>: MutableAddressableStorage<T = Self::StorageType>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -82,7 +95,14 @@ pub struct PhysicalI8;
 impl PhysicalStorage for PhysicalI8 {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Int8;
 
-    type BufferType = i8;
+    type PrimaryBufferType = i8;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+}
+
+impl MutablePhysicalStorage for PhysicalI8 {
+    type MutableStorage<'a> = &'a mut [Self::StorageType];
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -91,5 +111,24 @@ pub struct PhysicalInterval;
 impl PhysicalStorage for PhysicalInterval {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Interval;
 
-    type BufferType = Interval;
+    type PrimaryBufferType = Interval;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+}
+
+impl MutablePhysicalStorage for PhysicalInterval {
+    type MutableStorage<'a> = &'a mut [Self::StorageType];
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicalUtf8;
+
+impl PhysicalStorage for PhysicalUtf8 {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Utf8;
+
+    type PrimaryBufferType = StringViewMetadataUnion;
+    type StorageType = str;
+
+    type Storage<'a> = StringViewBuffer<'a>;
 }

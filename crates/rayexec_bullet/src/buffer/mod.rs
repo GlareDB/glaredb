@@ -1,5 +1,9 @@
-use physical_type::{PhysicalStorage, PhysicalType};
+pub mod addressable;
+pub mod string_view;
+
+use physical_type::{PhysicalStorage, PhysicalType, PhysicalUtf8};
 use rayexec_error::{RayexecError, Result};
+use string_view::{StringViewBuffer, StringViewHeap};
 
 mod physical_type;
 
@@ -11,19 +15,37 @@ pub struct ArrayBuffer {
     ///
     /// Stored as raw parts then converted to a slice on access.
     data: RawBufferParts,
+    /// Child buffers for extra data.
+    child: ChildBuffer,
+}
+
+#[derive(Debug)]
+pub enum ChildBuffer {
+    StringViewHeap(StringViewHeap),
+    None,
 }
 
 impl ArrayBuffer {
     /// Create a new buffer with the given len.
     pub fn with_len<S: PhysicalStorage>(len: usize) -> Self {
-        let data = RawBufferParts::new::<S::BufferType>(len);
+        let data = RawBufferParts::new::<S::PrimaryBufferType>(len);
         ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
             data,
+            child: ChildBuffer::None,
         }
     }
 
-    pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::BufferType]> {
+    pub fn with_len_and_child_buffer<S: PhysicalStorage>(len: usize, child: ChildBuffer) -> Self {
+        let data = RawBufferParts::new::<S::PrimaryBufferType>(len);
+        ArrayBuffer {
+            physical_type: S::PHYSICAL_TYPE,
+            data,
+            child,
+        }
+    }
+
+    pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
         if S::PHYSICAL_TYPE != self.physical_type {
             return Err(
                 RayexecError::new("Attempted to cast buffer to wrong physical type")
@@ -32,12 +54,12 @@ impl ArrayBuffer {
             );
         }
 
-        let data = unsafe { self.data.as_slice::<S::BufferType>() };
+        let data = unsafe { self.data.as_slice::<S::PrimaryBufferType>() };
 
         Ok(data)
     }
 
-    pub fn try_as_slice_mut<S: PhysicalStorage>(&mut self) -> Result<&mut [S::BufferType]> {
+    pub fn try_as_slice_mut<S: PhysicalStorage>(&mut self) -> Result<&mut [S::PrimaryBufferType]> {
         if S::PHYSICAL_TYPE != self.physical_type {
             return Err(
                 RayexecError::new("Attempted to cast buffer to wrong physical type")
@@ -46,9 +68,18 @@ impl ArrayBuffer {
             );
         }
 
-        let data = unsafe { self.data.as_slice_mut::<S::BufferType>() };
+        let data = unsafe { self.data.as_slice_mut::<S::PrimaryBufferType>() };
 
         Ok(data)
+    }
+
+    pub fn try_as_string_view_buffer(&self) -> Result<StringViewBuffer<'_>> {
+        let metadata = self.try_as_slice::<PhysicalUtf8>()?;
+
+        match &self.child {
+            ChildBuffer::StringViewHeap(heap) => Ok(StringViewBuffer { metadata, heap }),
+            _ => Err(RayexecError::new("Missing string heap")),
+        }
     }
 }
 
