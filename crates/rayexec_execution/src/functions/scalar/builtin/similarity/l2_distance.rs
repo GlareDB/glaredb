@@ -11,7 +11,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalF64,
     PhysicalStorage,
 };
-use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
+use rayexec_bullet::executor::scalar::{BinaryListExecutor, BinaryListReducer};
 use rayexec_error::Result;
 
 use crate::expr::Expression;
@@ -119,7 +119,9 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        ListExecutor::<false, false>::binary_reduce::<S, _, L2DistanceReducer<_>>(a, b, builder)
+        BinaryListExecutor::<false, false>::binary_reduce::<S, _, L2DistanceReducer<_>>(
+            a, b, builder,
+        )
     }
 }
 

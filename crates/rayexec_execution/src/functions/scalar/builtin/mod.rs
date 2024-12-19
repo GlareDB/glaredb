@@ -83,6 +83,7 @@ pub static BUILTIN_SCALAR_FUNCTIONS: LazyLock<Vec<Box<dyn ScalarFunction>>> = La
         // List
         Box::new(list::ListExtract),
         Box::new(list::ListValues),
+        Box::new(list::ListToString),
         // Datetime
         Box::new(datetime::DatePart),
         Box::new(datetime::DateTrunc),

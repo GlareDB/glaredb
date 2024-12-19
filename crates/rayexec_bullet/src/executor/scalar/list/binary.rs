@@ -1,5 +1,6 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 
+use super::{get_inner_array_selection, get_inner_array_storage};
 use crate::array::{Array, ArrayData};
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer};
@@ -14,9 +15,11 @@ pub trait BinaryListReducer<T, O> {
     fn finish(self) -> O;
 }
 
+// TODO: Cleanup
+
 /// List executor that allows for different list lengths, and nulls inside of
 /// lists.
-pub type FlexibleListExecutor = ListExecutor<true, true>;
+pub type FlexibleBinaryListExecutor = BinaryListExecutor<true, true>;
 
 /// Execute reductions on lists.
 ///
@@ -25,10 +28,10 @@ pub type FlexibleListExecutor = ListExecutor<true, true>;
 ///
 /// `ALLOW_NULLS` controls if this allows nulls in lists.
 #[derive(Debug, Clone, Copy)]
-pub struct ListExecutor<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>;
+pub struct BinaryListExecutor<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>;
 
 impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
-    ListExecutor<ALLOW_DIFFERENT_LENS, ALLOW_NULLS>
+    BinaryListExecutor<ALLOW_DIFFERENT_LENS, ALLOW_NULLS>
 {
     /// Execute a reducer on two list arrays.
     pub fn binary_reduce<'a, S, B, R>(
@@ -159,28 +162,5 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                 m1.len, m2.len
             )))
         }
-    }
-}
-
-/// Gets the inner array storage. Checks to ensure the inner array does not
-/// contain NULLs.
-fn get_inner_array_storage<S>(array: &Array) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
-where
-    S: PhysicalStorage,
-{
-    match array.array_data() {
-        ArrayData::List(d) => {
-            let storage = S::get_storage(d.array.array_data())?;
-            let validity = d.array.validity();
-            Ok((storage, validity))
-        }
-        _ => Err(RayexecError::new("Expected list array data")),
-    }
-}
-
-fn get_inner_array_selection(array: &Array) -> Result<Option<&SelectionVector>> {
-    match array.array_data() {
-        ArrayData::List(d) => Ok(d.array.selection_vector()),
-        _ => Err(RayexecError::new("Expected list array data")),
     }
 }
