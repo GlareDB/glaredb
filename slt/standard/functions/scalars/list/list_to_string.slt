@@ -1,0 +1,12 @@
+# list_to_string function.
+
+query T
+SELECT list_to_string([4,5,6], ',');
+----
+4,5,6
+
+query T
+SELECT list_to_string([4,5,6], '-');
+----
+4-5-6
+
