@@ -157,13 +157,13 @@ impl Array {
         match &mut self.validity {
             Some(validity) => {
                 let validity = validity.get_mut();
-                validity.set_unchecked(idx, valid);
+                validity.set(idx, valid);
             }
             None => {
                 // Initialize validity.
                 let len = self.data.len();
                 let mut validity = Bitmap::new_with_all_true(len);
-                validity.set_unchecked(idx, valid);
+                validity.set(idx, valid);
 
                 self.validity = Some(validity.into())
             }
@@ -791,7 +791,7 @@ where
                 Some(val) => new_vals.push(val),
                 None => {
                     new_vals.push(F::default());
-                    validity.set_unchecked(idx, false);
+                    validity.set(idx, false);
                 }
             }
         }

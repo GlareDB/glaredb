@@ -86,7 +86,7 @@ impl StateFinalizer {
         for (idx, state) in states.enumerate() {
             let (out, valid) = state.finalize()?;
             if !valid {
-                validities.set_unchecked(idx, false);
+                validities.set(idx, false);
                 continue;
             }
 

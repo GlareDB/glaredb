@@ -1,16 +1,15 @@
 pub mod addressable;
+pub mod physical_type;
 pub mod reservation;
 pub mod string_view;
 
 use physical_type::{PhysicalStorage, PhysicalType, PhysicalUtf8};
 use rayexec_error::{RayexecError, Result};
-use reservation::{Reservation, ReservationTracker};
+use reservation::{NopReservationTracker, Reservation, ReservationTracker};
 use string_view::{StringViewBuffer, StringViewHeap};
 
-mod physical_type;
-
 #[derive(Debug)]
-pub struct ArrayBuffer<R: ReservationTracker> {
+pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
     /// The physical type of the buffer.
     physical_type: PhysicalType,
     /// The underlying data for the buffer.

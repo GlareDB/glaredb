@@ -21,6 +21,27 @@ pub trait Reservation: Debug {
     fn free(&mut self);
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct NopReservationTracker;
+
+impl ReservationTracker for NopReservationTracker {
+    type Reservation = NopReservation;
+    fn reserve(&self, _additional: usize) -> Result<Self::Reservation> {
+        Ok(NopReservation)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NopReservation;
+
+impl Reservation for NopReservation {
+    fn combine(self, other: Self) -> Self {
+        self
+    }
+
+    fn free(&mut self) {}
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AtomicReservationTracker {
     total: Arc<AtomicUsize>,

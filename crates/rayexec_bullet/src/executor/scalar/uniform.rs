@@ -61,7 +61,7 @@ impl UniformExecutor {
                     let sel = selection::get(selections[arr_idx], idx);
                     if row_invalid || !check_validity(sel, validities[arr_idx]) {
                         row_invalid = true;
-                        out_validity_builder.set_unchecked(idx, false);
+                        out_validity_builder.set(idx, false);
                         continue;
                     }
 

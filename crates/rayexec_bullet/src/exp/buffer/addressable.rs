@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use rayexec_error::Result;
+
 /// In-memory array storage that can be directly indexed into.
 pub trait AddressableStorage: Debug {
     /// The type we can get from the storage.
@@ -31,7 +33,7 @@ where
 
 impl<T> AddressableStorage for &mut [T]
 where
-    T: Debug + Send,
+    T: Debug + Send + Copy,
 {
     type T = T;
 
@@ -46,13 +48,19 @@ where
 
 pub trait MutableAddressableStorage: AddressableStorage {
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
+
+    fn put(&mut self, idx: usize, val: &Self::T);
 }
 
 impl<T> MutableAddressableStorage for &mut [T]
 where
-    T: Debug + Send,
+    T: Debug + Send + Copy,
 {
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         (**self).get_mut(idx)
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        self[idx] = *val;
     }
 }

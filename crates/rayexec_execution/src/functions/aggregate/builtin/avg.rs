@@ -151,7 +151,7 @@ where
                 let ((sum, count), valid) = state.finalize()?;
 
                 if !valid {
-                    validities.set_unchecked(idx, false);
+                    validities.set(idx, false);
                     continue;
                 }
 

@@ -1,7 +1,11 @@
 use std::fmt::{self, Debug};
 
+use rayexec_error::Result;
+
 use super::addressable::{AddressableStorage, MutableAddressableStorage};
+use super::reservation::ReservationTracker;
 use super::string_view::{StringViewBuffer, StringViewMetadataUnion};
+use super::ArrayBuffer;
 use crate::scalar::interval::Interval;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,10 +88,18 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     fn buffer_mem_size() -> usize {
         std::mem::size_of::<Self::PrimaryBufferType>()
     }
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker;
 }
 
 pub trait MutablePhysicalStorage: PhysicalStorage {
     type MutableStorage<'a>: MutableAddressableStorage<T = Self::StorageType>;
+
+    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    where
+        R: ReservationTracker;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -100,10 +112,24 @@ impl PhysicalStorage for PhysicalI8 {
     type StorageType = Self::PrimaryBufferType;
 
     type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
+    }
 }
 
 impl MutablePhysicalStorage for PhysicalI8 {
     type MutableStorage<'a> = &'a mut [Self::StorageType];
+
+    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice_mut::<Self>()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -116,10 +142,24 @@ impl PhysicalStorage for PhysicalI32 {
     type StorageType = Self::PrimaryBufferType;
 
     type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
+    }
 }
 
 impl MutablePhysicalStorage for PhysicalI32 {
     type MutableStorage<'a> = &'a mut [Self::StorageType];
+
+    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice_mut::<Self>()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -132,10 +172,24 @@ impl PhysicalStorage for PhysicalInterval {
     type StorageType = Self::PrimaryBufferType;
 
     type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
+    }
 }
 
 impl MutablePhysicalStorage for PhysicalInterval {
     type MutableStorage<'a> = &'a mut [Self::StorageType];
+
+    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice_mut::<Self>()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -148,4 +202,11 @@ impl PhysicalStorage for PhysicalUtf8 {
     type StorageType = str;
 
     type Storage<'a> = StringViewBuffer<'a>;
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_string_view_buffer()
+    }
 }
