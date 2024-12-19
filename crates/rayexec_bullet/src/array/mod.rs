@@ -1,11 +1,8 @@
-mod shared_or_owned;
-
 use std::fmt::Debug;
 use std::sync::Arc;
 
 use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use shared_or_owned::SharedOrOwned;
 
 use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
@@ -37,6 +34,7 @@ use crate::scalar::interval::Interval;
 use crate::scalar::timestamp::TimestampScalar;
 use crate::scalar::ScalarValue;
 use crate::selection::SelectionVector;
+use crate::shared_or_owned::SharedOrOwned;
 use crate::storage::{
     AddressableStorage,
     BooleanStorage,
