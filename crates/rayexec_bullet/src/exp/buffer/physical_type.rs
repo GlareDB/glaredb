@@ -32,11 +32,12 @@ pub enum PhysicalType {
 }
 
 impl PhysicalType {
-    pub fn buffer_mem_size(&self) -> usize {
+    pub fn primary_buffer_mem_size(&self) -> usize {
         match self {
             Self::Int8 => PhysicalI8::buffer_mem_size(),
             Self::Int32 => PhysicalI32::buffer_mem_size(),
             Self::Interval => PhysicalInterval::buffer_mem_size(),
+            Self::Utf8 => PhysicalUtf8::buffer_mem_size(),
             _ => unimplemented!(),
         }
     }

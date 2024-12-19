@@ -3,10 +3,14 @@ pub mod physical_type;
 pub mod reservation;
 pub mod string_view;
 
-use physical_type::{PhysicalStorage, PhysicalType, PhysicalUtf8};
+use std::marker::PhantomData;
+
+use physical_type::{PhysicalI32, PhysicalStorage, PhysicalType, PhysicalUtf8};
 use rayexec_error::{RayexecError, Result};
 use reservation::{NopReservationTracker, Reservation, ReservationTracker};
-use string_view::{StringViewBuffer, StringViewHeap};
+use string_view::{StringViewBuffer, StringViewHeap, StringViewMetadataUnion};
+
+use crate::compute::util::{FromExactSizedIterator, IntoExactSizedIterator};
 
 #[derive(Debug)]
 pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
@@ -55,6 +59,14 @@ where
         })
     }
 
+    pub fn len(&self) -> usize {
+        self.data.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
         if S::PHYSICAL_TYPE != self.physical_type {
             return Err(
@@ -97,8 +109,8 @@ impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
     fn drop(&mut self) {
         let ptr = self.data.ptr;
 
-        let len = self.data.len * self.physical_type.buffer_mem_size();
-        let cap = self.data.cap * self.physical_type.buffer_mem_size();
+        let len = self.data.len * self.physical_type.primary_buffer_mem_size();
+        let cap = self.data.cap * self.physical_type.primary_buffer_mem_size();
 
         let vec = unsafe { Vec::from_raw_parts(ptr, len, cap) };
         std::mem::drop(vec);
@@ -160,8 +172,65 @@ impl<R: ReservationTracker> RawBufferParts<R> {
     }
 }
 
+#[derive(Debug)]
+pub struct PrimBufferBuilder<S: PhysicalStorage> {
+    _s: PhantomData<S>,
+}
+
+impl<S: PhysicalStorage> PrimBufferBuilder<S> {
+    pub fn from_iter<I>(iter: I) -> Result<ArrayBuffer>
+    where
+        I: IntoExactSizedIterator<Item = S::PrimaryBufferType>,
+    {
+        let iter = iter.into_iter();
+        let mut data =
+            RawBufferParts::try_new::<S::PrimaryBufferType>(&NopReservationTracker, iter.len())?;
+
+        let data_slice = unsafe { data.as_slice_mut() };
+        for (idx, val) in iter.enumerate() {
+            data_slice[idx] = val;
+        }
+
+        Ok(ArrayBuffer {
+            physical_type: S::PHYSICAL_TYPE,
+            data,
+            child: ChildBuffer::None,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct StringViewBufferBuilder;
+
+impl StringViewBufferBuilder {
+    pub fn from_iter<A, I>(iter: I) -> Result<ArrayBuffer>
+    where
+        A: AsRef<str>,
+        I: IntoExactSizedIterator<Item = A>,
+    {
+        let iter = iter.into_iter();
+        let mut data =
+            RawBufferParts::try_new::<StringViewMetadataUnion>(&NopReservationTracker, iter.len())?;
+
+        let mut heap = StringViewHeap::new();
+
+        let data_slice = unsafe { data.as_slice_mut() };
+        for (idx, val) in iter.enumerate() {
+            let metadata = heap.push_bytes(val.as_ref().as_bytes());
+            data_slice[idx] = metadata;
+        }
+
+        Ok(ArrayBuffer {
+            physical_type: PhysicalUtf8::PHYSICAL_TYPE,
+            data,
+            child: ChildBuffer::StringViewHeap(heap),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use addressable::AddressableStorage;
     use physical_type::PhysicalI32;
     use reservation::AtomicReservationTracker;
 
@@ -183,5 +252,25 @@ mod tests {
 
         let total_reserved = tracker.total_reserved();
         assert_eq!(0, total_reserved);
+    }
+
+    #[test]
+    fn new_from_prim_iter() {
+        let buf = PrimBufferBuilder::<PhysicalI32>::from_iter([4, 5, 6]).unwrap();
+        let slice = buf.try_as_slice::<PhysicalI32>().unwrap();
+
+        assert_eq!(&[4, 5, 6], slice)
+    }
+
+    #[test]
+    fn new_from_strings_iter() {
+        let buf =
+            StringViewBufferBuilder::from_iter(["a", "bb", "ccc", "ddddddddddddddd"]).unwrap();
+        let view_buf = buf.try_as_string_view_buffer().unwrap();
+
+        assert_eq!("a", view_buf.get(0).unwrap());
+        assert_eq!("bb", view_buf.get(1).unwrap());
+        assert_eq!("ccc", view_buf.get(2).unwrap());
+        assert_eq!("ddddddddddddddd", view_buf.get(3).unwrap());
     }
 }

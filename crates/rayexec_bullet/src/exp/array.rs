@@ -17,6 +17,15 @@ impl<R> Array<R>
 where
     R: ReservationTracker,
 {
+    pub fn new(datatype: DataType, buffer: ArrayBuffer<R>) -> Self {
+        let validity = Validity::new_all_valid(buffer.len());
+        Array {
+            datatype,
+            validity,
+            buffer,
+        }
+    }
+
     pub fn validity(&self) -> &Validity {
         &self.validity
     }

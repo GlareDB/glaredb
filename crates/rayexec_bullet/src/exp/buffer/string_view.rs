@@ -136,6 +136,11 @@ pub struct StringViewHeap {
 }
 
 impl StringViewHeap {
+    // TODO: Tracker
+    pub const fn new() -> Self {
+        StringViewHeap { buffer: Vec::new() }
+    }
+
     pub fn push_bytes(&mut self, value: &[u8]) -> StringViewMetadataUnion {
         if value.len() as i32 <= 12 {
             // Store completely inline.

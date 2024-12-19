@@ -5,7 +5,7 @@ use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::compute::util::IntoExtactSizeIterator;
+use crate::compute::util::IntoExactSizedIterator;
 
 /// An LSB ordered bitmap.
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -301,7 +301,7 @@ impl Extend<bool> for Bitmap {
     }
 }
 
-impl<'a> IntoExtactSizeIterator for &'a Bitmap {
+impl<'a> IntoExactSizedIterator for &'a Bitmap {
     type Item = bool;
     type IntoIter = BitmapIter<'a>;
 
