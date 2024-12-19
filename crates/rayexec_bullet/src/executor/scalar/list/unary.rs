@@ -33,8 +33,6 @@ impl UnaryListExecutor {
             (None, None) => {
                 // No validities for parent array or child array.
 
-                println!("LEN: {}", array.logical_len());
-
                 for row_idx in 0..array.logical_len() {
                     let sel = unsafe { selection::get_unchecked(selection, row_idx) };
                     let m = unsafe { metadata.get_unchecked(sel) };
