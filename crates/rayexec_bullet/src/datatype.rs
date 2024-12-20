@@ -449,7 +449,7 @@ impl DataType {
     pub fn exp_physical_type(&self) -> crate::exp::buffer::physical_type::PhysicalType {
         use crate::exp::buffer::physical_type::PhysicalType;
 
-        Ok(match self {
+        match self {
             DataType::Null => PhysicalType::UntypedNull,
             DataType::Boolean => PhysicalType::Boolean,
             DataType::Int8 => PhysicalType::Int8,
@@ -475,7 +475,7 @@ impl DataType {
             DataType::Binary => PhysicalType::Binary,
             DataType::Struct(_) => PhysicalType::Struct,
             DataType::List(_) => PhysicalType::List,
-        })
+        }
     }
 
     pub fn physical_type(&self) -> Result<PhysicalType> {

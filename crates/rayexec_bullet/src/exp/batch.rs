@@ -3,6 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use super::array::Array;
 use super::buffer::physical_type::{PhysicalI32, PhysicalI8, PhysicalType, PhysicalUtf8};
 use super::buffer::reservation::{NopReservationTracker, ReservationTracker};
+use super::buffer::string_view::StringViewHeap;
 use crate::compute::util::IntoExactSizedIterator;
 use crate::datatype::DataType;
 use crate::exp::buffer::ArrayBuffer;
@@ -70,11 +71,13 @@ fn init_array_buffer<R>(tracker: &R, datatype: &DataType, cap: usize) -> Result<
 where
     R: ReservationTracker,
 {
-    // TODO: Child buffers.
     match datatype.exp_physical_type() {
         PhysicalType::Int8 => ArrayBuffer::with_len::<PhysicalI8>(tracker, cap),
         PhysicalType::Int32 => ArrayBuffer::with_len::<PhysicalI32>(tracker, cap),
-        PhysicalType::Utf8 => ArrayBuffer::with_len::<PhysicalUtf8>(tracker, cap),
+        PhysicalType::Utf8 => {
+            let heap = StringViewHeap::new();
+            ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(tracker, cap, heap)
+        }
         other => not_implemented!("init array buffer: {other}"),
     }
 }

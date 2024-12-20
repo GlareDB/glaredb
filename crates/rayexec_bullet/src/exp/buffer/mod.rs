@@ -1,5 +1,6 @@
 pub mod addressable;
 pub mod any;
+pub mod dictionary;
 pub mod list;
 pub mod physical_type;
 pub mod reservation;
@@ -8,6 +9,7 @@ pub mod struct_buffer;
 
 use std::marker::PhantomData;
 
+use dictionary::DictionaryBuffer;
 use list::{ListBuffer, ListItemMetadata};
 use physical_type::{
     PhysicalI32,
@@ -72,6 +74,10 @@ where
         })
     }
 
+    pub fn physical_type(&self) -> PhysicalType {
+        self.physical_type
+    }
+
     /// Returns the length of the primary buffer.
     ///
     /// The length of the primary buffer indicates the number of top-level
@@ -89,6 +95,10 @@ where
 
     pub fn secondary_buffers(&self) -> &SecondaryBuffers<R> {
         self.secondary.as_ref()
+    }
+
+    pub fn secondary_buffers_mut(&mut self) -> &mut SecondaryBuffers<R> {
+        self.secondary.as_mut()
     }
 
     pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
@@ -207,6 +217,7 @@ pub enum SecondaryBuffers<R: ReservationTracker> {
     StringViewHeap(StringViewHeap),
     List(ListBuffer<R>),
     Struct(StructBuffer<R>),
+    Dictionary(DictionaryBuffer<R>),
     None,
 }
 
@@ -229,6 +240,13 @@ where
         match self {
             Self::List(buf) => Ok(buf),
             _ => Err(RayexecError::new("Not a list buffer")),
+        }
+    }
+
+    pub fn try_as_dictionary_buffer(&self) -> Result<&DictionaryBuffer<R>> {
+        match self {
+            Self::Dictionary(buf) => Ok(buf),
+            _ => Err(RayexecError::new("Not a dictionary buffer")),
         }
     }
 }

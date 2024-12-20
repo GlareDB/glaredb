@@ -9,7 +9,7 @@ pub struct ListItemMetadata {
 
 #[derive(Debug)]
 pub struct ListBuffer<R: ReservationTracker> {
-    child: Array<R>,
+    pub(crate) child: Array<R>,
 }
 
 impl<R> ListBuffer<R>

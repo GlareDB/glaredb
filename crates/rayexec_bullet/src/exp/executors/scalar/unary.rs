@@ -1,6 +1,7 @@
 use rayexec_error::Result;
 
-use crate::exp::array::Array;
+use crate::compute::util::IntoExactSizedIterator;
+use crate::exp::array::{Array, DictionaryArrayView};
 use crate::exp::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
 use crate::exp::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::exp::buffer::ArrayBuffer;
@@ -14,7 +15,7 @@ impl UnaryExecutor {
     /// Execute a unary operation on `array`, placing results in `out`.
     pub fn execute<S, O, Op>(
         array: &Array,
-        selection: impl IntoIterator<Item = usize>,
+        selection: impl IntoExactSizedIterator<Item = usize>,
         out: &mut ArrayBuffer,
         out_validity: &mut Validity,
         mut op: Op,
@@ -24,6 +25,11 @@ impl UnaryExecutor {
         O: MutablePhysicalStorage,
         for<'a> Op: FnMut(&S::StorageType, OutputBuffer<O::MutableStorage<'a>>),
     {
+        if array.is_dictionary() {
+            let view = DictionaryArrayView::try_from_array(array)?;
+            return Self::execute_dictionary::<S, _, _>(view, selection, out, out_validity, op);
+        }
+
         let input = S::get_storage(array.buffer())?;
         let mut output = O::get_storage_mut(out)?;
 
@@ -41,6 +47,50 @@ impl UnaryExecutor {
                 if validity.is_valid(input_idx) {
                     op(
                         input.get(input_idx).unwrap(),
+                        OutputBuffer::new(output_idx, &mut output, out_validity),
+                    );
+                } else {
+                    out_validity.set_invalid(output_idx);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn execute_dictionary<'a, S, O, Op>(
+        array: DictionaryArrayView<'a>,
+        selection: impl IntoExactSizedIterator<Item = usize>,
+        out: &mut ArrayBuffer,
+        out_validity: &mut Validity,
+        mut op: Op,
+    ) -> Result<()>
+    where
+        S: PhysicalStorage,
+        O: MutablePhysicalStorage,
+        for<'b> Op: FnMut(&S::StorageType, OutputBuffer<O::MutableStorage<'b>>),
+    {
+        let input = S::get_storage(&array.array_buffer)?;
+        let mut output = O::get_storage_mut(out)?;
+
+        let validity = array.validity;
+
+        if validity.all_valid() {
+            for (output_idx, input_idx) in selection.into_iter().enumerate() {
+                let selected_idx = array.selection[input_idx];
+
+                op(
+                    input.get(selected_idx).unwrap(),
+                    OutputBuffer::new(output_idx, &mut output, out_validity),
+                );
+            }
+        } else {
+            for (output_idx, input_idx) in selection.into_iter().enumerate() {
+                let selected_idx = array.selection[input_idx];
+
+                if validity.is_valid(selected_idx) {
+                    op(
+                        input.get(selected_idx).unwrap(),
                         OutputBuffer::new(output_idx, &mut output, out_validity),
                     );
                 } else {
@@ -246,5 +296,30 @@ mod tests {
         assert_eq!("A", out.get(0).unwrap());
         assert_eq!("BB", out.get(1).unwrap());
         assert_eq!("CCC", out.get(2).unwrap());
+    }
+
+    #[test]
+    fn int32_inc_by_2_with_dict() {
+        let mut array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        // [3, 3, 2, 1, 1, 3]
+        array
+            .select(&NopReservationTracker, [2, 2, 1, 0, 0, 2])
+            .unwrap();
+
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 6).unwrap();
+        let mut validity = Validity::new_all_valid(6);
+
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+            &array,
+            0..6,
+            &mut out,
+            &mut validity,
+            |&v, buf| buf.put(&(v + 2)),
+        )
+        .unwrap();
+        assert!(validity.all_valid());
+
+        let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(&[5, 5, 4, 3, 3, 5], out_slice);
     }
 }

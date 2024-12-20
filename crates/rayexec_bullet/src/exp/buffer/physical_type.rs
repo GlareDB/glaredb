@@ -32,6 +32,7 @@ pub enum PhysicalType {
     Utf8,
     List,
     Struct,
+    Dictionary,
 }
 
 impl PhysicalType {
@@ -41,6 +42,7 @@ impl PhysicalType {
             Self::Int32 => PhysicalI32::buffer_mem_size(),
             Self::Interval => PhysicalInterval::buffer_mem_size(),
             Self::Utf8 => PhysicalUtf8::buffer_mem_size(),
+            Self::Dictionary => PhysicalDictionary::buffer_mem_size(),
             _ => unimplemented!(),
         }
     }
@@ -67,6 +69,7 @@ impl PhysicalType {
             Self::Utf8 => "Utf8",
             Self::List => "List",
             Self::Struct => "Struct",
+            Self::Dictionary => "Dictionary",
         }
     }
 }
@@ -275,6 +278,25 @@ impl PhysicalStorage for PhysicalStruct {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Struct;
 
     type PrimaryBufferType = StructItemMetadata;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicalDictionary;
+
+impl PhysicalStorage for PhysicalDictionary {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Dictionary;
+
+    type PrimaryBufferType = usize;
     type StorageType = Self::PrimaryBufferType;
 
     type Storage<'a> = &'a [Self::StorageType];
