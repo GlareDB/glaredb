@@ -1,8 +1,10 @@
 pub mod addressable;
+pub mod any;
 pub mod list;
 pub mod physical_type;
 pub mod reservation;
 pub mod string_view;
+pub mod struct_buffer;
 
 use std::marker::PhantomData;
 
@@ -12,6 +14,7 @@ use physical_type::{
     PhysicalI8,
     PhysicalList,
     PhysicalStorage,
+    PhysicalStruct,
     PhysicalType,
     PhysicalUntypedNull,
     PhysicalUtf8,
@@ -24,6 +27,7 @@ use string_view::{
     StringViewStorage,
     StringViewStorageMut,
 };
+use struct_buffer::{StructBuffer, StructItemMetadata};
 
 use super::array::Array;
 use crate::compute::util::IntoExactSizedIterator;
@@ -202,6 +206,7 @@ impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
 pub enum SecondaryBuffers<R: ReservationTracker> {
     StringViewHeap(StringViewHeap),
     List(ListBuffer<R>),
+    Struct(StructBuffer<R>),
     None,
 }
 
@@ -212,11 +217,37 @@ where
     pub fn is_none(&self) -> bool {
         matches!(self, SecondaryBuffers::None)
     }
+
+    pub fn try_as_struct_buffer(&self) -> Result<&StructBuffer<R>> {
+        match self {
+            Self::Struct(buf) => Ok(buf),
+            _ => Err(RayexecError::new("Not a struct buffer")),
+        }
+    }
+
+    pub fn try_as_list_buffer(&self) -> Result<&ListBuffer<R>> {
+        match self {
+            Self::List(buf) => Ok(buf),
+            _ => Err(RayexecError::new("Not a list buffer")),
+        }
+    }
 }
 
 impl<R: ReservationTracker> From<StringViewHeap> for SecondaryBuffers<R> {
     fn from(value: StringViewHeap) -> Self {
         SecondaryBuffers::StringViewHeap(value)
+    }
+}
+
+impl<R: ReservationTracker> From<ListBuffer<R>> for SecondaryBuffers<R> {
+    fn from(value: ListBuffer<R>) -> Self {
+        SecondaryBuffers::List(value)
+    }
+}
+
+impl<R: ReservationTracker> From<StructBuffer<R>> for SecondaryBuffers<R> {
+    fn from(value: StructBuffer<R>) -> Self {
+        SecondaryBuffers::Struct(value)
     }
 }
 
@@ -430,6 +461,36 @@ impl ListBufferBuilder {
             physical_type: PhysicalList::PHYSICAL_TYPE,
             primary: data,
             secondary: Box::new(SecondaryBuffers::List(ListBuffer::new(child_array))),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct StructBufferBuilder;
+
+impl StructBufferBuilder {
+    pub fn from_arrays(arrays: impl IntoIterator<Item = Array>) -> Result<ArrayBuffer> {
+        let children: Vec<_> = arrays.into_iter().collect();
+
+        let len = match children.first() {
+            Some(child) => child.len(),
+            None => 0,
+        };
+
+        let data = RawBufferParts::try_new::<StructItemMetadata>(&NopReservationTracker, len)?;
+
+        for child in &children {
+            if child.len() != len {
+                return Err(RayexecError::new("Struct buffer has incorrect length")
+                    .with_field("want", len)
+                    .with_field("have", child.len()));
+            }
+        }
+
+        Ok(ArrayBuffer {
+            physical_type: PhysicalStruct::PHYSICAL_TYPE,
+            primary: data,
+            secondary: Box::new(SecondaryBuffers::Struct(StructBuffer { children })),
         })
     }
 }

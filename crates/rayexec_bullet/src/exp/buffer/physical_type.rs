@@ -6,6 +6,7 @@ use super::addressable::{AddressableStorage, MutableAddressableStorage};
 use super::list::ListItemMetadata;
 use super::reservation::ReservationTracker;
 use super::string_view::{StringViewMetadataUnion, StringViewStorage, StringViewStorageMut};
+use super::struct_buffer::StructItemMetadata;
 use super::ArrayBuffer;
 use crate::scalar::interval::Interval;
 
@@ -30,6 +31,7 @@ pub enum PhysicalType {
     Binary,
     Utf8,
     List,
+    Struct,
 }
 
 impl PhysicalType {
@@ -64,6 +66,7 @@ impl PhysicalType {
             Self::Binary => "Binary",
             Self::Utf8 => "Utf8",
             Self::List => "List",
+            Self::Struct => "Struct",
         }
     }
 }
@@ -253,6 +256,25 @@ impl PhysicalStorage for PhysicalList {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
 
     type PrimaryBufferType = ListItemMetadata;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicalStruct;
+
+impl PhysicalStorage for PhysicalStruct {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Struct;
+
+    type PrimaryBufferType = StructItemMetadata;
     type StorageType = Self::PrimaryBufferType;
 
     type Storage<'a> = &'a [Self::StorageType];
