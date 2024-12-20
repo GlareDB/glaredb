@@ -12,7 +12,7 @@ pub struct UnaryExecutor;
 
 impl UnaryExecutor {
     /// Execute a unary operation on `array`, placing results in `out`.
-    pub fn execute<'b, S, O, Op>(
+    pub fn execute<S, O, Op>(
         array: &Array,
         selection: impl IntoIterator<Item = usize>,
         out: &mut ArrayBuffer,
@@ -50,7 +50,7 @@ impl UnaryExecutor {
                         },
                     );
                 } else {
-                    out_validity.set_invalid(output_idx)
+                    out_validity.set_invalid(output_idx);
                 }
             }
         }
@@ -66,7 +66,7 @@ impl UnaryExecutor {
     pub fn execute_in_place<S, Op>(array: &mut Array, mut op: Op) -> Result<()>
     where
         S: MutablePhysicalStorage,
-        for<'a> Op: FnMut(&mut S::StorageType),
+        Op: FnMut(&mut S::StorageType),
     {
         let validity = &array.validity;
         let mut input = S::get_storage_mut(&mut array.buffer)?;

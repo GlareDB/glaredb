@@ -1,7 +1,8 @@
+pub mod binary;
+pub mod unary;
+
 use crate::exp::buffer::addressable::MutableAddressableStorage;
 use crate::exp::buffer::ArrayBuffer;
-
-pub mod unary;
 
 #[derive(Debug)]
 pub struct OutputBuffer<'a, M>

@@ -20,6 +20,17 @@ impl Validity {
         }
     }
 
+    pub fn len(&self) -> usize {
+        match &self.inner {
+            ValidityInner::NoMask { len } => *len,
+            ValidityInner::Mask { bitmap } => bitmap.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn all_valid(&self) -> bool {
         match &self.inner {
             ValidityInner::NoMask { .. } => true,

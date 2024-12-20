@@ -1,3 +1,5 @@
+use rayexec_error::{RayexecError, Result};
+
 use super::buffer::reservation::{NopReservation, NopReservationTracker, ReservationTracker};
 use super::buffer::ArrayBuffer;
 use super::validity::Validity;
@@ -24,6 +26,26 @@ where
             validity,
             buffer,
         }
+    }
+
+    pub fn new_with_validity(
+        datatype: DataType,
+        buffer: ArrayBuffer<R>,
+        validity: Validity,
+    ) -> Result<Self> {
+        if validity.len() != buffer.len() {
+            return Err(
+                RayexecError::new("Validty length does not match buffer length")
+                    .with_field("validity_len", validity.len())
+                    .with_field("buffer_len", buffer.len()),
+            );
+        }
+
+        Ok(Array {
+            datatype,
+            validity,
+            buffer,
+        })
     }
 
     pub fn validity(&self) -> &Validity {
