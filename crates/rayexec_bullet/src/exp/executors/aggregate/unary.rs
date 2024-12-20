@@ -19,7 +19,7 @@ impl UnaryNonNullUpdater {
     where
         S: PhysicalStorage,
         Output: ?Sized,
-        State: AggregateState<S::StorageType, Output>,
+        for<'a> State: AggregateState<&'a S::StorageType, Output>,
     {
         // TODO: Length check.
 
@@ -63,7 +63,7 @@ mod tests {
         val: i32,
     }
 
-    impl AggregateState<i32, i32> for TestSumState {
+    impl AggregateState<&i32, i32> for TestSumState {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.val += other.val;
             Ok(())
@@ -150,7 +150,7 @@ mod tests {
         val: String,
     }
 
-    impl AggregateState<str, str> for TestStringAgg {
+    impl AggregateState<&str, str> for TestStringAgg {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.val.push_str(&other.val);
             Ok(())
