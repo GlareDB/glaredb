@@ -3,12 +3,12 @@ use std::fmt;
 use super::addressable::{AddressableStorage, MutableAddressableStorage};
 
 #[derive(Debug)]
-pub struct StringViewBuffer<'a> {
+pub struct StringViewStorage<'a> {
     pub(crate) metadata: &'a [StringViewMetadataUnion],
     pub(crate) heap: &'a StringViewHeap,
 }
 
-impl<'a> AddressableStorage for StringViewBuffer<'a> {
+impl<'a> AddressableStorage for StringViewStorage<'a> {
     type T = str;
 
     fn len(&self) -> usize {
@@ -23,12 +23,12 @@ impl<'a> AddressableStorage for StringViewBuffer<'a> {
 }
 
 #[derive(Debug)]
-pub struct StringViewBufferMut<'a> {
+pub struct StringViewStorageMut<'a> {
     pub(crate) metadata: &'a mut [StringViewMetadataUnion],
     pub(crate) heap: &'a mut StringViewHeap,
 }
 
-impl<'a> AddressableStorage for StringViewBufferMut<'a> {
+impl<'a> AddressableStorage for StringViewStorageMut<'a> {
     type T = str;
 
     fn len(&self) -> usize {
@@ -42,7 +42,7 @@ impl<'a> AddressableStorage for StringViewBufferMut<'a> {
     }
 }
 
-impl<'a> MutableAddressableStorage for StringViewBufferMut<'a> {
+impl<'a> MutableAddressableStorage for StringViewStorageMut<'a> {
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         let m = self.metadata.get_mut(idx)?;
         let bs = self.heap.get_mut(m)?;

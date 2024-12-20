@@ -93,7 +93,7 @@ mod tests {
     use crate::datatype::DataType;
     use crate::exp::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::exp::buffer::reservation::NopReservationTracker;
-    use crate::exp::buffer::string_view::{StringViewBufferMut, StringViewHeap};
+    use crate::exp::buffer::string_view::{StringViewHeap, StringViewStorageMut};
     use crate::exp::buffer::{Int32Builder, StringViewBufferBuilder};
 
     #[test]
@@ -150,7 +150,7 @@ mod tests {
         .unwrap();
         let mut validity = Validity::new_all_valid(6);
 
-        fn my_string_double(s: &str, buf: OutputBuffer<StringViewBufferMut>) {
+        fn my_string_double(s: &str, buf: OutputBuffer<StringViewStorageMut>) {
             let mut double = s.to_string();
             double.push_str(s);
             buf.put(&double);
@@ -166,7 +166,7 @@ mod tests {
         .unwrap();
         assert!(validity.all_valid());
 
-        let out = out.try_as_string_view_buffer().unwrap();
+        let out = out.try_as_string_view_storage().unwrap();
 
         assert_eq!("aa", out.get(0).unwrap());
         assert_eq!("bbbb", out.get(1).unwrap());
@@ -222,7 +222,7 @@ mod tests {
         .unwrap();
         assert!(validity.all_valid());
 
-        let out = out.try_as_string_view_buffer().unwrap();
+        let out = out.try_as_string_view_storage().unwrap();
 
         assert_eq!("aa", out.get(0).unwrap());
         assert_eq!("bbbb", out.get(1).unwrap());
@@ -247,7 +247,7 @@ mod tests {
         })
         .unwrap();
 
-        let out = array.buffer().try_as_string_view_buffer().unwrap();
+        let out = array.buffer().try_as_string_view_storage().unwrap();
 
         assert_eq!("A", out.get(0).unwrap());
         assert_eq!("BB", out.get(1).unwrap());

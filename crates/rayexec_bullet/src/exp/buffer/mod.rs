@@ -1,28 +1,33 @@
 pub mod addressable;
+pub mod list;
 pub mod physical_type;
 pub mod reservation;
 pub mod string_view;
 
 use std::marker::PhantomData;
 
+use list::ListBuffer;
 use physical_type::{PhysicalI32, PhysicalStorage, PhysicalType, PhysicalUtf8};
 use rayexec_error::{RayexecError, Result};
 use reservation::{NopReservationTracker, Reservation, ReservationTracker};
-use string_view::{StringViewBuffer, StringViewBufferMut, StringViewHeap, StringViewMetadataUnion};
+use string_view::{
+    StringViewHeap,
+    StringViewMetadataUnion,
+    StringViewStorage,
+    StringViewStorageMut,
+};
 
-use crate::compute::util::{FromExactSizedIterator, IntoExactSizedIterator};
+use crate::compute::util::IntoExactSizedIterator;
 use crate::executor::physical_type::PhysicalI8;
 
 #[derive(Debug)]
 pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
     /// The physical type of the buffer.
     physical_type: PhysicalType,
-    /// The underlying data for the buffer.
-    ///
-    /// Stored as raw parts then converted to a slice on access.
-    data: RawBufferParts<R>,
-    /// Child buffers for extra data.
-    child: ChildBuffer,
+    /// The primary data buffer.
+    primary: RawBufferParts<R>,
+    /// Extra buffers for non-primitive data types (varlen, lists, etc)
+    secondary: Box<SecondaryBuffers<R>>,
 }
 
 impl<R> ArrayBuffer<R>
@@ -35,27 +40,34 @@ where
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
-            data,
-            child: ChildBuffer::None,
+            primary: data,
+            secondary: Box::new(SecondaryBuffers::None),
         })
     }
 
     pub fn with_len_and_child_buffer<S: PhysicalStorage>(
         tracker: &R,
         len: usize,
-        child: impl Into<ChildBuffer>,
+        child: impl Into<SecondaryBuffers<R>>,
     ) -> Result<Self> {
         let data = RawBufferParts::try_new::<S::PrimaryBufferType>(tracker, len)?;
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
-            data,
-            child: child.into(),
+            primary: data,
+            secondary: Box::new(child.into()),
         })
     }
 
+    /// Returns the length of the primary buffer.
+    ///
+    /// The length of the primary buffer indicates the number of top-level
+    /// entries this buffer is holding.
+    ///
+    /// Note that secondary buffers may not be empty even if `len == 0` and so
+    /// this shouldn't be used for memory tracking.
     pub fn len(&self) -> usize {
-        self.data.len
+        self.primary.len
     }
 
     pub fn is_empty(&self) -> bool {
@@ -71,7 +83,7 @@ where
             );
         }
 
-        let data = unsafe { self.data.as_slice::<S::PrimaryBufferType>() };
+        let data = unsafe { self.primary.as_slice::<S::PrimaryBufferType>() };
 
         Ok(data)
     }
@@ -85,21 +97,21 @@ where
             );
         }
 
-        let data = unsafe { self.data.as_slice_mut::<S::PrimaryBufferType>() };
+        let data = unsafe { self.primary.as_slice_mut::<S::PrimaryBufferType>() };
 
         Ok(data)
     }
 
-    pub fn try_as_string_view_buffer(&self) -> Result<StringViewBuffer<'_>> {
+    pub fn try_as_string_view_storage(&self) -> Result<StringViewStorage<'_>> {
         let metadata = self.try_as_slice::<PhysicalUtf8>()?;
 
-        match &self.child {
-            ChildBuffer::StringViewHeap(heap) => Ok(StringViewBuffer { metadata, heap }),
+        match self.secondary.as_ref() {
+            SecondaryBuffers::StringViewHeap(heap) => Ok(StringViewStorage { metadata, heap }),
             _ => Err(RayexecError::new("Missing string heap")),
         }
     }
 
-    pub fn try_as_string_view_buffer_mut(&mut self) -> Result<StringViewBufferMut<'_>> {
+    pub fn try_as_string_view_storage_mut(&mut self) -> Result<StringViewStorageMut<'_>> {
         // TODO: Duplicated, but let's us take each field mutably.
         if PhysicalUtf8::PHYSICAL_TYPE != self.physical_type {
             return Err(
@@ -109,38 +121,85 @@ where
             );
         }
 
-        let metadata = unsafe { self.data.as_slice_mut::<StringViewMetadataUnion>() };
+        let metadata = unsafe { self.primary.as_slice_mut::<StringViewMetadataUnion>() };
 
-        match &mut self.child {
-            ChildBuffer::StringViewHeap(heap) => Ok(StringViewBufferMut { metadata, heap }),
+        match self.secondary.as_mut() {
+            SecondaryBuffers::StringViewHeap(heap) => Ok(StringViewStorageMut { metadata, heap }),
             _ => Err(RayexecError::new("Missing string heap")),
         }
+    }
+
+    pub fn resize<S: PhysicalStorage>(&mut self, len: usize) -> Result<()> {
+        if S::PHYSICAL_TYPE != self.physical_type {
+            return Err(
+                RayexecError::new("Attempted to resize buffer using wrong physical type")
+                    .with_field("expected_type", self.physical_type)
+                    .with_field("requested_type", S::PHYSICAL_TYPE),
+            );
+        }
+
+        unsafe { self.primary.resize::<S::PrimaryBufferType>(len) }
+    }
+
+    /// Appends data from another buffer into this buffer.
+    pub fn append_from<S: PhysicalStorage>(&mut self, other: &ArrayBuffer) -> Result<()> {
+        if !self.secondary.is_none() {
+            return Err(RayexecError::new(
+                "Appending secondary buffers not yet supported",
+            ));
+        }
+
+        let orig_len = self.len();
+        let new_len = self.len() + other.len();
+
+        // Ensure we have the right type for other before trying to resize self.
+        let other = other.try_as_slice::<S>()?;
+
+        // Resize self to new size.
+        self.resize::<S>(new_len)?;
+
+        // Now copy everything over.
+        let this = self.try_as_slice_mut::<S>()?;
+        let new_this = &mut this[orig_len..];
+        new_this.copy_from_slice(other);
+
+        Ok(())
     }
 }
 
 impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
     fn drop(&mut self) {
-        let ptr = self.data.ptr;
+        let ptr = self.primary.ptr;
 
-        let len = self.data.len * self.physical_type.primary_buffer_mem_size();
-        let cap = self.data.cap * self.physical_type.primary_buffer_mem_size();
+        let len = self.primary.len * self.physical_type.primary_buffer_mem_size();
+        let cap = self.primary.cap * self.physical_type.primary_buffer_mem_size();
 
         let vec = unsafe { Vec::from_raw_parts(ptr, len, cap) };
         std::mem::drop(vec);
 
-        self.data.reservation.free()
+        self.primary.reservation.free()
     }
 }
 
 #[derive(Debug)]
-pub enum ChildBuffer {
+pub enum SecondaryBuffers<R: ReservationTracker> {
     StringViewHeap(StringViewHeap),
+    List(ListBuffer<R>),
     None,
 }
 
-impl From<StringViewHeap> for ChildBuffer {
+impl<R> SecondaryBuffers<R>
+where
+    R: ReservationTracker,
+{
+    pub fn is_none(&self) -> bool {
+        matches!(self, SecondaryBuffers::None)
+    }
+}
+
+impl<R: ReservationTracker> From<StringViewHeap> for SecondaryBuffers<R> {
     fn from(value: StringViewHeap) -> Self {
-        ChildBuffer::StringViewHeap(value)
+        SecondaryBuffers::StringViewHeap(value)
     }
 }
 
@@ -195,6 +254,22 @@ impl<R: ReservationTracker> RawBufferParts<R> {
     unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] {
         std::slice::from_raw_parts_mut(self.ptr.cast::<T>(), self.len)
     }
+
+    unsafe fn resize<T: Default + Copy>(&mut self, len: usize) -> Result<()> {
+        let mut data: Vec<T> = Vec::from_raw_parts(self.ptr.cast(), self.len, self.cap);
+
+        // TODO: Reservation stuff.
+
+        data.resize(len, T::default());
+
+        self.ptr = data.as_mut_ptr().cast();
+        self.len = data.len();
+        self.cap = data.capacity();
+
+        std::mem::forget(data);
+
+        Ok(())
+    }
 }
 
 pub type Int8Builder = PrimBufferBuilder<PhysicalI8>;
@@ -221,8 +296,8 @@ impl<S: PhysicalStorage> PrimBufferBuilder<S> {
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
-            data,
-            child: ChildBuffer::None,
+            primary: data,
+            secondary: Box::new(SecondaryBuffers::None),
         })
     }
 }
@@ -250,9 +325,21 @@ impl StringViewBufferBuilder {
 
         Ok(ArrayBuffer {
             physical_type: PhysicalUtf8::PHYSICAL_TYPE,
-            data,
-            child: ChildBuffer::StringViewHeap(heap),
+            primary: data,
+            secondary: Box::new(SecondaryBuffers::StringViewHeap(heap)),
         })
+    }
+}
+
+#[derive(Debug)]
+pub struct ListBufferBuilder;
+
+impl ListBufferBuilder {
+    pub fn from_iter<I>(iter: I) -> Result<ArrayBuffer>
+    where
+        I: IntoExactSizedIterator<Item = ArrayBuffer>,
+    {
+        unimplemented!()
     }
 }
 
@@ -294,11 +381,22 @@ mod tests {
     fn new_from_strings_iter() {
         let buf =
             StringViewBufferBuilder::from_iter(["a", "bb", "ccc", "ddddddddddddddd"]).unwrap();
-        let view_buf = buf.try_as_string_view_buffer().unwrap();
+        let view_buf = buf.try_as_string_view_storage().unwrap();
 
         assert_eq!("a", view_buf.get(0).unwrap());
         assert_eq!("bb", view_buf.get(1).unwrap());
         assert_eq!("ccc", view_buf.get(2).unwrap());
         assert_eq!("ddddddddddddddd", view_buf.get(3).unwrap());
+    }
+
+    #[test]
+    fn append_same_prim_type() {
+        let mut a = PrimBufferBuilder::<PhysicalI32>::from_iter([4, 5, 6]).unwrap();
+        let b = PrimBufferBuilder::<PhysicalI32>::from_iter([7, 8]).unwrap();
+
+        a.append_from::<PhysicalI32>(&b).unwrap();
+
+        let a_slice = a.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(&[4, 5, 6, 7, 8], a_slice);
     }
 }

@@ -147,7 +147,7 @@ mod tests {
         .unwrap();
         assert!(validity.all_valid());
 
-        let out = out.try_as_string_view_buffer().unwrap();
+        let out = out.try_as_string_view_storage().unwrap();
         assert_eq!("hello", out.get(0).unwrap());
         assert_eq!("worldworld", out.get(1).unwrap());
         assert_eq!("goodbye!goodbye!goodbye!", out.get(2).unwrap());

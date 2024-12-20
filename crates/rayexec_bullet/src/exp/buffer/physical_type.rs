@@ -3,8 +3,9 @@ use std::fmt::{self, Debug};
 use rayexec_error::Result;
 
 use super::addressable::{AddressableStorage, MutableAddressableStorage};
+use super::list::ListItemMetadata;
 use super::reservation::ReservationTracker;
-use super::string_view::{StringViewBuffer, StringViewBufferMut, StringViewMetadataUnion};
+use super::string_view::{StringViewMetadataUnion, StringViewStorage, StringViewStorageMut};
 use super::ArrayBuffer;
 use crate::scalar::interval::Interval;
 
@@ -202,23 +203,42 @@ impl PhysicalStorage for PhysicalUtf8 {
     type PrimaryBufferType = StringViewMetadataUnion;
     type StorageType = str;
 
-    type Storage<'a> = StringViewBuffer<'a>;
+    type Storage<'a> = StringViewStorage<'a>;
 
     fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
     where
         R: ReservationTracker,
     {
-        buffer.try_as_string_view_buffer()
+        buffer.try_as_string_view_storage()
     }
 }
 
 impl MutablePhysicalStorage for PhysicalUtf8 {
-    type MutableStorage<'a> = StringViewBufferMut<'a>;
+    type MutableStorage<'a> = StringViewStorageMut<'a>;
 
     fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
     where
         R: ReservationTracker,
     {
-        buffer.try_as_string_view_buffer_mut()
+        buffer.try_as_string_view_storage_mut()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicalList;
+
+impl PhysicalStorage for PhysicalList {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
+
+    type PrimaryBufferType = ListItemMetadata;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
     }
 }

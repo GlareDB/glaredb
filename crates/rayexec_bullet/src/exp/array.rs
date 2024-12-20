@@ -7,6 +7,7 @@ use crate::bitmap::Bitmap;
 use crate::datatype::DataType;
 use crate::shared_or_owned::SharedOrOwned;
 
+#[derive(Debug)]
 pub struct Array<R: ReservationTracker = NopReservationTracker> {
     /// Data type of the array.
     pub(crate) datatype: DataType,
