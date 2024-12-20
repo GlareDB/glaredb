@@ -140,29 +140,3 @@ where
         }
     }
 }
-
-#[derive(Debug)]
-pub struct DictionaryArrayView<'a, R: ReservationTracker = NopReservationTracker> {
-    pub(crate) validity: &'a Validity,
-    pub(crate) array_buffer: &'a ArrayBuffer<R>,
-    pub(crate) selection: &'a [usize],
-}
-
-impl<'a, R> DictionaryArrayView<'a, R>
-where
-    R: ReservationTracker,
-{
-    pub fn try_from_array(array: &'a Array<R>) -> Result<Self> {
-        let selection = array.buffer.try_as_slice::<PhysicalDictionary>()?;
-        let dict_buffer = array
-            .buffer
-            .secondary_buffers()
-            .try_as_dictionary_buffer()?;
-
-        Ok(DictionaryArrayView {
-            validity: &dict_buffer.validity,
-            array_buffer: &dict_buffer.buffer,
-            selection,
-        })
-    }
-}

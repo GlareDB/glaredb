@@ -1,11 +1,12 @@
 use rayexec_error::Result;
 
 use crate::compute::util::IntoExactSizedIterator;
-use crate::exp::array::{Array, DictionaryArrayView};
+use crate::exp::array::Array;
 use crate::exp::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
 use crate::exp::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::exp::buffer::ArrayBuffer;
 use crate::exp::executors::OutputBuffer;
+use crate::exp::flat_array::FlatArrayView;
 use crate::exp::validity::Validity;
 
 #[derive(Debug, Clone)]
@@ -26,8 +27,8 @@ impl UnaryExecutor {
         for<'a> Op: FnMut(&S::StorageType, OutputBuffer<O::MutableStorage<'a>>),
     {
         if array.is_dictionary() {
-            let view = DictionaryArrayView::try_from_array(array)?;
-            return Self::execute_dictionary::<S, _, _>(view, selection, out, out_validity, op);
+            let view = FlatArrayView::from_array(array)?;
+            return Self::execute_flat::<S, _, _>(view, selection, out, out_validity, op);
         }
 
         let input = S::get_storage(array.buffer())?;
@@ -58,8 +59,8 @@ impl UnaryExecutor {
         Ok(())
     }
 
-    pub fn execute_dictionary<'a, S, O, Op>(
-        array: DictionaryArrayView<'a>,
+    pub fn execute_flat<'a, S, O, Op>(
+        array: FlatArrayView<'a>,
         selection: impl IntoExactSizedIterator<Item = usize>,
         out: &mut ArrayBuffer,
         out_validity: &mut Validity,
@@ -77,7 +78,7 @@ impl UnaryExecutor {
 
         if validity.all_valid() {
             for (output_idx, input_idx) in selection.into_iter().enumerate() {
-                let selected_idx = array.selection[input_idx];
+                let selected_idx = array.selection.get(input_idx).unwrap();
 
                 op(
                     input.get(selected_idx).unwrap(),
@@ -86,7 +87,7 @@ impl UnaryExecutor {
             }
         } else {
             for (output_idx, input_idx) in selection.into_iter().enumerate() {
-                let selected_idx = array.selection[input_idx];
+                let selected_idx = array.selection.get(input_idx).unwrap();
 
                 if validity.is_valid(selected_idx) {
                     op(
@@ -148,6 +149,28 @@ mod tests {
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
+            0..3,
+            &mut out,
+            &mut validity,
+            |&v, buf| buf.put(&(v + 2)),
+        )
+        .unwrap();
+        assert!(validity.all_valid());
+
+        let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(&[3, 4, 5], out_slice);
+    }
+
+    #[test]
+    fn int32_inc_by_2_using_flat_view() {
+        let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut validity = Validity::new_all_valid(3);
+
+        let flat = FlatArrayView::from_array(&array).unwrap();
+
+        UnaryExecutor::execute_flat::<PhysicalI32, PhysicalI32, _>(
+            flat,
             0..3,
             &mut out,
             &mut validity,
