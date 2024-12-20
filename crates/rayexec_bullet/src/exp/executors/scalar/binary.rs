@@ -1,11 +1,11 @@
 use rayexec_error::Result;
 
-use super::OutputBuffer;
 use crate::compute::util::IntoExactSizedIterator;
 use crate::exp::array::Array;
 use crate::exp::buffer::addressable::AddressableStorage;
 use crate::exp::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::exp::buffer::ArrayBuffer;
+use crate::exp::executors::OutputBuffer;
 use crate::exp::validity::Validity;
 
 #[derive(Debug, Clone)]
@@ -47,10 +47,7 @@ impl BinaryExecutor {
                 op(
                     val1,
                     val2,
-                    OutputBuffer {
-                        idx: output_idx,
-                        buffer: &mut output,
-                    },
+                    OutputBuffer::new(output_idx, &mut output, out_validity),
                 );
             }
         } else {
@@ -64,10 +61,7 @@ impl BinaryExecutor {
                     op(
                         val1,
                         val2,
-                        OutputBuffer {
-                            idx: output_idx,
-                            buffer: &mut output,
-                        },
+                        OutputBuffer::new(output_idx, &mut output, out_validity),
                     );
                 } else {
                     out_validity.set_invalid(output_idx);

@@ -1,10 +1,10 @@
 use rayexec_error::Result;
 
-use super::OutputBuffer;
 use crate::exp::array::Array;
 use crate::exp::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
 use crate::exp::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::exp::buffer::ArrayBuffer;
+use crate::exp::executors::OutputBuffer;
 use crate::exp::validity::Validity;
 
 #[derive(Debug, Clone)]
@@ -33,10 +33,7 @@ impl UnaryExecutor {
             for (output_idx, input_idx) in selection.into_iter().enumerate() {
                 op(
                     input.get(input_idx).unwrap(),
-                    OutputBuffer {
-                        idx: output_idx,
-                        buffer: &mut output,
-                    },
+                    OutputBuffer::new(output_idx, &mut output, out_validity),
                 );
             }
         } else {
@@ -44,10 +41,7 @@ impl UnaryExecutor {
                 if validity.is_valid(input_idx) {
                     op(
                         input.get(input_idx).unwrap(),
-                        OutputBuffer {
-                            idx: output_idx,
-                            buffer: &mut output,
-                        },
+                        OutputBuffer::new(output_idx, &mut output, out_validity),
                     );
                 } else {
                     out_validity.set_invalid(output_idx);
