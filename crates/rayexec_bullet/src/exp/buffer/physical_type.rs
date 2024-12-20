@@ -104,6 +104,28 @@ pub trait MutablePhysicalStorage: PhysicalStorage {
         R: ReservationTracker;
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UntypedNull;
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicalUntypedNull;
+
+impl PhysicalStorage for PhysicalUntypedNull {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
+
+    type PrimaryBufferType = UntypedNull;
+    type StorageType = UntypedNull;
+
+    type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    where
+        R: ReservationTracker,
+    {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalI8;
 

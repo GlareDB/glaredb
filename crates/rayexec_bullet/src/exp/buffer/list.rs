@@ -9,5 +9,14 @@ pub struct ListItemMetadata {
 
 #[derive(Debug)]
 pub struct ListBuffer<R: ReservationTracker> {
-    child: Array<R>, // TODO
+    child: Array<R>,
+}
+
+impl<R> ListBuffer<R>
+where
+    R: ReservationTracker,
+{
+    pub fn new(child: Array<R>) -> Self {
+        ListBuffer { child }
+    }
 }
