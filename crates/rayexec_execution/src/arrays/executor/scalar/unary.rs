@@ -132,16 +132,16 @@ impl UnaryExecutor {
 mod tests {
     use super::*;
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::arrays::buffer::reservation::NopReservationTracker;
     use crate::arrays::buffer::string_view::{StringViewHeap, StringViewStorageMut};
     use crate::arrays::buffer::{ArrayBuffer, Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
     use crate::arrays::validity::Validity;
 
     #[test]
     fn int32_inc_by_2() {
         let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn int32_inc_by_2_using_flat_view() {
         let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         let flat = FlatArrayView::from_array(&array).unwrap();
@@ -211,7 +211,7 @@ mod tests {
         );
 
         let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
-            &NopReservationTracker,
+            &NopBufferManager,
             6,
             StringViewHeap::new(),
         )
@@ -266,7 +266,7 @@ mod tests {
         );
 
         let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
-            &NopReservationTracker,
+            &NopBufferManager,
             6,
             StringViewHeap::new(),
         )
@@ -330,11 +330,9 @@ mod tests {
     fn int32_inc_by_2_with_dict() {
         let mut array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
         // [3, 3, 2, 1, 1, 3]
-        array
-            .select(&NopReservationTracker, [2, 2, 1, 0, 0, 2])
-            .unwrap();
+        array.select(&NopBufferManager, [2, 2, 1, 0, 0, 2]).unwrap();
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 6).unwrap();
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 6).unwrap();
         let mut validity = Validity::new_all_valid(6);
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(

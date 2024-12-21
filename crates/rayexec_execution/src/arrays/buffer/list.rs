@@ -1,5 +1,5 @@
-use super::reservation::{NopReservationTracker, ReservationTracker};
 use crate::arrays::array::Array;
+use crate::arrays::buffer_manager::BufferManager;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ListItemMetadata {
@@ -8,15 +8,15 @@ pub struct ListItemMetadata {
 }
 
 #[derive(Debug)]
-pub struct ListBuffer<R: ReservationTracker> {
-    pub(crate) child: Array<R>,
+pub struct ListBuffer<B: BufferManager> {
+    pub(crate) child: Array<B>,
 }
 
-impl<R> ListBuffer<R>
+impl<B> ListBuffer<B>
 where
-    R: ReservationTracker,
+    B: BufferManager,
 {
-    pub fn new(child: Array<R>) -> Self {
+    pub fn new(child: Array<B>) -> Self {
         ListBuffer { child }
     }
 }

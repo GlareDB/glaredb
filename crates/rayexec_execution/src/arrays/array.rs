@@ -4,25 +4,25 @@ use rayexec_error::{RayexecError, Result};
 use super::buffer::addressable::AddressableStorage;
 use super::buffer::dictionary::DictionaryBuffer;
 use super::buffer::physical_type::{PhysicalDictionary, PhysicalStorage, PhysicalType};
-use super::buffer::reservation::{NopReservationTracker, ReservationTracker};
 use super::buffer::{ArrayBuffer, SecondaryBuffers};
+use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
 use super::validity::Validity;
 
 #[derive(Debug)]
-pub struct Array<R: ReservationTracker = NopReservationTracker> {
+pub struct Array<B: BufferManager = NopBufferManager> {
     /// Data type of the array.
     pub(crate) datatype: DataType,
     pub(crate) validity: Validity,
     /// Buffer containing the underlying array data.
-    pub(crate) buffer: ArrayBuffer<R>,
+    pub(crate) buffer: ArrayBuffer<B>,
 }
 
-impl<R> Array<R>
+impl<B> Array<B>
 where
-    R: ReservationTracker,
+    B: BufferManager,
 {
-    pub fn new(datatype: DataType, buffer: ArrayBuffer<R>) -> Self {
+    pub fn new(datatype: DataType, buffer: ArrayBuffer<B>) -> Self {
         let validity = Validity::new_all_valid(buffer.len());
         Array {
             datatype,
@@ -33,7 +33,7 @@ where
 
     pub fn new_with_validity(
         datatype: DataType,
-        buffer: ArrayBuffer<R>,
+        buffer: ArrayBuffer<B>,
         validity: Validity,
     ) -> Result<Self> {
         if validity.len() != buffer.len() {
@@ -55,11 +55,11 @@ where
         &self.validity
     }
 
-    pub fn buffer(&self) -> &ArrayBuffer<R> {
+    pub fn buffer(&self) -> &ArrayBuffer<B> {
         &self.buffer
     }
 
-    pub fn buffer_mut(&mut self) -> &mut ArrayBuffer<R> {
+    pub fn buffer_mut(&mut self) -> &mut ArrayBuffer<B> {
         &mut self.buffer
     }
 
@@ -76,13 +76,13 @@ where
     /// This will convert the underlying array buffer into a dictionary buffer.
     pub fn select(
         &mut self,
-        tracker: &R,
+        manager: &B,
         selection: impl IntoExactSizeIterator<Item = usize>,
     ) -> Result<()> {
         if self.is_dictionary() {
             // Already dictionary, select the selection.
             let sel = selection.into_iter();
-            let mut new_buf = ArrayBuffer::with_len::<PhysicalDictionary>(tracker, sel.len())?;
+            let mut new_buf = ArrayBuffer::with_len::<PhysicalDictionary>(manager, sel.len())?;
 
             let old_sel = self.buffer.try_as_slice::<PhysicalDictionary>()?;
             let new_sel = new_buf.try_as_slice_mut::<PhysicalDictionary>()?;
@@ -106,7 +106,7 @@ where
         }
 
         let sel = selection.into_iter();
-        let mut new_buf = ArrayBuffer::with_len::<PhysicalDictionary>(tracker, sel.len())?;
+        let mut new_buf = ArrayBuffer::with_len::<PhysicalDictionary>(manager, sel.len())?;
 
         let new_buf_slice = new_buf.try_as_slice_mut::<PhysicalDictionary>()?;
 
@@ -133,7 +133,7 @@ where
         self.buffer.physical_type() == PhysicalType::Dictionary
     }
 
-    pub fn get_dictionary_buffer(&self) -> Option<&DictionaryBuffer<R>> {
+    pub fn get_dictionary_buffer(&self) -> Option<&DictionaryBuffer<B>> {
         match self.buffer.secondary_buffers() {
             SecondaryBuffers::Dictionary(buf) => Some(buf),
             _ => None,

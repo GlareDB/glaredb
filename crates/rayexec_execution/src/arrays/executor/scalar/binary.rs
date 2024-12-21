@@ -149,9 +149,9 @@ impl BinaryExecutor {
 mod tests {
     use super::*;
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::arrays::buffer::reservation::NopReservationTracker;
     use crate::arrays::buffer::string_view::StringViewHeap;
     use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
 
     #[test]
@@ -159,7 +159,7 @@ mod tests {
         let left = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
         let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
@@ -184,11 +184,11 @@ mod tests {
     fn binary_simple_add_with_selection() {
         let mut left = Array::new(DataType::Int32, Int32Builder::from_iter([2]).unwrap());
         // [2, 2, 2]
-        left.select(&NopReservationTracker, [0, 0, 0]).unwrap();
+        left.select(&NopBufferManager, [0, 0, 0]).unwrap();
 
         let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
@@ -218,7 +218,7 @@ mod tests {
         );
 
         let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
-            &NopReservationTracker,
+            &NopBufferManager,
             3,
             StringViewHeap::new(),
         )
@@ -265,7 +265,7 @@ mod tests {
 
         let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopReservationTracker, 3).unwrap();
+        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(

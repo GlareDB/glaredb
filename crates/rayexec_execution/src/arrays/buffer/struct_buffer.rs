@@ -1,5 +1,5 @@
-use super::reservation::ReservationTracker;
 use crate::arrays::array::Array;
+use crate::arrays::buffer_manager::BufferManager;
 
 /// Zero-sized type that gets stored in the primary buffer.
 ///
@@ -10,7 +10,7 @@ use crate::arrays::array::Array;
 pub struct StructItemMetadata;
 
 #[derive(Debug)]
-pub struct StructBuffer<R: ReservationTracker> {
+pub struct StructBuffer<B: BufferManager> {
     /// Children of equal size length making up the struct.
-    pub(crate) children: Vec<Array<R>>,
+    pub(crate) children: Vec<Array<B>>,
 }

@@ -2,24 +2,24 @@ use rayexec_error::Result;
 
 use super::array::Array;
 use super::buffer::physical_type::PhysicalDictionary;
-use super::buffer::reservation::{NopReservationTracker, ReservationTracker};
 use super::buffer::ArrayBuffer;
+use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::validity::Validity;
 
 /// A view on top of normal arrays flattening some parts of the nested
 /// structure.
 #[derive(Debug)]
-pub struct FlatArrayView<'a, R: ReservationTracker = NopReservationTracker> {
+pub struct FlatArrayView<'a, B: BufferManager = NopBufferManager> {
     pub(crate) validity: &'a Validity,
-    pub(crate) array_buffer: &'a ArrayBuffer<R>,
+    pub(crate) array_buffer: &'a ArrayBuffer<B>,
     pub(crate) selection: FlatSelection<'a>,
 }
 
-impl<'a, R> FlatArrayView<'a, R>
+impl<'a, B> FlatArrayView<'a, B>
 where
-    R: ReservationTracker,
+    B: BufferManager,
 {
-    pub fn from_array(array: &'a Array<R>) -> Result<Self> {
+    pub fn from_array(array: &'a Array<B>) -> Result<Self> {
         if array.is_dictionary() {
             let selection = array.buffer.try_as_slice::<PhysicalDictionary>()?;
             let dict_buffer = array

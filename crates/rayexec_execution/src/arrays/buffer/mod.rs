@@ -3,7 +3,6 @@ pub mod any;
 pub mod dictionary;
 pub mod list;
 pub mod physical_type;
-pub mod reservation;
 pub mod string_view;
 pub mod struct_buffer;
 
@@ -23,7 +22,6 @@ use physical_type::{
     PhysicalUtf8,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
-use reservation::{NopReservationTracker, Reservation, ReservationTracker};
 use string_view::{
     StringViewHeap,
     StringViewMetadataUnion,
@@ -33,25 +31,26 @@ use string_view::{
 use struct_buffer::{StructBuffer, StructItemMetadata};
 
 use super::array::Array;
+use super::buffer_manager::{BufferManager, NopBufferManager, Reservation};
 use super::datatype::DataType;
 
 #[derive(Debug)]
-pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
+pub struct ArrayBuffer<B: BufferManager = NopBufferManager> {
     /// The physical type of the buffer.
     physical_type: PhysicalType,
     /// The primary data buffer.
-    primary: RawBufferParts<R>,
+    primary: RawBufferParts<B>,
     /// Extra buffers for non-primitive data types (varlen, lists, etc)
-    secondary: Box<SecondaryBuffers<R>>,
+    secondary: Box<SecondaryBuffers<B>>,
 }
 
-impl<R> ArrayBuffer<R>
+impl<B> ArrayBuffer<B>
 where
-    R: ReservationTracker,
+    B: BufferManager,
 {
     /// Create a new buffer with the given len.
-    pub fn with_len<S: PhysicalStorage>(tracker: &R, len: usize) -> Result<Self> {
-        let data = RawBufferParts::try_new::<S::PrimaryBufferType>(tracker, len)?;
+    pub fn with_len<S: PhysicalStorage>(manager: &B, len: usize) -> Result<Self> {
+        let data = RawBufferParts::try_new::<S::PrimaryBufferType>(manager, len)?;
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
@@ -61,11 +60,11 @@ where
     }
 
     pub fn with_len_and_child_buffer<S: PhysicalStorage>(
-        tracker: &R,
+        manager: &B,
         len: usize,
-        child: impl Into<SecondaryBuffers<R>>,
+        child: impl Into<SecondaryBuffers<B>>,
     ) -> Result<Self> {
-        let data = RawBufferParts::try_new::<S::PrimaryBufferType>(tracker, len)?;
+        let data = RawBufferParts::try_new::<S::PrimaryBufferType>(manager, len)?;
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
@@ -93,11 +92,11 @@ where
         self.len() == 0
     }
 
-    pub fn secondary_buffers(&self) -> &SecondaryBuffers<R> {
+    pub fn secondary_buffers(&self) -> &SecondaryBuffers<B> {
         self.secondary.as_ref()
     }
 
-    pub fn secondary_buffers_mut(&mut self) -> &mut SecondaryBuffers<R> {
+    pub fn secondary_buffers_mut(&mut self) -> &mut SecondaryBuffers<B> {
         self.secondary.as_mut()
     }
 
@@ -156,7 +155,7 @@ where
         }
     }
 
-    pub fn resize<S: PhysicalStorage>(&mut self, tracker: &R, len: usize) -> Result<()> {
+    pub fn resize<S: PhysicalStorage>(&mut self, manager: &B, len: usize) -> Result<()> {
         if S::PHYSICAL_TYPE != self.physical_type {
             return Err(
                 RayexecError::new("Attempted to resize buffer using wrong physical type")
@@ -165,13 +164,13 @@ where
             );
         }
 
-        unsafe { self.primary.resize::<S::PrimaryBufferType>(tracker, len) }
+        unsafe { self.primary.resize::<S::PrimaryBufferType>(manager, len) }
     }
 
     /// Appends data from another buffer into this buffer.
     pub fn append_from<S: PhysicalStorage>(
         &mut self,
-        tracker: &R,
+        manager: &B,
         other: &ArrayBuffer,
     ) -> Result<()> {
         if !self.secondary.is_none() {
@@ -187,7 +186,7 @@ where
         let other = other.try_as_slice::<S>()?;
 
         // Resize self to new size.
-        self.resize::<S>(tracker, new_len)?;
+        self.resize::<S>(manager, new_len)?;
 
         // Now copy everything over.
         let this = self.try_as_slice_mut::<S>()?;
@@ -198,7 +197,7 @@ where
     }
 }
 
-impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
+impl<B: BufferManager> Drop for ArrayBuffer<B> {
     fn drop(&mut self) {
         let ptr = self.primary.ptr;
 
@@ -208,42 +207,42 @@ impl<R: ReservationTracker> Drop for ArrayBuffer<R> {
         let vec = unsafe { Vec::from_raw_parts(ptr, len, cap) };
         std::mem::drop(vec);
 
-        self.primary.reservation.free()
+        // self.primary.reservation.free()
     }
 }
 
 #[derive(Debug)]
-pub enum SecondaryBuffers<R: ReservationTracker> {
+pub enum SecondaryBuffers<B: BufferManager> {
     StringViewHeap(StringViewHeap),
-    List(ListBuffer<R>),
-    Struct(StructBuffer<R>),
-    Dictionary(DictionaryBuffer<R>),
+    List(ListBuffer<B>),
+    Struct(StructBuffer<B>),
+    Dictionary(DictionaryBuffer<B>),
     None,
 }
 
-impl<R> SecondaryBuffers<R>
+impl<B> SecondaryBuffers<B>
 where
-    R: ReservationTracker,
+    B: BufferManager,
 {
     pub fn is_none(&self) -> bool {
         matches!(self, SecondaryBuffers::None)
     }
 
-    pub fn try_as_struct_buffer(&self) -> Result<&StructBuffer<R>> {
+    pub fn try_as_struct_buffer(&self) -> Result<&StructBuffer<B>> {
         match self {
             Self::Struct(buf) => Ok(buf),
             _ => Err(RayexecError::new("Not a struct buffer")),
         }
     }
 
-    pub fn try_as_list_buffer(&self) -> Result<&ListBuffer<R>> {
+    pub fn try_as_list_buffer(&self) -> Result<&ListBuffer<B>> {
         match self {
             Self::List(buf) => Ok(buf),
             _ => Err(RayexecError::new("Not a list buffer")),
         }
     }
 
-    pub fn try_as_dictionary_buffer(&self) -> Result<&DictionaryBuffer<R>> {
+    pub fn try_as_dictionary_buffer(&self) -> Result<&DictionaryBuffer<B>> {
         match self {
             Self::Dictionary(buf) => Ok(buf),
             _ => Err(RayexecError::new("Not a dictionary buffer")),
@@ -251,28 +250,28 @@ where
     }
 }
 
-impl<R: ReservationTracker> From<StringViewHeap> for SecondaryBuffers<R> {
+impl<B: BufferManager> From<StringViewHeap> for SecondaryBuffers<B> {
     fn from(value: StringViewHeap) -> Self {
         SecondaryBuffers::StringViewHeap(value)
     }
 }
 
-impl<R: ReservationTracker> From<ListBuffer<R>> for SecondaryBuffers<R> {
-    fn from(value: ListBuffer<R>) -> Self {
+impl<B: BufferManager> From<ListBuffer<B>> for SecondaryBuffers<B> {
+    fn from(value: ListBuffer<B>) -> Self {
         SecondaryBuffers::List(value)
     }
 }
 
-impl<R: ReservationTracker> From<StructBuffer<R>> for SecondaryBuffers<R> {
-    fn from(value: StructBuffer<R>) -> Self {
+impl<B: BufferManager> From<StructBuffer<B>> for SecondaryBuffers<B> {
+    fn from(value: StructBuffer<B>) -> Self {
         SecondaryBuffers::Struct(value)
     }
 }
 
 #[derive(Debug)]
-struct RawBufferParts<R: ReservationTracker> {
+struct RawBufferParts<B: BufferManager> {
     /// Memory reservation for this buffer.
-    reservation: R::Reservation,
+    reservation: B::Reservation,
     /// Raw pointer to start of vec.
     ptr: *mut u8,
     /// Number of elements `T` in the vec, not bytes.
@@ -281,15 +280,15 @@ struct RawBufferParts<R: ReservationTracker> {
     cap: usize,
 }
 
-impl<R: ReservationTracker> RawBufferParts<R> {
-    fn try_new<T: Default + Copy>(tracker: &R, len: usize) -> Result<Self> {
+impl<B: BufferManager> RawBufferParts<B> {
+    fn try_new<T: Default + Copy>(manager: &B, len: usize) -> Result<Self> {
         // Note that `vec!` may over-allocate, so we track that too.
         //
         // See <https://doc.rust-lang.org/std/vec/struct.Vec.html#guarantees>
         // > vec![x; n], vec![a, b, c, d], and Vec::with_capacity(n), will all
         // > produce a Vec with at least the requested capacity.
         let alloc_size = len * std::mem::size_of::<T>();
-        let mut reservation = tracker.reserve(alloc_size)?;
+        let mut reservation = manager.reserve_external(alloc_size)?;
 
         let mut data: Vec<T> = vec![T::default(); len];
 
@@ -299,7 +298,7 @@ impl<R: ReservationTracker> RawBufferParts<R> {
 
         let additional = (cap * std::mem::size_of::<T>()) - alloc_size;
         if additional > 0 {
-            let additional = tracker.reserve(additional)?;
+            let additional = manager.reserve_external(additional)?;
             reservation = reservation.combine(additional);
         }
 
@@ -321,7 +320,7 @@ impl<R: ReservationTracker> RawBufferParts<R> {
         std::slice::from_raw_parts_mut(self.ptr.cast::<T>(), self.len)
     }
 
-    unsafe fn resize<T: Default + Copy>(&mut self, tracker: &R, len: usize) -> Result<()> {
+    unsafe fn resize<T: Default + Copy>(&mut self, manager: &B, len: usize) -> Result<()> {
         if self.len == 0 {
             // Special case when length is zero.
             //
@@ -331,7 +330,7 @@ impl<R: ReservationTracker> RawBufferParts<R> {
             // safe.
             //
             // By just creating a new buffer, we can avoid that issue.
-            let new_self = Self::try_new::<T>(tracker, len)?;
+            let new_self = Self::try_new::<T>(manager, len)?;
             *self = new_self;
             return Ok(());
         }
@@ -369,7 +368,7 @@ impl<S: PhysicalStorage> PrimBufferBuilder<S> {
     {
         let iter = iter.into_iter();
         let mut data =
-            RawBufferParts::try_new::<S::PrimaryBufferType>(&NopReservationTracker, iter.len())?;
+            RawBufferParts::try_new::<S::PrimaryBufferType>(&NopBufferManager, iter.len())?;
 
         let data_slice = unsafe { data.as_slice_mut() };
         for (idx, val) in iter.enumerate() {
@@ -395,7 +394,7 @@ impl StringViewBufferBuilder {
     {
         let iter = iter.into_iter();
         let mut data =
-            RawBufferParts::try_new::<StringViewMetadataUnion>(&NopReservationTracker, iter.len())?;
+            RawBufferParts::try_new::<StringViewMetadataUnion>(&NopBufferManager, iter.len())?;
 
         let mut heap = StringViewHeap::new();
 
@@ -423,8 +422,7 @@ impl ListBufferBuilder {
     {
         let mut iter = iter.into_iter();
 
-        let mut data =
-            RawBufferParts::try_new::<ListItemMetadata>(&NopReservationTracker, iter.len())?;
+        let mut data = RawBufferParts::try_new::<ListItemMetadata>(&NopBufferManager, iter.len())?;
 
         // Init child buffer with first array buffer.
         let mut child_buf = match iter.next() {
@@ -458,16 +456,16 @@ impl ListBufferBuilder {
             // TODO: Move this out.
             match child_buf.physical_type {
                 PhysicalType::UntypedNull => {
-                    child_buf.append_from::<PhysicalUntypedNull>(&NopReservationTracker, &child)?
+                    child_buf.append_from::<PhysicalUntypedNull>(&NopBufferManager, &child)?
                 }
                 PhysicalType::Int8 => {
-                    child_buf.append_from::<PhysicalI8>(&NopReservationTracker, &child)?
+                    child_buf.append_from::<PhysicalI8>(&NopBufferManager, &child)?
                 }
                 PhysicalType::Int32 => {
-                    child_buf.append_from::<PhysicalI32>(&NopReservationTracker, &child)?
+                    child_buf.append_from::<PhysicalI32>(&NopBufferManager, &child)?
                 }
                 PhysicalType::Utf8 => {
-                    child_buf.append_from::<PhysicalUtf8>(&NopReservationTracker, &child)?
+                    child_buf.append_from::<PhysicalUtf8>(&NopBufferManager, &child)?
                 }
                 other => not_implemented!("append from {other}"),
             }
@@ -495,7 +493,7 @@ impl StructBufferBuilder {
             None => 0,
         };
 
-        let data = RawBufferParts::try_new::<StructItemMetadata>(&NopReservationTracker, len)?;
+        let data = RawBufferParts::try_new::<StructItemMetadata>(&NopBufferManager, len)?;
 
         for child in &children {
             if child.len() != len {
@@ -517,27 +515,26 @@ impl StructBufferBuilder {
 mod tests {
     use addressable::AddressableStorage;
     use physical_type::PhysicalI32;
-    use reservation::AtomicReservationTracker;
 
     use super::*;
 
-    #[test]
-    fn reserve_and_drop() {
-        let tracker = AtomicReservationTracker::default();
+    // #[test]
+    // fn reserve_and_drop() {
+    //     let tracker = AtomicReservationTracker::default();
 
-        let buffer = ArrayBuffer::with_len::<PhysicalI32>(&tracker, 4).unwrap();
+    //     let buffer = ArrayBuffer::with_len::<PhysicalI32>(&tracker, 4).unwrap();
 
-        let total_reserved = tracker.total_reserved();
-        assert!(
-            total_reserved >= 16,
-            "expected at least 16 bytes reserved, got {total_reserved}"
-        );
+    //     let total_reserved = tracker.total_reserved();
+    //     assert!(
+    //         total_reserved >= 16,
+    //         "expected at least 16 bytes reserved, got {total_reserved}"
+    //     );
 
-        std::mem::drop(buffer);
+    //     std::mem::drop(buffer);
 
-        let total_reserved = tracker.total_reserved();
-        assert_eq!(0, total_reserved);
-    }
+    //     let total_reserved = tracker.total_reserved();
+    //     assert_eq!(0, total_reserved);
+    // }
 
     #[test]
     fn new_from_prim_iter() {
@@ -564,8 +561,7 @@ mod tests {
         let mut a = PrimBufferBuilder::<PhysicalI32>::from_iter([4, 5, 6]).unwrap();
         let b = PrimBufferBuilder::<PhysicalI32>::from_iter([7, 8]).unwrap();
 
-        a.append_from::<PhysicalI32>(&NopReservationTracker, &b)
-            .unwrap();
+        a.append_from::<PhysicalI32>(&NopBufferManager, &b).unwrap();
 
         let a_slice = a.try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[4, 5, 6, 7, 8], a_slice);

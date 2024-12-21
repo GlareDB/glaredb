@@ -1,18 +1,18 @@
-use super::reservation::ReservationTracker;
 use super::ArrayBuffer;
+use crate::arrays::buffer_manager::BufferManager;
 use crate::arrays::validity::Validity;
 
 #[derive(Debug)]
-pub struct DictionaryBuffer<R: ReservationTracker> {
+pub struct DictionaryBuffer<B: BufferManager> {
     pub(crate) validity: Validity,
-    pub(crate) buffer: ArrayBuffer<R>,
+    pub(crate) buffer: ArrayBuffer<B>,
 }
 
-impl<R> DictionaryBuffer<R>
+impl<B> DictionaryBuffer<B>
 where
-    R: ReservationTracker,
+    B: BufferManager,
 {
-    pub fn new(buffer: ArrayBuffer<R>, validity: Validity) -> Self {
+    pub fn new(buffer: ArrayBuffer<B>, validity: Validity) -> Self {
         debug_assert_eq!(buffer.len(), validity.len());
         DictionaryBuffer { buffer, validity }
     }

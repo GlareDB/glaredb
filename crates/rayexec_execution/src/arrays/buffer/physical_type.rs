@@ -4,10 +4,10 @@ use rayexec_error::Result;
 
 use super::addressable::{AddressableStorage, MutableAddressableStorage};
 use super::list::ListItemMetadata;
-use super::reservation::ReservationTracker;
 use super::string_view::{StringViewMetadataUnion, StringViewStorage, StringViewStorageMut};
 use super::struct_buffer::StructItemMetadata;
 use super::ArrayBuffer;
+use crate::arrays::buffer_manager::BufferManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -96,17 +96,17 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
         std::mem::size_of::<Self::PrimaryBufferType>()
     }
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker;
+        B: BufferManager;
 }
 
 pub trait MutablePhysicalStorage: PhysicalStorage {
     type MutableStorage<'a>: MutableAddressableStorage<T = Self::StorageType>;
 
-    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    fn get_storage_mut<B>(buffer: &mut ArrayBuffer<B>) -> Result<Self::MutableStorage<'_>>
     where
-        R: ReservationTracker;
+        B: BufferManager;
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -123,9 +123,9 @@ impl PhysicalStorage for PhysicalUntypedNull {
 
     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice::<Self>()
     }
@@ -142,9 +142,9 @@ impl PhysicalStorage for PhysicalI8 {
 
     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice::<Self>()
     }
@@ -153,9 +153,9 @@ impl PhysicalStorage for PhysicalI8 {
 impl MutablePhysicalStorage for PhysicalI8 {
     type MutableStorage<'a> = &'a mut [Self::StorageType];
 
-    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    fn get_storage_mut<B>(buffer: &mut ArrayBuffer<B>) -> Result<Self::MutableStorage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice_mut::<Self>()
     }
@@ -172,9 +172,9 @@ impl PhysicalStorage for PhysicalI32 {
 
     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice::<Self>()
     }
@@ -183,9 +183,9 @@ impl PhysicalStorage for PhysicalI32 {
 impl MutablePhysicalStorage for PhysicalI32 {
     type MutableStorage<'a> = &'a mut [Self::StorageType];
 
-    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    fn get_storage_mut<B>(buffer: &mut ArrayBuffer<B>) -> Result<Self::MutableStorage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice_mut::<Self>()
     }
@@ -232,9 +232,9 @@ impl PhysicalStorage for PhysicalUtf8 {
 
     type Storage<'a> = StringViewStorage<'a>;
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_string_view_storage()
     }
@@ -243,9 +243,9 @@ impl PhysicalStorage for PhysicalUtf8 {
 impl MutablePhysicalStorage for PhysicalUtf8 {
     type MutableStorage<'a> = StringViewStorageMut<'a>;
 
-    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+    fn get_storage_mut<B>(buffer: &mut ArrayBuffer<B>) -> Result<Self::MutableStorage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_string_view_storage_mut()
     }
@@ -262,9 +262,9 @@ impl PhysicalStorage for PhysicalList {
 
     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice::<Self>()
     }
@@ -281,9 +281,9 @@ impl PhysicalStorage for PhysicalStruct {
 
     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice::<Self>()
     }
@@ -300,9 +300,9 @@ impl PhysicalStorage for PhysicalDictionary {
 
     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
     where
-        R: ReservationTracker,
+        B: BufferManager,
     {
         buffer.try_as_slice::<Self>()
     }

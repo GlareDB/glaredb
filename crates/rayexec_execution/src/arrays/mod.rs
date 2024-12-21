@@ -2,6 +2,7 @@ pub mod array;
 pub mod batch;
 pub mod bitmap;
 pub mod buffer;
+pub mod buffer_manager;
 pub mod datatype;
 pub mod executor;
 pub mod flat_array;
