@@ -1,3 +1,4 @@
+pub mod arrays;
 pub mod config;
 pub mod database;
 pub mod datasource;
