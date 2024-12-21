@@ -70,3 +70,50 @@ impl DatabaseProtoConv for PhysicalColumnExpr {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::buffer::addressable::AddressableStorage;
+    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::datatype::DataType;
+
+    #[test]
+    fn eval_simple() {
+        let mut batch = Batch::from_arrays(
+            [
+                Array::new_with_buffer(
+                    DataType::Int32,
+                    Int32Builder::from_iter([4, 5, 6]).unwrap(),
+                ),
+                Array::new_with_buffer(
+                    DataType::Utf8,
+                    StringViewBufferBuilder::from_iter(["a", "b", "c"]).unwrap(),
+                ),
+            ],
+            true,
+        )
+        .unwrap();
+
+        let expr = PhysicalColumnExpr { idx: 1 };
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+
+        expr.eval(
+            &mut batch,
+            &mut ExpressionState::empty(),
+            FlatSelection::linear(3),
+            &mut out,
+        )
+        .unwrap();
+
+        // Original array and output array should have both been made managed.
+        assert!(batch.get_array(1).unwrap().data().is_managed());
+        assert!(out.data().is_managed());
+
+        let out_view = out.data().try_as_string_view_storage().unwrap();
+
+        assert_eq!("a", out_view.get(0).unwrap());
+        assert_eq!("b", out_view.get(1).unwrap());
+        assert_eq!("c", out_view.get(2).unwrap());
+    }
+}

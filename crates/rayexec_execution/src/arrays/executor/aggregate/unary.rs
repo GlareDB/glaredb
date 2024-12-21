@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn unary_primitive_single_state() {
         let mut states = [TestSumState::default()];
-        let array = Array::new(
+        let array = Array::new_with_buffer(
             DataType::Int32,
             Int32Builder::from_iter([1, 2, 3, 4, 5]).unwrap(),
         );
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn unary_primitive_multiple_states() {
         let mut states = [TestSumState::default(), TestSumState::default()];
-        let array = Array::new(
+        let array = Array::new_with_buffer(
             DataType::Int32,
             Int32Builder::from_iter([1, 2, 3, 4, 5]).unwrap(),
         );
@@ -174,7 +174,7 @@ mod tests {
     fn unary_string_single_state() {
         // Test just checks to ensure working with varlen is sane.
         let mut states = [TestStringAgg::default()];
-        let array = Array::new(
+        let array = Array::new_with_buffer(
             DataType::Utf8,
             StringViewBufferBuilder::from_iter(["aa", "bbb", "cccc"]).unwrap(),
         );

@@ -467,7 +467,7 @@ impl ListBufferBuilder {
             }
         }
 
-        let child_array = Array::new(child_datatype, child_buf);
+        let child_array = Array::new_with_buffer(child_datatype, child_buf);
 
         Ok(ArrayBuffer {
             physical_type: PhysicalList::PHYSICAL_TYPE,

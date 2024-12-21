@@ -156,8 +156,10 @@ mod tests {
 
     #[test]
     fn binary_simple_add() {
-        let left = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let left =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let right =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
@@ -182,11 +184,13 @@ mod tests {
 
     #[test]
     fn binary_simple_add_with_selection() {
-        let mut left = Array::new(DataType::Int32, Int32Builder::from_iter([2]).unwrap());
+        let mut left =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([2]).unwrap());
         // [2, 2, 2]
         left.select(&NopBufferManager, [0, 0, 0]).unwrap();
 
-        let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let right =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
@@ -211,8 +215,9 @@ mod tests {
 
     #[test]
     fn binary_string_repeat() {
-        let left = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let right = Array::new(
+        let left =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let right = Array::new_with_buffer(
             DataType::Utf8,
             StringViewBufferBuilder::from_iter(["hello", "world", "goodbye!"]).unwrap(),
         );
@@ -263,7 +268,8 @@ mod tests {
         )
         .unwrap();
 
-        let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let right =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);

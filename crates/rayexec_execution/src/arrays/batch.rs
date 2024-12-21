@@ -8,11 +8,10 @@ use super::buffer::ArrayBuffer;
 use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
 
-/// Collection of same length arrays.
+/// Collection of arrays with equal capacity.
 #[derive(Debug)]
 pub struct Batch<B: BufferManager = NopBufferManager> {
     pub(crate) arrays: Vec<Array<B>>,
-    pub(crate) capacity: usize,
     pub(crate) num_rows: usize,
 }
 
@@ -20,6 +19,13 @@ impl<B> Batch<B>
 where
     B: BufferManager,
 {
+    pub const fn empty() -> Self {
+        Batch {
+            arrays: Vec::new(),
+            num_rows: 0,
+        }
+    }
+
     pub fn new(
         manager: &B,
         datatypes: impl IntoExactSizeIterator<Item = DataType>,
@@ -29,26 +35,33 @@ where
         let mut arrays = Vec::with_capacity(datatypes.len());
 
         for datatype in datatypes {
-            let buffer = init_array_buffer(manager, &datatype, capacity)?;
-            let array = Array::new(datatype, buffer);
+            let array = Array::new(manager, datatype, capacity)?;
             arrays.push(array)
         }
 
         Ok(Batch {
             arrays,
-            capacity,
             num_rows: 0,
         })
     }
 
-    pub(crate) fn from_arrays(arrays: impl IntoIterator<Item = Array<B>>) -> Result<Self> {
+    /// Create a new batch from some number of arrays.
+    ///
+    /// All arrays are expected to have the same capacity.
+    ///
+    /// `row_eq_cap` indicates if the logical cardinality of the batch should
+    /// equal the capacity of the arrays. If false, the logical cardinality will
+    /// be set to zero.
+    pub(crate) fn from_arrays(
+        arrays: impl IntoIterator<Item = Array<B>>,
+        rows_eq_cap: bool,
+    ) -> Result<Self> {
         let arrays: Vec<_> = arrays.into_iter().collect();
         let capacity = match arrays.first() {
             Some(arr) => arr.capacity(),
             None => {
                 return Ok(Batch {
                     arrays: Vec::new(),
-                    capacity: 0,
                     num_rows: 0,
                 })
             }
@@ -66,16 +79,24 @@ where
 
         Ok(Batch {
             arrays,
-            capacity,
-            num_rows: 0,
+            num_rows: if rows_eq_cap { capacity } else { 0 },
         })
     }
 
     pub(crate) fn push_array(&mut self, array: Array<B>) -> Result<()> {
-        if array.capacity() != self.capacity {
+        // TODO: Check cap <= current num rows
+        let cap = match self.arrays.first() {
+            Some(arr) => arr.capacity(),
+            None => {
+                self.arrays.push(array);
+                return Ok(());
+            }
+        };
+
+        if array.capacity() != cap {
             return Err(
                 RayexecError::new("Attempted to push array with different capacity")
-                    .with_field("expected", self.capacity)
+                    .with_field("expected", cap)
                     .with_field("got", array.capacity()),
             );
         }
@@ -86,10 +107,20 @@ where
     }
 
     pub(crate) fn set_num_rows(&mut self, num_rows: usize) -> Result<()> {
-        if num_rows > self.capacity {
+        let cap = match self.arrays.first() {
+            Some(arr) => arr.capacity(),
+            None => {
+                // Allow setting arbitrary number of rows for batch with no
+                // arrays.
+                self.num_rows = num_rows;
+                return Ok(());
+            }
+        };
+
+        if num_rows > cap {
             return Err(RayexecError::new("num_rows exceeds capacity")
                 .with_field("requested_num_rows", num_rows)
-                .with_field("capacity", self.capacity));
+                .with_field("capacity", cap));
         }
         self.num_rows = num_rows;
         Ok(())
@@ -97,10 +128,6 @@ where
 
     pub fn num_rows(&self) -> usize {
         self.num_rows
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.capacity
     }
 
     pub fn arrays(&self) -> &[Array<B>] {
@@ -127,20 +154,5 @@ where
 
     pub fn get_array_mut_opt(&mut self, idx: usize) -> Option<&mut Array<B>> {
         self.arrays.get_mut(idx)
-    }
-}
-
-fn init_array_buffer<B>(manager: &B, datatype: &DataType, cap: usize) -> Result<ArrayBuffer<B>>
-where
-    B: BufferManager,
-{
-    match datatype.physical_type() {
-        PhysicalType::Int8 => ArrayBuffer::with_capacity::<PhysicalI8>(manager, cap),
-        PhysicalType::Int32 => ArrayBuffer::with_capacity::<PhysicalI32>(manager, cap),
-        PhysicalType::Utf8 => {
-            let heap = StringViewHeap::new();
-            ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(manager, cap, heap)
-        }
-        other => not_implemented!("init array buffer: {other}"),
     }
 }

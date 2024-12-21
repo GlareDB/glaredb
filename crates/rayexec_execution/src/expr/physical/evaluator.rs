@@ -20,6 +20,15 @@ pub(crate) struct ExpressionState {
     pub(crate) inputs: Vec<ExpressionState>,
 }
 
+impl ExpressionState {
+    pub(crate) const fn empty() -> Self {
+        ExpressionState {
+            buffer: Batch::empty(),
+            inputs: Vec::new(),
+        }
+    }
+}
+
 impl ExpressionEvaulator {
     pub fn num_expressions(&self) -> usize {
         self.expressions.len()

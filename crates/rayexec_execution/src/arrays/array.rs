@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use iterutil::exact_size::IntoExactSizeIterator;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::buffer::dictionary::DictionaryBuffer;
 use super::buffer::physical_type::{PhysicalDictionary, PhysicalType};
@@ -9,6 +9,8 @@ use super::buffer::{ArrayBuffer, SecondaryBuffers};
 use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
 use super::validity::Validity;
+use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalI8, PhysicalUtf8};
+use crate::arrays::buffer::string_view::StringViewHeap;
 
 #[derive(Debug)]
 pub struct Array<B: BufferManager = NopBufferManager> {
@@ -24,7 +26,31 @@ impl<B> Array<B>
 where
     B: BufferManager,
 {
-    pub fn new(datatype: DataType, buffer: ArrayBuffer<B>) -> Self {
+    /// Create a new array with the given capacity.
+    ///
+    /// This will take care of initalizing the primary and secondary data
+    /// buffers depending on the type.
+    pub fn new(manager: &B, datatype: DataType, cap: usize) -> Result<Self> {
+        let data = match datatype.physical_type() {
+            PhysicalType::Int8 => ArrayBuffer::with_capacity::<PhysicalI8>(manager, cap)?,
+            PhysicalType::Int32 => ArrayBuffer::with_capacity::<PhysicalI32>(manager, cap)?,
+            PhysicalType::Utf8 => {
+                let heap = StringViewHeap::new();
+                ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(manager, cap, heap)?
+            }
+            other => not_implemented!("init array buffer: {other}"),
+        };
+
+        let validity = Validity::new_all_valid(cap);
+
+        Ok(Array {
+            datatype,
+            validity,
+            data: ArrayData::owned(data),
+        })
+    }
+
+    pub fn new_with_buffer(datatype: DataType, buffer: ArrayBuffer<B>) -> Self {
         let validity = Validity::new_all_valid(buffer.capacity());
         Array {
             datatype,

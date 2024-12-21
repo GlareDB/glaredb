@@ -140,7 +140,8 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2() {
-        let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let array =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
@@ -162,7 +163,8 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_using_flat_view() {
-        let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let array =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
@@ -186,7 +188,8 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_in_place() {
-        let mut array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let mut array =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
 
         UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, |v| *v = *v + 2).unwrap();
 
@@ -197,7 +200,7 @@ mod tests {
     #[test]
     fn string_double_named_func() {
         // Example with defined function, and allocating a new string every time.
-        let array = Array::new(
+        let array = Array::new_with_buffer(
             DataType::Utf8,
             StringViewBufferBuilder::from_iter([
                 "a",
@@ -252,7 +255,7 @@ mod tests {
     #[test]
     fn string_double_closure_reused_buf() {
         // Same thing, but with closure reusing a string buffer.
-        let array = Array::new(
+        let array = Array::new_with_buffer(
             DataType::Utf8,
             StringViewBufferBuilder::from_iter([
                 "a",
@@ -309,7 +312,7 @@ mod tests {
 
     #[test]
     fn string_uppercase_in_place() {
-        let mut array = Array::new(
+        let mut array = Array::new_with_buffer(
             DataType::Utf8,
             StringViewBufferBuilder::from_iter(["a", "bb", "ccc"]).unwrap(),
         );
@@ -328,7 +331,8 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_with_dict() {
-        let mut array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let mut array =
+            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
         // [3, 3, 2, 1, 1, 3]
         array.select(&NopBufferManager, [2, 2, 1, 0, 0, 2]).unwrap();
 
