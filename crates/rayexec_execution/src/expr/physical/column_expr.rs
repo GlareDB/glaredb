@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
@@ -14,7 +14,7 @@ pub struct PhysicalColumnExpr {
 }
 
 impl PhysicalColumnExpr {
-    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
+    pub fn eval2<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, ArrayOld>> {
         let col = batch.column(self.idx).ok_or_else(|| {
             RayexecError::new(format!(
                 "Tried to get column at index {} in a batch with {} columns",

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
@@ -16,7 +16,7 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
-    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
+    pub fn eval2<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, ArrayOld>> {
         let arr = self.literal.as_array(batch.num_rows())?;
         Ok(Cow::Owned(arr))
     }

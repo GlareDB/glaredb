@@ -11,7 +11,7 @@ use rayexec_error::Result;
 pub use unary::*;
 
 use super::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 
 /// State for a single group's aggregate.
@@ -72,7 +72,7 @@ impl StateFinalizer {
     pub fn finalize<'a, State, I, B, Input, Output>(
         states: I,
         mut builder: ArrayBuilder<B>,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         B: ArrayDataBuffer,
         I: IntoIterator<Item = &'a mut State>,
@@ -99,7 +99,7 @@ impl StateFinalizer {
             Some(validities.into())
         };
 
-        Ok(Array {
+        Ok(ArrayOld {
             datatype: builder.datatype,
             selection: None,
             validity: validities,

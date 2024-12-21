@@ -26,7 +26,7 @@ impl StatelessOperation for ProjectOperation {
             .exprs
             .iter()
             .map(|expr| {
-                let arr = expr.eval(&batch)?;
+                let arr = expr.eval2(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;

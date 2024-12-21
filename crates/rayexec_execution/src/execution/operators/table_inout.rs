@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
@@ -25,7 +25,7 @@ use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 pub struct TableInOutPartitionState {
     function_state: Box<dyn inout::TableInOutPartitionState>,
     /// Additional outputs that will be included on the output batch.
-    additional_outputs: Vec<Array>,
+    additional_outputs: Vec<ArrayOld>,
 }
 
 #[derive(Debug)]
@@ -93,7 +93,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             .function_inputs
             .iter()
             .map(|expr| {
-                let arr = expr.eval(&batch)?;
+                let arr = expr.eval2(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;
@@ -116,7 +116,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     .projected_outputs
                     .iter()
                     .map(|expr| {
-                        let arr = expr.eval(&batch)?;
+                        let arr = expr.eval2(&batch)?;
                         Ok(arr.into_owned())
                     })
                     .collect::<Result<Vec<_>>>()?;

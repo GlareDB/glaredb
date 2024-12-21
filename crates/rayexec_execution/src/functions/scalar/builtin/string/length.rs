@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalUtf8};
@@ -64,7 +64,7 @@ impl ScalarFunction for Length {
 pub struct StrLengthImpl;
 
 impl ScalarFunctionImpl for StrLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -145,7 +145,7 @@ impl ScalarFunction for ByteLength {
 pub struct ByteLengthImpl;
 
 impl ScalarFunctionImpl for ByteLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -222,7 +222,7 @@ impl ScalarFunction for BitLength {
 pub struct BitLengthImpl;
 
 impl ScalarFunctionImpl for BitLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {

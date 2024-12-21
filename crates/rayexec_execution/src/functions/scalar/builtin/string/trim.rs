@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
@@ -222,7 +222,7 @@ impl<F: StringTrimOp> TrimWhitespaceImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
@@ -247,7 +247,7 @@ impl<F: StringTrimOp> TrimPatternImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimPatternImpl<F> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -105,7 +105,7 @@ impl LeftOuterJoinDrainState {
             .columns()
             .iter()
             .cloned()
-            .chain([Array::new_with_array_data(
+            .chain([ArrayOld::new_with_array_data(
                 DataType::Boolean,
                 ArrayData::Boolean(Arc::new(bitmap.clone().into())),
             )]);
@@ -151,7 +151,7 @@ impl LeftOuterJoinDrainState {
             let right_cols = self
                 .right_types
                 .iter()
-                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+                .map(|datatype| ArrayOld::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
             let batch = BatchOld::try_new(left_cols.into_iter().chain(right_cols))?;
@@ -186,7 +186,7 @@ impl LeftOuterJoinDrainState {
             let right_cols = self
                 .right_types
                 .iter()
-                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+                .map(|datatype| ArrayOld::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
             let batch = BatchOld::try_new(left_cols.into_iter().chain(right_cols))?;
@@ -244,7 +244,7 @@ impl RightOuterJoinTracker {
 
         let left_null_cols = left_types
             .iter()
-            .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+            .map(|datatype| ArrayOld::new_typed_null_array(datatype.clone(), num_rows))
             .collect::<Result<Vec<_>>>()?;
 
         let batch = BatchOld::try_new(left_null_cols.into_iter().chain(right_cols))?;

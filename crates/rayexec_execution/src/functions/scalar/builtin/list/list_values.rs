@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
 use rayexec_bullet::executor::scalar::concat;
 use rayexec_bullet::storage::ListStorage;
@@ -90,20 +90,20 @@ pub struct ListValuesImpl {
 }
 
 impl ScalarFunctionImpl for ListValuesImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         if inputs.is_empty() {
             let inner_type = match &self.list_datatype {
                 DataType::List(l) => l.datatype.as_ref(),
                 other => panic!("invalid data type: {other}"),
             };
 
-            let data = ListStorage::empty_list(Array::new_typed_null_array(inner_type.clone(), 1)?);
-            return Ok(Array::new_with_array_data(self.list_datatype.clone(), data));
+            let data = ListStorage::empty_list(ArrayOld::new_typed_null_array(inner_type.clone(), 1)?);
+            return Ok(ArrayOld::new_with_array_data(self.list_datatype.clone(), data));
         }
 
         let out = concat(inputs)?;
         let data = ListStorage::single_list(out);
 
-        Ok(Array::new_with_array_data(self.list_datatype.clone(), data))
+        Ok(ArrayOld::new_with_array_data(self.list_datatype.clone(), data))
     }
 }

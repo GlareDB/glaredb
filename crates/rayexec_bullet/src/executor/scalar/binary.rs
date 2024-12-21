@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::check_validity;
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
 use crate::executor::physical_type::PhysicalStorage;
@@ -14,11 +14,11 @@ pub struct BinaryExecutor;
 
 impl BinaryExecutor {
     pub fn execute<'a, S1, S2, B, Op>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a ArrayOld,
+        array2: &'a ArrayOld,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
         S1: PhysicalStorage,
@@ -81,7 +81,7 @@ impl BinaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(ArrayOld {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -102,8 +102,8 @@ mod tests {
 
     #[test]
     fn binary_simple_add() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter([4, 5, 6]);
+        let left = ArrayOld::from_iter([1, 2, 3]);
+        let right = ArrayOld::from_iter([4, 5, 6]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Int32,
@@ -125,8 +125,8 @@ mod tests {
 
     #[test]
     fn binary_string_repeat() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter(["hello", "world", "goodbye!"]);
+        let left = ArrayOld::from_iter([1, 2, 3]);
+        let right = ArrayOld::from_iter(["hello", "world", "goodbye!"]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -162,11 +162,11 @@ mod tests {
     #[test]
     fn binary_add_with_invalid() {
         // Make left constant null.
-        let mut left = Array::from_iter([1]);
+        let mut left = ArrayOld::from_iter([1]);
         left.put_selection(SelectionVector::repeated(3, 0));
         left.set_physical_validity(0, false);
 
-        let right = Array::from_iter([2, 3, 4]);
+        let right = ArrayOld::from_iter([2, 3, 4]);
 
         let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &left,

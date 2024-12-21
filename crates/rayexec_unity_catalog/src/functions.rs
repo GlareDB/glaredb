@@ -6,7 +6,7 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{FutureExt, TryStreamExt};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::field::{Field, Schema};
@@ -133,11 +133,11 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
             let resp = state.stream.try_next().await?;
             match resp {
                 Some(resp) => {
-                    let names = Array::from_iter(resp.schemas.iter().map(|s| s.name.as_str()));
+                    let names = ArrayOld::from_iter(resp.schemas.iter().map(|s| s.name.as_str()));
                     let catalog_names =
-                        Array::from_iter(resp.schemas.iter().map(|s| s.catalog_name.as_str()));
+                        ArrayOld::from_iter(resp.schemas.iter().map(|s| s.catalog_name.as_str()));
                     let comments =
-                        Array::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
+                        ArrayOld::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
 
                     let batch = BatchOld::try_new([names, catalog_names, comments])?;
                     Ok(Some(batch))
@@ -221,19 +221,21 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
             let resp = state.stream.try_next().await?;
             match resp {
                 Some(resp) => {
-                    let names = Array::from_iter(resp.tables.iter().map(|s| s.name.as_str()));
+                    let names = ArrayOld::from_iter(resp.tables.iter().map(|s| s.name.as_str()));
                     let catalog_names =
-                        Array::from_iter(resp.tables.iter().map(|s| s.catalog_name.as_str()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.catalog_name.as_str()));
                     let schema_names =
-                        Array::from_iter(resp.tables.iter().map(|s| s.schema_name.as_str()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.schema_name.as_str()));
                     let table_types =
-                        Array::from_iter(resp.tables.iter().map(|s| s.table_type.as_str()));
-                    let data_source_formats =
-                        Array::from_iter(resp.tables.iter().map(|s| s.data_source_format.as_str()));
-                    let storage_locations =
-                        Array::from_iter(resp.tables.iter().map(|s| s.storage_location.as_str()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.table_type.as_str()));
+                    let data_source_formats = ArrayOld::from_iter(
+                        resp.tables.iter().map(|s| s.data_source_format.as_str()),
+                    );
+                    let storage_locations = ArrayOld::from_iter(
+                        resp.tables.iter().map(|s| s.storage_location.as_str()),
+                    );
                     let comments =
-                        Array::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
 
                     let batch = BatchOld::try_new([
                         names,

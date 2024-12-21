@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::{AsPrimitive, Float};
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -110,7 +110,7 @@ where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 

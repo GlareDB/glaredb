@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::{PhysicalList, PhysicalType};
@@ -134,7 +134,7 @@ impl TableInOutFunction for UnnestInOutImpl {
 #[derive(Debug)]
 pub struct UnnestInOutPartitionState {
     /// The array we're unnesting.
-    input: Option<Array>,
+    input: Option<ArrayOld>,
     /// Number of rows in the input batch.
     input_num_rows: usize,
     /// Current row we're processing.
@@ -220,13 +220,13 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                     }
                     None => {
                         // Row is null, produce as single null
-                        Array::new_typed_null_array(child.datatype().clone(), 1)?
+                        ArrayOld::new_typed_null_array(child.datatype().clone(), 1)?
                     }
                 }
             }
             PhysicalType::UntypedNull => {
                 // Just produce null array of length 1.
-                Array::new_untyped_null_array(1)
+                ArrayOld::new_untyped_null_array(1)
             }
             other => {
                 return Err(RayexecError::new(format!(

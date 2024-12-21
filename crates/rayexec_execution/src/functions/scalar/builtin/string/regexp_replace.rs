@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
@@ -98,7 +98,7 @@ pub struct RegexpReplaceImpl {
 }
 
 impl ScalarFunctionImpl for RegexpReplaceImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
@@ -65,7 +65,7 @@ impl ScalarFunction for Repeat {
 pub struct RepeatUtf8Impl;
 
 impl ScalarFunctionImpl for RepeatUtf8Impl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let strings = inputs[0];
         let nums = inputs[1];
 

@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use half::f16;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{
@@ -120,13 +120,13 @@ pub struct ListExtractImpl {
 }
 
 impl ScalarFunctionImpl for ListExtractImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         extract(input, self.index)
     }
 }
 
-fn extract(array: &Array, idx: usize) -> Result<Array> {
+fn extract(array: &ArrayOld, idx: usize) -> Result<ArrayOld> {
     let data = match array.array_data() {
         ArrayData::List(list) => list.as_ref(),
         _other => return Err(RayexecError::new("Unexpected storage type")),
@@ -252,10 +252,10 @@ fn extract(array: &Array, idx: usize) -> Result<Array> {
 
 fn extract_inner<'a, S, B>(
     mut builder: ArrayBuilder<B>,
-    outer: &Array,
-    inner: &'a Array,
+    outer: &ArrayOld,
+    inner: &'a ArrayOld,
     el_idx: usize,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     B: ArrayDataBuffer,
@@ -290,7 +290,7 @@ where
         validity.set(idx, false);
     })?;
 
-    Ok(Array::new_with_validity_and_array_data(
+    Ok(ArrayOld::new_with_validity_and_array_data(
         builder.datatype,
         validity,
         builder.buffer.into_data(),

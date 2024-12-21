@@ -33,7 +33,7 @@ pub use ln::*;
 pub use log::*;
 use num_traits::Float;
 pub use radians::*;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::{
     PhysicalF16,
@@ -81,7 +81,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,
@@ -145,7 +145,7 @@ pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         match input.physical_type() {
             PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),

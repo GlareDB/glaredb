@@ -2,11 +2,13 @@ use std::borrow::Cow;
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
+use crate::arrays::batch::Batch;
+use crate::arrays::flat_array::FlatSelection;
 use crate::database::DatabaseContext;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::proto::DatabaseProtoConv;
@@ -18,11 +20,11 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
+    pub fn eval2<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, ArrayOld>> {
         let inputs = self
             .inputs
             .iter()
-            .map(|input| input.eval(batch))
+            .map(|input| input.eval2(batch))
             .collect::<Result<Vec<_>>>()?;
 
         let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
@@ -39,6 +41,10 @@ impl PhysicalScalarFunctionExpr {
         }
 
         Ok(Cow::Owned(out))
+    }
+
+    pub fn eval(&self, batch: &Batch, sel: FlatSelection) -> Result<ArrayOld> {
+        unimplemented!()
     }
 }
 

@@ -1,6 +1,6 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::array::{Array, ArrayData};
+use crate::array::{ArrayOld, ArrayData};
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer};
 use crate::executor::physical_type::{PhysicalList, PhysicalStorage};
@@ -32,10 +32,10 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 {
     /// Execute a reducer on two list arrays.
     pub fn binary_reduce<'a, S, B, R>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a ArrayOld,
+        array2: &'a ArrayOld,
         mut builder: ArrayBuilder<B>,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         R: BinaryListReducer<S::Type<'a>, B::Type>,
         S: PhysicalStorage,
@@ -91,7 +91,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                     builder.buffer.put(idx, &out);
                 }
 
-                Ok(Array {
+                Ok(ArrayOld {
                     datatype: builder.datatype,
                     selection: None,
                     validity: None,
@@ -135,7 +135,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                     builder.buffer.put(idx, &out);
                 }
 
-                Ok(Array {
+                Ok(ArrayOld {
                     datatype: builder.datatype,
                     selection: None,
                     validity: None,
@@ -164,7 +164,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 
 /// Gets the inner array storage. Checks to ensure the inner array does not
 /// contain NULLs.
-fn get_inner_array_storage<S>(array: &Array) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
+fn get_inner_array_storage<S>(array: &ArrayOld) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
 where
     S: PhysicalStorage,
 {
@@ -178,7 +178,7 @@ where
     }
 }
 
-fn get_inner_array_selection(array: &Array) -> Result<Option<&SelectionVector>> {
+fn get_inner_array_selection(array: &ArrayOld) -> Result<Option<&SelectionVector>> {
     match array.array_data() {
         ArrayData::List(d) => Ok(d.array.selection_vector()),
         _ => Err(RayexecError::new("Expected list array data")),

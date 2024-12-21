@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use num_traits::Float;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -102,7 +102,7 @@ where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: Float,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,

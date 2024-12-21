@@ -48,7 +48,7 @@ use super::parse::{
     UInt64Parser,
     UInt8Parser,
 };
-use crate::array::{Array, ArrayData};
+use crate::array::{ArrayData, ArrayOld};
 use crate::bitmap::Bitmap;
 use crate::datatype::{DataType, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
@@ -74,7 +74,7 @@ use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::storage::{AddressableStorage, PrimitiveStorage};
 
-pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Result<Array> {
+pub fn cast_array(arr: &ArrayOld, to: DataType, behavior: CastFailBehavior) -> Result<ArrayOld> {
     if arr.datatype() == &to {
         // TODO: Cow?
         return Ok(arr.clone());
@@ -85,7 +85,7 @@ pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Resu
             // Can cast NULL to anything else.
             let data = to.physical_type()?.zeroed_array_data(arr.logical_len());
             let validity = Bitmap::new_with_all_false(arr.logical_len());
-            Array::new_with_validity_and_array_data(to, validity, data)
+            ArrayOld::new_with_validity_and_array_data(to, validity, data)
         }
 
         // String to anything else.
@@ -223,10 +223,10 @@ pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Resu
 }
 
 fn decimal_rescale_helper<'a, S>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     S::Type<'a>: PrimInt,
@@ -239,10 +239,10 @@ where
 }
 
 pub fn decimal_rescale<'a, S, D>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     D: DecimalType,
@@ -292,10 +292,10 @@ where
 }
 
 fn cast_float_to_decimal_helper<'a, S>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     S::Type<'a>: Float,
@@ -308,10 +308,10 @@ where
 }
 
 fn cast_float_to_decimal<'a, S, D>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     D: DecimalType,
@@ -356,10 +356,10 @@ where
 
 // TODO: Weird to specify both the float generic and datatype.
 pub fn cast_decimal_to_float<'a, S, F>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     F: Float + Default + Copy,
@@ -394,10 +394,10 @@ where
 }
 
 fn cast_int_to_decimal_helper<'a, S>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     S::Type<'a>: PrimInt,
@@ -410,10 +410,10 @@ where
 }
 
 fn cast_int_to_decimal<'a, S, D>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     D: DecimalType,
@@ -476,10 +476,10 @@ where
 }
 
 fn cast_primitive_numeric_helper<'a, S>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     to: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     S::Type<'a>: ToPrimitive,
@@ -503,10 +503,10 @@ where
 }
 
 pub fn cast_primitive_numeric<'a, S, T>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     datatype: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     S::Type<'a>: ToPrimitive,
@@ -530,10 +530,10 @@ where
 }
 
 pub fn cast_from_utf8(
-    arr: &Array,
+    arr: &ArrayOld,
     datatype: DataType,
     behavior: CastFailBehavior,
-) -> Result<Array> {
+) -> Result<ArrayOld> {
     match datatype {
         DataType::Boolean => cast_parse_bool(arr, behavior),
         DataType::Int8 => cast_parse_primitive(arr, datatype, behavior, Int8Parser::default()),
@@ -579,7 +579,7 @@ pub fn cast_from_utf8(
     }
 }
 
-pub fn cast_to_utf8(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
+pub fn cast_to_utf8(arr: &ArrayOld, behavior: CastFailBehavior) -> Result<ArrayOld> {
     match arr.datatype() {
         DataType::Boolean => {
             cast_format::<PhysicalBool, _>(arr, BoolFormatter::default(), behavior)
@@ -647,10 +647,10 @@ pub fn cast_to_utf8(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
 }
 
 fn cast_format<'a, S, F>(
-    arr: &'a Array,
+    arr: &'a ArrayOld,
     mut formatter: F,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     F: Formatter<Type = S::Type<'a>>,
@@ -676,7 +676,7 @@ where
     fail_state.check_and_apply(arr, output)
 }
 
-fn cast_parse_bool(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
+fn cast_parse_bool(arr: &ArrayOld, behavior: CastFailBehavior) -> Result<ArrayOld> {
     let mut fail_state = behavior.new_state_for_array(arr);
     let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
         arr,
@@ -694,11 +694,11 @@ fn cast_parse_bool(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
 }
 
 fn cast_parse_primitive<P, T>(
-    arr: &Array,
+    arr: &ArrayOld,
     datatype: DataType,
     behavior: CastFailBehavior,
     mut parser: P,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     T: Default + Copy,
     P: Parser<Type = T>,
@@ -728,7 +728,7 @@ mod tests {
 
     #[test]
     fn array_cast_utf8_to_i32() {
-        let arr = Array::from_iter(["13", "18", "123456789"]);
+        let arr = ArrayOld::from_iter(["13", "18", "123456789"]);
 
         let got = cast_array(&arr, DataType::Int32, CastFailBehavior::Error).unwrap();
 
@@ -739,13 +739,13 @@ mod tests {
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_error() {
-        let arr = Array::from_iter(["13", "18", "123456789000000"]);
+        let arr = ArrayOld::from_iter(["13", "18", "123456789000000"]);
         cast_array(&arr, DataType::Int32, CastFailBehavior::Error).unwrap_err();
     }
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_null() {
-        let arr = Array::from_iter(["13", "18", "123456789000000"]);
+        let arr = ArrayOld::from_iter(["13", "18", "123456789000000"]);
 
         let got = cast_array(&arr, DataType::Int32, CastFailBehavior::Null).unwrap();
 
@@ -756,7 +756,7 @@ mod tests {
 
     #[test]
     fn array_cast_null_to_f32() {
-        let arr = Array::new_untyped_null_array(3);
+        let arr = ArrayOld::new_untyped_null_array(3);
 
         let got = cast_array(&arr, DataType::Float32, CastFailBehavior::Error).unwrap();
 
@@ -769,7 +769,7 @@ mod tests {
 
     #[test]
     fn array_cast_decimal64_to_f64() {
-        let arr = Array::new_with_array_data(
+        let arr = ArrayOld::new_with_array_data(
             DataType::Decimal64(DecimalTypeMeta {
                 precision: 10,
                 scale: 3,

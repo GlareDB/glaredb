@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::compute::date::{self, extract_date_part};
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
@@ -101,7 +101,7 @@ pub struct DatePartImpl {
 }
 
 impl ScalarFunctionImpl for DatePartImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         // First input ignored (the constant "part" to extract)
         extract_date_part(self.part, inputs[1])
     }

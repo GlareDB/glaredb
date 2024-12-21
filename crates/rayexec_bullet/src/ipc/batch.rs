@@ -9,7 +9,7 @@ use super::compression::CompressionType;
 use super::gen::message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBatch};
 use super::gen::schema::Buffer as IpcBuffer;
 use super::IpcConfig;
-use crate::array::{Array, ArrayData, BinaryData};
+use crate::array::{ArrayOld, ArrayData, BinaryData};
 use crate::batch::BatchOld;
 use crate::bitmap::Bitmap;
 use crate::bitutil::byte_ceil;
@@ -87,7 +87,7 @@ impl<'a> BufferReader<'a> {
     }
 }
 
-fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array> {
+fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<ArrayOld> {
     let node = buffers.try_next_node()?;
     let len = node.length() as usize;
     // Validity buffer always exists for primitive+varlen arrays even if there's
@@ -129,7 +129,7 @@ fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array
         PhysicalType::List => not_implemented!("IPC-decode untyped null"),
     };
 
-    Ok(Array {
+    Ok(ArrayOld {
         datatype: datatype.clone(),
         selection: None,
         validity,
@@ -206,7 +206,7 @@ pub fn batch_to_ipc<'a>(
 }
 
 fn encode_array(
-    array: &Array,
+    array: &ArrayOld,
     data: &mut Vec<u8>,
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn simple_batch_roundtrip() {
         let batch =
-            BatchOld::try_new([Array::from_iter([3, 2, 1]), Array::from_iter([9, 8, 7])]).unwrap();
+            BatchOld::try_new([ArrayOld::from_iter([3, 2, 1]), ArrayOld::from_iter([9, 8, 7])]).unwrap();
 
         let schema = Schema::new([
             Field::new("f1", DataType::Int32, true),
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn utf8_roundtrip() {
-        let batch = BatchOld::try_new([Array::from_iter(["mario", "peach", "yoshi"])]).unwrap();
+        let batch = BatchOld::try_new([ArrayOld::from_iter(["mario", "peach", "yoshi"])]).unwrap();
 
         let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
 
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn decimal128_roundtrip() {
         let datatype = DataType::Decimal128(DecimalTypeMeta::new(4, 2));
-        let arr = Array::new_with_array_data(
+        let arr = ArrayOld::new_with_array_data(
             datatype.clone(),
             PrimitiveStorage::from(vec![1000_i128, 1200, 1250]),
         );

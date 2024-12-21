@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
@@ -20,8 +20,8 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
-    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
-        let input = self.expr.eval(batch)?;
+    pub fn eval2<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, ArrayOld>> {
+        let input = self.expr.eval2(batch)?;
         let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
         Ok(Cow::Owned(out))
     }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Field;
@@ -37,8 +37,8 @@ pub fn main() -> Result<()> {
                         Field::new("c2", DataType::Utf8, false),
                     ],
                     data: BatchOld::try_new([
-                        Array::from_iter([1_i64, 2_i64]),
-                        Array::from_iter(["a", "b"]),
+                        ArrayOld::from_iter([1_i64, 2_i64]),
+                        ArrayOld::from_iter(["a", "b"]),
                     ])?,
                 },
                 // Table specific to insert into. Don't rely on this outside of
@@ -51,8 +51,8 @@ pub fn main() -> Result<()> {
                         Field::new("c2", DataType::Utf8, false),
                     ],
                     data: BatchOld::try_new([
-                        Array::from_iter([1_i64, 2_i64]),
-                        Array::from_iter(["a", "b"]),
+                        ArrayOld::from_iter([1_i64, 2_i64]),
+                        ArrayOld::from_iter(["a", "b"]),
                     ])?,
                 },
             ],

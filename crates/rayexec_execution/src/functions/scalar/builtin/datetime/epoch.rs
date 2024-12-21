@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalI64;
@@ -102,13 +102,13 @@ impl ScalarFunction for EpochMs {
 pub struct EpochImpl<const S: i64>;
 
 impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         to_timestamp::<S>(input)
     }
 }
 
-fn to_timestamp<const S: i64>(input: &Array) -> Result<Array> {
+fn to_timestamp<const S: i64>(input: &ArrayOld) -> Result<ArrayOld> {
     let builder = ArrayBuilder {
         datatype: DataType::Timestamp(TimestampTypeMeta {
             unit: TimeUnit::Microsecond,

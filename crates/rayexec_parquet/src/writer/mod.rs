@@ -11,7 +11,7 @@ use parquet::file::properties::{WriterProperties, WriterPropertiesPtr};
 use parquet::file::writer::{write_page, SerializedFileWriter};
 use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalStorage};
@@ -234,7 +234,7 @@ impl PageWriter for BufferedPageWriter {
 
 /// Write an array into the column writer.
 // TODO: Validity.
-fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Result<()> {
+fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &ArrayOld) -> Result<()> {
     if array.has_selection() {
         return Err(RayexecError::new(
             "Array needs to be unselected before it can be written",

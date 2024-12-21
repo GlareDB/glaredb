@@ -1,7 +1,7 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::datatype::{DataType, DecimalTypeMeta, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::executor::physical_type::{PhysicalI32, PhysicalI64};
@@ -69,7 +69,7 @@ pub enum DatePart {
 ///
 /// The results should be decimal representing the part extracted, and should
 /// use the Decimal64 default precision and scale.
-pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
+pub fn extract_date_part(part: DatePart, arr: &ArrayOld) -> Result<ArrayOld> {
     let datatype = arr.datatype();
     match datatype {
         DataType::Date32 => match part {
@@ -119,7 +119,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
     }
 }
 
-fn timestamp_extract_with_fn<F>(unit: TimeUnit, arr: &Array, f: F) -> Result<Array>
+fn timestamp_extract_with_fn<F>(unit: TimeUnit, arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
@@ -140,10 +140,10 @@ where
 }
 
 fn timestamp_extract_with_fn_and_datetime_builder<F, B>(
-    arr: &Array,
+    arr: &ArrayOld,
     f: F,
     builder: B,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
@@ -164,7 +164,7 @@ where
     )
 }
 
-fn date32_extract_with_fn<F>(arr: &Array, f: F) -> Result<Array>
+fn date32_extract_with_fn<F>(arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
@@ -185,7 +185,7 @@ where
     )
 }
 
-fn date64_extract_with_fn<F>(arr: &Array, f: F) -> Result<Array>
+fn date64_extract_with_fn<F>(arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {

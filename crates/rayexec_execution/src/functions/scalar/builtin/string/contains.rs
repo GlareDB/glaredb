@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
@@ -82,7 +82,7 @@ pub struct StringContainsConstantImpl {
 }
 
 impl ScalarFunctionImpl for StringContainsConstantImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
@@ -98,7 +98,7 @@ impl ScalarFunctionImpl for StringContainsConstantImpl {
 pub struct StringContainsImpl;
 
 impl ScalarFunctionImpl for StringContainsImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),

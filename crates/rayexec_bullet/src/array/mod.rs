@@ -52,7 +52,7 @@ pub type PhysicalValidity = SharedOrOwned<Bitmap>;
 pub type LogicalSelection = SharedOrOwned<SelectionVector>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Array {
+pub struct ArrayOld {
     /// Data type of the array.
     pub(crate) datatype: DataType,
     /// Selection of rows for the array.
@@ -70,7 +70,7 @@ pub struct Array {
     pub(crate) data: ArrayData,
 }
 
-impl Array {
+impl ArrayOld {
     pub fn new_untyped_null_array(len: usize) -> Self {
         // Note that we're adding a bitmap here even though the data already
         // returns NULL. This allows the executors (especially for aggregates)
@@ -80,7 +80,7 @@ impl Array {
         let selection = SelectionVector::repeated(len, 0);
         let data = UntypedNullStorage(1);
 
-        Array {
+        ArrayOld {
             datatype: DataType::Null,
             selection: Some(selection.into()),
             validity: Some(validity.into()),
@@ -96,7 +96,7 @@ impl Array {
         let validity = Bitmap::new_with_all_false(1);
         let selection = SelectionVector::repeated(len, 0);
 
-        Ok(Array {
+        Ok(ArrayOld {
             datatype,
             selection: Some(selection.into()),
             validity: Some(validity.into()),
@@ -105,7 +105,7 @@ impl Array {
     }
 
     pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData>) -> Self {
-        Array {
+        ArrayOld {
             datatype,
             selection: None,
             validity: None,
@@ -118,7 +118,7 @@ impl Array {
         validity: impl Into<PhysicalValidity>,
         data: impl Into<ArrayData>,
     ) -> Self {
-        Array {
+        ArrayOld {
             datatype,
             selection: None,
             validity: Some(validity.into()),
@@ -132,7 +132,7 @@ impl Array {
         selection: impl Into<LogicalSelection>,
         data: impl Into<ArrayData>,
     ) -> Self {
-        Array {
+        ArrayOld {
             datatype,
             selection: Some(selection.into()),
             validity: Some(validity.into()),
@@ -290,7 +290,7 @@ impl Array {
         }
 
         match self.array_data() {
-            ArrayData::UntypedNull(_) => Ok(Array {
+            ArrayData::UntypedNull(_) => Ok(ArrayOld {
                 datatype: self.datatype.clone(),
                 selection: None,
                 validity: None,
@@ -761,7 +761,7 @@ impl Array {
             None => SelectionVector::with_range(offset..(offset + count)),
         };
 
-        Array {
+        ArrayOld {
             datatype: self.datatype.clone(),
             selection: Some(selection.into()),
             validity: self.validity.clone(),
@@ -774,10 +774,10 @@ fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
     RayexecError::new(format!("Array data not valid for data type: {datatype}"))
 }
 
-impl<F> FromIterator<Option<F>> for Array
+impl<F> FromIterator<Option<F>> for ArrayOld
 where
     F: Default,
-    Array: FromIterator<F>,
+    ArrayOld: FromIterator<F>,
 {
     fn from_iter<T: IntoIterator<Item = Option<F>>>(iter: T) -> Self {
         // TODO: Make a bit more performant, this is used for more than just
@@ -796,14 +796,14 @@ where
             }
         }
 
-        let mut array = Array::from_iter(new_vals);
+        let mut array = ArrayOld::from_iter(new_vals);
         array.validity = Some(validity.into());
 
         array
     }
 }
 
-impl FromIterator<String> for Array {
+impl FromIterator<String> for ArrayOld {
     fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let (lower, _) = iter.size_hint();
@@ -813,7 +813,7 @@ impl FromIterator<String> for Array {
             german.try_push(s.as_bytes()).unwrap();
         }
 
-        Array {
+        ArrayOld {
             datatype: DataType::Utf8,
             selection: None,
             validity: None,
@@ -822,7 +822,7 @@ impl FromIterator<String> for Array {
     }
 }
 
-impl<'a> FromIterator<&'a str> for Array {
+impl<'a> FromIterator<&'a str> for ArrayOld {
     fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let (lower, _) = iter.size_hint();
@@ -832,7 +832,7 @@ impl<'a> FromIterator<&'a str> for Array {
             german.try_push(s.as_bytes()).unwrap();
         }
 
-        Array {
+        ArrayOld {
             datatype: DataType::Utf8,
             selection: None,
             validity: None,
@@ -871,10 +871,10 @@ impl_primitive_from_iter!(f16, Float16);
 impl_primitive_from_iter!(f32, Float32);
 impl_primitive_from_iter!(f64, Float64);
 
-impl FromIterator<bool> for Array {
+impl FromIterator<bool> for ArrayOld {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
         let vals: Bitmap = iter.into_iter().collect();
-        Array {
+        ArrayOld {
             datatype: DataType::Boolean,
             selection: None,
             validity: None,
@@ -1096,7 +1096,7 @@ mod tests {
 
     #[test]
     fn select_mut_no_change() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let mut arr = ArrayOld::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::with_range(0..3);
 
         arr.select_mut(selection);
@@ -1108,7 +1108,7 @@ mod tests {
 
     #[test]
     fn select_mut_prune_rows() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let mut arr = ArrayOld::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 2]);
 
         arr.select_mut(selection);
@@ -1120,7 +1120,7 @@ mod tests {
 
     #[test]
     fn select_mut_expand_rows() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let mut arr = ArrayOld::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 1, 1, 2]);
 
         arr.select_mut(selection);
@@ -1134,7 +1134,7 @@ mod tests {
 
     #[test]
     fn select_mut_existing_selection() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
+        let mut arr = ArrayOld::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 2]);
 
         // => ["a", "c"]
@@ -1151,7 +1151,7 @@ mod tests {
 
     #[test]
     fn scalar_value_logical_eq_i32() {
-        let arr = Array::from_iter([1, 2, 3]);
+        let arr = ArrayOld::from_iter([1, 2, 3]);
         let scalar = ScalarValue::Int32(2);
 
         assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
@@ -1160,7 +1160,7 @@ mod tests {
 
     #[test]
     fn scalar_value_logical_eq_null() {
-        let arr = Array::from_iter([Some(1), None, Some(3)]);
+        let arr = ArrayOld::from_iter([Some(1), None, Some(3)]);
         let scalar = ScalarValue::Null;
 
         assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());

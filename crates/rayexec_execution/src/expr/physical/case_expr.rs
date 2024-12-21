@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::executor::scalar::{interleave, SelectExecutor};
@@ -30,7 +30,7 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
+    pub fn eval2<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, ArrayOld>> {
         let mut arrays = Vec::new();
         let mut indices: Vec<(usize, usize)> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
@@ -49,7 +49,7 @@ impl PhysicalCaseExpr {
             let selected_batch = batch.select(selection.clone());
 
             // Execute 'when'.
-            let selected = case.when.eval(&selected_batch)?;
+            let selected = case.when.eval2(&selected_batch)?;
 
             // Determine which rows should be executed for 'then', and which we
             // need to fall through on.
@@ -57,7 +57,7 @@ impl PhysicalCaseExpr {
 
             // Select rows in batch to execute on based on 'trues'.
             let execute_batch = selected_batch.select(Arc::new(trues_sel.clone()));
-            let output = case.then.eval(&execute_batch)?;
+            let output = case.then.eval2(&execute_batch)?;
 
             // Store array for later interleaving.
             let array_idx = arrays.len();
@@ -83,7 +83,7 @@ impl PhysicalCaseExpr {
             let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
             let remaining_batch = batch.select(selection.clone());
 
-            let output = self.else_expr.eval(&remaining_batch)?;
+            let output = self.else_expr.eval2(&remaining_batch)?;
             let array_idx = arrays.len();
             arrays.push(output.into_owned());
 
@@ -130,8 +130,8 @@ mod tests {
     #[test]
     fn case_simple() {
         let batch = BatchOld::try_new([
-            Array::from_iter([1, 2, 3, 4]),
-            Array::from_iter([12, 13, 14, 15]),
+            ArrayOld::from_iter([1, 2, 3, 4]),
+            ArrayOld::from_iter([12, 13, 14, 15]),
         ])
         .unwrap();
 
@@ -182,7 +182,7 @@ mod tests {
         let planner = PhysicalExpressionPlanner::new(&table_list);
         let physical_case = planner.plan_scalar(&[table_ref], &case_expr).unwrap();
 
-        let got = physical_case.eval(&batch).unwrap();
+        let got = physical_case.eval2(&batch).unwrap();
 
         assert_eq!(ScalarValue::from("else"), got.logical_value(0).unwrap());
         assert_eq!(

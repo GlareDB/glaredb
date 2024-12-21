@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
@@ -62,10 +62,10 @@ impl ScalarFunction for Random {
 pub struct RandomImpl;
 
 impl ScalarFunctionImpl for RandomImpl {
-    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, _inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         // TODO: Need to pass in dummy input to produce all unique values.
         let val = rand::random::<f64>();
-        Ok(Array::new_with_array_data(
+        Ok(ArrayOld::new_with_array_data(
             DataType::Float64,
             PrimitiveStorage::from(vec![val]),
         ))

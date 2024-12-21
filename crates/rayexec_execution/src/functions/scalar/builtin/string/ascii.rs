@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
@@ -61,7 +61,7 @@ impl ScalarFunction for Ascii {
 pub struct AsciiImpl;
 
 impl ScalarFunctionImpl for AsciiImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Int32,

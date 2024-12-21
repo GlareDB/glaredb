@@ -13,7 +13,7 @@ use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
@@ -34,13 +34,13 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
+    pub fn eval2<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, ArrayOld>> {
         match self {
-            Self::Case(e) => e.eval(batch),
-            Self::Cast(e) => e.eval(batch),
-            Self::Column(e) => e.eval(batch),
-            Self::Literal(e) => e.eval(batch),
-            Self::ScalarFunction(e) => e.eval(batch),
+            Self::Case(e) => e.eval2(batch),
+            Self::Cast(e) => e.eval2(batch),
+            Self::Column(e) => e.eval2(batch),
+            Self::Literal(e) => e.eval2(batch),
+            Self::ScalarFunction(e) => e.eval2(batch),
         }
     }
 
@@ -49,7 +49,7 @@ impl PhysicalScalarExpression {
     /// The selection vector will include row indices where the expression
     /// evaluates to true.
     pub fn select(&self, batch: &BatchOld) -> Result<SelectionVector> {
-        let selected = self.eval(batch)?;
+        let selected = self.eval2(batch)?;
 
         let mut selection = SelectionVector::with_capacity(selected.logical_len());
         SelectExecutor::select(&selected, &mut selection)?;
@@ -199,8 +199,8 @@ mod tests {
     #[test]
     fn select_some() {
         let batch = BatchOld::try_new([
-            Array::from_iter([1, 4, 6, 9, 12]),
-            Array::from_iter([2, 3, 8, 9, 10]),
+            ArrayOld::from_iter([1, 4, 6, 9, 12]),
+            ArrayOld::from_iter([2, 3, 8, 9, 10]),
         ])
         .unwrap();
 
@@ -226,8 +226,8 @@ mod tests {
     #[test]
     fn select_none() {
         let batch = BatchOld::try_new([
-            Array::from_iter([1, 2, 6, 9, 9]),
-            Array::from_iter([2, 3, 8, 9, 10]),
+            ArrayOld::from_iter([1, 2, 6, 9, 9]),
+            ArrayOld::from_iter([2, 3, 8, 9, 10]),
         ])
         .unwrap();
 

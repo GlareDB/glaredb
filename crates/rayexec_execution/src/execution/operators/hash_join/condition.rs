@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
@@ -45,7 +45,7 @@ impl fmt::Display for HashJoinCondition {
 #[derive(Debug)]
 pub struct LeftPrecomputedJoinCondition {
     /// Precomputed results for left batches.
-    pub left_precomputed: Vec<Array>,
+    pub left_precomputed: Vec<ArrayOld>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
     pub function: PlannedScalarFunction,
@@ -79,7 +79,7 @@ impl LeftPrecomputedJoinConditions {
     /// input.
     pub fn precompute_for_left_batch(&mut self, left: &BatchOld) -> Result<()> {
         for condition in &mut self.conditions {
-            let precomputed = condition.left.eval(left)?;
+            let precomputed = condition.left.eval2(left)?;
             condition.left_precomputed.push(precomputed.into_owned())
         }
 
@@ -121,7 +121,7 @@ impl LeftPrecomputedJoinConditions {
             left_precomputed.select_mut(left_row_sel.clone());
 
             // Eval the right side.
-            let right_arr = condition.right.eval(&selected_right)?;
+            let right_arr = condition.right.eval2(&selected_right)?;
 
             // Compute join condition result.
             let result = condition

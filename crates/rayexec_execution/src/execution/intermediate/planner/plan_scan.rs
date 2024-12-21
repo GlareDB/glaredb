@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
@@ -84,7 +84,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         // TODO: This could probably be simplified.
 
-        let mut row_arrs: Vec<Vec<Array>> = Vec::new(); // Row oriented.
+        let mut row_arrs: Vec<Vec<ArrayOld>> = Vec::new(); // Row oriented.
         let dummy_batch = BatchOld::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
@@ -96,7 +96,7 @@ impl IntermediatePipelineBuildState<'_> {
             let arrs = exprs
                 .into_iter()
                 .map(|expr| {
-                    let arr = expr.eval(&dummy_batch)?;
+                    let arr = expr.eval2(&dummy_batch)?;
                     Ok(arr.into_owned())
                 })
                 .collect::<Result<Vec<_>>>()?;

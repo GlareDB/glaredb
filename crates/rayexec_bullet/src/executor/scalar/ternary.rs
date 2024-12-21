@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 
 use super::check_validity;
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
 use crate::executor::physical_type::PhysicalStorage;
@@ -16,12 +16,12 @@ pub struct TernaryExecutor;
 
 impl TernaryExecutor {
     pub fn execute<'a, S1, S2, S3, B, Op>(
-        array1: &'a Array,
-        array2: &'a Array,
-        array3: &'a Array,
+        array1: &'a ArrayOld,
+        array2: &'a ArrayOld,
+        array3: &'a ArrayOld,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, S3::Type<'a>, &mut OutputBuffer<B>),
         S1: PhysicalStorage,
@@ -97,7 +97,7 @@ impl TernaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(ArrayOld {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,

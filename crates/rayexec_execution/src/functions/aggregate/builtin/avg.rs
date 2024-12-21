@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::AsPrimitive;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
@@ -159,7 +159,7 @@ where
                 builder.buffer.put(idx, &val);
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(ArrayOld::new_with_validity_and_array_data(
                 builder.datatype,
                 validities,
                 builder.buffer.into_data(),

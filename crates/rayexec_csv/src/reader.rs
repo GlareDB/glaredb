@@ -22,7 +22,7 @@ use std::fmt;
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
@@ -485,7 +485,7 @@ impl AsyncCsvStream {
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<Array> {
+    ) -> Result<ArrayOld> {
         let mut values = Bitmap::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -502,7 +502,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(ArrayOld::new_with_validity_and_array_data(
             DataType::Boolean,
             validity,
             BooleanStorage::from(values),
@@ -515,7 +515,7 @@ impl AsyncCsvStream {
         field_idx: usize,
         skip_records: usize,
         mut parser: P,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         T: Default,
         P: Parser<Type = T>,
@@ -539,7 +539,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(ArrayOld::new_with_validity_and_array_data(
             datatype.clone(),
             validity,
             PrimitiveStorage::from(values),
@@ -550,7 +550,7 @@ impl AsyncCsvStream {
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<Array> {
+    ) -> Result<ArrayOld> {
         let mut values = GermanVarlenBuffer::with_len(completed.num_completed() - skip_records);
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -564,7 +564,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(ArrayOld::new_with_validity_and_array_data(
             DataType::Utf8,
             validity,
             values.into_data(),

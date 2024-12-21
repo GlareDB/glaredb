@@ -13,7 +13,7 @@ use distinct::DistinctGroupedStates;
 use drain::HashTableDrain;
 use hash_table::HashTable;
 use parking_lot::Mutex;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -514,7 +514,7 @@ impl PhysicalHashAggregate {
         state.hash_buf.resize(num_rows, 0);
         state.partitions_idx_buf.resize(num_rows, 0);
 
-        let mut masked_grouping_columns: Vec<Array> = Vec::with_capacity(grouping_columns.len());
+        let mut masked_grouping_columns: Vec<ArrayOld> = Vec::with_capacity(grouping_columns.len());
 
         // Reused to select hashes per partition.
         let mut partition_hashes = Vec::new();
@@ -527,7 +527,7 @@ impl PhysicalHashAggregate {
             for (col_idx, col_is_null) in null_mask.iter().enumerate() {
                 if col_is_null {
                     // Create column with all nulls but retain the datatype.
-                    let null_col = Array::new_typed_null_array(
+                    let null_col = ArrayOld::new_typed_null_array(
                         grouping_columns[col_idx].datatype().clone(),
                         num_rows,
                     )?;

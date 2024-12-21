@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -215,7 +215,7 @@ where
     for<'a> S::Type<'a>: std::ops::Sub<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -238,8 +238,8 @@ mod tests {
 
     #[test]
     fn sub_i32() {
-        let a = Array::from_iter([4, 5, 6]);
-        let b = Array::from_iter([1, 2, 3]);
+        let a = ArrayOld::from_iter([4, 5, 6]);
+        let b = ArrayOld::from_iter([1, 2, 3]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -258,7 +258,7 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([3, 3, 3]);
+        let expected = ArrayOld::from_iter([3, 3, 3]);
 
         assert_eq!(expected, out);
     }

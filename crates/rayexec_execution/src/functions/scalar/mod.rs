@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
@@ -106,9 +106,9 @@ impl Hash for PlannedScalarFunction {
 }
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array>;
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld>;
 
-    fn execute2(&self, batch: &Batch, sel: FlatSelection, out: OutBuffer) -> Result<()> {
+    fn execute2(&self, batch: &Batch, out: OutBuffer) -> Result<()> {
         unimplemented!()
     }
 }

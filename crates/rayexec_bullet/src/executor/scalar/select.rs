@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::executor::physical_type::{PhysicalBool, PhysicalStorage};
 use crate::selection::{self, SelectionVector};
 use crate::storage::AddressableStorage;
@@ -12,7 +12,7 @@ impl SelectExecutor {
     /// Writes row selections to `output_sel`.
     ///
     /// Errors if the provided array isn't a boolean array.
-    pub fn select(bool_array: &Array, output_sel: &mut SelectionVector) -> Result<()> {
+    pub fn select(bool_array: &ArrayOld, output_sel: &mut SelectionVector) -> Result<()> {
         output_sel.clear();
         let selection = bool_array.selection_vector();
         let len = bool_array.logical_len();
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn select_simple() {
-        let arr = Array::from_iter([false, true, true, false, true]);
+        let arr = ArrayOld::from_iter([false, true, true, false, true]);
         let mut selection = SelectionVector::with_capacity(5);
 
         SelectExecutor::select(&arr, &mut selection).unwrap();
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn select_with_nulls() {
-        let arr = Array::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
+        let arr = ArrayOld::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
         let mut selection = SelectionVector::with_capacity(5);
 
         SelectExecutor::select(&arr, &mut selection).unwrap();
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn select_with_selection() {
-        let mut arr = Array::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
+        let mut arr = ArrayOld::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
         // => [NULL, false, true]
         arr.select_mut(SelectionVector::from_iter([2, 3, 4]));
 
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn select_wrong_type() {
-        let arr = Array::from_iter([1, 2, 3, 4, 5]);
+        let arr = ArrayOld::from_iter([1, 2, 3, 4, 5]);
         let mut selection = SelectionVector::with_capacity(5);
 
         SelectExecutor::select(&arr, &mut selection).unwrap_err();

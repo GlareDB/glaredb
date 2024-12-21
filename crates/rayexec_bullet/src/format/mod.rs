@@ -5,7 +5,7 @@ use std::fmt;
 
 use rayexec_error::Result;
 
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::scalar::ScalarValue;
 
 /// Formatting options for arrays and scalars.
@@ -57,7 +57,7 @@ impl<'a> Formatter<'a> {
     /// Returns `None` if the idx is out of bounds.
     pub fn format_array_value<'b>(
         &self,
-        array: &'b Array,
+        array: &'b ArrayOld,
         idx: usize,
     ) -> Result<FormattedScalarValue<'_, 'b>> {
         let scalar = array.logical_value(idx)?;

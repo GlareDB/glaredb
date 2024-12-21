@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::Result;
@@ -114,5 +114,5 @@ pub fn logical_value(batch: &BatchOld, column: usize, row: usize) -> ScalarValue
 
 /// Makes a batch with a single column i32 values provided by the iterator.
 pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> BatchOld {
-    BatchOld::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
+    BatchOld::try_new(vec![ArrayOld::from_iter(iter.into_iter())]).unwrap()
 }

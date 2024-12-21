@@ -105,9 +105,11 @@ where
     ///
     /// Returns an error if the array cannot be made to be managed. The array is
     /// still valid (and remains in the 'owned' state).
-    pub fn make_managed(&mut self, manager: &B) -> Result<()> {
+    ///
+    /// A cloned pointer to the newly managed array will be returned.
+    pub fn make_managed(&mut self, manager: &B) -> Result<B::CowPtr<Array<B>>> {
         match &mut self.inner {
-            BatchArrayInner::Managed(_) => Ok(()), // Already managed.
+            BatchArrayInner::Managed(m) => Ok(m.clone()), // Already managed.
             BatchArrayInner::Owned(_) => {
                 let orig = std::mem::replace(&mut self.inner, BatchArrayInner::Uninit);
                 let array = match orig {
@@ -118,7 +120,10 @@ where
                 match manager.make_cow(array) {
                     Ok(managed) => {
                         self.inner = BatchArrayInner::Managed(managed);
-                        Ok(())
+                        match &self.inner {
+                            BatchArrayInner::Managed(m) => Ok(m.clone()),
+                            _ => unreachable!("variant just set"),
+                        }
                     }
                     Err(orig) => {
                         // Manager rejected it, put it back as owned and return

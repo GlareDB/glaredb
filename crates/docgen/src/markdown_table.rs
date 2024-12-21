@@ -54,7 +54,7 @@ pub fn write_markdown_table<'a>(
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
+    use rayexec_bullet::array::ArrayOld;
     use rayexec_bullet::datatype::DataType;
     use rayexec_bullet::field::Field;
 
@@ -63,8 +63,8 @@ mod tests {
     #[test]
     fn simple() {
         let batch = BatchOld::try_new([
-            Array::from_iter([1, 2, 3]),
-            Array::from_iter(["cat", "dog", "mouse"]),
+            ArrayOld::from_iter([1, 2, 3]),
+            ArrayOld::from_iter(["cat", "dog", "mouse"]),
         ])
         .unwrap();
 

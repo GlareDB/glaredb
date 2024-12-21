@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use half::f16;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::executor::builder::{
@@ -56,9 +56,9 @@ use crate::expr::physical::PhysicalScalarExpression;
 #[derive(Debug)]
 pub struct UnnestPartitionState {
     /// Projections that need to extended to match the unnest outputs.
-    project_inputs: Vec<Array>,
+    project_inputs: Vec<ArrayOld>,
     /// Inputs we're processing.
-    unnest_inputs: Vec<Array>,
+    unnest_inputs: Vec<ArrayOld>,
     /// Number of rows in the input.
     input_num_rows: usize,
     /// Row we're currently unnesting.
@@ -93,11 +93,11 @@ impl ExecutableOperator for PhysicalUnnest {
             .map(|_| {
                 PartitionState::Unnest(UnnestPartitionState {
                     project_inputs: vec![
-                        Array::new_untyped_null_array(0);
+                        ArrayOld::new_untyped_null_array(0);
                         self.project_expressions.len()
                     ],
                     unnest_inputs: vec![
-                        Array::new_untyped_null_array(0);
+                        ArrayOld::new_untyped_null_array(0);
                         self.unnest_expressions.len()
                     ],
                     input_num_rows: 0,
@@ -141,11 +141,11 @@ impl ExecutableOperator for PhysicalUnnest {
 
         // Compute inputs. These will be stored until we've processed all rows.
         for (col_idx, expr) in self.project_expressions.iter().enumerate() {
-            state.project_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.project_inputs[col_idx] = expr.eval2(&batch)?.into_owned();
         }
 
         for (col_idx, expr) in self.unnest_expressions.iter().enumerate() {
-            state.unnest_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.unnest_inputs[col_idx] = expr.eval2(&batch)?.into_owned();
         }
 
         state.input_num_rows = batch.num_rows();
@@ -259,7 +259,7 @@ impl ExecutableOperator for PhysicalUnnest {
                         None => {
                             // Row is null, produce nulls according to longest
                             // length.
-                            let out = Array::new_typed_null_array(
+                            let out = ArrayOld::new_typed_null_array(
                                 child.datatype().clone(),
                                 longest as usize,
                             )?;
@@ -269,7 +269,7 @@ impl ExecutableOperator for PhysicalUnnest {
                 }
                 PhysicalType::UntypedNull => {
                     // Just produce null array according to longest length.
-                    let out = Array::new_untyped_null_array(longest as usize);
+                    let out = ArrayOld::new_untyped_null_array(longest as usize);
                     outputs.push(out);
                 }
                 other => {
@@ -304,11 +304,15 @@ impl Explainable for PhysicalUnnest {
     }
 }
 
-pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
+pub(crate) fn unnest(
+    child: &ArrayOld,
+    longest_len: usize,
+    meta: ListItemMetadata,
+) -> Result<ArrayOld> {
     let datatype = child.datatype().clone();
 
     match child.physical_type() {
-        PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
+        PhysicalType::UntypedNull => Ok(ArrayOld::new_untyped_null_array(longest_len)),
         PhysicalType::Boolean => {
             let builder = ArrayBuilder {
                 datatype,
@@ -427,9 +431,9 @@ pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) 
 
 fn unnest_inner<'a, S, B>(
     mut builder: ArrayBuilder<B>,
-    child: &'a Array,
+    child: &'a ArrayOld,
     meta: ListItemMetadata,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     S: PhysicalStorage,
     B: ArrayDataBuffer,
@@ -459,7 +463,7 @@ where
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(ArrayOld::new_with_validity_and_array_data(
                 builder.datatype,
                 out_validity,
                 builder.buffer.into_data(),
@@ -482,7 +486,7 @@ where
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(ArrayOld::new_with_validity_and_array_data(
                 builder.datatype,
                 out_validity,
                 builder.buffer.into_data(),

@@ -1,5 +1,5 @@
 use num_traits::Float;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalStorage;
@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for AtanOp {
     const NAME: &'static str = "atan";
     const DESCRIPTION: &'static str = "Compute the arctangent of value";
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,

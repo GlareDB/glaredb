@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::PhysicalI64;
@@ -164,7 +164,7 @@ struct SeriesParams {
 
 impl SeriesParams {
     /// Generate the next set of rows using the current parameters.
-    fn generate_next(&mut self, batch_size: usize) -> Array {
+    fn generate_next(&mut self, batch_size: usize) -> ArrayOld {
         debug_assert!(!self.exhausted);
 
         let mut series: Vec<i64> = Vec::new();
@@ -195,7 +195,7 @@ impl SeriesParams {
             self.curr = *last + self.step;
         }
 
-        Array::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
+        ArrayOld::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
     }
 }
 

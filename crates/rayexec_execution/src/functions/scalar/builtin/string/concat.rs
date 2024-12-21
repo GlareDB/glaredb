@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
@@ -68,10 +68,10 @@ impl ScalarFunction for Concat {
 pub struct StringConcatImpl;
 
 impl ScalarFunctionImpl for StringConcatImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         match inputs.len() {
             0 => {
-                let mut array = Array::from_iter([""]);
+                let mut array = ArrayOld::from_iter([""]);
                 array.set_physical_validity(0, false);
                 Ok(array)
             }

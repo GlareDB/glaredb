@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
@@ -26,7 +26,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                BatchOld::try_new([Array::from_iter([show.value.to_string().as_str()])])?,
+                BatchOld::try_new([ArrayOld::from_iter([show.value.to_string().as_str()])])?,
             ]))),
             partitioning_requirement: Some(1),
         };

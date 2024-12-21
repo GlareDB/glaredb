@@ -5,7 +5,7 @@ use std::task::{Context, Poll, Waker};
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use parking_lot::Mutex;
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
@@ -370,7 +370,8 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                         let row_count = shared.global_row_count as u64;
 
-                        let row_count_batch = BatchOld::try_new([Array::from_iter([row_count])])?;
+                        let row_count_batch =
+                            BatchOld::try_new([ArrayOld::from_iter([row_count])])?;
 
                         return Ok(PollPull::Computed(row_count_batch.into()));
                     }

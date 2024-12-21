@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalI64;
@@ -140,7 +140,7 @@ pub struct DateTruncImpl {
 }
 
 impl ScalarFunctionImpl for DateTruncImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = &inputs[1];
 
         let trunc = match self.input_unit {

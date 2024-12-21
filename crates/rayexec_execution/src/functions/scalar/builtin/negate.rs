@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -102,7 +102,7 @@ where
     for<'a> S::Type<'a>: std::ops::Neg<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         use std::ops::Neg;
 
         let a = inputs[0];
@@ -165,7 +165,7 @@ impl ScalarFunction for Not {
 pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         UnaryExecutor::execute::<PhysicalBool, _, _>(
             inputs[0],
             ArrayBuilder {

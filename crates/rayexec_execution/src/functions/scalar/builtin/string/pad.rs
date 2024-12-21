@@ -1,4 +1,4 @@
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
@@ -96,7 +96,7 @@ impl ScalarFunction for LeftPad {
 pub struct LeftPadImpl;
 
 impl ScalarFunctionImpl for LeftPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -209,7 +209,7 @@ impl ScalarFunction for RightPad {
 pub struct RightPadImpl;
 
 impl ScalarFunctionImpl for RightPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,

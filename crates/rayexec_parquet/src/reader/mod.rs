@@ -18,7 +18,7 @@ use parquet::data_type::Int96;
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
@@ -32,7 +32,7 @@ use crate::metadata::Metadata;
 
 pub trait ArrayBuilder<P: PageReader>: Send {
     /// Consume the current buffer and build an array.
-    fn build(&mut self) -> Result<Array>;
+    fn build(&mut self) -> Result<ArrayOld>;
 
     /// Sets the page reader the builder should now be reading from.
     fn set_page_reader(&mut self, page_reader: P) -> Result<()>;

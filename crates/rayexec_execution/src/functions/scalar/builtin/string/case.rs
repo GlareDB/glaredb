@@ -1,4 +1,4 @@
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayOld, ArrayData};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8;
@@ -60,7 +60,7 @@ impl ScalarFunction for Lower {
 pub struct LowerImpl;
 
 impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         case_convert_execute(input, str::to_lowercase)
     }
@@ -115,13 +115,13 @@ impl ScalarFunction for Upper {
 pub struct UpperImpl;
 
 impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         case_convert_execute(input, str::to_uppercase)
     }
 }
 
-fn case_convert_execute<F>(input: &Array, case_fn: F) -> Result<Array>
+fn case_convert_execute<F>(input: &ArrayOld, case_fn: F) -> Result<ArrayOld>
 where
     F: Fn(&str) -> String,
 {

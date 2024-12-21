@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -32,7 +32,7 @@ use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
 
 pub fn group_values_eq(
-    inputs: &[Array],
+    inputs: &[ArrayOld],
     input_sel: &SelectionVector,
     chunks: &[GroupChunk],
     addresses: &[GroupAddress],
@@ -69,8 +69,8 @@ pub fn group_values_eq(
 }
 
 fn compare_group_rows_eq<I1, I2>(
-    arrays1: &[Array],
-    arrays2: &[Array],
+    arrays1: &[ArrayOld],
+    arrays2: &[ArrayOld],
     rows1: I1,
     rows2: I2,
     not_eq_rows: &mut BTreeSet<usize>,
@@ -173,8 +173,8 @@ where
 /// When a row is not equal, the row from the `rows1` iter will be inserted into
 /// `not_eq_rows`.
 fn compare_rows_eq<'a, S, I1, I2>(
-    array1: &'a Array,
-    array2: &'a Array,
+    array1: &'a ArrayOld,
+    array2: &'a ArrayOld,
     rows1: I1,
     rows2: I2,
     not_eq_rows: &mut BTreeSet<usize>,
