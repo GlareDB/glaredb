@@ -5,6 +5,11 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
+use super::evaluator::ExpressionState;
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::buffer_manager::NopBufferManager;
+use crate::arrays::flat_array::FlatSelection;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 
@@ -24,6 +29,23 @@ impl PhysicalColumnExpr {
         })?;
 
         Ok(Cow::Borrowed(col))
+    }
+
+    pub(crate) fn eval(
+        &self,
+        input: &mut Batch,
+        _: &mut ExpressionState,
+        sel: FlatSelection,
+        output: &mut Array,
+    ) -> Result<()> {
+        let array = input.get_array_mut(self.idx)?;
+        output.make_managed_from(&NopBufferManager, array)?;
+
+        if !sel.is_linear() || sel.len() != input.num_rows() {
+            output.select(&NopBufferManager, sel.iter())?;
+        }
+
+        Ok(())
     }
 }
 

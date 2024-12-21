@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
@@ -11,10 +9,11 @@ use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
 
 /// Collection of same length arrays.
+#[derive(Debug)]
 pub struct Batch<B: BufferManager = NopBufferManager> {
-    pub(crate) arrays: Vec<BatchArray<B>>,
+    pub(crate) arrays: Vec<Array<B>>,
     pub(crate) capacity: usize,
-    pub(crate) len: usize,
+    pub(crate) num_rows: usize,
 }
 
 impl<B> Batch<B>
@@ -32,143 +31,102 @@ where
         for datatype in datatypes {
             let buffer = init_array_buffer(manager, &datatype, capacity)?;
             let array = Array::new(datatype, buffer);
-            arrays.push(BatchArray::owned(array))
+            arrays.push(array)
         }
 
         Ok(Batch {
             arrays,
             capacity,
-            len: 0,
+            num_rows: 0,
         })
     }
 
-    pub fn get_array(&self, idx: usize) -> Result<&BatchArray<B>> {
-        self.get_array_opt(idx)
-            .ok_or_else(|| RayexecError::new("Missing array").with_field("idx", idx))
+    pub(crate) fn from_arrays(arrays: impl IntoIterator<Item = Array<B>>) -> Result<Self> {
+        let arrays: Vec<_> = arrays.into_iter().collect();
+        let capacity = match arrays.first() {
+            Some(arr) => arr.capacity(),
+            None => {
+                return Ok(Batch {
+                    arrays: Vec::new(),
+                    capacity: 0,
+                    num_rows: 0,
+                })
+            }
+        };
+
+        for array in &arrays {
+            if array.capacity() != capacity {
+                return Err(RayexecError::new(
+                    "Attempted to create batch from arrays with different capacities",
+                )
+                .with_field("expected", capacity)
+                .with_field("got", array.capacity()));
+            }
+        }
+
+        Ok(Batch {
+            arrays,
+            capacity,
+            num_rows: 0,
+        })
     }
 
-    pub fn get_array_opt(&self, idx: usize) -> Option<&BatchArray<B>> {
-        self.arrays.get(idx)
+    pub(crate) fn push_array(&mut self, array: Array<B>) -> Result<()> {
+        if array.capacity() != self.capacity {
+            return Err(
+                RayexecError::new("Attempted to push array with different capacity")
+                    .with_field("expected", self.capacity)
+                    .with_field("got", array.capacity()),
+            );
+        }
+
+        self.arrays.push(array);
+
+        Ok(())
     }
 
-    pub fn get_array_mut(&mut self, idx: usize) -> Result<&mut BatchArray<B>> {
-        self.get_array_mut_opt(idx)
-            .ok_or_else(|| RayexecError::new("Missing array").with_field("idx", idx))
-    }
-
-    pub fn get_array_mut_opt(&mut self, idx: usize) -> Option<&mut BatchArray<B>> {
-        self.arrays.get_mut(idx)
+    pub(crate) fn set_num_rows(&mut self, num_rows: usize) -> Result<()> {
+        if num_rows > self.capacity {
+            return Err(RayexecError::new("num_rows exceeds capacity")
+                .with_field("requested_num_rows", num_rows)
+                .with_field("capacity", self.capacity));
+        }
+        self.num_rows = num_rows;
+        Ok(())
     }
 
     pub fn num_rows(&self) -> usize {
-        self.len
+        self.num_rows
     }
 
     pub fn capacity(&self) -> usize {
         self.capacity
     }
-}
 
-#[derive(Debug)]
-pub struct BatchArray<B: BufferManager> {
-    inner: BatchArrayInner<B>,
-}
-
-#[derive(Debug)]
-enum BatchArrayInner<B: BufferManager> {
-    Managed(B::CowPtr<Array<B>>),
-    Owned(Array<B>),
-    Uninit,
-}
-
-impl<B> BatchArray<B>
-where
-    B: BufferManager,
-{
-    pub fn owned(array: Array<B>) -> Self {
-        BatchArray {
-            inner: BatchArrayInner::Owned(array),
-        }
+    pub fn arrays(&self) -> &[Array<B>] {
+        &self.arrays
     }
 
-    pub fn is_managed(&self) -> bool {
-        matches!(self.inner, BatchArrayInner::Managed(_))
+    pub fn arrays_mut(&mut self) -> &mut [Array<B>] {
+        &mut self.arrays
     }
 
-    pub fn is_owned(&self) -> bool {
-        matches!(self.inner, BatchArrayInner::Owned(_))
+    pub fn get_array(&self, idx: usize) -> Result<&Array<B>> {
+        self.get_array_opt(idx)
+            .ok_or_else(|| RayexecError::new("Missing array").with_field("idx", idx))
     }
 
-    /// Try to make the array managed by the buffer manager.
-    ///
-    /// Does nothing if the array is already managed.
-    ///
-    /// Returns an error if the array cannot be made to be managed. The array is
-    /// still valid (and remains in the 'owned' state).
-    ///
-    /// A cloned pointer to the newly managed array will be returned.
-    pub fn make_managed(&mut self, manager: &B) -> Result<B::CowPtr<Array<B>>> {
-        match &mut self.inner {
-            BatchArrayInner::Managed(m) => Ok(m.clone()), // Already managed.
-            BatchArrayInner::Owned(_) => {
-                let orig = std::mem::replace(&mut self.inner, BatchArrayInner::Uninit);
-                let array = match orig {
-                    BatchArrayInner::Owned(array) => array,
-                    _ => unreachable!("variant already checked"),
-                };
-
-                match manager.make_cow(array) {
-                    Ok(managed) => {
-                        self.inner = BatchArrayInner::Managed(managed);
-                        match &self.inner {
-                            BatchArrayInner::Managed(m) => Ok(m.clone()),
-                            _ => unreachable!("variant just set"),
-                        }
-                    }
-                    Err(orig) => {
-                        // Manager rejected it, put it back as owned and return
-                        // an error.
-                        self.inner = BatchArrayInner::Owned(orig);
-                        Err(RayexecError::new("Failed to make batch array managed"))
-                    }
-                }
-            }
-            BatchArrayInner::Uninit => panic!("array in uninit state"),
-        }
+    pub fn get_array_opt(&self, idx: usize) -> Option<&Array<B>> {
+        self.arrays.get(idx)
     }
 
-    pub fn try_as_mut(&mut self) -> Result<&mut Array<B>> {
-        match &mut self.inner {
-            BatchArrayInner::Managed(_) => Err(RayexecError::new(
-                "Mut references from managed arrays not yet supported",
-            )),
-            BatchArrayInner::Owned(array) => Ok(array),
-            BatchArrayInner::Uninit => panic!("array in uninit state"),
-        }
+    pub fn get_array_mut(&mut self, idx: usize) -> Result<&mut Array<B>> {
+        self.get_array_mut_opt(idx)
+            .ok_or_else(|| RayexecError::new("Missing array").with_field("idx", idx))
     }
-}
 
-impl<B> AsRef<Array<B>> for BatchArray<B>
-where
-    B: BufferManager,
-{
-    fn as_ref(&self) -> &Array<B> {
-        match &self.inner {
-            BatchArrayInner::Managed(m) => m.as_ref(),
-            BatchArrayInner::Owned(array) => array,
-            BatchArrayInner::Uninit => panic!("array in uninit state"),
-        }
-    }
-}
-
-impl<B> Deref for BatchArray<B>
-where
-    B: BufferManager,
-{
-    type Target = Array<B>;
-
-    fn deref(&self) -> &Self::Target {
-        BatchArray::as_ref(&self)
+    pub fn get_array_mut_opt(&mut self, idx: usize) -> Option<&mut Array<B>> {
+        self.arrays.get_mut(idx)
     }
 }
 
@@ -177,8 +135,8 @@ where
     B: BufferManager,
 {
     match datatype.physical_type() {
-        PhysicalType::Int8 => ArrayBuffer::with_len::<PhysicalI8>(manager, cap),
-        PhysicalType::Int32 => ArrayBuffer::with_len::<PhysicalI32>(manager, cap),
+        PhysicalType::Int8 => ArrayBuffer::with_capacity::<PhysicalI8>(manager, cap),
+        PhysicalType::Int32 => ArrayBuffer::with_capacity::<PhysicalI32>(manager, cap),
         PhysicalType::Utf8 => {
             let heap = StringViewHeap::new();
             ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(manager, cap, heap)

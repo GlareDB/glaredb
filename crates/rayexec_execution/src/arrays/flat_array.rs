@@ -21,11 +21,8 @@ where
 {
     pub fn from_array(array: &'a Array<B>) -> Result<Self> {
         if array.is_dictionary() {
-            let selection = array.buffer.try_as_slice::<PhysicalDictionary>()?;
-            let dict_buffer = array
-                .buffer
-                .secondary_buffers()
-                .try_as_dictionary_buffer()?;
+            let selection = array.data.try_as_slice::<PhysicalDictionary>()?;
+            let dict_buffer = array.data.secondary_buffers().try_as_dictionary_buffer()?;
 
             Ok(FlatArrayView {
                 validity: &dict_buffer.validity,
@@ -35,8 +32,8 @@ where
         } else {
             Ok(FlatArrayView {
                 validity: &array.validity,
-                array_buffer: &array.buffer,
-                selection: FlatSelection::linear(array.len()),
+                array_buffer: &array.data,
+                selection: FlatSelection::linear(array.capacity()),
             })
         }
     }
@@ -67,6 +64,10 @@ impl<'a> FlatSelection<'a> {
 
     pub fn selection(sel: &'a [usize]) -> Self {
         Self::Selection(sel)
+    }
+
+    pub fn is_linear(&self) -> bool {
+        matches!(self, FlatSelection::Linear { .. })
     }
 
     pub fn iter(&self) -> FlatSelectionIter {
@@ -131,4 +132,11 @@ impl<'a> Iterator for FlatSelectionIter<'a> {
 
         Some(v)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let rem = self.sel.len() - self.idx;
+        (rem, Some(rem))
+    }
 }
+
+impl<'a> ExactSizeIterator for FlatSelectionIter<'a> {}

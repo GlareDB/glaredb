@@ -23,7 +23,7 @@ impl UnaryNonNullUpdater {
     {
         // TODO: Length check.
 
-        let input = S::get_storage(array.buffer())?;
+        let input = S::get_storage(array.data())?;
         let validity = array.validity();
 
         if validity.all_valid() {

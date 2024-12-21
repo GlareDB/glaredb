@@ -25,8 +25,8 @@ impl BinaryNonNullUpdater {
     {
         // TODO: Length check.
 
-        let input1 = S1::get_storage(array1.buffer())?;
-        let input2 = S2::get_storage(array2.buffer())?;
+        let input1 = S1::get_storage(array1.data())?;
+        let input2 = S2::get_storage(array2.data())?;
 
         let validity1 = array1.validity();
         let validity2 = array2.validity();

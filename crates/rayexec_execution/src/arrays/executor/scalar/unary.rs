@@ -28,7 +28,7 @@ impl UnaryExecutor {
             return Self::execute_flat::<S, _, _>(view, selection, out, op);
         }
 
-        let input = S::get_storage(array.buffer())?;
+        let input = S::get_storage(array.data())?;
         let mut output = O::get_storage_mut(out.buffer)?;
 
         let validity = array.validity();
@@ -110,7 +110,7 @@ impl UnaryExecutor {
         Op: FnMut(&mut S::StorageType),
     {
         let validity = &array.validity;
-        let mut input = S::get_storage_mut(&mut array.buffer)?;
+        let mut input = S::get_storage_mut(array.data.try_as_mut()?)?;
 
         if validity.all_valid() {
             for idx in 0..input.len() {
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn int32_inc_by_2() {
         let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
+        let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn int32_inc_by_2_using_flat_view() {
         let array = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
+        let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         let flat = FlatArrayView::from_array(&array).unwrap();
@@ -190,7 +190,7 @@ mod tests {
 
         UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, |v| *v = *v + 2).unwrap();
 
-        let arr_slice = array.buffer().try_as_slice::<PhysicalI32>().unwrap();
+        let arr_slice = array.data().try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[3, 4, 5], arr_slice);
     }
 
@@ -319,7 +319,7 @@ mod tests {
         })
         .unwrap();
 
-        let out = array.buffer().try_as_string_view_storage().unwrap();
+        let out = array.data().try_as_string_view_storage().unwrap();
 
         assert_eq!("A", out.get(0).unwrap());
         assert_eq!("BB", out.get(1).unwrap());
@@ -332,7 +332,7 @@ mod tests {
         // [3, 3, 2, 1, 1, 3]
         array.select(&NopBufferManager, [2, 2, 1, 0, 0, 2]).unwrap();
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 6).unwrap();
+        let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 6).unwrap();
         let mut validity = Validity::new_all_valid(6);
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(

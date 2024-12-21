@@ -36,8 +36,8 @@ impl BinaryExecutor {
 
         // TODO: length validation
 
-        let input1 = S1::get_storage(array1.buffer())?;
-        let input2 = S2::get_storage(array2.buffer())?;
+        let input1 = S1::get_storage(array1.data())?;
+        let input2 = S2::get_storage(array2.data())?;
 
         let mut output = O::get_storage_mut(out.buffer)?;
 
@@ -159,7 +159,7 @@ mod tests {
         let left = Array::new(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
         let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
+        let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
@@ -188,7 +188,7 @@ mod tests {
 
         let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
+        let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
@@ -265,7 +265,7 @@ mod tests {
 
         let right = Array::new(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
 
-        let mut out = ArrayBuffer::with_len::<PhysicalI32>(&NopBufferManager, 3).unwrap();
+        let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(

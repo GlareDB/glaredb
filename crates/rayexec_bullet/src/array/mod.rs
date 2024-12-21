@@ -843,10 +843,10 @@ impl<'a> FromIterator<&'a str> for ArrayOld {
 
 macro_rules! impl_primitive_from_iter {
     ($prim:ty, $variant:ident) => {
-        impl FromIterator<$prim> for Array {
+        impl FromIterator<$prim> for ArrayOld {
             fn from_iter<T: IntoIterator<Item = $prim>>(iter: T) -> Self {
                 let vals: Vec<_> = iter.into_iter().collect();
-                Array {
+                ArrayOld {
                     datatype: DataType::$variant,
                     selection: None,
                     validity: None,

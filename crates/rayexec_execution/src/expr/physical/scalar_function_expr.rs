@@ -6,8 +6,11 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
+use super::evaluator::{ExpressionEvaulator, ExpressionState};
 use super::PhysicalScalarExpression;
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::arrays::executor::OutBuffer;
 use crate::arrays::flat_array::FlatSelection;
 use crate::database::DatabaseContext;
 use crate::functions::scalar::PlannedScalarFunction;
@@ -43,8 +46,32 @@ impl PhysicalScalarFunctionExpr {
         Ok(Cow::Owned(out))
     }
 
-    pub fn eval(&self, batch: &Batch, sel: FlatSelection) -> Result<ArrayOld> {
-        unimplemented!()
+    pub(crate) fn eval(
+        &self,
+        input: &mut Batch,
+        state: &mut ExpressionState,
+        sel: FlatSelection,
+        output: &mut Array,
+    ) -> Result<()> {
+        // Eval inputs, writing them to our buffer state.
+        for (idx, arg_input) in self.inputs.iter().enumerate() {
+            let arg_state = &mut state.inputs[idx];
+            let output = state.buffer.get_array_mut(idx)?;
+
+            ExpressionEvaulator::eval_expression(arg_input, input, arg_state, sel, output)?;
+        }
+
+        state.buffer.set_num_rows(sel.len())?;
+
+        // Eval function with now filled batch.
+        let out = OutBuffer {
+            buffer: output.data.try_as_mut()?,
+            validity: &mut output.validity,
+        };
+
+        self.function.function_impl.execute2(&state.buffer, out)?;
+
+        Ok(())
     }
 }
 

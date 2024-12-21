@@ -18,11 +18,11 @@ impl<'a> AddressableStorage for AnyStorage<'a> {
     type T = AnyValue;
 
     fn len(&self) -> usize {
-        self.buffer.len()
+        self.buffer.capacity()
     }
 
     fn get(&self, idx: usize) -> Option<&Self::T> {
-        if idx < self.buffer.len() {
+        if idx < self.buffer.capacity() {
             Some(&AnyValue)
         } else {
             None

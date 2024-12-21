@@ -48,9 +48,9 @@ impl<B> ArrayBuffer<B>
 where
     B: BufferManager,
 {
-    /// Create a new buffer with the given len.
-    pub fn with_len<S: PhysicalStorage>(manager: &B, len: usize) -> Result<Self> {
-        let data = RawBufferParts::try_new::<S::PrimaryBufferType>(manager, len)?;
+    /// Create a new buffer with the given capacity.
+    pub fn with_capacity<S: PhysicalStorage>(manager: &B, capacity: usize) -> Result<Self> {
+        let data = RawBufferParts::try_new::<S::PrimaryBufferType>(manager, capacity)?;
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,
@@ -84,12 +84,8 @@ where
     ///
     /// Note that secondary buffers may not be empty even if `len == 0` and so
     /// this shouldn't be used for memory tracking.
-    pub fn len(&self) -> usize {
+    pub fn capacity(&self) -> usize {
         self.primary.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 
     pub fn secondary_buffers(&self) -> &SecondaryBuffers<B> {
@@ -179,8 +175,8 @@ where
             ));
         }
 
-        let orig_len = self.len();
-        let new_len = self.len() + other.len();
+        let orig_len = self.capacity();
+        let new_len = self.capacity() + other.capacity();
 
         // Ensure we have the right type for other before trying to resize self.
         let other = other.try_as_slice::<S>()?;
@@ -441,7 +437,7 @@ impl ListBufferBuilder {
         let parent = unsafe { data.as_slice_mut() };
         parent[0] = ListItemMetadata {
             offset: 0,
-            len: child_buf.len() as i32,
+            len: child_buf.capacity() as i32,
         };
 
         // Now iter all remaining array buffers, append the actual data to the
@@ -449,8 +445,8 @@ impl ListBufferBuilder {
         for (idx, child) in iter.enumerate() {
             // +1 since we already have the first entry.
             parent[idx + 1] = ListItemMetadata {
-                offset: child_buf.len() as i32,
-                len: child.len() as i32,
+                offset: child_buf.capacity() as i32,
+                len: child.capacity() as i32,
             };
 
             // TODO: Move this out.
@@ -489,17 +485,17 @@ impl StructBufferBuilder {
         let children: Vec<_> = arrays.into_iter().collect();
 
         let len = match children.first() {
-            Some(child) => child.len(),
+            Some(child) => child.capacity(),
             None => 0,
         };
 
         let data = RawBufferParts::try_new::<StructItemMetadata>(&NopBufferManager, len)?;
 
         for child in &children {
-            if child.len() != len {
+            if child.capacity() != len {
                 return Err(RayexecError::new("Struct buffer has incorrect length")
                     .with_field("want", len)
-                    .with_field("have", child.len()));
+                    .with_field("have", child.capacity()));
             }
         }
 
