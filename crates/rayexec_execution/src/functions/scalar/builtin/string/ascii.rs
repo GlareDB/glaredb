@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
@@ -68,7 +68,7 @@ impl ScalarFunctionImpl for AsciiImpl {
             buffer: PrimitiveBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(input, builder, |v, buf| {
             let v = v.chars().next().map(|c| c as i32).unwrap_or(0);
             buf.put(&v)
         })

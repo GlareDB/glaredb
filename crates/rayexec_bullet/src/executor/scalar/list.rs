@@ -1,9 +1,9 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::array::{ArrayOld, ArrayData};
+use crate::array::{ArrayData, ArrayOld};
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::executor::physical_type::{PhysicalList, PhysicalStorage};
+use crate::executor::physical_type::{PhysicalList, PhysicalStorageOld};
 use crate::executor::scalar::{can_skip_validity_check, check_validity, validate_logical_len};
 use crate::selection::{self, SelectionVector};
 use crate::storage::{AddressableStorage, ListItemMetadata};
@@ -38,7 +38,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
     ) -> Result<ArrayOld>
     where
         R: BinaryListReducer<S::Type<'a>, B::Type>,
-        S: PhysicalStorage,
+        S: PhysicalStorageOld,
         B: ArrayDataBuffer,
         <B as ArrayDataBuffer>::Type: Sized,
     {
@@ -166,7 +166,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 /// contain NULLs.
 fn get_inner_array_storage<S>(array: &ArrayOld) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
 {
     match array.array_data() {
         ArrayData::List(d) => {

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::PhysicalF64;
+use rayexec_bullet::executor::physical_type::PhysicalF64Old;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
@@ -69,7 +69,7 @@ pub struct StddevPopImpl;
 
 impl AggregateFunctionImpl for StddevPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<StddevPopFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -128,7 +128,7 @@ pub struct StddevSampImpl;
 
 impl AggregateFunctionImpl for StddevSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<StddevSampFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -183,7 +183,7 @@ pub struct VarPopImpl;
 
 impl AggregateFunctionImpl for VarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<VariancePopFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -238,7 +238,7 @@ pub struct VarSampImpl;
 
 impl AggregateFunctionImpl for VarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<VarianceSampFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

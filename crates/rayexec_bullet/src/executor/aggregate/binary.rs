@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{AggregateState, RowToStateMapping};
 use crate::array::ArrayOld;
-use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::physical_type::PhysicalStorageOld;
 use crate::executor::scalar::check_validity;
 use crate::selection;
 use crate::storage::AddressableStorage;
@@ -19,8 +19,8 @@ impl BinaryNonNullUpdater {
         states: &mut [State],
     ) -> Result<()>
     where
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: PhysicalStorageOld,
+        S2: PhysicalStorageOld,
         I: IntoIterator<Item = RowToStateMapping>,
         State: AggregateState<(S1::Type<'a>, S2::Type<'a>), Output>,
     {
@@ -77,7 +77,7 @@ impl BinaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::executor::physical_type::PhysicalI32;
+    use crate::executor::physical_type::PhysicalI32Old;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]
@@ -131,7 +131,7 @@ mod tests {
             },
         ];
 
-        BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _, _>(
+        BinaryNonNullUpdater::update::<PhysicalI32Old, PhysicalI32Old, _, _, _>(
             &array1,
             &array2,
             mapping,

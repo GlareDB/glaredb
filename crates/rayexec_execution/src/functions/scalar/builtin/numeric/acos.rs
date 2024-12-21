@@ -2,7 +2,7 @@ use num_traits::Float;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalStorage;
+use rayexec_bullet::executor::physical_type::PhysicalStorageOld;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
@@ -20,7 +20,7 @@ impl UnaryInputNumericOperation for AcosOp {
 
     fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorageOld,
         S::Type<'a>: Float + Default,
         ArrayData: From<PrimitiveStorage<S::Type<'a>>>,
     {

@@ -5,10 +5,10 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalStorage,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalStorageOld,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
@@ -71,9 +71,9 @@ impl ScalarFunction for IsNan {
         plan_check_num_args(self, &inputs, 1)?;
 
         let function_impl: Box<dyn ScalarFunctionImpl> = match inputs[0].datatype(table_list)? {
-            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16>::new()),
-            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32>::new()),
-            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64>::new()),
+            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16Old>::new()),
+            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32Old>::new()),
+            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64Old>::new()),
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 
@@ -87,11 +87,11 @@ impl ScalarFunction for IsNan {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct IsNanImpl<S: PhysicalStorage> {
+pub struct IsNanImpl<S: PhysicalStorageOld> {
     _s: PhantomData<S>,
 }
 
-impl<S: PhysicalStorage> IsNanImpl<S> {
+impl<S: PhysicalStorageOld> IsNanImpl<S> {
     fn new() -> Self {
         IsNanImpl { _s: PhantomData }
     }
@@ -99,7 +99,7 @@ impl<S: PhysicalStorage> IsNanImpl<S> {
 
 impl<S> ScalarFunctionImpl for IsNanImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     for<'a> S::Type<'a>: Float,
 {
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {

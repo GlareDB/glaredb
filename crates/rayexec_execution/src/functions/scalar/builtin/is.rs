@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalAny, PhysicalBool};
+use rayexec_bullet::executor::physical_type::{PhysicalAnyOld, PhysicalBoolOld};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
@@ -117,7 +117,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor::execute::<PhysicalAny, _, _>(input, builder, |_, buf| {
+        let array = UnaryExecutor::execute::<PhysicalAnyOld, _, _>(input, builder, |_, buf| {
             buf.put(&updated)
         })?;
 
@@ -312,7 +312,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor::execute::<PhysicalBool, _, _>(input, builder, |val, buf| {
+        let array = UnaryExecutor::execute::<PhysicalBoolOld, _, _>(input, builder, |val, buf| {
             let b = if NOT { val != BOOL } else { val == BOOL };
             buf.put(&b)
         })?;

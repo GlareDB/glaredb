@@ -6,10 +6,10 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalStorage,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalStorageOld,
 };
 use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
 use rayexec_error::Result;
@@ -68,13 +68,13 @@ impl ScalarFunction for L2Distance {
             (DataType::List(a), DataType::List(b)) => {
                 match (a.datatype.as_ref(), b.datatype.as_ref()) {
                     (DataType::Float16, DataType::Float16) => {
-                        Box::new(L2DistanceImpl::<PhysicalF16>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF16Old>::new())
                     }
                     (DataType::Float32, DataType::Float32) => {
-                        Box::new(L2DistanceImpl::<PhysicalF32>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF32Old>::new())
                     }
                     (DataType::Float64, DataType::Float64) => {
-                        Box::new(L2DistanceImpl::<PhysicalF64>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF64Old>::new())
                     }
                     (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
                 }
@@ -92,13 +92,13 @@ impl ScalarFunction for L2Distance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2DistanceImpl<S: PhysicalStorage> {
+pub struct L2DistanceImpl<S: PhysicalStorageOld> {
     _s: PhantomData<S>,
 }
 
 impl<S> L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
 {
     fn new() -> Self {
         L2DistanceImpl { _s: PhantomData }
@@ -107,7 +107,7 @@ where
 
 impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {

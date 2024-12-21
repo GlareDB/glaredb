@@ -3,7 +3,7 @@ use std::str::FromStr;
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalI64;
+use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
@@ -188,7 +188,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalI64, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute::<PhysicalI64Old, _, _>(input, builder, |v, buf| {
             let v = (v / trunc) * trunc;
             buf.put(&v)
         })

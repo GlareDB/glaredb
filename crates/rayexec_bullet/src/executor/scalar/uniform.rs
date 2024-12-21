@@ -4,7 +4,7 @@ use super::check_validity;
 use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::physical_type::PhysicalStorageOld;
 use crate::executor::scalar::validate_logical_len;
 use crate::selection;
 use crate::storage::AddressableStorage;
@@ -20,7 +20,7 @@ impl UniformExecutor {
     ) -> Result<ArrayOld>
     where
         Op: FnMut(&[S::Type<'a>], &mut OutputBuffer<B>),
-        S: PhysicalStorage,
+        S: PhysicalStorageOld,
         B: ArrayDataBuffer,
     {
         let len = match arrays.first() {
@@ -111,7 +111,7 @@ mod tests {
     use super::*;
     use crate::datatype::DataType;
     use crate::executor::builder::GermanVarlenBuffer;
-    use crate::executor::physical_type::PhysicalUtf8;
+    use crate::executor::physical_type::PhysicalUtf8Old;
     use crate::scalar::ScalarValue;
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -162,7 +162,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -195,7 +195,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {

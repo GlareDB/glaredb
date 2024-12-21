@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalI64;
+use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
@@ -116,7 +116,7 @@ fn to_timestamp<const S: i64>(input: &ArrayOld) -> Result<ArrayOld> {
         buffer: PrimitiveBuffer::with_len(input.logical_len()),
     };
 
-    UnaryExecutor::execute::<PhysicalI64, _, _>(input, builder, |v, buf| {
+    UnaryExecutor::execute::<PhysicalI64Old, _, _>(input, builder, |v, buf| {
         buf.put(&(v * S));
     })
 }

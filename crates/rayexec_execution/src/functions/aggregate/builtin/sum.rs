@@ -6,7 +6,7 @@ use num_traits::CheckedAdd;
 use rayexec_bullet::array::ArrayData;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI64};
+use rayexec_bullet::executor::physical_type::{PhysicalF64Old, PhysicalI64Old};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
@@ -114,7 +114,7 @@ pub struct SumInt64Impl;
 
 impl AggregateFunctionImpl for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64Old, _, _, _, _>(
             SumStateCheckedAdd::<i64>::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )
@@ -126,7 +126,7 @@ pub struct SumFloat64Impl;
 
 impl AggregateFunctionImpl for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             SumStateAdd::<f64>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

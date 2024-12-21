@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
+use rayexec_bullet::executor::physical_type::{PhysicalI64Old, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
@@ -104,7 +104,7 @@ impl ScalarFunctionImpl for LeftPadImpl {
         };
 
         match inputs.len() {
-            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+            2 => BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,
@@ -113,16 +113,18 @@ impl ScalarFunctionImpl for LeftPadImpl {
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                inputs[2],
-                builder,
-                |s, count, pad, buf| {
-                    lpad(s, count, pad, &mut string_buf);
-                    buf.put(&string_buf);
-                },
-            ),
+            3 => {
+                TernaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, PhysicalUtf8Old, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    inputs[2],
+                    builder,
+                    |s, count, pad, buf| {
+                        lpad(s, count, pad, &mut string_buf);
+                        buf.put(&string_buf);
+                    },
+                )
+            }
             other => unreachable!("num inputs checked, got {other}"),
         }
     }
@@ -217,7 +219,7 @@ impl ScalarFunctionImpl for RightPadImpl {
         };
 
         match inputs.len() {
-            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+            2 => BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,
@@ -226,16 +228,18 @@ impl ScalarFunctionImpl for RightPadImpl {
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                inputs[2],
-                builder,
-                |s, count, pad, buf| {
-                    rpad(s, count, pad, &mut string_buf);
-                    buf.put(&string_buf);
-                },
-            ),
+            3 => {
+                TernaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, PhysicalUtf8Old, _, _>(
+                    inputs[0],
+                    inputs[1],
+                    inputs[2],
+                    builder,
+                    |s, count, pad, buf| {
+                        rpad(s, count, pad, &mut string_buf);
+                        buf.put(&string_buf);
+                    },
+                )
+            }
             other => unreachable!("num inputs checked, got {other}"),
         }
     }

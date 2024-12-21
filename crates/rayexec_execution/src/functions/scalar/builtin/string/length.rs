@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalUtf8};
+use rayexec_bullet::executor::physical_type::{PhysicalBinaryOld, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
@@ -72,7 +72,7 @@ impl ScalarFunctionImpl for StrLengthImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(input, builder, |v, buf| {
             let len = v.chars().count() as i64;
             buf.put(&len)
         })
@@ -154,7 +154,7 @@ impl ScalarFunctionImpl for ByteLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute::<PhysicalBinaryOld, _, _>(input, builder, |v, buf| {
             buf.put(&(v.len() as i64))
         })
     }
@@ -231,7 +231,7 @@ impl ScalarFunctionImpl for BitLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute::<PhysicalBinaryOld, _, _>(input, builder, |v, buf| {
             let bit_len = v.len() * 8;
             buf.put(&(bit_len as i64))
         })

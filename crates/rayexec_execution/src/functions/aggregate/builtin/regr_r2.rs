@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::PhysicalF64;
+use rayexec_bullet::executor::physical_type::PhysicalF64Old;
 use rayexec_error::Result;
 
 use super::corr::CorrelationState;
@@ -72,7 +72,7 @@ pub struct RegrR2Impl;
 
 impl AggregateFunctionImpl for RegrR2Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        new_binary_aggregate_states::<PhysicalF64Old, PhysicalF64Old, _, _, _, _>(
             RegrR2State::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

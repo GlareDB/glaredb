@@ -8,6 +8,7 @@ use super::buffer::physical_type::{PhysicalDictionary, PhysicalType};
 use super::buffer::{ArrayBuffer, SecondaryBuffers};
 use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
+use super::flat_array::FlatArrayView;
 use super::validity::Validity;
 use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalI8, PhysicalUtf8};
 use crate::arrays::buffer::string_view::StringViewHeap;
@@ -92,6 +93,10 @@ where
         self.validity = other.validity.clone();
 
         Ok(())
+    }
+
+    pub fn flat_view(&self) -> Result<FlatArrayView<'_, B>> {
+        FlatArrayView::from_array(self)
     }
 
     pub fn validity(&self) -> &Validity {

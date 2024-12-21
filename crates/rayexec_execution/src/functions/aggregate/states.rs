@@ -3,7 +3,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{ArrayOld, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::aggregate::{
     AggregateState,
@@ -13,7 +13,7 @@ use rayexec_bullet::executor::aggregate::{
     UnaryNonNullUpdater,
 };
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalStorage;
+use rayexec_bullet::executor::physical_type::PhysicalStorageOld;
 use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
@@ -55,9 +55,9 @@ pub fn new_unary_aggregate_states<Storage, State, Output, StateInit, StateFinali
     state_finalize: StateFinalize,
 ) -> Box<dyn AggregateGroupStates>
 where
-    Storage: PhysicalStorage,
+    Storage: PhysicalStorageOld,
     State: for<'a> AggregateState<
-            <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
+            <<Storage as PhysicalStorageOld>::Storage<'a> as AddressableStorage>::T,
             Output,
         > + Sync
         + Send
@@ -82,8 +82,8 @@ pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit,
     state_finalize: StateFinalize,
 ) -> Box<dyn AggregateGroupStates>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
+    Storage1: PhysicalStorageOld,
+    Storage2: PhysicalStorageOld,
     State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
         + Sync
         + Send
@@ -124,7 +124,11 @@ where
         self.states.len()
     }
 
-    fn update_states(&mut self, inputs: &[&ArrayOld], mapping: ChunkGroupAddressIter) -> Result<()> {
+    fn update_states(
+        &mut self,
+        inputs: &[&ArrayOld],
+        mapping: ChunkGroupAddressIter,
+    ) -> Result<()> {
         (self.state_update)(inputs, mapping, &mut self.states)
     }
 
@@ -166,7 +170,8 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     fn num_states(&self) -> usize;
 
     /// Update states from inputs using some mapping.
-    fn update_states(&mut self, inputs: &[&ArrayOld], mapping: ChunkGroupAddressIter) -> Result<()>;
+    fn update_states(&mut self, inputs: &[&ArrayOld], mapping: ChunkGroupAddressIter)
+        -> Result<()>;
 
     /// Combine states from another partition into self using some mapping.
     fn combine(
@@ -199,7 +204,7 @@ pub fn unary_update<State, Storage, Output>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage: PhysicalStorage,
+    Storage: PhysicalStorageOld,
     State: for<'a> AggregateState<Storage::Type<'a>, Output>,
 {
     UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
@@ -211,8 +216,8 @@ pub fn binary_update<State, Storage1, Storage2, Output>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
+    Storage1: PhysicalStorageOld,
+    Storage2: PhysicalStorageOld,
     State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
 {
     BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(

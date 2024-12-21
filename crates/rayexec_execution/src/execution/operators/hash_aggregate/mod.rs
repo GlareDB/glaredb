@@ -18,7 +18,7 @@ use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalU64;
+use rayexec_bullet::executor::physical_type::PhysicalU64Old;
 use rayexec_bullet::executor::scalar::{HashExecutor, UnaryExecutor};
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::selection::SelectionVector;
@@ -440,7 +440,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
                     };
 
-                    let array = UnaryExecutor::execute::<PhysicalU64, _, _>(
+                    let array = UnaryExecutor::execute::<PhysicalU64Old, _, _>(
                         &group_ids,
                         builder,
                         |id, buf| {

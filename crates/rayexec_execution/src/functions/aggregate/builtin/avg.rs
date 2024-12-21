@@ -8,7 +8,7 @@ use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI64};
+use rayexec_bullet::executor::physical_type::{PhysicalF64Old, PhysicalI64Old};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
@@ -178,7 +178,7 @@ pub struct AvgFloat64Impl;
 
 impl AggregateFunctionImpl for AvgFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             AvgStateF64::<f64, f64>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -190,7 +190,7 @@ pub struct AvgInt64Impl;
 
 impl AggregateFunctionImpl for AvgInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64Old, _, _, _, _>(
             AvgStateF64::<i64, i128>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

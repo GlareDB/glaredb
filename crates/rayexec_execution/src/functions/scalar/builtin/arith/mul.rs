@@ -6,21 +6,21 @@ use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalStorage,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
+    PhysicalIntervalOld,
+    PhysicalStorageOld,
+    PhysicalU128Old,
+    PhysicalU16Old,
+    PhysicalU32Old,
+    PhysicalU64Old,
+    PhysicalU8Old,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -117,55 +117,55 @@ impl ScalarFunction for Mul {
             inputs[1].datatype(table_list)?,
         ) {
             (DataType::Float16, DataType::Float16) => (
-                Box::new(MulImpl::<PhysicalF16>::new(DataType::Float16)),
+                Box::new(MulImpl::<PhysicalF16Old>::new(DataType::Float16)),
                 DataType::Float16,
             ),
             (DataType::Float32, DataType::Float32) => (
-                Box::new(MulImpl::<PhysicalF32>::new(DataType::Float32)),
+                Box::new(MulImpl::<PhysicalF32Old>::new(DataType::Float32)),
                 DataType::Float32,
             ),
             (DataType::Float64, DataType::Float64) => (
-                Box::new(MulImpl::<PhysicalF64>::new(DataType::Float64)),
+                Box::new(MulImpl::<PhysicalF64Old>::new(DataType::Float64)),
                 DataType::Float64,
             ),
             (DataType::Int8, DataType::Int8) => (
-                Box::new(MulImpl::<PhysicalI8>::new(DataType::Int8)),
+                Box::new(MulImpl::<PhysicalI8Old>::new(DataType::Int8)),
                 DataType::Int8,
             ),
             (DataType::Int16, DataType::Int16) => (
-                Box::new(MulImpl::<PhysicalI16>::new(DataType::Int16)),
+                Box::new(MulImpl::<PhysicalI16Old>::new(DataType::Int16)),
                 DataType::Int16,
             ),
             (DataType::Int32, DataType::Int32) => (
-                Box::new(MulImpl::<PhysicalI32>::new(DataType::Int32)),
+                Box::new(MulImpl::<PhysicalI32Old>::new(DataType::Int32)),
                 DataType::Int32,
             ),
             (DataType::Int64, DataType::Int64) => (
-                Box::new(MulImpl::<PhysicalI64>::new(DataType::Int64)),
+                Box::new(MulImpl::<PhysicalI64Old>::new(DataType::Int64)),
                 DataType::Int64,
             ),
             (DataType::Int128, DataType::Int128) => (
-                Box::new(MulImpl::<PhysicalI128>::new(DataType::Int128)),
+                Box::new(MulImpl::<PhysicalI128Old>::new(DataType::Int128)),
                 DataType::Int128,
             ),
             (DataType::UInt8, DataType::UInt8) => (
-                Box::new(MulImpl::<PhysicalU8>::new(DataType::UInt8)),
+                Box::new(MulImpl::<PhysicalU8Old>::new(DataType::UInt8)),
                 DataType::UInt8,
             ),
             (DataType::UInt16, DataType::UInt16) => (
-                Box::new(MulImpl::<PhysicalU16>::new(DataType::UInt16)),
+                Box::new(MulImpl::<PhysicalU16Old>::new(DataType::UInt16)),
                 DataType::UInt16,
             ),
             (DataType::UInt32, DataType::UInt32) => (
-                Box::new(MulImpl::<PhysicalU32>::new(DataType::UInt32)),
+                Box::new(MulImpl::<PhysicalU32Old>::new(DataType::UInt32)),
                 DataType::UInt32,
             ),
             (DataType::UInt64, DataType::UInt64) => (
-                Box::new(MulImpl::<PhysicalU64>::new(DataType::UInt64)),
+                Box::new(MulImpl::<PhysicalU64Old>::new(DataType::UInt64)),
                 DataType::UInt64,
             ),
             (DataType::UInt128, DataType::UInt128) => (
-                Box::new(MulImpl::<PhysicalU128>::new(DataType::UInt128)),
+                Box::new(MulImpl::<PhysicalU128Old>::new(DataType::UInt128)),
                 DataType::UInt128,
             ),
 
@@ -194,19 +194,19 @@ impl ScalarFunction for Mul {
 
             // Interval
             (DataType::Interval, DataType::Int32) => (
-                Box::new(IntervalMulImpl::<PhysicalI32, false>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI32Old, false>::new()),
                 DataType::Interval,
             ),
             (DataType::Interval, DataType::Int64) => (
-                Box::new(IntervalMulImpl::<PhysicalI64, false>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI64Old, false>::new()),
                 DataType::Interval,
             ),
             (DataType::Int32, DataType::Interval) => (
-                Box::new(IntervalMulImpl::<PhysicalI32, true>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI32Old, true>::new()),
                 DataType::Interval,
             ),
             (DataType::Int64, DataType::Interval) => (
-                Box::new(IntervalMulImpl::<PhysicalI64, true>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI64Old, true>::new()),
                 DataType::Interval,
             ),
 
@@ -236,7 +236,7 @@ impl<Rhs, const LHS_RHS_FLIPPED: bool> IntervalMulImpl<Rhs, LHS_RHS_FLIPPED> {
 
 impl<Rhs, const LHS_RHS_FLIPPED: bool> ScalarFunctionImpl for IntervalMulImpl<Rhs, LHS_RHS_FLIPPED>
 where
-    Rhs: PhysicalStorage,
+    Rhs: PhysicalStorageOld,
     for<'a> Rhs::Type<'a>: PrimInt,
 {
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
@@ -251,7 +251,7 @@ where
             buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
+        BinaryExecutor::execute::<PhysicalIntervalOld, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
             // TODO: Overflow check
             buf.put(&Interval {
                 months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
@@ -314,7 +314,7 @@ impl<S> MulImpl<S> {
 
 impl<S> ScalarFunctionImpl for MulImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     for<'a> S::Type<'a>: std::ops::Mul<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {

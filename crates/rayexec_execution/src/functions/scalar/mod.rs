@@ -106,7 +106,9 @@ impl Hash for PlannedScalarFunction {
 }
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld>;
+    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+        unimplemented!()
+    }
 
     fn execute2(&self, batch: &Batch, out: OutBuffer) -> Result<()> {
         unimplemented!()

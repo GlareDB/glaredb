@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::array::ArrayOld;
 use crate::datatype::{DataType, DecimalTypeMeta, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::executor::physical_type::{PhysicalI32, PhysicalI64};
+use crate::executor::physical_type::{PhysicalI32Old, PhysicalI64Old};
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::decimal::{Decimal64Type, DecimalType};
 
@@ -148,7 +148,7 @@ where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor::execute::<PhysicalI64Old, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {
@@ -168,7 +168,7 @@ fn date32_extract_with_fn<F>(arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI32, _, _>(
+    UnaryExecutor::execute::<PhysicalI32Old, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {
@@ -189,7 +189,7 @@ fn date64_extract_with_fn<F>(arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor::execute::<PhysicalI64Old, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {

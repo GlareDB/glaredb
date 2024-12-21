@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 
@@ -99,7 +99,7 @@ impl AggregateFunctionImpl for StringAggImpl {
             string: None,
         };
 
-        new_unary_aggregate_states::<PhysicalUtf8, _, _, _, _>(state_init, move |states| {
+        new_unary_aggregate_states::<PhysicalUtf8Old, _, _, _, _>(state_init, move |states| {
             let builder = ArrayBuilder {
                 datatype: DataType::Utf8,
                 buffer: GermanVarlenBuffer::<str>::with_len(states.len()),

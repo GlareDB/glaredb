@@ -6,7 +6,7 @@ use super::check_validity;
 use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::physical_type::PhysicalStorageOld;
 use crate::executor::scalar::validate_logical_len;
 use crate::selection;
 use crate::storage::AddressableStorage;
@@ -24,9 +24,9 @@ impl TernaryExecutor {
     ) -> Result<ArrayOld>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, S3::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
-        S3: PhysicalStorage,
+        S1: PhysicalStorageOld,
+        S2: PhysicalStorageOld,
+        S3: PhysicalStorageOld,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;

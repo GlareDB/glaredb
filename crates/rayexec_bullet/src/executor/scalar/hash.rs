@@ -4,26 +4,26 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::array::{ArrayData, ArrayOld};
 use crate::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
+    PhysicalBinaryOld,
+    PhysicalBoolOld,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
+    PhysicalIntervalOld,
     PhysicalList,
-    PhysicalStorage,
+    PhysicalStorageOld,
     PhysicalType,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
+    PhysicalU16Old,
+    PhysicalU32Old,
+    PhysicalU64Old,
+    PhysicalU8Old,
+    PhysicalUntypedNullOld,
+    PhysicalUtf8Old,
 };
 use crate::scalar::interval::Interval;
 use crate::selection;
@@ -41,58 +41,58 @@ impl HashExecutor {
     pub fn hash_combine(array: &ArrayOld, hashes: &mut [u64]) -> Result<()> {
         match array.physical_type() {
             PhysicalType::UntypedNull => {
-                Self::hash_one_inner::<PhysicalUntypedNull, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalUntypedNullOld, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Boolean => {
-                Self::hash_one_inner::<PhysicalBool, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalBoolOld, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Int8 => {
-                Self::hash_one_inner::<PhysicalI8, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI8Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Int16 => {
-                Self::hash_one_inner::<PhysicalI16, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI16Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Int32 => {
-                Self::hash_one_inner::<PhysicalI32, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI32Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Int64 => {
-                Self::hash_one_inner::<PhysicalI64, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI64Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Int128 => {
-                Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI128Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::UInt8 => {
-                Self::hash_one_inner::<PhysicalU8, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU8Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::UInt16 => {
-                Self::hash_one_inner::<PhysicalU16, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU16Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::UInt32 => {
-                Self::hash_one_inner::<PhysicalU32, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU32Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::UInt64 => {
-                Self::hash_one_inner::<PhysicalU64, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU64Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::UInt128 => {
-                Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI128Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Float16 => {
-                Self::hash_one_inner::<PhysicalF16, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF16Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Float32 => {
-                Self::hash_one_inner::<PhysicalF32, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF32Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Float64 => {
-                Self::hash_one_inner::<PhysicalF64, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF64Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Binary => {
-                Self::hash_one_inner::<PhysicalBinary, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalBinaryOld, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Utf8 => {
-                Self::hash_one_inner::<PhysicalUtf8, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalUtf8Old, CombineSetHash>(array, hashes)?
             }
             PhysicalType::Interval => {
-                Self::hash_one_inner::<PhysicalInterval, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalIntervalOld, CombineSetHash>(array, hashes)?
             }
             PhysicalType::List => Self::hash_list::<CombineSetHash>(array, hashes)?,
         }
@@ -105,58 +105,58 @@ impl HashExecutor {
     pub fn hash_no_combine(array: &ArrayOld, hashes: &mut [u64]) -> Result<()> {
         match array.physical_type() {
             PhysicalType::UntypedNull => {
-                Self::hash_one_inner::<PhysicalUntypedNull, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalUntypedNullOld, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Boolean => {
-                Self::hash_one_inner::<PhysicalBool, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalBoolOld, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Int8 => {
-                Self::hash_one_inner::<PhysicalI8, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI8Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Int16 => {
-                Self::hash_one_inner::<PhysicalI16, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI16Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Int32 => {
-                Self::hash_one_inner::<PhysicalI32, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI32Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Int64 => {
-                Self::hash_one_inner::<PhysicalI64, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI64Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Int128 => {
-                Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI128Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::UInt8 => {
-                Self::hash_one_inner::<PhysicalU8, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU8Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::UInt16 => {
-                Self::hash_one_inner::<PhysicalU16, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU16Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::UInt32 => {
-                Self::hash_one_inner::<PhysicalU32, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU32Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::UInt64 => {
-                Self::hash_one_inner::<PhysicalU64, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalU64Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::UInt128 => {
-                Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalI128Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Float16 => {
-                Self::hash_one_inner::<PhysicalF16, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF16Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Float32 => {
-                Self::hash_one_inner::<PhysicalF32, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF32Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Float64 => {
-                Self::hash_one_inner::<PhysicalF64, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF64Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Binary => {
-                Self::hash_one_inner::<PhysicalBinary, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalBinaryOld, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Utf8 => {
-                Self::hash_one_inner::<PhysicalUtf8, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalUtf8Old, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::Interval => {
-                Self::hash_one_inner::<PhysicalInterval, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalIntervalOld, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::List => Self::hash_list::<OverwriteSetHash>(array, hashes)?,
         }
@@ -180,7 +180,7 @@ impl HashExecutor {
 
     fn hash_one_inner<'a, 'b, S, H>(array: &'a ArrayOld, hashes: &'b mut [u64]) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorageOld,
         S::Type<'a>: HashValue,
         H: SetHash,
     {

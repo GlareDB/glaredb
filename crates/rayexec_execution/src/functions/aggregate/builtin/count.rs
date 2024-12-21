@@ -1,6 +1,6 @@
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::PhysicalAny;
+use rayexec_bullet::executor::physical_type::PhysicalAnyOld;
 use rayexec_error::Result;
 
 use crate::expr::{self, Expression};
@@ -75,7 +75,7 @@ pub struct CountNonNullImpl;
 
 impl AggregateFunctionImpl for CountNonNullImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalAny, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalAnyOld, _, _, _, _>(
             CountNonNullState::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )

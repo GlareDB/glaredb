@@ -4,7 +4,7 @@ use std::task::{Context, Waker};
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::physical_type::PhysicalI64;
+use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -259,15 +259,15 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
             };
 
             // Generate new params from row.
-            let start = UnaryExecutor::value_at::<PhysicalI64>(
+            let start = UnaryExecutor::value_at::<PhysicalI64Old>(
                 batch.column(0).unwrap(),
                 self.next_row_idx,
             )?;
-            let end = UnaryExecutor::value_at::<PhysicalI64>(
+            let end = UnaryExecutor::value_at::<PhysicalI64Old>(
                 batch.column(1).unwrap(),
                 self.next_row_idx,
             )?;
-            let step = UnaryExecutor::value_at::<PhysicalI64>(
+            let step = UnaryExecutor::value_at::<PhysicalI64Old>(
                 batch.column(2).unwrap(),
                 self.next_row_idx,
             )?;

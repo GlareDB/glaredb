@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
@@ -92,11 +92,11 @@ impl ScalarFunctionImpl for StartsWithImpl {
 
         match self.constant.as_ref() {
             Some(constant) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(inputs[0], builder, |s, buf| {
                     buf.put(&s.starts_with(constant))
                 })
             }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+            None => BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,

@@ -7,25 +7,25 @@ use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalStorage,
+    PhysicalBinaryOld,
+    PhysicalBoolOld,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
+    PhysicalIntervalOld,
+    PhysicalStorageOld,
     PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
+    PhysicalU128Old,
+    PhysicalU16Old,
+    PhysicalU32Old,
+    PhysicalU64Old,
+    PhysicalU8Old,
+    PhysicalUntypedNullOld,
 };
 use rayexec_bullet::scalar::interval::Interval;
 use rayexec_bullet::storage::{PrimitiveStorage, UntypedNull};
@@ -84,47 +84,47 @@ impl AggregateFunction for Min {
         let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type()? {
             PhysicalType::UntypedNull => Box::new(MinMaxUntypedNull),
             PhysicalType::Boolean => Box::new(MinBoolImpl::new()),
-            PhysicalType::Float16 => {
-                Box::new(MinPrimitiveImpl::<PhysicalF16, f16>::new(datatype.clone()))
-            }
-            PhysicalType::Float32 => {
-                Box::new(MinPrimitiveImpl::<PhysicalF32, f32>::new(datatype.clone()))
-            }
-            PhysicalType::Float64 => {
-                Box::new(MinPrimitiveImpl::<PhysicalF64, f64>::new(datatype.clone()))
-            }
+            PhysicalType::Float16 => Box::new(MinPrimitiveImpl::<PhysicalF16Old, f16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Float32 => Box::new(MinPrimitiveImpl::<PhysicalF32Old, f32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Float64 => Box::new(MinPrimitiveImpl::<PhysicalF64Old, f64>::new(
+                datatype.clone(),
+            )),
             PhysicalType::Int8 => {
-                Box::new(MinPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
+                Box::new(MinPrimitiveImpl::<PhysicalI8Old, i8>::new(datatype.clone()))
             }
-            PhysicalType::Int16 => {
-                Box::new(MinPrimitiveImpl::<PhysicalI16, i16>::new(datatype.clone()))
-            }
-            PhysicalType::Int32 => {
-                Box::new(MinPrimitiveImpl::<PhysicalI32, i32>::new(datatype.clone()))
-            }
-            PhysicalType::Int64 => {
-                Box::new(MinPrimitiveImpl::<PhysicalI64, i64>::new(datatype.clone()))
-            }
-            PhysicalType::Int128 => Box::new(MinPrimitiveImpl::<PhysicalI128, i128>::new(
+            PhysicalType::Int16 => Box::new(MinPrimitiveImpl::<PhysicalI16Old, i16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Int32 => Box::new(MinPrimitiveImpl::<PhysicalI32Old, i32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Int64 => Box::new(MinPrimitiveImpl::<PhysicalI64Old, i64>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Int128 => Box::new(MinPrimitiveImpl::<PhysicalI128Old, i128>::new(
                 datatype.clone(),
             )),
             PhysicalType::UInt8 => {
-                Box::new(MinPrimitiveImpl::<PhysicalU8, u8>::new(datatype.clone()))
+                Box::new(MinPrimitiveImpl::<PhysicalU8Old, u8>::new(datatype.clone()))
             }
-            PhysicalType::UInt16 => {
-                Box::new(MinPrimitiveImpl::<PhysicalU16, u16>::new(datatype.clone()))
-            }
-            PhysicalType::UInt32 => {
-                Box::new(MinPrimitiveImpl::<PhysicalU32, u32>::new(datatype.clone()))
-            }
-            PhysicalType::UInt64 => {
-                Box::new(MinPrimitiveImpl::<PhysicalU64, u64>::new(datatype.clone()))
-            }
-            PhysicalType::UInt128 => Box::new(MinPrimitiveImpl::<PhysicalU128, u128>::new(
+            PhysicalType::UInt16 => Box::new(MinPrimitiveImpl::<PhysicalU16Old, u16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::UInt32 => Box::new(MinPrimitiveImpl::<PhysicalU32Old, u32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::UInt64 => Box::new(MinPrimitiveImpl::<PhysicalU64Old, u64>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::UInt128 => Box::new(MinPrimitiveImpl::<PhysicalU128Old, u128>::new(
                 datatype.clone(),
             )),
             PhysicalType::Interval => Box::new(
-                MinPrimitiveImpl::<PhysicalInterval, Interval>::new(datatype.clone()),
+                MinPrimitiveImpl::<PhysicalIntervalOld, Interval>::new(datatype.clone()),
             ),
             PhysicalType::Binary => Box::new(MinBinaryImpl::new(datatype.clone())),
             PhysicalType::Utf8 => Box::new(MinBinaryImpl::new(datatype.clone())),
@@ -178,47 +178,47 @@ impl AggregateFunction for Max {
         let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type()? {
             PhysicalType::UntypedNull => Box::new(MinMaxUntypedNull),
             PhysicalType::Boolean => Box::new(MaxBoolImpl::new()),
-            PhysicalType::Float16 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalF16, f16>::new(datatype.clone()))
-            }
-            PhysicalType::Float32 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalF32, f32>::new(datatype.clone()))
-            }
-            PhysicalType::Float64 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalF64, f64>::new(datatype.clone()))
-            }
+            PhysicalType::Float16 => Box::new(MaxPrimitiveImpl::<PhysicalF16Old, f16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Float32 => Box::new(MaxPrimitiveImpl::<PhysicalF32Old, f32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Float64 => Box::new(MaxPrimitiveImpl::<PhysicalF64Old, f64>::new(
+                datatype.clone(),
+            )),
             PhysicalType::Int8 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
+                Box::new(MaxPrimitiveImpl::<PhysicalI8Old, i8>::new(datatype.clone()))
             }
-            PhysicalType::Int16 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalI16, i16>::new(datatype.clone()))
-            }
-            PhysicalType::Int32 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalI32, i32>::new(datatype.clone()))
-            }
-            PhysicalType::Int64 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalI64, i64>::new(datatype.clone()))
-            }
-            PhysicalType::Int128 => Box::new(MaxPrimitiveImpl::<PhysicalI128, i128>::new(
+            PhysicalType::Int16 => Box::new(MaxPrimitiveImpl::<PhysicalI16Old, i16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Int32 => Box::new(MaxPrimitiveImpl::<PhysicalI32Old, i32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Int64 => Box::new(MaxPrimitiveImpl::<PhysicalI64Old, i64>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::Int128 => Box::new(MaxPrimitiveImpl::<PhysicalI128Old, i128>::new(
                 datatype.clone(),
             )),
             PhysicalType::UInt8 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalU8, u8>::new(datatype.clone()))
+                Box::new(MaxPrimitiveImpl::<PhysicalU8Old, u8>::new(datatype.clone()))
             }
-            PhysicalType::UInt16 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalU16, u16>::new(datatype.clone()))
-            }
-            PhysicalType::UInt32 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalU32, u32>::new(datatype.clone()))
-            }
-            PhysicalType::UInt64 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalU64, u64>::new(datatype.clone()))
-            }
-            PhysicalType::UInt128 => Box::new(MaxPrimitiveImpl::<PhysicalU128, u128>::new(
+            PhysicalType::UInt16 => Box::new(MaxPrimitiveImpl::<PhysicalU16Old, u16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::UInt32 => Box::new(MaxPrimitiveImpl::<PhysicalU32Old, u32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::UInt64 => Box::new(MaxPrimitiveImpl::<PhysicalU64Old, u64>::new(
+                datatype.clone(),
+            )),
+            PhysicalType::UInt128 => Box::new(MaxPrimitiveImpl::<PhysicalU128Old, u128>::new(
                 datatype.clone(),
             )),
             PhysicalType::Interval => Box::new(
-                MaxPrimitiveImpl::<PhysicalInterval, Interval>::new(datatype.clone()),
+                MaxPrimitiveImpl::<PhysicalIntervalOld, Interval>::new(datatype.clone()),
             ),
             PhysicalType::Binary => Box::new(MaxBinaryImpl::new(datatype.clone())),
             PhysicalType::Utf8 => Box::new(MaxBinaryImpl::new(datatype.clone())),
@@ -242,7 +242,7 @@ pub struct MinMaxUntypedNull;
 impl AggregateFunctionImpl for MinMaxUntypedNull {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         // Note min vs max doesn't matter. Everything is null.
-        new_unary_aggregate_states::<PhysicalUntypedNull, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalUntypedNullOld, _, _, _, _>(
             MinState::<UntypedNull>::default,
             untyped_null_finalize,
         )
@@ -274,7 +274,7 @@ where
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<PhysicalBinary, _, _, _, _>(M::default, move |states| {
+        new_unary_aggregate_states::<PhysicalBinaryOld, _, _, _, _>(M::default, move |states| {
             let builder = ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(states.len()),
@@ -309,7 +309,7 @@ where
     M: AggregateState<bool, bool> + Default + Sync + Send + 'static,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalBool, _, _, _, _>(M::default, move |states| {
+        new_unary_aggregate_states::<PhysicalBoolOld, _, _, _, _>(M::default, move |states| {
             boolean_finalize(DataType::Boolean, states)
         })
     }
@@ -346,7 +346,7 @@ impl<M, S, T> MinMaxPrimitiveImpl<M, S, T> {
 
 impl<M, S, T> AggregateFunctionImpl for MinMaxPrimitiveImpl<M, S, T>
 where
-    for<'a> S: PhysicalStorage<Type<'a> = T>,
+    for<'a> S: PhysicalStorageOld<Type<'a> = T>,
     T: PartialOrd + Debug + Default + Sync + Send + Copy + 'static,
     M: AggregateState<T, T> + Default + Sync + Send + 'static,
     ArrayData: From<PrimitiveStorage<T>>,

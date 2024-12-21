@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
 use rayexec_error::Result;
 
@@ -84,7 +84,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
 
                 // TODO: Compute data capacity.
 
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -102,7 +102,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
             _ => {
                 let mut string_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8, _, _>(
+                UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Utf8,

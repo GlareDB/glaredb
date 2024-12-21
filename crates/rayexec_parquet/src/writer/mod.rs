@@ -11,10 +11,10 @@ use parquet::file::properties::{WriterProperties, WriterPropertiesPtr};
 use parquet::file::writer::{write_page, SerializedFileWriter};
 use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
-use rayexec_bullet::array::{ArrayOld, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalStorage};
+use rayexec_bullet::executor::physical_type::{PhysicalBinaryOld, PhysicalStorageOld};
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
@@ -313,7 +313,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &ArrayOld) ->
                 // TODO: Try not to copy here. There's a hard requirement on the
                 // physical type being `Bytes`, and so a conversion needs to
                 // happen somewhere.
-                let storage = PhysicalBinary::get_storage(array.array_data())?;
+                let storage = PhysicalBinaryOld::get_storage(array.array_data())?;
                 let mut data = Vec::with_capacity(storage.len());
                 for idx in 0..storage.len() {
                     let val = storage.get(idx).required("binary data")?;

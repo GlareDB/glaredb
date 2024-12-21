@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use crate::array::ArrayOld;
-use crate::executor::physical_type::{PhysicalBool, PhysicalStorage};
+use crate::executor::physical_type::{PhysicalBoolOld, PhysicalStorageOld};
 use crate::selection::{self, SelectionVector};
 use crate::storage::AddressableStorage;
 
@@ -19,7 +19,7 @@ impl SelectExecutor {
 
         match bool_array.validity() {
             Some(validity) => {
-                let values = PhysicalBool::get_storage(&bool_array.data)?;
+                let values = PhysicalBoolOld::get_storage(&bool_array.data)?;
 
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);
@@ -35,7 +35,7 @@ impl SelectExecutor {
                 }
             }
             None => {
-                let values = PhysicalBool::get_storage(&bool_array.data)?;
+                let values = PhysicalBoolOld::get_storage(&bool_array.data)?;
 
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);

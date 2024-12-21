@@ -1,7 +1,7 @@
-use rayexec_bullet::array::{ArrayOld, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{RayexecError, Result};
 
@@ -135,7 +135,7 @@ where
         buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
     };
 
-    UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+    UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(input, builder, |v, buf| {
         // TODO: Non-allocating variant.
         buf.put(&case_fn(v))
     })

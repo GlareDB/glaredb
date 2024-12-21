@@ -2,26 +2,26 @@ use std::collections::BTreeSet;
 
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalStorage,
+    PhysicalBinaryOld,
+    PhysicalBoolOld,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
+    PhysicalIntervalOld,
+    PhysicalStorageOld,
     PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
+    PhysicalU128Old,
+    PhysicalU16Old,
+    PhysicalU32Old,
+    PhysicalU64Old,
+    PhysicalU8Old,
+    PhysicalUntypedNullOld,
+    PhysicalUtf8Old,
 };
 use rayexec_bullet::executor::scalar::{can_skip_validity_check, check_validity};
 use rayexec_bullet::selection::{self, SelectionVector};
@@ -96,7 +96,7 @@ where
         }
 
         match array1.physical_type() {
-            PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
+            PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNullOld, _, _>(
                 array1,
                 array2,
                 rows1,
@@ -104,59 +104,63 @@ where
                 not_eq_rows,
             )?,
             PhysicalType::Boolean => {
-                compare_rows_eq::<PhysicalBool, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalBoolOld, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Int8 => {
-                compare_rows_eq::<PhysicalI8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalI8Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Int16 => {
-                compare_rows_eq::<PhysicalI16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalI16Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Int32 => {
-                compare_rows_eq::<PhysicalI32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalI32Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Int64 => {
-                compare_rows_eq::<PhysicalI64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalI64Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Int128 => {
-                compare_rows_eq::<PhysicalI128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalI128Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::UInt8 => {
-                compare_rows_eq::<PhysicalU8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalU8Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::UInt16 => {
-                compare_rows_eq::<PhysicalU16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalU16Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::UInt32 => {
-                compare_rows_eq::<PhysicalU32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalU32Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::UInt64 => {
-                compare_rows_eq::<PhysicalU64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalU64Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::UInt128 => {
-                compare_rows_eq::<PhysicalU128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalU128Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Float16 => {
-                compare_rows_eq::<PhysicalF16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalF16Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Float32 => {
-                compare_rows_eq::<PhysicalF32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalF32Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::Float64 => {
-                compare_rows_eq::<PhysicalF64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalF64Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Interval => compare_rows_eq::<PhysicalInterval, _, _>(
+            PhysicalType::Interval => compare_rows_eq::<PhysicalIntervalOld, _, _>(
                 array1,
                 array2,
                 rows1,
                 rows2,
                 not_eq_rows,
             )?,
-            PhysicalType::Binary => {
-                compare_rows_eq::<PhysicalBinary, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
-            }
+            PhysicalType::Binary => compare_rows_eq::<PhysicalBinaryOld, _, _>(
+                array1,
+                array2,
+                rows1,
+                rows2,
+                not_eq_rows,
+            )?,
             PhysicalType::Utf8 => {
-                compare_rows_eq::<PhysicalUtf8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalUtf8Old, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType::List => {
                 not_implemented!("Row compare list")
@@ -180,7 +184,7 @@ fn compare_rows_eq<'a, S, I1, I2>(
     not_eq_rows: &mut BTreeSet<usize>,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     <S::Storage<'a> as AddressableStorage>::T: PartialEq,
     I1: Iterator<Item = usize>,
     I2: Iterator<Item = usize>,

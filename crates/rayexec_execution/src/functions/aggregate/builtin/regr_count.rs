@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::PhysicalAny;
+use rayexec_bullet::executor::physical_type::PhysicalAnyOld;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
@@ -71,7 +71,7 @@ pub struct RegrCountImpl;
 
 impl AggregateFunctionImpl for RegrCountImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalAny, PhysicalAny, _, _, _, _>(
+        new_binary_aggregate_states::<PhysicalAnyOld, PhysicalAnyOld, _, _, _, _>(
             RegrCountState::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )

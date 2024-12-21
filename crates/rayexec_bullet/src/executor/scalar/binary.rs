@@ -4,7 +4,7 @@ use super::check_validity;
 use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::physical_type::PhysicalStorageOld;
 use crate::executor::scalar::validate_logical_len;
 use crate::selection;
 use crate::storage::AddressableStorage;
@@ -21,8 +21,8 @@ impl BinaryExecutor {
     ) -> Result<ArrayOld>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: PhysicalStorageOld,
+        S2: PhysicalStorageOld,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
@@ -97,7 +97,7 @@ mod tests {
     use super::*;
     use crate::datatype::DataType;
     use crate::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::executor::physical_type::{PhysicalI32Old, PhysicalUtf8Old};
     use crate::scalar::ScalarValue;
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32Old, PhysicalI32Old, _, _>(
             &left,
             &right,
             builder,
@@ -134,7 +134,7 @@ mod tests {
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32Old, PhysicalUtf8Old, _, _>(
             &left,
             &right,
             builder,
@@ -168,7 +168,7 @@ mod tests {
 
         let right = ArrayOld::from_iter([2, 3, 4]);
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32Old, PhysicalI32Old, _, _>(
             &left,
             &right,
             ArrayBuilder {

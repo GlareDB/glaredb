@@ -14,25 +14,25 @@ use rayexec_bullet::executor::builder::{
     PrimitiveBuffer,
 };
 use rayexec_bullet::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
+    PhysicalBinaryOld,
+    PhysicalBoolOld,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
     PhysicalList,
-    PhysicalStorage,
+    PhysicalStorageOld,
     PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUtf8,
+    PhysicalU128Old,
+    PhysicalU16Old,
+    PhysicalU32Old,
+    PhysicalU64Old,
+    PhysicalU8Old,
+    PhysicalUtf8Old,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::selection::{self, SelectionVector};
@@ -318,112 +318,112 @@ pub(crate) fn unnest(
                 datatype,
                 buffer: BooleanBuffer::with_len(longest_len),
             };
-            unnest_inner::<PhysicalBool, _>(builder, child, meta)
+            unnest_inner::<PhysicalBoolOld, _>(builder, child, meta)
         }
         PhysicalType::Int8 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i8>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI8, _>(builder, child, meta)
+            unnest_inner::<PhysicalI8Old, _>(builder, child, meta)
         }
         PhysicalType::Int16 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI16, _>(builder, child, meta)
+            unnest_inner::<PhysicalI16Old, _>(builder, child, meta)
         }
         PhysicalType::Int32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI32, _>(builder, child, meta)
+            unnest_inner::<PhysicalI32Old, _>(builder, child, meta)
         }
         PhysicalType::Int64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI64, _>(builder, child, meta)
+            unnest_inner::<PhysicalI64Old, _>(builder, child, meta)
         }
         PhysicalType::Int128 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i128>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI128, _>(builder, child, meta)
+            unnest_inner::<PhysicalI128Old, _>(builder, child, meta)
         }
         PhysicalType::UInt8 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u8>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU8, _>(builder, child, meta)
+            unnest_inner::<PhysicalU8Old, _>(builder, child, meta)
         }
         PhysicalType::UInt16 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU16, _>(builder, child, meta)
+            unnest_inner::<PhysicalU16Old, _>(builder, child, meta)
         }
         PhysicalType::UInt32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU32, _>(builder, child, meta)
+            unnest_inner::<PhysicalU32Old, _>(builder, child, meta)
         }
         PhysicalType::UInt64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU64, _>(builder, child, meta)
+            unnest_inner::<PhysicalU64Old, _>(builder, child, meta)
         }
         PhysicalType::UInt128 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u128>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU128, _>(builder, child, meta)
+            unnest_inner::<PhysicalU128Old, _>(builder, child, meta)
         }
         PhysicalType::Float16 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF16, _>(builder, child, meta)
+            unnest_inner::<PhysicalF16Old, _>(builder, child, meta)
         }
         PhysicalType::Float32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF32, _>(builder, child, meta)
+            unnest_inner::<PhysicalF32Old, _>(builder, child, meta)
         }
         PhysicalType::Float64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF64, _>(builder, child, meta)
+            unnest_inner::<PhysicalF64Old, _>(builder, child, meta)
         }
         PhysicalType::Utf8 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: GermanVarlenBuffer::<str>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalUtf8, _>(builder, child, meta)
+            unnest_inner::<PhysicalUtf8Old, _>(builder, child, meta)
         }
         PhysicalType::Binary => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalBinary, _>(builder, child, meta)
+            unnest_inner::<PhysicalBinaryOld, _>(builder, child, meta)
         }
         other => not_implemented!("Unnest for physical type {other:?}"),
     }
@@ -435,7 +435,7 @@ fn unnest_inner<'a, S, B>(
     meta: ListItemMetadata,
 ) -> Result<ArrayOld>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     B: ArrayDataBuffer,
     S::Type<'a>: Borrow<B::Type>,
 {

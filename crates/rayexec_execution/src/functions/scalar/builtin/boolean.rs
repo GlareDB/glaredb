@@ -4,7 +4,7 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalBool;
+use rayexec_bullet::executor::physical_type::PhysicalBoolOld;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
 use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
@@ -84,7 +84,7 @@ impl ScalarFunctionImpl for AndImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute::<PhysicalBoolOld, PhysicalBoolOld, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -98,7 +98,7 @@ impl ScalarFunctionImpl for AndImpl {
                 let a = inputs[0];
                 let b = inputs[1];
                 let c = inputs[2];
-                TernaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
+                TernaryExecutor::execute::<PhysicalBoolOld, PhysicalBoolOld, PhysicalBoolOld, _, _>(
                     a,
                     b,
                     c,
@@ -111,7 +111,7 @@ impl ScalarFunctionImpl for AndImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool, _, _>(
+                UniformExecutor::execute::<PhysicalBoolOld, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Boolean,
@@ -192,7 +192,7 @@ impl ScalarFunctionImpl for OrImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute::<PhysicalBoolOld, PhysicalBoolOld, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -204,7 +204,7 @@ impl ScalarFunctionImpl for OrImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool, _, _>(
+                UniformExecutor::execute::<PhysicalBoolOld, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Boolean,

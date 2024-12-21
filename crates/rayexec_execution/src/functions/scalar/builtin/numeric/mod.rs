@@ -36,10 +36,10 @@ pub use radians::*;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalStorage,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalStorageOld,
     PhysicalType,
 };
 use rayexec_bullet::storage::PrimitiveStorage;
@@ -83,7 +83,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
 
     fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorageOld,
         S::Type<'a>: Float + Default,
         ArrayData: From<PrimitiveStorage<S::Type<'a>>>;
 }
@@ -148,9 +148,9 @@ impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScal
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         match input.physical_type() {
-            PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),
-            PhysicalType::Float32 => O::execute_float::<PhysicalF32>(input, self.ret.clone()),
-            PhysicalType::Float64 => O::execute_float::<PhysicalF64>(input, self.ret.clone()),
+            PhysicalType::Float16 => O::execute_float::<PhysicalF16Old>(input, self.ret.clone()),
+            PhysicalType::Float32 => O::execute_float::<PhysicalF32Old>(input, self.ret.clone()),
+            PhysicalType::Float64 => O::execute_float::<PhysicalF64Old>(input, self.ret.clone()),
             other => Err(RayexecError::new(format!(
                 "Invalid physical type: {other:?}"
             ))),

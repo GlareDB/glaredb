@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExecutor};
 use rayexec_error::{Result, ResultExt};
 use regex::Regex;
@@ -106,23 +106,25 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
 
         match (self.pattern.as_ref(), self.replacement.as_ref()) {
             (Some(pattern), Some(replacement)) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(inputs[0], builder, |s, buf| {
                     // TODO: Flags to more many.
                     let out = pattern.replace(s, replacement);
                     buf.put(out.as_ref());
                 })
             }
-            (Some(pattern), None) => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[2],
-                builder,
-                |s, replacement, buf| {
-                    let out = pattern.replace(s, replacement);
-                    buf.put(out.as_ref());
-                },
-            ),
+            (Some(pattern), None) => {
+                BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
+                    inputs[0],
+                    inputs[2],
+                    builder,
+                    |s, replacement, buf| {
+                        let out = pattern.replace(s, replacement);
+                        buf.put(out.as_ref());
+                    },
+                )
+            }
             (None, Some(replacement)) => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
                     inputs[0],
                     inputs[1],
                     builder,
@@ -141,7 +143,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 )
             }
             (None, None) => {
-                TernaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
+                TernaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
                     inputs[0],
                     inputs[1],
                     inputs[2],

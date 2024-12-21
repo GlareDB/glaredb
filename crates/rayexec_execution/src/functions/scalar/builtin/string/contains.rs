@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
@@ -88,7 +88,7 @@ impl ScalarFunctionImpl for StringContainsConstantImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+        UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(inputs[0], builder, |s, buf| {
             buf.put(&s.contains(&self.constant))
         })
     }
@@ -104,7 +104,7 @@ impl ScalarFunctionImpl for StringContainsImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
             inputs[0],
             inputs[1],
             builder,

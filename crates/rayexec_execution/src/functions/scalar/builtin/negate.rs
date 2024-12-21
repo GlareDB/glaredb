@@ -1,19 +1,19 @@
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{ArrayOld, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalStorage,
+    PhysicalBoolOld,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
+    PhysicalStorageOld,
 };
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::storage::PrimitiveStorage;
@@ -61,14 +61,14 @@ impl ScalarFunction for Negate {
 
         // TODO: Interval
         let function_impl: Box<dyn ScalarFunctionImpl> = match dt.clone() {
-            dt @ DataType::Int8 => Box::new(NegateImpl::<PhysicalI8>::new(dt)),
-            dt @ DataType::Int16 => Box::new(NegateImpl::<PhysicalI16>::new(dt)),
-            dt @ DataType::Int32 => Box::new(NegateImpl::<PhysicalI32>::new(dt)),
-            dt @ DataType::Int64 => Box::new(NegateImpl::<PhysicalI64>::new(dt)),
-            dt @ DataType::Int128 => Box::new(NegateImpl::<PhysicalI128>::new(dt)),
-            dt @ DataType::Float16 => Box::new(NegateImpl::<PhysicalF16>::new(dt)),
-            dt @ DataType::Float32 => Box::new(NegateImpl::<PhysicalF32>::new(dt)),
-            dt @ DataType::Float64 => Box::new(NegateImpl::<PhysicalF64>::new(dt)),
+            dt @ DataType::Int8 => Box::new(NegateImpl::<PhysicalI8Old>::new(dt)),
+            dt @ DataType::Int16 => Box::new(NegateImpl::<PhysicalI16Old>::new(dt)),
+            dt @ DataType::Int32 => Box::new(NegateImpl::<PhysicalI32Old>::new(dt)),
+            dt @ DataType::Int64 => Box::new(NegateImpl::<PhysicalI64Old>::new(dt)),
+            dt @ DataType::Int128 => Box::new(NegateImpl::<PhysicalI128Old>::new(dt)),
+            dt @ DataType::Float16 => Box::new(NegateImpl::<PhysicalF16Old>::new(dt)),
+            dt @ DataType::Float32 => Box::new(NegateImpl::<PhysicalF32Old>::new(dt)),
+            dt @ DataType::Float64 => Box::new(NegateImpl::<PhysicalF64Old>::new(dt)),
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 
@@ -98,7 +98,7 @@ impl<S> NegateImpl<S> {
 
 impl<S> ScalarFunctionImpl for NegateImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     for<'a> S::Type<'a>: std::ops::Neg<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {
@@ -166,7 +166,7 @@ pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
-        UnaryExecutor::execute::<PhysicalBool, _, _>(
+        UnaryExecutor::execute::<PhysicalBoolOld, _, _>(
             inputs[0],
             ArrayBuilder {
                 datatype: DataType::Boolean,

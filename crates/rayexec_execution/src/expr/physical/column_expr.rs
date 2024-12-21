@@ -75,6 +75,7 @@ impl DatabaseProtoConv for PhysicalColumnExpr {
 mod tests {
     use super::*;
     use crate::arrays::buffer::addressable::AddressableStorage;
+    use crate::arrays::buffer::physical_type::{PhysicalDictionary, PhysicalI32};
     use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
     use crate::arrays::datatype::DataType;
 
@@ -118,5 +119,42 @@ mod tests {
         assert_eq!("a", out_view.get(0).unwrap());
         assert_eq!("b", out_view.get(1).unwrap());
         assert_eq!("c", out_view.get(2).unwrap());
+    }
+
+    #[test]
+    fn eval_with_selection() {
+        let mut batch = Batch::from_arrays(
+            [Array::new_with_buffer(
+                DataType::Int32,
+                Int32Builder::from_iter([4, 5, 6]).unwrap(),
+            )],
+            true,
+        )
+        .unwrap();
+
+        let expr = PhysicalColumnExpr { idx: 0 };
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 2).unwrap();
+
+        expr.eval(
+            &mut batch,
+            &mut ExpressionState::empty(),
+            FlatSelection::selection(&[2, 0]),
+            &mut out,
+        )
+        .unwrap();
+
+        let managed_slice = out
+            .flat_view()
+            .unwrap()
+            .array_buffer
+            .try_as_slice::<PhysicalI32>()
+            .unwrap();
+
+        // Should be the same as in the batch.
+        assert_eq!(&[4, 5, 6], managed_slice);
+
+        // But with a selection stored in the array.
+        let dict_slice = out.data.try_as_slice::<PhysicalDictionary>().unwrap();
+        assert_eq!(&[2, 0], dict_slice);
     }
 }

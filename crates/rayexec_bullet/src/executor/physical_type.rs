@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
-use crate::array::{ArrayOld, ArrayData, BinaryData};
+use crate::array::{ArrayData, ArrayOld, BinaryData};
 use crate::scalar::interval::Interval;
 use crate::storage::{
     AddressableStorage,
@@ -177,7 +177,7 @@ impl VarlenType for [u8] {
 ///
 /// Contains a lifetime to enable tying the returned storage to the provided
 /// array data.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+pub trait PhysicalStorageOld: Debug + Sync + Send + Clone + Copy + 'static {
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
     /// The type of the underlying array storage.
@@ -193,9 +193,9 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
 /// actually get the underlying values. This is useful if the values aren't
 /// actually needed (e.g. COUNT(*)).
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalAny;
+pub struct PhysicalAnyOld;
 
-impl PhysicalStorage for PhysicalAny {
+impl PhysicalStorageOld for PhysicalAnyOld {
     type Type<'a> = ();
     type Storage<'a> = UnitStorage;
 
@@ -227,9 +227,9 @@ impl AddressableStorage for UnitStorage {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalUntypedNull;
+pub struct PhysicalUntypedNullOld;
 
-impl PhysicalStorage for PhysicalUntypedNull {
+impl PhysicalStorageOld for PhysicalUntypedNullOld {
     type Type<'a> = UntypedNull;
     type Storage<'a> = UntypedNullStorage;
 
@@ -242,9 +242,9 @@ impl PhysicalStorage for PhysicalUntypedNull {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalBool;
+pub struct PhysicalBoolOld;
 
-impl PhysicalStorage for PhysicalBool {
+impl PhysicalStorageOld for PhysicalBoolOld {
     type Type<'a> = bool;
     type Storage<'a> = BooleanStorageRef<'a>;
 
@@ -257,9 +257,9 @@ impl PhysicalStorage for PhysicalBool {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI8;
+pub struct PhysicalI8Old;
 
-impl PhysicalStorage for PhysicalI8 {
+impl PhysicalStorageOld for PhysicalI8Old {
     type Type<'a> = i8;
     type Storage<'a> = PrimitiveStorageSlice<'a, i8>;
 
@@ -272,9 +272,9 @@ impl PhysicalStorage for PhysicalI8 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI16;
+pub struct PhysicalI16Old;
 
-impl PhysicalStorage for PhysicalI16 {
+impl PhysicalStorageOld for PhysicalI16Old {
     type Type<'a> = i16;
     type Storage<'a> = PrimitiveStorageSlice<'a, i16>;
 
@@ -287,9 +287,9 @@ impl PhysicalStorage for PhysicalI16 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI32;
+pub struct PhysicalI32Old;
 
-impl PhysicalStorage for PhysicalI32 {
+impl PhysicalStorageOld for PhysicalI32Old {
     type Type<'a> = i32;
     type Storage<'a> = PrimitiveStorageSlice<'a, i32>;
 
@@ -302,9 +302,9 @@ impl PhysicalStorage for PhysicalI32 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI64;
+pub struct PhysicalI64Old;
 
-impl PhysicalStorage for PhysicalI64 {
+impl PhysicalStorageOld for PhysicalI64Old {
     type Type<'a> = i64;
     type Storage<'a> = PrimitiveStorageSlice<'a, i64>;
 
@@ -317,9 +317,9 @@ impl PhysicalStorage for PhysicalI64 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI128;
+pub struct PhysicalI128Old;
 
-impl PhysicalStorage for PhysicalI128 {
+impl PhysicalStorageOld for PhysicalI128Old {
     type Type<'a> = i128;
     type Storage<'a> = PrimitiveStorageSlice<'a, i128>;
 
@@ -332,9 +332,9 @@ impl PhysicalStorage for PhysicalI128 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU8;
+pub struct PhysicalU8Old;
 
-impl PhysicalStorage for PhysicalU8 {
+impl PhysicalStorageOld for PhysicalU8Old {
     type Type<'a> = u8;
     type Storage<'a> = PrimitiveStorageSlice<'a, u8>;
 
@@ -347,9 +347,9 @@ impl PhysicalStorage for PhysicalU8 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU16;
+pub struct PhysicalU16Old;
 
-impl PhysicalStorage for PhysicalU16 {
+impl PhysicalStorageOld for PhysicalU16Old {
     type Type<'a> = u16;
     type Storage<'a> = PrimitiveStorageSlice<'a, u16>;
 
@@ -362,9 +362,9 @@ impl PhysicalStorage for PhysicalU16 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU32;
+pub struct PhysicalU32Old;
 
-impl PhysicalStorage for PhysicalU32 {
+impl PhysicalStorageOld for PhysicalU32Old {
     type Type<'a> = u32;
     type Storage<'a> = PrimitiveStorageSlice<'a, u32>;
 
@@ -377,9 +377,9 @@ impl PhysicalStorage for PhysicalU32 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU64;
+pub struct PhysicalU64Old;
 
-impl PhysicalStorage for PhysicalU64 {
+impl PhysicalStorageOld for PhysicalU64Old {
     type Type<'a> = u64;
     type Storage<'a> = PrimitiveStorageSlice<'a, u64>;
 
@@ -392,9 +392,9 @@ impl PhysicalStorage for PhysicalU64 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU128;
+pub struct PhysicalU128Old;
 
-impl PhysicalStorage for PhysicalU128 {
+impl PhysicalStorageOld for PhysicalU128Old {
     type Type<'a> = u128;
     type Storage<'a> = PrimitiveStorageSlice<'a, u128>;
 
@@ -407,9 +407,9 @@ impl PhysicalStorage for PhysicalU128 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF16;
+pub struct PhysicalF16Old;
 
-impl PhysicalStorage for PhysicalF16 {
+impl PhysicalStorageOld for PhysicalF16Old {
     type Type<'a> = f16;
     type Storage<'a> = PrimitiveStorageSlice<'a, f16>;
 
@@ -422,9 +422,9 @@ impl PhysicalStorage for PhysicalF16 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF32;
+pub struct PhysicalF32Old;
 
-impl PhysicalStorage for PhysicalF32 {
+impl PhysicalStorageOld for PhysicalF32Old {
     type Type<'a> = f32;
     type Storage<'a> = PrimitiveStorageSlice<'a, f32>;
 
@@ -437,9 +437,9 @@ impl PhysicalStorage for PhysicalF32 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF64;
+pub struct PhysicalF64Old;
 
-impl PhysicalStorage for PhysicalF64 {
+impl PhysicalStorageOld for PhysicalF64Old {
     type Type<'a> = f64;
     type Storage<'a> = PrimitiveStorageSlice<'a, f64>;
 
@@ -452,9 +452,9 @@ impl PhysicalStorage for PhysicalF64 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalInterval;
+pub struct PhysicalIntervalOld;
 
-impl PhysicalStorage for PhysicalInterval {
+impl PhysicalStorageOld for PhysicalIntervalOld {
     type Type<'a> = Interval;
     type Storage<'a> = PrimitiveStorageSlice<'a, Interval>;
 
@@ -467,9 +467,9 @@ impl PhysicalStorage for PhysicalInterval {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalBinary;
+pub struct PhysicalBinaryOld;
 
-impl PhysicalStorage for PhysicalBinary {
+impl PhysicalStorageOld for PhysicalBinaryOld {
     type Type<'a> = &'a [u8];
     type Storage<'a> = BinaryDataStorage<'a>;
 
@@ -490,9 +490,9 @@ impl PhysicalStorage for PhysicalBinary {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalUtf8;
+pub struct PhysicalUtf8Old;
 
-impl PhysicalStorage for PhysicalUtf8 {
+impl PhysicalStorageOld for PhysicalUtf8Old {
     type Type<'a> = &'a str;
     type Storage<'a> = StrDataStorage<'a>;
 
@@ -586,7 +586,7 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalList;
 
-impl PhysicalStorage for PhysicalList {
+impl PhysicalStorageOld for PhysicalList {
     type Type<'a> = ListItemMetadata;
     type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata>;
 

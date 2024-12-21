@@ -1,7 +1,7 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
+use rayexec_bullet::executor::physical_type::{PhysicalI64Old, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
@@ -107,7 +107,7 @@ pub struct SubstringFromImpl;
 impl ScalarFunctionImpl for SubstringFromImpl {
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let len = inputs[0].logical_len();
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+        BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, _, _>(
             inputs[0],
             inputs[1],
             ArrayBuilder {
@@ -125,7 +125,7 @@ pub struct SubstringFromToImpl;
 impl ScalarFunctionImpl for SubstringFromToImpl {
     fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let len = inputs[0].logical_len();
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
+        TernaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, PhysicalI64Old, _, _>(
             inputs[0],
             inputs[1],
             inputs[2],
