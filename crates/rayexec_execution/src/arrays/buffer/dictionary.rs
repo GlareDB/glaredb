@@ -1,6 +1,6 @@
 use super::reservation::ReservationTracker;
 use super::ArrayBuffer;
-use crate::exp::validity::Validity;
+use crate::arrays::validity::Validity;
 
 #[derive(Debug)]
 pub struct DictionaryBuffer<R: ReservationTracker> {

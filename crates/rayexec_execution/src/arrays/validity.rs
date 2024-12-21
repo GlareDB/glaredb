@@ -1,4 +1,4 @@
-use crate::bitmap::Bitmap;
+use super::bitmap::Bitmap;
 
 #[derive(Debug, Clone)]
 pub struct Validity {

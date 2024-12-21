@@ -8,7 +8,6 @@ use super::reservation::ReservationTracker;
 use super::string_view::{StringViewMetadataUnion, StringViewStorage, StringViewStorageMut};
 use super::struct_buffer::StructItemMetadata;
 use super::ArrayBuffer;
-use crate::scalar::interval::Interval;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -40,7 +39,7 @@ impl PhysicalType {
         match self {
             Self::Int8 => PhysicalI8::buffer_mem_size(),
             Self::Int32 => PhysicalI32::buffer_mem_size(),
-            Self::Interval => PhysicalInterval::buffer_mem_size(),
+            // Self::Interval => PhysicalInterval::buffer_mem_size(),
             Self::Utf8 => PhysicalUtf8::buffer_mem_size(),
             Self::Dictionary => PhysicalDictionary::buffer_mem_size(),
             _ => unimplemented!(),
@@ -192,35 +191,35 @@ impl MutablePhysicalStorage for PhysicalI32 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalInterval;
+// #[derive(Debug, Clone, Copy)]
+// pub struct PhysicalInterval;
 
-impl PhysicalStorage for PhysicalInterval {
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Interval;
+// impl PhysicalStorage for PhysicalInterval {
+//     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Interval;
 
-    type PrimaryBufferType = Interval;
-    type StorageType = Self::PrimaryBufferType;
+//     type PrimaryBufferType = Interval;
+//     type StorageType = Self::PrimaryBufferType;
 
-    type Storage<'a> = &'a [Self::StorageType];
+//     type Storage<'a> = &'a [Self::StorageType];
 
-    fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
-    where
-        R: ReservationTracker,
-    {
-        buffer.try_as_slice::<Self>()
-    }
-}
+//     fn get_storage<R>(buffer: &ArrayBuffer<R>) -> Result<Self::Storage<'_>>
+//     where
+//         R: ReservationTracker,
+//     {
+//         buffer.try_as_slice::<Self>()
+//     }
+// }
 
-impl MutablePhysicalStorage for PhysicalInterval {
-    type MutableStorage<'a> = &'a mut [Self::StorageType];
+// impl MutablePhysicalStorage for PhysicalInterval {
+//     type MutableStorage<'a> = &'a mut [Self::StorageType];
 
-    fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
-    where
-        R: ReservationTracker,
-    {
-        buffer.try_as_slice_mut::<Self>()
-    }
-}
+//     fn get_storage_mut<R>(buffer: &mut ArrayBuffer<R>) -> Result<Self::MutableStorage<'_>>
+//     where
+//         R: ReservationTracker,
+//     {
+//         buffer.try_as_slice_mut::<Self>()
+//     }
+// }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalUtf8;

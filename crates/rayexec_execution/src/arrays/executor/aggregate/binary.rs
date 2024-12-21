@@ -1,10 +1,10 @@
+use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_error::Result;
 
 use super::AggregateState;
-use crate::compute::util::IntoExactSizedIterator;
-use crate::exp::array::Array;
-use crate::exp::buffer::addressable::AddressableStorage;
-use crate::exp::buffer::physical_type::PhysicalStorage;
+use crate::arrays::array::Array;
+use crate::arrays::buffer::addressable::AddressableStorage;
+use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BinaryNonNullUpdater;
@@ -13,8 +13,8 @@ impl BinaryNonNullUpdater {
     pub fn update<S1, S2, State, Output>(
         array1: &Array,
         array2: &Array,
-        selection: impl IntoExactSizedIterator<Item = usize>,
-        mapping: impl IntoExactSizedIterator<Item = usize>,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        mapping: impl IntoExactSizeIterator<Item = usize>,
         states: &mut [State],
     ) -> Result<()>
     where
@@ -62,8 +62,8 @@ impl BinaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exp::buffer::addressable::MutableAddressableStorage;
-    use crate::exp::executors::OutputBuffer;
+    use crate::arrays::buffer::addressable::MutableAddressableStorage;
+    use crate::arrays::executor::OutputBuffer;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]

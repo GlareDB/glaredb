@@ -2275,6 +2275,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "indexmap",
  "iterutil",
+ "num",
  "num-traits",
  "num_cpus",
  "once_cell",

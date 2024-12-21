@@ -1,13 +1,13 @@
+use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_error::Result;
 
-use crate::compute::util::IntoExactSizedIterator;
-use crate::exp::array::Array;
-use crate::exp::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
-use crate::exp::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
-use crate::exp::buffer::ArrayBuffer;
-use crate::exp::executors::OutputBuffer;
-use crate::exp::flat_array::FlatArrayView;
-use crate::exp::validity::Validity;
+use crate::arrays::array::Array;
+use crate::arrays::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
+use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
+use crate::arrays::buffer::ArrayBuffer;
+use crate::arrays::executor::OutputBuffer;
+use crate::arrays::flat_array::FlatArrayView;
+use crate::arrays::validity::Validity;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
@@ -16,7 +16,7 @@ impl UnaryExecutor {
     /// Execute a unary operation on `array`, placing results in `out`.
     pub fn execute<S, O, Op>(
         array: &Array,
-        selection: impl IntoExactSizedIterator<Item = usize>,
+        selection: impl IntoExactSizeIterator<Item = usize>,
         out: &mut ArrayBuffer,
         out_validity: &mut Validity,
         mut op: Op,
@@ -61,7 +61,7 @@ impl UnaryExecutor {
 
     pub fn execute_flat<'a, S, O, Op>(
         array: FlatArrayView<'a>,
-        selection: impl IntoExactSizedIterator<Item = usize>,
+        selection: impl IntoExactSizeIterator<Item = usize>,
         out: &mut ArrayBuffer,
         out_validity: &mut Validity,
         mut op: Op,
@@ -135,11 +135,11 @@ impl UnaryExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datatype::DataType;
-    use crate::exp::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::exp::buffer::reservation::NopReservationTracker;
-    use crate::exp::buffer::string_view::{StringViewHeap, StringViewStorageMut};
-    use crate::exp::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::buffer::reservation::NopReservationTracker;
+    use crate::arrays::buffer::string_view::{StringViewHeap, StringViewStorageMut};
+    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::datatype::DataType;
 
     #[test]
     fn int32_inc_by_2() {

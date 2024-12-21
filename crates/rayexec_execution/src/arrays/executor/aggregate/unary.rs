@@ -1,10 +1,10 @@
+use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_error::Result;
 
 use super::AggregateState;
-use crate::compute::util::IntoExactSizedIterator;
-use crate::exp::array::Array;
-use crate::exp::buffer::addressable::AddressableStorage;
-use crate::exp::buffer::physical_type::PhysicalStorage;
+use crate::arrays::array::Array;
+use crate::arrays::buffer::addressable::AddressableStorage;
+use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 
 #[derive(Debug, Clone, Copy)]
 pub struct UnaryNonNullUpdater;
@@ -12,8 +12,8 @@ pub struct UnaryNonNullUpdater;
 impl UnaryNonNullUpdater {
     pub fn update<S, State, Output>(
         array: &Array,
-        selection: impl IntoExactSizedIterator<Item = usize>,
-        mapping: impl IntoExactSizedIterator<Item = usize>,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        mapping: impl IntoExactSizeIterator<Item = usize>,
         states: &mut [State],
     ) -> Result<()>
     where
@@ -51,12 +51,12 @@ impl UnaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datatype::DataType;
-    use crate::exp::buffer::addressable::MutableAddressableStorage;
-    use crate::exp::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::exp::buffer::{Int32Builder, StringViewBufferBuilder};
-    use crate::exp::executors::OutputBuffer;
-    use crate::exp::validity::Validity;
+    use crate::arrays::buffer::addressable::MutableAddressableStorage;
+    use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::executor::OutputBuffer;
+    use crate::arrays::validity::Validity;
 
     #[derive(Debug, Default)]
     struct TestSumState {

@@ -1,3 +1,4 @@
+use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_error::{RayexecError, Result};
 
 use super::buffer::addressable::AddressableStorage;
@@ -5,9 +6,8 @@ use super::buffer::dictionary::DictionaryBuffer;
 use super::buffer::physical_type::{PhysicalDictionary, PhysicalStorage, PhysicalType};
 use super::buffer::reservation::{NopReservationTracker, ReservationTracker};
 use super::buffer::{ArrayBuffer, SecondaryBuffers};
+use super::datatype::DataType;
 use super::validity::Validity;
-use crate::compute::util::IntoExactSizedIterator;
-use crate::datatype::DataType;
 
 #[derive(Debug)]
 pub struct Array<R: ReservationTracker = NopReservationTracker> {
@@ -77,7 +77,7 @@ where
     pub fn select(
         &mut self,
         tracker: &R,
-        selection: impl IntoExactSizedIterator<Item = usize>,
+        selection: impl IntoExactSizeIterator<Item = usize>,
     ) -> Result<()> {
         if self.is_dictionary() {
             // Already dictionary, select the selection.

@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 
 use super::OutputBuffer;
-use crate::exp::buffer::addressable::MutableAddressableStorage;
+use crate::arrays::buffer::addressable::MutableAddressableStorage;
 
 /// State for a single group's aggregate.
 ///

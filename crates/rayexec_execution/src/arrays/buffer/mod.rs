@@ -10,6 +10,7 @@ pub mod struct_buffer;
 use std::marker::PhantomData;
 
 use dictionary::DictionaryBuffer;
+use iterutil::exact_size::IntoExactSizeIterator;
 use list::{ListBuffer, ListItemMetadata};
 use physical_type::{
     PhysicalI32,
@@ -32,8 +33,7 @@ use string_view::{
 use struct_buffer::{StructBuffer, StructItemMetadata};
 
 use super::array::Array;
-use crate::compute::util::IntoExactSizedIterator;
-use crate::datatype::DataType;
+use super::datatype::DataType;
 
 #[derive(Debug)]
 pub struct ArrayBuffer<R: ReservationTracker = NopReservationTracker> {
@@ -365,7 +365,7 @@ pub struct PrimBufferBuilder<S: PhysicalStorage> {
 impl<S: PhysicalStorage> PrimBufferBuilder<S> {
     pub fn from_iter<I>(iter: I) -> Result<ArrayBuffer>
     where
-        I: IntoExactSizedIterator<Item = S::PrimaryBufferType>,
+        I: IntoExactSizeIterator<Item = S::PrimaryBufferType>,
     {
         let iter = iter.into_iter();
         let mut data =
@@ -391,7 +391,7 @@ impl StringViewBufferBuilder {
     pub fn from_iter<A, I>(iter: I) -> Result<ArrayBuffer>
     where
         A: AsRef<str>,
-        I: IntoExactSizedIterator<Item = A>,
+        I: IntoExactSizeIterator<Item = A>,
     {
         let iter = iter.into_iter();
         let mut data =
@@ -419,7 +419,7 @@ pub struct ListBufferBuilder;
 impl ListBufferBuilder {
     pub fn from_iter<I>(child_datatype: DataType, iter: I) -> Result<ArrayBuffer>
     where
-        I: IntoExactSizedIterator<Item = ArrayBuffer>,
+        I: IntoExactSizeIterator<Item = ArrayBuffer>,
     {
         let mut iter = iter.into_iter();
 

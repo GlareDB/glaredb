@@ -1,5 +1,5 @@
 use super::reservation::{NopReservationTracker, ReservationTracker};
-use crate::exp::array::Array;
+use crate::arrays::array::Array;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ListItemMetadata {

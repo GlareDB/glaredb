@@ -1,12 +1,11 @@
 use std::fmt;
 
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
+use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::executor::physical_type::PhysicalType;
-use crate::field::Field;
-use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use super::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use super::schema::Field;
 
 /// The 'type' of the dataype.
 ///
@@ -445,35 +444,68 @@ impl DataType {
         }
     }
 
-    pub fn physical_type(&self) -> Result<PhysicalType> {
-        Ok(match self {
-            DataType::Null => PhysicalType::UntypedNull,
-            DataType::Boolean => PhysicalType::Boolean,
-            DataType::Int8 => PhysicalType::Int8,
-            DataType::Int16 => PhysicalType::Int16,
-            DataType::Int32 => PhysicalType::Int32,
-            DataType::Int64 => PhysicalType::Int64,
-            DataType::Int128 => PhysicalType::Int128,
-            DataType::UInt8 => PhysicalType::UInt8,
-            DataType::UInt16 => PhysicalType::UInt16,
-            DataType::UInt32 => PhysicalType::UInt32,
-            DataType::UInt64 => PhysicalType::UInt64,
-            DataType::UInt128 => PhysicalType::UInt128,
-            DataType::Float16 => PhysicalType::Float16,
-            DataType::Float32 => PhysicalType::Float32,
-            DataType::Float64 => PhysicalType::Float64,
-            DataType::Decimal64(_) => PhysicalType::Int64,
-            DataType::Decimal128(_) => PhysicalType::Int128,
-            DataType::Timestamp(_) => PhysicalType::Int64,
-            DataType::Date32 => PhysicalType::Int32,
-            DataType::Date64 => PhysicalType::Int64,
-            DataType::Interval => PhysicalType::Interval,
-            DataType::Utf8 => PhysicalType::Utf8,
-            DataType::Binary => PhysicalType::Binary,
-            DataType::Struct(_) => not_implemented!("struct data type to physical type"),
-            DataType::List(_) => PhysicalType::List,
-        })
-    }
+    // TODO
+    // pub fn exp_physical_type(&self) -> crate::exp::buffer::physical_type::PhysicalType {
+    //     use crate::exp::buffer::physical_type::PhysicalType;
+
+    //     match self {
+    //         DataType::Null => PhysicalType::UntypedNull,
+    //         DataType::Boolean => PhysicalType::Boolean,
+    //         DataType::Int8 => PhysicalType::Int8,
+    //         DataType::Int16 => PhysicalType::Int16,
+    //         DataType::Int32 => PhysicalType::Int32,
+    //         DataType::Int64 => PhysicalType::Int64,
+    //         DataType::Int128 => PhysicalType::Int128,
+    //         DataType::UInt8 => PhysicalType::UInt8,
+    //         DataType::UInt16 => PhysicalType::UInt16,
+    //         DataType::UInt32 => PhysicalType::UInt32,
+    //         DataType::UInt64 => PhysicalType::UInt64,
+    //         DataType::UInt128 => PhysicalType::UInt128,
+    //         DataType::Float16 => PhysicalType::Float16,
+    //         DataType::Float32 => PhysicalType::Float32,
+    //         DataType::Float64 => PhysicalType::Float64,
+    //         DataType::Decimal64(_) => PhysicalType::Int64,
+    //         DataType::Decimal128(_) => PhysicalType::Int128,
+    //         DataType::Timestamp(_) => PhysicalType::Int64,
+    //         DataType::Date32 => PhysicalType::Int32,
+    //         DataType::Date64 => PhysicalType::Int64,
+    //         DataType::Interval => PhysicalType::Interval,
+    //         DataType::Utf8 => PhysicalType::Utf8,
+    //         DataType::Binary => PhysicalType::Binary,
+    //         DataType::Struct(_) => PhysicalType::Struct,
+    //         DataType::List(_) => PhysicalType::List,
+    //     }
+    // }
+
+    // pub fn physical_type(&self) -> Result<PhysicalType> {
+    //     Ok(match self {
+    //         DataType::Null => PhysicalType::UntypedNull,
+    //         DataType::Boolean => PhysicalType::Boolean,
+    //         DataType::Int8 => PhysicalType::Int8,
+    //         DataType::Int16 => PhysicalType::Int16,
+    //         DataType::Int32 => PhysicalType::Int32,
+    //         DataType::Int64 => PhysicalType::Int64,
+    //         DataType::Int128 => PhysicalType::Int128,
+    //         DataType::UInt8 => PhysicalType::UInt8,
+    //         DataType::UInt16 => PhysicalType::UInt16,
+    //         DataType::UInt32 => PhysicalType::UInt32,
+    //         DataType::UInt64 => PhysicalType::UInt64,
+    //         DataType::UInt128 => PhysicalType::UInt128,
+    //         DataType::Float16 => PhysicalType::Float16,
+    //         DataType::Float32 => PhysicalType::Float32,
+    //         DataType::Float64 => PhysicalType::Float64,
+    //         DataType::Decimal64(_) => PhysicalType::Int64,
+    //         DataType::Decimal128(_) => PhysicalType::Int128,
+    //         DataType::Timestamp(_) => PhysicalType::Int64,
+    //         DataType::Date32 => PhysicalType::Int32,
+    //         DataType::Date64 => PhysicalType::Int64,
+    //         DataType::Interval => PhysicalType::Interval,
+    //         DataType::Utf8 => PhysicalType::Utf8,
+    //         DataType::Binary => PhysicalType::Binary,
+    //         DataType::Struct(_) => not_implemented!("struct data type to physical type"),
+    //         DataType::List(_) => PhysicalType::List,
+    //     })
+    // }
 
     /// Return if this datatype is null.
     pub const fn is_null(&self) -> bool {

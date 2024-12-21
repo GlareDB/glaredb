@@ -1,5 +1,5 @@
 use super::reservation::ReservationTracker;
-use crate::exp::array::Array;
+use crate::arrays::array::Array;
 
 /// Zero-sized type that gets stored in the primary buffer.
 ///
