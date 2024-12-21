@@ -12,7 +12,7 @@ use parquet::file::writer::{write_page, SerializedFileWriter};
 use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
 use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalStorage};
 use rayexec_bullet::field::Schema;
@@ -59,7 +59,7 @@ impl AsyncBatchWriter {
     }
 
     /// Encode and write a batch to the underlying file sink.
-    pub async fn write(&mut self, batch: &Batch) -> Result<()> {
+    pub async fn write(&mut self, batch: &BatchOld) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());
         }
@@ -178,7 +178,7 @@ impl RowGroupWriter {
         })
     }
 
-    fn write(&mut self, batch: &Batch) -> Result<()> {
+    fn write(&mut self, batch: &BatchOld) -> Result<()> {
         for (writer, col) in self.column_writers.iter_mut().zip(batch.columns()) {
             if col.has_selection() {
                 let unselected_array = col.unselect()?;

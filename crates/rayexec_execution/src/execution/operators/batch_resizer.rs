@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
@@ -65,7 +65,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::BatchResizer(state) => state,

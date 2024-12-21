@@ -1,4 +1,4 @@
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
@@ -15,7 +15,7 @@ pub struct HashTableDrain {
 }
 
 impl HashTableDrain {
-    fn next_inner(&mut self) -> Result<Option<Batch>> {
+    fn next_inner(&mut self) -> Result<Option<BatchOld>> {
         if self.drain_idx >= self.table.chunks.len() {
             return Ok(None);
         }
@@ -31,14 +31,14 @@ impl HashTableDrain {
             .collect::<Result<Vec<_>>>()?;
 
         // Chunk arrays includes the GROUP ID column (last).
-        let batch = Batch::try_new(results.into_iter().chain(chunk.arrays.drain(..)))?;
+        let batch = BatchOld::try_new(results.into_iter().chain(chunk.arrays.drain(..)))?;
 
         Ok(Some(batch))
     }
 }
 
 impl Iterator for HashTableDrain {
-    type Item = Result<Batch>;
+    type Item = Result<BatchOld>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_inner().transpose()

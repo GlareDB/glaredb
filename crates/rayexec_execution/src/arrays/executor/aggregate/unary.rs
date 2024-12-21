@@ -55,7 +55,7 @@ mod tests {
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
     use crate::arrays::datatype::DataType;
-    use crate::arrays::executor::OutputBuffer;
+    use crate::arrays::executor::PutBuffer;
     use crate::arrays::validity::Validity;
 
     #[derive(Debug, Default)]
@@ -74,7 +74,7 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: OutputBuffer<M>) -> Result<()>
+        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
         where
             M: MutableAddressableStorage<T = i32>,
         {
@@ -161,7 +161,7 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: OutputBuffer<M>) -> Result<()>
+        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
         where
             M: MutableAddressableStorage<T = str>,
         {

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
@@ -128,7 +128,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::RoundRobinPush(state) => state,
@@ -247,7 +247,7 @@ struct BatchBufferInner {
     /// Batches buffer.
     ///
     /// Should be bounded to some capacity.
-    batches: VecDeque<Batch>,
+    batches: VecDeque<BatchOld>,
 
     /// Waker on the receiving side of the buffer.
     recv_waker: Option<Waker>,

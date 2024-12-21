@@ -6,7 +6,7 @@
 //! Should not be used outside of tests.
 
 use crate::array::Array;
-use crate::batch::Batch;
+use crate::batch::BatchOld;
 
 /// Asserts that two arrays are logically equal.
 pub fn assert_arrays_eq(a: &Array, b: &Array) {
@@ -22,7 +22,7 @@ pub fn assert_arrays_eq(a: &Array, b: &Array) {
 }
 
 /// Asserts that two batches are logically equal.
-pub fn assert_batches_eq(a: &Batch, b: &Batch) {
+pub fn assert_batches_eq(a: &BatchOld, b: &BatchOld) {
     assert_eq!(a.num_rows(), b.num_rows(), "num rows differ");
     assert_eq!(a.num_columns(), b.num_columns(), "num columns differ");
 

@@ -14,7 +14,7 @@ use drain::HashTableDrain;
 use hash_table::HashTable;
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
@@ -298,7 +298,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
@@ -466,7 +466,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     arrays.push(array);
                 }
 
-                let batch = Batch::try_new(arrays)?;
+                let batch = BatchOld::try_new(arrays)?;
 
                 Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }
@@ -484,7 +484,7 @@ impl PhysicalHashAggregate {
     fn insert_batch_agg_hash_table(
         &self,
         state: &mut AggregatingPartitionState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());

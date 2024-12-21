@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::util::merger::{IterState, KWayMerger, MergeResult};
@@ -96,7 +96,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
@@ -207,7 +207,7 @@ impl PhysicalScatterSort {
     fn insert_batch_for_comparison(
         &self,
         state: &mut ConsumingPartitionState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<()> {
         let keys = state.extractor.sort_keys(&batch)?;
 

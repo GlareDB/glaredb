@@ -7,7 +7,7 @@ use std::task::{Context, Poll, Waker};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
 use parking_lot::{Mutex, RwLock};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 use tracing::debug;
 use uuid::Uuid;
@@ -95,7 +95,7 @@ impl ServerStreamBuffers {
         Ok(error_sink.value().clone())
     }
 
-    pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
+    pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: BatchOld) -> Result<()> {
         let incoming = self.incoming.get(stream_id).ok_or_else(|| {
             RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
         })?;
@@ -192,7 +192,7 @@ pub struct OutgoingPartitionStream {
 }
 
 impl PartitionSink for OutgoingPartitionStream {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: BatchOld) -> BoxFuture<'_, Result<()>> {
         Box::pin(OutgoingPushFuture {
             batch: Some(batch),
             state: self.state.clone(),
@@ -209,13 +209,13 @@ impl PartitionSink for OutgoingPartitionStream {
 #[derive(Debug)]
 struct OutgoingStreamState {
     finished: bool,
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     push_waker: Option<Waker>,
     error_sink: Arc<SharedErrorSink>,
 }
 
 struct OutgoingPushFuture {
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     state: Arc<Mutex<OutgoingStreamState>>,
 }
 
@@ -282,7 +282,7 @@ pub struct IncomingPartitionStream {
 }
 
 impl PartitionSource for IncomingPartitionStream {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(IncomingPullFuture {
             state: self.state.clone(),
         })
@@ -292,7 +292,7 @@ impl PartitionSource for IncomingPartitionStream {
 #[derive(Debug)]
 struct IncomingStreamState {
     finished: bool,
-    batches: VecDeque<Batch>,
+    batches: VecDeque<BatchOld>,
     pull_waker: Option<Waker>,
 }
 
@@ -301,7 +301,7 @@ struct IncomingPullFuture {
 }
 
 impl Future for IncomingPullFuture {
-    type Output = Result<Option<Batch>>;
+    type Output = Result<Option<BatchOld>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut state = self.state.lock();

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
@@ -77,7 +77,7 @@ impl IntermediatePipelineBuildState<'_> {
         &self,
         projections: Projections,
         rows: Vec<Vec<Expression>>,
-    ) -> Result<Vec<Batch>> {
+    ) -> Result<Vec<BatchOld>> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -85,7 +85,7 @@ impl IntermediatePipelineBuildState<'_> {
         // TODO: This could probably be simplified.
 
         let mut row_arrs: Vec<Vec<Array>> = Vec::new(); // Row oriented.
-        let dummy_batch = Batch::empty_with_num_rows(1);
+        let dummy_batch = BatchOld::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
         for row_exprs in rows {
@@ -106,7 +106,7 @@ impl IntermediatePipelineBuildState<'_> {
         let batches = row_arrs
             .into_iter()
             .map(|cols| {
-                let batch = Batch::try_new(cols)?;
+                let batch = BatchOld::try_new(cols)?;
 
                 // TODO: Got lazy, we can just avoid evaluating the expressions above.
                 match &projections.column_indices {

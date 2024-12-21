@@ -6,7 +6,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use parking_lot::Mutex;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
@@ -64,7 +64,7 @@ pub trait PartitionSink: Debug + Send {
     /// Push a batch to the sink.
     ///
     /// Batches are pushed in the order they're received in.
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>>;
+    fn push(&mut self, batch: BatchOld) -> BoxFuture<'_, Result<()>>;
 
     /// Finalize the sink.
     ///
@@ -183,7 +183,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::Sink(state) => match state {
@@ -233,7 +233,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             //
                             // I think we'll want to do a similar thing for inserts so that
                             // we can implement them as "just" async functions.
-                            Ok(PollPush::Pending(Batch::empty()))
+                            Ok(PollPush::Pending(BatchOld::empty()))
                         }
                     }
                 }
@@ -370,7 +370,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                         let row_count = shared.global_row_count as u64;
 
-                        let row_count_batch = Batch::try_new([Array::from_iter([row_count])])?;
+                        let row_count_batch = BatchOld::try_new([Array::from_iter([row_count])])?;
 
                         return Ok(PollPull::Computed(row_count_batch.into()));
                     }

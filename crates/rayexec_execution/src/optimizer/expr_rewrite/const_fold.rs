@@ -1,4 +1,4 @@
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::ExpressionRewriteRule;
@@ -26,7 +26,7 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
     if expr.is_const_foldable() {
         let planner = PhysicalExpressionPlanner::new(table_list);
         let phys_expr = planner.plan_scalar(&[], expr)?;
-        let dummy = Batch::empty_with_num_rows(1);
+        let dummy = BatchOld::empty_with_num_rows(1);
         let val = phys_expr.eval(&dummy)?;
 
         if val.logical_len() != 1 {

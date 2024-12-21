@@ -1,4 +1,4 @@
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::simple::{SimpleOperator, StatelessOperation};
@@ -21,7 +21,7 @@ impl ProjectOperation {
 }
 
 impl StatelessOperation for ProjectOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
+    fn execute(&self, batch: BatchOld) -> Result<BatchOld> {
         let arrs = self
             .exprs
             .iter()
@@ -31,7 +31,7 @@ impl StatelessOperation for ProjectOperation {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Batch::try_new(arrs)
+        BatchOld::try_new(arrs)
     }
 }
 

@@ -3,7 +3,7 @@ use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
@@ -18,7 +18,7 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
         let inputs = self
             .inputs
             .iter()

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 
 #[derive(Debug)]
 pub struct BroadcastChannel {
@@ -33,7 +33,7 @@ impl BroadcastChannel {
         (ch, recvs)
     }
 
-    pub fn send(&self, batch: Batch) {
+    pub fn send(&self, batch: BatchOld) {
         let mut state = self.state.lock();
         let idx = state.batches.len();
 
@@ -101,7 +101,7 @@ struct BroadcastState {
 #[derive(Debug)]
 struct BatchState {
     remaining_recv: usize,
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
 }
 
 #[derive(Debug)]
@@ -112,7 +112,7 @@ pub struct RecvFut {
 }
 
 impl Future for RecvFut {
-    type Output = Option<Batch>;
+    type Output = Option<BatchOld>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut state = self.state.lock();
@@ -169,9 +169,9 @@ mod tests {
     }
 
     /// Create a batch with a single int64 value.
-    fn test_batch(n: i64) -> Batch {
+    fn test_batch(n: i64) -> BatchOld {
         let col = Array::from_iter([n]);
-        Batch::try_new([col]).unwrap()
+        BatchOld::try_new([col]).unwrap()
     }
 
     #[test]

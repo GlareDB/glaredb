@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::util::merger::{KWayMerger, MergeResult};
@@ -244,7 +244,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::GatherSortPush(state) => state,

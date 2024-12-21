@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::task::{Context, Waker};
 
 use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::{PhysicalList, PhysicalType};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -152,7 +152,7 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, inputs: BatchOld) -> Result<PollPush> {
         if self.current_row < self.input_num_rows {
             // Still processing inputs, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -247,7 +247,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             }
         }
 
-        let batch = Batch::try_new([output])?;
+        let batch = BatchOld::try_new([output])?;
 
         Ok(InOutPollPull::Batch { batch, row_nums })
     }

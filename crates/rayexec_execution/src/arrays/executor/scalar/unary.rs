@@ -4,10 +4,8 @@ use rayexec_error::Result;
 use crate::arrays::array::Array;
 use crate::arrays::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
 use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
-use crate::arrays::buffer::ArrayBuffer;
-use crate::arrays::executor::OutputBuffer;
+use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::arrays::flat_array::FlatArrayView;
-use crate::arrays::validity::Validity;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
@@ -17,22 +15,21 @@ impl UnaryExecutor {
     pub fn execute<S, O, Op>(
         array: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        out: &mut ArrayBuffer,
-        out_validity: &mut Validity,
+        out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
         S: PhysicalStorage,
         O: MutablePhysicalStorage,
-        for<'a> Op: FnMut(&S::StorageType, OutputBuffer<O::MutableStorage<'a>>),
+        for<'a> Op: FnMut(&S::StorageType, PutBuffer<O::MutableStorage<'a>>),
     {
         if array.is_dictionary() {
             let view = FlatArrayView::from_array(array)?;
-            return Self::execute_flat::<S, _, _>(view, selection, out, out_validity, op);
+            return Self::execute_flat::<S, _, _>(view, selection, out, op);
         }
 
         let input = S::get_storage(array.buffer())?;
-        let mut output = O::get_storage_mut(out)?;
+        let mut output = O::get_storage_mut(out.buffer)?;
 
         let validity = array.validity();
 
@@ -40,7 +37,7 @@ impl UnaryExecutor {
             for (output_idx, input_idx) in selection.into_iter().enumerate() {
                 op(
                     input.get(input_idx).unwrap(),
-                    OutputBuffer::new(output_idx, &mut output, out_validity),
+                    PutBuffer::new(output_idx, &mut output, out.validity),
                 );
             }
         } else {
@@ -48,10 +45,10 @@ impl UnaryExecutor {
                 if validity.is_valid(input_idx) {
                     op(
                         input.get(input_idx).unwrap(),
-                        OutputBuffer::new(output_idx, &mut output, out_validity),
+                        PutBuffer::new(output_idx, &mut output, out.validity),
                     );
                 } else {
-                    out_validity.set_invalid(output_idx);
+                    out.validity.set_invalid(output_idx);
                 }
             }
         }
@@ -62,17 +59,16 @@ impl UnaryExecutor {
     pub fn execute_flat<'a, S, O, Op>(
         array: FlatArrayView<'a>,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        out: &mut ArrayBuffer,
-        out_validity: &mut Validity,
+        out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
         S: PhysicalStorage,
         O: MutablePhysicalStorage,
-        for<'b> Op: FnMut(&S::StorageType, OutputBuffer<O::MutableStorage<'b>>),
+        for<'b> Op: FnMut(&S::StorageType, PutBuffer<O::MutableStorage<'b>>),
     {
         let input = S::get_storage(&array.array_buffer)?;
-        let mut output = O::get_storage_mut(out)?;
+        let mut output = O::get_storage_mut(out.buffer)?;
 
         let validity = array.validity;
 
@@ -82,7 +78,7 @@ impl UnaryExecutor {
 
                 op(
                     input.get(selected_idx).unwrap(),
-                    OutputBuffer::new(output_idx, &mut output, out_validity),
+                    PutBuffer::new(output_idx, &mut output, out.validity),
                 );
             }
         } else {
@@ -92,10 +88,10 @@ impl UnaryExecutor {
                 if validity.is_valid(selected_idx) {
                     op(
                         input.get(selected_idx).unwrap(),
-                        OutputBuffer::new(output_idx, &mut output, out_validity),
+                        PutBuffer::new(output_idx, &mut output, out.validity),
                     );
                 } else {
-                    out_validity.set_invalid(output_idx);
+                    out.validity.set_invalid(output_idx);
                 }
             }
         }
@@ -138,8 +134,9 @@ mod tests {
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::buffer::reservation::NopReservationTracker;
     use crate::arrays::buffer::string_view::{StringViewHeap, StringViewStorageMut};
-    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::{ArrayBuffer, Int32Builder, StringViewBufferBuilder};
     use crate::arrays::datatype::DataType;
+    use crate::arrays::validity::Validity;
 
     #[test]
     fn int32_inc_by_2() {
@@ -150,8 +147,10 @@ mod tests {
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
             0..3,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&v, buf| buf.put(&(v + 2)),
         )
         .unwrap();
@@ -172,8 +171,10 @@ mod tests {
         UnaryExecutor::execute_flat::<PhysicalI32, PhysicalI32, _>(
             flat,
             0..3,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&v, buf| buf.put(&(v + 2)),
         )
         .unwrap();
@@ -217,7 +218,7 @@ mod tests {
         .unwrap();
         let mut validity = Validity::new_all_valid(6);
 
-        fn my_string_double(s: &str, buf: OutputBuffer<StringViewStorageMut>) {
+        fn my_string_double(s: &str, buf: PutBuffer<StringViewStorageMut>) {
             let mut double = s.to_string();
             double.push_str(s);
             buf.put(&double);
@@ -226,8 +227,10 @@ mod tests {
         UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &array,
             0..6,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             my_string_double,
         )
         .unwrap();
@@ -275,8 +278,10 @@ mod tests {
         UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &array,
             0..6,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |s, buf| {
                 string_buf.clear();
 
@@ -335,8 +340,10 @@ mod tests {
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
             0..6,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&v, buf| buf.put(&(v + 2)),
         )
         .unwrap();

@@ -1,7 +1,7 @@
 use std::fmt::{self, Debug};
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{
@@ -60,7 +60,7 @@ pub struct CsvFileScan {
 }
 
 impl DataTableScan for CsvFileScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async { self.reader.read_next().await })
     }
 }

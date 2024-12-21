@@ -14,7 +14,7 @@ use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{not_implemented, OptionExt, Result};
@@ -34,7 +34,7 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
         match self {
             Self::Case(e) => e.eval(batch),
             Self::Cast(e) => e.eval(batch),
@@ -48,7 +48,7 @@ impl PhysicalScalarExpression {
     ///
     /// The selection vector will include row indices where the expression
     /// evaluates to true.
-    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
+    pub fn select(&self, batch: &BatchOld) -> Result<SelectionVector> {
         let selected = self.eval(batch)?;
 
         let mut selection = SelectionVector::with_capacity(selected.logical_len());
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn select_some() {
-        let batch = Batch::try_new([
+        let batch = BatchOld::try_new([
             Array::from_iter([1, 4, 6, 9, 12]),
             Array::from_iter([2, 3, 8, 9, 10]),
         ])
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn select_none() {
-        let batch = Batch::try_new([
+        let batch = BatchOld::try_new([
             Array::from_iter([1, 2, 6, 9, 9]),
             Array::from_iter([2, 3, 8, 9, 10]),
         ])

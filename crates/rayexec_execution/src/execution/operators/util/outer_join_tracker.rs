@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::selection::SelectionVector;
@@ -22,7 +22,7 @@ pub struct LeftOuterJoinTracker {
 }
 
 impl LeftOuterJoinTracker {
-    pub fn new_for_batches(batches: &[Batch]) -> Self {
+    pub fn new_for_batches(batches: &[BatchOld]) -> Self {
         let bitmaps = batches
             .iter()
             .map(|b| Bitmap::new_with_all_false(b.num_rows()))
@@ -56,7 +56,7 @@ impl LeftOuterJoinTracker {
 pub struct LeftOuterJoinDrainState {
     tracker: LeftOuterJoinTracker,
     /// All batches from the left side.
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
     /// Types for the right side of the join. Used to create the (typed) null
     /// columns for left rows that weren't visited.
     right_types: Vec<DataType>,
@@ -75,7 +75,7 @@ impl LeftOuterJoinDrainState {
         start_idx: usize,
         skip: usize,
         tracker: LeftOuterJoinTracker,
-        batches: Vec<Batch>,
+        batches: Vec<BatchOld>,
         right_types: Vec<DataType>,
     ) -> Self {
         LeftOuterJoinDrainState {
@@ -89,7 +89,7 @@ impl LeftOuterJoinDrainState {
 
     /// Drains the next batch from the left, and appends a boolean column
     /// representing which rows were visited.
-    pub fn drain_mark_next(&mut self) -> Result<Option<Batch>> {
+    pub fn drain_mark_next(&mut self) -> Result<Option<BatchOld>> {
         let batch = match self.batches.get(self.batch_idx) {
             Some(batch) => batch,
             None => return Ok(None),
@@ -110,7 +110,7 @@ impl LeftOuterJoinDrainState {
                 ArrayData::Boolean(Arc::new(bitmap.clone().into())),
             )]);
 
-        let batch = Batch::try_new(cols)?;
+        let batch = BatchOld::try_new(cols)?;
 
         Ok(Some(batch))
     }
@@ -119,7 +119,7 @@ impl LeftOuterJoinDrainState {
     ///
     /// This will filter out rows that have been visited, and join the remaining
     /// rows will null columns on the right.
-    pub fn drain_next(&mut self) -> Result<Option<Batch>> {
+    pub fn drain_next(&mut self) -> Result<Option<BatchOld>> {
         loop {
             let batch = match self.batches.get(self.batch_idx) {
                 Some(batch) => batch,
@@ -154,13 +154,13 @@ impl LeftOuterJoinDrainState {
                 .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = BatchOld::try_new(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
     }
 
-    pub fn drain_semi_next(&mut self) -> Result<Option<Batch>> {
+    pub fn drain_semi_next(&mut self) -> Result<Option<BatchOld>> {
         loop {
             let batch = match self.batches.get(self.batch_idx) {
                 Some(batch) => batch,
@@ -189,7 +189,7 @@ impl LeftOuterJoinDrainState {
                 .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = BatchOld::try_new(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
@@ -208,7 +208,7 @@ pub struct RightOuterJoinTracker {
 
 impl RightOuterJoinTracker {
     /// Create a new tracker for the provided batch.
-    pub fn new_for_batch(batch: &Batch) -> Self {
+    pub fn new_for_batch(batch: &BatchOld) -> Self {
         RightOuterJoinTracker {
             unvisited: Bitmap::new_with_all_true(batch.num_rows()),
         }
@@ -229,7 +229,11 @@ impl RightOuterJoinTracker {
     /// the batch.
     ///
     /// Returns None if all row on the right were visited.
-    pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Option<Batch>> {
+    pub fn into_unvisited(
+        self,
+        left_types: &[DataType],
+        right: &BatchOld,
+    ) -> Result<Option<BatchOld>> {
         let selection = SelectionVector::from_iter(self.unvisited.index_iter());
         let num_rows = selection.num_rows();
         if num_rows == 0 {
@@ -243,7 +247,7 @@ impl RightOuterJoinTracker {
             .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(left_null_cols.into_iter().chain(right_cols))?;
+        let batch = BatchOld::try_new(left_null_cols.into_iter().chain(right_cols))?;
 
         Ok(Some(batch))
     }

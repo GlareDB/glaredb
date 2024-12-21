@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 use futures::stream::Stream;
 use futures::{StreamExt, TryStreamExt};
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::format::pretty::table::PrettyTable;
 use rayexec_bullet::row::ScalarRow;
@@ -61,7 +61,7 @@ impl StreamingTable {
 }
 
 impl Stream for StreamingTable {
-    type Item = Result<Batch>;
+    type Item = Result<BatchOld>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.result.stream.poll_next_unpin(cx)
@@ -71,7 +71,7 @@ impl Stream for StreamingTable {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterializedResultTable {
     pub(crate) schema: Schema,
-    pub(crate) batches: Vec<Batch>,
+    pub(crate) batches: Vec<BatchOld>,
     pub(crate) planning_profile: Option<PlanningProfileData>,
     pub(crate) execution_profile: Option<ExecutionProfileData>,
 }
@@ -80,7 +80,7 @@ impl MaterializedResultTable {
     /// Create a new materialized result table.
     ///
     /// Mostly for testing.
-    pub fn try_new(schema: Schema, batches: impl IntoIterator<Item = Batch>) -> Result<Self> {
+    pub fn try_new(schema: Schema, batches: impl IntoIterator<Item = BatchOld>) -> Result<Self> {
         let batches: Vec<_> = batches.into_iter().collect();
         for batch in &batches {
             if batch.columns().len() != schema.fields.len() {
@@ -126,7 +126,7 @@ impl MaterializedResultTable {
         PrettyTable::try_new(&self.schema, &self.batches, width, max_rows)
     }
 
-    pub fn iter_batches(&self) -> impl Iterator<Item = &Batch> {
+    pub fn iter_batches(&self) -> impl Iterator<Item = &BatchOld> {
         self.batches.iter()
     }
 

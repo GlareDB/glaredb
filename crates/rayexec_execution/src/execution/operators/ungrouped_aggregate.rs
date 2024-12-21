@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::hash_aggregate::distinct::DistinctGroupedStates;
@@ -46,7 +46,7 @@ pub enum UngroupedAggregatePartitionState {
         ///
         /// Currently only one partition will actually produce output. The rest
         /// will be empty.
-        batches: Vec<Batch>,
+        batches: Vec<BatchOld>,
     },
 }
 
@@ -140,7 +140,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
@@ -237,7 +237,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|s| s.finalize())
                         .collect::<Result<Vec<_>>>()?;
 
-                    let batch = Batch::try_new(arrays)?;
+                    let batch = BatchOld::try_new(arrays)?;
 
                     *state = UngroupedAggregatePartitionState::Producing {
                         partition_idx: *partition_idx,

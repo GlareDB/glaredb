@@ -2,7 +2,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
 use rayexec_bullet::ipc::IpcConfig;
@@ -24,16 +24,16 @@ use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
 }
 
 #[derive(Debug)]
 pub struct PhysicalValues {
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
 }
 
 impl PhysicalValues {
-    pub fn new(batches: Vec<Batch>) -> Self {
+    pub fn new(batches: Vec<BatchOld>) -> Self {
         PhysicalValues { batches }
     }
 }
@@ -69,7 +69,7 @@ impl ExecutableOperator for PhysicalValues {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: BatchOld,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }

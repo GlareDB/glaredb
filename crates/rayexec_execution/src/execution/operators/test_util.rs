@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::Result;
 
@@ -72,7 +72,7 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: impl Into<Batch>,
+        batch: impl Into<BatchOld>,
     ) -> Result<PollPush> {
         operator.as_ref().poll_push(
             &mut self.context(),
@@ -101,18 +101,18 @@ impl Wake for TestWakerInner {
 }
 
 /// Unwraps a batch from the PollPull::Batch variant.
-pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
+pub fn unwrap_poll_pull_batch(poll: PollPull) -> BatchOld {
     match poll {
         PollPull::Computed(ComputedBatches::Single(batch)) => batch,
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }
 
-pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
+pub fn logical_value(batch: &BatchOld, column: usize, row: usize) -> ScalarValue {
     batch.column(column).unwrap().logical_value(row).unwrap()
 }
 
 /// Makes a batch with a single column i32 values provided by the iterator.
-pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
+pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> BatchOld {
+    BatchOld::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
 }

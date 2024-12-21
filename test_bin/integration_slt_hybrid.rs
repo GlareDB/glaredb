@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::field::Field;
 use rayexec_debug::table_storage::TablePreload;
@@ -36,7 +36,7 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
+                    data: BatchOld::try_new([
                         Array::from_iter([1_i64, 2_i64]),
                         Array::from_iter(["a", "b"]),
                     ])?,
@@ -50,7 +50,7 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
+                    data: BatchOld::try_new([
                         Array::from_iter([1_i64, 2_i64]),
                         Array::from_iter(["a", "b"]),
                     ])?,

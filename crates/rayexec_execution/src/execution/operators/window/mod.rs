@@ -1,6 +1,6 @@
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::{
@@ -32,7 +32,7 @@ impl ExecutableOperator for PhysicalWindow {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: BatchOld,
     ) -> Result<PollPush> {
         unimplemented!()
     }

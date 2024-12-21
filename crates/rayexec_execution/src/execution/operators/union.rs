@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::{
@@ -22,7 +22,7 @@ use crate::proto::DatabaseProtoConv;
 #[derive(Debug)]
 pub struct UnionTopPartitionState {
     partition_idx: usize,
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     finished: bool,
     push_waker: Option<Waker>,
     pull_waker: Option<Waker>,
@@ -40,7 +40,7 @@ pub struct UnionOperatorState {
 
 #[derive(Debug)]
 struct SharedPartitionState {
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     finished: bool,
     push_waker: Option<Waker>,
     pull_waker: Option<Waker>,
@@ -120,7 +120,7 @@ impl ExecutableOperator for PhysicalUnion {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::UnionTop(state) => {

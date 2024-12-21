@@ -7,7 +7,7 @@ use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{FutureExt, TryStreamExt};
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -66,7 +66,7 @@ pub trait UnityObjectsOperation<R: Runtime>:
     /// Read the next batch from the stream.
     ///
     /// Returns Ok(None) when stream is finished.
-    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>>;
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<BatchOld>>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,7 +128,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
         Ok(ListSchemasStreamState { stream })
     }
 
-    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async {
             let resp = state.stream.try_next().await?;
             match resp {
@@ -139,7 +139,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
                     let comments =
                         Array::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
 
-                    let batch = Batch::try_new([names, catalog_names, comments])?;
+                    let batch = BatchOld::try_new([names, catalog_names, comments])?;
                     Ok(Some(batch))
                 }
                 None => Ok(None),
@@ -216,7 +216,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
         Ok(ListTablesStreamState { stream })
     }
 
-    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async {
             let resp = state.stream.try_next().await?;
             match resp {
@@ -235,7 +235,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
                     let comments =
                         Array::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
 
-                    let batch = Batch::try_new([
+                    let batch = BatchOld::try_new([
                         names,
                         catalog_names,
                         schema_names,
@@ -352,7 +352,7 @@ pub struct UnityObjectsDataTableScan<R: Runtime, O: UnityObjectsOperation<R>> {
 }
 
 impl<R: Runtime, O: UnityObjectsOperation<R>> DataTableScan for UnityObjectsDataTableScan<R, O> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         O::next_batch(&mut self.stream)
     }
 }

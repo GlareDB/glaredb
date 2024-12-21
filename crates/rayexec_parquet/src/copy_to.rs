@@ -2,7 +2,7 @@ use std::fmt;
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::Schema;
 use rayexec_error::Result;
 use rayexec_execution::execution::operators::sink::PartitionSink;
@@ -47,7 +47,7 @@ pub struct ParquetCopyToSink {
 }
 
 impl ParquetCopyToSink {
-    async fn push_inner(&mut self, batch: Batch) -> Result<()> {
+    async fn push_inner(&mut self, batch: BatchOld) -> Result<()> {
         self.writer.write(&batch).await?;
         Ok(())
     }
@@ -59,7 +59,7 @@ impl ParquetCopyToSink {
 }
 
 impl PartitionSink for ParquetCopyToSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: BatchOld) -> BoxFuture<'_, Result<()>> {
         self.push_inner(batch).boxed()
     }
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
@@ -49,7 +49,7 @@ impl ExecutableOperator for PhysicalEmpty {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: BatchOld,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
@@ -75,7 +75,7 @@ impl ExecutableOperator for PhysicalEmpty {
                     Ok(PollPull::Exhausted)
                 } else {
                     state.finished = true;
-                    Ok(PollPull::Computed(Batch::empty_with_num_rows(1).into()))
+                    Ok(PollPull::Computed(BatchOld::empty_with_num_rows(1).into()))
                 }
             }
             other => panic!("inner join state is not building: {other:?}"),

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::task::{Context, Waker};
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_bullet::executor::physical_type::PhysicalI64;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -203,7 +203,7 @@ impl SeriesParams {
 pub struct GenerateSeriesInOutPartitionState {
     batch_size: usize,
     /// Batch we're working on.
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     /// Current row number
     next_row_idx: usize,
     /// If we're finished.
@@ -215,7 +215,7 @@ pub struct GenerateSeriesInOutPartitionState {
 }
 
 impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, batch: BatchOld) -> Result<PollPush> {
         if self.batch.is_some() {
             // Still processing current batch, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -308,7 +308,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_new([out])?;
+        let batch = BatchOld::try_new([out])?;
 
         let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
 

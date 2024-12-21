@@ -23,7 +23,7 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use rayexec_bullet::datatype::{DataType, TimeUnit, TimestampTypeMeta};
@@ -337,7 +337,7 @@ impl AsyncCsvReader {
         AsyncCsvReader { stream }
     }
 
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<BatchOld>> {
         self.stream.next_batch().await
     }
 }
@@ -382,7 +382,7 @@ struct AsyncCsvStream {
 }
 
 impl AsyncCsvStream {
-    async fn next_batch(&mut self) -> Result<Option<Batch>> {
+    async fn next_batch(&mut self) -> Result<Option<BatchOld>> {
         loop {
             let (buf, offset) = match self.buf.take() {
                 Some(buf) => (buf, self.buf_offset),
@@ -450,7 +450,7 @@ impl AsyncCsvStream {
         completed: CompletedRecords,
         schema: &Schema,
         skip_header: bool,
-    ) -> Result<Batch> {
+    ) -> Result<BatchOld> {
         let skip_records = if skip_header { 1 } else { 0 };
 
         let mut arrs = Vec::with_capacity(schema.fields.len());
@@ -478,7 +478,7 @@ impl AsyncCsvStream {
             arrs.push(arr);
         }
 
-        Batch::try_new(arrs)
+        BatchOld::try_new(arrs)
     }
 
     fn build_boolean(

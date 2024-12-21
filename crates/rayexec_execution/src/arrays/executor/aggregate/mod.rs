@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use rayexec_error::Result;
 
-use super::OutputBuffer;
+use super::PutBuffer;
 use crate::arrays::buffer::addressable::MutableAddressableStorage;
 
 /// State for a single group's aggregate.
@@ -21,7 +21,7 @@ pub trait AggregateState<Input, Output: ?Sized>: Debug {
 
     /// Produce a single value from the state, along with a bool indicating if
     /// the value is valid.
-    fn finalize<M>(&mut self, output: OutputBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
         M: MutableAddressableStorage<T = Output>;
 }

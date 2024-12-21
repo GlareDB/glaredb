@@ -5,7 +5,7 @@ use crate::arrays::array::Array;
 use crate::arrays::buffer::addressable::AddressableStorage;
 use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::arrays::buffer::ArrayBuffer;
-use crate::arrays::executor::OutputBuffer;
+use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::arrays::flat_array::FlatArrayView;
 use crate::arrays::validity::Validity;
 
@@ -18,29 +18,20 @@ impl BinaryExecutor {
         sel1: impl IntoExactSizeIterator<Item = usize>,
         array2: &Array,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        out: &mut ArrayBuffer,
-        out_validity: &mut Validity,
+        out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
         S1: PhysicalStorage,
         S2: PhysicalStorage,
         O: MutablePhysicalStorage,
-        for<'a> Op: FnMut(&S1::StorageType, &S2::StorageType, OutputBuffer<O::MutableStorage<'a>>),
+        for<'a> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::MutableStorage<'a>>),
     {
         if array1.is_dictionary() || array2.is_dictionary() {
             let view1 = FlatArrayView::from_array(array1)?;
             let view2 = FlatArrayView::from_array(array2)?;
 
-            return Self::execute_flat::<S1, S2, _, _>(
-                view1,
-                sel1,
-                view2,
-                sel2,
-                out,
-                out_validity,
-                op,
-            );
+            return Self::execute_flat::<S1, S2, _, _>(view1, sel1, view2, sel2, out, op);
         }
 
         // TODO: length validation
@@ -48,7 +39,7 @@ impl BinaryExecutor {
         let input1 = S1::get_storage(array1.buffer())?;
         let input2 = S2::get_storage(array2.buffer())?;
 
-        let mut output = O::get_storage_mut(out)?;
+        let mut output = O::get_storage_mut(out.buffer)?;
 
         let validity1 = array1.validity();
         let validity2 = array2.validity();
@@ -63,7 +54,7 @@ impl BinaryExecutor {
                 op(
                     val1,
                     val2,
-                    OutputBuffer::new(output_idx, &mut output, out_validity),
+                    PutBuffer::new(output_idx, &mut output, out.validity),
                 );
             }
         } else {
@@ -77,10 +68,10 @@ impl BinaryExecutor {
                     op(
                         val1,
                         val2,
-                        OutputBuffer::new(output_idx, &mut output, out_validity),
+                        PutBuffer::new(output_idx, &mut output, out.validity),
                     );
                 } else {
-                    out_validity.set_invalid(output_idx);
+                    out.validity.set_invalid(output_idx);
                 }
             }
         }
@@ -93,22 +84,21 @@ impl BinaryExecutor {
         sel1: impl IntoExactSizeIterator<Item = usize>,
         array2: FlatArrayView<'a>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        out: &mut ArrayBuffer,
-        out_validity: &mut Validity,
+        out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
         S1: PhysicalStorage,
         S2: PhysicalStorage,
         O: MutablePhysicalStorage,
-        for<'b> Op: FnMut(&S1::StorageType, &S2::StorageType, OutputBuffer<O::MutableStorage<'b>>),
+        for<'b> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::MutableStorage<'b>>),
     {
         // TODO: length validation
 
         let input1 = S1::get_storage(&array1.array_buffer)?;
         let input2 = S2::get_storage(&array2.array_buffer)?;
 
-        let mut output = O::get_storage_mut(out)?;
+        let mut output = O::get_storage_mut(out.buffer)?;
 
         let validity1 = &array1.validity;
         let validity2 = &array2.validity;
@@ -126,7 +116,7 @@ impl BinaryExecutor {
                 op(
                     val1,
                     val2,
-                    OutputBuffer::new(output_idx, &mut output, out_validity),
+                    PutBuffer::new(output_idx, &mut output, out.validity),
                 );
             }
         } else {
@@ -143,10 +133,10 @@ impl BinaryExecutor {
                     op(
                         val1,
                         val2,
-                        OutputBuffer::new(output_idx, &mut output, out_validity),
+                        PutBuffer::new(output_idx, &mut output, out.validity),
                     );
                 } else {
-                    out_validity.set_invalid(output_idx);
+                    out.validity.set_invalid(output_idx);
                 }
             }
         }
@@ -177,8 +167,10 @@ mod tests {
             0..3,
             &right,
             0..3,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&a, &b, buf| buf.put(&(a + b)),
         )
         .unwrap();
@@ -204,8 +196,10 @@ mod tests {
             0..3,
             &right,
             0..3,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&a, &b, buf| buf.put(&(a + b)),
         )
         .unwrap();
@@ -237,8 +231,10 @@ mod tests {
             0..3,
             &right,
             0..3,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&repeat, s, buf| {
                 string_buf.clear();
                 for _ in 0..repeat {
@@ -277,8 +273,10 @@ mod tests {
             0..3,
             &right,
             0..3,
-            &mut out,
-            &mut validity,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
             |&a, &b, buf| buf.put(&(a + b)),
         )
         .unwrap();

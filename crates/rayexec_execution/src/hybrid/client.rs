@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::io::Cursor;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
 use rayexec_bullet::ipc::IpcConfig;
@@ -313,7 +313,7 @@ impl ProtoConv for PullStatus {
 /// Wrapper around a batch that implements IPC encoding/decoding when converting
 /// to protobuf.
 #[derive(Debug)]
-pub struct IpcBatch(pub Batch);
+pub struct IpcBatch(pub BatchOld);
 
 // TODO: Don't allocate vectors in this.
 impl ProtoConv for IpcBatch {
@@ -479,7 +479,7 @@ impl<C: HttpClient> HybridClient<C> {
         Ok(())
     }
 
-    pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch) -> Result<()> {
+    pub async fn push(&self, stream_id: StreamId, partition: usize, batch: BatchOld) -> Result<()> {
         let url = self
             .url
             .join(REMOTE_ENDPOINTS.rpc_hybrid_push)

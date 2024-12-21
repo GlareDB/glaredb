@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_error::Result;
@@ -13,7 +13,7 @@ const FORMATTER: Formatter = Formatter::new(FormatOptions {
 pub fn write_markdown_table<'a>(
     output: &mut dyn fmt::Write,
     schema: &Schema,
-    batches: impl IntoIterator<Item = &'a Batch>,
+    batches: impl IntoIterator<Item = &'a BatchOld>,
 ) -> Result<()> {
     // 'field1 | field2 | field3'
     let header = schema
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn simple() {
-        let batch = Batch::try_new([
+        let batch = BatchOld::try_new([
             Array::from_iter([1, 2, 3]),
             Array::from_iter(["cat", "dog", "mouse"]),
         ])

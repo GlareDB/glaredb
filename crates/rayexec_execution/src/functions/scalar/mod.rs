@@ -9,6 +9,9 @@ use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
 use super::FunctionInfo;
+use crate::arrays::batch::Batch;
+use crate::arrays::executor::OutBuffer;
+use crate::arrays::flat_array::FlatSelection;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 
@@ -104,6 +107,10 @@ impl Hash for PlannedScalarFunction {
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
     fn execute(&self, inputs: &[&Array]) -> Result<Array>;
+
+    fn execute2(&self, batch: &Batch, sel: FlatSelection, out: OutBuffer) -> Result<()> {
+        unimplemented!()
+    }
 }
 
 impl Clone for Box<dyn ScalarFunctionImpl> {

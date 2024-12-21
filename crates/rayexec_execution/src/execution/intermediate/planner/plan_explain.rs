@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use tracing::error;
 
@@ -81,7 +81,7 @@ impl IntermediatePipelineBuildState<'_> {
         }
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-            Batch::try_new([
+            BatchOld::try_new([
                 Array::from_iter(type_strings),
                 Array::from_iter(plan_strings),
             ])?,

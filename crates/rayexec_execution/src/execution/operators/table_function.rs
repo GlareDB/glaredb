@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
@@ -27,7 +27,7 @@ use crate::storage::table_storage::{DataTableScan, Projections};
 pub struct TableFunctionPartitionState {
     scan_state: Box<dyn DataTableScan>,
     /// In progress pull we're working on.
-    future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
+    future: Option<BoxFuture<'static, Result<Option<BatchOld>>>>,
 }
 
 impl fmt::Debug for TableFunctionPartitionState {
@@ -94,7 +94,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: BatchOld,
     ) -> Result<PollPush> {
         // Could UNNEST be implemented as a table function?
         Err(RayexecError::new("Cannot push to physical table function"))

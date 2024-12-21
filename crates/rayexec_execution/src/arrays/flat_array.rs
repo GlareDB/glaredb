@@ -44,17 +44,25 @@ where
 
 #[derive(Debug, Clone, Copy)]
 pub enum FlatSelection<'a> {
+    /// Constant selection.
+    ///
+    /// All indices point to the same location.
+    Constant { len: usize, loc: usize },
     /// Represents a linear selection.
     ///
     /// '0..len'
-    Linear(usize),
+    Linear { len: usize },
     /// Represents the true location to use for some index.
     Selection(&'a [usize]),
 }
 
 impl<'a> FlatSelection<'a> {
+    pub fn constant(len: usize, loc: usize) -> Self {
+        Self::Constant { len, loc }
+    }
+
     pub fn linear(len: usize) -> Self {
-        Self::Linear(len)
+        Self::Linear { len }
     }
 
     pub fn selection(sel: &'a [usize]) -> Self {
@@ -67,7 +75,8 @@ impl<'a> FlatSelection<'a> {
 
     pub fn len(&self) -> usize {
         match self {
-            Self::Linear(len) => *len,
+            Self::Constant { len, .. } => *len,
+            Self::Linear { len } => *len,
             Self::Selection(sel) => sel.len(),
         }
     }
@@ -79,7 +88,14 @@ impl<'a> FlatSelection<'a> {
     #[inline]
     pub fn get(&self, idx: usize) -> Option<usize> {
         match self {
-            Self::Linear(len) => {
+            Self::Constant { len, loc } => {
+                if idx >= *len {
+                    None
+                } else {
+                    Some(*loc)
+                }
+            }
+            Self::Linear { len } => {
                 if idx >= *len {
                     None
                 } else {
@@ -106,7 +122,8 @@ impl<'a> Iterator for FlatSelectionIter<'a> {
         }
 
         let v = match self.sel {
-            FlatSelection::Linear(_) => self.idx,
+            FlatSelection::Constant { loc, .. } => loc,
+            FlatSelection::Linear { .. } => self.idx,
             FlatSelection::Selection(sel) => sel[self.idx],
         };
 

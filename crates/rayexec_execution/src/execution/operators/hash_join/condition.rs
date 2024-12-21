@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::executor::scalar::SelectExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
@@ -77,7 +77,7 @@ pub struct LeftPrecomputedJoinConditions {
 impl LeftPrecomputedJoinConditions {
     /// Compute the left side of the condition using the provided batch as
     /// input.
-    pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
+    pub fn precompute_for_left_batch(&mut self, left: &BatchOld) -> Result<()> {
         for condition in &mut self.conditions {
             let precomputed = condition.left.eval(left)?;
             condition.left_precomputed.push(precomputed.into_owned())
@@ -96,7 +96,7 @@ impl LeftPrecomputedJoinConditions {
         left_batch_idx: usize,
         left_row_sel: SelectionVector,
         right_row_sel: SelectionVector,
-        right: &Batch,
+        right: &BatchOld,
     ) -> Result<(SelectionVector, SelectionVector)> {
         assert_eq!(left_row_sel.num_rows(), right_row_sel.num_rows());
 

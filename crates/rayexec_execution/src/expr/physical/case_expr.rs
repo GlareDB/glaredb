@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::executor::scalar::{interleave, SelectExecutor};
 use rayexec_bullet::selection::SelectionVector;
@@ -30,7 +30,7 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub fn eval<'a>(&self, batch: &'a BatchOld) -> Result<Cow<'a, Array>> {
         let mut arrays = Vec::new();
         let mut indices: Vec<(usize, usize)> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn case_simple() {
-        let batch = Batch::try_new([
+        let batch = BatchOld::try_new([
             Array::from_iter([1, 2, 3, 4]),
             Array::from_iter([12, 13, 14, 15]),
         ])

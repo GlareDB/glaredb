@@ -4,7 +4,7 @@ use std::task::{Context, Waker};
 
 use half::f16;
 use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::executor::builder::{
     ArrayBuilder,
@@ -122,7 +122,7 @@ impl ExecutableOperator for PhysicalUnnest {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
@@ -290,7 +290,7 @@ impl ExecutableOperator for PhysicalUnnest {
             }
         }
 
-        let batch = Batch::try_new(outputs)?;
+        let batch = BatchOld::try_new(outputs)?;
 
         Ok(PollPull::Computed(batch.into()))
     }

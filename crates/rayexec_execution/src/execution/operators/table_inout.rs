@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::task::Context;
 
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
@@ -79,7 +79,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
@@ -98,7 +98,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let inputs = Batch::try_new(inputs)?;
+        let inputs = BatchOld::try_new(inputs)?;
 
         // Try to push first to avoid overwriting any buffered additional
         // outputs.
@@ -175,7 +175,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     arrays.push(additional);
                 }
 
-                let new_batch = Batch::try_new(arrays)?;
+                let new_batch = BatchOld::try_new(arrays)?;
 
                 Ok(PollPull::Computed(new_batch.into()))
             }

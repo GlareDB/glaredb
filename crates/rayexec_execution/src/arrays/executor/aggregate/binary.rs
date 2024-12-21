@@ -63,7 +63,7 @@ impl BinaryNonNullUpdater {
 mod tests {
     use super::*;
     use crate::arrays::buffer::addressable::MutableAddressableStorage;
-    use crate::arrays::executor::OutputBuffer;
+    use crate::arrays::executor::PutBuffer;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]
@@ -91,7 +91,7 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: OutputBuffer<M>) -> Result<()>
+        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
         where
             M: MutableAddressableStorage<T = i32>,
         {

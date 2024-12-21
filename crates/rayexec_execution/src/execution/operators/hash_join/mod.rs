@@ -10,7 +10,7 @@ use condition::HashJoinCondition;
 use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::datatype::DataType;
 use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
@@ -251,7 +251,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
@@ -605,7 +605,7 @@ impl PhysicalHashJoin {
     fn insert_into_local_table(
         &self,
         state: &mut HashJoinBuildPartitionState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<()> {
         // Compute left hashes on equality conditions.
 

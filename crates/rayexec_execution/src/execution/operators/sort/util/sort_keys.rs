@@ -1,5 +1,5 @@
 use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows};
 use rayexec_error::{RayexecError, Result};
 
@@ -31,14 +31,14 @@ impl SortKeysExtractor {
     }
 
     /// Get the sort keys for the batch as rows.
-    pub fn sort_keys(&self, batch: &Batch) -> Result<ComparableRows> {
+    pub fn sort_keys(&self, batch: &BatchOld) -> Result<ComparableRows> {
         let cols = self.sort_columns(batch)?;
         let rows = self.encoder.encode(&cols)?;
         Ok(rows)
     }
 
     /// Get the columns that make up the sort keys.
-    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array>> {
+    pub fn sort_columns<'a>(&self, batch: &'a BatchOld) -> Result<Vec<&'a Array>> {
         let sort_cols = self
             .order_by
             .iter()

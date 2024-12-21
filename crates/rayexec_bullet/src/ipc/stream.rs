@@ -8,7 +8,7 @@ use super::gen::message::{self, MessageBuilder, MessageHeader};
 use super::gen::schema::MetadataVersion;
 use super::schema::schema_to_ipc;
 use super::IpcConfig;
-use crate::batch::Batch;
+use crate::batch::BatchOld;
 use crate::field::Schema;
 use crate::ipc::batch::ipc_to_batch;
 use crate::ipc::schema::ipc_to_schema;
@@ -68,7 +68,7 @@ impl<R: Read> StreamReader<R> {
         &self.schema
     }
 
-    pub fn try_next_batch(&mut self) -> Result<Option<Batch>> {
+    pub fn try_next_batch(&mut self) -> Result<Option<BatchOld>> {
         self.buf.clear();
         let did_read = read_encapsulated_header(&mut self.reader, &mut self.buf)?;
         if !did_read {
@@ -171,7 +171,7 @@ impl<W: Write> StreamWriter<W> {
         })
     }
 
-    pub fn write_batch(&mut self, batch: &Batch) -> Result<()> {
+    pub fn write_batch(&mut self, batch: &BatchOld) -> Result<()> {
         let mut builder = FlatBufferBuilder::new();
 
         self.data_buf.clear();
@@ -231,7 +231,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::batch::Batch;
+    use crate::batch::BatchOld;
     use crate::datatype::DataType;
     use crate::field::{Field, Schema};
 
@@ -299,7 +299,7 @@ mod tests {
 
         let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
 
-        let batch = Batch::try_new([
+        let batch = BatchOld::try_new([
             FromIterator::<u32>::from_iter([1, 2, 3]),
             FromIterator::<i64>::from_iter([7, 8, 9]),
         ])
@@ -321,13 +321,13 @@ mod tests {
         let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
         let mut s_reader = StreamReader::try_new(reader, IpcConfig::default()).unwrap();
 
-        let batch1 = Batch::try_new([FromIterator::<u32>::from_iter([1, 2, 3])]).unwrap();
+        let batch1 = BatchOld::try_new([FromIterator::<u32>::from_iter([1, 2, 3])]).unwrap();
 
         s_writer.write_batch(&batch1).unwrap();
 
         let got1 = s_reader.try_next_batch().unwrap().unwrap();
 
-        let batch2 = Batch::try_new([FromIterator::<u32>::from_iter([4, 5])]).unwrap();
+        let batch2 = BatchOld::try_new([FromIterator::<u32>::from_iter([4, 5])]).unwrap();
 
         s_writer.write_batch(&batch2).unwrap();
 

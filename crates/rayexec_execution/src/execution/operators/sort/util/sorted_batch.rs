@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::row::encoding::{ComparableRow, ComparableRows};
 
 /// A batch that's been physically sorted.
@@ -12,14 +12,14 @@ use rayexec_bullet::row::encoding::{ComparableRow, ComparableRows};
 #[derive(Debug)]
 pub struct PhysicallySortedBatch {
     /// The sorted batch.
-    pub batch: Batch,
+    pub batch: BatchOld,
 
     /// The sorted keys.
     pub keys: ComparableRows,
 }
 
 impl PhysicallySortedBatch {
-    pub fn into_batch_and_iter(self) -> (Batch, SortedKeysIter) {
+    pub fn into_batch_and_iter(self) -> (BatchOld, SortedKeysIter) {
         let iter = SortedKeysIter {
             row_idx: 0,
             keys: Arc::new(self.keys),
@@ -71,11 +71,11 @@ pub struct IndexSortedBatch {
     /// Unsorted keys for the batch.
     pub keys: ComparableRows,
     /// The original unsorted batch.
-    pub batch: Batch,
+    pub batch: BatchOld,
 }
 
 impl IndexSortedBatch {
-    pub fn into_batch_and_iter(self) -> (Batch, SortedIndicesIter) {
+    pub fn into_batch_and_iter(self) -> (BatchOld, SortedIndicesIter) {
         let iter = SortedIndicesIter {
             indices: self.sort_indices,
             idx: 0,

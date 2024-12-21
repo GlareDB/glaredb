@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
@@ -99,7 +99,7 @@ pub trait DataTableScan: Debug + Send {
     /// Pull the next batch in the scan.
     ///
     /// Returns None if the scan is exhausted.
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>>;
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>>;
 }
 
 /// Helper for wrapping an unprojected scan with a projections list to produce
@@ -118,7 +118,7 @@ impl<S: DataTableScan> ProjectedScan<S> {
         ProjectedScan { projections, scan }
     }
 
-    async fn pull_inner(&mut self) -> Result<Option<Batch>> {
+    async fn pull_inner(&mut self) -> Result<Option<BatchOld>> {
         let batch = match self.scan.pull().await? {
             Some(batch) => batch,
             None => return Ok(None),
@@ -135,7 +135,7 @@ impl<S: DataTableScan> ProjectedScan<S> {
 }
 
 impl<S: DataTableScan> DataTableScan for ProjectedScan<S> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async { self.pull_inner().await })
     }
 }
@@ -145,7 +145,7 @@ impl<S: DataTableScan> DataTableScan for ProjectedScan<S> {
 pub struct EmptyTableScan;
 
 impl DataTableScan for EmptyTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async move { Ok(None) })
     }
 }

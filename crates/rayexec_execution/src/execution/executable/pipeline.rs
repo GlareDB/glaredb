@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
@@ -274,7 +274,10 @@ pub enum PipelinePartitionState {
         operator_idx: usize,
     },
     /// Need to push to an operator.
-    PushTo { batch: Batch, operator_idx: usize },
+    PushTo {
+        batch: BatchOld,
+        operator_idx: usize,
+    },
     /// Need to finalize a push to an operator.
     FinalizePush { operator_idx: usize },
     /// Pipeline is completed.
@@ -450,7 +453,7 @@ impl ExecutablePartitionPipeline {
                     operator_idx,
                 } => {
                     // To satisfy ownership. State will be updated anyways.
-                    let batch = std::mem::replace(batch, Batch::empty());
+                    let batch = std::mem::replace(batch, BatchOld::empty());
 
                     let operator = self
                         .operators

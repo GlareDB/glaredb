@@ -10,7 +10,7 @@ use super::gen::message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBat
 use super::gen::schema::Buffer as IpcBuffer;
 use super::IpcConfig;
 use crate::array::{Array, ArrayData, BinaryData};
-use crate::batch::Batch;
+use crate::batch::BatchOld;
 use crate::bitmap::Bitmap;
 use crate::bitutil::byte_ceil;
 use crate::datatype::DataType;
@@ -30,7 +30,7 @@ pub fn ipc_to_batch(
     data: &[u8],
     schema: &Schema,
     _conf: &IpcConfig,
-) -> Result<Batch> {
+) -> Result<BatchOld> {
     let mut buffers = BufferReader {
         data,
         _decompress_buffer: Vec::new(),
@@ -45,7 +45,7 @@ pub fn ipc_to_batch(
         columns.push(array);
     }
 
-    Batch::try_new(columns)
+    BatchOld::try_new(columns)
 }
 
 struct BufferReader<'a> {
@@ -157,7 +157,7 @@ fn decode_varlen_values(buffers: [&[u8]; 2]) -> Result<ArrayData> {
 
 /// Encode a batch into `data`, returning the message header.
 pub fn batch_to_ipc<'a>(
-    batch: &Batch,
+    batch: &BatchOld,
     data: &mut Vec<u8>,
     builder: &mut FlatBufferBuilder<'a>,
 ) -> Result<WIPOffset<IpcRecordBatch<'a>>> {
@@ -312,7 +312,7 @@ mod tests {
     use crate::datatype::DecimalTypeMeta;
     use crate::field::Field;
 
-    fn roundtrip(schema: Schema, batch: Batch) {
+    fn roundtrip(schema: Schema, batch: BatchOld) {
         let mut builder = FlatBufferBuilder::new();
         let mut data_buf = Vec::new();
 
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn simple_batch_roundtrip() {
         let batch =
-            Batch::try_new([Array::from_iter([3, 2, 1]), Array::from_iter([9, 8, 7])]).unwrap();
+            BatchOld::try_new([Array::from_iter([3, 2, 1]), Array::from_iter([9, 8, 7])]).unwrap();
 
         let schema = Schema::new([
             Field::new("f1", DataType::Int32, true),
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn utf8_roundtrip() {
-        let batch = Batch::try_new([Array::from_iter(["mario", "peach", "yoshi"])]).unwrap();
+        let batch = BatchOld::try_new([Array::from_iter(["mario", "peach", "yoshi"])]).unwrap();
 
         let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
 
@@ -357,7 +357,7 @@ mod tests {
             PrimitiveStorage::from(vec![1000_i128, 1200, 1250]),
         );
 
-        let batch = Batch::try_new([arr]).unwrap();
+        let batch = BatchOld::try_new([arr]).unwrap();
 
         let schema = Schema::new([Field::new("f1", datatype, true)]);
 

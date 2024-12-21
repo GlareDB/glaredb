@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::{
@@ -29,7 +29,7 @@ pub struct LimitPartitionState {
     remaining_count: usize,
 
     /// A buffered batch.
-    buffer: Option<Batch>,
+    buffer: Option<BatchOld>,
 
     /// Waker on pull side if no batch is ready.
     pull_waker: Option<Waker>,
@@ -93,7 +93,7 @@ impl ExecutableOperator for PhysicalLimit {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,

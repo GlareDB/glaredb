@@ -59,7 +59,7 @@ use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectOperation};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
@@ -170,7 +170,7 @@ pub enum PollPush {
     ///
     /// A waker will be registered for a later wakeup. This same batch should be
     /// pushed at that time.
-    Pending(Batch),
+    Pending(BatchOld),
 
     /// This operator requires no more input.
     ///
@@ -289,7 +289,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush>;
 
     /// Finalize pushing to partition.
@@ -392,7 +392,7 @@ impl ExecutableOperator for PhysicalOperator {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<PollPush> {
         match self {
             Self::HashAggregate(op) => op.poll_push(cx, partition_state, operator_state, batch),

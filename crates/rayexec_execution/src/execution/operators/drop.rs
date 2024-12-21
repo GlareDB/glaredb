@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
@@ -81,7 +81,7 @@ impl ExecutableOperator for PhysicalDrop {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: BatchOld,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
