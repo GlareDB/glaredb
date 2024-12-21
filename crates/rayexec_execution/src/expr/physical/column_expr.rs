@@ -110,6 +110,9 @@ mod tests {
         assert!(batch.get_array(1).unwrap().data().is_managed());
         assert!(out.data().is_managed());
 
+        // First array should have remained unchanged though.
+        assert!(batch.get_array(0).unwrap().data().is_owned());
+
         let out_view = out.data().try_as_string_view_storage().unwrap();
 
         assert_eq!("a", out_view.get(0).unwrap());
