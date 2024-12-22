@@ -10,11 +10,11 @@ use super::util::sorted_batch::{IndexSortedBatch, SortedIndicesIter};
 use crate::database::DatabaseContext;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -62,7 +62,7 @@ impl PhysicalScatterSort {
     }
 }
 
-impl ExecutableOperator for PhysicalScatterSort {
+impl ExecutableOperatorOld for PhysicalScatterSort {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -73,7 +73,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         let extractor = SortKeysExtractor::new(&self.exprs);
         let states = (0..partitions)
             .map(|_| {
-                PartitionState::ScatterSort(ScatterSortPartitionState::Consuming(
+                PartitionStateOld::ScatterSort(ScatterSortPartitionState::Consuming(
                     ConsumingPartitionState {
                         extractor: extractor.clone(),
                         batches: Vec::new(),
@@ -84,7 +84,7 @@ impl ExecutableOperator for PhysicalScatterSort {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
@@ -94,12 +94,12 @@ impl ExecutableOperator for PhysicalScatterSort {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::ScatterSort(state) => state,
+            PartitionStateOld::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -118,11 +118,11 @@ impl ExecutableOperator for PhysicalScatterSort {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::ScatterSort(state) => state,
+            PartitionStateOld::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -165,11 +165,11 @@ impl ExecutableOperator for PhysicalScatterSort {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let mut state = match partition_state {
-            PartitionState::ScatterSort(state) => state,
+            PartitionStateOld::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -271,7 +271,7 @@ mod tests {
     };
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
-    fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionState> {
+    fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionStateOld> {
         let context = test_database_context();
         let states = operator
             .create_states_old(&context, vec![partitions])
@@ -296,7 +296,7 @@ mod tests {
             desc: true,
             nulls_first: true,
         }]));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.
@@ -338,7 +338,7 @@ mod tests {
             desc: false,
             nulls_first: true,
         }]));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.
@@ -384,7 +384,7 @@ mod tests {
             desc: true,
             nulls_first: true,
         }]));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.
@@ -449,7 +449,7 @@ mod tests {
             desc: true,
             nulls_first: true,
         }]));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Push all the inputs.

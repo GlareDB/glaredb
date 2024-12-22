@@ -8,11 +8,11 @@ use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -40,7 +40,7 @@ pub struct PhysicalCreateView {
     pub(crate) info: CreateViewInfo,
 }
 
-impl ExecutableOperator for PhysicalCreateView {
+impl ExecutableOperatorOld for PhysicalCreateView {
     fn create_states_old(
         &self,
         context: &DatabaseContext,
@@ -72,9 +72,9 @@ impl ExecutableOperator for PhysicalCreateView {
         });
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::CreateView(CreateViewPartitionState {
+                partition_states: vec![PartitionStateOld::CreateView(CreateViewPartitionState {
                     create,
                 })],
             },
@@ -84,8 +84,8 @@ impl ExecutableOperator for PhysicalCreateView {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical create view"))
@@ -94,8 +94,8 @@ impl ExecutableOperator for PhysicalCreateView {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical create view"))
     }
@@ -103,11 +103,11 @@ impl ExecutableOperator for PhysicalCreateView {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::CreateView(state) => match state.create.poll_unpin(cx) {
+            PartitionStateOld::CreateView(state) => match state.create.poll_unpin(cx) {
                 Poll::Ready(Ok(_)) => Ok(PollPullOld::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
                 Poll::Pending => Ok(PollPullOld::Pending),

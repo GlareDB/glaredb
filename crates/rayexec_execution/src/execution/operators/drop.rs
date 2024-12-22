@@ -9,11 +9,11 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -46,7 +46,7 @@ impl PhysicalDrop {
     }
 }
 
-impl ExecutableOperator for PhysicalDrop {
+impl ExecutableOperatorOld for PhysicalDrop {
     fn create_states_old(
         &self,
         context: &DatabaseContext,
@@ -69,9 +69,9 @@ impl ExecutableOperator for PhysicalDrop {
         });
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
+                partition_states: vec![PartitionStateOld::Drop(DropPartitionState { drop })],
             },
         })
     }
@@ -79,8 +79,8 @@ impl ExecutableOperator for PhysicalDrop {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
@@ -89,8 +89,8 @@ impl ExecutableOperator for PhysicalDrop {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
@@ -98,11 +98,11 @@ impl ExecutableOperator for PhysicalDrop {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Drop(state) => match state.drop.poll_unpin(cx) {
+            PartitionStateOld::Drop(state) => match state.drop.poll_unpin(cx) {
                 Poll::Ready(Ok(_)) => Ok(PollPullOld::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
                 Poll::Pending => Ok(PollPullOld::Pending),

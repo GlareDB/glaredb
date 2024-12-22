@@ -6,11 +6,11 @@ use rayexec_error::Result;
 
 use super::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -36,18 +36,18 @@ pub struct BatchResizerPartitionState {
 #[derive(Debug)]
 pub struct PhysicalBatchResizer;
 
-impl ExecutableOperator for PhysicalBatchResizer {
+impl ExecutableOperatorOld for PhysicalBatchResizer {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: (0..partitions[0])
                     .map(|_| {
-                        PartitionState::BatchResizer(BatchResizerPartitionState {
+                        PartitionStateOld::BatchResizer(BatchResizerPartitionState {
                             buffered: ComputedBatches::None,
                             resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                             pull_waker: None,
@@ -63,12 +63,12 @@ impl ExecutableOperator for PhysicalBatchResizer {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::BatchResizer(state) => state,
+            PartitionStateOld::BatchResizer(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 
@@ -102,11 +102,11 @@ impl ExecutableOperator for PhysicalBatchResizer {
     fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::BatchResizer(state) => state,
+            PartitionStateOld::BatchResizer(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 
@@ -134,11 +134,11 @@ impl ExecutableOperator for PhysicalBatchResizer {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::BatchResizer(state) => state,
+            PartitionStateOld::BatchResizer(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 

@@ -40,11 +40,11 @@ use rayexec_bullet::storage::{AddressableStorage, ListItemMetadata};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -81,7 +81,7 @@ pub struct PhysicalUnnest {
     pub unnest_expressions: Vec<PhysicalScalarExpression>,
 }
 
-impl ExecutableOperator for PhysicalUnnest {
+impl ExecutableOperatorOld for PhysicalUnnest {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -91,7 +91,7 @@ impl ExecutableOperator for PhysicalUnnest {
 
         let states: Vec<_> = (0..partitions)
             .map(|_| {
-                PartitionState::Unnest(UnnestPartitionState {
+                PartitionStateOld::Unnest(UnnestPartitionState {
                     project_inputs: vec![
                         ArrayOld::new_untyped_null_array(0);
                         self.project_expressions.len()
@@ -110,7 +110,7 @@ impl ExecutableOperator for PhysicalUnnest {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
@@ -120,12 +120,12 @@ impl ExecutableOperator for PhysicalUnnest {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::Unnest(state) => state,
+            PartitionStateOld::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 
@@ -161,11 +161,11 @@ impl ExecutableOperator for PhysicalUnnest {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::Unnest(state) => state,
+            PartitionStateOld::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 
@@ -181,11 +181,11 @@ impl ExecutableOperator for PhysicalUnnest {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::Unnest(state) => state,
+            PartitionStateOld::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 

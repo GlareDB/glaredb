@@ -11,11 +11,11 @@ use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -140,7 +140,7 @@ impl<S: SinkOperation> SinkOperator<S> {
     }
 }
 
-impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
+impl<S: SinkOperation> ExecutableOperatorOld for SinkOperator<S> {
     fn create_states_old(
         &self,
         context: &DatabaseContext,
@@ -153,7 +153,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
             .create_partition_sinks(context, partitions)?
             .into_iter()
             .map(|sink| {
-                PartitionState::Sink(SinkPartitionState::Writing {
+                PartitionStateOld::Sink(SinkPartitionState::Writing {
                     inner: Some(SinkInnerPartitionState {
                         sink,
                         pull_waker: None,
@@ -165,7 +165,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::Sink(SinkOperatorState {
+            operator_state: Arc::new(OperatorStateOld::Sink(SinkOperatorState {
                 inner: Mutex::new(SinkOperatorStateInner {
                     global_row_count: 0,
                     global_row_count_returned: false,
@@ -181,12 +181,12 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         match partition_state {
-            PartitionState::Sink(state) => match state {
+            PartitionStateOld::Sink(state) => match state {
                 SinkPartitionState::Writing { inner, future } => {
                     if let Some(curr_future) = future {
                         match curr_future.poll_unpin(cx) {
@@ -248,11 +248,11 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
     fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         match partition_state {
-            PartitionState::Sink(state) => match state {
+            PartitionStateOld::Sink(state) => match state {
                 SinkPartitionState::Writing { inner, future } => {
                     if let Some(curr_future) = future {
                         // Still a writing future that needs to complete.
@@ -278,7 +278,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             }
 
                             match operator_state {
-                                OperatorState::Sink(state) => {
+                                OperatorStateOld::Sink(state) => {
                                     let mut state = state.inner.lock();
                                     state.global_row_count += inner.current_row_count;
                                     state.partitions_remaining -= 1;
@@ -315,7 +315,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             }
 
                             match operator_state {
-                                OperatorState::Sink(state) => {
+                                OperatorStateOld::Sink(state) => {
                                     let mut state = state.inner.lock();
                                     state.global_row_count +=
                                         inner.as_ref().unwrap().current_row_count;
@@ -343,11 +343,11 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Sink(state) => match state {
+            PartitionStateOld::Sink(state) => match state {
                 SinkPartitionState::Writing { inner, .. }
                 | SinkPartitionState::Finalizing { inner, .. } => {
                     if let Some(inner) = inner.as_mut() {
@@ -357,7 +357,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                 }
                 SinkPartitionState::Finished => {
                     let mut shared = match operator_state {
-                        OperatorState::Sink(state) => state.inner.lock(),
+                        OperatorStateOld::Sink(state) => state.inner.lock(),
                         other => panic!("invalid operator state: {other:?}"),
                     };
 

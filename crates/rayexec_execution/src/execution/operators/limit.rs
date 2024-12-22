@@ -5,11 +5,11 @@ use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -61,7 +61,7 @@ impl PhysicalLimit {
     }
 }
 
-impl ExecutableOperator for PhysicalLimit {
+impl ExecutableOperatorOld for PhysicalLimit {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -70,11 +70,11 @@ impl ExecutableOperator for PhysicalLimit {
         let partitions = partitions[0];
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: (0..partitions)
                     .map(|_| {
-                        PartitionState::Limit(LimitPartitionState {
+                        PartitionStateOld::Limit(LimitPartitionState {
                             remaining_count: self.limit,
                             remaining_offset: self.offset.unwrap_or(0),
                             buffer: None,
@@ -91,12 +91,12 @@ impl ExecutableOperator for PhysicalLimit {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::Limit(state) => state,
+            PartitionStateOld::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -157,11 +157,11 @@ impl ExecutableOperator for PhysicalLimit {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::Limit(state) => state,
+            PartitionStateOld::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -176,11 +176,11 @@ impl ExecutableOperator for PhysicalLimit {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::Limit(state) => state,
+            PartitionStateOld::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -243,7 +243,7 @@ mod tests {
         TestWakerContext,
     };
 
-    fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionState> {
+    fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionStateOld> {
         let context = test_database_context();
         let states = operator
             .create_states_old(&context, vec![partitions])
@@ -263,7 +263,7 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalLimit::new(5, None));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Try to pull before we have a batch ready.
@@ -330,7 +330,7 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalLimit::new(5, Some(2)));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Push our first batch, will be part of the output.
@@ -384,7 +384,7 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalLimit::new(2, Some(5)));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         // Push our first batch, will be skipped. Operator will return
@@ -426,7 +426,7 @@ mod tests {
         let mut inputs = vec![make_i32_batch([1, 2, 3, 4]), make_i32_batch([5, 6, 7, 8])];
 
         let operator = Arc::new(PhysicalLimit::new(2, None));
-        let operator_state = Arc::new(OperatorState::None);
+        let operator_state = Arc::new(OperatorStateOld::None);
         let mut partition_states = create_states(&operator, 1);
 
         let push_cx = TestWakerContext::new();

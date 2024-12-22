@@ -10,9 +10,9 @@ use rayexec_error::Result;
 
 use super::{
     ComputedBatches,
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
+    ExecutableOperatorOld,
+    OperatorStateOld,
+    PartitionStateOld,
     PollPullOld,
     PollPushOld,
 };
@@ -67,11 +67,11 @@ impl TestWakerContext {
         Context::from_waker(&self.waker)
     }
 
-    pub fn poll_push<Operator: ExecutableOperator>(
+    pub fn poll_push<Operator: ExecutableOperatorOld>(
         &self,
         operator: impl AsRef<Operator>,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
         batch: impl Into<BatchOld>,
     ) -> Result<PollPushOld> {
         operator.as_ref().poll_push_old(
@@ -82,11 +82,11 @@ impl TestWakerContext {
         )
     }
 
-    pub fn poll_pull<Operator: ExecutableOperator>(
+    pub fn poll_pull<Operator: ExecutableOperatorOld>(
         &self,
         operator: impl AsRef<Operator>,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         operator
             .as_ref()

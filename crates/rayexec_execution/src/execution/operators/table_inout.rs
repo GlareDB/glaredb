@@ -7,11 +7,11 @@ use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -38,7 +38,7 @@ pub struct PhysicalTableInOut {
     pub projected_outputs: Vec<PhysicalScalarExpression>,
 }
 
-impl ExecutableOperator for PhysicalTableInOut {
+impl ExecutableOperatorOld for PhysicalTableInOut {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -59,7 +59,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         let states: Vec<_> = states
             .into_iter()
             .map(|state| {
-                PartitionState::TableInOut(TableInOutPartitionState {
+                PartitionStateOld::TableInOut(TableInOutPartitionState {
                     function_state: state,
                     additional_outputs: Vec::new(),
                 })
@@ -67,7 +67,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
@@ -77,12 +77,12 @@ impl ExecutableOperator for PhysicalTableInOut {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
+            PartitionStateOld::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -131,11 +131,11 @@ impl ExecutableOperator for PhysicalTableInOut {
     fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
+            PartitionStateOld::TableInOut(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 
@@ -145,11 +145,11 @@ impl ExecutableOperator for PhysicalTableInOut {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
+            PartitionStateOld::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 

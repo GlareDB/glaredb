@@ -5,10 +5,10 @@ use rayexec_error::Result;
 
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -24,7 +24,7 @@ pub struct TopKOperatorState {}
 #[derive(Debug)]
 pub struct PhysicalTopK {}
 
-impl ExecutableOperator for PhysicalTopK {
+impl ExecutableOperatorOld for PhysicalTopK {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -36,8 +36,8 @@ impl ExecutableOperator for PhysicalTopK {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         unimplemented!()
@@ -46,8 +46,8 @@ impl ExecutableOperator for PhysicalTopK {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         unimplemented!()
     }
@@ -55,8 +55,8 @@ impl ExecutableOperator for PhysicalTopK {
     fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         unimplemented!()
     }

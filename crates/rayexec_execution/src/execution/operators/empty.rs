@@ -5,10 +5,10 @@ use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -28,17 +28,17 @@ pub struct EmptyPartitionState {
 #[derive(Debug)]
 pub struct PhysicalEmpty;
 
-impl ExecutableOperator for PhysicalEmpty {
+impl ExecutableOperatorOld for PhysicalEmpty {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: (0..partitions[0])
-                    .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
+                    .map(|_| PartitionStateOld::Empty(EmptyPartitionState { finished: false }))
                     .collect(),
             },
         })
@@ -47,8 +47,8 @@ impl ExecutableOperator for PhysicalEmpty {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical empty"))
@@ -57,8 +57,8 @@ impl ExecutableOperator for PhysicalEmpty {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
@@ -66,11 +66,11 @@ impl ExecutableOperator for PhysicalEmpty {
     fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Empty(state) => {
+            PartitionStateOld::Empty(state) => {
                 if state.finished {
                     Ok(PollPullOld::Exhausted)
                 } else {

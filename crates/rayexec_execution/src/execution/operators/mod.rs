@@ -58,9 +58,9 @@ use insert::PhysicalInsert;
 use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
-use project::{PhysicalProject, ProjectOperation};
+use project::{PhysicalProjectOld, ProjectOperation, ProjectPartitionState};
 use rayexec_bullet::batch::BatchOld;
-use rayexec_error::{not_implemented, OptionExt, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
@@ -111,7 +111,7 @@ use crate::proto::DatabaseProtoConv;
 /// States local to a partition within a single operator.
 // Current size: 264 bytes
 #[derive(Debug)]
-pub enum PartitionState {
+pub enum PartitionStateOld {
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
@@ -145,7 +145,7 @@ pub enum PartitionState {
 /// A global state across all partitions in an operator.
 // Current size: 144 bytes
 #[derive(Debug)]
-pub enum OperatorState {
+pub enum OperatorStateOld {
     HashAggregate(HashAggregateOperatorState),
     UngroupedAggregate(UngroupedAggregateOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
@@ -220,7 +220,7 @@ pub enum InputOutputStates {
         ///
         /// Length of vec determines the partitioning (parallelism) of the
         /// operator.
-        partition_states: Vec<PartitionState>,
+        partition_states: Vec<PartitionStateOld>,
     },
 
     /// Operators accepts multiple inputs, and a single output.
@@ -231,7 +231,7 @@ pub enum InputOutputStates {
         ///
         /// The outer vec matches the number of inputs to an operator (e.g. a
         /// join should have two).
-        partition_states: Vec<Vec<PartitionState>>,
+        partition_states: Vec<Vec<PartitionStateOld>>,
 
         /// Index into the above vec to determine which set of states are used
         /// for pulling.
@@ -254,10 +254,10 @@ pub enum InputOutputStates {
     /// the source of a separate pipeline.
     SeparateInputOutput {
         /// States used during push.
-        push_states: Vec<PartitionState>,
+        push_states: Vec<PartitionStateOld>,
 
         /// States used during pull.
-        pull_states: Vec<PartitionState>,
+        pull_states: Vec<PartitionStateOld>,
     },
 }
 
@@ -265,39 +265,14 @@ pub enum InputOutputStates {
 #[derive(Debug)]
 pub struct ExecutionStates {
     /// Global operator state.
-    pub operator_state: Arc<OperatorState>,
+    pub operator_state: Arc<OperatorStateOld>,
 
     /// Partition states for the operator.
     pub partition_states: InputOutputStates,
 }
 
-#[derive(Debug)]
-pub enum PollExecuteState<'a> {
-    Pull {
-        out: &'a mut Batch,
-    },
-    InOut {
-        input: &'a mut Batch,
-        out: &'a mut Batch,
-    },
-    Push {
-        input: &'a mut Batch,
-    },
-    Finalize,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PollPull {
-    /// Data was pulled.
-    Pulled,
-    /// Pull pending. Waker stored, re-execute with the exact same state.
-    Pending,
-    /// Source exhuasted, no additional data will be produced.
-    Exhausted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PollPush {
+pub enum PollExecute {
     /// Operator accepted input and wrote its output to the output batch.
     ///
     /// The next poll should be with a new input batch.
@@ -315,41 +290,54 @@ pub enum PollPush {
 pub enum PollFinalize {
     /// Operator finalized, execution of this operator finished.
     Finalized,
+    /// This operator needs to be drained. `poll_execute` should be called with
+    /// an empty input batch until it's exhausted.
+    NeedsDrain,
     /// Finalize pending, re-execute with the same state.
     Pending,
 }
 
+#[derive(Debug)]
+pub enum PartitionState {
+    Project(ProjectPartitionState),
+    None,
+}
+
+#[derive(Debug)]
+pub enum OperatorState {
+    None,
+}
+
+#[derive(Debug)]
+pub struct ExecuteInOutState<'a> {
+    /// Input batch being pushed to the operator.
+    ///
+    /// May be None for operators that are only producing output.
+    input: Option<&'a mut Batch>,
+    /// Output batch the operator should write to.
+    ///
+    /// May be None for operators that only consume batches.
+    output: Option<&'a mut Batch>,
+}
+
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
-    fn poll_pull(
+    fn poll_execute(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        out: &mut Batch,
-    ) -> Result<PollPull> {
-        unimplemented!()
-    }
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute>;
 
-    fn poll_push(
+    fn poll_finalize(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        input: &mut Batch,
-        out: &mut Batch,
-    ) -> Result<PollPush> {
-        unimplemented!()
-    }
+    ) -> Result<PollFinalize>;
+}
 
-    fn poll_push_finalize(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
-        unimplemented!()
-    }
-
+pub trait ExecutableOperatorOld: Sync + Send + Debug + Explainable {
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
@@ -360,16 +348,20 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates>;
+    ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
 
     /// Try to push a batch for this partition.
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
         batch: BatchOld,
-    ) -> Result<PollPushOld>;
+    ) -> Result<PollPushOld> {
+        unimplemented!()
+    }
 
     /// Finalize pushing to partition.
     ///
@@ -378,17 +370,21 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollFinalizeOld>;
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
+        unimplemented!()
+    }
 
     /// Try to pull a batch for this partition.
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollPullOld>;
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
+        unimplemented!()
+    }
 }
 
 // 144 bytes
@@ -426,7 +422,7 @@ pub enum PhysicalOperator {
     BatchResizer(PhysicalBatchResizer),
 }
 
-impl ExecutableOperator for PhysicalOperator {
+impl ExecutableOperatorOld for PhysicalOperator {
     fn create_states_old(
         &self,
         context: &DatabaseContext,
@@ -469,8 +465,8 @@ impl ExecutableOperator for PhysicalOperator {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         match self {
@@ -518,8 +514,8 @@ impl ExecutableOperator for PhysicalOperator {
     fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         match self {
             Self::HashAggregate(op) => {
@@ -574,8 +570,8 @@ impl ExecutableOperator for PhysicalOperator {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match self {
             Self::HashAggregate(op) => op.poll_pull_old(cx, partition_state, operator_state),
@@ -697,7 +693,7 @@ impl DatabaseProtoConv for PhysicalOperator {
                 PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
             }
             Value::Project(op) => {
-                PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
+                PhysicalOperator::Project(PhysicalProjectOld::from_proto_ctx(op, context)?)
             }
             Value::Insert(op) => {
                 PhysicalOperator::Insert(PhysicalInsert::from_proto_ctx(op, context)?)

@@ -29,9 +29,9 @@ use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
+    ExecutableOperatorOld,
+    OperatorStateOld,
+    PartitionStateOld,
     PollPullOld,
     PollPushOld,
 };
@@ -222,7 +222,7 @@ impl PhysicalHashAggregate {
     }
 }
 
-impl ExecutableOperator for PhysicalHashAggregate {
+impl ExecutableOperatorOld for PhysicalHashAggregate {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -242,7 +242,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
             col_selections.push(col_selection);
         }
 
-        let operator_state = OperatorState::HashAggregate(HashAggregateOperatorState {
+        let operator_state = OperatorStateOld::HashAggregate(HashAggregateOperatorState {
             output_states: (0..num_partitions)
                 .map(|_| {
                     Mutex::new(SharedOutputPartitionState {
@@ -272,7 +272,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 })
                 .collect();
 
-            let partition_state = PartitionState::HashAggregate(
+            let partition_state = PartitionStateOld::HashAggregate(
                 HashAggregatePartitionState::Aggregating(AggregatingPartitionState {
                     partition_idx: idx,
                     output_hashtables: partition_local_tables,
@@ -296,12 +296,12 @@ impl ExecutableOperator for PhysicalHashAggregate {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::HashAggregate(state) => state,
+            PartitionStateOld::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -321,16 +321,16 @@ impl ExecutableOperator for PhysicalHashAggregate {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::HashAggregate(state) => state,
+            PartitionStateOld::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let operator_state = match operator_state {
-            OperatorState::HashAggregate(state) => state,
+            OperatorStateOld::HashAggregate(state) => state,
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -379,16 +379,16 @@ impl ExecutableOperator for PhysicalHashAggregate {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::HashAggregate(state) => state,
+            PartitionStateOld::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let operator_state = match operator_state {
-            OperatorState::HashAggregate(state) => state,
+            OperatorStateOld::HashAggregate(state) => state,
             other => panic!("invalid operator state: {other:?}"),
         };
 

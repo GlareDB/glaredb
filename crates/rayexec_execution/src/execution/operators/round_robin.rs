@@ -11,9 +11,9 @@ use rayexec_error::{RayexecError, Result};
 use super::{ExecutionStates, InputOutputStates, PollFinalizeOld};
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
+    ExecutableOperatorOld,
+    OperatorStateOld,
+    PartitionStateOld,
     PollPullOld,
     PollPushOld,
 };
@@ -57,7 +57,7 @@ pub struct RoundRobinOperatorState {
 #[derive(Debug)]
 pub struct PhysicalRoundRobinRepartition;
 
-impl ExecutableOperator for PhysicalRoundRobinRepartition {
+impl ExecutableOperatorOld for PhysicalRoundRobinRepartition {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -96,7 +96,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         let mut push_states = Vec::with_capacity(input_partitions);
         let mut push_to = 0;
         for idx in 0..input_partitions {
-            let state = PartitionState::RoundRobinPush(RoundRobinPushPartitionState {
+            let state = PartitionStateOld::RoundRobinPush(RoundRobinPushPartitionState {
                 own_idx: idx,
                 push_to,
                 output_buffers: output_buffers.clone(),
@@ -111,11 +111,13 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
 
         let pull_states: Vec<_> = output_buffers
             .into_iter()
-            .map(|buffer| PartitionState::RoundRobinPull(RoundRobinPullPartitionState { buffer }))
+            .map(|buffer| {
+                PartitionStateOld::RoundRobinPull(RoundRobinPullPartitionState { buffer })
+            })
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::RoundRobin(operator_state)),
+            operator_state: Arc::new(OperatorStateOld::RoundRobin(operator_state)),
             partition_states: InputOutputStates::SeparateInputOutput {
                 push_states,
                 pull_states,
@@ -126,12 +128,12 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::RoundRobinPush(state) => state,
+            PartitionStateOld::RoundRobinPush(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -166,11 +168,11 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let operator_state = match operator_state {
-            OperatorState::RoundRobin(state) => state,
+            OperatorStateOld::RoundRobin(state) => state,
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -186,7 +188,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         // non-exhausted inputs.
         if prev == 1 {
             let state = match partition_state {
-                PartitionState::RoundRobinPush(state) => state,
+                PartitionStateOld::RoundRobinPush(state) => state,
                 other => panic!("invalid partition state: {other:?}"),
             };
 
@@ -205,11 +207,11 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::RoundRobinPull(state) => state,
+            PartitionStateOld::RoundRobinPull(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 

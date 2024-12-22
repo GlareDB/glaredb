@@ -9,10 +9,10 @@ use rayexec_error::{RayexecError, Result};
 use super::hash_aggregate::distinct::DistinctGroupedStates;
 use super::hash_aggregate::hash_table::GroupAddress;
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -101,7 +101,7 @@ impl PhysicalUngroupedAggregate {
     }
 }
 
-impl ExecutableOperator for PhysicalUngroupedAggregate {
+impl ExecutableOperatorOld for PhysicalUngroupedAggregate {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -120,7 +120,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
         let partition_states = (0..num_partitions)
             .map(|idx| {
-                Ok(PartitionState::UngroupedAggregate(
+                Ok(PartitionStateOld::UngroupedAggregate(
                     UngroupedAggregatePartitionState::Aggregating {
                         partition_idx: idx,
                         agg_states: self.create_agg_states_with_single_group()?,
@@ -130,7 +130,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::UngroupedAggregate(operator_state)),
+            operator_state: Arc::new(OperatorStateOld::UngroupedAggregate(operator_state)),
             partition_states: InputOutputStates::OneToOne { partition_states },
         })
     }
@@ -138,12 +138,12 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::UngroupedAggregate(state) => state,
+            PartitionStateOld::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -180,11 +180,11 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::UngroupedAggregate(state) => state,
+            PartitionStateOld::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -196,7 +196,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 let agg_states = std::mem::take(agg_states);
 
                 let mut shared = match operator_state {
-                    OperatorState::UngroupedAggregate(state) => state.inner.lock(),
+                    OperatorStateOld::UngroupedAggregate(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -256,11 +256,11 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::UngroupedAggregate(state) => state,
+            PartitionStateOld::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -271,7 +271,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             },
             UngroupedAggregatePartitionState::Aggregating { partition_idx, .. } => {
                 let mut shared = match operator_state {
-                    OperatorState::UngroupedAggregate(state) => state.inner.lock(),
+                    OperatorStateOld::UngroupedAggregate(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
                 };
 

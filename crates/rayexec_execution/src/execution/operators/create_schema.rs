@@ -9,11 +9,11 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -49,7 +49,7 @@ impl PhysicalCreateSchema {
     }
 }
 
-impl ExecutableOperator for PhysicalCreateSchema {
+impl ExecutableOperatorOld for PhysicalCreateSchema {
     fn create_states_old(
         &self,
         context: &DatabaseContext,
@@ -74,11 +74,11 @@ impl ExecutableOperator for PhysicalCreateSchema {
         });
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
-                    create,
-                })],
+                partition_states: vec![PartitionStateOld::CreateSchema(
+                    CreateSchemaPartitionState { create },
+                )],
             },
         })
     }
@@ -86,8 +86,8 @@ impl ExecutableOperator for PhysicalCreateSchema {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
@@ -96,8 +96,8 @@ impl ExecutableOperator for PhysicalCreateSchema {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
@@ -105,11 +105,11 @@ impl ExecutableOperator for PhysicalCreateSchema {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::CreateSchema(state) => match state.create.poll_unpin(cx) {
+            PartitionStateOld::CreateSchema(state) => match state.create.poll_unpin(cx) {
                 Poll::Ready(Ok(_)) => Ok(PollPullOld::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
                 Poll::Pending => Ok(PollPullOld::Pending),

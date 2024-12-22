@@ -4,10 +4,10 @@ use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -19,7 +19,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 #[derive(Debug)]
 pub struct PhysicalAnalyze {}
 
-impl ExecutableOperator for PhysicalAnalyze {
+impl ExecutableOperatorOld for PhysicalAnalyze {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -31,8 +31,8 @@ impl ExecutableOperator for PhysicalAnalyze {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         unimplemented!()
@@ -41,8 +41,8 @@ impl ExecutableOperator for PhysicalAnalyze {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         unimplemented!()
     }
@@ -50,8 +50,8 @@ impl ExecutableOperator for PhysicalAnalyze {
     fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         unimplemented!()
     }

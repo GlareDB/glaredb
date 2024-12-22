@@ -6,7 +6,7 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
-use super::evaluator::{ExpressionEvaulator, ExpressionState};
+use super::evaluator::{ExpressionEvaluator, ExpressionState};
 use super::PhysicalScalarExpression;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -58,7 +58,7 @@ impl PhysicalScalarFunctionExpr {
             let arg_state = &mut state.inputs[idx];
             let output = state.buffer.get_array_mut(idx)?;
 
-            ExpressionEvaulator::eval_expression(arg_input, input, arg_state, sel, output)?;
+            ExpressionEvaluator::eval_expression(arg_input, input, arg_state, sel, output)?;
         }
 
         state.buffer.set_num_rows(sel.len())?;

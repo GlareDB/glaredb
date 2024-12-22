@@ -9,9 +9,9 @@ use tracing::trace;
 use super::profiler::OperatorProfileData;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
+    ExecutableOperatorOld,
+    OperatorStateOld,
+    PartitionStateOld,
     PhysicalOperator,
     PollFinalizeOld,
     PollPullOld,
@@ -81,8 +81,8 @@ impl ExecutablePipeline {
     pub(crate) fn push_operator(
         &mut self,
         physical: Arc<PhysicalOperator>,
-        operator_state: Arc<OperatorState>,
-        partition_states: Vec<PartitionState>,
+        operator_state: Arc<OperatorStateOld>,
+        partition_states: Vec<PartitionStateOld>,
     ) -> Result<()> {
         if partition_states.len() != self.num_partitions() {
             return Err(RayexecError::new(format!(
@@ -247,17 +247,17 @@ pub struct OperatorWithState {
     physical: Arc<PhysicalOperator>,
 
     /// The state that's shared across all partitions for this operator.
-    operator_state: Arc<OperatorState>,
+    operator_state: Arc<OperatorStateOld>,
 
     /// The state for this operator that's exclusive to this partition.
-    partition_state: PartitionState,
+    partition_state: PartitionStateOld,
 
     /// Profile data for this operator.
     profile_data: OperatorProfileData,
 }
 
 impl OperatorWithState {
-    pub fn physical_operator(&self) -> &dyn ExecutableOperator {
+    pub fn physical_operator(&self) -> &dyn ExecutableOperatorOld {
         self.physical.as_ref()
     }
 

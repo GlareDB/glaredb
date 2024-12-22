@@ -11,11 +11,11 @@ use super::util::sorted_batch::{PhysicallySortedBatch, SortedKeysIter};
 use crate::database::DatabaseContext;
 use crate::execution::operators::sort::util::merger::IterState;
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -191,7 +191,7 @@ impl PhysicalGatherSort {
     }
 }
 
-impl ExecutableOperator for PhysicalGatherSort {
+impl ExecutableOperatorOld for PhysicalGatherSort {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -199,7 +199,7 @@ impl ExecutableOperator for PhysicalGatherSort {
     ) -> Result<ExecutionStates> {
         let input_partitions = partitions[0];
 
-        let operator_state = OperatorState::GatherSort(GatherSortOperatorState {
+        let operator_state = OperatorStateOld::GatherSort(GatherSortOperatorState {
             shared: Mutex::new(SharedGlobalState::new(input_partitions)),
         });
 
@@ -207,7 +207,7 @@ impl ExecutableOperator for PhysicalGatherSort {
 
         let push_states: Vec<_> = (0..input_partitions)
             .map(|idx| {
-                PartitionState::GatherSortPush(GatherSortPushPartitionState {
+                PartitionStateOld::GatherSortPush(GatherSortPushPartitionState {
                     partition_idx: idx,
                     extractor: extractor.clone(),
                 })
@@ -220,7 +220,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         // I'm not sure if we care to support multiple output partitions, but
         // extending this a little could provide an interesting repartitioning
         // scheme where we repartition based on the sort key.
-        let pull_states = vec![PartitionState::GatherSortPull(
+        let pull_states = vec![PartitionStateOld::GatherSortPull(
             GatherSortPullPartitionState {
                 input_buffers: InputBuffers {
                     buffered: (0..input_partitions).map(|_| None).collect(),
@@ -242,20 +242,20 @@ impl ExecutableOperator for PhysicalGatherSort {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::GatherSortPush(state) => state,
-            PartitionState::GatherSortPull(_) => {
+            PartitionStateOld::GatherSortPush(state) => state,
+            PartitionStateOld::GatherSortPull(_) => {
                 panic!("uses pull state when push state expected")
             }
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let mut shared = match operator_state {
-            OperatorState::GatherSort(state) => state.shared.lock(),
+            OperatorStateOld::GatherSort(state) => state.shared.lock(),
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -289,19 +289,19 @@ impl ExecutableOperator for PhysicalGatherSort {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::GatherSortPush(state) => state,
-            PartitionState::GatherSortPull(_) => {
+            PartitionStateOld::GatherSortPush(state) => state,
+            PartitionStateOld::GatherSortPull(_) => {
                 panic!("uses pull state when push state expected")
             }
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let mut shared = match operator_state {
-            OperatorState::GatherSort(state) => state.shared.lock(),
+            OperatorStateOld::GatherSort(state) => state.shared.lock(),
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -320,19 +320,19 @@ impl ExecutableOperator for PhysicalGatherSort {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::GatherSortPull(state) => state,
-            PartitionState::GatherSortPush(_) => {
+            PartitionStateOld::GatherSortPull(state) => state,
+            PartitionStateOld::GatherSortPush(_) => {
                 panic!("uses push state when pull state expected")
             }
             other => panic!("invalid partition state: {other:?}"),
         };
 
         let operator_state = match operator_state {
-            OperatorState::GatherSort(state) => state,
+            OperatorStateOld::GatherSort(state) => state,
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -636,14 +636,14 @@ mod tests {
             nulls_first: true,
         }]));
         let (operator_state, push_states, pull_states) = operator.create_states_orig(1);
-        let operator_state = Arc::new(OperatorState::GatherSort(operator_state));
+        let operator_state = Arc::new(OperatorStateOld::GatherSort(operator_state));
         let mut push_states: Vec<_> = push_states
             .into_iter()
-            .map(PartitionState::GatherSortPush)
+            .map(PartitionStateOld::GatherSortPush)
             .collect();
         let mut pull_states: Vec<_> = pull_states
             .into_iter()
-            .map(PartitionState::GatherSortPull)
+            .map(PartitionStateOld::GatherSortPull)
             .collect();
 
         // Try to pull first. Nothing available yet.
@@ -728,14 +728,14 @@ mod tests {
             nulls_first: true,
         }]));
         let (operator_state, push_states, pull_states) = operator.create_states_orig(2);
-        let operator_state = Arc::new(OperatorState::GatherSort(operator_state));
+        let operator_state = Arc::new(OperatorStateOld::GatherSort(operator_state));
         let mut push_states: Vec<_> = push_states
             .into_iter()
-            .map(PartitionState::GatherSortPush)
+            .map(PartitionStateOld::GatherSortPush)
             .collect();
         let mut pull_states: Vec<_> = pull_states
             .into_iter()
-            .map(PartitionState::GatherSortPull)
+            .map(PartitionStateOld::GatherSortPull)
             .collect();
 
         // Pull first, get pending

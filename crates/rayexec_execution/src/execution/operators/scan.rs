@@ -9,11 +9,11 @@ use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -61,7 +61,7 @@ impl PhysicalScan {
     }
 }
 
-impl ExecutableOperator for PhysicalScan {
+impl ExecutableOperatorOld for PhysicalScan {
     fn create_states_old(
         &self,
         context: &DatabaseContext,
@@ -83,11 +83,11 @@ impl ExecutableOperator for PhysicalScan {
 
         let states = scans
             .into_iter()
-            .map(|scan| PartitionState::Scan(ScanPartitionState { scan, future: None }))
+            .map(|scan| PartitionStateOld::Scan(ScanPartitionState { scan, future: None }))
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
@@ -97,8 +97,8 @@ impl ExecutableOperator for PhysicalScan {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical scan"))
@@ -107,8 +107,8 @@ impl ExecutableOperator for PhysicalScan {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
@@ -116,11 +116,11 @@ impl ExecutableOperator for PhysicalScan {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Scan(state) => {
+            PartitionStateOld::Scan(state) => {
                 if let Some(future) = &mut state.future {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {

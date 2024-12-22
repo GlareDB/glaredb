@@ -4,10 +4,11 @@ use super::PhysicalScalarExpression;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::flat_array::FlatSelection;
+use crate::expr::Expression;
 
 /// Evaluate expressions on batch inputs.
 #[derive(Debug)]
-pub struct ExpressionEvaulator {
+pub struct ExpressionEvaluator {
     expressions: Vec<PhysicalScalarExpression>,
     states: Vec<ExpressionState>,
 }
@@ -29,7 +30,11 @@ impl ExpressionState {
     }
 }
 
-impl ExpressionEvaulator {
+impl ExpressionEvaluator {
+    pub fn new(expressions: Vec<Expression>, batch_size: usize) -> Self {
+        unimplemented!()
+    }
+
     pub fn num_expressions(&self) -> usize {
         self.expressions.len()
     }

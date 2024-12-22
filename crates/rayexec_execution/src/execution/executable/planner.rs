@@ -21,10 +21,10 @@ use crate::execution::operators::round_robin::PhysicalRoundRobinRepartition;
 use crate::execution::operators::sink::{SinkOperation, SinkOperator};
 use crate::execution::operators::source::{SourceOperation, SourceOperator};
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PhysicalOperator,
 };
 use crate::hybrid::buffer::ServerStreamBuffers;
@@ -671,15 +671,15 @@ struct PendingOperatorWithState {
     /// The physical operator.
     operator: Arc<PhysicalOperator>,
     /// Global operator state.
-    operator_state: Arc<OperatorState>,
+    operator_state: Arc<OperatorStateOld>,
     /// Input states that get taken when building up the final execution
     /// pipeline.
-    input_states: Vec<Option<Vec<PartitionState>>>,
+    input_states: Vec<Option<Vec<PartitionStateOld>>>,
     /// Output states that get popped when building the final pipeline.
     ///
     /// May be empty if the operator uses the same partition state for pushing
     /// and pulling.
-    pull_states: VecDeque<Vec<PartitionState>>,
+    pull_states: VecDeque<Vec<PartitionStateOld>>,
     /// Index of the input state to use for the pull state. This corresponds to
     /// the "trunk" of the pipeline.
     trunk_idx: usize,
@@ -734,7 +734,7 @@ impl PendingOperatorWithState {
         })
     }
 
-    fn take_input_states(&mut self, idx: usize) -> Result<Vec<PartitionState>> {
+    fn take_input_states(&mut self, idx: usize) -> Result<Vec<PartitionStateOld>> {
         self.input_states
             .get_mut(idx)
             .ok_or_else(|| RayexecError::new(format!("Missing input states at idx {idx}")))?

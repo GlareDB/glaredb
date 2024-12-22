@@ -9,11 +9,11 @@ use rayexec_bullet::ipc::IpcConfig;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -38,7 +38,7 @@ impl PhysicalValues {
     }
 }
 
-impl ExecutableOperator for PhysicalValues {
+impl ExecutableOperatorOld for PhysicalValues {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -57,9 +57,9 @@ impl ExecutableOperator for PhysicalValues {
         }
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
-                partition_states: states.into_iter().map(PartitionState::Values).collect(),
+                partition_states: states.into_iter().map(PartitionStateOld::Values).collect(),
             },
         })
     }
@@ -67,8 +67,8 @@ impl ExecutableOperator for PhysicalValues {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to Values operator"))
@@ -77,8 +77,8 @@ impl ExecutableOperator for PhysicalValues {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
@@ -86,11 +86,11 @@ impl ExecutableOperator for PhysicalValues {
     fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Values(state) => match state.batches.pop() {
+            PartitionStateOld::Values(state) => match state.batches.pop() {
                 Some(batch) => Ok(PollPullOld::Computed(batch.into())),
                 None => Ok(PollPullOld::Exhausted),
             },

@@ -9,11 +9,11 @@ use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -52,7 +52,7 @@ impl PhysicalTableFunction {
     }
 }
 
-impl ExecutableOperator for PhysicalTableFunction {
+impl ExecutableOperatorOld for PhysicalTableFunction {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
@@ -74,7 +74,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         let states = scans
             .into_iter()
             .map(|scan_state| {
-                PartitionState::TableFunction(TableFunctionPartitionState {
+                PartitionStateOld::TableFunction(TableFunctionPartitionState {
                     scan_state,
                     future: None,
                 })
@@ -82,7 +82,7 @@ impl ExecutableOperator for PhysicalTableFunction {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
@@ -92,8 +92,8 @@ impl ExecutableOperator for PhysicalTableFunction {
     fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         _batch: BatchOld,
     ) -> Result<PollPushOld> {
         // Could UNNEST be implemented as a table function?
@@ -103,8 +103,8 @@ impl ExecutableOperator for PhysicalTableFunction {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical table function"))
     }
@@ -112,11 +112,11 @@ impl ExecutableOperator for PhysicalTableFunction {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::TableFunction(state) => {
+            PartitionStateOld::TableFunction(state) => {
                 if let Some(future) = &mut state.future {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {

@@ -6,11 +6,11 @@ use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PollFinalizeOld,
     PollPullOld,
     PollPushOld,
@@ -76,17 +76,17 @@ impl<S: StatelessOperation> SimpleOperator<S> {
     }
 }
 
-impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
+impl<S: StatelessOperation> ExecutableOperatorOld for SimpleOperator<S> {
     fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: (0..partitions[0])
-                    .map(|_| PartitionState::Simple(SimplePartitionState::new()))
+                    .map(|_| PartitionStateOld::Simple(SimplePartitionState::new()))
                     .collect(),
             },
         })
@@ -95,12 +95,12 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
     fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
         batch: BatchOld,
     ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::Simple(state) => state,
+            PartitionStateOld::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -127,11 +127,11 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
     fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::Simple(state) => state,
+            PartitionStateOld::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -147,11 +147,11 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
     fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
     ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::Simple(state) => state,
+            PartitionStateOld::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 

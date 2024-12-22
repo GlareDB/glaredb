@@ -132,7 +132,7 @@ where
     }
 
     /// Generate a selection that will select all rows in order for this batch.
-    pub fn generate_selection(&self) -> FlatSelection {
+    pub fn generate_selection<'a>(&self) -> FlatSelection<'a> {
         FlatSelection::linear(self.num_rows)
     }
 
