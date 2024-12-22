@@ -68,6 +68,7 @@ impl ExpressionEvaulator {
         match expr {
             PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
             PhysicalScalarExpression::ScalarFunction(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Literal(expr) => expr.eval(input, state, sel, output),
             _ => unimplemented!(),
         }
     }

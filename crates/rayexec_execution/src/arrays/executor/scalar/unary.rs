@@ -126,6 +126,47 @@ impl UnaryExecutor {
 
         Ok(())
     }
+
+    /// Iterate over all values in a flat array view, calling `op` for each row.
+    ///
+    /// Valid values are represented with Some, invalid values are represented
+    /// with None.
+    ///
+    /// Note this should really only be used for tests.
+    pub fn for_each_flat<'a, S, Op>(
+        array: FlatArrayView<'a>,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        mut op: Op,
+    ) -> Result<()>
+    where
+        S: PhysicalStorage,
+        Op: FnMut(usize, Option<&S::StorageType>),
+    {
+        let input = S::get_storage(&array.array_buffer)?;
+        let validity = array.validity;
+
+        if validity.all_valid() {
+            for (output_idx, input_idx) in selection.into_iter().enumerate() {
+                let selected_idx = array.selection.get(input_idx).unwrap();
+                let v = input.get(selected_idx).unwrap();
+
+                op(output_idx, Some(v))
+            }
+        } else {
+            for (output_idx, input_idx) in selection.into_iter().enumerate() {
+                let selected_idx = array.selection.get(input_idx).unwrap();
+
+                if validity.is_valid(selected_idx) {
+                    let v = input.get(selected_idx).unwrap();
+                    op(output_idx, Some(v));
+                } else {
+                    op(output_idx, None);
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

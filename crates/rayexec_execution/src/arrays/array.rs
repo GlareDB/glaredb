@@ -1,8 +1,10 @@
 use std::ops::Deref;
 
 use iterutil::exact_size::IntoExactSizeIterator;
+use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
+use super::buffer::addressable::MutableAddressableStorage;
 use super::buffer::dictionary::DictionaryBuffer;
 use super::buffer::physical_type::{PhysicalDictionary, PhysicalType};
 use super::buffer::{ArrayBuffer, SecondaryBuffers};
@@ -181,6 +183,42 @@ where
             SecondaryBuffers::Dictionary(buf) => Some(buf),
             _ => None,
         }
+    }
+
+    /// Sets a scalar value at a given index.
+    pub fn set_value(&mut self, val: &ScalarValue, idx: usize) -> Result<()> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        let data = self.data.try_as_mut()?;
+
+        match val {
+            ScalarValue::Null => {
+                self.validity.set_invalid(idx);
+                return Ok(());
+            }
+            ScalarValue::Int8(v) => {
+                data.try_as_slice_mut::<PhysicalI8>()?[idx] = *v;
+            }
+            ScalarValue::Int32(v) => {
+                data.try_as_slice_mut::<PhysicalI32>()?[idx] = *v;
+            }
+            ScalarValue::Utf8(v) => {
+                let mut string_buf = data.try_as_string_view_storage_mut()?;
+                string_buf.put(idx, v.as_ref());
+            }
+
+            other => not_implemented!("set scalar: {other:?}"),
+        }
+
+        if !self.validity.is_valid(idx) {
+            self.validity.set_valid(idx);
+        }
+
+        Ok(())
     }
 }
 
