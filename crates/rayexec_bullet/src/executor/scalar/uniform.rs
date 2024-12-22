@@ -109,7 +109,7 @@ mod tests {
     use selection::SelectionVector;
 
     use super::*;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::executor::builder::GermanVarlenBuffer;
     use crate::executor::physical_type::PhysicalUtf8Old;
     use crate::scalar::ScalarValue;
@@ -121,7 +121,7 @@ mod tests {
         let third = ArrayOld::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
@@ -156,7 +156,7 @@ mod tests {
         let third = ArrayOld::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
@@ -189,7 +189,7 @@ mod tests {
         let third = ArrayOld::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 

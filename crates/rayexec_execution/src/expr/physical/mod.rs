@@ -191,7 +191,7 @@ impl DatabaseProtoConv for PhysicalSortExpression {
 #[cfg(test)]
 mod tests {
     use planner::PhysicalExpressionPlanner;
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::expr;
@@ -209,7 +209,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -236,7 +236,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();

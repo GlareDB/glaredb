@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use futures::{StreamExt, TryStreamExt};
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{DataTypeOld, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, DecimalType};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
@@ -258,22 +258,22 @@ pub fn schema_from_struct_type(typ: StructType) -> Result<Schema> {
 fn struct_field_to_field(field: StructField) -> Result<Field> {
     let datatype = match field.typ {
         SchemaType::Primitive(prim) => match prim {
-            PrimitiveType::String => DataType::Utf8,
-            PrimitiveType::Long => DataType::Int64,
-            PrimitiveType::Integer => DataType::Int32,
-            PrimitiveType::Short => DataType::Int16,
-            PrimitiveType::Byte => DataType::Int8,
-            PrimitiveType::Float => DataType::Float32,
-            PrimitiveType::Double => DataType::Float64,
-            PrimitiveType::Decimal => DataType::Decimal128(DecimalTypeMeta::new(
+            PrimitiveType::String => DataTypeOld::Utf8,
+            PrimitiveType::Long => DataTypeOld::Int64,
+            PrimitiveType::Integer => DataTypeOld::Int32,
+            PrimitiveType::Short => DataTypeOld::Int16,
+            PrimitiveType::Byte => DataTypeOld::Int8,
+            PrimitiveType::Float => DataTypeOld::Float32,
+            PrimitiveType::Double => DataTypeOld::Float64,
+            PrimitiveType::Decimal => DataTypeOld::Decimal128(DecimalTypeMeta::new(
                 Decimal128Type::MAX_PRECISION,
                 Decimal128Type::DEFAULT_SCALE,
             )),
-            PrimitiveType::Boolean => DataType::Boolean,
-            PrimitiveType::Binary => DataType::Binary,
-            PrimitiveType::Date => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Second)), // TODO: This is just year/month/day
+            PrimitiveType::Boolean => DataTypeOld::Boolean,
+            PrimitiveType::Binary => DataTypeOld::Binary,
+            PrimitiveType::Date => DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Second)), // TODO: This is just year/month/day
             PrimitiveType::Timestamp => {
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+                DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             }
         },
         SchemaType::Struct(_) => not_implemented!("delta struct"),

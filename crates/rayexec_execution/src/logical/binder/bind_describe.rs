@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::Result;
 use rayexec_parser::ast;
@@ -34,7 +34,7 @@ impl<'a> DescribeBinder<'a> {
         let table_ref = bind_context.push_table(
             self.current,
             None,
-            vec![DataType::Utf8, DataType::Utf8],
+            vec![DataTypeOld::Utf8, DataTypeOld::Utf8],
             vec!["column_name".to_string(), "datatype".to_string()],
         )?;
 

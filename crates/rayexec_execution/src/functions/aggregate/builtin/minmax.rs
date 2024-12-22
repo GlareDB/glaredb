@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use half::f16;
 use rayexec_bullet::array::ArrayData;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -254,12 +254,12 @@ pub type MaxBinaryImpl = MinMaxBinaryImpl<MaxStateBinary>;
 
 #[derive(Debug)]
 pub struct MinMaxBinaryImpl<M> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _m: PhantomData<M>,
 }
 
 impl<M> MinMaxBinaryImpl<M> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         MinMaxBinaryImpl {
             datatype,
             _m: PhantomData,
@@ -310,7 +310,7 @@ where
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalBoolOld, _, _, _, _>(M::default, move |states| {
-            boolean_finalize(DataType::Boolean, states)
+            boolean_finalize(DataTypeOld::Boolean, states)
         })
     }
 }
@@ -327,14 +327,14 @@ pub type MaxPrimitiveImpl<S, T> = MinMaxPrimitiveImpl<MaxState<T>, S, T>;
 // TODO: Remove T
 #[derive(Debug)]
 pub struct MinMaxPrimitiveImpl<M, S, T> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _m: PhantomData<M>,
     _s: PhantomData<S>,
     _t: PhantomData<T>,
 }
 
 impl<M, S, T> MinMaxPrimitiveImpl<M, S, T> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         MinMaxPrimitiveImpl {
             datatype,
             _m: PhantomData,

@@ -5,7 +5,7 @@ use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
@@ -15,7 +15,7 @@ use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalCastExpr {
-    pub to: DataType,
+    pub to: DataTypeOld,
     pub expr: Box<PhysicalScalarExpression>,
 }
 

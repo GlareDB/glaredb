@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use rayexec_bullet::datatype::{
-    DataType,
+    DataTypeOld,
     DecimalTypeMeta,
     ListTypeMeta,
     TimeUnit,
@@ -39,32 +39,32 @@ pub enum PrimitiveType {
     Binary,
 }
 
-impl TryFrom<PrimitiveType> for DataType {
+impl TryFrom<PrimitiveType> for DataTypeOld {
     type Error = RayexecError;
 
     fn try_from(value: PrimitiveType) -> Result<Self> {
         Ok(match value {
-            PrimitiveType::Boolean => DataType::Boolean,
-            PrimitiveType::Int => DataType::Int32,
-            PrimitiveType::Long => DataType::Int64,
-            PrimitiveType::Float => DataType::Float32,
-            PrimitiveType::Double => DataType::Float64,
-            PrimitiveType::Decimal { p, s } => DataType::Decimal128(DecimalTypeMeta {
+            PrimitiveType::Boolean => DataTypeOld::Boolean,
+            PrimitiveType::Int => DataTypeOld::Int32,
+            PrimitiveType::Long => DataTypeOld::Int64,
+            PrimitiveType::Float => DataTypeOld::Float32,
+            PrimitiveType::Double => DataTypeOld::Float64,
+            PrimitiveType::Decimal { p, s } => DataTypeOld::Decimal128(DecimalTypeMeta {
                 precision: p,
                 scale: s as i8,
             }),
-            PrimitiveType::Date => DataType::Date32,
+            PrimitiveType::Date => DataTypeOld::Date32,
             PrimitiveType::Time => {
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+                DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             } // TODO: Possibly `Time32` instead?
             PrimitiveType::Timestamp => {
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+                DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             }
             PrimitiveType::Timestamptz => not_implemented!("Timestamp with timezone"),
-            PrimitiveType::String => DataType::Utf8,
-            PrimitiveType::Uuid => DataType::Utf8,
+            PrimitiveType::String => DataTypeOld::Utf8,
+            PrimitiveType::Uuid => DataTypeOld::Utf8,
             PrimitiveType::Fixed(_) => not_implemented!("Fixed sized binary"),
-            PrimitiveType::Binary => DataType::Binary,
+            PrimitiveType::Binary => DataTypeOld::Binary,
         })
     }
 }
@@ -157,7 +157,7 @@ pub enum AnyType {
     Map(MapType),
 }
 
-impl TryFrom<&AnyType> for DataType {
+impl TryFrom<&AnyType> for DataTypeOld {
     type Error = RayexecError;
 
     fn try_from(value: &AnyType) -> Result<Self> {
@@ -179,12 +179,12 @@ pub struct ListType {
     pub element: Box<AnyType>,
 }
 
-impl TryFrom<&ListType> for DataType {
+impl TryFrom<&ListType> for DataTypeOld {
     type Error = RayexecError;
 
     fn try_from(value: &ListType) -> Result<Self> {
-        let typ = DataType::try_from(value.element.as_ref())?;
-        Ok(DataType::List(ListTypeMeta::new(typ)))
+        let typ = DataTypeOld::try_from(value.element.as_ref())?;
+        Ok(DataTypeOld::List(ListTypeMeta::new(typ)))
     }
 }
 
@@ -199,7 +199,7 @@ pub struct MapType {
     pub value: Box<AnyType>,
 }
 
-impl TryFrom<&MapType> for DataType {
+impl TryFrom<&MapType> for DataTypeOld {
     type Error = RayexecError;
 
     fn try_from(_value: &MapType) -> Result<Self> {
@@ -225,7 +225,7 @@ pub struct StructType {
     pub fields: Vec<StructField>,
 }
 
-impl TryFrom<&StructType> for DataType {
+impl TryFrom<&StructType> for DataTypeOld {
     type Error = RayexecError;
 
     fn try_from(_value: &StructType) -> Result<Self> {

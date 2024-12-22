@@ -5,7 +5,7 @@ use std::ops::AddAssign;
 use num_traits::AsPrimitive;
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalF64Old, PhysicalI64Old};
@@ -83,21 +83,21 @@ impl AggregateFunction for Avg {
 
         let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
             match inputs[0].datatype(table_list)? {
-                DataType::Int64 => (Box::new(AvgInt64Impl), DataType::Float64),
-                DataType::Float64 => (Box::new(AvgFloat64Impl), DataType::Float64),
-                dt @ DataType::Decimal64(_) => {
+                DataTypeOld::Int64 => (Box::new(AvgInt64Impl), DataTypeOld::Float64),
+                DataTypeOld::Float64 => (Box::new(AvgFloat64Impl), DataTypeOld::Float64),
+                dt @ DataTypeOld::Decimal64(_) => {
                     // Datatype only used in order to convert decimal to float
                     // at the end. This always returns Float64.
                     (
                         Box::new(AvgDecimalImpl::<Decimal64Type>::new(dt)),
-                        DataType::Float64,
+                        DataTypeOld::Float64,
                     )
                 }
-                dt @ DataType::Decimal128(_) => {
+                dt @ DataTypeOld::Decimal128(_) => {
                     // See above
                     (
                         Box::new(AvgDecimalImpl::<Decimal128Type>::new(dt)),
-                        DataType::Float64,
+                        DataTypeOld::Float64,
                     )
                 }
 
@@ -115,12 +115,12 @@ impl AggregateFunction for Avg {
 
 #[derive(Debug, Clone)]
 pub struct AvgDecimalImpl<D> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _d: PhantomData<D>,
 }
 
 impl<D> AvgDecimalImpl<D> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         AvgDecimalImpl {
             datatype,
             _d: PhantomData,
@@ -138,7 +138,7 @@ where
 
         let state_finalize = move |states: &mut [AvgStateDecimal<D::Primitive>]| {
             let mut builder = ArrayBuilder {
-                datatype: DataType::Float64,
+                datatype: DataTypeOld::Float64,
                 buffer: PrimitiveBuffer::with_len(states.len()),
             };
 
@@ -180,7 +180,7 @@ impl AggregateFunctionImpl for AvgFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             AvgStateF64::<f64, f64>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }
@@ -192,7 +192,7 @@ impl AggregateFunctionImpl for AvgInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalI64Old, _, _, _, _>(
             AvgStateF64::<i64, i128>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }

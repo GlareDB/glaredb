@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
@@ -180,7 +180,7 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     mark_table,
                     "__generated_visited_bool",
-                    DataType::Boolean,
+                    DataTypeOld::Boolean,
                 )?;
 
                 *plan = LogicalOperator::MagicJoin(Node {
@@ -223,7 +223,7 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     mark_table,
                     "__generated_visited_bool",
-                    DataType::Boolean,
+                    DataTypeOld::Boolean,
                 )?;
 
                 conditions.push(ComparisonCondition {
@@ -399,14 +399,14 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     agg_table,
                     "__generated_count",
-                    DataType::Int64,
+                    DataTypeOld::Int64,
                 )?;
 
                 let projection_table = bind_context.new_ephemeral_table()?;
                 bind_context.push_column_for_table(
                     projection_table,
                     "__generated_exists",
-                    DataType::Boolean,
+                    DataTypeOld::Boolean,
                 )?;
 
                 let subquery_exists_plan = LogicalOperator::Project(Node {
@@ -487,7 +487,7 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     mark_table,
                     "__generated_visited_bool",
-                    DataType::Boolean,
+                    DataTypeOld::Boolean,
                 )?;
 
                 let subquery_table = subquery_plan.get_output_table_refs(bind_context)[0];

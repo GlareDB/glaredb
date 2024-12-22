@@ -2,7 +2,7 @@ use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::array::ArrayOld;
-use crate::datatype::{DataType, DecimalTypeMeta, TimeUnit};
+use crate::datatype::{DataTypeOld, DecimalTypeMeta, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::executor::physical_type::{PhysicalI32Old, PhysicalI64Old};
 use crate::executor::scalar::UnaryExecutor;
@@ -72,7 +72,7 @@ pub enum DatePart {
 pub fn extract_date_part(part: DatePart, arr: &ArrayOld) -> Result<ArrayOld> {
     let datatype = arr.datatype();
     match datatype {
-        DataType::Date32 => match part {
+        DataTypeOld::Date32 => match part {
             DatePart::Microseconds => date32_extract_with_fn(arr, extract_microseconds),
             DatePart::Milliseconds => date32_extract_with_fn(arr, extract_milliseconds),
             DatePart::Second => date32_extract_with_fn(arr, extract_seconds),
@@ -85,7 +85,7 @@ pub fn extract_date_part(part: DatePart, arr: &ArrayOld) -> Result<ArrayOld> {
             DatePart::Year => date32_extract_with_fn(arr, extract_year),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        DataType::Date64 => match part {
+        DataTypeOld::Date64 => match part {
             DatePart::Microseconds => date64_extract_with_fn(arr, extract_microseconds),
             DatePart::Milliseconds => date64_extract_with_fn(arr, extract_milliseconds),
             DatePart::Second => date64_extract_with_fn(arr, extract_seconds),
@@ -98,7 +98,7 @@ pub fn extract_date_part(part: DatePart, arr: &ArrayOld) -> Result<ArrayOld> {
             DatePart::Year => date64_extract_with_fn(arr, extract_year),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        DataType::Timestamp(m) => match part {
+        DataTypeOld::Timestamp(m) => match part {
             DatePart::Microseconds => timestamp_extract_with_fn(m.unit, arr, extract_microseconds),
             DatePart::Milliseconds => timestamp_extract_with_fn(m.unit, arr, extract_milliseconds),
             DatePart::Second => timestamp_extract_with_fn(m.unit, arr, extract_seconds),
@@ -151,7 +151,7 @@ where
     UnaryExecutor::execute::<PhysicalI64Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
+            datatype: DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: Decimal64Type::MAX_PRECISION,
                 scale: Decimal64Type::DEFAULT_SCALE,
             }),
@@ -171,7 +171,7 @@ where
     UnaryExecutor::execute::<PhysicalI32Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
+            datatype: DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: Decimal64Type::MAX_PRECISION,
                 scale: Decimal64Type::DEFAULT_SCALE,
             }),
@@ -192,7 +192,7 @@ where
     UnaryExecutor::execute::<PhysicalI64Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
+            datatype: DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: Decimal64Type::MAX_PRECISION,
                 scale: Decimal64Type::DEFAULT_SCALE,
             }),

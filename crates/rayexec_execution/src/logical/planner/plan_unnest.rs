@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use crate::expr::column_expr::ColumnExpr;
@@ -78,7 +78,7 @@ impl UnnestPlanner {
             // Need to store the type that's being produced from the unnest, so
             // unwrap the list data type.
             let datatype = match expr.datatype(bind_context.get_table_list())? {
-                DataType::List(list) => list.datatype.as_ref().clone(),
+                DataTypeOld::List(list) => list.datatype.as_ref().clone(),
                 other => other,
             };
 

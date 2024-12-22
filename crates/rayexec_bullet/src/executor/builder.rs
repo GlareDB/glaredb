@@ -4,7 +4,7 @@ use std::sync::Arc;
 use super::physical_type::{AsBytes, VarlenType};
 use crate::array::{ArrayData, BinaryData};
 use crate::bitmap::Bitmap;
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 use crate::storage::{
     BooleanStorage,
     GermanLargeMetadata,
@@ -18,7 +18,7 @@ use crate::storage::{
 
 #[derive(Debug)]
 pub struct ArrayBuilder<B> {
-    pub datatype: DataType,
+    pub datatype: DataTypeOld,
     pub buffer: B,
 }
 

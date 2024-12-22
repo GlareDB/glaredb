@@ -2,18 +2,18 @@ use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 
 /// A named field.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Field {
     pub name: String,
-    pub datatype: DataType,
+    pub datatype: DataTypeOld,
     pub nullable: bool,
 }
 
 impl Field {
-    pub fn new(name: impl Into<String>, datatype: DataType, nullable: bool) -> Self {
+    pub fn new(name: impl Into<String>, datatype: DataTypeOld, nullable: bool) -> Self {
         Field {
             name: name.into(),
             datatype,
@@ -36,7 +36,7 @@ impl ProtoConv for Field {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {
             name: proto.name,
-            datatype: DataType::from_proto(proto.datatype.required("datatype")?)?,
+            datatype: DataTypeOld::from_proto(proto.datatype.required("datatype")?)?,
             nullable: proto.nullable,
         })
     }
@@ -120,7 +120,7 @@ impl ProtoConv for Schema {
 /// Represents the output types of a batch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema {
-    pub types: Vec<DataType>,
+    pub types: Vec<DataTypeOld>,
 }
 
 impl TypeSchema {
@@ -129,7 +129,7 @@ impl TypeSchema {
         TypeSchema { types: Vec::new() }
     }
 
-    pub fn new(types: impl IntoIterator<Item = DataType>) -> Self {
+    pub fn new(types: impl IntoIterator<Item = DataTypeOld>) -> Self {
         TypeSchema {
             types: types.into_iter().collect(),
         }
@@ -158,7 +158,7 @@ impl ProtoConv for TypeSchema {
         let types = proto
             .types
             .into_iter()
-            .map(DataType::from_proto)
+            .map(DataTypeOld::from_proto)
             .collect::<Result<Vec<_>>>()?;
         Ok(Self { types })
     }

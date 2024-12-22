@@ -11,7 +11,7 @@ use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
@@ -128,10 +128,10 @@ pub struct PhysicalHashJoin {
     conditions: Vec<HashJoinCondition>,
     /// Types for the batches we'll be receiving from the left side. Used during
     /// RIGHT joins to produce null columns on the left side.
-    left_types: Vec<DataType>,
+    left_types: Vec<DataTypeOld>,
     /// Types for the batches we'll be receiving from the right side. Used
     /// during LEFT joins to produce null columns on the right side.
-    right_types: Vec<DataType>,
+    right_types: Vec<DataTypeOld>,
 }
 
 impl PhysicalHashJoin {
@@ -145,8 +145,8 @@ impl PhysicalHashJoin {
         join_type: JoinType,
         equality_inidices: &[usize],
         conditions: Vec<HashJoinCondition>,
-        left_types: Vec<DataType>,
-        right_types: Vec<DataType>,
+        left_types: Vec<DataTypeOld>,
+        right_types: Vec<DataTypeOld>,
     ) -> Self {
         assert!(!equality_inidices.is_empty());
 

@@ -50,7 +50,7 @@ use super::parse::{
 };
 use crate::array::{ArrayData, ArrayOld};
 use crate::bitmap::Bitmap;
-use crate::datatype::{DataType, TimeUnit};
+use crate::datatype::{DataTypeOld, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::executor::physical_type::{
     PhysicalBoolOld,
@@ -74,14 +74,14 @@ use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::storage::{AddressableStorage, PrimitiveStorage};
 
-pub fn cast_array(arr: &ArrayOld, to: DataType, behavior: CastFailBehavior) -> Result<ArrayOld> {
+pub fn cast_array(arr: &ArrayOld, to: DataTypeOld, behavior: CastFailBehavior) -> Result<ArrayOld> {
     if arr.datatype() == &to {
         // TODO: Cow?
         return Ok(arr.clone());
     }
 
     let arr = match arr.datatype() {
-        DataType::Null => {
+        DataTypeOld::Null => {
             // Can cast NULL to anything else.
             let data = to.physical_type()?.zeroed_array_data(arr.logical_len());
             let validity = Bitmap::new_with_all_false(arr.logical_len());
@@ -89,123 +89,131 @@ pub fn cast_array(arr: &ArrayOld, to: DataType, behavior: CastFailBehavior) -> R
         }
 
         // String to anything else.
-        DataType::Utf8 => cast_from_utf8(arr, to, behavior)?,
+        DataTypeOld::Utf8 => cast_from_utf8(arr, to, behavior)?,
 
         // Primitive numerics to other primitive numerics.
-        DataType::Int8 if to.is_primitive_numeric() => {
+        DataTypeOld::Int8 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalI8Old>(arr, to, behavior)?
         }
-        DataType::Int16 if to.is_primitive_numeric() => {
+        DataTypeOld::Int16 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalI16Old>(arr, to, behavior)?
         }
-        DataType::Int32 if to.is_primitive_numeric() => {
+        DataTypeOld::Int32 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalI32Old>(arr, to, behavior)?
         }
-        DataType::Int64 if to.is_primitive_numeric() => {
+        DataTypeOld::Int64 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalI64Old>(arr, to, behavior)?
         }
-        DataType::Int128 if to.is_primitive_numeric() => {
+        DataTypeOld::Int128 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalI128Old>(arr, to, behavior)?
         }
-        DataType::UInt8 if to.is_primitive_numeric() => {
+        DataTypeOld::UInt8 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalU8Old>(arr, to, behavior)?
         }
-        DataType::UInt16 if to.is_primitive_numeric() => {
+        DataTypeOld::UInt16 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalU16Old>(arr, to, behavior)?
         }
-        DataType::UInt32 if to.is_primitive_numeric() => {
+        DataTypeOld::UInt32 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalU32Old>(arr, to, behavior)?
         }
-        DataType::UInt64 if to.is_primitive_numeric() => {
+        DataTypeOld::UInt64 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalU64Old>(arr, to, behavior)?
         }
-        DataType::UInt128 if to.is_primitive_numeric() => {
+        DataTypeOld::UInt128 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalU128Old>(arr, to, behavior)?
         }
-        DataType::Float16 if to.is_primitive_numeric() => {
+        DataTypeOld::Float16 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalF16Old>(arr, to, behavior)?
         }
-        DataType::Float32 if to.is_primitive_numeric() => {
+        DataTypeOld::Float32 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalF32Old>(arr, to, behavior)?
         }
-        DataType::Float64 if to.is_primitive_numeric() => {
+        DataTypeOld::Float64 if to.is_primitive_numeric() => {
             cast_primitive_numeric_helper::<PhysicalF64Old>(arr, to, behavior)?
         }
 
         // Int to date32
-        DataType::Int8 if to == DataType::Date32 => {
+        DataTypeOld::Int8 if to == DataTypeOld::Date32 => {
             cast_primitive_numeric::<PhysicalI8Old, i32>(arr, to, behavior)?
         }
-        DataType::Int16 if to == DataType::Date32 => {
+        DataTypeOld::Int16 if to == DataTypeOld::Date32 => {
             cast_primitive_numeric::<PhysicalI16Old, i32>(arr, to, behavior)?
         }
-        DataType::Int32 if to == DataType::Date32 => {
+        DataTypeOld::Int32 if to == DataTypeOld::Date32 => {
             cast_primitive_numeric::<PhysicalI32Old, i32>(arr, to, behavior)?
         }
-        DataType::UInt8 if to == DataType::Date32 => {
+        DataTypeOld::UInt8 if to == DataTypeOld::Date32 => {
             cast_primitive_numeric::<PhysicalU8Old, i32>(arr, to, behavior)?
         }
-        DataType::UInt16 if to == DataType::Date32 => {
+        DataTypeOld::UInt16 if to == DataTypeOld::Date32 => {
             cast_primitive_numeric::<PhysicalU16Old, i32>(arr, to, behavior)?
         }
 
         // Int to decimal.
-        DataType::Int8 if to.is_decimal() => {
+        DataTypeOld::Int8 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalI8Old>(arr, to, behavior)?
         }
-        DataType::Int16 if to.is_decimal() => {
+        DataTypeOld::Int16 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalI16Old>(arr, to, behavior)?
         }
-        DataType::Int32 if to.is_decimal() => {
+        DataTypeOld::Int32 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalI32Old>(arr, to, behavior)?
         }
-        DataType::Int64 if to.is_decimal() => {
+        DataTypeOld::Int64 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalI64Old>(arr, to, behavior)?
         }
-        DataType::Int128 if to.is_decimal() => {
+        DataTypeOld::Int128 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalI128Old>(arr, to, behavior)?
         }
-        DataType::UInt8 if to.is_decimal() => {
+        DataTypeOld::UInt8 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalU8Old>(arr, to, behavior)?
         }
-        DataType::UInt16 if to.is_decimal() => {
+        DataTypeOld::UInt16 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalU16Old>(arr, to, behavior)?
         }
-        DataType::UInt32 if to.is_decimal() => {
+        DataTypeOld::UInt32 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalU32Old>(arr, to, behavior)?
         }
-        DataType::UInt64 if to.is_decimal() => {
+        DataTypeOld::UInt64 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalU64Old>(arr, to, behavior)?
         }
-        DataType::UInt128 if to.is_decimal() => {
+        DataTypeOld::UInt128 if to.is_decimal() => {
             cast_int_to_decimal_helper::<PhysicalU128Old>(arr, to, behavior)?
         }
 
         // Float to decimal.
-        DataType::Float32 if to.is_decimal() => {
+        DataTypeOld::Float32 if to.is_decimal() => {
             cast_float_to_decimal_helper::<PhysicalF32Old>(arr, to, behavior)?
         }
-        DataType::Float64 if to.is_decimal() => {
+        DataTypeOld::Float64 if to.is_decimal() => {
             cast_float_to_decimal_helper::<PhysicalF64Old>(arr, to, behavior)?
         }
 
         // Decimal to decimal
-        DataType::Decimal64(_) if to.is_decimal() => {
+        DataTypeOld::Decimal64(_) if to.is_decimal() => {
             decimal_rescale_helper::<PhysicalI64Old>(arr, to, behavior)?
         }
-        DataType::Decimal128(_) if to.is_decimal() => {
+        DataTypeOld::Decimal128(_) if to.is_decimal() => {
             decimal_rescale_helper::<PhysicalI128Old>(arr, to, behavior)?
         }
 
         // Decimal to float.
-        DataType::Decimal64(_) => match to {
-            DataType::Float32 => cast_decimal_to_float::<PhysicalI64Old, f32>(arr, to, behavior)?,
-            DataType::Float64 => cast_decimal_to_float::<PhysicalI64Old, f64>(arr, to, behavior)?,
+        DataTypeOld::Decimal64(_) => match to {
+            DataTypeOld::Float32 => {
+                cast_decimal_to_float::<PhysicalI64Old, f32>(arr, to, behavior)?
+            }
+            DataTypeOld::Float64 => {
+                cast_decimal_to_float::<PhysicalI64Old, f64>(arr, to, behavior)?
+            }
             other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
         },
-        DataType::Decimal128(_) => match to {
-            DataType::Float32 => cast_decimal_to_float::<PhysicalI128Old, f32>(arr, to, behavior)?,
-            DataType::Float64 => cast_decimal_to_float::<PhysicalI128Old, f64>(arr, to, behavior)?,
+        DataTypeOld::Decimal128(_) => match to {
+            DataTypeOld::Float32 => {
+                cast_decimal_to_float::<PhysicalI128Old, f32>(arr, to, behavior)?
+            }
+            DataTypeOld::Float64 => {
+                cast_decimal_to_float::<PhysicalI128Old, f64>(arr, to, behavior)?
+            }
             other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
         },
 
@@ -224,7 +232,7 @@ pub fn cast_array(arr: &ArrayOld, to: DataType, behavior: CastFailBehavior) -> R
 
 fn decimal_rescale_helper<'a, S>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -232,15 +240,15 @@ where
     S::Type<'a>: PrimInt,
 {
     match to {
-        DataType::Decimal64(_) => decimal_rescale::<S, Decimal64Type>(arr, to, behavior),
-        DataType::Decimal128(_) => decimal_rescale::<S, Decimal128Type>(arr, to, behavior),
+        DataTypeOld::Decimal64(_) => decimal_rescale::<S, Decimal64Type>(arr, to, behavior),
+        DataTypeOld::Decimal128(_) => decimal_rescale::<S, Decimal128Type>(arr, to, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
 pub fn decimal_rescale<'a, S, D>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -293,7 +301,7 @@ where
 
 fn cast_float_to_decimal_helper<'a, S>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -301,15 +309,15 @@ where
     S::Type<'a>: Float,
 {
     match to {
-        DataType::Decimal64(_) => cast_float_to_decimal::<S, Decimal64Type>(arr, to, behavior),
-        DataType::Decimal128(_) => cast_float_to_decimal::<S, Decimal128Type>(arr, to, behavior),
+        DataTypeOld::Decimal64(_) => cast_float_to_decimal::<S, Decimal64Type>(arr, to, behavior),
+        DataTypeOld::Decimal128(_) => cast_float_to_decimal::<S, Decimal128Type>(arr, to, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
 fn cast_float_to_decimal<'a, S, D>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -357,7 +365,7 @@ where
 // TODO: Weird to specify both the float generic and datatype.
 pub fn cast_decimal_to_float<'a, S, F>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -395,7 +403,7 @@ where
 
 fn cast_int_to_decimal_helper<'a, S>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -403,15 +411,15 @@ where
     S::Type<'a>: PrimInt,
 {
     match to {
-        DataType::Decimal64(_) => cast_int_to_decimal::<S, Decimal64Type>(arr, to, behavior),
-        DataType::Decimal128(_) => cast_int_to_decimal::<S, Decimal128Type>(arr, to, behavior),
+        DataTypeOld::Decimal64(_) => cast_int_to_decimal::<S, Decimal64Type>(arr, to, behavior),
+        DataTypeOld::Decimal128(_) => cast_int_to_decimal::<S, Decimal128Type>(arr, to, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
 fn cast_int_to_decimal<'a, S, D>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -477,7 +485,7 @@ where
 
 fn cast_primitive_numeric_helper<'a, S>(
     arr: &'a ArrayOld,
-    to: DataType,
+    to: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -485,26 +493,26 @@ where
     S::Type<'a>: ToPrimitive,
 {
     match to {
-        DataType::Int8 => cast_primitive_numeric::<S, i8>(arr, to, behavior),
-        DataType::Int16 => cast_primitive_numeric::<S, i16>(arr, to, behavior),
-        DataType::Int32 => cast_primitive_numeric::<S, i32>(arr, to, behavior),
-        DataType::Int64 => cast_primitive_numeric::<S, i64>(arr, to, behavior),
-        DataType::Int128 => cast_primitive_numeric::<S, i128>(arr, to, behavior),
-        DataType::UInt8 => cast_primitive_numeric::<S, u8>(arr, to, behavior),
-        DataType::UInt16 => cast_primitive_numeric::<S, u16>(arr, to, behavior),
-        DataType::UInt32 => cast_primitive_numeric::<S, u32>(arr, to, behavior),
-        DataType::UInt64 => cast_primitive_numeric::<S, u64>(arr, to, behavior),
-        DataType::UInt128 => cast_primitive_numeric::<S, u128>(arr, to, behavior),
-        DataType::Float16 => cast_primitive_numeric::<S, f16>(arr, to, behavior),
-        DataType::Float32 => cast_primitive_numeric::<S, f32>(arr, to, behavior),
-        DataType::Float64 => cast_primitive_numeric::<S, f64>(arr, to, behavior),
+        DataTypeOld::Int8 => cast_primitive_numeric::<S, i8>(arr, to, behavior),
+        DataTypeOld::Int16 => cast_primitive_numeric::<S, i16>(arr, to, behavior),
+        DataTypeOld::Int32 => cast_primitive_numeric::<S, i32>(arr, to, behavior),
+        DataTypeOld::Int64 => cast_primitive_numeric::<S, i64>(arr, to, behavior),
+        DataTypeOld::Int128 => cast_primitive_numeric::<S, i128>(arr, to, behavior),
+        DataTypeOld::UInt8 => cast_primitive_numeric::<S, u8>(arr, to, behavior),
+        DataTypeOld::UInt16 => cast_primitive_numeric::<S, u16>(arr, to, behavior),
+        DataTypeOld::UInt32 => cast_primitive_numeric::<S, u32>(arr, to, behavior),
+        DataTypeOld::UInt64 => cast_primitive_numeric::<S, u64>(arr, to, behavior),
+        DataTypeOld::UInt128 => cast_primitive_numeric::<S, u128>(arr, to, behavior),
+        DataTypeOld::Float16 => cast_primitive_numeric::<S, f16>(arr, to, behavior),
+        DataTypeOld::Float32 => cast_primitive_numeric::<S, f32>(arr, to, behavior),
+        DataTypeOld::Float64 => cast_primitive_numeric::<S, f64>(arr, to, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
 pub fn cast_primitive_numeric<'a, S, T>(
     arr: &'a ArrayOld,
-    datatype: DataType,
+    datatype: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld>
 where
@@ -531,46 +539,54 @@ where
 
 pub fn cast_from_utf8(
     arr: &ArrayOld,
-    datatype: DataType,
+    datatype: DataTypeOld,
     behavior: CastFailBehavior,
 ) -> Result<ArrayOld> {
     match datatype {
-        DataType::Boolean => cast_parse_bool(arr, behavior),
-        DataType::Int8 => cast_parse_primitive(arr, datatype, behavior, Int8Parser::default()),
-        DataType::Int16 => cast_parse_primitive(arr, datatype, behavior, Int16Parser::default()),
-        DataType::Int32 => cast_parse_primitive(arr, datatype, behavior, Int32Parser::default()),
-        DataType::Int64 => cast_parse_primitive(arr, datatype, behavior, Int64Parser::default()),
-        DataType::Int128 => cast_parse_primitive(arr, datatype, behavior, Int128Parser::default()),
-        DataType::UInt8 => cast_parse_primitive(arr, datatype, behavior, UInt8Parser::default()),
-        DataType::UInt16 => cast_parse_primitive(arr, datatype, behavior, UInt16Parser::default()),
-        DataType::UInt32 => cast_parse_primitive(arr, datatype, behavior, UInt32Parser::default()),
-        DataType::UInt64 => cast_parse_primitive(arr, datatype, behavior, UInt64Parser::default()),
-        DataType::UInt128 => {
+        DataTypeOld::Boolean => cast_parse_bool(arr, behavior),
+        DataTypeOld::Int8 => cast_parse_primitive(arr, datatype, behavior, Int8Parser::default()),
+        DataTypeOld::Int16 => cast_parse_primitive(arr, datatype, behavior, Int16Parser::default()),
+        DataTypeOld::Int32 => cast_parse_primitive(arr, datatype, behavior, Int32Parser::default()),
+        DataTypeOld::Int64 => cast_parse_primitive(arr, datatype, behavior, Int64Parser::default()),
+        DataTypeOld::Int128 => {
+            cast_parse_primitive(arr, datatype, behavior, Int128Parser::default())
+        }
+        DataTypeOld::UInt8 => cast_parse_primitive(arr, datatype, behavior, UInt8Parser::default()),
+        DataTypeOld::UInt16 => {
+            cast_parse_primitive(arr, datatype, behavior, UInt16Parser::default())
+        }
+        DataTypeOld::UInt32 => {
+            cast_parse_primitive(arr, datatype, behavior, UInt32Parser::default())
+        }
+        DataTypeOld::UInt64 => {
+            cast_parse_primitive(arr, datatype, behavior, UInt64Parser::default())
+        }
+        DataTypeOld::UInt128 => {
             cast_parse_primitive(arr, datatype, behavior, UInt128Parser::default())
         }
-        DataType::Float16 => {
+        DataTypeOld::Float16 => {
             cast_parse_primitive(arr, datatype, behavior, Float16Parser::default())
         }
-        DataType::Float32 => {
+        DataTypeOld::Float32 => {
             cast_parse_primitive(arr, datatype, behavior, Float32Parser::default())
         }
-        DataType::Float64 => {
+        DataTypeOld::Float64 => {
             cast_parse_primitive(arr, datatype, behavior, Float64Parser::default())
         }
-        DataType::Decimal64(m) => cast_parse_primitive(
+        DataTypeOld::Decimal64(m) => cast_parse_primitive(
             arr,
             datatype,
             behavior,
             Decimal64Parser::new(m.precision, m.scale),
         ),
-        DataType::Decimal128(m) => cast_parse_primitive(
+        DataTypeOld::Decimal128(m) => cast_parse_primitive(
             arr,
             datatype,
             behavior,
             Decimal128Parser::new(m.precision, m.scale),
         ),
-        DataType::Date32 => cast_parse_primitive(arr, datatype, behavior, Date32Parser),
-        DataType::Interval => {
+        DataTypeOld::Date32 => cast_parse_primitive(arr, datatype, behavior, Date32Parser),
+        DataTypeOld::Interval => {
             cast_parse_primitive(arr, datatype, behavior, IntervalParser::default())
         }
         other => Err(RayexecError::new(format!(
@@ -581,54 +597,56 @@ pub fn cast_from_utf8(
 
 pub fn cast_to_utf8(arr: &ArrayOld, behavior: CastFailBehavior) -> Result<ArrayOld> {
     match arr.datatype() {
-        DataType::Boolean => {
+        DataTypeOld::Boolean => {
             cast_format::<PhysicalBoolOld, _>(arr, BoolFormatter::default(), behavior)
         }
-        DataType::Int8 => cast_format::<PhysicalI8Old, _>(arr, Int8Formatter::default(), behavior),
-        DataType::Int16 => {
+        DataTypeOld::Int8 => {
+            cast_format::<PhysicalI8Old, _>(arr, Int8Formatter::default(), behavior)
+        }
+        DataTypeOld::Int16 => {
             cast_format::<PhysicalI16Old, _>(arr, Int16Formatter::default(), behavior)
         }
-        DataType::Int32 => {
+        DataTypeOld::Int32 => {
             cast_format::<PhysicalI32Old, _>(arr, Int32Formatter::default(), behavior)
         }
-        DataType::Int64 => {
+        DataTypeOld::Int64 => {
             cast_format::<PhysicalI64Old, _>(arr, Int64Formatter::default(), behavior)
         }
-        DataType::Int128 => {
+        DataTypeOld::Int128 => {
             cast_format::<PhysicalI128Old, _>(arr, Int128Formatter::default(), behavior)
         }
-        DataType::UInt8 => {
+        DataTypeOld::UInt8 => {
             cast_format::<PhysicalU8Old, _>(arr, UInt8Formatter::default(), behavior)
         }
-        DataType::UInt16 => {
+        DataTypeOld::UInt16 => {
             cast_format::<PhysicalU16Old, _>(arr, UInt16Formatter::default(), behavior)
         }
-        DataType::UInt32 => {
+        DataTypeOld::UInt32 => {
             cast_format::<PhysicalU32Old, _>(arr, UInt32Formatter::default(), behavior)
         }
-        DataType::UInt64 => {
+        DataTypeOld::UInt64 => {
             cast_format::<PhysicalU64Old, _>(arr, UInt64Formatter::default(), behavior)
         }
-        DataType::UInt128 => {
+        DataTypeOld::UInt128 => {
             cast_format::<PhysicalU128Old, _>(arr, UInt128Formatter::default(), behavior)
         }
-        DataType::Float32 => {
+        DataTypeOld::Float32 => {
             cast_format::<PhysicalF32Old, _>(arr, Float32Formatter::default(), behavior)
         }
-        DataType::Float64 => {
+        DataTypeOld::Float64 => {
             cast_format::<PhysicalF64Old, _>(arr, Float64Formatter::default(), behavior)
         }
-        DataType::Decimal64(m) => cast_format::<PhysicalI64Old, _>(
+        DataTypeOld::Decimal64(m) => cast_format::<PhysicalI64Old, _>(
             arr,
             Decimal64Formatter::new(m.precision, m.scale),
             behavior,
         ),
-        DataType::Decimal128(m) => cast_format::<PhysicalI128Old, _>(
+        DataTypeOld::Decimal128(m) => cast_format::<PhysicalI128Old, _>(
             arr,
             Decimal128Formatter::new(m.precision, m.scale),
             behavior,
         ),
-        DataType::Timestamp(m) => match m.unit {
+        DataTypeOld::Timestamp(m) => match m.unit {
             TimeUnit::Second => cast_format::<PhysicalI64Old, _>(
                 arr,
                 TimestampSecondsFormatter::default(),
@@ -671,7 +689,7 @@ where
     let output = UnaryExecutor::execute::<S, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::with_len(arr.logical_len()),
         },
         |v, buf| {
@@ -691,7 +709,7 @@ fn cast_parse_bool(arr: &ArrayOld, behavior: CastFailBehavior) -> Result<ArrayOl
     let output = UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len(arr.logical_len()),
         },
         |v, buf| match BoolParser.parse(v) {
@@ -705,7 +723,7 @@ fn cast_parse_bool(arr: &ArrayOld, behavior: CastFailBehavior) -> Result<ArrayOl
 
 fn cast_parse_primitive<P, T>(
     arr: &ArrayOld,
-    datatype: DataType,
+    datatype: DataTypeOld,
     behavior: CastFailBehavior,
     mut parser: P,
 ) -> Result<ArrayOld>
@@ -740,7 +758,7 @@ mod tests {
     fn array_cast_utf8_to_i32() {
         let arr = ArrayOld::from_iter(["13", "18", "123456789"]);
 
-        let got = cast_array(&arr, DataType::Int32, CastFailBehavior::Error).unwrap();
+        let got = cast_array(&arr, DataTypeOld::Int32, CastFailBehavior::Error).unwrap();
 
         assert_eq!(ScalarValue::from(13), got.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(18), got.logical_value(1).unwrap());
@@ -750,14 +768,14 @@ mod tests {
     #[test]
     fn array_cast_utf8_to_i32_overflow_error() {
         let arr = ArrayOld::from_iter(["13", "18", "123456789000000"]);
-        cast_array(&arr, DataType::Int32, CastFailBehavior::Error).unwrap_err();
+        cast_array(&arr, DataTypeOld::Int32, CastFailBehavior::Error).unwrap_err();
     }
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_null() {
         let arr = ArrayOld::from_iter(["13", "18", "123456789000000"]);
 
-        let got = cast_array(&arr, DataType::Int32, CastFailBehavior::Null).unwrap();
+        let got = cast_array(&arr, DataTypeOld::Int32, CastFailBehavior::Null).unwrap();
 
         assert_eq!(ScalarValue::from(13), got.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(18), got.logical_value(1).unwrap());
@@ -768,9 +786,9 @@ mod tests {
     fn array_cast_null_to_f32() {
         let arr = ArrayOld::new_untyped_null_array(3);
 
-        let got = cast_array(&arr, DataType::Float32, CastFailBehavior::Error).unwrap();
+        let got = cast_array(&arr, DataTypeOld::Float32, CastFailBehavior::Error).unwrap();
 
-        assert_eq!(&DataType::Float32, got.datatype());
+        assert_eq!(&DataTypeOld::Float32, got.datatype());
 
         assert_eq!(ScalarValue::Null, got.logical_value(0).unwrap());
         assert_eq!(ScalarValue::Null, got.logical_value(1).unwrap());
@@ -780,14 +798,14 @@ mod tests {
     #[test]
     fn array_cast_decimal64_to_f64() {
         let arr = ArrayOld::new_with_array_data(
-            DataType::Decimal64(DecimalTypeMeta {
+            DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: 10,
                 scale: 3,
             }),
             PrimitiveStorage::from(vec![1500_i64, 2000_i64, 2500_i64]),
         );
 
-        let got = cast_array(&arr, DataType::Float64, CastFailBehavior::Error).unwrap();
+        let got = cast_array(&arr, DataTypeOld::Float64, CastFailBehavior::Error).unwrap();
 
         assert_eq!(ScalarValue::Float64(1.5), got.logical_value(0).unwrap());
         assert_eq!(ScalarValue::Float64(2.0), got.logical_value(1).unwrap());

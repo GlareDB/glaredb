@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::array::{ArrayData, ArrayOld};
 use crate::bitmap::Bitmap;
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 use crate::executor::builder::{
     ArrayBuilder,
     ArrayDataBuffer,
@@ -285,7 +285,7 @@ pub(crate) fn concat_with_exact_total_len(
     }
 }
 
-fn concat_lists(datatype: DataType, arrays: &[&ArrayOld], total_len: usize) -> Result<ArrayOld> {
+fn concat_lists(datatype: DataTypeOld, arrays: &[&ArrayOld], total_len: usize) -> Result<ArrayOld> {
     let inner_arrays = arrays
         .iter()
         .map(|arr| match arr.array_data() {
@@ -551,7 +551,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::executor::builder::PrimitiveBuffer;
     use crate::executor::physical_type::PhysicalI32Old;
     use crate::scalar::ScalarValue;
@@ -559,7 +559,7 @@ mod tests {
     #[test]
     fn fill_simple_linear() {
         let mut state = FillState::new(ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         });
 
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn fill_repeated() {
         let mut state = FillState::new(ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         });
 
@@ -605,7 +605,7 @@ mod tests {
     #[test]
     fn fill_out_of_order() {
         let mut state = FillState::new(ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         });
 
@@ -628,7 +628,7 @@ mod tests {
     #[test]
     fn fill_from_different_arrays() {
         let mut state = FillState::new(ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(6),
         });
 

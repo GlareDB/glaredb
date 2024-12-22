@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
@@ -58,7 +58,7 @@ impl<'a> ExplainBinder<'a> {
         bind_context.push_table(
             self.current,
             None,
-            vec![DataType::Utf8, DataType::Utf8],
+            vec![DataTypeOld::Utf8, DataTypeOld::Utf8],
             vec!["plan_type".to_string(), "plan".to_string()],
         )?;
 

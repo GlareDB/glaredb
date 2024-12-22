@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::bind_query::BoundQuery;
@@ -88,7 +88,7 @@ pub struct BoundCte {
     /// Column names, possibly aliased.
     pub column_names: Vec<String>,
     /// Column types.
-    pub column_types: Vec<DataType>,
+    pub column_types: Vec<DataTypeOld>,
     /// The bound plan representing the CTE.
     pub bound: Box<BoundQuery>,
     /// Materialization reference for the CTE.
@@ -429,7 +429,7 @@ impl BindContext {
 
     pub fn new_ephemeral_table_with_columns(
         &mut self,
-        column_types: Vec<DataType>,
+        column_types: Vec<DataTypeOld>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
         let table_idx = self.tables.tables.len();
@@ -481,7 +481,7 @@ impl BindContext {
     pub fn new_ephemeral_table_from_types(
         &mut self,
         generated_prefix: &str,
-        types: Vec<DataType>,
+        types: Vec<DataTypeOld>,
     ) -> Result<TableRef> {
         let names = (0..types.len())
             .map(|idx| format!("{generated_prefix}_{idx}"))
@@ -494,7 +494,7 @@ impl BindContext {
         &mut self,
         table: TableRef,
         name: impl Into<String>,
-        datatype: DataType,
+        datatype: DataTypeOld,
     ) -> Result<usize> {
         let table = self.get_table_mut(table)?;
         let idx = table.column_types.len();
@@ -503,7 +503,7 @@ impl BindContext {
         Ok(idx)
     }
 
-    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
+    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataTypeOld)> {
         self.tables.get_column(table_ref, col_idx)
     }
 
@@ -519,7 +519,7 @@ impl BindContext {
         &mut self,
         bind_ref: BindScopeRef,
         alias: Option<TableAlias>,
-        column_types: Vec<DataType>,
+        column_types: Vec<DataTypeOld>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
         if let Some(alias) = &alias {
@@ -669,7 +669,7 @@ pub(crate) mod testutil {
     pub fn columns_in_scope(
         bind_context: &BindContext,
         scope: BindScopeRef,
-    ) -> Vec<(String, DataType)> {
+    ) -> Vec<(String, DataTypeOld)> {
         bind_context
             .iter_tables_in_scope(scope)
             .unwrap()

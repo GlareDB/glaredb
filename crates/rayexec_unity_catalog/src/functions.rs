@@ -8,7 +8,7 @@ use futures::stream::BoxStream;
 use futures::{FutureExt, TryStreamExt};
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
@@ -101,9 +101,9 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("name", DataType::Utf8, false),
-            Field::new("catalog_name", DataType::Utf8, false),
-            Field::new("comment", DataType::Utf8, true),
+            Field::new("name", DataTypeOld::Utf8, false),
+            Field::new("catalog_name", DataTypeOld::Utf8, false),
+            Field::new("comment", DataTypeOld::Utf8, true),
         ])
     }
 
@@ -181,13 +181,13 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("name", DataType::Utf8, false),
-            Field::new("catalog_name", DataType::Utf8, false),
-            Field::new("schema_name", DataType::Utf8, false),
-            Field::new("table_type", DataType::Utf8, false),
-            Field::new("data_source_format", DataType::Utf8, false),
-            Field::new("storage_location", DataType::Utf8, false),
-            Field::new("comment", DataType::Utf8, true),
+            Field::new("name", DataTypeOld::Utf8, false),
+            Field::new("catalog_name", DataTypeOld::Utf8, false),
+            Field::new("schema_name", DataTypeOld::Utf8, false),
+            Field::new("table_type", DataTypeOld::Utf8, false),
+            Field::new("data_source_format", DataTypeOld::Utf8, false),
+            Field::new("storage_location", DataTypeOld::Utf8, false),
+            Field::new("comment", DataTypeOld::Utf8, true),
         ])
     }
 

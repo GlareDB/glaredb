@@ -26,7 +26,7 @@ use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
-use rayexec_bullet::datatype::{DataType, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{DataTypeOld, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
@@ -170,13 +170,15 @@ enum CandidateType {
 }
 
 impl CandidateType {
-    const fn as_datatype(&self) -> DataType {
+    const fn as_datatype(&self) -> DataTypeOld {
         match self {
-            Self::Boolean => DataType::Boolean,
-            Self::Int64 => DataType::Int64,
-            Self::Float64 => DataType::Float64,
-            Self::Timestamp => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
-            Self::Utf8 => DataType::Utf8,
+            Self::Boolean => DataTypeOld::Boolean,
+            Self::Int64 => DataTypeOld::Int64,
+            Self::Float64 => DataTypeOld::Float64,
+            Self::Timestamp => {
+                DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            }
+            Self::Utf8 => DataTypeOld::Utf8,
         }
     }
 
@@ -232,7 +234,7 @@ pub struct CsvSchema {
 
 impl CsvSchema {
     /// Create a new schema using gnerated names.
-    pub fn new_with_generated_names(types: Vec<DataType>) -> Self {
+    pub fn new_with_generated_names(types: Vec<DataTypeOld>) -> Self {
         let schema = Schema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
             name: format!("column{idx}"),
             datatype: typ,
@@ -456,22 +458,22 @@ impl AsyncCsvStream {
         let mut arrs = Vec::with_capacity(schema.fields.len());
         for (idx, field) in schema.fields.iter().enumerate() {
             let arr = match &field.datatype {
-                DataType::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
-                DataType::Int64 => Self::build_primitive(
+                DataTypeOld::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
+                DataTypeOld::Int64 => Self::build_primitive(
                     &field.datatype,
                     &completed,
                     idx,
                     skip_records,
                     Int64Parser::new(),
                 )?,
-                DataType::Float64 => Self::build_primitive(
+                DataTypeOld::Float64 => Self::build_primitive(
                     &field.datatype,
                     &completed,
                     idx,
                     skip_records,
                     Float64Parser::new(),
                 )?,
-                DataType::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
+                DataTypeOld::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
                 other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
             };
 
@@ -503,14 +505,14 @@ impl AsyncCsvStream {
         }
 
         Ok(ArrayOld::new_with_validity_and_array_data(
-            DataType::Boolean,
+            DataTypeOld::Boolean,
             validity,
             BooleanStorage::from(values),
         ))
     }
 
     fn build_primitive<T, P>(
-        datatype: &DataType,
+        datatype: &DataTypeOld,
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
@@ -565,7 +567,7 @@ impl AsyncCsvStream {
         }
 
         Ok(ArrayOld::new_with_validity_and_array_data(
-            DataType::Utf8,
+            DataTypeOld::Utf8,
             validity,
             values.into_data(),
         ))

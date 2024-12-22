@@ -9,7 +9,7 @@ use textwrap::{fill_inplace, wrap};
 use super::display::{table_width, Alignment, PrettyFooter, PrettyHeader, PrettyValues};
 use crate::array::ArrayOld;
 use crate::batch::BatchOld;
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 use crate::field::Schema;
 use crate::format::{FormatOptions, Formatter};
 
@@ -520,7 +520,7 @@ impl ColumnValues {
     /// Turn a column name and type into column values.
     pub fn try_from_column_name_and_type(
         name: &str,
-        typ: &DataType,
+        typ: &DataTypeOld,
         max_width: Option<usize>,
     ) -> Result<Self> {
         let mut buf = name.to_string();
@@ -816,8 +816,8 @@ mod tests {
     #[test]
     fn no_batches_with_columns() {
         let schema = Schema::new([
-            Field::new("a", DataType::Int64, false),
-            Field::new("b", DataType::Utf8, false),
+            Field::new("a", DataTypeOld::Int64, false),
+            Field::new("b", DataTypeOld::Utf8, false),
         ]);
 
         let table = pretty_format_batches(&schema, &[], 80, None).unwrap();
@@ -837,8 +837,8 @@ mod tests {
     #[test]
     fn simple_single_batch() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
         ]);
 
         let batch = BatchOld::try_new(vec![
@@ -868,9 +868,9 @@ mod tests {
     #[test]
     fn multiline_values() {
         let schema = Schema::new(vec![
-            Field::new("c1", DataType::Utf8, true),
-            Field::new("c2", DataType::Int32, true),
-            Field::new("c3", DataType::Utf8, true),
+            Field::new("c1", DataTypeOld::Utf8, true),
+            Field::new("c2", DataTypeOld::Int32, true),
+            Field::new("c3", DataTypeOld::Utf8, true),
         ]);
 
         let batch = BatchOld::try_new(vec![
@@ -902,8 +902,8 @@ mod tests {
     #[test]
     fn multiple_small_batches() {
         let schema = Schema::new([
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
         ]);
 
         let batch = BatchOld::try_new(vec![
@@ -935,12 +935,16 @@ mod tests {
     #[test]
     fn multiple_small_batches_with_max_rows() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
         ]);
 
         let create_batch = |s, n| {
-            BatchOld::try_new([ArrayOld::from_iter([Some(s)]), ArrayOld::from_iter([Some(n)])]).unwrap()
+            BatchOld::try_new([
+                ArrayOld::from_iter([Some(s)]),
+                ArrayOld::from_iter([Some(n)]),
+            ])
+            .unwrap()
         };
 
         let batches = vec![
@@ -976,8 +980,8 @@ mod tests {
     #[test]
     fn large_batch_with_max_rows() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
         ]);
 
         let a_vals: Vec<_> = (0..10).map(|v| v.to_string()).collect();
@@ -1013,8 +1017,8 @@ mod tests {
     #[test]
     fn large_batch_with_odd_max_rows() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
         ]);
 
         let a_vals: Vec<_> = (0..10).map(|v| Some(v.to_string())).collect();
@@ -1049,10 +1053,10 @@ mod tests {
     #[test]
     fn multiple_small_batches_with_max_width_and_long_value() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
-            Field::new("c", DataType::Utf8, true),
-            Field::new("d", DataType::Utf8, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
+            Field::new("c", DataTypeOld::Utf8, true),
+            Field::new("d", DataTypeOld::Utf8, true),
         ]);
 
         let create_batch = |a, b, c, d| {
@@ -1099,10 +1103,10 @@ mod tests {
     #[test]
     fn multiple_small_batches_with_max_width_and_long_value_first() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
-            Field::new("c", DataType::Utf8, true),
-            Field::new("d", DataType::Utf8, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
+            Field::new("c", DataTypeOld::Utf8, true),
+            Field::new("d", DataTypeOld::Utf8, true),
         ]);
 
         let create_batch = |a, b, c, d| {
@@ -1144,9 +1148,9 @@ mod tests {
     #[test]
     fn multiple_small_batches_with_max_width_and_long_column_name() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("thisisasomewhatlongcolumn", DataType::Int32, true),
-            Field::new("c", DataType::Utf8, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("thisisasomewhatlongcolumn", DataTypeOld::Int32, true),
+            Field::new("c", DataTypeOld::Utf8, true),
         ]);
 
         let create_batch = |a, b, c| {
@@ -1186,10 +1190,10 @@ mod tests {
     #[test]
     fn multiple_small_batches_with_max_width_and_long_column_name_even_num_cols() {
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("thisisasomewhatlongcolumn", DataType::Int32, true),
-            Field::new("c", DataType::Utf8, true),
-            Field::new("d", DataType::Utf8, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("thisisasomewhatlongcolumn", DataTypeOld::Int32, true),
+            Field::new("c", DataTypeOld::Utf8, true),
+            Field::new("d", DataTypeOld::Utf8, true),
         ]);
 
         let create_batch = |a, b, c, d| {
@@ -1233,7 +1237,7 @@ mod tests {
         // https://github.com/GlareDB/glaredb/issues/1790
 
         let fields: Vec<_> = (0..30)
-            .map(|i| Field::new(i.to_string(), DataType::Int8, true))
+            .map(|i| Field::new(i.to_string(), DataTypeOld::Int8, true))
             .collect();
 
         let schema = Schema::new(fields);
@@ -1263,8 +1267,8 @@ mod tests {
         // - first record of first batch and last record of last batch should be printed
 
         let schema = Schema::new(vec![
-            Field::new("a", DataType::Utf8, true),
-            Field::new("b", DataType::Int32, true),
+            Field::new("a", DataTypeOld::Utf8, true),
+            Field::new("b", DataTypeOld::Int32, true),
         ]);
 
         // First record should be printed.

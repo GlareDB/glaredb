@@ -95,7 +95,7 @@ mod tests {
     use selection::SelectionVector;
 
     use super::*;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
     use crate::executor::physical_type::{PhysicalI32Old, PhysicalUtf8Old};
     use crate::scalar::ScalarValue;
@@ -106,7 +106,7 @@ mod tests {
         let right = ArrayOld::from_iter([4, 5, 6]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
@@ -129,7 +129,7 @@ mod tests {
         let right = ArrayOld::from_iter(["hello", "world", "goodbye!"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
@@ -172,7 +172,7 @@ mod tests {
             &left,
             &right,
             ArrayBuilder {
-                datatype: DataType::Int32,
+                datatype: DataTypeOld::Int32,
                 buffer: PrimitiveBuffer::with_len(3),
             },
             |a, b, buf| buf.put(&(a + b)),

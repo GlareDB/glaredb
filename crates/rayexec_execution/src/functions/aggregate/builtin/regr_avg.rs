@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64Old;
 use rayexec_error::Result;
@@ -56,9 +56,9 @@ impl AggregateFunction for RegrAvgY {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+            (DataTypeOld::Float64, DataTypeOld::Float64) => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(RegrAvgYImpl),
             }),
@@ -74,7 +74,7 @@ impl AggregateFunctionImpl for RegrAvgYImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_binary_aggregate_states::<PhysicalF64Old, PhysicalF64Old, _, _, _, _>(
             RegrAvgState::<Self>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }
@@ -121,9 +121,9 @@ impl AggregateFunction for RegrAvgX {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+            (DataTypeOld::Float64, DataTypeOld::Float64) => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(RegrAvgXImpl),
             }),
@@ -139,7 +139,7 @@ impl AggregateFunctionImpl for RegrAvgXImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_binary_aggregate_states::<PhysicalF64Old, PhysicalF64Old, _, _, _, _>(
             RegrAvgState::<Self>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }

@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalAnyOld, PhysicalBoolOld};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -47,7 +47,7 @@ impl ScalarFunction for IsNull {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(CheckNullImpl::<true>),
         })
@@ -90,7 +90,7 @@ impl ScalarFunction for IsNotNull {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(CheckNullImpl::<false>),
         })
@@ -101,7 +101,7 @@ impl ScalarFunction for IsNotNull {
 pub struct CheckNullImpl<const IS_NULL: bool>;
 
 impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let (initial, updated) = if IS_NULL {
@@ -114,7 +114,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         };
 
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
         let array = UnaryExecutor::execute::<PhysicalAnyOld, _, _>(input, builder, |_, buf| {
@@ -123,7 +123,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
 
         // Drop validity.
         let data = array.into_array_data();
-        Ok(ArrayOld::new_with_array_data(DataType::Boolean, data))
+        Ok(ArrayOld::new_with_array_data(DataTypeOld::Boolean, data))
     }
 }
 
@@ -163,7 +163,7 @@ impl ScalarFunction for IsTrue {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(CheckBoolImpl::<false, true>),
         })
@@ -206,7 +206,7 @@ impl ScalarFunction for IsNotTrue {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(CheckBoolImpl::<true, true>),
         })
@@ -249,7 +249,7 @@ impl ScalarFunction for IsFalse {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(CheckBoolImpl::<false, false>),
         })
@@ -292,7 +292,7 @@ impl ScalarFunction for IsNotFalse {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(CheckBoolImpl::<true, false>),
         })
@@ -303,13 +303,13 @@ impl ScalarFunction for IsNotFalse {
 pub struct CheckBoolImpl<const NOT: bool, const BOOL: bool>;
 
 impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT, BOOL> {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let initial = NOT;
 
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
         let array = UnaryExecutor::execute::<PhysicalBoolOld, _, _>(input, builder, |val, buf| {
@@ -319,6 +319,6 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
 
         // Drop validity.
         let data = array.into_array_data();
-        Ok(ArrayOld::new_with_array_data(DataType::Boolean, data))
+        Ok(ArrayOld::new_with_array_data(DataTypeOld::Boolean, data))
     }
 }

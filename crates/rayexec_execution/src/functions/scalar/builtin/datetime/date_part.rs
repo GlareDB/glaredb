@@ -1,6 +1,6 @@
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::compute::date::{self, extract_date_part};
-use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld, DecimalTypeMeta};
 use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
 use rayexec_error::Result;
 use rayexec_parser::ast;
@@ -79,10 +79,10 @@ impl ScalarFunction for DatePart {
         let part = convert_ast_date_part(part);
 
         match &datatypes[1] {
-            DataType::Date32 | DataType::Date64 | DataType::Timestamp(_) => {
+            DataTypeOld::Date32 | DataTypeOld::Date64 | DataTypeOld::Timestamp(_) => {
                 Ok(PlannedScalarFunction {
                     function: Box::new(*self),
-                    return_type: DataType::Decimal64(DecimalTypeMeta::new(
+                    return_type: DataTypeOld::Decimal64(DecimalTypeMeta::new(
                         Decimal64Type::MAX_PRECISION,
                         Decimal64Type::DEFAULT_SCALE,
                     )),
@@ -101,7 +101,7 @@ pub struct DatePartImpl {
 }
 
 impl ScalarFunctionImpl for DatePartImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         // First input ignored (the constant "part" to extract)
         extract_date_part(self.part, inputs[1])
     }

@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld, ListTypeMeta};
 use rayexec_bullet::executor::scalar::concat;
 use rayexec_bullet::storage::ListStorage;
 use rayexec_error::{RayexecError, Result};
@@ -45,8 +45,8 @@ impl ScalarFunction for ListValues {
         let first = match inputs.first() {
             Some(expr) => expr.datatype(table_list)?,
             None => {
-                let return_type = DataType::List(ListTypeMeta {
-                    datatype: Box::new(DataType::Null),
+                let return_type = DataTypeOld::List(ListTypeMeta {
+                    datatype: Box::new(DataTypeOld::Null),
                 });
                 return Ok(PlannedScalarFunction {
                     function: Box::new(*self),
@@ -69,7 +69,7 @@ impl ScalarFunction for ListValues {
             }
         }
 
-        let return_type = DataType::List(ListTypeMeta {
+        let return_type = DataTypeOld::List(ListTypeMeta {
             datatype: Box::new(first.clone()),
         });
 
@@ -86,24 +86,31 @@ impl ScalarFunction for ListValues {
 
 #[derive(Debug, Clone)]
 pub struct ListValuesImpl {
-    list_datatype: DataType,
+    list_datatype: DataTypeOld,
 }
 
 impl ScalarFunctionImpl for ListValuesImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         if inputs.is_empty() {
             let inner_type = match &self.list_datatype {
-                DataType::List(l) => l.datatype.as_ref(),
+                DataTypeOld::List(l) => l.datatype.as_ref(),
                 other => panic!("invalid data type: {other}"),
             };
 
-            let data = ListStorage::empty_list(ArrayOld::new_typed_null_array(inner_type.clone(), 1)?);
-            return Ok(ArrayOld::new_with_array_data(self.list_datatype.clone(), data));
+            let data =
+                ListStorage::empty_list(ArrayOld::new_typed_null_array(inner_type.clone(), 1)?);
+            return Ok(ArrayOld::new_with_array_data(
+                self.list_datatype.clone(),
+                data,
+            ));
         }
 
         let out = concat(inputs)?;
         let data = ListStorage::single_list(out);
 
-        Ok(ArrayOld::new_with_array_data(self.list_datatype.clone(), data))
+        Ok(ArrayOld::new_with_array_data(
+            self.list_datatype.clone(),
+            data,
+        ))
     }
 }

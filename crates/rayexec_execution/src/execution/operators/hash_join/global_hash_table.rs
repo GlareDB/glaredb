@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use hashbrown::raw::RawTable;
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
@@ -34,7 +34,7 @@ pub struct GlobalHashTable {
     /// Column types for left side of join.
     ///
     /// Used when generating the left columns for a RIGHT OUTER join.
-    left_types: Vec<DataType>,
+    left_types: Vec<DataTypeOld>,
     /// If we're a right join.
     right_join: bool,
     /// If we're a mark join.
@@ -47,7 +47,7 @@ pub struct GlobalHashTable {
 impl GlobalHashTable {
     /// Merge many partition hash tables into a new global hash table.
     pub fn new(
-        left_types: Vec<DataType>,
+        left_types: Vec<DataTypeOld>,
         right_join: bool,
         is_mark: bool,
         partition_tables: Vec<PartitionHashTable>,

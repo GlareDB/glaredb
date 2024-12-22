@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
@@ -142,7 +142,7 @@ impl<'a> FromBinder<'a> {
         bind_context: &mut BindContext,
         mut default_alias: Option<TableAlias>,
         mut default_column_aliases: Vec<String>,
-        column_types: Vec<DataType>,
+        column_types: Vec<DataTypeOld>,
         from_alias: Option<ast::FromAlias>,
     ) -> Result<TableRef> {
         match from_alias {

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
@@ -57,7 +57,7 @@ impl AggregateFunction for StringAgg {
             .collect::<Result<Vec<_>>>()?;
 
         match &datatypes[0] {
-            DataType::Utf8 => (),
+            DataTypeOld::Utf8 => (),
             _ => return Err(invalid_input_types_error(self, &datatypes)),
         }
 
@@ -79,7 +79,7 @@ impl AggregateFunction for StringAgg {
 
         Ok(PlannedAggregateFunction {
             function: Box::new(*self),
-            return_type: DataType::Utf8,
+            return_type: DataTypeOld::Utf8,
             inputs,
             function_impl: Box::new(StringAggImpl { sep }),
         })
@@ -101,7 +101,7 @@ impl AggregateFunctionImpl for StringAggImpl {
 
         new_unary_aggregate_states::<PhysicalUtf8Old, _, _, _, _>(state_init, move |states| {
             let builder = ArrayBuilder {
-                datatype: DataType::Utf8,
+                datatype: DataTypeOld::Utf8,
                 buffer: GermanVarlenBuffer::<str>::with_len(states.len()),
             };
             StateFinalizer::finalize(states, builder)

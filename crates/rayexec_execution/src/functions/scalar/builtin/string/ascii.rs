@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -46,9 +46,9 @@ impl ScalarFunction for Ascii {
         plan_check_num_args(self, &inputs, 1)?;
 
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
+            DataTypeOld::Utf8 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Int32,
+                return_type: DataTypeOld::Int32,
                 inputs,
                 function_impl: Box::new(AsciiImpl),
             }),
@@ -61,10 +61,10 @@ impl ScalarFunction for Ascii {
 pub struct AsciiImpl;
 
 impl ScalarFunctionImpl for AsciiImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         let builder = ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::with_len(inputs[0].logical_len()),
         };
 

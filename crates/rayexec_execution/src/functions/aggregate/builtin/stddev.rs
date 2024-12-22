@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalF64Old;
 use rayexec_error::Result;
@@ -53,9 +53,9 @@ impl AggregateFunction for StddevPop {
         plan_check_num_args(self, &inputs, 1)?;
 
         match inputs[0].datatype(table_list)? {
-            DataType::Float64 => Ok(PlannedAggregateFunction {
+            DataTypeOld::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(StddevPopImpl),
             }),
@@ -71,7 +71,7 @@ impl AggregateFunctionImpl for StddevPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<StddevPopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }
@@ -112,9 +112,9 @@ impl AggregateFunction for StddevSamp {
         plan_check_num_args(self, &inputs, 1)?;
 
         match inputs[0].datatype(table_list)? {
-            DataType::Float64 => Ok(PlannedAggregateFunction {
+            DataTypeOld::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(StddevSampImpl),
             }),
@@ -130,7 +130,7 @@ impl AggregateFunctionImpl for StddevSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<StddevSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }
@@ -167,9 +167,9 @@ impl AggregateFunction for VarPop {
         plan_check_num_args(self, &inputs, 1)?;
 
         match inputs[0].datatype(table_list)? {
-            DataType::Float64 => Ok(PlannedAggregateFunction {
+            DataTypeOld::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(VarPopImpl),
             }),
@@ -185,7 +185,7 @@ impl AggregateFunctionImpl for VarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<VariancePopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }
@@ -222,9 +222,9 @@ impl AggregateFunction for VarSamp {
         plan_check_num_args(self, &inputs, 1)?;
 
         match inputs[0].datatype(table_list)? {
-            DataType::Float64 => Ok(PlannedAggregateFunction {
+            DataTypeOld::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(VarSampImpl),
             }),
@@ -240,7 +240,7 @@ impl AggregateFunctionImpl for VarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             VarianceState::<VarianceSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }

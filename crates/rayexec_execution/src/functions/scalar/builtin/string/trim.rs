@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
@@ -188,18 +188,18 @@ impl<F: StringTrimOp> ScalarFunction for Trim<F> {
 
         match datatypes.len() {
             1 => match &datatypes[0] {
-                DataType::Utf8 => Ok(PlannedScalarFunction {
+                DataTypeOld::Utf8 => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
-                    return_type: DataType::Utf8,
+                    return_type: DataTypeOld::Utf8,
                     inputs,
                     function_impl: Box::new(TrimWhitespaceImpl::<F>::new()),
                 }),
                 a => Err(invalid_input_types_error(self, &[a])),
             },
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Utf8) => Ok(PlannedScalarFunction {
+                (DataTypeOld::Utf8, DataTypeOld::Utf8) => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
-                    return_type: DataType::Utf8,
+                    return_type: DataTypeOld::Utf8,
                     inputs,
                     function_impl: Box::new(TrimPatternImpl::<F>::new()),
                 }),
@@ -222,9 +222,9 @@ impl<F: StringTrimOp> TrimWhitespaceImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
         };
 
@@ -247,9 +247,9 @@ impl<F: StringTrimOp> TrimPatternImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimPatternImpl<F> {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
         };
 

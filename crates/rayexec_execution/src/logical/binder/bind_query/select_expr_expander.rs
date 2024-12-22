@@ -292,7 +292,7 @@ impl<'a> SelectExprExpander<'a> {
 #[cfg(test)]
 mod tests {
     use ast::ObjectReference;
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
 
@@ -332,7 +332,7 @@ mod tests {
                     schema: Some("s1".to_string()),
                     table: "t1".to_string(),
                 }),
-                vec![DataType::Utf8, DataType::Utf8],
+                vec![DataTypeOld::Utf8, DataTypeOld::Utf8],
                 vec!["c1".to_string(), "c2".to_string()],
             )
             .unwrap();
@@ -377,7 +377,7 @@ mod tests {
                     schema: Some("s1".to_string()),
                     table: "t1".to_string(),
                 }),
-                vec![DataType::Utf8, DataType::Utf8],
+                vec![DataTypeOld::Utf8, DataTypeOld::Utf8],
                 vec!["c1".to_string(), "c2".to_string()],
             )
             .unwrap();
@@ -390,7 +390,7 @@ mod tests {
                     schema: Some("s1".to_string()),
                     table: "t2".to_string(),
                 }),
-                vec![DataType::Utf8, DataType::Utf8],
+                vec![DataTypeOld::Utf8, DataTypeOld::Utf8],
                 vec!["c3".to_string(), "c4".to_string()],
             )
             .unwrap();

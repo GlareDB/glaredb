@@ -155,7 +155,7 @@ impl<'a> SelectBinder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::logical::binder::bind_context::testutil::columns_in_scope;
@@ -194,8 +194,8 @@ mod tests {
 
         let cols = columns_in_scope(&bind_context, bind_context.root_scope_ref());
         let expected = vec![
-            ("?column?".to_string(), DataType::Int32),
-            ("my_alias".to_string(), DataType::Int32),
+            ("?column?".to_string(), DataTypeOld::Int32),
+            ("my_alias".to_string(), DataTypeOld::Int32),
         ];
 
         assert_eq!(expected, cols);

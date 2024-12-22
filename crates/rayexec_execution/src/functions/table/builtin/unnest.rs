@@ -3,7 +3,7 @@ use std::task::{Context, Waker};
 
 use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::physical_type::{PhysicalList, PhysicalType};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::field::{Field, Schema};
@@ -82,8 +82,8 @@ impl InOutPlanner for Unnest {
         let datatype = positional_inputs[0].datatype(table_list)?;
 
         let return_type = match datatype {
-            DataType::List(m) => *m.datatype,
-            DataType::Null => DataType::Null,
+            DataTypeOld::List(m) => *m.datatype,
+            DataTypeOld::Null => DataTypeOld::Null,
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 

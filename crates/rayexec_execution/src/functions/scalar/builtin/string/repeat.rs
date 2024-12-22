@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64Old, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::BinaryExecutor;
@@ -50,9 +50,9 @@ impl ScalarFunction for Repeat {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFunction {
+            (DataTypeOld::Utf8, DataTypeOld::Int64) => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Utf8,
+                return_type: DataTypeOld::Utf8,
                 inputs,
                 function_impl: Box::new(RepeatUtf8Impl),
             }),
@@ -65,7 +65,7 @@ impl ScalarFunction for Repeat {
 pub struct RepeatUtf8Impl;
 
 impl ScalarFunctionImpl for RepeatUtf8Impl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let strings = inputs[0];
         let nums = inputs[1];
 
@@ -77,7 +77,7 @@ impl ScalarFunctionImpl for RepeatUtf8Impl {
             strings,
             nums,
             ArrayBuilder {
-                datatype: DataType::Utf8,
+                datatype: DataTypeOld::Utf8,
                 buffer: GermanVarlenBuffer::with_len(strings.logical_len()),
             },
             |s, num, buf| {

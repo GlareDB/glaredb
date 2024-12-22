@@ -127,14 +127,14 @@ impl LeftPrecomputedJoinConditions {
             let result = condition
                 .function
                 .function_impl
-                .execute(&[&left_precomputed, right_arr.as_ref()])?;
+                .execute_old(&[&left_precomputed, right_arr.as_ref()])?;
 
             results.push(result);
         }
 
         // AND the results.
         let refs: Vec<_> = results.iter().collect();
-        let out = AndImpl.execute(&refs)?;
+        let out = AndImpl.execute_old(&refs)?;
 
         // Generate a selection for the left and right selections.
         let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());

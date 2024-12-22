@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -43,9 +43,9 @@ impl ScalarFunction for Epoch {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction {
+            DataTypeOld::Int64 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta {
+                return_type: DataTypeOld::Timestamp(TimestampTypeMeta {
                     unit: TimeUnit::Microsecond,
                 }),
                 inputs,
@@ -85,9 +85,9 @@ impl ScalarFunction for EpochMs {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction {
+            DataTypeOld::Int64 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta {
+                return_type: DataTypeOld::Timestamp(TimestampTypeMeta {
                     unit: TimeUnit::Microsecond,
                 }),
                 inputs,
@@ -102,7 +102,7 @@ impl ScalarFunction for EpochMs {
 pub struct EpochImpl<const S: i64>;
 
 impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         to_timestamp::<S>(input)
     }
@@ -110,7 +110,7 @@ impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
 
 fn to_timestamp<const S: i64>(input: &ArrayOld) -> Result<ArrayOld> {
     let builder = ArrayBuilder {
-        datatype: DataType::Timestamp(TimestampTypeMeta {
+        datatype: DataTypeOld::Timestamp(TimestampTypeMeta {
             unit: TimeUnit::Microsecond,
         }),
         buffer: PrimitiveBuffer::with_len(input.logical_len()),

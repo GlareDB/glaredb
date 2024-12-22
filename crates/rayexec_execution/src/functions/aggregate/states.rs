@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rayexec_bullet::array::{ArrayData, ArrayOld};
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::aggregate::{
     AggregateState,
     BinaryNonNullUpdater,
@@ -229,7 +229,10 @@ pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<ArrayOld> {
     Ok(ArrayOld::new_untyped_null_array(states.len()))
 }
 
-pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<ArrayOld>
+pub fn boolean_finalize<State, Input>(
+    datatype: DataTypeOld,
+    states: &mut [State],
+) -> Result<ArrayOld>
 where
     State: AggregateState<Input, bool>,
 {
@@ -241,7 +244,7 @@ where
 }
 
 pub fn primitive_finalize<State, Input, Output>(
-    datatype: DataType,
+    datatype: DataTypeOld,
     states: &mut [State],
 ) -> Result<ArrayOld>
 where

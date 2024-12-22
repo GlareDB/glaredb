@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64Old, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
@@ -73,11 +73,11 @@ impl ScalarFunction for LeftPad {
 
         match inputs.len() {
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => (),
+                (DataTypeOld::Utf8, DataTypeOld::Int64) => (),
                 (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
             },
             3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Utf8) => (),
+                (DataTypeOld::Utf8, DataTypeOld::Int64, DataTypeOld::Utf8) => (),
                 (a, b, c) => return Err(invalid_input_types_error(self, &[a, b, c])),
             },
             other => unreachable!("num inputs checked, got {other}"),
@@ -85,7 +85,7 @@ impl ScalarFunction for LeftPad {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Utf8,
+            return_type: DataTypeOld::Utf8,
             inputs,
             function_impl: Box::new(LeftPadImpl),
         })
@@ -96,10 +96,10 @@ impl ScalarFunction for LeftPad {
 pub struct LeftPadImpl;
 
 impl ScalarFunctionImpl for LeftPadImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
         };
 
@@ -188,11 +188,11 @@ impl ScalarFunction for RightPad {
 
         match inputs.len() {
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => (),
+                (DataTypeOld::Utf8, DataTypeOld::Int64) => (),
                 (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
             },
             3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Utf8) => (),
+                (DataTypeOld::Utf8, DataTypeOld::Int64, DataTypeOld::Utf8) => (),
                 (a, b, c) => return Err(invalid_input_types_error(self, &[a, b, c])),
             },
             other => unreachable!("num inputs checked, got {other}"),
@@ -200,7 +200,7 @@ impl ScalarFunction for RightPad {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Utf8,
+            return_type: DataTypeOld::Utf8,
             inputs,
             function_impl: Box::new(RightPadImpl),
         })
@@ -211,10 +211,10 @@ impl ScalarFunction for RightPad {
 pub struct RightPadImpl;
 
 impl ScalarFunctionImpl for RightPadImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
         };
 

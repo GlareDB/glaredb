@@ -9,7 +9,7 @@ use super::gen::schema::{
     Type as IpcType,
 };
 use super::IpcConfig;
-use crate::datatype::{DataType, DecimalTypeMeta};
+use crate::datatype::{DataTypeOld, DecimalTypeMeta};
 use crate::field::{Field, Schema};
 use crate::ipc::gen::schema::{
     BoolBuilder,
@@ -45,26 +45,26 @@ pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
     }
 
     let datatype = match field.type_type() {
-        IpcType::Null => DataType::Null,
-        IpcType::Bool => DataType::Boolean,
+        IpcType::Null => DataTypeOld::Null,
+        IpcType::Bool => DataTypeOld::Boolean,
         IpcType::Int => {
             let int_type = field.type__as_int().unwrap();
             if int_type.is_signed() {
                 match int_type.bitWidth() {
-                    8 => DataType::Int8,
-                    16 => DataType::Int16,
-                    32 => DataType::Int32,
-                    64 => DataType::Int64,
+                    8 => DataTypeOld::Int8,
+                    16 => DataTypeOld::Int16,
+                    32 => DataTypeOld::Int32,
+                    64 => DataTypeOld::Int64,
                     other => {
                         return Err(RayexecError::new(format!("Unsupported int size: {other}")))
                     }
                 }
             } else {
                 match int_type.bitWidth() {
-                    8 => DataType::UInt8,
-                    16 => DataType::UInt16,
-                    32 => DataType::UInt32,
-                    64 => DataType::UInt64,
+                    8 => DataTypeOld::UInt8,
+                    16 => DataTypeOld::UInt16,
+                    32 => DataTypeOld::UInt32,
+                    64 => DataTypeOld::UInt64,
                     other => {
                         return Err(RayexecError::new(format!("Unsupported int size: {other}")))
                     }
@@ -79,8 +79,8 @@ pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
             };
 
             match dec_type.bitWidth() {
-                64 => DataType::Decimal64(meta),
-                128 => DataType::Decimal128(meta),
+                64 => DataTypeOld::Decimal64(meta),
+                128 => DataTypeOld::Decimal128(meta),
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unsupported decimal size: {other}"
@@ -91,8 +91,8 @@ pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
         IpcType::FloatingPoint => {
             let float_type = field.type__as_floating_point().unwrap();
             match float_type.precision() {
-                IpcPrecision::SINGLE => DataType::Float32,
-                IpcPrecision::DOUBLE => DataType::Float64,
+                IpcPrecision::SINGLE => DataTypeOld::Float32,
+                IpcPrecision::DOUBLE => DataTypeOld::Float64,
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unsupported float precision: {:?}",
@@ -101,8 +101,8 @@ pub fn ipc_to_field(field: IpcField, _conf: &IpcConfig) -> Result<Field> {
                 }
             }
         }
-        IpcType::Utf8 | IpcType::LargeUtf8 => DataType::Utf8,
-        IpcType::Binary | IpcType::LargeBinary => DataType::Binary,
+        IpcType::Utf8 | IpcType::LargeUtf8 => DataTypeOld::Utf8,
+        IpcType::Binary | IpcType::LargeBinary => DataTypeOld::Binary,
         other => {
             return Err(RayexecError::new(format!(
                 "Unsupported ipc type: {:?}",
@@ -145,24 +145,24 @@ pub fn field_to_ipc<'a>(
     let empty_children: Vec<WIPOffset<IpcField>> = Vec::new();
 
     let (datatype, type_, children) = match &field.datatype {
-        DataType::Null => (
+        DataTypeOld::Null => (
             IpcType::Null,
             NullBuilder::new(builder).finish().as_union_value(),
             empty_children.clone(),
         ),
-        DataType::Boolean => (
+        DataTypeOld::Boolean => (
             IpcType::Bool,
             BoolBuilder::new(builder).finish().as_union_value(),
             empty_children.clone(),
         ),
-        DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => {
+        DataTypeOld::Int8 | DataTypeOld::Int16 | DataTypeOld::Int32 | DataTypeOld::Int64 => {
             let mut int_builder = IntBuilder::new(builder);
             int_builder.add_is_signed(true);
             match &field.datatype {
-                DataType::Int8 => int_builder.add_bitWidth(8),
-                DataType::Int16 => int_builder.add_bitWidth(16),
-                DataType::Int32 => int_builder.add_bitWidth(32),
-                DataType::Int64 => int_builder.add_bitWidth(64),
+                DataTypeOld::Int8 => int_builder.add_bitWidth(8),
+                DataTypeOld::Int16 => int_builder.add_bitWidth(16),
+                DataTypeOld::Int32 => int_builder.add_bitWidth(32),
+                DataTypeOld::Int64 => int_builder.add_bitWidth(64),
                 _ => unreachable!(),
             }
             (
@@ -171,14 +171,14 @@ pub fn field_to_ipc<'a>(
                 empty_children.clone(),
             )
         }
-        DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
+        DataTypeOld::UInt8 | DataTypeOld::UInt16 | DataTypeOld::UInt32 | DataTypeOld::UInt64 => {
             let mut int_builder = IntBuilder::new(builder);
             int_builder.add_is_signed(false);
             match &field.datatype {
-                DataType::UInt8 => int_builder.add_bitWidth(8),
-                DataType::UInt16 => int_builder.add_bitWidth(16),
-                DataType::UInt32 => int_builder.add_bitWidth(32),
-                DataType::UInt64 => int_builder.add_bitWidth(64),
+                DataTypeOld::UInt8 => int_builder.add_bitWidth(8),
+                DataTypeOld::UInt16 => int_builder.add_bitWidth(16),
+                DataTypeOld::UInt32 => int_builder.add_bitWidth(32),
+                DataTypeOld::UInt64 => int_builder.add_bitWidth(64),
                 _ => unreachable!(),
             }
             (
@@ -187,13 +187,13 @@ pub fn field_to_ipc<'a>(
                 empty_children.clone(),
             )
         }
-        DataType::Decimal64(m) | DataType::Decimal128(m) => {
+        DataTypeOld::Decimal64(m) | DataTypeOld::Decimal128(m) => {
             let mut dec_builder = DecimalBuilder::new(builder);
             dec_builder.add_scale(m.scale as i32);
             dec_builder.add_precision(m.precision as i32);
             match &field.datatype {
-                DataType::Decimal64(_) => dec_builder.add_bitWidth(64),
-                DataType::Decimal128(_) => dec_builder.add_bitWidth(128),
+                DataTypeOld::Decimal64(_) => dec_builder.add_bitWidth(64),
+                DataTypeOld::Decimal128(_) => dec_builder.add_bitWidth(128),
                 _ => unreachable!(),
             }
             (
@@ -202,7 +202,7 @@ pub fn field_to_ipc<'a>(
                 empty_children.clone(),
             )
         }
-        DataType::Utf8 => (
+        DataTypeOld::Utf8 => (
             IpcType::Utf8,
             Utf8Builder::new(builder).finish().as_union_value(),
             empty_children.clone(),
@@ -245,8 +245,8 @@ mod tests {
     #[test]
     fn simple_schema_roundtrip() {
         let schema = Schema::new([
-            Field::new("f1", DataType::Int32, true),
-            Field::new("f2", DataType::Utf8, true),
+            Field::new("f1", DataTypeOld::Int32, true),
+            Field::new("f2", DataTypeOld::Utf8, true),
         ]);
 
         roundtrip(schema);
@@ -256,7 +256,7 @@ mod tests {
     fn decimal_roundtrip() {
         let schema = Schema::new([Field::new(
             "f1",
-            DataType::Decimal64(DecimalTypeMeta {
+            DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: 4,
                 scale: 2,
             }),

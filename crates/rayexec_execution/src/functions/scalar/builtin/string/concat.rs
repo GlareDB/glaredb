@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UniformExecutor};
@@ -51,13 +51,13 @@ impl ScalarFunction for Concat {
             .map(|input| input.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
-        if !datatypes.iter().all(|dt| dt == &DataType::Utf8) {
+        if !datatypes.iter().all(|dt| dt == &DataTypeOld::Utf8) {
             return Err(invalid_input_types_error(self, &datatypes));
         }
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Utf8,
+            return_type: DataTypeOld::Utf8,
             inputs,
             function_impl: Box::new(StringConcatImpl),
         })
@@ -68,7 +68,7 @@ impl ScalarFunction for Concat {
 pub struct StringConcatImpl;
 
 impl ScalarFunctionImpl for StringConcatImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         match inputs.len() {
             0 => {
                 let mut array = ArrayOld::from_iter([""]);
@@ -88,7 +88,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
                     a,
                     b,
                     ArrayBuilder {
-                        datatype: DataType::Utf8,
+                        datatype: DataTypeOld::Utf8,
                         buffer: GermanVarlenBuffer::with_len(a.logical_len()),
                     },
                     |a, b, buf| {
@@ -105,7 +105,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
                 UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
                     inputs,
                     ArrayBuilder {
-                        datatype: DataType::Utf8,
+                        datatype: DataTypeOld::Utf8,
                         buffer: GermanVarlenBuffer::with_len(inputs[0].logical_len()),
                     },
                     |strings, buf| {

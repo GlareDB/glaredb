@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld, ListTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
@@ -55,8 +55,8 @@ impl SystemFunctionImpl for ListDatabasesImpl {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("database_name", DataType::Utf8, false),
-            Field::new("datasource", DataType::Utf8, false),
+            Field::new("database_name", DataTypeOld::Utf8, false),
+            Field::new("datasource", DataTypeOld::Utf8, false),
         ])
     }
 
@@ -79,8 +79,8 @@ impl SystemFunctionImpl for ListDatabasesImpl {
         }
 
         BatchOld::try_new([
-            ArrayOld::new_with_array_data(DataType::Utf8, database_names.into_data()),
-            ArrayOld::new_with_array_data(DataType::Utf8, datasources.into_data()),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, database_names.into_data()),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, datasources.into_data()),
         ])
     }
 }
@@ -95,24 +95,24 @@ impl SystemFunctionImpl for ListFunctionsImpl {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("database_name", DataType::Utf8, false),
-            Field::new("schema_name", DataType::Utf8, false),
-            Field::new("function_name", DataType::Utf8, false),
-            Field::new("function_type", DataType::Utf8, false),
+            Field::new("database_name", DataTypeOld::Utf8, false),
+            Field::new("schema_name", DataTypeOld::Utf8, false),
+            Field::new("function_name", DataTypeOld::Utf8, false),
+            Field::new("function_type", DataTypeOld::Utf8, false),
             Field::new(
                 "argument_types",
-                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                DataTypeOld::List(ListTypeMeta::new(DataTypeOld::Utf8)),
                 false,
             ),
             Field::new(
                 "argument_names",
-                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                DataTypeOld::List(ListTypeMeta::new(DataTypeOld::Utf8)),
                 false,
             ),
-            Field::new("return_type", DataType::Utf8, false),
-            Field::new("description", DataType::Utf8, true),
-            Field::new("example", DataType::Utf8, true),
-            Field::new("example_output", DataType::Utf8, true),
+            Field::new("return_type", DataTypeOld::Utf8, false),
+            Field::new("description", DataTypeOld::Utf8, true),
+            Field::new("example", DataTypeOld::Utf8, true),
+            Field::new("example_output", DataTypeOld::Utf8, true),
         ])
     }
 
@@ -232,33 +232,37 @@ impl SystemFunctionImpl for ListFunctionsImpl {
         })?;
 
         BatchOld::try_new([
-            ArrayOld::new_with_array_data(DataType::Utf8, database_names),
-            ArrayOld::new_with_array_data(DataType::Utf8, schema_names),
-            ArrayOld::new_with_array_data(DataType::Utf8, function_names),
-            ArrayOld::new_with_array_data(DataType::Utf8, function_types),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, database_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, schema_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, function_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, function_types),
             ArrayOld::new_with_array_data(
-                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                DataTypeOld::List(ListTypeMeta::new(DataTypeOld::Utf8)),
                 ListStorage::try_new(
                     argument_types_metadatas,
-                    ArrayOld::new_with_array_data(DataType::Utf8, argument_types),
+                    ArrayOld::new_with_array_data(DataTypeOld::Utf8, argument_types),
                 )?,
             ),
             ArrayOld::new_with_array_data(
-                DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                DataTypeOld::List(ListTypeMeta::new(DataTypeOld::Utf8)),
                 ListStorage::try_new(
                     argument_names_metadatas,
-                    ArrayOld::new_with_array_data(DataType::Utf8, argument_names),
+                    ArrayOld::new_with_array_data(DataTypeOld::Utf8, argument_names),
                 )?,
             ),
-            ArrayOld::new_with_array_data(DataType::Utf8, return_types),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, return_types),
             ArrayOld::new_with_validity_and_array_data(
-                DataType::Utf8,
+                DataTypeOld::Utf8,
                 descriptions_validity,
                 descriptions,
             ),
-            ArrayOld::new_with_validity_and_array_data(DataType::Utf8, examples_validity, examples),
             ArrayOld::new_with_validity_and_array_data(
-                DataType::Utf8,
+                DataTypeOld::Utf8,
+                examples_validity,
+                examples,
+            ),
+            ArrayOld::new_with_validity_and_array_data(
+                DataTypeOld::Utf8,
                 example_outputs_validity,
                 example_outputs,
             ),
@@ -276,9 +280,9 @@ impl SystemFunctionImpl for ListTablesImpl {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("database_name", DataType::Utf8, false),
-            Field::new("schema_name", DataType::Utf8, false),
-            Field::new("table_name", DataType::Utf8, false),
+            Field::new("database_name", DataTypeOld::Utf8, false),
+            Field::new("schema_name", DataTypeOld::Utf8, false),
+            Field::new("table_name", DataTypeOld::Utf8, false),
         ])
     }
 
@@ -309,9 +313,9 @@ impl SystemFunctionImpl for ListTablesImpl {
         })?;
 
         BatchOld::try_new([
-            ArrayOld::new_with_array_data(DataType::Utf8, database_names),
-            ArrayOld::new_with_array_data(DataType::Utf8, schema_names),
-            ArrayOld::new_with_array_data(DataType::Utf8, table_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, database_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, schema_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, table_names),
         ])
     }
 }
@@ -326,8 +330,8 @@ impl SystemFunctionImpl for ListSchemasImpl {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("database_name", DataType::Utf8, false),
-            Field::new("schema_name", DataType::Utf8, false),
+            Field::new("database_name", DataTypeOld::Utf8, false),
+            Field::new("schema_name", DataTypeOld::Utf8, false),
         ])
     }
 
@@ -349,8 +353,8 @@ impl SystemFunctionImpl for ListSchemasImpl {
         })?;
 
         BatchOld::try_new([
-            ArrayOld::new_with_array_data(DataType::Utf8, database_names),
-            ArrayOld::new_with_array_data(DataType::Utf8, schema_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, database_names),
+            ArrayOld::new_with_array_data(DataTypeOld::Utf8, schema_names),
         ])
     }
 }

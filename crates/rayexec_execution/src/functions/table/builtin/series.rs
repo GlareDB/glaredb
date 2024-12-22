@@ -3,7 +3,7 @@ use std::task::{Context, Waker};
 
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::field::{Field, Schema};
@@ -97,7 +97,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
             .collect::<Result<Vec<_>>>()?;
 
         for datatype in &datatypes {
-            if datatype != &DataType::Int64 {
+            if datatype != &DataTypeOld::Int64 {
                 return Err(invalid_input_types_error(&GenerateSeries, &datatypes));
             }
         }
@@ -113,7 +113,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
             named_inputs,
             function_impl: TableFunctionImpl::InOut(Box::new(GenerateSeriesInOutImpl)),
             cardinality: StatisticsValue::Unknown,
-            schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
+            schema: Schema::new([Field::new("generate_series", DataTypeOld::Int64, false)]),
         })
     }
 }
@@ -195,7 +195,7 @@ impl SeriesParams {
             self.curr = *last + self.step;
         }
 
-        ArrayOld::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
+        ArrayOld::new_with_array_data(DataTypeOld::Int64, PrimitiveStorage::from(series))
     }
 }
 

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalAnyOld;
 use rayexec_error::Result;
@@ -55,9 +55,9 @@ impl AggregateFunction for RegrCount {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+            (DataTypeOld::Float64, DataTypeOld::Float64) => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
-                return_type: DataType::Float64,
+                return_type: DataTypeOld::Float64,
                 inputs,
                 function_impl: Box::new(RegrCountImpl),
             }),
@@ -73,7 +73,7 @@ impl AggregateFunctionImpl for RegrCountImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_binary_aggregate_states::<PhysicalAnyOld, PhysicalAnyOld, _, _, _, _>(
             RegrCountState::default,
-            move |states| primitive_finalize(DataType::Int64, states),
+            move |states| primitive_finalize(DataTypeOld::Int64, states),
         )
     }
 }

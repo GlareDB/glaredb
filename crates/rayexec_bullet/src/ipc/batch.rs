@@ -9,11 +9,11 @@ use super::compression::CompressionType;
 use super::gen::message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBatch};
 use super::gen::schema::Buffer as IpcBuffer;
 use super::IpcConfig;
-use crate::array::{ArrayOld, ArrayData, BinaryData};
+use crate::array::{ArrayData, ArrayOld, BinaryData};
 use crate::batch::BatchOld;
 use crate::bitmap::Bitmap;
 use crate::bitutil::byte_ceil;
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 use crate::executor::physical_type::PhysicalType;
 use crate::field::Schema;
 use crate::ipc::gen::message::RecordBatchBuilder;
@@ -87,7 +87,7 @@ impl<'a> BufferReader<'a> {
     }
 }
 
-fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<ArrayOld> {
+fn decode_array(buffers: &mut BufferReader, datatype: &DataTypeOld) -> Result<ArrayOld> {
     let node = buffers.try_next_node()?;
     let len = node.length() as usize;
     // Validity buffer always exists for primitive+varlen arrays even if there's
@@ -329,12 +329,15 @@ mod tests {
 
     #[test]
     fn simple_batch_roundtrip() {
-        let batch =
-            BatchOld::try_new([ArrayOld::from_iter([3, 2, 1]), ArrayOld::from_iter([9, 8, 7])]).unwrap();
+        let batch = BatchOld::try_new([
+            ArrayOld::from_iter([3, 2, 1]),
+            ArrayOld::from_iter([9, 8, 7]),
+        ])
+        .unwrap();
 
         let schema = Schema::new([
-            Field::new("f1", DataType::Int32, true),
-            Field::new("f2", DataType::Int32, true),
+            Field::new("f1", DataTypeOld::Int32, true),
+            Field::new("f2", DataTypeOld::Int32, true),
         ]);
 
         roundtrip(schema, batch);
@@ -344,14 +347,14 @@ mod tests {
     fn utf8_roundtrip() {
         let batch = BatchOld::try_new([ArrayOld::from_iter(["mario", "peach", "yoshi"])]).unwrap();
 
-        let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
+        let schema = Schema::new([Field::new("f1", DataTypeOld::Utf8, true)]);
 
         roundtrip(schema, batch);
     }
 
     #[test]
     fn decimal128_roundtrip() {
-        let datatype = DataType::Decimal128(DecimalTypeMeta::new(4, 2));
+        let datatype = DataTypeOld::Decimal128(DecimalTypeMeta::new(4, 2));
         let arr = ArrayOld::new_with_array_data(
             datatype.clone(),
             PrimitiveStorage::from(vec![1000_i128, 1200, 1250]),

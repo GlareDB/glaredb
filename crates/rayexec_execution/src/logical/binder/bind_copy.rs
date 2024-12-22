@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
@@ -49,7 +49,7 @@ impl<'a> CopyBinder<'a> {
         bind_context.push_table(
             self.current,
             None,
-            vec![DataType::UInt64],
+            vec![DataTypeOld::UInt64],
             vec!["rows_copied".to_string()],
         )?;
 

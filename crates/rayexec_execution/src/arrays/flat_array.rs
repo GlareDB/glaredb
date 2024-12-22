@@ -108,6 +108,15 @@ impl<'a> FlatSelection<'a> {
     }
 }
 
+impl<'a> IntoIterator for FlatSelection<'a> {
+    type Item = usize;
+    type IntoIter = FlatSelectionIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        FlatSelectionIter { idx: 0, sel: self }
+    }
+}
+
 #[derive(Debug)]
 pub struct FlatSelectionIter<'a> {
     idx: usize,

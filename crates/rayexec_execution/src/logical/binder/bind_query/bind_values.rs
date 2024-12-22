@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
@@ -79,7 +79,7 @@ impl<'a> ValuesBinder<'a> {
             }
 
             for (expr, datatype) in row.iter().zip(&mut types) {
-                if datatype == &DataType::Null {
+                if datatype == &DataTypeOld::Null {
                     // Replace with current expression type.
                     *datatype = expr.datatype(bind_context.get_table_list())?;
                 }

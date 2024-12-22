@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -80,9 +80,9 @@ impl ScalarFunction for DateTrunc {
         let field = field.parse::<TruncField>()?;
 
         match &datatypes[1] {
-            DataType::Timestamp(m) => Ok(PlannedScalarFunction {
+            DataTypeOld::Timestamp(m) => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta { unit: m.unit }),
+                return_type: DataTypeOld::Timestamp(TimestampTypeMeta { unit: m.unit }),
                 inputs,
                 function_impl: Box::new(DateTruncImpl {
                     input_unit: m.unit,
@@ -140,7 +140,7 @@ pub struct DateTruncImpl {
 }
 
 impl ScalarFunctionImpl for DateTruncImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = &inputs[1];
 
         let trunc = match self.input_unit {
@@ -182,7 +182,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
         };
 
         let builder = ArrayBuilder {
-            datatype: DataType::Timestamp(TimestampTypeMeta {
+            datatype: DataTypeOld::Timestamp(TimestampTypeMeta {
                 unit: self.input_unit,
             }),
             buffer: PrimitiveBuffer::with_len(input.logical_len()),

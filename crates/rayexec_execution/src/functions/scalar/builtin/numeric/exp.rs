@@ -1,6 +1,6 @@
 use num_traits::Float;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalStorageOld;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for ExpOp {
     const NAME: &'static str = "exp";
     const DESCRIPTION: &'static str = "Compute `e ^ val`";
 
-    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
+    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataTypeOld) -> Result<ArrayOld>
     where
         S: PhysicalStorageOld,
         S::Type<'a>: Float + Default,

@@ -3,7 +3,7 @@ use std::ops::AddAssign;
 
 use num_traits::{AsPrimitive, Float};
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalF16Old,
@@ -65,15 +65,15 @@ impl ScalarFunction for L2Distance {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::List(a), DataType::List(b)) => {
+            (DataTypeOld::List(a), DataTypeOld::List(b)) => {
                 match (a.datatype.as_ref(), b.datatype.as_ref()) {
-                    (DataType::Float16, DataType::Float16) => {
+                    (DataTypeOld::Float16, DataTypeOld::Float16) => {
                         Box::new(L2DistanceImpl::<PhysicalF16Old>::new())
                     }
-                    (DataType::Float32, DataType::Float32) => {
+                    (DataTypeOld::Float32, DataTypeOld::Float32) => {
                         Box::new(L2DistanceImpl::<PhysicalF32Old>::new())
                     }
-                    (DataType::Float64, DataType::Float64) => {
+                    (DataTypeOld::Float64, DataTypeOld::Float64) => {
                         Box::new(L2DistanceImpl::<PhysicalF64Old>::new())
                     }
                     (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
@@ -84,7 +84,7 @@ impl ScalarFunction for L2Distance {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Float64,
+            return_type: DataTypeOld::Float64,
             inputs,
             function_impl,
         })
@@ -110,12 +110,12 @@ where
     S: PhysicalStorageOld,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Float64,
+            datatype: DataTypeOld::Float64,
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 

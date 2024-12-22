@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
@@ -23,7 +23,7 @@ impl ColumnExpr {
         }
     }
 
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataTypeOld> {
         let (_, datatype) = table_list.get_column(self.table_scope, self.column)?;
         Ok(datatype.clone())
     }

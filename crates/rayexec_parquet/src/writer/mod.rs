@@ -13,7 +13,7 @@ use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::physical_type::{PhysicalBinaryOld, PhysicalStorageOld};
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::storage::AddressableStorage;
@@ -145,20 +145,20 @@ impl RowGroupWriter {
 
         for field in schema.fields.iter() {
             match &field.datatype {
-                DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64
-                | DataType::UInt8
-                | DataType::UInt16
-                | DataType::UInt32
-                | DataType::UInt64
-                | DataType::Float32
-                | DataType::Float64
-                | DataType::Timestamp(_)
-                | DataType::Decimal64(_)
-                | DataType::Decimal128(_)
-                | DataType::Utf8 => {
+                DataTypeOld::Int8
+                | DataTypeOld::Int16
+                | DataTypeOld::Int32
+                | DataTypeOld::Int64
+                | DataTypeOld::UInt8
+                | DataTypeOld::UInt16
+                | DataTypeOld::UInt32
+                | DataTypeOld::UInt64
+                | DataTypeOld::Float32
+                | DataTypeOld::Float64
+                | DataTypeOld::Timestamp(_)
+                | DataTypeOld::Decimal64(_)
+                | DataTypeOld::Decimal128(_)
+                | DataTypeOld::Utf8 => {
                     let page_writer = BufferedPageWriter {
                         buf: ColumnBuffer(Vec::new()), // TODO: Could reuse across row groups.
                     };

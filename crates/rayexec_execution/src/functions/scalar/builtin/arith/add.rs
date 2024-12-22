@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rayexec_bullet::array::{ArrayData, ArrayOld};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalF16Old,
@@ -99,79 +99,79 @@ impl ScalarFunction for Add {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(AddImpl::<PhysicalF16Old>::new(DataType::Float16)),
-                DataType::Float16,
+            (DataTypeOld::Float16, DataTypeOld::Float16) => (
+                Box::new(AddImpl::<PhysicalF16Old>::new(DataTypeOld::Float16)),
+                DataTypeOld::Float16,
             ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(AddImpl::<PhysicalF32Old>::new(DataType::Float32)),
-                DataType::Float32,
+            (DataTypeOld::Float32, DataTypeOld::Float32) => (
+                Box::new(AddImpl::<PhysicalF32Old>::new(DataTypeOld::Float32)),
+                DataTypeOld::Float32,
             ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(AddImpl::<PhysicalF64Old>::new(DataType::Float64)),
-                DataType::Float64,
+            (DataTypeOld::Float64, DataTypeOld::Float64) => (
+                Box::new(AddImpl::<PhysicalF64Old>::new(DataTypeOld::Float64)),
+                DataTypeOld::Float64,
             ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(AddImpl::<PhysicalI8Old>::new(DataType::Int8)),
-                DataType::Int8,
+            (DataTypeOld::Int8, DataTypeOld::Int8) => (
+                Box::new(AddImpl::<PhysicalI8Old>::new(DataTypeOld::Int8)),
+                DataTypeOld::Int8,
             ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(AddImpl::<PhysicalI16Old>::new(DataType::Int16)),
-                DataType::Int16,
+            (DataTypeOld::Int16, DataTypeOld::Int16) => (
+                Box::new(AddImpl::<PhysicalI16Old>::new(DataTypeOld::Int16)),
+                DataTypeOld::Int16,
             ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(AddImpl::<PhysicalI32Old>::new(DataType::Int32)),
-                DataType::Int32,
+            (DataTypeOld::Int32, DataTypeOld::Int32) => (
+                Box::new(AddImpl::<PhysicalI32Old>::new(DataTypeOld::Int32)),
+                DataTypeOld::Int32,
             ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(AddImpl::<PhysicalI64Old>::new(DataType::Int64)),
-                DataType::Int64,
+            (DataTypeOld::Int64, DataTypeOld::Int64) => (
+                Box::new(AddImpl::<PhysicalI64Old>::new(DataTypeOld::Int64)),
+                DataTypeOld::Int64,
             ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(AddImpl::<PhysicalI128Old>::new(DataType::Int128)),
-                DataType::Int128,
+            (DataTypeOld::Int128, DataTypeOld::Int128) => (
+                Box::new(AddImpl::<PhysicalI128Old>::new(DataTypeOld::Int128)),
+                DataTypeOld::Int128,
             ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(AddImpl::<PhysicalU8Old>::new(DataType::UInt8)),
-                DataType::UInt8,
+            (DataTypeOld::UInt8, DataTypeOld::UInt8) => (
+                Box::new(AddImpl::<PhysicalU8Old>::new(DataTypeOld::UInt8)),
+                DataTypeOld::UInt8,
             ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(AddImpl::<PhysicalU16Old>::new(DataType::UInt16)),
-                DataType::UInt16,
+            (DataTypeOld::UInt16, DataTypeOld::UInt16) => (
+                Box::new(AddImpl::<PhysicalU16Old>::new(DataTypeOld::UInt16)),
+                DataTypeOld::UInt16,
             ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(AddImpl::<PhysicalU32Old>::new(DataType::UInt32)),
-                DataType::UInt32,
+            (DataTypeOld::UInt32, DataTypeOld::UInt32) => (
+                Box::new(AddImpl::<PhysicalU32Old>::new(DataTypeOld::UInt32)),
+                DataTypeOld::UInt32,
             ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(AddImpl::<PhysicalU64Old>::new(DataType::UInt64)),
-                DataType::UInt64,
+            (DataTypeOld::UInt64, DataTypeOld::UInt64) => (
+                Box::new(AddImpl::<PhysicalU64Old>::new(DataTypeOld::UInt64)),
+                DataTypeOld::UInt64,
             ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(AddImpl::<PhysicalU128Old>::new(DataType::UInt128)),
-                DataType::UInt128,
+            (DataTypeOld::UInt128, DataTypeOld::UInt128) => (
+                Box::new(AddImpl::<PhysicalU128Old>::new(DataTypeOld::UInt128)),
+                DataTypeOld::UInt128,
             ),
 
             // TODO: Split out decimal (for scaling)
-            datatypes @ (DataType::Decimal64(_), DataType::Decimal64(_)) => (
+            datatypes @ (DataTypeOld::Decimal64(_), DataTypeOld::Decimal64(_)) => (
                 Box::new(AddImpl::<PhysicalI64Old>::new(datatypes.0.clone())),
                 datatypes.0,
             ),
-            datatypes @ (DataType::Decimal128(_), DataType::Decimal128(_)) => (
+            datatypes @ (DataTypeOld::Decimal128(_), DataTypeOld::Decimal128(_)) => (
                 Box::new(AddImpl::<PhysicalI128Old>::new(datatypes.0.clone())),
                 datatypes.0,
             ),
 
             // Date + days
-            (DataType::Date32, DataType::Int32) => (
-                Box::new(AddImpl::<PhysicalI32Old>::new(DataType::Date32)),
-                DataType::Date32,
+            (DataTypeOld::Date32, DataTypeOld::Int32) => (
+                Box::new(AddImpl::<PhysicalI32Old>::new(DataTypeOld::Date32)),
+                DataTypeOld::Date32,
             ),
             // Days + date
             // Note both are represented as i32 physical type, we don't need to worry about flipping the sides.
-            (DataType::Int32, DataType::Date32) => (
-                Box::new(AddImpl::<PhysicalI32Old>::new(DataType::Date32)),
-                DataType::Date32,
+            (DataTypeOld::Int32, DataTypeOld::Date32) => (
+                Box::new(AddImpl::<PhysicalI32Old>::new(DataTypeOld::Date32)),
+                DataTypeOld::Date32,
             ),
 
             // TODO: Interval
@@ -189,12 +189,12 @@ impl ScalarFunction for Add {
 
 #[derive(Debug, Clone)]
 pub struct AddImpl<S> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _s: PhantomData<S>,
 }
 
 impl<S> AddImpl<S> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         AddImpl {
             datatype,
             _s: PhantomData,
@@ -208,7 +208,7 @@ where
     for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -223,7 +223,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::expr;
@@ -238,7 +238,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -250,7 +250,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([5, 7, 9]);
 
         assert_eq!(expected, out);

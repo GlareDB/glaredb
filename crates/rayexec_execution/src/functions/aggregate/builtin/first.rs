@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use half::f16;
 use rayexec_bullet::array::ArrayData;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{
@@ -150,7 +150,7 @@ impl AggregateFunction for First {
 /// FIRST aggregate impl for utf8 and binary.
 #[derive(Debug, Clone)]
 pub struct FirstBinaryImpl {
-    datatype: DataType,
+    datatype: DataTypeOld,
 }
 
 impl AggregateFunctionImpl for FirstBinaryImpl {
@@ -189,7 +189,7 @@ impl AggregateFunctionImpl for FirstBoolImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalBoolOld, _, _, _, _>(
             FirstState::<bool>::default,
-            move |states| boolean_finalize(DataType::Boolean, states),
+            move |states| boolean_finalize(DataTypeOld::Boolean, states),
         )
     }
 }
@@ -197,13 +197,13 @@ impl AggregateFunctionImpl for FirstBoolImpl {
 // TODO: Remove T
 #[derive(Debug, Clone)]
 pub struct FirstPrimitiveImpl<S, T> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _s: PhantomData<S>,
     _t: PhantomData<T>,
 }
 
 impl<S, T> FirstPrimitiveImpl<S, T> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         FirstPrimitiveImpl {
             datatype,
             _s: PhantomData,

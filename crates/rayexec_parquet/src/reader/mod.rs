@@ -18,10 +18,10 @@ use parquet::data_type::Int96;
 use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
-use rayexec_bullet::array::{ArrayOld, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::storage::table_storage::Projections;
@@ -45,7 +45,7 @@ pub trait ArrayBuilder<P: PageReader>: Send {
 /// Create a new array builder based on the provided type.
 pub fn builder_for_type<P>(
     batch_size: usize,
-    datatype: DataType,
+    datatype: DataTypeOld,
     physical: PhysicalType,
     desc: ColumnDescPtr,
 ) -> Result<Box<dyn ArrayBuilder<P>>>
@@ -53,58 +53,64 @@ where
     P: PageReader + 'static,
 {
     match (&datatype, physical) {
-        (DataType::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<bool, P>::new(
+        (DataTypeOld::Boolean, _) => Ok(Box::new(PrimitiveArrayReader::<bool, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Int16, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+        (DataTypeOld::Int16, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+        (DataTypeOld::Int32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::UInt16, PhysicalType::INT32) => Ok(Box::new(
+        (DataTypeOld::UInt16, PhysicalType::INT32) => Ok(Box::new(
             PrimitiveArrayReader::<i32, P>::new(batch_size, datatype, desc),
         )),
-        (DataType::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
+        (DataTypeOld::Int64, _) => Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Timestamp(_), PhysicalType::INT64) => Ok(Box::new(
-            PrimitiveArrayReader::<i64, P>::new(batch_size, datatype, desc),
-        )),
-        (DataType::Timestamp(_), PhysicalType::INT96) => {
-            Ok(Box::new(PrimitiveArrayReader::<Int96, P>::new(
-                batch_size, datatype, desc,
-            )))
-        }
-        (DataType::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<f32, P>::new(
-            batch_size, datatype, desc,
-        ))),
-        (DataType::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<f64, P>::new(
-            batch_size, datatype, desc,
-        ))),
-        (DataType::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
-            batch_size, datatype, desc,
-        ))),
-        (DataType::Decimal64(_), PhysicalType::INT32) => Ok(Box::new(
-            PrimitiveArrayReader::<i32, P>::new(batch_size, datatype, desc),
-        )),
-        (DataType::Decimal64(_), PhysicalType::INT64) => Ok(Box::new(
-            PrimitiveArrayReader::<i64, P>::new(batch_size, datatype, desc),
-        )),
-        (DataType::Decimal128(_), PhysicalType::INT32) => {
-            Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
-                batch_size, datatype, desc,
-            )))
-        }
-        (DataType::Decimal128(_), PhysicalType::INT64) => {
+        (DataTypeOld::Timestamp(_), PhysicalType::INT64) => {
             Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
                 batch_size, datatype, desc,
             )))
         }
-        (DataType::Utf8, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
+        (DataTypeOld::Timestamp(_), PhysicalType::INT96) => {
+            Ok(Box::new(PrimitiveArrayReader::<Int96, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
+        (DataTypeOld::Float32, _) => Ok(Box::new(PrimitiveArrayReader::<f32, P>::new(
             batch_size, datatype, desc,
         ))),
-        (DataType::Binary, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
+        (DataTypeOld::Float64, _) => Ok(Box::new(PrimitiveArrayReader::<f64, P>::new(
+            batch_size, datatype, desc,
+        ))),
+        (DataTypeOld::Date32, _) => Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+            batch_size, datatype, desc,
+        ))),
+        (DataTypeOld::Decimal64(_), PhysicalType::INT32) => {
+            Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
+        (DataTypeOld::Decimal64(_), PhysicalType::INT64) => {
+            Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
+        (DataTypeOld::Decimal128(_), PhysicalType::INT32) => {
+            Ok(Box::new(PrimitiveArrayReader::<i32, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
+        (DataTypeOld::Decimal128(_), PhysicalType::INT64) => {
+            Ok(Box::new(PrimitiveArrayReader::<i64, P>::new(
+                batch_size, datatype, desc,
+            )))
+        }
+        (DataTypeOld::Utf8, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
+            batch_size, datatype, desc,
+        ))),
+        (DataTypeOld::Binary, _) => Ok(Box::new(VarlenArrayReader::<P>::new(
             batch_size, datatype, desc,
         ))),
         other => Err(RayexecError::new(format!(

@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalBinaryOld, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -49,9 +49,9 @@ impl ScalarFunction for Length {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
+            DataTypeOld::Utf8 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Int64,
+                return_type: DataTypeOld::Int64,
                 inputs,
                 function_impl: Box::new(StrLengthImpl),
             }),
@@ -64,11 +64,11 @@ impl ScalarFunction for Length {
 pub struct StrLengthImpl;
 
 impl ScalarFunctionImpl for StrLengthImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Int64,
+            datatype: DataTypeOld::Int64,
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
@@ -130,9 +130,9 @@ impl ScalarFunction for ByteLength {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 | DataType::Binary => Ok(PlannedScalarFunction {
+            DataTypeOld::Utf8 | DataTypeOld::Binary => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Int64,
+                return_type: DataTypeOld::Int64,
                 inputs,
                 function_impl: Box::new(ByteLengthImpl),
             }),
@@ -145,11 +145,11 @@ impl ScalarFunction for ByteLength {
 pub struct ByteLengthImpl;
 
 impl ScalarFunctionImpl for ByteLengthImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Int64,
+            datatype: DataTypeOld::Int64,
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
@@ -207,9 +207,9 @@ impl ScalarFunction for BitLength {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 | DataType::Binary => Ok(PlannedScalarFunction {
+            DataTypeOld::Utf8 | DataTypeOld::Binary => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Int64,
+                return_type: DataTypeOld::Int64,
                 inputs,
                 function_impl: Box::new(BitLengthImpl),
             }),
@@ -222,11 +222,11 @@ impl ScalarFunction for BitLength {
 pub struct BitLengthImpl;
 
 impl ScalarFunctionImpl for BitLengthImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Int64,
+            datatype: DataTypeOld::Int64,
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 

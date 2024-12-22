@@ -32,7 +32,7 @@ use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
@@ -69,17 +69,17 @@ impl Expression {
     ///
     /// The provided table list is used when resolving the return type for a
     /// column expression.
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataTypeOld> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type.clone(),
             Self::Arith(expr) => expr.datatype(table_list)?,
-            Self::Between(_) => DataType::Boolean,
+            Self::Between(_) => DataTypeOld::Boolean,
             Self::Case(expr) => expr.datatype(table_list)?,
             Self::Cast(expr) => expr.to.clone(),
             Self::Column(expr) => expr.datatype(table_list)?,
-            Self::Comparison(_) => DataType::Boolean,
-            Self::Conjunction(_) => DataType::Boolean,
-            Self::Is(_) => DataType::Boolean,
+            Self::Comparison(_) => DataTypeOld::Boolean,
+            Self::Conjunction(_) => DataTypeOld::Boolean,
+            Self::Is(_) => DataTypeOld::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
             Self::Negate(expr) => expr.datatype(table_list)?,
             Self::ScalarFunction(expr) => expr.function.return_type.clone(),
@@ -543,7 +543,7 @@ pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
     })
 }
 
-pub fn cast(expr: Expression, to: DataType) -> Expression {
+pub fn cast(expr: Expression, to: DataTypeOld) -> Expression {
     Expression::Cast(CastExpr {
         to,
         expr: Box::new(expr),

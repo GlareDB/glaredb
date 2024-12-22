@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::{ArrayOld, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
@@ -59,7 +59,7 @@ pub struct LeftOuterJoinDrainState {
     batches: Vec<BatchOld>,
     /// Types for the right side of the join. Used to create the (typed) null
     /// columns for left rows that weren't visited.
-    right_types: Vec<DataType>,
+    right_types: Vec<DataTypeOld>,
     /// Current batch we're draining.
     batch_idx: usize,
     /// How many batches to skip on each iteration.
@@ -76,7 +76,7 @@ impl LeftOuterJoinDrainState {
         skip: usize,
         tracker: LeftOuterJoinTracker,
         batches: Vec<BatchOld>,
-        right_types: Vec<DataType>,
+        right_types: Vec<DataTypeOld>,
     ) -> Self {
         LeftOuterJoinDrainState {
             tracker,
@@ -106,7 +106,7 @@ impl LeftOuterJoinDrainState {
             .iter()
             .cloned()
             .chain([ArrayOld::new_with_array_data(
-                DataType::Boolean,
+                DataTypeOld::Boolean,
                 ArrayData::Boolean(Arc::new(bitmap.clone().into())),
             )]);
 
@@ -231,7 +231,7 @@ impl RightOuterJoinTracker {
     /// Returns None if all row on the right were visited.
     pub fn into_unvisited(
         self,
-        left_types: &[DataType],
+        left_types: &[DataTypeOld],
         right: &BatchOld,
     ) -> Result<Option<BatchOld>> {
         let selection = SelectionVector::from_iter(self.unvisited.index_iter());

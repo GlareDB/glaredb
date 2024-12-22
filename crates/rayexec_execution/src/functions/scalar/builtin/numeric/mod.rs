@@ -34,7 +34,7 @@ pub use log::*;
 use num_traits::Float;
 pub use radians::*;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::physical_type::{
     PhysicalF16Old,
     PhysicalF32Old,
@@ -81,7 +81,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
 
-    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
+    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataTypeOld) -> Result<ArrayOld>
     where
         S: PhysicalStorageOld,
         S::Type<'a>: Float + Default,
@@ -122,7 +122,7 @@ impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O
 
         // TODO: Decimals too
         match &datatype {
-            DataType::Float16 | DataType::Float32 | DataType::Float64 => (),
+            DataTypeOld::Float16 | DataTypeOld::Float32 | DataTypeOld::Float64 => (),
             other => return Err(invalid_input_types_error(self, &[other])),
         }
 
@@ -140,12 +140,12 @@ impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O
 
 #[derive(Debug, Clone)]
 pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
-    ret: DataType,
+    ret: DataTypeOld,
     _op: PhantomData<O>,
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         match input.physical_type() {
             PhysicalType::Float16 => O::execute_float::<PhysicalF16Old>(input, self.ret.clone()),

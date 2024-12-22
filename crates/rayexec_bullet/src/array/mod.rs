@@ -5,7 +5,7 @@ use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use crate::bitmap::Bitmap;
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 use crate::executor::builder::{ArrayBuilder, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::executor::physical_type::{
     PhysicalAnyOld,
@@ -54,7 +54,7 @@ pub type LogicalSelection = SharedOrOwned<SelectionVector>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrayOld {
     /// Data type of the array.
-    pub(crate) datatype: DataType,
+    pub(crate) datatype: DataTypeOld,
     /// Selection of rows for the array.
     ///
     /// If set, this provides logical row mapping on top of the underlying data.
@@ -81,7 +81,7 @@ impl ArrayOld {
         let data = UntypedNullStorage(1);
 
         ArrayOld {
-            datatype: DataType::Null,
+            datatype: DataTypeOld::Null,
             selection: Some(selection.into()),
             validity: Some(validity.into()),
             data: data.into(),
@@ -89,7 +89,7 @@ impl ArrayOld {
     }
 
     /// Creates a new typed array with all values being set to null.
-    pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
+    pub fn new_typed_null_array(datatype: DataTypeOld, len: usize) -> Result<Self> {
         // Create physical array data of length 1, and use a selection vector to
         // extend it out to the desired size.
         let data = datatype.physical_type()?.zeroed_array_data(1);
@@ -104,7 +104,7 @@ impl ArrayOld {
         })
     }
 
-    pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData>) -> Self {
+    pub fn new_with_array_data(datatype: DataTypeOld, data: impl Into<ArrayData>) -> Self {
         ArrayOld {
             datatype,
             selection: None,
@@ -114,7 +114,7 @@ impl ArrayOld {
     }
 
     pub fn new_with_validity_and_array_data(
-        datatype: DataType,
+        datatype: DataTypeOld,
         validity: impl Into<PhysicalValidity>,
         data: impl Into<ArrayData>,
     ) -> Self {
@@ -127,7 +127,7 @@ impl ArrayOld {
     }
 
     pub fn new_with_validity_selection_and_array_data(
-        datatype: DataType,
+        datatype: DataTypeOld,
         validity: impl Into<PhysicalValidity>,
         selection: impl Into<LogicalSelection>,
         data: impl Into<ArrayData>,
@@ -140,7 +140,7 @@ impl ArrayOld {
         }
     }
 
-    pub fn datatype(&self) -> &DataType {
+    pub fn datatype(&self) -> &DataTypeOld {
         &self.datatype
     }
 
@@ -247,7 +247,7 @@ impl ArrayOld {
     pub fn physical_type(&self) -> PhysicalType {
         match self.data.physical_type() {
             PhysicalType::Binary => match self.datatype {
-                DataType::Utf8 => PhysicalType::Utf8,
+                DataTypeOld::Utf8 => PhysicalType::Utf8,
                 _ => PhysicalType::Binary,
             },
             other => other,
@@ -452,67 +452,67 @@ impl ArrayOld {
     /// Ignores validity and selectivitity.
     pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
-            DataType::Null => match &self.data {
+            DataTypeOld::Null => match &self.data {
                 ArrayData::UntypedNull(_) => ScalarValue::Null,
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Boolean => match &self.data {
+            DataTypeOld::Boolean => match &self.data {
                 ArrayData::Boolean(arr) => arr.as_ref().as_ref().value(idx).into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Float16 => match &self.data {
+            DataTypeOld::Float16 => match &self.data {
                 ArrayData::Float16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Float32 => match &self.data {
+            DataTypeOld::Float32 => match &self.data {
                 ArrayData::Float32(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Float64 => match &self.data {
+            DataTypeOld::Float64 => match &self.data {
                 ArrayData::Float64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int8 => match &self.data {
+            DataTypeOld::Int8 => match &self.data {
                 ArrayData::Int8(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int16 => match &self.data {
+            DataTypeOld::Int16 => match &self.data {
                 ArrayData::Int16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int32 => match &self.data {
+            DataTypeOld::Int32 => match &self.data {
                 ArrayData::Int32(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int64 => match &self.data {
+            DataTypeOld::Int64 => match &self.data {
                 ArrayData::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int128 => match &self.data {
+            DataTypeOld::Int128 => match &self.data {
                 ArrayData::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt8 => match &self.data {
+            DataTypeOld::UInt8 => match &self.data {
                 ArrayData::UInt8(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt16 => match &self.data {
+            DataTypeOld::UInt16 => match &self.data {
                 ArrayData::UInt16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt32 => match &self.data {
+            DataTypeOld::UInt32 => match &self.data {
                 ArrayData::UInt32(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt64 => match &self.data {
+            DataTypeOld::UInt64 => match &self.data {
                 ArrayData::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt128 => match &self.data {
+            DataTypeOld::UInt128 => match &self.data {
                 ArrayData::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Decimal64(m) => match &self.data {
+            DataTypeOld::Decimal64(m) => match &self.data {
                 ArrayData::Int64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
                     precision: m.precision,
                     scale: m.scale,
@@ -520,7 +520,7 @@ impl ArrayOld {
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Decimal128(m) => match &self.data {
+            DataTypeOld::Decimal128(m) => match &self.data {
                 ArrayData::Int128(arr) => ScalarValue::Decimal128(Decimal128Scalar {
                     precision: m.precision,
                     scale: m.scale,
@@ -528,26 +528,26 @@ impl ArrayOld {
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Date32 => match &self.data {
+            DataTypeOld::Date32 => match &self.data {
                 ArrayData::Int32(arr) => ScalarValue::Date32(arr.as_ref().as_ref()[idx]),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Date64 => match &self.data {
+            DataTypeOld::Date64 => match &self.data {
                 ArrayData::Int64(arr) => ScalarValue::Date64(arr.as_ref().as_ref()[idx]),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Timestamp(m) => match &self.data {
+            DataTypeOld::Timestamp(m) => match &self.data {
                 ArrayData::Int64(arr) => ScalarValue::Timestamp(TimestampScalar {
                     unit: m.unit,
                     value: arr.as_ref().as_ref()[idx],
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Interval => match &self.data {
+            DataTypeOld::Interval => match &self.data {
                 ArrayData::Interval(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Utf8 => {
+            DataTypeOld::Utf8 => {
                 let v = match &self.data {
                     ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
@@ -563,7 +563,7 @@ impl ArrayOld {
                 let s = std::str::from_utf8(v).context("binary data not valid utf8")?;
                 s.into()
             }
-            DataType::Binary => {
+            DataTypeOld::Binary => {
                 let v = match &self.data {
                     ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
@@ -578,8 +578,8 @@ impl ArrayOld {
                 };
                 v.into()
             }
-            DataType::Struct(_) => not_implemented!("get value: struct"),
-            DataType::List(_) => match &self.data {
+            DataTypeOld::Struct(_) => not_implemented!("get value: struct"),
+            DataTypeOld::List(_) => match &self.data {
                 ArrayData::List(list) => {
                     let meta = list
                         .metadata
@@ -769,7 +769,7 @@ impl ArrayOld {
     }
 }
 
-fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
+fn array_not_valid_for_type_err(datatype: &DataTypeOld) -> RayexecError {
     RayexecError::new(format!("Array data not valid for data type: {datatype}"))
 }
 
@@ -813,7 +813,7 @@ impl FromIterator<String> for ArrayOld {
         }
 
         ArrayOld {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             selection: None,
             validity: None,
             data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
@@ -832,7 +832,7 @@ impl<'a> FromIterator<&'a str> for ArrayOld {
         }
 
         ArrayOld {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             selection: None,
             validity: None,
             data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
@@ -846,7 +846,7 @@ macro_rules! impl_primitive_from_iter {
             fn from_iter<T: IntoIterator<Item = $prim>>(iter: T) -> Self {
                 let vals: Vec<_> = iter.into_iter().collect();
                 ArrayOld {
-                    datatype: DataType::$variant,
+                    datatype: DataTypeOld::$variant,
                     selection: None,
                     validity: None,
                     data: ArrayData::$variant(Arc::new(vals.into())),
@@ -874,7 +874,7 @@ impl FromIterator<bool> for ArrayOld {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
         let vals: Bitmap = iter.into_iter().collect();
         ArrayOld {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             selection: None,
             validity: None,
             data: ArrayData::Boolean(Arc::new(vals.into())),

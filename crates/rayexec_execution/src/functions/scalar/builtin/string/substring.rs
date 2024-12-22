@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::{PhysicalI64Old, PhysicalUtf8Old};
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
@@ -79,21 +79,23 @@ impl ScalarFunction for Substring {
 
         match datatypes.len() {
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFunction {
+                (DataTypeOld::Utf8, DataTypeOld::Int64) => Ok(PlannedScalarFunction {
                     function: Box::new(*self),
-                    return_type: DataType::Utf8,
+                    return_type: DataTypeOld::Utf8,
                     inputs,
                     function_impl: Box::new(SubstringFromImpl),
                 }),
                 (a, b) => Err(invalid_input_types_error(self, &[a, b])),
             },
             3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Int64) => Ok(PlannedScalarFunction {
-                    function: Box::new(*self),
-                    return_type: DataType::Utf8,
-                    inputs,
-                    function_impl: Box::new(SubstringFromToImpl),
-                }),
+                (DataTypeOld::Utf8, DataTypeOld::Int64, DataTypeOld::Int64) => {
+                    Ok(PlannedScalarFunction {
+                        function: Box::new(*self),
+                        return_type: DataTypeOld::Utf8,
+                        inputs,
+                        function_impl: Box::new(SubstringFromToImpl),
+                    })
+                }
                 (a, b, c) => Err(invalid_input_types_error(self, &[a, b, c])),
             },
             _ => Err(invalid_input_types_error(self, &datatypes)),
@@ -105,13 +107,13 @@ impl ScalarFunction for Substring {
 pub struct SubstringFromImpl;
 
 impl ScalarFunctionImpl for SubstringFromImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let len = inputs[0].logical_len();
         BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, _, _>(
             inputs[0],
             inputs[1],
             ArrayBuilder {
-                datatype: DataType::Utf8,
+                datatype: DataTypeOld::Utf8,
                 buffer: GermanVarlenBuffer::with_len(len),
             },
             |s, from, buf| buf.put(substring_from(s, from)),
@@ -123,14 +125,14 @@ impl ScalarFunctionImpl for SubstringFromImpl {
 pub struct SubstringFromToImpl;
 
 impl ScalarFunctionImpl for SubstringFromToImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let len = inputs[0].logical_len();
         TernaryExecutor::execute::<PhysicalUtf8Old, PhysicalI64Old, PhysicalI64Old, _, _>(
             inputs[0],
             inputs[1],
             inputs[2],
             ArrayBuilder {
-                datatype: DataType::Utf8,
+                datatype: DataTypeOld::Utf8,
                 buffer: GermanVarlenBuffer::with_len(len),
             },
             |s, from, count, buf| buf.put(substring_from_count(s, from, count)),

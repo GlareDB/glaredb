@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
@@ -84,7 +84,12 @@ impl<'a> SetVarBinder<'a> {
         let name = show.reference.pop()?; // TODO: Allow compound references?
         let var = self.config.get_as_scalar(&name)?;
 
-        bind_context.push_table(self.current, None, vec![DataType::Utf8], vec![name.clone()])?;
+        bind_context.push_table(
+            self.current,
+            None,
+            vec![DataTypeOld::Utf8],
+            vec![name.clone()],
+        )?;
 
         Ok(Node {
             node: LogicalShowVar { name, value: var },

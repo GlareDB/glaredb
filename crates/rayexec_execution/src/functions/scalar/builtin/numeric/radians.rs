@@ -1,6 +1,6 @@
 use num_traits::Float;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalStorageOld;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for RadiansOp {
     const NAME: &'static str = "radians";
     const DESCRIPTION: &'static str = "Converts degrees to radians";
 
-    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataType) -> Result<ArrayOld>
+    fn execute_float<'a, S>(input: &'a ArrayOld, ret: DataTypeOld) -> Result<ArrayOld>
     where
         S: PhysicalStorageOld,
         S::Type<'a>: Float + Default,

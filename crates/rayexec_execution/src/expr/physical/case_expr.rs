@@ -116,7 +116,7 @@ impl fmt::Display for PhysicalCaseExpr {
 #[cfg(test)]
 mod tests {
 
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
     use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
@@ -139,7 +139,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();

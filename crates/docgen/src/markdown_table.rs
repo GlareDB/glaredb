@@ -55,7 +55,7 @@ pub fn write_markdown_table<'a>(
 #[cfg(test)]
 mod tests {
     use rayexec_bullet::array::ArrayOld;
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
     use rayexec_bullet::field::Field;
 
     use super::*;
@@ -69,8 +69,8 @@ mod tests {
         .unwrap();
 
         let schema = Schema::new([
-            Field::new("Numbers", DataType::Int32, false),
-            Field::new("Strings", DataType::Utf8, false),
+            Field::new("Numbers", DataTypeOld::Int32, false),
+            Field::new("Strings", DataTypeOld::Utf8, false),
         ]);
 
         let mut buf = String::new();

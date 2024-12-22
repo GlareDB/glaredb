@@ -16,7 +16,7 @@ use parking_lot::Mutex;
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalU64Old;
 use rayexec_bullet::executor::scalar::{HashExecutor, UnaryExecutor};
@@ -436,7 +436,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 // on the output.
                 for grouping_function in &self.grouping_functions {
                     let builder = ArrayBuilder {
-                        datatype: DataType::UInt64,
+                        datatype: DataTypeOld::UInt64,
                         buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
                     };
 

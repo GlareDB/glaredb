@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::compute::cast::array::decimal_rescale;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld, DecimalTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::{
     PhysicalBinaryOld,
@@ -209,7 +209,7 @@ impl ScalarFunction for Eq {
     ) -> Result<PlannedScalarFunction> {
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             function_impl: new_comparison_impl::<EqOperation>(self, &inputs, table_list)?,
             inputs,
         })
@@ -254,7 +254,7 @@ impl ScalarFunction for Neq {
     ) -> Result<PlannedScalarFunction> {
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             function_impl: new_comparison_impl::<NotEqOperation>(self, &inputs, table_list)?,
             inputs,
         })
@@ -295,7 +295,7 @@ impl ScalarFunction for Lt {
     ) -> Result<PlannedScalarFunction> {
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             function_impl: new_comparison_impl::<LtOperation>(self, &inputs, table_list)?,
             inputs,
         })
@@ -336,7 +336,7 @@ impl ScalarFunction for LtEq {
     ) -> Result<PlannedScalarFunction> {
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             function_impl: new_comparison_impl::<LtEqOperation>(self, &inputs, table_list)?,
             inputs,
         })
@@ -377,7 +377,7 @@ impl ScalarFunction for Gt {
     ) -> Result<PlannedScalarFunction> {
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             function_impl: new_comparison_impl::<GtOperation>(self, &inputs, table_list)?,
             inputs,
         })
@@ -418,7 +418,7 @@ impl ScalarFunction for GtEq {
     ) -> Result<PlannedScalarFunction> {
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             function_impl: new_comparison_impl::<GtEqOperation>(self, &inputs, table_list)?,
             inputs,
         })
@@ -516,74 +516,74 @@ fn new_comparison_impl<O: ComparisonOperation>(
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Boolean, DataType::Boolean) => {
+            (DataTypeOld::Boolean, DataTypeOld::Boolean) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalBoolOld>::new())
             }
-            (DataType::Int8, DataType::Int8) => {
+            (DataTypeOld::Int8, DataTypeOld::Int8) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI8Old>::new())
             }
-            (DataType::Int16, DataType::Int16) => {
+            (DataTypeOld::Int16, DataTypeOld::Int16) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI16Old>::new())
             }
-            (DataType::Int32, DataType::Int32) => {
+            (DataTypeOld::Int32, DataTypeOld::Int32) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI32Old>::new())
             }
-            (DataType::Int64, DataType::Int64) => {
+            (DataTypeOld::Int64, DataTypeOld::Int64) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI64Old>::new())
             }
-            (DataType::Int128, DataType::Int128) => {
+            (DataTypeOld::Int128, DataTypeOld::Int128) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI128Old>::new())
             }
 
-            (DataType::UInt8, DataType::UInt8) => {
+            (DataTypeOld::UInt8, DataTypeOld::UInt8) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalU8Old>::new())
             }
-            (DataType::UInt16, DataType::UInt16) => {
+            (DataTypeOld::UInt16, DataTypeOld::UInt16) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalU16Old>::new())
             }
-            (DataType::UInt32, DataType::UInt32) => {
+            (DataTypeOld::UInt32, DataTypeOld::UInt32) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalU32Old>::new())
             }
-            (DataType::UInt64, DataType::UInt64) => {
+            (DataTypeOld::UInt64, DataTypeOld::UInt64) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalU64Old>::new())
             }
-            (DataType::UInt128, DataType::UInt128) => {
+            (DataTypeOld::UInt128, DataTypeOld::UInt128) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalU128Old>::new())
             }
-            (DataType::Float16, DataType::Float16) => {
+            (DataTypeOld::Float16, DataTypeOld::Float16) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalF16Old>::new())
             }
-            (DataType::Float32, DataType::Float32) => {
+            (DataTypeOld::Float32, DataTypeOld::Float32) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalF32Old>::new())
             }
-            (DataType::Float64, DataType::Float64) => {
+            (DataTypeOld::Float64, DataTypeOld::Float64) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalF64Old>::new())
             }
-            (DataType::Decimal64(left), DataType::Decimal64(right)) => Box::new(
+            (DataTypeOld::Decimal64(left), DataTypeOld::Decimal64(right)) => Box::new(
                 RescalingComparisionImpl::<O, Decimal64Type>::new(left, right),
             ),
-            (DataType::Decimal128(left), DataType::Decimal128(right)) => Box::new(
+            (DataTypeOld::Decimal128(left), DataTypeOld::Decimal128(right)) => Box::new(
                 RescalingComparisionImpl::<O, Decimal128Type>::new(left, right),
             ),
-            (DataType::Timestamp(_), DataType::Timestamp(_)) => {
+            (DataTypeOld::Timestamp(_), DataTypeOld::Timestamp(_)) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalBoolOld>::new())
             }
-            (DataType::Interval, DataType::Interval) => {
+            (DataTypeOld::Interval, DataTypeOld::Interval) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalIntervalOld>::new())
             }
-            (DataType::Date32, DataType::Date32) => {
+            (DataTypeOld::Date32, DataTypeOld::Date32) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI32Old>::new())
             }
-            (DataType::Date64, DataType::Date64) => {
+            (DataTypeOld::Date64, DataTypeOld::Date64) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalI64Old>::new())
             }
-            (DataType::Utf8, DataType::Utf8) => {
+            (DataTypeOld::Utf8, DataTypeOld::Utf8) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalUtf8Old>::new())
             }
-            (DataType::Binary, DataType::Binary) => {
+            (DataTypeOld::Binary, DataTypeOld::Binary) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalBinaryOld>::new())
             }
-            (DataType::List(m1), DataType::List(m2)) if m1 == m2 => {
+            (DataTypeOld::List(m1), DataTypeOld::List(m2)) if m1 == m2 => {
                 // TODO: We'll want to figure out casting for lists.
                 Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type()?))
             }
@@ -660,12 +660,12 @@ impl<O> ScalarFunctionImpl for ListComparisonImpl<O>
 where
     O: ComparisonOperation,
 {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let left = inputs[0];
         let right = inputs[1];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len(left.logical_len()),
         };
 
@@ -797,12 +797,12 @@ where
     S: PhysicalStorageOld,
     for<'a> S::Type<'a>: PartialEq + PartialOrd,
 {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let left = inputs[0];
         let right = inputs[1];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len(left.logical_len()),
         };
 
@@ -845,12 +845,12 @@ where
     T: DecimalType,
     ArrayData: From<PrimitiveStorage<T::Primitive>>,
 {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let left = inputs[0];
         let right = inputs[1];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len(left.logical_len()),
         };
 
@@ -908,7 +908,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -920,7 +920,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
@@ -935,7 +935,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -947,7 +947,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
@@ -962,7 +962,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -974,7 +974,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
@@ -989,7 +989,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -1001,7 +1001,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([true, true, true]);
 
         assert_eq!(expected, out);
@@ -1016,7 +1016,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -1028,7 +1028,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([false, false, false]);
 
         assert_eq!(expected, out);
@@ -1043,7 +1043,7 @@ mod tests {
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -1055,7 +1055,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
         let expected = ArrayOld::from_iter([false, true, false]);
 
         assert_eq!(expected, out);

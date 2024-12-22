@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::field::Field;
 use rayexec_debug::table_storage::TablePreload;
 use rayexec_debug::{DebugDataSource, DebugDataSourceOptions};
@@ -33,8 +33,8 @@ pub fn main() -> Result<()> {
                     schema: "schema1".to_string(),
                     name: "table1".to_string(),
                     columns: vec![
-                        Field::new("c1", DataType::Int64, false),
-                        Field::new("c2", DataType::Utf8, false),
+                        Field::new("c1", DataTypeOld::Int64, false),
+                        Field::new("c2", DataTypeOld::Utf8, false),
                     ],
                     data: BatchOld::try_new([
                         ArrayOld::from_iter([1_i64, 2_i64]),
@@ -47,8 +47,8 @@ pub fn main() -> Result<()> {
                     schema: "schema1".to_string(),
                     name: "insert_into1".to_string(),
                     columns: vec![
-                        Field::new("c1", DataType::Int64, false),
-                        Field::new("c2", DataType::Utf8, false),
+                        Field::new("c1", DataTypeOld::Int64, false),
+                        Field::new("c2", DataTypeOld::Utf8, false),
                     ],
                     data: BatchOld::try_new([
                         ArrayOld::from_iter([1_i64, 2_i64]),

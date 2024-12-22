@@ -12,7 +12,7 @@ use futures::stream::BoxStream;
 use futures::{StreamExt, TryFutureExt};
 use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::batch::BatchOld;
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta};
+use rayexec_bullet::datatype::{DataTypeOld, DecimalTypeMeta};
 use rayexec_bullet::field::Field;
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
@@ -358,24 +358,24 @@ impl PostgresClient {
 
         for (name, typ) in names.into_iter().zip(typs) {
             let dt = match typ {
-                &PostgresType::BOOL => DataType::Boolean,
-                &PostgresType::INT2 => DataType::Int16,
-                &PostgresType::INT4 => DataType::Int32,
-                &PostgresType::INT8 => DataType::Int64,
-                &PostgresType::FLOAT4 => DataType::Float32,
-                &PostgresType::FLOAT8 => DataType::Float64,
+                &PostgresType::BOOL => DataTypeOld::Boolean,
+                &PostgresType::INT2 => DataTypeOld::Int16,
+                &PostgresType::INT4 => DataTypeOld::Int32,
+                &PostgresType::INT8 => DataTypeOld::Int64,
+                &PostgresType::FLOAT4 => DataTypeOld::Float32,
+                &PostgresType::FLOAT8 => DataTypeOld::Float64,
                 &PostgresType::CHAR
                 | &PostgresType::BPCHAR
                 | &PostgresType::VARCHAR
                 | &PostgresType::TEXT
                 | &PostgresType::JSONB
                 | &PostgresType::JSON
-                | &PostgresType::UUID => DataType::Utf8,
-                &PostgresType::BYTEA => DataType::Binary,
+                | &PostgresType::UUID => DataTypeOld::Utf8,
+                &PostgresType::BYTEA => DataTypeOld::Binary,
                 // While postgres numerics are "unconstrained" by default, we need
                 // to specify the precision and scale for the column. Setting these
                 // same as bigquery.
-                &PostgresType::NUMERIC => DataType::Decimal128(DecimalTypeMeta::new(38, 9)),
+                &PostgresType::NUMERIC => DataTypeOld::Decimal128(DecimalTypeMeta::new(38, 9)),
 
                 other => {
                     return Err(RayexecError::new(format!(
@@ -390,7 +390,7 @@ impl PostgresClient {
         Ok(fields)
     }
 
-    fn binary_rows_to_batch(typs: &[DataType], rows: Vec<BinaryCopyOutRow>) -> Result<BatchOld> {
+    fn binary_rows_to_batch(typs: &[DataTypeOld], rows: Vec<BinaryCopyOutRow>) -> Result<BatchOld> {
         fn row_iter<'a, T: FromSql<'a>>(
             rows: &'a [BinaryCopyOutRow],
             idx: usize,
@@ -401,12 +401,12 @@ impl PostgresClient {
         let mut arrays = Vec::with_capacity(typs.len());
         for (idx, typ) in typs.iter().enumerate() {
             let arr = match typ {
-                DataType::Boolean => ArrayOld::from_iter(row_iter::<bool>(&rows, idx)),
-                DataType::Int8 => ArrayOld::from_iter(row_iter::<i8>(&rows, idx)),
-                DataType::Int16 => ArrayOld::from_iter(row_iter::<i16>(&rows, idx)),
-                DataType::Int32 => ArrayOld::from_iter(row_iter::<i32>(&rows, idx)),
-                DataType::Int64 => ArrayOld::from_iter(row_iter::<i64>(&rows, idx)),
-                DataType::Decimal128(m) => {
+                DataTypeOld::Boolean => ArrayOld::from_iter(row_iter::<bool>(&rows, idx)),
+                DataTypeOld::Int8 => ArrayOld::from_iter(row_iter::<i8>(&rows, idx)),
+                DataTypeOld::Int16 => ArrayOld::from_iter(row_iter::<i16>(&rows, idx)),
+                DataTypeOld::Int32 => ArrayOld::from_iter(row_iter::<i32>(&rows, idx)),
+                DataTypeOld::Int64 => ArrayOld::from_iter(row_iter::<i64>(&rows, idx)),
+                DataTypeOld::Decimal128(m) => {
                     let primitives = ArrayOld::from_iter(rows.iter().map(|row| {
                         let decimal = row.try_get::<PostgresDecimal>(idx).ok();
                         // TODO: Rescale
@@ -415,18 +415,18 @@ impl PostgresClient {
 
                     match primitives.validity() {
                         Some(validity) => ArrayOld::new_with_validity_and_array_data(
-                            DataType::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
+                            DataTypeOld::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
                             validity.clone(),
                             primitives.array_data().clone(),
                         ),
                         None => ArrayOld::new_with_array_data(
-                            DataType::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
+                            DataTypeOld::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
                             primitives.array_data().clone(),
                         ),
                     }
                 }
 
-                DataType::Utf8 => ArrayOld::from_iter(
+                DataTypeOld::Utf8 => ArrayOld::from_iter(
                     rows.iter()
                         .map(|row| -> Option<&str> { row.try_get(idx).ok() }),
                 ),

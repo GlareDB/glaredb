@@ -152,7 +152,7 @@ mod tests {
     use selection::SelectionVector;
 
     use super::*;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
     use crate::executor::physical_type::{PhysicalI32Old, PhysicalUtf8Old};
     use crate::scalar::ScalarValue;
@@ -161,7 +161,7 @@ mod tests {
     fn int32_inc_by_2() {
         let array = ArrayOld::from_iter([1, 2, 3]);
         let builder = ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
@@ -181,7 +181,7 @@ mod tests {
 
         let array = ArrayOld::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
         };
 
@@ -213,7 +213,7 @@ mod tests {
 
         let array = ArrayOld::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
         };
 
@@ -247,7 +247,7 @@ mod tests {
 
         let array = ArrayOld::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
         };
 
@@ -281,7 +281,7 @@ mod tests {
         array.select_mut(selection);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(array.logical_len()),
         };
 

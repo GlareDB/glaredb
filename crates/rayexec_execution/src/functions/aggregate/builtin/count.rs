@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::AggregateState;
 use rayexec_bullet::executor::physical_type::PhysicalAnyOld;
 use rayexec_error::Result;
@@ -26,7 +26,7 @@ impl Count {
     pub fn count_star(&self) -> PlannedAggregateFunction {
         PlannedAggregateFunction {
             function: Box::new(*self),
-            return_type: DataType::Int64,
+            return_type: DataTypeOld::Int64,
             inputs: vec![expr::lit(true)],
             function_impl: Box::new(CountNonNullImpl),
         }
@@ -63,7 +63,7 @@ impl AggregateFunction for Count {
 
         Ok(PlannedAggregateFunction {
             function: Box::new(*self),
-            return_type: DataType::Int64,
+            return_type: DataTypeOld::Int64,
             inputs,
             function_impl: Box::new(CountNonNullImpl),
         })
@@ -77,7 +77,7 @@ impl AggregateFunctionImpl for CountNonNullImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalAnyOld, _, _, _, _>(
             CountNonNullState::default,
-            move |states| primitive_finalize(DataType::Int64, states),
+            move |states| primitive_finalize(DataTypeOld::Int64, states),
         )
     }
 }

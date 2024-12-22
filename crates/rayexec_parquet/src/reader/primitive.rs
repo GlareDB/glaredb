@@ -7,7 +7,7 @@ use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::compute::cast::array::cast_array;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
@@ -21,7 +21,7 @@ use super::{
 
 pub struct PrimitiveArrayReader<T: ParquetDataType, P: PageReader> {
     batch_size: usize,
-    datatype: DataType,
+    datatype: DataTypeOld,
     values_reader: ValuesReader<BasicColumnValueDecoder<T>, P>,
     values_buffer: Vec<T::T>,
 }
@@ -33,7 +33,7 @@ where
     T::T: Copy + Default,
     Vec<T::T>: IntoArrayData,
 {
-    pub fn new(batch_size: usize, datatype: DataType, desc: ColumnDescPtr) -> Self {
+    pub fn new(batch_size: usize, datatype: DataTypeOld, desc: ColumnDescPtr) -> Self {
         PrimitiveArrayReader {
             batch_size,
             datatype,
@@ -67,20 +67,20 @@ where
         // E.g. we may need to convert physical INT64 -> Decimal128. If that
         // happens, we'll apply cast after building.
         let (array_data, build_type) = match (T::get_physical_type(), &self.datatype) {
-            (PhysicalType::BOOLEAN, DataType::Boolean) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT32, DataType::Int16) => (data.into_array_data(), DataType::Int32),
-            (PhysicalType::INT32, DataType::Int32) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT32, DataType::UInt16) => (data.into_array_data(), DataType::Int32),
-            (PhysicalType::INT32, DataType::Date32) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT32, DataType::Decimal64(_)) => (data.into_array_data(), DataType::Int32),
-            (PhysicalType::INT32, DataType::Decimal128(_)) => (data.into_array_data(), DataType::Int32),
-            (PhysicalType::INT64, DataType::Int64) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT64, DataType::Decimal64(_)) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT64, DataType::Decimal128(_)) => (data.into_array_data(), DataType::Int64), // TODO
-            (PhysicalType::INT64, DataType::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::INT96, DataType::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::FLOAT, DataType::Float32) => (data.into_array_data(), self.datatype.clone()),
-            (PhysicalType::DOUBLE, DataType::Float64) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::BOOLEAN, DataTypeOld::Boolean) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT32, DataTypeOld::Int16) => (data.into_array_data(), DataTypeOld::Int32),
+            (PhysicalType::INT32, DataTypeOld::Int32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT32, DataTypeOld::UInt16) => (data.into_array_data(), DataTypeOld::Int32),
+            (PhysicalType::INT32, DataTypeOld::Date32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT32, DataTypeOld::Decimal64(_)) => (data.into_array_data(), DataTypeOld::Int32),
+            (PhysicalType::INT32, DataTypeOld::Decimal128(_)) => (data.into_array_data(), DataTypeOld::Int32),
+            (PhysicalType::INT64, DataTypeOld::Int64) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT64, DataTypeOld::Decimal64(_)) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT64, DataTypeOld::Decimal128(_)) => (data.into_array_data(), DataTypeOld::Int64), // TODO
+            (PhysicalType::INT64, DataTypeOld::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::INT96, DataTypeOld::Timestamp(_)) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::FLOAT, DataTypeOld::Float32) => (data.into_array_data(), self.datatype.clone()),
+            (PhysicalType::DOUBLE, DataTypeOld::Float64) => (data.into_array_data(), self.datatype.clone()),
             (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in primitive reader; parquet: {p_other}, bullet: {d_other}")))
         };
 

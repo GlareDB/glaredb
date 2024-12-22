@@ -232,7 +232,7 @@ mod tests {
 
     use super::*;
     use crate::batch::BatchOld;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::field::{Field, Schema};
 
     struct SharedVecWriter {
@@ -279,7 +279,7 @@ mod tests {
     fn read_no_batches() {
         let (reader, writer) = test_reader_writer();
 
-        let schema = Schema::new([Field::new("c1", DataType::UInt32, true)]);
+        let schema = Schema::new([Field::new("c1", DataTypeOld::UInt32, true)]);
 
         let _ = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
         let mut s_reader = StreamReader::try_new(reader, IpcConfig::default()).unwrap();
@@ -293,8 +293,8 @@ mod tests {
         let (reader, writer) = test_reader_writer();
 
         let schema = Schema::new([
-            Field::new("c1", DataType::UInt32, true),
-            Field::new("c2", DataType::Int64, true),
+            Field::new("c1", DataTypeOld::UInt32, true),
+            Field::new("c2", DataTypeOld::Int64, true),
         ]);
 
         let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
@@ -316,7 +316,7 @@ mod tests {
     fn roundtrip_multiple() {
         let (reader, writer) = test_reader_writer();
 
-        let schema = Schema::new([Field::new("c1", DataType::UInt32, true)]);
+        let schema = Schema::new([Field::new("c1", DataTypeOld::UInt32, true)]);
 
         let mut s_writer = StreamWriter::try_new(writer, &schema, IpcConfig::default()).unwrap();
         let mut s_reader = StreamReader::try_new(reader, IpcConfig::default()).unwrap();

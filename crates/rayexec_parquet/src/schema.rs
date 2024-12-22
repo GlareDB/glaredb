@@ -10,7 +10,7 @@ use parquet::basic::{
 use parquet::format::{MicroSeconds, MilliSeconds, NanoSeconds};
 use parquet::schema::types::{BasicTypeInfo, SchemaDescriptor, Type};
 use rayexec_bullet::datatype::{
-    DataType,
+    DataTypeOld,
     DecimalTypeMeta,
     ListTypeMeta,
     TimeUnit,
@@ -58,72 +58,72 @@ fn to_parquet_type(field: &Field) -> Result<Type> {
     };
 
     let result = match &field.datatype {
-        DataType::Boolean => Type::primitive_type_builder(&field.name, PhysicalType::BOOLEAN)
+        DataTypeOld::Boolean => Type::primitive_type_builder(&field.name, PhysicalType::BOOLEAN)
             .with_repetition(rep)
             .build(),
-        DataType::Int8 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+        DataTypeOld::Int8 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 8,
                 is_signed: true,
             }))
             .build(),
-        DataType::Int16 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+        DataTypeOld::Int16 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 16,
                 is_signed: true,
             }))
             .build(),
-        DataType::Int32 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+        DataTypeOld::Int32 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 32,
                 is_signed: true,
             }))
             .build(),
-        DataType::Int64 => Type::primitive_type_builder(&field.name, PhysicalType::INT64)
+        DataTypeOld::Int64 => Type::primitive_type_builder(&field.name, PhysicalType::INT64)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 64,
                 is_signed: true,
             }))
             .build(),
-        DataType::UInt8 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+        DataTypeOld::UInt8 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 8,
                 is_signed: false,
             }))
             .build(),
-        DataType::UInt16 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+        DataTypeOld::UInt16 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 16,
                 is_signed: false,
             }))
             .build(),
-        DataType::UInt32 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
+        DataTypeOld::UInt32 => Type::primitive_type_builder(&field.name, PhysicalType::INT32)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 32,
                 is_signed: false,
             }))
             .build(),
-        DataType::UInt64 => Type::primitive_type_builder(&field.name, PhysicalType::INT64)
+        DataTypeOld::UInt64 => Type::primitive_type_builder(&field.name, PhysicalType::INT64)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 64,
                 is_signed: false,
             }))
             .build(),
-        DataType::Float32 => Type::primitive_type_builder(&field.name, PhysicalType::FLOAT)
+        DataTypeOld::Float32 => Type::primitive_type_builder(&field.name, PhysicalType::FLOAT)
             .with_repetition(rep)
             .build(),
-        DataType::Float64 => Type::primitive_type_builder(&field.name, PhysicalType::DOUBLE)
+        DataTypeOld::Float64 => Type::primitive_type_builder(&field.name, PhysicalType::DOUBLE)
             .with_repetition(rep)
             .build(),
-        DataType::Timestamp(meta) => {
+        DataTypeOld::Timestamp(meta) => {
             let logical_type = match meta.unit {
                 TimeUnit::Second => None,
                 TimeUnit::Millisecond => Some(LogicalType::Timestamp {
@@ -145,7 +145,7 @@ fn to_parquet_type(field: &Field) -> Result<Type> {
                 .with_logical_type(logical_type)
                 .build()
         }
-        DataType::Utf8 => Type::primitive_type_builder(&field.name, PhysicalType::BYTE_ARRAY)
+        DataTypeOld::Utf8 => Type::primitive_type_builder(&field.name, PhysicalType::BYTE_ARRAY)
             .with_repetition(rep)
             .with_logical_type(Some(LogicalType::String))
             .build(),
@@ -183,7 +183,7 @@ fn convert_type_to_field(parquet_type: impl AsRef<Type>) -> Result<Field> {
     Ok(field)
 }
 
-fn convert_complex(parquet_type: &Type) -> Result<DataType> {
+fn convert_complex(parquet_type: &Type) -> Result<DataTypeOld> {
     match parquet_type {
         Type::GroupType { basic_info, fields } => {
             match basic_info.converted_type() {
@@ -210,7 +210,7 @@ fn convert_complex(parquet_type: &Type) -> Result<DataType> {
                     // }
                     if nested.is_primitive() {
                         let nested_type = convert_primitive(nested.as_ref())?;
-                        return Ok(DataType::List(ListTypeMeta::new(nested_type)));
+                        return Ok(DataTypeOld::List(ListTypeMeta::new(nested_type)));
                     }
 
                     // TODO: Other backwards compat types.
@@ -226,7 +226,7 @@ fn convert_complex(parquet_type: &Type) -> Result<DataType> {
                     let inner_field = &inner_fields[0];
                     let inner_field = convert_type_to_field(inner_field)?;
 
-                    Ok(DataType::List(ListTypeMeta::new(inner_field.datatype)))
+                    Ok(DataTypeOld::List(ListTypeMeta::new(inner_field.datatype)))
                 }
                 ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => {
                     not_implemented!("parquet map")
@@ -244,7 +244,7 @@ fn convert_complex(parquet_type: &Type) -> Result<DataType> {
 /// Convert a primitive type to a bullet data type.
 ///
 /// <https://github.com/apache/parquet-format/blob/master/LogicalTypes.md>
-fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
+fn convert_primitive(parquet_type: &Type) -> Result<DataTypeOld> {
     match parquet_type {
         Type::PrimitiveType {
             basic_info,
@@ -253,14 +253,14 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
             scale,
             precision,
         } => match physical_type {
-            parquet::basic::Type::BOOLEAN => Ok(DataType::Boolean),
+            parquet::basic::Type::BOOLEAN => Ok(DataTypeOld::Boolean),
             parquet::basic::Type::INT32 => from_int32(basic_info, *scale, *precision),
             parquet::basic::Type::INT64 => from_int64(basic_info, *scale, *precision),
-            parquet::basic::Type::INT96 => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+            parquet::basic::Type::INT96 => Ok(DataTypeOld::Timestamp(TimestampTypeMeta::new(
                 TimeUnit::Nanosecond,
             ))),
-            parquet::basic::Type::FLOAT => Ok(DataType::Float32),
-            parquet::basic::Type::DOUBLE => Ok(DataType::Float64),
+            parquet::basic::Type::FLOAT => Ok(DataTypeOld::Float32),
+            parquet::basic::Type::DOUBLE => Ok(DataTypeOld::Float64),
             parquet::basic::Type::BYTE_ARRAY => from_byte_array(basic_info, *precision, *scale),
             parquet::basic::Type::FIXED_LEN_BYTE_ARRAY => {
                 not_implemented!("parquet fixed len byte array")
@@ -270,7 +270,7 @@ fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
     }
 }
 
-fn decimal_type(precision: i32, scale: i32) -> Result<DataType> {
+fn decimal_type(precision: i32, scale: i32) -> Result<DataTypeOld> {
     if precision < 0 {
         return Err(RayexecError::new("Precision cannot be negative"));
     }
@@ -279,12 +279,12 @@ fn decimal_type(precision: i32, scale: i32) -> Result<DataType> {
     }
 
     if precision <= Decimal64Type::MAX_PRECISION as i32 {
-        Ok(DataType::Decimal64(DecimalTypeMeta::new(
+        Ok(DataTypeOld::Decimal64(DecimalTypeMeta::new(
             precision as u8,
             scale as i8,
         )))
     } else if precision <= Decimal128Type::MAX_PRECISION as i32 {
-        Ok(DataType::Decimal128(DecimalTypeMeta::new(
+        Ok(DataTypeOld::Decimal128(DecimalTypeMeta::new(
             precision as u8,
             scale as i8,
         )))
@@ -295,9 +295,9 @@ fn decimal_type(precision: i32, scale: i32) -> Result<DataType> {
     }
 }
 
-fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<DataType> {
+fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<DataTypeOld> {
     match (info.logical_type(), info.converted_type()) {
-        (None, ConvertedType::NONE) => Ok(DataType::Int32),
+        (None, ConvertedType::NONE) => Ok(DataTypeOld::Int32),
         (
             Some(
                 ref t @ LogicalType::Integer {
@@ -307,19 +307,19 @@ fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
             ),
             _,
         ) => match (bit_width, is_signed) {
-            (8, true) => Ok(DataType::Int8),
-            (16, true) => Ok(DataType::Int16),
-            (32, true) => Ok(DataType::Int32),
-            (8, false) => Ok(DataType::UInt8),
-            (16, false) => Ok(DataType::UInt16),
-            (32, false) => Ok(DataType::UInt32),
+            (8, true) => Ok(DataTypeOld::Int8),
+            (16, true) => Ok(DataTypeOld::Int16),
+            (32, true) => Ok(DataTypeOld::Int32),
+            (8, false) => Ok(DataTypeOld::UInt8),
+            (16, false) => Ok(DataTypeOld::UInt16),
+            (32, false) => Ok(DataTypeOld::UInt32),
             _ => Err(RayexecError::new(format!(
                 "Cannot create INT32 physical type from {:?}",
                 t
             ))),
         },
         (Some(LogicalType::Decimal { scale, precision }), _) => {
-            Ok(DataType::Decimal128(DecimalTypeMeta {
+            Ok(DataTypeOld::Decimal128(DecimalTypeMeta {
                 precision: precision as u8,
                 scale: scale as i8,
             }))
@@ -333,14 +333,14 @@ fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
             ))),
         },
         // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#unknown-always-null
-        (Some(LogicalType::Unknown), _) => Ok(DataType::Null),
-        (None, ConvertedType::UINT_8) => Ok(DataType::UInt8),
-        (None, ConvertedType::UINT_16) => Ok(DataType::UInt16),
-        (None, ConvertedType::UINT_32) => Ok(DataType::UInt32),
-        (None, ConvertedType::INT_8) => Ok(DataType::Int8),
-        (None, ConvertedType::INT_16) => Ok(DataType::Int16),
-        (None, ConvertedType::INT_32) => Ok(DataType::Int32),
-        (None, ConvertedType::DATE) => Ok(DataType::Date32),
+        (Some(LogicalType::Unknown), _) => Ok(DataTypeOld::Null),
+        (None, ConvertedType::UINT_8) => Ok(DataTypeOld::UInt8),
+        (None, ConvertedType::UINT_16) => Ok(DataTypeOld::UInt16),
+        (None, ConvertedType::UINT_32) => Ok(DataTypeOld::UInt32),
+        (None, ConvertedType::INT_8) => Ok(DataTypeOld::Int8),
+        (None, ConvertedType::INT_16) => Ok(DataTypeOld::Int16),
+        (None, ConvertedType::INT_32) => Ok(DataTypeOld::Int32),
+        (None, ConvertedType::DATE) => Ok(DataTypeOld::Date32),
         (None, ConvertedType::TIME_MILLIS) => unimplemented!(),
         (None, ConvertedType::DECIMAL) => unimplemented!(),
         (logical, converted) => Err(RayexecError::new(format!(
@@ -350,9 +350,9 @@ fn from_int32(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
     }
 }
 
-fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<DataType> {
+fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<DataTypeOld> {
     match (info.logical_type(), info.converted_type()) {
-        (None, ConvertedType::NONE) => Ok(DataType::Int64),
+        (None, ConvertedType::NONE) => Ok(DataTypeOld::Int64),
         (
             Some(LogicalType::Integer {
                 bit_width: 64,
@@ -360,8 +360,8 @@ fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
             }),
             _,
         ) => match is_signed {
-            true => Ok(DataType::Int64),
-            false => Ok(DataType::UInt64),
+            true => Ok(DataTypeOld::Int64),
+            false => Ok(DataTypeOld::UInt64),
         },
         (Some(LogicalType::Time { unit, .. }), _) => match unit {
             ParquetTimeUnit::MILLIS(_) => Err(RayexecError::new(
@@ -385,10 +385,10 @@ fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
             if is_adjusted_to_u_t_c {
                 not_implemented!("parquet timestamp adjusted to utc");
             }
-            Ok(DataType::Timestamp(TimestampTypeMeta::new(unit)))
+            Ok(DataTypeOld::Timestamp(TimestampTypeMeta::new(unit)))
         }
-        (None, ConvertedType::INT_64) => Ok(DataType::Int64),
-        (None, ConvertedType::UINT_64) => Ok(DataType::UInt64),
+        (None, ConvertedType::INT_64) => Ok(DataTypeOld::Int64),
+        (None, ConvertedType::UINT_64) => Ok(DataTypeOld::UInt64),
         (None, ConvertedType::TIME_MICROS) => unimplemented!(),
         (None, ConvertedType::TIMESTAMP_MILLIS) => unimplemented!(),
         (None, ConvertedType::TIMESTAMP_MICROS) => unimplemented!(),
@@ -401,17 +401,17 @@ fn from_int64(info: &BasicTypeInfo, _scale: i32, _precision: i32) -> Result<Data
     }
 }
 
-fn from_byte_array(info: &BasicTypeInfo, _precision: i32, _scale: i32) -> Result<DataType> {
+fn from_byte_array(info: &BasicTypeInfo, _precision: i32, _scale: i32) -> Result<DataTypeOld> {
     match (info.logical_type(), info.converted_type()) {
-        (Some(LogicalType::String), _) => Ok(DataType::Utf8),
-        (Some(LogicalType::Json), _) => Ok(DataType::Utf8),
-        (Some(LogicalType::Bson), _) => Ok(DataType::Binary),
-        (Some(LogicalType::Enum), _) => Ok(DataType::Binary),
-        (None, ConvertedType::NONE) => Ok(DataType::Binary),
-        (None, ConvertedType::JSON) => Ok(DataType::Utf8),
-        (None, ConvertedType::BSON) => Ok(DataType::Binary),
-        (None, ConvertedType::ENUM) => Ok(DataType::Binary),
-        (None, ConvertedType::UTF8) => Ok(DataType::Utf8),
+        (Some(LogicalType::String), _) => Ok(DataTypeOld::Utf8),
+        (Some(LogicalType::Json), _) => Ok(DataTypeOld::Utf8),
+        (Some(LogicalType::Bson), _) => Ok(DataTypeOld::Binary),
+        (Some(LogicalType::Enum), _) => Ok(DataTypeOld::Binary),
+        (None, ConvertedType::NONE) => Ok(DataTypeOld::Binary),
+        (None, ConvertedType::JSON) => Ok(DataTypeOld::Utf8),
+        (None, ConvertedType::BSON) => Ok(DataTypeOld::Binary),
+        (None, ConvertedType::ENUM) => Ok(DataTypeOld::Binary),
+        (None, ConvertedType::UTF8) => Ok(DataTypeOld::Utf8),
         (
             Some(LogicalType::Decimal {
                 scale: _,

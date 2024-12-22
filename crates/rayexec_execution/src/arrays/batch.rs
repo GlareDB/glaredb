@@ -7,6 +7,7 @@ use super::buffer::string_view::StringViewHeap;
 use super::buffer::ArrayBuffer;
 use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
+use super::flat_array::FlatSelection;
 
 /// Collection of arrays with equal capacity.
 #[derive(Debug)]
@@ -128,6 +129,11 @@ where
 
     pub fn num_rows(&self) -> usize {
         self.num_rows
+    }
+
+    /// Generate a selection that will select all rows in order for this batch.
+    pub fn generate_selection(&self) -> FlatSelection {
+        FlatSelection::linear(self.num_rows)
     }
 
     pub fn arrays(&self) -> &[Array<B>] {

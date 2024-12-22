@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
@@ -59,7 +59,7 @@ impl<'a> InsertBinder<'a> {
         bind_context.push_table(
             self.current,
             None,
-            vec![DataType::UInt64],
+            vec![DataTypeOld::UInt64],
             vec!["rows_inserted".to_string()],
         )?;
 
@@ -90,7 +90,7 @@ impl<'a> InsertBinder<'a> {
             .map(|c| &c.datatype);
 
         // Types from the source plan.
-        let source_types: Vec<(TableRef, usize, &DataType)> = bind_context
+        let source_types: Vec<(TableRef, usize, &DataTypeOld)> = bind_context
             .iter_tables_in_scope(source_scope)?
             .flat_map(|t| {
                 let table_ref = t.reference;

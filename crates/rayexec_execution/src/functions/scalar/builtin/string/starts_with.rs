@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
@@ -55,7 +55,7 @@ impl ScalarFunction for StartsWith {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Utf8, DataType::Utf8) => (),
+            (DataTypeOld::Utf8, DataTypeOld::Utf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
 
@@ -71,7 +71,7 @@ impl ScalarFunction for StartsWith {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(StartsWithImpl { constant }),
         })
@@ -84,9 +84,9 @@ pub struct StartsWithImpl {
 }
 
 impl ScalarFunctionImpl for StartsWithImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 

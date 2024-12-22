@@ -58,7 +58,7 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::expr::{add, and, cast, col_ref, lit};
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn fold_string_to_float_cast() {
-        let expr = cast(lit("3.1"), DataType::Float64);
+        let expr = cast(lit("3.1"), DataTypeOld::Float64);
 
         let expected = lit(3.1_f64);
 

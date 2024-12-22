@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::Expression;
@@ -15,12 +15,12 @@ pub struct UnnestExpr {
 }
 
 impl UnnestExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataTypeOld> {
         let child_datatype = self.expr.datatype(table_list)?;
 
         match child_datatype {
-            DataType::Null => Ok(DataType::Null),
-            DataType::List(list) => Ok(list.datatype.as_ref().clone()),
+            DataTypeOld::Null => Ok(DataTypeOld::Null),
+            DataTypeOld::List(list) => Ok(list.datatype.as_ref().clone()),
             other => Err(RayexecError::new(format!(
                 "Unsupported datatype for UNNEST: {other}"
             ))),

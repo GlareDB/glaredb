@@ -11,7 +11,7 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{DataTypeOld, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{OptionExt, RayexecError, Result};
@@ -63,7 +63,7 @@ impl AstMeta for ResolvedMeta {
     /// Index into the functions bind list in bind data.
     type FunctionReference = ResolveListIdx;
     type SubqueryOptions = ResolvedSubqueryOptions;
-    type DataType = DataType;
+    type DataType = DataTypeOld;
     type CopyToDestination = FileLocation;
     type CopyToOptions = CopyToArgs;
     /// SHOW statements will be converted to views if need during the resolve
@@ -1123,16 +1123,16 @@ impl<'a> Resolver<'a> {
             .collect()
     }
 
-    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
+    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataTypeOld> {
         Ok(match datatype {
-            ast::DataType::Varchar(_) => DataType::Utf8,
-            ast::DataType::TinyInt => DataType::Int8,
-            ast::DataType::SmallInt => DataType::Int16,
-            ast::DataType::Integer => DataType::Int32,
-            ast::DataType::BigInt => DataType::Int64,
-            ast::DataType::Half => DataType::Float16,
-            ast::DataType::Real => DataType::Float32,
-            ast::DataType::Double => DataType::Float64,
+            ast::DataType::Varchar(_) => DataTypeOld::Utf8,
+            ast::DataType::TinyInt => DataTypeOld::Int8,
+            ast::DataType::SmallInt => DataTypeOld::Int16,
+            ast::DataType::Integer => DataTypeOld::Int32,
+            ast::DataType::BigInt => DataTypeOld::Int64,
+            ast::DataType::Half => DataTypeOld::Float16,
+            ast::DataType::Real => DataTypeOld::Float32,
+            ast::DataType::Double => DataTypeOld::Float64,
             ast::DataType::Decimal(prec, scale) => {
                 // - Precision cannot be negative.
                 // - Specifying just precision defaults to a 0 scale.
@@ -1160,28 +1160,28 @@ impl<'a> Resolver<'a> {
                         }
 
                         if prec <= Decimal64Type::MAX_PRECISION {
-                            DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
+                            DataTypeOld::Decimal64(DecimalTypeMeta::new(prec, scale))
                         } else if prec <= Decimal128Type::MAX_PRECISION {
-                            DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
+                            DataTypeOld::Decimal128(DecimalTypeMeta::new(prec, scale))
                         } else {
                             return Err(RayexecError::new(
                                 "Decimal precision too big for max decimal size",
                             ));
                         }
                     }
-                    None => DataType::Decimal64(DecimalTypeMeta::new(
+                    None => DataTypeOld::Decimal64(DecimalTypeMeta::new(
                         Decimal64Type::MAX_PRECISION,
                         Decimal64Type::DEFAULT_SCALE,
                     )),
                 }
             }
-            ast::DataType::Bool => DataType::Boolean,
-            ast::DataType::Date => DataType::Date32,
+            ast::DataType::Bool => DataTypeOld::Boolean,
+            ast::DataType::Date => DataTypeOld::Date32,
             ast::DataType::Timestamp => {
                 // Microsecond matches postgres default.
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+                DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             }
-            ast::DataType::Interval => DataType::Interval,
+            ast::DataType::Interval => DataTypeOld::Interval,
         })
     }
 }

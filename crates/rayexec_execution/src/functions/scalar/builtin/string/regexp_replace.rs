@@ -1,5 +1,5 @@
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExecutor};
@@ -53,7 +53,7 @@ impl ScalarFunction for RegexpReplace {
             .collect::<Result<Vec<_>>>()?;
 
         for datatype in &datatypes {
-            if datatype != &DataType::Utf8 {
+            if datatype != &DataTypeOld::Utf8 {
                 return Err(invalid_input_types_error(self, &datatypes));
             }
         }
@@ -81,7 +81,7 @@ impl ScalarFunction for RegexpReplace {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Utf8,
+            return_type: DataTypeOld::Utf8,
             inputs,
             function_impl: Box::new(RegexpReplaceImpl {
                 pattern,
@@ -98,9 +98,9 @@ pub struct RegexpReplaceImpl {
 }
 
 impl ScalarFunctionImpl for RegexpReplaceImpl {
-    fn execute(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
         };
 

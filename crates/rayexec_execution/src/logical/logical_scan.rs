@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::binder::bind_context::BindContext;
@@ -52,7 +52,7 @@ pub struct LogicalScan {
     /// Table reference representing output of this scan.
     pub table_ref: TableRef,
     /// Types representing all columns from the source.
-    pub types: Vec<DataType>,
+    pub types: Vec<DataTypeOld>,
     /// Names for all columns from the source.
     pub names: Vec<String>,
     /// Positional column projections.

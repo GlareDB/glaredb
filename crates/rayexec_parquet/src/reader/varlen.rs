@@ -5,7 +5,7 @@ use parquet::data_type::{ByteArray, DataType as ParquetDataType};
 use parquet::decoding::view::ViewBuffer;
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_bullet::array::ArrayOld;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::builder::ArrayDataBuffer;
 use rayexec_error::{RayexecError, Result};
 
@@ -14,7 +14,7 @@ use super::{def_levels_into_bitmap, insert_null_values, ArrayBuilder, ValuesRead
 #[derive(Debug)]
 pub struct VarlenArrayReader<P: PageReader> {
     batch_size: usize,
-    datatype: DataType,
+    datatype: DataTypeOld,
     values_reader: ValuesReader<ViewColumnValueDecoder, P>,
     values_buffer: ViewBuffer,
 }
@@ -23,7 +23,7 @@ impl<P> VarlenArrayReader<P>
 where
     P: PageReader,
 {
-    pub fn new(batch_size: usize, datatype: DataType, desc: ColumnDescPtr) -> Self {
+    pub fn new(batch_size: usize, datatype: DataTypeOld, desc: ColumnDescPtr) -> Self {
         VarlenArrayReader {
             batch_size,
             datatype,
