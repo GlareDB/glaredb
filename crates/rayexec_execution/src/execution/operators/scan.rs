@@ -62,7 +62,7 @@ impl PhysicalScan {
 }
 
 impl ExecutableOperator for PhysicalScan {
-    fn create_states(
+    fn create_states_old(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -94,7 +94,7 @@ impl ExecutableOperator for PhysicalScan {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
@@ -104,7 +104,7 @@ impl ExecutableOperator for PhysicalScan {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
@@ -113,7 +113,7 @@ impl ExecutableOperator for PhysicalScan {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,

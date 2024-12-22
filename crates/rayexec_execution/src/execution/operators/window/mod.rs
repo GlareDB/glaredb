@@ -19,7 +19,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 pub struct PhysicalWindow {}
 
 impl ExecutableOperator for PhysicalWindow {
-    fn create_states(
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
@@ -27,7 +27,7 @@ impl ExecutableOperator for PhysicalWindow {
         unimplemented!()
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
@@ -37,7 +37,7 @@ impl ExecutableOperator for PhysicalWindow {
         unimplemented!()
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
@@ -46,7 +46,7 @@ impl ExecutableOperator for PhysicalWindow {
         unimplemented!()
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

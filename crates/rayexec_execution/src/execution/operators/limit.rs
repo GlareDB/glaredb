@@ -62,7 +62,7 @@ impl PhysicalLimit {
 }
 
 impl ExecutableOperator for PhysicalLimit {
-    fn create_states(
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -88,7 +88,7 @@ impl ExecutableOperator for PhysicalLimit {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -154,7 +154,7 @@ impl ExecutableOperator for PhysicalLimit {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -173,7 +173,7 @@ impl ExecutableOperator for PhysicalLimit {
         Ok(PollFinalize::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -245,7 +245,9 @@ mod tests {
 
     fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionState> {
         let context = test_database_context();
-        let states = operator.create_states(&context, vec![partitions]).unwrap();
+        let states = operator
+            .create_states_old(&context, vec![partitions])
+            .unwrap();
 
         match states.partition_states {
             InputOutputStates::OneToOne { partition_states } => partition_states,

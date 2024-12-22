@@ -349,7 +349,7 @@ impl ExecutablePartitionPipeline {
 
                     // Otherwise do a normal pull.
                     let timer = Timer::<I>::start();
-                    let poll_pull = operator.physical.poll_pull(
+                    let poll_pull = operator.physical.poll_pull_old(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
@@ -419,7 +419,7 @@ impl ExecutablePartitionPipeline {
                         .expect("next operator to exist");
 
                     let timer = Timer::<I>::start();
-                    let poll_finalize = next_operator.physical.poll_finalize_push(
+                    let poll_finalize = next_operator.physical.poll_finalize_push_old(
                         cx,
                         &mut next_operator.partition_state,
                         &next_operator.operator_state,
@@ -463,7 +463,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.rows_read += batch.num_rows();
 
                     let timer = Timer::<I>::start();
-                    let poll_push = operator.physical.poll_push(
+                    let poll_push = operator.physical.poll_push_old(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,

@@ -188,7 +188,7 @@ impl PhysicalHashJoin {
 }
 
 impl ExecutableOperator for PhysicalHashJoin {
-    fn create_states(
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -246,7 +246,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -347,7 +347,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -491,7 +491,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         }
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,

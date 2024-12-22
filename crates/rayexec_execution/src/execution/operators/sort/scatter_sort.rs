@@ -63,7 +63,7 @@ impl PhysicalScatterSort {
 }
 
 impl ExecutableOperator for PhysicalScatterSort {
-    fn create_states(
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -91,7 +91,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -115,7 +115,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -162,7 +162,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         }
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -273,7 +273,9 @@ mod tests {
 
     fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionState> {
         let context = test_database_context();
-        let states = operator.create_states(&context, vec![partitions]).unwrap();
+        let states = operator
+            .create_states_old(&context, vec![partitions])
+            .unwrap();
 
         match states.partition_states {
             InputOutputStates::OneToOne { partition_states } => partition_states,
@@ -306,7 +308,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push_old(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -348,7 +350,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push_old(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -394,7 +396,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push_old(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -459,7 +461,7 @@ mod tests {
             assert_eq!(PollPush::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push_old(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,

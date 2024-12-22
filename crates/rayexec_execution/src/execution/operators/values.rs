@@ -39,7 +39,7 @@ impl PhysicalValues {
 }
 
 impl ExecutableOperator for PhysicalValues {
-    fn create_states(
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -64,7 +64,7 @@ impl ExecutableOperator for PhysicalValues {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
@@ -74,7 +74,7 @@ impl ExecutableOperator for PhysicalValues {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
@@ -83,7 +83,7 @@ impl ExecutableOperator for PhysicalValues {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,

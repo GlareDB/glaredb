@@ -192,7 +192,7 @@ impl PhysicalGatherSort {
 }
 
 impl ExecutableOperator for PhysicalGatherSort {
-    fn create_states(
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -239,7 +239,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -286,7 +286,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         Ok(PollPush::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -317,7 +317,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         Ok(PollFinalize::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -690,7 +690,7 @@ mod tests {
 
         // Partition input is finished.
         operator
-            .poll_finalize_push(&mut push_cx.context(), &mut push_states[0], &operator_state)
+            .poll_finalize_push_old(&mut push_cx.context(), &mut push_states[0], &operator_state)
             .unwrap();
 
         // Now we can pull the sorted result.
@@ -808,14 +808,14 @@ mod tests {
 
         // Partition inputs is finished.
         operator
-            .poll_finalize_push(
+            .poll_finalize_push_old(
                 &mut p0_push_cx.context(),
                 &mut push_states[0],
                 &operator_state,
             )
             .unwrap();
         operator
-            .poll_finalize_push(
+            .poll_finalize_push_old(
                 &mut p1_push_cx.context(),
                 &mut push_states[1],
                 &operator_state,

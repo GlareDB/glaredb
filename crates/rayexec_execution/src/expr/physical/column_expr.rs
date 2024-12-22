@@ -78,6 +78,7 @@ mod tests {
     use crate::arrays::buffer::physical_type::{PhysicalDictionary, PhysicalI32};
     use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
     use crate::arrays::datatype::DataType;
+    use crate::arrays::executor::scalar::unary::UnaryExecutor;
 
     #[test]
     fn eval_simple() {
@@ -156,5 +157,13 @@ mod tests {
         // But with a selection stored in the array.
         let dict_slice = out.data.try_as_slice::<PhysicalDictionary>().unwrap();
         assert_eq!(&[2, 0], dict_slice);
+
+        let mut out_buf = [None, None];
+        UnaryExecutor::for_each_flat::<PhysicalI32, _>(out.flat_view().unwrap(), 0..2, |idx, v| {
+            out_buf[idx] = v.cloned()
+        })
+        .unwrap();
+
+        assert_eq!([Some(6), Some(4)], out_buf);
     }
 }

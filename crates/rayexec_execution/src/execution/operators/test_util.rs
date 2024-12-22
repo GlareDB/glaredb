@@ -74,7 +74,7 @@ impl TestWakerContext {
         operator_state: &OperatorState,
         batch: impl Into<BatchOld>,
     ) -> Result<PollPush> {
-        operator.as_ref().poll_push(
+        operator.as_ref().poll_push_old(
             &mut self.context(),
             partition_state,
             operator_state,
@@ -90,7 +90,7 @@ impl TestWakerContext {
     ) -> Result<PollPull> {
         operator
             .as_ref()
-            .poll_pull(&mut self.context(), partition_state, operator_state)
+            .poll_pull_old(&mut self.context(), partition_state, operator_state)
     }
 }
 
