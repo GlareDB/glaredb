@@ -16,9 +16,9 @@ use crate::execution::operators::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;
@@ -245,7 +245,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
             PartitionState::GatherSortPush(state) => state,
             PartitionState::GatherSortPull(_) => {
@@ -262,7 +262,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         if shared.batches[state.partition_idx].is_some() {
             // Can't push, global state already has a batch for this partition.
             shared.push_wakers[state.partition_idx] = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPushOld::Pending(batch));
         }
 
         let keys = state.extractor.sort_keys(&batch)?;
@@ -283,7 +283,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         // matter where the operator is in the pipeline.
         //
         // Changing this to NeedsMore wouldn't change behavior.
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
     fn poll_finalize_push_old(
@@ -291,7 +291,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
             PartitionState::GatherSortPush(state) => state,
             PartitionState::GatherSortPull(_) => {
@@ -314,7 +314,7 @@ impl ExecutableOperator for PhysicalGatherSort {
             }
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull_old(
@@ -322,7 +322,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
             PartitionState::GatherSortPull(state) => state,
             PartitionState::GatherSortPush(_) => {
@@ -350,7 +350,7 @@ impl ExecutableOperator for PhysicalGatherSort {
                     // Not finished initializing, still waiting on some input.
                     //
                     // `try_finish_initialize` registers a waker for us.
-                    return Ok(PollPull::Pending);
+                    return Ok(PollPullOld::Pending);
                 }
             }
         }
@@ -370,7 +370,7 @@ impl ExecutableOperator for PhysicalGatherSort {
                     )?;
                     if !input_pushed {
                         // `try_push_input_batch_to_merger` registers a waker for us.
-                        return Ok(PollPull::Pending);
+                        return Ok(PollPullOld::Pending);
                     }
 
                     // Input no longer required, we've either pushed the batch
@@ -386,7 +386,9 @@ impl ExecutableOperator for PhysicalGatherSort {
                 loop {
                     // TODO: Configurable batch size.
                     match merger.try_merge(1024)? {
-                        MergeResult::Batch(batch) => return Ok(PollPull::Computed(batch.into())),
+                        MergeResult::Batch(batch) => {
+                            return Ok(PollPullOld::Computed(batch.into()))
+                        }
                         MergeResult::NeedsInput(input_idx) => {
                             let pushed = Self::try_push_input_batch_to_merger(
                                 cx,
@@ -409,10 +411,10 @@ impl ExecutableOperator for PhysicalGatherSort {
                                 // call to `poll_pull` ensures that we
                                 // get that input.
                                 *input_required = Some(input_idx);
-                                return Ok(PollPull::Pending);
+                                return Ok(PollPullOld::Pending);
                             }
                         }
-                        MergeResult::Exhausted => return Ok(PollPull::Exhausted),
+                        MergeResult::Exhausted => return Ok(PollPullOld::Exhausted),
                     }
                 }
             }
@@ -649,7 +651,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Pending, poll_pull);
+        assert_eq!(PollPullOld::Pending, poll_pull);
 
         // Push our first batch.
         let push_cx = TestWakerContext::new();
@@ -661,7 +663,7 @@ mod tests {
                 p0_inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPushOld::Pushed, poll_push);
 
         // Kind of an implementation detail, but the puller is waiting on
         // partition 0 to push. Multiple partitions would trigger this wakeup
@@ -680,12 +682,12 @@ mod tests {
             let poll_pull = pull_cx
                 .poll_pull(&operator, &mut pull_states[0], &operator_state)
                 .unwrap();
-            assert_eq!(PollPull::Pending, poll_pull);
+            assert_eq!(PollPullOld::Pending, poll_pull);
 
             let poll_push = push_cx
                 .poll_push(&operator, &mut push_states[0], &operator_state, p1_input)
                 .unwrap();
-            assert_eq!(PollPush::Pushed, poll_push);
+            assert_eq!(PollPushOld::Pushed, poll_push);
         }
 
         // Partition input is finished.
@@ -704,7 +706,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPullOld::Exhausted, poll_pull);
     }
 
     #[test]
@@ -741,7 +743,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Pending, poll_pull);
+        assert_eq!(PollPullOld::Pending, poll_pull);
 
         // Push batch for partition 0.
         let p0_push_cx = TestWakerContext::new();
@@ -753,7 +755,7 @@ mod tests {
                 p0_inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPushOld::Pushed, poll_push);
 
         // Triggers pull wake up.
         assert_eq!(1, pull_cx.wake_count());
@@ -762,7 +764,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Pending, poll_pull);
+        assert_eq!(PollPullOld::Pending, poll_pull);
 
         // Push batch for partition 1.
         let p1_push_cx = TestWakerContext::new();
@@ -774,7 +776,7 @@ mod tests {
                 p1_inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPushOld::Pushed, poll_push);
 
         // Also triggers wake up.
         assert_eq!(1, pull_cx.wake_count());
@@ -783,7 +785,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Pending, poll_pull);
+        assert_eq!(PollPullOld::Pending, poll_pull);
 
         // Push the rest of the batches.
         //
@@ -793,17 +795,17 @@ mod tests {
             let poll_pull = pull_cx
                 .poll_pull(&operator, &mut pull_states[0], &operator_state)
                 .unwrap();
-            assert_eq!(PollPull::Pending, poll_pull);
+            assert_eq!(PollPullOld::Pending, poll_pull);
 
             let poll_push = p0_push_cx
                 .poll_push(&operator, &mut push_states[0], &operator_state, p0_input)
                 .unwrap();
-            assert_eq!(PollPush::Pushed, poll_push);
+            assert_eq!(PollPushOld::Pushed, poll_push);
 
             let poll_push = p1_push_cx
                 .poll_push(&operator, &mut push_states[1], &operator_state, p1_input)
                 .unwrap();
-            assert_eq!(PollPush::Pushed, poll_push);
+            assert_eq!(PollPushOld::Pushed, poll_push);
         }
 
         // Partition inputs is finished.
@@ -833,6 +835,6 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut pull_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPullOld::Exhausted, poll_pull);
     }
 }

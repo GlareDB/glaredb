@@ -12,9 +12,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -80,7 +80,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -108,7 +108,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         // TODO: Remove needing to do this, the clones should be cheap, but the
         // expression execution is wasteful.
         match state.function_state.poll_push(cx, inputs)? {
-            PollPush::Pending(_) => Ok(PollPush::Pending(orig)),
+            PollPushOld::Pending(_) => Ok(PollPushOld::Pending(orig)),
             other => {
                 // Batch was pushed to the function state, compute additional
                 // outputs.
@@ -133,7 +133,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -147,7 +147,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -177,10 +177,10 @@ impl ExecutableOperator for PhysicalTableInOut {
 
                 let new_batch = BatchOld::try_new(arrays)?;
 
-                Ok(PollPull::Computed(new_batch.into()))
+                Ok(PollPullOld::Computed(new_batch.into()))
             }
-            inout::InOutPollPull::Pending => Ok(PollPull::Pending),
-            inout::InOutPollPull::Exhausted => Ok(PollPull::Exhausted),
+            inout::InOutPollPull::Pending => Ok(PollPullOld::Pending),
+            inout::InOutPollPull::Exhausted => Ok(PollPullOld::Exhausted),
         }
     }
 }

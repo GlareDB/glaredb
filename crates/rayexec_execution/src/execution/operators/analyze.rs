@@ -8,9 +8,9 @@ use super::{
     ExecutionStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -34,7 +34,7 @@ impl ExecutableOperator for PhysicalAnalyze {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         unimplemented!()
     }
 
@@ -43,7 +43,7 @@ impl ExecutableOperator for PhysicalAnalyze {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         unimplemented!()
     }
 
@@ -52,7 +52,7 @@ impl ExecutableOperator for PhysicalAnalyze {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         unimplemented!()
     }
 }

@@ -14,9 +14,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -70,7 +70,7 @@ impl ExecutableOperator for PhysicalValues {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
@@ -79,7 +79,7 @@ impl ExecutableOperator for PhysicalValues {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
@@ -88,11 +88,11 @@ impl ExecutableOperator for PhysicalValues {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match partition_state {
             PartitionState::Values(state) => match state.batches.pop() {
-                Some(batch) => Ok(PollPull::Computed(batch.into())),
-                None => Ok(PollPull::Exhausted),
+                Some(batch) => Ok(PollPullOld::Computed(batch.into())),
+                None => Ok(PollPullOld::Exhausted),
             },
             other => panic!("invalid partition state: {other:?}"),
         }

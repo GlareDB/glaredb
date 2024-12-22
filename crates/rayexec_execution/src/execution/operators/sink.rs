@@ -16,9 +16,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -184,7 +184,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         match partition_state {
             PartitionState::Sink(state) => match state {
                 SinkPartitionState::Writing { inner, future } => {
@@ -199,7 +199,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                                 *future = None;
                             }
                             Poll::Ready(Err(e)) => return Err(e),
-                            Poll::Pending => return Ok(PollPush::Pending(batch)),
+                            Poll::Pending => return Ok(PollPushOld::Pending(batch)),
                         }
                     }
 
@@ -207,7 +207,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     // necessary, but it makes me a feel a bit better than the
                     // hacky stuff is localized to just here.
                     if batch.num_rows() == 0 {
-                        return Ok(PollPush::NeedsMore);
+                        return Ok(PollPushOld::NeedsMore);
                     }
 
                     let inner = inner.as_mut().unwrap();
@@ -217,7 +217,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     match push_future.poll_unpin(cx) {
                         Poll::Ready(Ok(_)) => {
                             // Future completed, need more batches.
-                            Ok(PollPush::NeedsMore)
+                            Ok(PollPushOld::NeedsMore)
                         }
                         Poll::Ready(Err(e)) => Err(e),
                         Poll::Pending => {
@@ -233,7 +233,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             //
                             // I think we'll want to do a similar thing for inserts so that
                             // we can implement them as "just" async functions.
-                            Ok(PollPush::Pending(BatchOld::empty()))
+                            Ok(PollPushOld::Pending(BatchOld::empty()))
                         }
                     }
                 }
@@ -250,7 +250,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         match partition_state {
             PartitionState::Sink(state) => match state {
                 SinkPartitionState::Writing { inner, future } => {
@@ -262,7 +262,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                                 *future = None;
                             }
                             Poll::Ready(Err(e)) => return Err(e),
-                            Poll::Pending => return Ok(PollFinalize::Pending),
+                            Poll::Pending => return Ok(PollFinalizeOld::Pending),
                         }
                     }
 
@@ -288,7 +288,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                             *state = SinkPartitionState::Finished;
 
-                            Ok(PollFinalize::Finalized)
+                            Ok(PollFinalizeOld::Finalized)
                         }
                         Poll::Ready(Err(e)) => Err(e),
                         Poll::Pending => {
@@ -302,7 +302,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                                 future,
                             };
 
-                            Ok(PollFinalize::Pending)
+                            Ok(PollFinalizeOld::Pending)
                         }
                     }
                 }
@@ -326,10 +326,10 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                             *state = SinkPartitionState::Finished;
 
-                            Ok(PollFinalize::Finalized)
+                            Ok(PollFinalizeOld::Finalized)
                         }
                         Poll::Ready(Err(e)) => Err(e),
-                        Poll::Pending => Ok(PollFinalize::Pending),
+                        Poll::Pending => Ok(PollFinalizeOld::Pending),
                     }
                 }
                 other => Err(RayexecError::new(format!(
@@ -345,7 +345,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match partition_state {
             PartitionState::Sink(state) => match state {
                 SinkPartitionState::Writing { inner, .. }
@@ -353,7 +353,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     if let Some(inner) = inner.as_mut() {
                         inner.pull_waker = Some(cx.waker().clone());
                     }
-                    Ok(PollPull::Pending)
+                    Ok(PollPullOld::Pending)
                 }
                 SinkPartitionState::Finished => {
                     let mut shared = match operator_state {
@@ -362,7 +362,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                     };
 
                     if shared.global_row_count_returned {
-                        return Ok(PollPull::Exhausted);
+                        return Ok(PollPullOld::Exhausted);
                     }
 
                     if shared.partitions_remaining == 0 {
@@ -373,10 +373,10 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                         let row_count_batch =
                             BatchOld::try_new([ArrayOld::from_iter([row_count])])?;
 
-                        return Ok(PollPull::Computed(row_count_batch.into()));
+                        return Ok(PollPullOld::Computed(row_count_batch.into()));
                     }
 
-                    Ok(PollPull::Exhausted)
+                    Ok(PollPullOld::Exhausted)
                 }
             },
             other => panic!("invalid partition state: {other:?}"),

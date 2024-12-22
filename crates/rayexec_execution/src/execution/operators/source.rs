@@ -15,9 +15,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -116,7 +116,7 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
@@ -125,7 +125,7 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
@@ -134,31 +134,31 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match partition_state {
             PartitionState::Source(state) => {
                 if let Some(future) = &mut state.future {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {
                             state.future = None; // Future complete, next pull with create a new one.
-                            return Ok(PollPull::Computed(batch.into()));
+                            return Ok(PollPullOld::Computed(batch.into()));
                         }
-                        Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
+                        Poll::Ready(Ok(None)) => return Ok(PollPullOld::Exhausted),
                         Poll::Ready(Err(e)) => return Err(e),
-                        Poll::Pending => return Ok(PollPull::Pending),
+                        Poll::Pending => return Ok(PollPullOld::Pending),
                     }
                 }
 
                 let mut future = state.source.pull();
                 match future.poll_unpin(cx) {
-                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
-                    Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
+                    Poll::Ready(Ok(Some(batch))) => Ok(PollPullOld::Computed(batch.into())),
+                    Poll::Ready(Ok(None)) => Ok(PollPullOld::Exhausted),
                     Poll::Ready(Err(e)) => Err(e),
                     Poll::Pending => {
                         // SAFETY: Source lives on the partition state and
                         // outlives this future.
                         state.future = Some(unsafe { make_static(future) });
-                        Ok(PollPull::Pending)
+                        Ok(PollPullOld::Pending)
                     }
                 }
             }

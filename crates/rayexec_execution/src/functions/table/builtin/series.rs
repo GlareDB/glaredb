@@ -11,7 +11,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{PollFinalizeOld, PollPushOld};
 use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -215,29 +215,29 @@ pub struct GenerateSeriesInOutPartitionState {
 }
 
 impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, batch: BatchOld) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, batch: BatchOld) -> Result<PollPushOld> {
         if self.batch.is_some() {
             // Still processing current batch, come back later.
             self.push_waker = Some(cx.waker().clone());
             if let Some(pull_waker) = self.pull_waker.take() {
                 pull_waker.wake();
             }
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPushOld::Pending(batch));
         }
 
         self.batch = Some(batch);
         self.next_row_idx = 0;
 
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalizeOld> {
         self.finished = true;
         if let Some(waker) = self.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {

@@ -14,9 +14,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::catalog::CatalogTx;
 use crate::database::drop::DropInfo;
@@ -82,7 +82,7 @@ impl ExecutableOperator for PhysicalDrop {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
@@ -91,7 +91,7 @@ impl ExecutableOperator for PhysicalDrop {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
@@ -100,12 +100,12 @@ impl ExecutableOperator for PhysicalDrop {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match partition_state {
             PartitionState::Drop(state) => match state.drop.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
+                Poll::Ready(Ok(_)) => Ok(PollPullOld::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
-                Poll::Pending => Ok(PollPull::Pending),
+                Poll::Pending => Ok(PollPullOld::Pending),
             },
             other => panic!("invalid partition state: {other:?}"),
         }

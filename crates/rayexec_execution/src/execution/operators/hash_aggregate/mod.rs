@@ -24,7 +24,7 @@ use rayexec_bullet::scalar::ScalarValue;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
-use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use super::{ExecutionStates, InputOutputStates, PollFinalizeOld};
 use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::util::hash::partition_for_hash;
@@ -32,8 +32,8 @@ use crate::execution::operators::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
-    PollPull,
-    PollPush,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -299,7 +299,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -310,7 +310,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 self.insert_batch_agg_hash_table(state, batch)?;
 
                 // Aggregates don't produce anything until it's been finalized.
-                Ok(PollPush::NeedsMore)
+                Ok(PollPushOld::NeedsMore)
             }
             HashAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
                 "Attempted to push to partition that should be producing batches",
@@ -323,7 +323,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -368,7 +368,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     }
                 }
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
             HashAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
                 "Attempted to finalize a partition that's producing output",
@@ -381,7 +381,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -402,7 +402,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         // Still need to wait for some input partitions to complete. Store our
                         // waker and come back later.
                         shared_state.pull_waker = Some(cx.waker().clone());
-                        return Ok(PollPull::Pending);
+                        return Ok(PollPullOld::Pending);
                     }
 
                     // Othewise let's build the final table. Note that
@@ -422,7 +422,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 let batch = match state.hashtable_drain.as_mut().unwrap().next() {
                     Some(Ok(batch)) => batch,
                     Some(Err(e)) => return Err(e),
-                    None => return Ok(PollPull::Exhausted),
+                    None => return Ok(PollPullOld::Exhausted),
                 };
 
                 // Prune off GROUP ID column, generate appropriate GROUPING
@@ -468,12 +468,12 @@ impl ExecutableOperator for PhysicalHashAggregate {
 
                 let batch = BatchOld::try_new(arrays)?;
 
-                Ok(PollPull::Computed(ComputedBatches::Single(batch)))
+                Ok(PollPullOld::Computed(ComputedBatches::Single(batch)))
             }
             HashAggregatePartitionState::Aggregating(state) => {
                 let mut shared = operator_state.output_states[state.partition_idx].lock();
                 shared.pull_waker = Some(cx.waker().clone());
-                Ok(PollPull::Pending)
+                Ok(PollPullOld::Pending)
             }
         }
     }

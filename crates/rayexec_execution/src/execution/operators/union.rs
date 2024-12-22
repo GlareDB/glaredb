@@ -11,9 +11,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -121,12 +121,12 @@ impl ExecutableOperator for PhysicalUnion {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         match partition_state {
             PartitionState::UnionTop(state) => {
                 if state.batch.is_some() {
                     state.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPushOld::Pending(batch));
                 }
                 state.batch = Some(batch);
 
@@ -134,7 +134,7 @@ impl ExecutableOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPushOld::Pushed)
             }
 
             PartitionState::UnionBottom(state) => {
@@ -147,7 +147,7 @@ impl ExecutableOperator for PhysicalUnion {
 
                 if shared.batch.is_some() {
                     shared.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPushOld::Pending(batch));
                 }
 
                 shared.batch = Some(batch);
@@ -156,7 +156,7 @@ impl ExecutableOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPushOld::Pushed)
             }
 
             other => panic!("invalid partition state: {other:?}"),
@@ -168,14 +168,14 @@ impl ExecutableOperator for PhysicalUnion {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         match partition_state {
             PartitionState::UnionTop(state) => {
                 state.finished = true;
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
 
             PartitionState::UnionBottom(state) => {
@@ -191,7 +191,7 @@ impl ExecutableOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
 
             other => panic!("invalid partition state: {other:?}"),
@@ -203,14 +203,14 @@ impl ExecutableOperator for PhysicalUnion {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match partition_state {
             PartitionState::UnionTop(state) => match state.batch.take() {
                 Some(batch) => {
                     if let Some(waker) = state.push_waker.take() {
                         waker.wake();
                     }
-                    Ok(PollPull::Computed(batch.into()))
+                    Ok(PollPullOld::Computed(batch.into()))
                 }
                 None => {
                     let mut shared = match operator_state {
@@ -225,12 +225,12 @@ impl ExecutableOperator for PhysicalUnion {
                         if let Some(waker) = shared.push_waker.take() {
                             waker.wake();
                         }
-                        return Ok(PollPull::Computed(batch.into()));
+                        return Ok(PollPullOld::Computed(batch.into()));
                     }
 
                     // If not, check if we're finished.
                     if shared.finished && state.finished {
-                        return Ok(PollPull::Exhausted);
+                        return Ok(PollPullOld::Exhausted);
                     }
 
                     // No batches, and we're not finished. Need to wait.
@@ -239,7 +239,7 @@ impl ExecutableOperator for PhysicalUnion {
                         waker.wake();
                     }
 
-                    Ok(PollPull::Pending)
+                    Ok(PollPullOld::Pending)
                 }
             },
             other => panic!("invalid partition state: {other:?}"),

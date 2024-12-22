@@ -11,9 +11,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;
@@ -66,7 +66,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
             PartitionState::BatchResizer(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -80,7 +80,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
                 waker.wake();
             }
 
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPushOld::Pending(batch));
         }
 
         let computed = state.resizer.try_push(batch)?;
@@ -92,10 +92,10 @@ impl ExecutableOperator for PhysicalBatchResizer {
                 waker.wake();
             }
 
-            Ok(PollPush::Pushed)
+            Ok(PollPushOld::Pushed)
         } else {
             // Otherwise we need more batches.
-            Ok(PollPush::NeedsMore)
+            Ok(PollPushOld::NeedsMore)
         }
     }
 
@@ -104,7 +104,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
             PartitionState::BatchResizer(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -118,7 +118,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
                 waker.wake();
             }
 
-            return Ok(PollFinalize::Pending);
+            return Ok(PollFinalizeOld::Pending);
         }
 
         state.exhausted = true;
@@ -128,7 +128,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull_old(
@@ -136,7 +136,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
             PartitionState::BatchResizer(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -144,7 +144,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
 
         if state.buffered.is_empty() {
             if state.exhausted {
-                return Ok(PollPull::Exhausted);
+                return Ok(PollPullOld::Exhausted);
             }
 
             // Register wakeup.
@@ -153,7 +153,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
                 waker.wake()
             }
 
-            return Ok(PollPull::Pending);
+            return Ok(PollPullOld::Pending);
         }
 
         let buffered = state.buffered.take();
@@ -162,7 +162,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
             waker.wake()
         }
 
-        Ok(PollPull::Computed(buffered))
+        Ok(PollPullOld::Computed(buffered))
     }
 }
 

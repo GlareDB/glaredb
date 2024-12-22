@@ -15,9 +15,9 @@ use crate::execution::operators::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;
@@ -97,7 +97,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -107,7 +107,7 @@ impl ExecutableOperator for PhysicalScatterSort {
             ScatterSortPartitionState::Consuming(state) => {
                 self.insert_batch_for_comparison(state, batch)?;
 
-                Ok(PollPush::NeedsMore)
+                Ok(PollPushOld::NeedsMore)
             }
             ScatterSortPartitionState::Producing { .. } => {
                 panic!("attempted to push to partition that's already produding data")
@@ -120,7 +120,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -154,7 +154,7 @@ impl ExecutableOperator for PhysicalScatterSort {
                 // Update partition state to "producing" using the merger.
                 *state = ScatterSortPartitionState::Producing(ProducingPartitionState { merger });
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
             ScatterSortPartitionState::Producing { .. } => {
                 panic!("attempted to finalize partition that's already producing data")
@@ -167,7 +167,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         let mut state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -177,17 +177,17 @@ impl ExecutableOperator for PhysicalScatterSort {
             ScatterSortPartitionState::Consuming(state) => {
                 // Partition still collecting data to sort.
                 state.pull_waker = Some(cx.waker().clone());
-                Ok(PollPull::Pending)
+                Ok(PollPullOld::Pending)
             }
             ScatterSortPartitionState::Producing(state) => {
                 loop {
                     // TODO: Configurable batch size.
                     match state.merger.try_merge(DEFAULT_TARGET_BATCH_SIZE)? {
                         MergeResult::Batch(batch) => {
-                            return Ok(PollPull::Computed(batch.into()));
+                            return Ok(PollPullOld::Computed(batch.into()));
                         }
                         MergeResult::Exhausted => {
-                            return Ok(PollPull::Exhausted);
+                            return Ok(PollPullOld::Exhausted);
                         }
                         MergeResult::NeedsInput(idx) => {
                             // We're merging all batch in this partition, and
@@ -305,7 +305,7 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPushOld::NeedsMore, poll_push);
         }
         operator
             .poll_finalize_push_old(
@@ -347,7 +347,7 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPushOld::NeedsMore, poll_push);
         }
         operator
             .poll_finalize_push_old(
@@ -393,7 +393,7 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPushOld::NeedsMore, poll_push);
         }
         operator
             .poll_finalize_push_old(
@@ -433,7 +433,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPullOld::Exhausted, poll_pull);
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPushOld::NeedsMore, poll_push);
         }
         operator
             .poll_finalize_push_old(
@@ -493,6 +493,6 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPullOld::Exhausted, poll_pull);
     }
 }

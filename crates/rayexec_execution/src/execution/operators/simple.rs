@@ -11,9 +11,9 @@ use super::{
     InputOutputStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -98,7 +98,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -110,7 +110,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
             if let Some(waker) = state.pull_waker.take() {
                 waker.wake();
             }
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPushOld::Pending(batch));
         }
 
         // Otherwise we're good to go.
@@ -121,7 +121,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
     fn poll_finalize_push_old(
@@ -129,7 +129,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -141,7 +141,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull_old(
@@ -149,7 +149,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -160,18 +160,18 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
                 if let Some(waker) = state.push_waker.take() {
                     waker.wake();
                 }
-                Ok(PollPull::Computed(out.into()))
+                Ok(PollPullOld::Computed(out.into()))
             }
             None => {
                 if state.exhausted {
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPullOld::Exhausted);
                 }
 
                 state.pull_waker = Some(cx.waker().clone());
                 if let Some(waker) = state.push_waker.take() {
                     waker.wake();
                 }
-                Ok(PollPull::Pending)
+                Ok(PollPullOld::Pending)
             }
         }
     }

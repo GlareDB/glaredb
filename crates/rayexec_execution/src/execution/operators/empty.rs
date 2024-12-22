@@ -9,9 +9,9 @@ use super::{
     ExecutionStates,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
@@ -50,7 +50,7 @@ impl ExecutableOperator for PhysicalEmpty {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
 
@@ -59,7 +59,7 @@ impl ExecutableOperator for PhysicalEmpty {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
 
@@ -68,14 +68,16 @@ impl ExecutableOperator for PhysicalEmpty {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match partition_state {
             PartitionState::Empty(state) => {
                 if state.finished {
-                    Ok(PollPull::Exhausted)
+                    Ok(PollPullOld::Exhausted)
                 } else {
                     state.finished = true;
-                    Ok(PollPull::Computed(BatchOld::empty_with_num_rows(1).into()))
+                    Ok(PollPullOld::Computed(
+                        BatchOld::empty_with_num_rows(1).into(),
+                    ))
                 }
             }
             other => panic!("inner join state is not building: {other:?}"),

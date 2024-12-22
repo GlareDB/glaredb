@@ -11,7 +11,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::unnest::unnest;
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{PollFinalizeOld, PollPushOld};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -152,7 +152,7 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, inputs: BatchOld) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, inputs: BatchOld) -> Result<PollPushOld> {
         if self.current_row < self.input_num_rows {
             // Still processing inputs, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -160,7 +160,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                 waker.wake();
             }
 
-            return Ok(PollPush::Pending(inputs));
+            return Ok(PollPushOld::Pending(inputs));
         }
 
         self.input_num_rows = inputs.num_rows();
@@ -177,17 +177,17 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalizeOld> {
         self.finished = true;
 
         if let Some(waker) = self.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {

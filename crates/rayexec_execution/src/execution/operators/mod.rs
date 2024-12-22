@@ -102,6 +102,7 @@ use self::sort::gather_sort::{
 use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -162,7 +163,7 @@ pub enum OperatorState {
 /// something else to complete (e.g. the right side of a join needs to the left
 /// side to complete first) or some internal buffer is full.
 #[derive(Debug, PartialEq)]
-pub enum PollPush {
+pub enum PollPushOld {
     /// Batch was successfully pushed.
     Pushed,
 
@@ -184,7 +185,7 @@ pub enum PollPush {
 
 /// Result of a pull from a Source.
 #[derive(Debug, PartialEq)]
-pub enum PollPull {
+pub enum PollPullOld {
     /// Successfully received computed results.
     Computed(ComputedBatches),
 
@@ -199,7 +200,7 @@ pub enum PollPull {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PollFinalize {
+pub enum PollFinalizeOld {
     Finalized,
     Pending,
 }
@@ -270,7 +271,85 @@ pub struct ExecutionStates {
     pub partition_states: InputOutputStates,
 }
 
+#[derive(Debug)]
+pub enum PollExecuteState<'a> {
+    Pull {
+        out: &'a mut Batch,
+    },
+    InOut {
+        input: &'a mut Batch,
+        out: &'a mut Batch,
+    },
+    Push {
+        input: &'a mut Batch,
+    },
+    Finalize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollPull {
+    /// Data was pulled.
+    Pulled,
+    /// Pull pending. Waker stored, re-execute with the exact same state.
+    Pending,
+    /// Source exhuasted, no additional data will be produced.
+    Exhausted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollPush {
+    /// Operator accepted input and wrote its output to the output batch.
+    ///
+    /// The next poll should be with a new input batch.
+    Ready,
+    /// Push pending. Waker stored, re-execute with the exact same state.
+    Pending,
+    /// Operator accepted as much input at can handle. Don't provide any
+    /// additional input.
+    Break,
+    /// Operator needs more input before it'll produce any meaningful output.
+    NeedsMore,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollFinalize {
+    /// Operator finalized, execution of this operator finished.
+    Finalized,
+    /// Finalize pending, re-execute with the same state.
+    Pending,
+}
+
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
+    fn poll_pull(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
+        out: &mut Batch,
+    ) -> Result<PollPull> {
+        unimplemented!()
+    }
+
+    fn poll_push(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
+        input: &mut Batch,
+        out: &mut Batch,
+    ) -> Result<PollPush> {
+        unimplemented!()
+    }
+
+    fn poll_push_finalize(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
+    ) -> Result<PollFinalize> {
+        unimplemented!()
+    }
+
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
@@ -290,7 +369,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush>;
+    ) -> Result<PollPushOld>;
 
     /// Finalize pushing to partition.
     ///
@@ -301,7 +380,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize>;
+    ) -> Result<PollFinalizeOld>;
 
     /// Try to pull a batch for this partition.
     fn poll_pull_old(
@@ -309,7 +388,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull>;
+    ) -> Result<PollPullOld>;
 }
 
 // 144 bytes
@@ -393,7 +472,7 @@ impl ExecutableOperator for PhysicalOperator {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: BatchOld,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         match self {
             Self::HashAggregate(op) => op.poll_push_old(cx, partition_state, operator_state, batch),
             Self::UngroupedAggregate(op) => {
@@ -441,7 +520,7 @@ impl ExecutableOperator for PhysicalOperator {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalizeOld> {
         match self {
             Self::HashAggregate(op) => {
                 op.poll_finalize_push_old(cx, partition_state, operator_state)
@@ -497,7 +576,7 @@ impl ExecutableOperator for PhysicalOperator {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         match self {
             Self::HashAggregate(op) => op.poll_pull_old(cx, partition_state, operator_state),
             Self::UngroupedAggregate(op) => op.poll_pull_old(cx, partition_state, operator_state),

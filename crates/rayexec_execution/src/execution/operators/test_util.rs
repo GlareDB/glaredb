@@ -13,8 +13,8 @@ use super::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
-    PollPull,
-    PollPush,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
@@ -73,7 +73,7 @@ impl TestWakerContext {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: impl Into<BatchOld>,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPushOld> {
         operator.as_ref().poll_push_old(
             &mut self.context(),
             partition_state,
@@ -87,7 +87,7 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPullOld> {
         operator
             .as_ref()
             .poll_pull_old(&mut self.context(), partition_state, operator_state)
@@ -101,9 +101,9 @@ impl Wake for TestWakerInner {
 }
 
 /// Unwraps a batch from the PollPull::Batch variant.
-pub fn unwrap_poll_pull_batch(poll: PollPull) -> BatchOld {
+pub fn unwrap_poll_pull_batch(poll: PollPullOld) -> BatchOld {
     match poll {
-        PollPull::Computed(ComputedBatches::Single(batch)) => batch,
+        PollPullOld::Computed(ComputedBatches::Single(batch)) => batch,
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }
