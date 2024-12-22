@@ -1,3 +1,4 @@
+pub mod batch_collection;
 pub mod physical_project;
 pub mod physical_sort;
 
