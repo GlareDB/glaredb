@@ -25,6 +25,8 @@ pub enum PollExecute {
     Break,
     /// Operator needs more input before it'll produce any meaningful output.
     NeedsMore,
+    /// Operator has more output. Call again with the same input batch.
+    HasMore,
     /// No more output.
     Exhausted,
 }

@@ -63,6 +63,10 @@ where
         &self.arrays
     }
 
+    pub fn has_capacity_for_rows(&self, additional: usize) -> bool {
+        self.row_count + additional < self.capacity
+    }
+
     pub fn append_batch_data(&mut self, batch: &Batch<B>) -> Result<()> {
         let total_num_rows = self.row_count + batch.num_rows();
         if total_num_rows > self.capacity {
@@ -88,6 +92,15 @@ where
         }
 
         self.row_count += batch.num_rows();
+
+        Ok(())
+    }
+
+    /// Reorder rows in the collection based on a selection.
+    pub fn select(&mut self, manager: &B, selection: &[usize]) -> Result<()> {
+        for array in &mut self.arrays {
+            array.select(manager, selection.iter().copied())?;
+        }
 
         Ok(())
     }

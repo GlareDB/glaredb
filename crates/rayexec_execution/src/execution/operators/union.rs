@@ -68,11 +68,7 @@ impl PhysicalUnion {
 }
 
 impl ExecutableOperatorOld for PhysicalUnion {
-    fn create_states_old(
-        &self,
-        _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    fn create_states_old(&self, _context: &DatabaseContext, partitions: Vec<usize>) -> Result<ExecutionStates> {
         let num_partitions = partitions[0];
 
         let top_states = (0..num_partitions)
@@ -88,9 +84,7 @@ impl ExecutableOperatorOld for PhysicalUnion {
             .collect();
 
         let bottom_states = (0..num_partitions)
-            .map(|idx| {
-                PartitionStateOld::UnionBottom(UnionBottomPartitionState { partition_idx: idx })
-            })
+            .map(|idx| PartitionStateOld::UnionBottom(UnionBottomPartitionState { partition_idx: idx }))
             .collect();
 
         let operator_state = UnionOperatorState {
@@ -139,9 +133,7 @@ impl ExecutableOperatorOld for PhysicalUnion {
 
             PartitionStateOld::UnionBottom(state) => {
                 let mut shared = match operator_state {
-                    OperatorStateOld::Union(operator_state) => {
-                        operator_state.shared[state.partition_idx].lock()
-                    }
+                    OperatorStateOld::Union(operator_state) => operator_state.shared[state.partition_idx].lock(),
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -180,9 +172,7 @@ impl ExecutableOperatorOld for PhysicalUnion {
 
             PartitionStateOld::UnionBottom(state) => {
                 let mut shared = match operator_state {
-                    OperatorStateOld::Union(operator_state) => {
-                        operator_state.shared[state.partition_idx].lock()
-                    }
+                    OperatorStateOld::Union(operator_state) => operator_state.shared[state.partition_idx].lock(),
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -214,9 +204,7 @@ impl ExecutableOperatorOld for PhysicalUnion {
                 }
                 None => {
                     let mut shared = match operator_state {
-                        OperatorStateOld::Union(operator_state) => {
-                            operator_state.shared[state.partition_idx].lock()
-                        }
+                        OperatorStateOld::Union(operator_state) => operator_state.shared[state.partition_idx].lock(),
                         other => panic!("invalid operator state: {other:?}"),
                     };
 

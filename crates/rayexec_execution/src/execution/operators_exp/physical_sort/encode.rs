@@ -104,7 +104,7 @@ where
         }
     }
 
-    unimplemented!()
+    Ok(())
 }
 
 /// Trait for types that can encode themselves into a comparable binary

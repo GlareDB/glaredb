@@ -2,9 +2,6 @@ use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::array::Array;
-use super::buffer::physical_type::{PhysicalI32, PhysicalI8, PhysicalType, PhysicalUtf8};
-use super::buffer::string_view::StringViewHeap;
-use super::buffer::ArrayBuffer;
 use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
 use super::flat_array::FlatSelection;
@@ -21,17 +18,17 @@ where
     B: BufferManager,
 {
     pub const fn empty() -> Self {
+        Self::empty_with_num_rows(0)
+    }
+
+    pub const fn empty_with_num_rows(num_rows: usize) -> Self {
         Batch {
             arrays: Vec::new(),
-            num_rows: 0,
+            num_rows,
         }
     }
 
-    pub fn new(
-        manager: &B,
-        datatypes: impl IntoExactSizeIterator<Item = DataType>,
-        capacity: usize,
-    ) -> Result<Self> {
+    pub fn new(manager: &B, datatypes: impl IntoExactSizeIterator<Item = DataType>, capacity: usize) -> Result<Self> {
         let datatypes = datatypes.into_iter();
         let mut arrays = Vec::with_capacity(datatypes.len());
 
@@ -40,10 +37,7 @@ where
             arrays.push(array)
         }
 
-        Ok(Batch {
-            arrays,
-            num_rows: 0,
-        })
+        Ok(Batch { arrays, num_rows: 0 })
     }
 
     /// Create a new batch from some number of arrays.
@@ -53,10 +47,7 @@ where
     /// `row_eq_cap` indicates if the logical cardinality of the batch should
     /// equal the capacity of the arrays. If false, the logical cardinality will
     /// be set to zero.
-    pub(crate) fn from_arrays(
-        arrays: impl IntoIterator<Item = Array<B>>,
-        rows_eq_cap: bool,
-    ) -> Result<Self> {
+    pub(crate) fn from_arrays(arrays: impl IntoIterator<Item = Array<B>>, rows_eq_cap: bool) -> Result<Self> {
         let arrays: Vec<_> = arrays.into_iter().collect();
         let capacity = match arrays.first() {
             Some(arr) => arr.capacity(),
@@ -70,11 +61,11 @@ where
 
         for array in &arrays {
             if array.capacity() != capacity {
-                return Err(RayexecError::new(
-                    "Attempted to create batch from arrays with different capacities",
-                )
-                .with_field("expected", capacity)
-                .with_field("got", array.capacity()));
+                return Err(
+                    RayexecError::new("Attempted to create batch from arrays with different capacities")
+                        .with_field("expected", capacity)
+                        .with_field("got", array.capacity()),
+                );
             }
         }
 
@@ -95,11 +86,9 @@ where
         };
 
         if array.capacity() != cap {
-            return Err(
-                RayexecError::new("Attempted to push array with different capacity")
-                    .with_field("expected", cap)
-                    .with_field("got", array.capacity()),
-            );
+            return Err(RayexecError::new("Attempted to push array with different capacity")
+                .with_field("expected", cap)
+                .with_field("got", array.capacity()));
         }
 
         self.arrays.push(array);

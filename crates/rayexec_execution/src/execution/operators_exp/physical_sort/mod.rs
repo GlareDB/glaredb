@@ -1,19 +1,13 @@
 pub mod encode;
 pub mod partition_state;
-pub mod sort_data;
+
+mod sort_data;
 
 use std::task::Context;
 
 use rayexec_error::{OptionExt, Result};
 
-use super::{
-    ExecutableOperator,
-    ExecuteInOutState,
-    OperatorState,
-    PartitionState,
-    PollExecute,
-    PollFinalize,
-};
+use super::{ExecutableOperator, ExecuteInOutState, OperatorState, PartitionState, PollExecute, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::{PhysicalScalarExpression, PhysicalSortExpression};
