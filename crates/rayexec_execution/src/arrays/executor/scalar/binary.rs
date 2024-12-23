@@ -45,31 +45,19 @@ impl BinaryExecutor {
         let validity2 = array2.validity();
 
         if validity1.all_valid() && validity2.all_valid() {
-            for (output_idx, (input1_idx, input2_idx)) in
-                sel1.into_iter().zip(sel2.into_iter()).enumerate()
-            {
+            for (output_idx, (input1_idx, input2_idx)) in sel1.into_iter().zip(sel2.into_iter()).enumerate() {
                 let val1 = input1.get(input1_idx).unwrap();
                 let val2 = input2.get(input2_idx).unwrap();
 
-                op(
-                    val1,
-                    val2,
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
+                op(val1, val2, PutBuffer::new(output_idx, &mut output, out.validity));
             }
         } else {
-            for (output_idx, (input1_idx, input2_idx)) in
-                sel1.into_iter().zip(sel2.into_iter()).enumerate()
-            {
+            for (output_idx, (input1_idx, input2_idx)) in sel1.into_iter().zip(sel2.into_iter()).enumerate() {
                 if validity1.is_valid(input1_idx) && validity2.is_valid(input2_idx) {
                     let val1 = input1.get(input1_idx).unwrap();
                     let val2 = input2.get(input2_idx).unwrap();
 
-                    op(
-                        val1,
-                        val2,
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
+                    op(val1, val2, PutBuffer::new(output_idx, &mut output, out.validity));
                 } else {
                     out.validity.set_invalid(output_idx);
                 }
@@ -104,25 +92,17 @@ impl BinaryExecutor {
         let validity2 = &array2.validity;
 
         if validity1.all_valid() && validity2.all_valid() {
-            for (output_idx, (input1_idx, input2_idx)) in
-                sel1.into_iter().zip(sel2.into_iter()).enumerate()
-            {
+            for (output_idx, (input1_idx, input2_idx)) in sel1.into_iter().zip(sel2.into_iter()).enumerate() {
                 let sel1 = array1.selection.get(input1_idx).unwrap();
                 let sel2 = array2.selection.get(input2_idx).unwrap();
 
                 let val1 = input1.get(sel1).unwrap();
                 let val2 = input2.get(sel2).unwrap();
 
-                op(
-                    val1,
-                    val2,
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
+                op(val1, val2, PutBuffer::new(output_idx, &mut output, out.validity));
             }
         } else {
-            for (output_idx, (input1_idx, input2_idx)) in
-                sel1.into_iter().zip(sel2.into_iter()).enumerate()
-            {
+            for (output_idx, (input1_idx, input2_idx)) in sel1.into_iter().zip(sel2.into_iter()).enumerate() {
                 let sel1 = array1.selection.get(input1_idx).unwrap();
                 let sel2 = array2.selection.get(input2_idx).unwrap();
 
@@ -130,11 +110,7 @@ impl BinaryExecutor {
                     let val1 = input1.get(sel1).unwrap();
                     let val2 = input2.get(sel2).unwrap();
 
-                    op(
-                        val1,
-                        val2,
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
+                    op(val1, val2, PutBuffer::new(output_idx, &mut output, out.validity));
                 } else {
                     out.validity.set_invalid(output_idx);
                 }
@@ -150,16 +126,14 @@ mod tests {
     use super::*;
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::buffer::string_view::StringViewHeap;
-    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::{Int32BufferBuilder, StringBufferBuilder};
     use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
 
     #[test]
     fn binary_simple_add() {
-        let left =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
-        let right =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let left = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3]).unwrap());
+        let right = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap());
 
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
@@ -184,13 +158,11 @@ mod tests {
 
     #[test]
     fn binary_simple_add_with_selection() {
-        let mut left =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([2]).unwrap());
+        let mut left = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([2]).unwrap());
         // [2, 2, 2]
         left.select(&NopBufferManager, [0, 0, 0]).unwrap();
 
-        let right =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let right = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap());
 
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
@@ -215,19 +187,15 @@ mod tests {
 
     #[test]
     fn binary_string_repeat() {
-        let left =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let left = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3]).unwrap());
         let right = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter(["hello", "world", "goodbye!"]).unwrap(),
+            StringBufferBuilder::from_iter(["hello", "world", "goodbye!"]).unwrap(),
         );
 
-        let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
-            &NopBufferManager,
-            3,
-            StringViewHeap::new(),
-        )
-        .unwrap();
+        let mut out =
+            ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(&NopBufferManager, 3, StringViewHeap::new())
+                .unwrap();
         let mut validity = Validity::new_all_valid(3);
 
         let mut string_buf = String::new();
@@ -263,13 +231,12 @@ mod tests {
         left_validity.set_invalid(1);
         let left = Array::new_with_validity(
             DataType::Int32,
-            Int32Builder::from_iter([1, 2, 3]).unwrap(),
+            Int32BufferBuilder::from_iter([1, 2, 3]).unwrap(),
             left_validity,
         )
         .unwrap();
 
-        let right =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let right = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap());
 
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);

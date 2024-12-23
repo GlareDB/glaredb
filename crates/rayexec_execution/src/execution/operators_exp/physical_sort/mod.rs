@@ -1,6 +1,7 @@
 pub mod encode;
 pub mod partition_state;
 
+mod merge;
 mod sort_data;
 
 use std::task::Context;

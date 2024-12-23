@@ -123,7 +123,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::buffer::physical_type::PhysicalI32;
-    use crate::arrays::buffer::Int32Builder;
+    use crate::arrays::buffer::Int32BufferBuilder;
     use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
     use crate::expr::column_expr::ColumnExpr;
@@ -155,7 +155,7 @@ mod tests {
         let mut batch = Batch::from_arrays(
             [Array::new_with_buffer(
                 DataType::Int32,
-                Int32Builder::from_iter([4, 5, 6]).unwrap(),
+                Int32BufferBuilder::from_iter([4, 5, 6]).unwrap(),
             )],
             true,
         )
@@ -163,9 +163,7 @@ mod tests {
 
         let expr = PhysicalScalarFunctionExpr {
             function: make_temp_add_2(),
-            inputs: vec![PhysicalScalarExpression::Column(PhysicalColumnExpr {
-                idx: 0,
-            })],
+            inputs: vec![PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 })],
         };
 
         let mut state = ExpressionState {

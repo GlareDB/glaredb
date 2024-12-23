@@ -70,7 +70,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::buffer::physical_type::PhysicalI32;
-    use crate::arrays::buffer::Int32Builder;
+    use crate::arrays::buffer::Int32BufferBuilder;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::scalar::unary::UnaryExecutor;
 
@@ -79,7 +79,7 @@ mod tests {
         let mut batch = Batch::from_arrays(
             [Array::new_with_buffer(
                 DataType::Int32,
-                Int32Builder::from_iter([4, 5, 6]).unwrap(),
+                Int32BufferBuilder::from_iter([4, 5, 6]).unwrap(),
             )],
             true,
         )
@@ -112,7 +112,7 @@ mod tests {
         let mut batch = Batch::from_arrays(
             [Array::new_with_buffer(
                 DataType::Int32,
-                Int32Builder::from_iter([4, 5, 6]).unwrap(),
+                Int32BufferBuilder::from_iter([4, 5, 6]).unwrap(),
             )],
             true,
         )

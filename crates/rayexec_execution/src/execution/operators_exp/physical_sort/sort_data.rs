@@ -20,9 +20,11 @@ pub struct SortData<B: BufferManager> {
     /// Layout indicating how we're performing the sort.
     layout: SortLayout,
     /// Blocks not yet sorted. Can continue to be written to.
-    unsorted: Vec<UnsortedBlock<B>>,
-    /// Blocks after sort.
-    sorted: Vec<SortedBlock<B>>,
+    unsorted: Vec<SortBlock<B>>,
+    /// Sorted blocks with each block containing sorted rows.
+    ///
+    /// The order of blocks themselves is arbitrary.
+    sorted: Vec<SortBlock<B>>,
 }
 
 impl<B> SortData<B>
@@ -94,7 +96,7 @@ where
     /// rows. Otherwise we allocate a new block.
     ///
     /// Pops to satisfy lifetimes more easily.
-    fn pop_or_allocate_unsorted_block(&mut self, count: usize) -> Result<UnsortedBlock<B>> {
+    fn pop_or_allocate_unsorted_block(&mut self, count: usize) -> Result<SortBlock<B>> {
         debug_assert!(count <= self.max_per_block);
 
         if let Some(last) = self.unsorted.last() {
@@ -103,19 +105,19 @@ where
             }
         }
 
-        let block = self.layout.new_unsorted_block(&self.manager, self.max_per_block)?;
+        let block = SortBlock::new(&self.manager, &self.layout, self.max_per_block)?;
 
         Ok(block)
     }
 }
 
 #[derive(Debug)]
-struct SortLayout {
-    input_types: Vec<DataType>,
-    key_columns: Vec<usize>,
-    key_sizes: Vec<usize>,
-    key_nulls_first: Vec<bool>,
-    key_desc: Vec<bool>,
+pub struct SortLayout {
+    pub input_types: Vec<DataType>,
+    pub key_columns: Vec<usize>,
+    pub key_sizes: Vec<usize>,
+    pub key_nulls_first: Vec<bool>,
+    pub key_desc: Vec<bool>,
 }
 
 impl SortLayout {
@@ -146,40 +148,55 @@ impl SortLayout {
             key_nulls_first,
         }
     }
+}
 
-    /// Create a new block adhering to this sort layout.
-    fn new_unsorted_block<B: BufferManager>(&self, manager: &B, capacity: usize) -> Result<UnsortedBlock<B>> {
-        let total_key_size: usize = self.key_sizes.iter().sum();
+/// Blocks containing unsorted input and encoded keys.
+#[derive(Debug)]
+pub struct SortBlock<B: BufferManager> {
+    /// Offsets of the first sort key into the key encode buffer.
+    pub key_encode_offsets: Vec<usize>,
+    /// Buffer containing all encoded keys.
+    pub key_encode_buffer: Vec<u8>,
+    /// Collection hold all arrays for sort input.
+    pub block: BatchCollectionBlock<B>,
+}
+
+impl<B> SortBlock<B>
+where
+    B: BufferManager,
+{
+    pub fn new(manager: &B, layout: &SortLayout, capacity: usize) -> Result<Self> {
+        let total_key_size: usize = layout.key_sizes.iter().sum();
 
         let offsets = (0..capacity).map(|idx| idx * total_key_size).collect();
         let buffer = vec![0; total_key_size * capacity]; // TODO: Get from manager.
 
-        let block = BatchCollectionBlock::new(manager, &self.input_types, capacity)?;
+        let block = BatchCollectionBlock::new(manager, &layout.input_types, capacity)?;
 
-        Ok(UnsortedBlock {
+        Ok(SortBlock {
             key_encode_offsets: offsets,
             key_encode_buffer: buffer,
             block,
         })
     }
-}
 
-/// Blocks containing unsorted input and encoded keys.
-#[derive(Debug)]
-struct UnsortedBlock<B: BufferManager> {
-    /// Offsets of the first sort key into the key encode buffer.
-    key_encode_offsets: Vec<usize>,
-    /// Buffer containing all encoded keys.
-    key_encode_buffer: Vec<u8>,
-    /// Collection hold all arrays for sort input.
-    block: BatchCollectionBlock<B>,
-}
+    /// Get a buffer slice representing the encoded sort keys for a row.
+    pub fn get_sort_key_buf(&self, row_idx: usize) -> &[u8] {
+        let start = self.key_encode_offsets[row_idx];
+        let end = self.key_encode_offsets[row_idx + 1];
+        &self.key_encode_buffer[start..end]
+    }
 
-impl<B> UnsortedBlock<B>
-where
-    B: BufferManager,
-{
-    fn sort(mut self, manager: &B, layout: &SortLayout, sort_indices: &mut [usize]) -> Result<SortedBlock<B>> {
+    pub fn row_count(&self) -> usize {
+        self.block.row_count()
+    }
+
+    /// Copy a row from another sort block into this sort block.
+    pub fn copy_row_from_other(&mut self, dest_row: usize, source: &SortBlock<B>, source_row: usize) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn sort(mut self, manager: &B, layout: &SortLayout, sort_indices: &mut [usize]) -> Result<SortBlock<B>> {
         debug_assert_eq!(sort_indices.len(), self.block.row_count());
 
         // Reset sort indices to 0..rowlen
@@ -211,7 +228,7 @@ where
         // Update batch block by selecting by sort indices.
         self.block.select(manager, sort_indices)?;
 
-        Ok(SortedBlock {
+        Ok(SortBlock {
             key_encode_offsets: self.key_encode_offsets,
             key_encode_buffer: output_buf,
             block: self.block,
@@ -219,22 +236,12 @@ where
     }
 }
 
-#[derive(Debug)]
-struct SortedBlock<B: BufferManager> {
-    /// Offsets of the first sort key into the key encode buffer.
-    key_encode_offsets: Vec<usize>,
-    /// Buffer containing all encoded keys.
-    key_encode_buffer: Vec<u8>,
-    /// Collection hold all arrays for sort input.
-    block: BatchCollectionBlock<B>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::arrays::array::Array;
     use crate::arrays::buffer::physical_type::PhysicalI32;
-    use crate::arrays::buffer::Int32Builder;
+    use crate::arrays::buffer::Int32BufferBuilder;
     use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::executor::scalar::unary::UnaryExecutor;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -256,7 +263,7 @@ mod tests {
         let batch1 = Batch::from_arrays(
             [Array::new_with_buffer(
                 DataType::Int32,
-                Int32Builder::from_iter([4, 7, 6]).unwrap(),
+                Int32BufferBuilder::from_iter([4, 7, 6]).unwrap(),
             )],
             true,
         )
@@ -264,7 +271,7 @@ mod tests {
         let batch2 = Batch::from_arrays(
             [Array::new_with_buffer(
                 DataType::Int32,
-                Int32Builder::from_iter([2, 8]).unwrap(),
+                Int32BufferBuilder::from_iter([2, 8]).unwrap(),
             )],
             true,
         )

@@ -145,7 +145,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::{Int32BufferBuilder, StringBufferBuilder};
     use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::executor::scalar::unary::UnaryExecutor;
 
@@ -153,9 +153,9 @@ mod tests {
     fn append_i32() {
         let mut block = BatchCollectionBlock::new(&NopBufferManager, &[DataType::Int32], 4096).unwrap();
 
-        let array1 = Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
-        let array2 = Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([7, 8]).unwrap());
-        let array3 = Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([9, 10, 11]).unwrap());
+        let array1 = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap());
+        let array2 = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([7, 8]).unwrap());
+        let array3 = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([9, 10, 11]).unwrap());
 
         let batch1 = Batch::from_arrays([array1], true).unwrap();
         let batch2 = Batch::from_arrays([array2], true).unwrap();
@@ -180,7 +180,7 @@ mod tests {
     fn append_i32_dictionary() {
         let mut block = BatchCollectionBlock::new(&NopBufferManager, &[DataType::Int32], 4096).unwrap();
 
-        let mut array = Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([4, 5, 6]).unwrap());
+        let mut array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap());
         array.select(&NopBufferManager, [0, 0, 2, 2, 1, 1]).unwrap();
 
         let batch = Batch::from_arrays([array], true).unwrap();
@@ -203,12 +203,12 @@ mod tests {
 
         let array1 = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter(["a", "bb", "ccc"]).unwrap(),
+            StringBufferBuilder::from_iter(["a", "bb", "ccc"]).unwrap(),
         );
-        let array2 = Array::new_with_buffer(DataType::Utf8, StringViewBufferBuilder::from_iter(["d", "ee"]).unwrap());
+        let array2 = Array::new_with_buffer(DataType::Utf8, StringBufferBuilder::from_iter(["d", "ee"]).unwrap());
         let array3 = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter(["f", "gg", "hhh"]).unwrap(),
+            StringBufferBuilder::from_iter(["f", "gg", "hhh"]).unwrap(),
         );
 
         let batch1 = Batch::from_arrays([array1], true).unwrap();

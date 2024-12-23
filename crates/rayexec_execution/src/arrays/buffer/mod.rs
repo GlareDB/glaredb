@@ -22,12 +22,7 @@ use physical_type::{
     PhysicalUtf8,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
-use string_view::{
-    StringViewHeap,
-    StringViewMetadataUnion,
-    StringViewStorage,
-    StringViewStorageMut,
-};
+use string_view::{StringViewHeap, StringViewMetadataUnion, StringViewStorage, StringViewStorageMut};
 use struct_buffer::{StructBuffer, StructItemMetadata};
 
 use super::array::Array;
@@ -98,11 +93,9 @@ where
 
     pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
         if S::PHYSICAL_TYPE != self.physical_type {
-            return Err(
-                RayexecError::new("Attempted to cast buffer to wrong physical type")
-                    .with_field("expected_type", self.physical_type)
-                    .with_field("requested_type", S::PHYSICAL_TYPE),
-            );
+            return Err(RayexecError::new("Attempted to cast buffer to wrong physical type")
+                .with_field("expected_type", self.physical_type)
+                .with_field("requested_type", S::PHYSICAL_TYPE));
         }
 
         let data = unsafe { self.primary.as_slice::<S::PrimaryBufferType>() };
@@ -112,11 +105,9 @@ where
 
     pub fn try_as_slice_mut<S: PhysicalStorage>(&mut self) -> Result<&mut [S::PrimaryBufferType]> {
         if S::PHYSICAL_TYPE != self.physical_type {
-            return Err(
-                RayexecError::new("Attempted to cast buffer to wrong physical type")
-                    .with_field("expected_type", self.physical_type)
-                    .with_field("requested_type", S::PHYSICAL_TYPE),
-            );
+            return Err(RayexecError::new("Attempted to cast buffer to wrong physical type")
+                .with_field("expected_type", self.physical_type)
+                .with_field("requested_type", S::PHYSICAL_TYPE));
         }
 
         let data = unsafe { self.primary.as_slice_mut::<S::PrimaryBufferType>() };
@@ -136,11 +127,9 @@ where
     pub fn try_as_string_view_storage_mut(&mut self) -> Result<StringViewStorageMut<'_>> {
         // TODO: Duplicated, but let's us take each field mutably.
         if PhysicalUtf8::PHYSICAL_TYPE != self.physical_type {
-            return Err(
-                RayexecError::new("Attempted to cast buffer to wrong physical type")
-                    .with_field("expected_type", self.physical_type)
-                    .with_field("requested_type", PhysicalUtf8::PHYSICAL_TYPE),
-            );
+            return Err(RayexecError::new("Attempted to cast buffer to wrong physical type")
+                .with_field("expected_type", self.physical_type)
+                .with_field("requested_type", PhysicalUtf8::PHYSICAL_TYPE));
         }
 
         let metadata = unsafe { self.primary.as_slice_mut::<StringViewMetadataUnion>() };
@@ -164,15 +153,9 @@ where
     }
 
     /// Appends data from another buffer into this buffer.
-    pub fn append_from<S: PhysicalStorage>(
-        &mut self,
-        manager: &B,
-        other: &ArrayBuffer,
-    ) -> Result<()> {
+    pub fn append_from<S: PhysicalStorage>(&mut self, manager: &B, other: &ArrayBuffer) -> Result<()> {
         if !self.secondary.is_none() {
-            return Err(RayexecError::new(
-                "Appending secondary buffers not yet supported",
-            ));
+            return Err(RayexecError::new("Appending secondary buffers not yet supported"));
         }
 
         let orig_len = self.capacity();
@@ -349,8 +332,8 @@ impl<B: BufferManager> RawBufferParts<B> {
     }
 }
 
-pub type Int8Builder = PrimBufferBuilder<PhysicalI8>;
-pub type Int32Builder = PrimBufferBuilder<PhysicalI32>;
+pub type Int8BufferBuilder = PrimBufferBuilder<PhysicalI8>;
+pub type Int32BufferBuilder = PrimBufferBuilder<PhysicalI32>;
 
 #[derive(Debug)]
 pub struct PrimBufferBuilder<S: PhysicalStorage> {
@@ -363,8 +346,7 @@ impl<S: PhysicalStorage> PrimBufferBuilder<S> {
         I: IntoExactSizeIterator<Item = S::PrimaryBufferType>,
     {
         let iter = iter.into_iter();
-        let mut data =
-            RawBufferParts::try_new::<S::PrimaryBufferType>(&NopBufferManager, iter.len())?;
+        let mut data = RawBufferParts::try_new::<S::PrimaryBufferType>(&NopBufferManager, iter.len())?;
 
         let data_slice = unsafe { data.as_slice_mut() };
         for (idx, val) in iter.enumerate() {
@@ -380,17 +362,16 @@ impl<S: PhysicalStorage> PrimBufferBuilder<S> {
 }
 
 #[derive(Debug)]
-pub struct StringViewBufferBuilder;
+pub struct StringBufferBuilder;
 
-impl StringViewBufferBuilder {
+impl StringBufferBuilder {
     pub fn from_iter<A, I>(iter: I) -> Result<ArrayBuffer>
     where
         A: AsRef<str>,
         I: IntoExactSizeIterator<Item = A>,
     {
         let iter = iter.into_iter();
-        let mut data =
-            RawBufferParts::try_new::<StringViewMetadataUnion>(&NopBufferManager, iter.len())?;
+        let mut data = RawBufferParts::try_new::<StringViewMetadataUnion>(&NopBufferManager, iter.len())?;
 
         let mut heap = StringViewHeap::new();
 
@@ -451,18 +432,10 @@ impl ListBufferBuilder {
 
             // TODO: Move this out.
             match child_buf.physical_type {
-                PhysicalType::UntypedNull => {
-                    child_buf.append_from::<PhysicalUntypedNull>(&NopBufferManager, &child)?
-                }
-                PhysicalType::Int8 => {
-                    child_buf.append_from::<PhysicalI8>(&NopBufferManager, &child)?
-                }
-                PhysicalType::Int32 => {
-                    child_buf.append_from::<PhysicalI32>(&NopBufferManager, &child)?
-                }
-                PhysicalType::Utf8 => {
-                    child_buf.append_from::<PhysicalUtf8>(&NopBufferManager, &child)?
-                }
+                PhysicalType::UntypedNull => child_buf.append_from::<PhysicalUntypedNull>(&NopBufferManager, &child)?,
+                PhysicalType::Int8 => child_buf.append_from::<PhysicalI8>(&NopBufferManager, &child)?,
+                PhysicalType::Int32 => child_buf.append_from::<PhysicalI32>(&NopBufferManager, &child)?,
+                PhysicalType::Utf8 => child_buf.append_from::<PhysicalUtf8>(&NopBufferManager, &child)?,
                 other => not_implemented!("append from {other}"),
             }
         }
@@ -542,8 +515,7 @@ mod tests {
 
     #[test]
     fn new_from_strings_iter() {
-        let buf =
-            StringViewBufferBuilder::from_iter(["a", "bb", "ccc", "ddddddddddddddd"]).unwrap();
+        let buf = StringBufferBuilder::from_iter(["a", "bb", "ccc", "ddddddddddddddd"]).unwrap();
         let view_buf = buf.try_as_string_view_storage().unwrap();
 
         assert_eq!("a", view_buf.get(0).unwrap());

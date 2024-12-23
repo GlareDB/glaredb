@@ -59,9 +59,7 @@ impl DatabaseProtoConv for PhysicalColumnExpr {
     type ProtoType = rayexec_proto::generated::physical_expr::PhysicalColumnExpr;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            idx: self.idx as u32,
-        })
+        Ok(Self::ProtoType { idx: self.idx as u32 })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
@@ -76,7 +74,7 @@ mod tests {
     use super::*;
     use crate::arrays::buffer::addressable::AddressableStorage;
     use crate::arrays::buffer::physical_type::{PhysicalDictionary, PhysicalI32};
-    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::{Int32BufferBuilder, StringBufferBuilder};
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::scalar::unary::UnaryExecutor;
 
@@ -84,14 +82,8 @@ mod tests {
     fn eval_simple() {
         let mut batch = Batch::from_arrays(
             [
-                Array::new_with_buffer(
-                    DataType::Int32,
-                    Int32Builder::from_iter([4, 5, 6]).unwrap(),
-                ),
-                Array::new_with_buffer(
-                    DataType::Utf8,
-                    StringViewBufferBuilder::from_iter(["a", "b", "c"]).unwrap(),
-                ),
+                Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap()),
+                Array::new_with_buffer(DataType::Utf8, StringBufferBuilder::from_iter(["a", "b", "c"]).unwrap()),
             ],
             true,
         )
@@ -127,7 +119,7 @@ mod tests {
         let mut batch = Batch::from_arrays(
             [Array::new_with_buffer(
                 DataType::Int32,
-                Int32Builder::from_iter([4, 5, 6]).unwrap(),
+                Int32BufferBuilder::from_iter([4, 5, 6]).unwrap(),
             )],
             true,
         )

@@ -53,7 +53,7 @@ mod tests {
     use super::*;
     use crate::arrays::buffer::addressable::MutableAddressableStorage;
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::arrays::buffer::{Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::{Int32BufferBuilder, StringBufferBuilder};
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::PutBuffer;
     use crate::arrays::validity::Validity;
@@ -86,18 +86,9 @@ mod tests {
     #[test]
     fn unary_primitive_single_state() {
         let mut states = [TestSumState::default()];
-        let array = Array::new_with_buffer(
-            DataType::Int32,
-            Int32Builder::from_iter([1, 2, 3, 4, 5]).unwrap(),
-        );
+        let array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3, 4, 5]).unwrap());
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
-            &array,
-            [0, 1, 2, 4],
-            [0, 0, 0, 0],
-            &mut states,
-        )
-        .unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(&array, [0, 1, 2, 4], [0, 0, 0, 0], &mut states).unwrap();
 
         assert_eq!(11, states[0].val);
     }
@@ -109,18 +100,12 @@ mod tests {
         validity.set_invalid(0);
         let array = Array::new_with_validity(
             DataType::Int32,
-            Int32Builder::from_iter([1, 2, 3, 4, 5]).unwrap(),
+            Int32BufferBuilder::from_iter([1, 2, 3, 4, 5]).unwrap(),
             validity,
         )
         .unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
-            &array,
-            [0, 1, 2, 4],
-            [0, 0, 0, 0],
-            &mut states,
-        )
-        .unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(&array, [0, 1, 2, 4], [0, 0, 0, 0], &mut states).unwrap();
 
         assert_eq!(10, states[0].val);
     }
@@ -128,10 +113,7 @@ mod tests {
     #[test]
     fn unary_primitive_multiple_states() {
         let mut states = [TestSumState::default(), TestSumState::default()];
-        let array = Array::new_with_buffer(
-            DataType::Int32,
-            Int32Builder::from_iter([1, 2, 3, 4, 5]).unwrap(),
-        );
+        let array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3, 4, 5]).unwrap());
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,
@@ -176,16 +158,10 @@ mod tests {
         let mut states = [TestStringAgg::default()];
         let array = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter(["aa", "bbb", "cccc"]).unwrap(),
+            StringBufferBuilder::from_iter(["aa", "bbb", "cccc"]).unwrap(),
         );
 
-        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(
-            &array,
-            [0, 1, 2],
-            [0, 0, 0],
-            &mut states,
-        )
-        .unwrap();
+        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(&array, [0, 1, 2], [0, 0, 0], &mut states).unwrap();
 
         assert_eq!("aabbbcccc", &states[0].val);
     }

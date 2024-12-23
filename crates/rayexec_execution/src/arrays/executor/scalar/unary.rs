@@ -174,15 +174,14 @@ mod tests {
     use super::*;
     use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::buffer::string_view::{StringViewHeap, StringViewStorageMut};
-    use crate::arrays::buffer::{ArrayBuffer, Int32Builder, StringViewBufferBuilder};
+    use crate::arrays::buffer::{ArrayBuffer, Int32BufferBuilder, StringBufferBuilder};
     use crate::arrays::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
     use crate::arrays::validity::Validity;
 
     #[test]
     fn int32_inc_by_2() {
-        let array =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3]).unwrap());
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
@@ -204,8 +203,7 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_using_flat_view() {
-        let array =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3]).unwrap());
         let mut out = ArrayBuffer::with_capacity::<PhysicalI32>(&NopBufferManager, 3).unwrap();
         let mut validity = Validity::new_all_valid(3);
 
@@ -229,8 +227,7 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_in_place() {
-        let mut array =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let mut array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3]).unwrap());
 
         UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, |v| *v = *v + 2).unwrap();
 
@@ -243,7 +240,7 @@ mod tests {
         // Example with defined function, and allocating a new string every time.
         let array = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter([
+            StringBufferBuilder::from_iter([
                 "a",
                 "bb",
                 "ccc",
@@ -254,12 +251,9 @@ mod tests {
             .unwrap(),
         );
 
-        let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
-            &NopBufferManager,
-            6,
-            StringViewHeap::new(),
-        )
-        .unwrap();
+        let mut out =
+            ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(&NopBufferManager, 6, StringViewHeap::new())
+                .unwrap();
         let mut validity = Validity::new_all_valid(6);
 
         fn my_string_double(s: &str, buf: PutBuffer<StringViewStorageMut>) {
@@ -287,10 +281,7 @@ mod tests {
         assert_eq!("cccccc", out.get(2).unwrap());
         assert_eq!("dddddddd", out.get(3).unwrap());
         assert_eq!("heapafterheapafter", out.get(4).unwrap());
-        assert_eq!(
-            "alongerstringdontinlinealongerstringdontinline",
-            out.get(5).unwrap()
-        );
+        assert_eq!("alongerstringdontinlinealongerstringdontinline", out.get(5).unwrap());
     }
 
     #[test]
@@ -298,7 +289,7 @@ mod tests {
         // Same thing, but with closure reusing a string buffer.
         let array = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter([
+            StringBufferBuilder::from_iter([
                 "a",
                 "bb",
                 "ccc",
@@ -309,12 +300,9 @@ mod tests {
             .unwrap(),
         );
 
-        let mut out = ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(
-            &NopBufferManager,
-            6,
-            StringViewHeap::new(),
-        )
-        .unwrap();
+        let mut out =
+            ArrayBuffer::with_len_and_child_buffer::<PhysicalUtf8>(&NopBufferManager, 6, StringViewHeap::new())
+                .unwrap();
         let mut validity = Validity::new_all_valid(6);
 
         let mut string_buf = String::new();
@@ -345,23 +333,17 @@ mod tests {
         assert_eq!("cccccc", out.get(2).unwrap());
         assert_eq!("dddddddd", out.get(3).unwrap());
         assert_eq!("heapafterheapafter", out.get(4).unwrap());
-        assert_eq!(
-            "alongerstringdontinlinealongerstringdontinline",
-            out.get(5).unwrap()
-        );
+        assert_eq!("alongerstringdontinlinealongerstringdontinline", out.get(5).unwrap());
     }
 
     #[test]
     fn string_uppercase_in_place() {
         let mut array = Array::new_with_buffer(
             DataType::Utf8,
-            StringViewBufferBuilder::from_iter(["a", "bb", "ccc"]).unwrap(),
+            StringBufferBuilder::from_iter(["a", "bb", "ccc"]).unwrap(),
         );
 
-        UnaryExecutor::execute_in_place::<PhysicalUtf8, _>(&mut array, |v| {
-            v.make_ascii_uppercase()
-        })
-        .unwrap();
+        UnaryExecutor::execute_in_place::<PhysicalUtf8, _>(&mut array, |v| v.make_ascii_uppercase()).unwrap();
 
         let out = array.data().try_as_string_view_storage().unwrap();
 
@@ -372,8 +354,7 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_with_dict() {
-        let mut array =
-            Array::new_with_buffer(DataType::Int32, Int32Builder::from_iter([1, 2, 3]).unwrap());
+        let mut array = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([1, 2, 3]).unwrap());
         // [3, 3, 2, 1, 1, 3]
         array.select(&NopBufferManager, [2, 2, 1, 0, 0, 2]).unwrap();
 
