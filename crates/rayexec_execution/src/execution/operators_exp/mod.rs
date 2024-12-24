@@ -1,4 +1,5 @@
 pub mod batch_collection;
+pub mod physical_hash_join;
 pub mod physical_project;
 pub mod physical_sort;
 
@@ -8,6 +9,7 @@ mod testutil;
 use std::fmt::Debug;
 use std::task::Context;
 
+use physical_hash_join::{HashJoinBuildPartitionState, HashJoinOperatorState, HashJoinProbePartitionState};
 use physical_project::ProjectPartitionState;
 use physical_sort::{SortOperatorState, SortPartitionState};
 use rayexec_error::{RayexecError, Result};
@@ -105,12 +107,15 @@ impl PartitionAndOperatorStates {
 pub enum PartitionState {
     Project(ProjectPartitionState),
     Sort(SortPartitionState),
+    HashJoinBuild(HashJoinBuildPartitionState),
+    HashJoinProbe(HashJoinProbePartitionState),
     None,
 }
 
 #[derive(Debug)]
 pub enum OperatorState {
     Sort(SortOperatorState),
+    HashJoin(HashJoinOperatorState),
     None,
 }
 

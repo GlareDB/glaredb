@@ -1,5 +1,4 @@
-pub mod encode;
-
+mod encode;
 mod merge;
 mod sort_data;
 mod sort_layout;

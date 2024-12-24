@@ -251,4 +251,33 @@ mod tests {
         let expected = new_i32_array([2, 4, 6, 7, 8]);
         assert_arrays_eq(&expected, &sort_data.sorted[0].block.arrays()[0]);
     }
+
+    #[test]
+    fn sort_i32_batches_desc() {
+        let layout = SortLayout::new(
+            vec![DataType::Int32],
+            &[PhysicalSortExpression {
+                column: PhysicalColumnExpr { idx: 0 },
+                desc: true,
+                nulls_first: false,
+            }],
+        );
+
+        let mut sort_data = SortData::new(4096);
+
+        let batch1 = new_batch_from_arrays([new_i32_array([4, 7, 6])]);
+        let batch2 = new_batch_from_arrays([new_i32_array([2, 8])]);
+
+        sort_data.push_batch(&NopBufferManager, &layout, &batch1).unwrap();
+        sort_data.push_batch(&NopBufferManager, &layout, &batch2).unwrap();
+
+        sort_data.sort_unsorted_blocks(&NopBufferManager, &layout).unwrap();
+
+        assert_eq!(0, sort_data.unsorted.len());
+        assert_eq!(1, sort_data.sorted.len());
+        assert_eq!(5, sort_data.sorted[0].block.row_count());
+
+        let expected = new_i32_array([8, 7, 6, 4, 2]);
+        assert_arrays_eq(&expected, &sort_data.sorted[0].block.arrays()[0]);
+    }
 }
