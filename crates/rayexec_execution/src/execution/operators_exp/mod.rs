@@ -2,15 +2,19 @@ pub mod batch_collection;
 pub mod physical_project;
 pub mod physical_sort;
 
+#[cfg(test)]
+mod testutil;
+
 use std::fmt::Debug;
 use std::task::Context;
 
 use physical_project::ProjectPartitionState;
 use physical_sort::{SortOperatorState, SortPartitionState};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::batch::Batch;
 use crate::arrays::buffer_manager::BufferManager;
+use crate::database::DatabaseContext;
 use crate::explain::explainable::Explainable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,6 +86,21 @@ pub enum PartitionAndOperatorStates {
     },
 }
 
+impl PartitionAndOperatorStates {
+    pub fn branchless_into_states(self) -> Result<(OperatorState, Vec<PartitionState>)> {
+        match self {
+            Self::Branchless {
+                operator_state,
+                partition_states,
+            } => Ok((operator_state, partition_states)),
+            Self::BranchingOutput { .. } => Err(RayexecError::new("Expected branchless states, got branching output")),
+            Self::TerminatingInput { .. } => {
+                Err(RayexecError::new("Expected branchless states, got terminating input"))
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum PartitionState {
     Project(ProjectPartitionState),
@@ -108,6 +127,13 @@ pub struct ExecuteInOutState<'a> {
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
+    fn create_states(
+        &self,
+        context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates>;
+
     fn poll_execute(
         &self,
         cx: &mut Context,

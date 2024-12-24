@@ -2,12 +2,9 @@ use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
 use crate::arrays::batch::Batch;
-use crate::arrays::buffer::physical_type::{PhysicalI8, PhysicalType};
 use crate::arrays::buffer_manager::BufferManager;
-use crate::arrays::datatype::DataType;
 use crate::execution::operators_exp::batch_collection::BatchCollectionBlock;
 use crate::execution::operators_exp::physical_sort::encode::prefix_encode;
-use crate::expr::physical::PhysicalSortExpression;
 
 // TODO:
 // - varlen tiebreaks
@@ -142,13 +139,21 @@ where
     /// Get a buffer slice representing the encoded sort keys for a row.
     pub fn get_sort_key_buf(&self, row_idx: usize) -> &[u8] {
         let start = self.key_encode_offsets[row_idx];
-        let end = self.key_encode_offsets[row_idx + 1];
+        let end = if row_idx + 1 == self.key_encode_offsets.len() {
+            self.key_encode_buffer.len()
+        } else {
+            self.key_encode_offsets[row_idx + 1]
+        };
         &self.key_encode_buffer[start..end]
     }
 
     pub fn get_sort_key_buf_mut(&mut self, row_idx: usize) -> &mut [u8] {
         let start = self.key_encode_offsets[row_idx];
-        let end = self.key_encode_offsets[row_idx + 1];
+        let end = if row_idx + 1 == self.key_encode_offsets.len() {
+            self.key_encode_buffer.len()
+        } else {
+            self.key_encode_offsets[row_idx + 1]
+        };
         &mut self.key_encode_buffer[start..end]
     }
 
@@ -212,12 +217,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::Array;
-    use crate::arrays::buffer::physical_type::PhysicalI32;
-    use crate::arrays::buffer::Int32BufferBuilder;
     use crate::arrays::buffer_manager::NopBufferManager;
-    use crate::arrays::executor::scalar::unary::UnaryExecutor;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::{assert_arrays_eq, new_batch_from_arrays, new_i32_array};
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::expr::physical::PhysicalSortExpression;
 
     #[test]
     fn sort_i32_batches() {
@@ -232,22 +236,8 @@ mod tests {
 
         let mut sort_data = SortData::new(4096);
 
-        let batch1 = Batch::from_arrays(
-            [Array::new_with_buffer(
-                DataType::Int32,
-                Int32BufferBuilder::from_iter([4, 7, 6]).unwrap(),
-            )],
-            true,
-        )
-        .unwrap();
-        let batch2 = Batch::from_arrays(
-            [Array::new_with_buffer(
-                DataType::Int32,
-                Int32BufferBuilder::from_iter([2, 8]).unwrap(),
-            )],
-            true,
-        )
-        .unwrap();
+        let batch1 = new_batch_from_arrays([new_i32_array([4, 7, 6])]);
+        let batch2 = new_batch_from_arrays([new_i32_array([2, 8])]);
 
         sort_data.push_batch(&NopBufferManager, &layout, &batch1).unwrap();
         sort_data.push_batch(&NopBufferManager, &layout, &batch2).unwrap();
@@ -258,13 +248,7 @@ mod tests {
         assert_eq!(1, sort_data.sorted.len());
         assert_eq!(5, sort_data.sorted[0].block.row_count());
 
-        let mut out = vec![0; 5];
-        let flat = sort_data.sorted[0].block.arrays()[0].flat_view().unwrap();
-        UnaryExecutor::for_each_flat::<PhysicalI32, _>(flat, 0..5, |idx, v| {
-            out[idx] = v.copied().unwrap();
-        })
-        .unwrap();
-
-        assert_eq!(vec![2, 4, 6, 7, 8], out);
+        let expected = new_i32_array([2, 4, 6, 7, 8]);
+        assert_arrays_eq(&expected, &sort_data.sorted[0].block.arrays()[0]);
     }
 }

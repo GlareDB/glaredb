@@ -6,10 +6,12 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
+    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
 };
+use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -25,6 +27,26 @@ pub struct ProjectPartitionState {
 }
 
 impl ExecutableOperator for PhysicalProject {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        let partition_states = (0..partitions)
+            .map(|_| {
+                PartitionState::Project(ProjectPartitionState {
+                    evaluator: ExpressionEvaluator::new(self.projections.clone(), batch_size),
+                })
+            })
+            .collect();
+
+        Ok(PartitionAndOperatorStates::Branchless {
+            operator_state: OperatorState::None,
+            partition_states,
+        })
+    }
+
     fn poll_execute(
         &self,
         _cx: &mut Context,

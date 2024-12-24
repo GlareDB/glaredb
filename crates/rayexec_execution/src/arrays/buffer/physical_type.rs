@@ -132,6 +132,36 @@ impl PhysicalStorage for PhysicalUntypedNull {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct PhysicalBoolean;
+
+impl PhysicalStorage for PhysicalBoolean {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Boolean;
+
+    type PrimaryBufferType = bool;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Storage<'a> = &'a [Self::StorageType];
+
+    fn get_storage<B>(buffer: &ArrayBuffer<B>) -> Result<Self::Storage<'_>>
+    where
+        B: BufferManager,
+    {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalBoolean {
+    type MutableStorage<'a> = &'a mut [Self::StorageType];
+
+    fn get_storage_mut<B>(buffer: &mut ArrayBuffer<B>) -> Result<Self::MutableStorage<'_>>
+    where
+        B: BufferManager,
+    {
+        buffer.try_as_slice_mut::<Self>()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct PhysicalI8;
 
 impl PhysicalStorage for PhysicalI8 {

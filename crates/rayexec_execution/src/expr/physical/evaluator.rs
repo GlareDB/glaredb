@@ -31,7 +31,7 @@ impl ExpressionState {
 }
 
 impl ExpressionEvaluator {
-    pub fn new(expressions: Vec<Expression>, batch_size: usize) -> Self {
+    pub fn new(expressions: Vec<PhysicalScalarExpression>, batch_size: usize) -> Self {
         unimplemented!()
     }
 
@@ -47,12 +47,7 @@ impl ExpressionEvaluator {
     ///
     /// `input` is mutable only to allow converting arrays from owned to
     /// managed.
-    pub fn eval_batch(
-        &mut self,
-        input: &mut Batch,
-        sel: FlatSelection,
-        output: &mut Batch,
-    ) -> Result<()> {
+    pub fn eval_batch(&mut self, input: &mut Batch, sel: FlatSelection, output: &mut Batch) -> Result<()> {
         for (idx, expr) in self.expressions.iter().enumerate() {
             let output = output.get_array_mut(idx)?;
             let state = &mut self.states[idx];

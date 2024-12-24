@@ -1,5 +1,5 @@
 use std::cmp::{Ordering, Reverse};
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, VecDeque};
 
 use rayexec_error::Result;
 
@@ -65,16 +65,16 @@ where
 #[derive(Debug)]
 pub struct MergingSortBlock<B: BufferManager> {
     /// The current index in the block that we're comparing.
-    pub curr_idx: usize,
+    curr_idx: usize,
     /// The block we're merging.
-    pub block: SortBlock<B>,
+    block: SortBlock<B>,
 }
 
 #[derive(Debug)]
 pub struct MergeQueue<B: BufferManager> {
     exhausted: bool,
     current: MergingSortBlock<B>,
-    remaining: Vec<SortBlock<B>>, // Pop from back to front.
+    remaining: VecDeque<SortBlock<B>>,
 }
 
 impl<B> MergeQueue<B>
@@ -95,16 +95,20 @@ where
                 curr_idx: 0,
                 block: sort_block,
             },
-            remaining: Vec::new(),
+            remaining: VecDeque::new(),
         })
     }
 
     /// Create a new queue of blocks.
     ///
+    /// Blocks should be totally ordered to from least to greatest.
+    ///
     /// May return None if there's no blocks with any data.
-    pub fn new(mut sort_blocks: Vec<SortBlock<B>>) -> Option<Self> {
+    pub fn new(blocks: impl IntoIterator<Item = SortBlock<B>>) -> Option<Self> {
+        let mut blocks: VecDeque<_> = blocks.into_iter().collect();
+
         loop {
-            match sort_blocks.pop() {
+            match blocks.pop_front() {
                 Some(first) => {
                     if first.block.row_count() > 0 {
                         return Some(MergeQueue {
@@ -113,7 +117,7 @@ where
                                 curr_idx: 0,
                                 block: first,
                             },
-                            remaining: sort_blocks,
+                            remaining: blocks,
                         });
                     }
                 }
@@ -131,7 +135,7 @@ where
         if self.current.curr_idx >= self.current.block.row_count() {
             // Get next block in queue.
             loop {
-                match self.remaining.pop() {
+                match self.remaining.pop_front() {
                     Some(block) => {
                         if block.block.row_count() == 0 {
                             // Skip empty blocks.

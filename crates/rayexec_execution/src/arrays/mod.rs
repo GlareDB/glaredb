@@ -10,3 +10,6 @@ pub mod flat_array;
 pub mod scalar;
 pub mod schema;
 pub mod validity;
+
+#[cfg(test)]
+pub(crate) mod testutil;

@@ -37,6 +37,10 @@ where
             })
         }
     }
+
+    pub fn logical_len(&self) -> usize {
+        self.selection.len()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

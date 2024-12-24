@@ -55,6 +55,14 @@ where
         self.capacity
     }
 
+    pub fn set_row_count(&mut self, count: usize) -> Result<()> {
+        if count > self.capacity {
+            return Err(RayexecError::new("Row count would exceed capacity"));
+        }
+        self.row_count = count;
+        Ok(())
+    }
+
     pub fn row_count(&self) -> usize {
         self.row_count
     }
@@ -67,6 +75,7 @@ where
         self.row_count + additional < self.capacity
     }
 
+    /// Appends a batch to this block.
     pub fn append_batch_data(&mut self, batch: &Batch<B>) -> Result<()> {
         let total_num_rows = self.row_count + batch.num_rows();
         if total_num_rows > self.capacity {

@@ -62,4 +62,28 @@ impl Validity {
             ValidityInner::Mask { bitmap } => bitmap.set(idx, false),
         }
     }
+
+    pub fn iter(&self) -> ValidityIter {
+        ValidityIter { idx: 0, validity: self }
+    }
+}
+
+#[derive(Debug)]
+pub struct ValidityIter<'a> {
+    idx: usize,
+    validity: &'a Validity,
+}
+
+impl<'a> Iterator for ValidityIter<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.validity.len() {
+            return None;
+        }
+
+        let val = self.validity.is_valid(self.idx);
+        self.idx += 1;
+        Some(val)
+    }
 }
