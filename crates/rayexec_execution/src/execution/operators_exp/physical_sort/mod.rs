@@ -3,10 +3,12 @@ pub mod partition_state;
 
 mod merge;
 mod sort_data;
+mod sort_layout;
 
 use std::task::Context;
 
 use rayexec_error::{OptionExt, Result};
+use sort_layout::SortLayout;
 
 use super::{ExecutableOperator, ExecuteInOutState, OperatorState, PartitionState, PollExecute, PollFinalize};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -15,6 +17,7 @@ use crate::expr::physical::{PhysicalScalarExpression, PhysicalSortExpression};
 
 #[derive(Debug)]
 pub struct PhysicalSort {
+    pub(crate) layout: SortLayout,
     pub(crate) exprs: Vec<PhysicalSortExpression>,
 }
 

@@ -10,6 +10,7 @@ use physical_sort::partition_state::SortPartitionState;
 use rayexec_error::Result;
 
 use crate::arrays::batch::Batch;
+use crate::arrays::buffer_manager::BufferManager;
 use crate::explain::explainable::Explainable;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

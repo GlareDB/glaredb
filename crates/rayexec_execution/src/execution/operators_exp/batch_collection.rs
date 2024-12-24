@@ -84,14 +84,38 @@ where
             let mapping = (0..batch.num_rows()).zip(self.row_count..(self.row_count + batch.num_rows()));
 
             match to.datatype.physical_type() {
-                PhysicalType::Int8 => append_copy::<PhysicalI8, _>(from, mapping, to)?,
-                PhysicalType::Int32 => append_copy::<PhysicalI32, _>(from, mapping, to)?,
-                PhysicalType::Utf8 => append_copy::<PhysicalUtf8, _>(from, mapping, to)?,
+                PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(from, mapping, to)?,
+                PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(from, mapping, to)?,
+                PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(from, mapping, to)?,
                 _ => unimplemented!(),
             }
         }
 
         self.row_count += batch.num_rows();
+
+        Ok(())
+    }
+
+    pub fn copy_row_from_other(
+        &mut self,
+        dest_row: usize,
+        source: &BatchCollectionBlock<B>,
+        source_row: usize,
+    ) -> Result<()> {
+        if self.arrays.len() != source.arrays.len() {
+            return Err(RayexecError::new("Number of arrays in self and other differ"));
+        }
+
+        for (from, to) in source.arrays().iter().zip(self.arrays.iter_mut()) {
+            let mapping = [(source_row, dest_row)];
+
+            match to.datatype.physical_type() {
+                PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(from, mapping, to)?,
+                PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(from, mapping, to)?,
+                PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(from, mapping, to)?,
+                _ => unimplemented!(),
+            }
+        }
 
         Ok(())
     }
@@ -106,7 +130,11 @@ where
     }
 }
 
-fn append_copy<S, B>(
+/// Copy rows from `from` to `to`.
+///
+/// `mapping` provides a mapping of source to destination rows in the form of
+/// pairs (from, to).
+fn copy_rows<S, B>(
     from: &Array<B>,
     mapping: impl IntoExactSizeIterator<Item = (usize, usize)>,
     to: &mut Array<B>,
@@ -195,6 +223,62 @@ mod tests {
         .unwrap();
 
         assert_eq!(vec![4, 4, 6, 6, 5, 5], out);
+    }
+
+    #[test]
+    fn copy_row_i32_string() {
+        let mut block1 =
+            BatchCollectionBlock::new(&NopBufferManager, &[DataType::Int32, DataType::Utf8], 4096).unwrap();
+        let mut block2 =
+            BatchCollectionBlock::new(&NopBufferManager, &[DataType::Int32, DataType::Utf8], 4096).unwrap();
+
+        block1
+            .append_batch_data(
+                &Batch::from_arrays(
+                    [
+                        Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap()),
+                        Array::new_with_buffer(
+                            DataType::Utf8,
+                            StringBufferBuilder::from_iter(["a", "b", "c"]).unwrap(),
+                        ),
+                    ],
+                    true,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        block2
+            .append_batch_data(
+                &Batch::from_arrays(
+                    [
+                        Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([7, 8]).unwrap()),
+                        Array::new_with_buffer(DataType::Utf8, StringBufferBuilder::from_iter(["dog", "cat"]).unwrap()),
+                    ],
+                    true,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        block1.copy_row_from_other(1, &block2, 0).unwrap();
+
+        assert_eq!(3, block1.row_count());
+
+        let mut out_i32 = vec![0; 3];
+        UnaryExecutor::for_each_flat::<PhysicalI32, _>(block1.arrays()[0].flat_view().unwrap(), 0..3, |idx, v| {
+            out_i32[idx] = v.copied().unwrap();
+        })
+        .unwrap();
+
+        let mut out_strings = vec![String::new(); 3];
+        UnaryExecutor::for_each_flat::<PhysicalUtf8, _>(block1.arrays()[1].flat_view().unwrap(), 0..3, |idx, v| {
+            out_strings[idx] = v.as_ref().unwrap().to_string();
+        })
+        .unwrap();
+
+        assert_eq!(vec![4, 7, 6], out_i32);
+        assert_eq!(vec!["a".to_string(), "dog".to_string(), "c".to_string()], out_strings);
     }
 
     #[test]

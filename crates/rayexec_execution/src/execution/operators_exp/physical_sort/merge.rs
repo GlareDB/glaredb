@@ -3,7 +3,8 @@ use std::collections::{BinaryHeap, VecDeque};
 
 use rayexec_error::Result;
 
-use super::sort_data::{SortBlock, SortData, SortLayout};
+use super::sort_data::{SortBlock, SortData};
+use super::sort_layout::SortLayout;
 use crate::arrays::buffer_manager::BufferManager;
 
 /// A block containing sorted rows that's being merged with other blocks.

@@ -1,5 +1,6 @@
 use rayexec_error::Result;
 
+use super::sort_layout::SortLayout;
 use crate::arrays::batch::Batch;
 use crate::arrays::buffer::physical_type::{PhysicalI8, PhysicalType};
 use crate::arrays::buffer_manager::BufferManager;
@@ -111,45 +112,6 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct SortLayout {
-    pub input_types: Vec<DataType>,
-    pub key_columns: Vec<usize>,
-    pub key_sizes: Vec<usize>,
-    pub key_nulls_first: Vec<bool>,
-    pub key_desc: Vec<bool>,
-}
-
-impl SortLayout {
-    fn new(input_types: Vec<DataType>, exprs: &[PhysicalSortExpression]) -> Self {
-        let key_columns = exprs.iter().map(|expr| expr.column.idx).collect();
-        let key_nulls_first = exprs.iter().map(|expr| expr.nulls_first).collect();
-        let key_desc = exprs.iter().map(|expr| expr.desc).collect();
-
-        let key_sizes = exprs
-            .iter()
-            .map(|sort_expr| {
-                let key_type = &input_types[sort_expr.column.idx];
-
-                let size = match key_type.physical_type() {
-                    PhysicalType::Int8 => std::mem::size_of::<i8>(),
-                    PhysicalType::Int32 => std::mem::size_of::<i32>(),
-                    _ => unimplemented!(),
-                };
-                size + 1 // Account for validity byte. Currently we set it for everything.
-            })
-            .collect();
-
-        SortLayout {
-            input_types,
-            key_desc,
-            key_sizes,
-            key_columns,
-            key_nulls_first,
-        }
-    }
-}
-
 /// Blocks containing unsorted input and encoded keys.
 #[derive(Debug)]
 pub struct SortBlock<B: BufferManager> {
@@ -187,13 +149,27 @@ where
         &self.key_encode_buffer[start..end]
     }
 
+    pub fn get_sort_key_buf_mut(&mut self, row_idx: usize) -> &mut [u8] {
+        let start = self.key_encode_offsets[row_idx];
+        let end = self.key_encode_offsets[row_idx + 1];
+        &mut self.key_encode_buffer[start..end]
+    }
+
     pub fn row_count(&self) -> usize {
         self.block.row_count()
     }
 
     /// Copy a row from another sort block into this sort block.
     pub fn copy_row_from_other(&mut self, dest_row: usize, source: &SortBlock<B>, source_row: usize) -> Result<()> {
-        unimplemented!()
+        // Copy encoded keys.
+        let source_buf = source.get_sort_key_buf(source_row);
+        let dest_buf = self.get_sort_key_buf_mut(dest_row);
+        dest_buf.copy_from_slice(source_buf);
+
+        // Copy actual row data.
+        self.block.copy_row_from_other(dest_row, &source.block, source_row)?;
+
+        Ok(())
     }
 
     fn sort(mut self, manager: &B, layout: &SortLayout, sort_indices: &mut [usize]) -> Result<SortBlock<B>> {
