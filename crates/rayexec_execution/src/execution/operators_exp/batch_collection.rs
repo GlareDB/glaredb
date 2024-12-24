@@ -82,13 +82,7 @@ where
         for (from, to) in batch.arrays.iter().zip(self.arrays.iter_mut()) {
             // [0..batch_num_rows) => [self_row_count..)
             let mapping = (0..batch.num_rows()).zip(self.row_count..(self.row_count + batch.num_rows()));
-
-            match to.datatype.physical_type() {
-                PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(from, mapping, to)?,
-                PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(from, mapping, to)?,
-                PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(from, mapping, to)?,
-                _ => unimplemented!(),
-            }
+            from.copy_rows(mapping, to)?;
         }
 
         self.row_count += batch.num_rows();
@@ -108,13 +102,7 @@ where
 
         for (from, to) in source.arrays().iter().zip(self.arrays.iter_mut()) {
             let mapping = [(source_row, dest_row)];
-
-            match to.datatype.physical_type() {
-                PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(from, mapping, to)?,
-                PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(from, mapping, to)?,
-                PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(from, mapping, to)?,
-                _ => unimplemented!(),
-            }
+            from.copy_rows(mapping, to)?;
         }
 
         Ok(())
@@ -128,46 +116,6 @@ where
 
         Ok(())
     }
-}
-
-/// Copy rows from `from` to `to`.
-///
-/// `mapping` provides a mapping of source to destination rows in the form of
-/// pairs (from, to).
-fn copy_rows<S, B>(
-    from: &Array<B>,
-    mapping: impl IntoExactSizeIterator<Item = (usize, usize)>,
-    to: &mut Array<B>,
-) -> Result<()>
-where
-    S: MutablePhysicalStorage,
-    B: BufferManager,
-{
-    let from_flat = from.flat_view()?;
-    let from_storage = S::get_storage(from_flat.array_buffer)?;
-
-    let to_data = to.data.try_as_mut()?;
-    let mut to_storage = S::get_storage_mut(to_data)?;
-
-    if from_flat.validity.all_valid() && to.validity.all_valid() {
-        for (from_idx, to_idx) in mapping.into_iter() {
-            let from_idx = from_flat.selection.get(from_idx).unwrap();
-            let v = from_storage.get(from_idx).unwrap();
-            to_storage.put(to_idx, v);
-        }
-    } else {
-        for (from_idx, to_idx) in mapping.into_iter() {
-            let from_idx = from_flat.selection.get(from_idx).unwrap();
-            if from_flat.validity.is_valid(from_idx) {
-                let v = from_storage.get(from_idx).unwrap();
-                to_storage.put(to_idx, v);
-            } else {
-                to.validity.set_invalid(to_idx);
-            }
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

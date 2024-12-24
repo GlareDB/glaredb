@@ -4,9 +4,9 @@ use iterutil::exact_size::IntoExactSizeIterator;
 use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use super::buffer::addressable::MutableAddressableStorage;
+use super::buffer::addressable::{AddressableStorage, MutableAddressableStorage};
 use super::buffer::dictionary::DictionaryBuffer;
-use super::buffer::physical_type::{PhysicalDictionary, PhysicalType};
+use super::buffer::physical_type::{MutablePhysicalStorage, PhysicalDictionary, PhysicalType};
 use super::buffer::{ArrayBuffer, SecondaryBuffers};
 use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
@@ -62,17 +62,11 @@ where
         }
     }
 
-    pub fn new_with_validity(
-        datatype: DataType,
-        buffer: ArrayBuffer<B>,
-        validity: Validity,
-    ) -> Result<Self> {
+    pub fn new_with_validity(datatype: DataType, buffer: ArrayBuffer<B>, validity: Validity) -> Result<Self> {
         if validity.len() != buffer.capacity() {
-            return Err(
-                RayexecError::new("Validty length does not match buffer length")
-                    .with_field("validity_len", validity.len())
-                    .with_field("buffer_len", buffer.capacity()),
-            );
+            return Err(RayexecError::new("Validty length does not match buffer length")
+                .with_field("validity_len", validity.len())
+                .with_field("buffer_len", buffer.capacity()));
         }
 
         Ok(Array {
@@ -84,10 +78,11 @@ where
 
     pub fn make_managed_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
         if self.datatype != other.datatype {
-            return Err(
-                RayexecError::new("Attempted to make array managed with data from other array with different data types")
-                    .with_field("own_datatype", self.datatype.clone())
-                    .with_field("other_datatype", other.datatype.clone()));
+            return Err(RayexecError::new(
+                "Attempted to make array managed with data from other array with different data types",
+            )
+            .with_field("own_datatype", self.datatype.clone())
+            .with_field("other_datatype", other.datatype.clone()));
         }
 
         let managed = other.data.make_managed(manager)?;
@@ -116,11 +111,7 @@ where
     /// Selects indice from the array.
     ///
     /// This will convert the underlying array buffer into a dictionary buffer.
-    pub fn select(
-        &mut self,
-        manager: &B,
-        selection: impl IntoExactSizeIterator<Item = usize>,
-    ) -> Result<()> {
+    pub fn select(&mut self, manager: &B, selection: impl IntoExactSizeIterator<Item = usize>) -> Result<()> {
         if self.is_dictionary() {
             // Already dictionary, select the selection.
             let sel = selection.into_iter();
@@ -161,10 +152,7 @@ where
 
         // Now replace the original buffer, and put the original buffer in the
         // secondary buffer.
-        let orig_validity = std::mem::replace(
-            &mut self.validity,
-            Validity::new_all_valid(new_buf.capacity()),
-        );
+        let orig_validity = std::mem::replace(&mut self.validity, Validity::new_all_valid(new_buf.capacity()));
         let orig_buffer = std::mem::replace(&mut self.data, ArrayData::owned(new_buf));
         // TODO: Should just clone the pointer if managed.
         *self.data.try_as_mut()?.secondary_buffers_mut() =
@@ -220,6 +208,63 @@ where
 
         Ok(())
     }
+
+    /// Copy rows from self to another array.
+    ///
+    /// `mapping` provides a mapping of source indices to destination indices in
+    /// (source, dest) pairs.
+    pub fn copy_rows(&self, mapping: impl IntoExactSizeIterator<Item = (usize, usize)>, dest: &mut Self) -> Result<()> {
+        match self.datatype.physical_type() {
+            PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(self, mapping, dest)?,
+            PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(self, mapping, dest)?,
+            PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(self, mapping, dest)?,
+            _ => unimplemented!(),
+        }
+
+        Ok(())
+    }
+
+    /// Helper fo copying a single row from self to a destination array.
+    pub fn copy_row(&self, source_idx: usize, dest: &mut Self, dest_idx: usize) -> Result<()> {
+        let mapping = [(source_idx, dest_idx)];
+        self.copy_rows(mapping, dest)
+    }
+}
+
+fn copy_rows<S, B>(
+    from: &Array<B>,
+    mapping: impl IntoExactSizeIterator<Item = (usize, usize)>,
+    to: &mut Array<B>,
+) -> Result<()>
+where
+    S: MutablePhysicalStorage,
+    B: BufferManager,
+{
+    let from_flat = from.flat_view()?;
+    let from_storage = S::get_storage(from_flat.array_buffer)?;
+
+    let to_data = to.data.try_as_mut()?;
+    let mut to_storage = S::get_storage_mut(to_data)?;
+
+    if from_flat.validity.all_valid() && to.validity.all_valid() {
+        for (from_idx, to_idx) in mapping.into_iter() {
+            let from_idx = from_flat.selection.get(from_idx).unwrap();
+            let v = from_storage.get(from_idx).unwrap();
+            to_storage.put(to_idx, v);
+        }
+    } else {
+        for (from_idx, to_idx) in mapping.into_iter() {
+            let from_idx = from_flat.selection.get(from_idx).unwrap();
+            if from_flat.validity.is_valid(from_idx) {
+                let v = from_storage.get(from_idx).unwrap();
+                to_storage.put(to_idx, v);
+            } else {
+                to.validity.set_invalid(to_idx);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -327,5 +372,29 @@ where
 
     fn deref(&self) -> &Self::Target {
         ArrayData::as_ref(&self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::buffer::Int32BufferBuilder;
+    use crate::arrays::executor::scalar::unary::UnaryExecutor;
+
+    #[test]
+    fn copy_rows_i32() {
+        let array1 = Array::new_with_buffer(DataType::Int32, Int32BufferBuilder::from_iter([4, 5, 6]).unwrap());
+        let mut array2 = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+
+        // Copies the reverse.
+        array1.copy_rows([(0, 2), (1, 1), (2, 0)], &mut array2).unwrap();
+
+        let mut out = vec![0; 3];
+        UnaryExecutor::for_each_flat::<PhysicalI32, _>(array2.flat_view().unwrap(), 0..3, |idx, v| {
+            out[idx] = v.copied().unwrap();
+        })
+        .unwrap();
+
+        assert_eq!(vec![6, 5, 4], out);
     }
 }

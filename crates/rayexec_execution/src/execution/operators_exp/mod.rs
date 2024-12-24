@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::task::Context;
 
 use physical_project::ProjectPartitionState;
-use physical_sort::partition_state::SortPartitionState;
+use physical_sort::{SortOperatorState, SortPartitionState};
 use rayexec_error::Result;
 
 use crate::arrays::batch::Batch;
@@ -48,6 +48,41 @@ pub enum PollFinalize {
 }
 
 #[derive(Debug)]
+pub enum PartitionAndOperatorStates {
+    /// Operators that have a single input/output.
+    Branchless {
+        /// Global operator state.
+        operator_state: OperatorState,
+        /// State per-partition.
+        partition_states: Vec<PartitionState>,
+    },
+    /// Operators that produce 1 or more output branches.
+    ///
+    /// Mostly for materializations.
+    BranchingOutput {
+        /// Global operator state.
+        operator_state: OperatorState,
+        /// Single set of input states.
+        inputs_states: Vec<PartitionState>,
+        /// Multiple sets of output states.
+        output_states: Vec<Vec<PartitionState>>,
+    },
+    /// Operators that have two children, with this operator acting as the
+    /// "sink" for one child.
+    ///
+    /// For joins, the build side is the terminating input, while the probe side
+    /// is non-terminating.
+    TerminatingInput {
+        /// Global operator state.
+        operator_state: OperatorState,
+        /// States for the input that is non-terminating.
+        nonterminating_states: Vec<PartitionState>,
+        /// States for the input that is terminated by this operator.
+        terminating_states: Vec<PartitionState>,
+    },
+}
+
+#[derive(Debug)]
 pub enum PartitionState {
     Project(ProjectPartitionState),
     Sort(SortPartitionState),
@@ -56,6 +91,7 @@ pub enum PartitionState {
 
 #[derive(Debug)]
 pub enum OperatorState {
+    Sort(SortOperatorState),
     None,
 }
 

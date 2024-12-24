@@ -11,6 +11,7 @@ use super::flat_array::FlatSelection;
 pub struct Batch<B: BufferManager = NopBufferManager> {
     pub(crate) arrays: Vec<Array<B>>,
     pub(crate) num_rows: usize,
+    pub(crate) capacity: usize,
 }
 
 impl<B> Batch<B>
@@ -25,6 +26,7 @@ where
         Batch {
             arrays: Vec::new(),
             num_rows,
+            capacity: 0,
         }
     }
 
@@ -37,7 +39,11 @@ where
             arrays.push(array)
         }
 
-        Ok(Batch { arrays, num_rows: 0 })
+        Ok(Batch {
+            arrays,
+            num_rows: 0,
+            capacity,
+        })
     }
 
     /// Create a new batch from some number of arrays.
@@ -55,6 +61,7 @@ where
                 return Ok(Batch {
                     arrays: Vec::new(),
                     num_rows: 0,
+                    capacity: 0,
                 })
             }
         };
@@ -72,6 +79,7 @@ where
         Ok(Batch {
             arrays,
             num_rows: if rows_eq_cap { capacity } else { 0 },
+            capacity,
         })
     }
 
@@ -114,6 +122,10 @@ where
         }
         self.num_rows = num_rows;
         Ok(())
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     pub fn num_rows(&self) -> usize {
