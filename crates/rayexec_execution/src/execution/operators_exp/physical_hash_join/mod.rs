@@ -1,8 +1,9 @@
-mod build_data;
+mod block;
+mod hash_table;
 
 use std::task::{Context, Waker};
 
-use build_data::BuildData;
+use block::HashedBlockCollection;
 use parking_lot::Mutex;
 use rayexec_error::{OptionExt, Result};
 
@@ -30,7 +31,7 @@ pub enum HashJoinBuildPartitionState {
 
 #[derive(Debug)]
 pub struct InProgressBuildState {
-    build_data: BuildData<NopBufferManager>,
+    build_data: HashedBlockCollection<NopBufferManager>,
 }
 
 #[derive(Debug)]
