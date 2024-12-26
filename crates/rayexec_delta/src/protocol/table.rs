@@ -2,11 +2,11 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use futures::{StreamExt, TryStreamExt};
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, DecimalType};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::scalar::decimal::{Decimal128Type, DecimalType};
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::{FileProvider, FileSource};

@@ -5,7 +5,7 @@
 //! since that's hard to work with.
 
 use bytes::Bytes;
-use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
+use rayexec_execution::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 
 use super::Encoding;
 use crate::encodings::rle::RleDecoder;

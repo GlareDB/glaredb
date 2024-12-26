@@ -1,15 +1,15 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::compute::cast::array::cast_array;
-use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
 use super::PhysicalScalarExpression;
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::compute::cast::array::cast_array;
+use crate::arrays::compute::cast::behavior::CastFailBehavior;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 

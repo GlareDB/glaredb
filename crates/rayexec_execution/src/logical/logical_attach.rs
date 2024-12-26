@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 

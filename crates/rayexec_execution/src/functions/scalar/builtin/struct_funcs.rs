@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::DataTypeId;
 use rayexec_error::{not_implemented, Result};
 
+use crate::arrays::datatype::DataTypeId;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
 use crate::functions::{FunctionInfo, Signature};

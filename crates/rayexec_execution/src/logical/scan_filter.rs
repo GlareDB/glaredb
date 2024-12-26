@@ -1,5 +1,4 @@
-use rayexec_bullet::scalar::OwnedScalarValue;
-
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::expr::comparison_expr::ComparisonOperator;
 
 /// A simplified filter that can be pushed into a scan.

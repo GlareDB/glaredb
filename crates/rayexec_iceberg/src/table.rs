@@ -4,9 +4,9 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::{FileProvider, FileSource, FileSourceExt};

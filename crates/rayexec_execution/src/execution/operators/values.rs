@@ -1,12 +1,7 @@
-use std::io::Cursor;
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
-use rayexec_bullet::ipc::IpcConfig;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use super::{
     ExecutableOperator,
@@ -18,6 +13,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -109,47 +105,49 @@ impl DatabaseProtoConv for PhysicalValues {
     type ProtoType = rayexec_proto::generated::execution::PhysicalValues;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::array::IpcStreamBatch;
+        unimplemented!()
+        // use rayexec_proto::generated::array::IpcStreamBatch;
 
-        // TODO: Should empty values even be allowed? Is it allowed?
-        let schema = match self.batches.first() {
-            Some(batch) => Schema::new(
-                batch
-                    .columns()
-                    .iter()
-                    .map(|c| Field::new("", c.datatype().clone(), true)),
-            ),
-            None => {
-                return Ok(Self::ProtoType {
-                    batches: Some(IpcStreamBatch { ipc: Vec::new() }),
-                })
-            }
-        };
+        // // TODO: Should empty values even be allowed? Is it allowed?
+        // let schema = match self.batches.first() {
+        //     Some(batch) => Schema::new(
+        //         batch
+        //             .columns()
+        //             .iter()
+        //             .map(|c| Field::new("", c.datatype().clone(), true)),
+        //     ),
+        //     None => {
+        //         return Ok(Self::ProtoType {
+        //             batches: Some(IpcStreamBatch { ipc: Vec::new() }),
+        //         })
+        //     }
+        // };
 
-        let buf = Vec::new();
-        let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
+        // let buf = Vec::new();
+        // let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
 
-        for batch in &self.batches {
-            writer.write_batch(batch)?
-        }
+        // for batch in &self.batches {
+        //     writer.write_batch(batch)?
+        // }
 
-        let buf = writer.into_writer();
+        // let buf = writer.into_writer();
 
-        Ok(Self::ProtoType {
-            batches: Some(IpcStreamBatch { ipc: buf }),
-        })
+        // Ok(Self::ProtoType {
+        //     batches: Some(IpcStreamBatch { ipc: buf }),
+        // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        let ipc = proto.batches.required("batches")?.ipc;
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+        unimplemented!()
+        // let ipc = proto.batches.required("batches")?.ipc;
 
-        let mut reader = StreamReader::try_new(Cursor::new(ipc), IpcConfig {})?;
+        // let mut reader = StreamReader::try_new(Cursor::new(ipc), IpcConfig {})?;
 
-        let mut batches = Vec::new();
-        while let Some(batch) = reader.try_next_batch()? {
-            batches.push(batch);
-        }
+        // let mut batches = Vec::new();
+        // while let Some(batch) = reader.try_next_batch()? {
+        //     batches.push(batch);
+        // }
 
-        Ok(Self { batches })
+        // Ok(Self { batches })
     }
 }

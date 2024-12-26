@@ -1,8 +1,8 @@
 //! Various create messages/structs.
-use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
+use crate::arrays::field::Field;
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::scalar::ScalarFunction;

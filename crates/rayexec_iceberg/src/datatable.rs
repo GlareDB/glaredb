@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
+use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::storage::table_storage::{DataTable, DataTableScan, Projections};
 
 use crate::table::{Table, TableScan};

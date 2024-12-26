@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
@@ -13,6 +12,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

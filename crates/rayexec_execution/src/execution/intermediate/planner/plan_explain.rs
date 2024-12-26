@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use tracing::error;
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;

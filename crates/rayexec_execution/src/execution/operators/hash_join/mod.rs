@@ -10,9 +10,6 @@ use condition::HashJoinCondition;
 use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
@@ -27,6 +24,9 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
+use crate::arrays::executor::scalar::HashExecutor;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::logical_join::JoinType;

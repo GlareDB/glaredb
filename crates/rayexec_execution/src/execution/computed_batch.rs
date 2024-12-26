@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
-use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
+
+use crate::arrays::batch::Batch;
 
 /// Computed batch results from an operator.
 #[derive(Debug, PartialEq)]

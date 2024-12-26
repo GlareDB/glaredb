@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::{BoundQuery, QueryBinder};
+use crate::arrays::datatype::DataType;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};

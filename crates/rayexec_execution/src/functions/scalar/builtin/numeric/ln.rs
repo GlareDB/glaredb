@@ -1,13 +1,13 @@
 use num_traits::Float;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalStorage;
-use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::datatype::DataType;
+use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::storage::PrimitiveStorage;
 
 pub type Ln = UnaryInputNumericScalar<LnOp>;
 

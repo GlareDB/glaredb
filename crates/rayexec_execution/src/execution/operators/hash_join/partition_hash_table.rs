@@ -1,10 +1,10 @@
 use std::fmt;
 
 use hashbrown::raw::RawTable;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
 use super::condition::{HashJoinCondition, LeftPrecomputedJoinConditions};
+use crate::arrays::batch::Batch;
 
 /// Points to a row in the hash table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

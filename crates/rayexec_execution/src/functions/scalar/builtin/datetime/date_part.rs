@@ -1,10 +1,10 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::compute::date::{self, extract_date_part};
-use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use rayexec_bullet::scalar::decimal::{Decimal64Type, DecimalType};
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
+use crate::arrays::array::Array;
+use crate::arrays::compute::date::{self, extract_date_part};
+use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

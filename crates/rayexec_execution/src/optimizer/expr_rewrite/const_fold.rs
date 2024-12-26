@@ -1,7 +1,7 @@
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::ExpressionRewriteRule;
+use crate::arrays::batch::Batch;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::expr::Expression;
@@ -58,9 +58,8 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
-
     use super::*;
+    use crate::arrays::datatype::DataType;
     use crate::expr::{add, and, cast, col_ref, lit};
 
     #[test]

@@ -1,7 +1,11 @@
 use std::collections::BTreeSet;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::executor::physical_type::{
+use rayexec_error::{not_implemented, Result};
+
+use super::chunk::GroupChunk;
+use super::hash_table::GroupAddress;
+use crate::arrays::array::Array;
+use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -23,13 +27,9 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::{can_skip_validity_check, check_validity};
-use rayexec_bullet::selection::{self, SelectionVector};
-use rayexec_bullet::storage::AddressableStorage;
-use rayexec_error::{not_implemented, Result};
-
-use super::chunk::GroupChunk;
-use super::hash_table::GroupAddress;
+use crate::arrays::executor::scalar::{can_skip_validity_check, check_validity};
+use crate::arrays::selection::{self, SelectionVector};
+use crate::arrays::storage::AddressableStorage;
 
 pub fn group_values_eq(
     inputs: &[Array],

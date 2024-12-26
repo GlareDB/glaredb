@@ -5,12 +5,12 @@ use std::task::{Context, Poll, Waker};
 use futures::future::BoxFuture;
 use futures::{Future, Stream};
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 
 use super::profiler::PlanningProfileData;
+use crate::arrays::batch::Batch;
+use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sink::{PartitionSink, SinkOperation};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

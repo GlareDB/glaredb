@@ -1,10 +1,5 @@
 use std::fmt::Debug;
-use std::io::Cursor;
 
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
-use rayexec_bullet::ipc::IpcConfig;
 use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_io::http::reqwest::header::{HeaderValue, CONTENT_TYPE};
 use rayexec_io::http::reqwest::{Method, Request, StatusCode};
@@ -15,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 use uuid::Uuid;
 
+use crate::arrays::batch::Batch;
+use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::{IntermediatePipelineGroup, StreamId};
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -320,36 +317,38 @@ impl ProtoConv for IpcBatch {
     type ProtoType = rayexec_proto::generated::array::IpcStreamBatch;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        let buf = Vec::new();
+        unimplemented!()
+        // let buf = Vec::new();
 
-        // Field names don't matter. A full schema is included just for
-        // compatability with arrow ipc, but we only care about the data types.
-        let schema = Schema::new(
-            self.0
-                .columns()
-                .iter()
-                .map(|c| Field::new("", c.datatype().clone(), true)),
-        );
+        // // Field names don't matter. A full schema is included just for
+        // // compatability with arrow ipc, but we only care about the data types.
+        // let schema = Schema::new(
+        //     self.0
+        //         .columns()
+        //         .iter()
+        //         .map(|c| Field::new("", c.datatype().clone(), true)),
+        // );
 
-        let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
-        writer.write_batch(&self.0)?;
+        // let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
+        // writer.write_batch(&self.0)?;
 
-        let buf = writer.into_writer();
+        // let buf = writer.into_writer();
 
-        Ok(Self::ProtoType { ipc: buf })
+        // Ok(Self::ProtoType { ipc: buf })
     }
 
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        let mut reader = StreamReader::try_new(Cursor::new(proto.ipc), IpcConfig {})?;
-        let batch = reader
-            .try_next_batch()?
-            .ok_or_else(|| RayexecError::new("Missing IPC batch"))?;
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
+        unimplemented!()
+        // let mut reader = StreamReader::try_new(Cursor::new(proto.ipc), IpcConfig {})?;
+        // let batch = reader
+        //     .try_next_batch()?
+        //     .ok_or_else(|| RayexecError::new("Missing IPC batch"))?;
 
-        if reader.try_next_batch()?.is_some() {
-            return Err(RayexecError::new("Received too many IPC batches"));
-        }
+        // if reader.try_next_batch()?.is_some() {
+        //     return Err(RayexecError::new("Received too many IPC batches"));
+        // }
 
-        Ok(Self(batch))
+        // Ok(Self(batch))
     }
 }
 

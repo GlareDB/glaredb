@@ -3,17 +3,29 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use half::f16;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::executor::builder::{
+use rayexec_error::{not_implemented, RayexecError, Result};
+
+use super::{
+    ExecutableOperator,
+    ExecutionStates,
+    InputOutputStates,
+    OperatorState,
+    PartitionState,
+    PollFinalize,
+    PollPull,
+    PollPush,
+};
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::batch::Batch;
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::executor::builder::{
     ArrayBuilder,
     ArrayDataBuffer,
     BooleanBuffer,
     GermanVarlenBuffer,
     PrimitiveBuffer,
 };
-use rayexec_bullet::executor::physical_type::{
+use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -34,21 +46,9 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::selection::{self, SelectionVector};
-use rayexec_bullet::storage::{AddressableStorage, ListItemMetadata};
-use rayexec_error::{not_implemented, RayexecError, Result};
-
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-};
+use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::selection::{self, SelectionVector};
+use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;

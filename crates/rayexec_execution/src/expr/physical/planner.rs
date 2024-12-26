@@ -1,5 +1,4 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::case_expr::PhysicalCaseExpr;
@@ -8,6 +7,7 @@ use super::column_expr::PhysicalColumnExpr;
 use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
 use super::PhysicalSortExpression;
+use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::hash_join::condition::HashJoinCondition;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;

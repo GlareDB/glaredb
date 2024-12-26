@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use rayexec_bullet::datatype::DataTypeId;
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use rayexec_execution::arrays::datatype::DataTypeId;
+use rayexec_execution::arrays::scalar::OwnedScalarValue;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::expr;
 use rayexec_execution::functions::table::{

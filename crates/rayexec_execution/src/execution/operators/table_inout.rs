@@ -1,9 +1,6 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
@@ -16,6 +13,9 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;

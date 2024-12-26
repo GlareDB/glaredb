@@ -1,12 +1,12 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::scalar::interval::Interval;
-use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
+use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::interval::Interval;
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::arith_expr::{ArithExpr, ArithOperator};
 use crate::expr::case_expr::{CaseExpr, WhenThen};

@@ -2,12 +2,12 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
 use super::util::merger::{KWayMerger, MergeResult};
 use super::util::sort_keys::SortKeysExtractor;
 use super::util::sorted_batch::{PhysicallySortedBatch, SortedKeysIter};
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sort::util::merger::IterState;
 use crate::execution::operators::{

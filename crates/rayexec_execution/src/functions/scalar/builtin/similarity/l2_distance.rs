@@ -2,18 +2,18 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::{AsPrimitive, Float};
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{
+use rayexec_error::Result;
+
+use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use crate::arrays::executor::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalStorage,
 };
-use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
-use rayexec_error::Result;
-
+use crate::arrays::executor::scalar::{BinaryListReducer, ListExecutor};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

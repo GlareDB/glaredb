@@ -3,16 +3,16 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::AsPrimitive;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI64};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::arrays::array::Array;
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
+use crate::arrays::executor::physical_type::{PhysicalF64, PhysicalI64};
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_unary_aggregate_states,

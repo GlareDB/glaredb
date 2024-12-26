@@ -4,7 +4,8 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+
+use crate::arrays::batch::Batch;
 
 #[derive(Debug)]
 pub struct BroadcastChannel {
@@ -149,9 +150,9 @@ mod tests {
     use std::task::Wake;
 
     use futures::FutureExt;
-    use rayexec_bullet::array::Array;
 
     use super::*;
+    use crate::arrays::array::Array;
 
     struct NopWaker {}
 

@@ -2,11 +2,13 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use half::f16;
-use rayexec_bullet::array::ArrayData;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
-use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::{
+use rayexec_error::{not_implemented, Result};
+
+use crate::arrays::array::ArrayData;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -27,10 +29,8 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
 };
-use rayexec_bullet::scalar::interval::Interval;
-use rayexec_bullet::storage::{PrimitiveStorage, UntypedNull};
-use rayexec_error::{not_implemented, Result};
-
+use crate::arrays::scalar::interval::Interval;
+use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     boolean_finalize,

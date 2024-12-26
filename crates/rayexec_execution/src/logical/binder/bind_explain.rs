@@ -1,9 +1,9 @@
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
+use crate::arrays::datatype::DataType;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_explain::ExplainFormat;
 use crate::logical::resolver::resolve_context::ResolveContext;

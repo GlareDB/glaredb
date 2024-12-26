@@ -10,12 +10,12 @@ use decimal::PostgresDecimal;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{StreamExt, TryFutureExt};
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta};
-use rayexec_bullet::field::Field;
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::datatype::{DataType, DecimalTypeMeta};
+use rayexec_execution::arrays::field::Field;
+use rayexec_execution::arrays::scalar::OwnedScalarValue;
 use rayexec_execution::database::catalog_entry::{CatalogEntry, TableEntry};
 use rayexec_execution::database::memory_catalog::MemoryCatalog;
 use rayexec_execution::datasource::{

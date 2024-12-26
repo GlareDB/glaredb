@@ -8,14 +8,14 @@ use std::sync::Arc;
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
 use inout::TableInOutFunction;
-use rayexec_bullet::field::Schema;
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 
 use super::FunctionInfo;
+use crate::arrays::field::Schema;
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::DatabaseContext;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;

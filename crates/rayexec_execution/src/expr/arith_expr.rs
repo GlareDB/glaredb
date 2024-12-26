@@ -1,9 +1,9 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::Result;
 
 use super::{AsScalarFunction, Expression};
+use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::builtin::arith;
 use crate::functions::scalar::ScalarFunction;

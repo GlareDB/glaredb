@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::executor::scalar::HashExecutor;
-use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
+use crate::arrays::array::Array;
+use crate::arrays::executor::scalar::HashExecutor;
+use crate::arrays::selection::SelectionVector;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::functions::aggregate::states::{AggregateGroupStates, OpaqueStatesMut};
 use crate::functions::aggregate::ChunkGroupAddressIter;

@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
+use crate::arrays::batch::Batch;
+use crate::arrays::field::{Field, Schema};
 use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
+use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
@@ -182,10 +182,10 @@ impl WasmMaterializedColumn {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
-    use rayexec_bullet::batch::Batch;
-    use rayexec_bullet::datatype::DataType;
-    use rayexec_bullet::field::{Field, Schema};
+    use rayexec_execution::arrays::array::Array;
+    use rayexec_execution::arrays::batch::Batch;
+    use rayexec_execution::arrays::datatype::DataType;
+    use rayexec_execution::arrays::field::{Field, Schema};
 
     use super::*;
 

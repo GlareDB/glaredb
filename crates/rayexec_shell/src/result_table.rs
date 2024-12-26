@@ -4,12 +4,12 @@ use std::task::{Context, Poll};
 
 use futures::stream::Stream;
 use futures::{StreamExt, TryStreamExt};
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::Schema;
-use rayexec_bullet::format::pretty::table::PrettyTable;
-use rayexec_bullet::row::ScalarRow;
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::format::pretty::table::PrettyTable;
+use rayexec_execution::arrays::row::ScalarRow;
 use rayexec_execution::engine::profiler::PlanningProfileData;
 use rayexec_execution::engine::result::ExecutionResult;
 use rayexec_execution::execution::executable::profiler::ExecutionProfileData;

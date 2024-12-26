@@ -1,7 +1,7 @@
-use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
+use crate::arrays::batch::Batch;
 
 /// Drains a hash table.
 ///

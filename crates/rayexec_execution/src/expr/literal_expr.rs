@@ -1,7 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
-
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

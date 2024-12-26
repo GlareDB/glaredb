@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::{AggregateState, StateFinalizer};
-use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
-use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
 use crate::functions::aggregate::{

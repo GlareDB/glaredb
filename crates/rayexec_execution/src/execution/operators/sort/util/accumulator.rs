@@ -1,6 +1,7 @@
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::executor::scalar::interleave;
 use rayexec_error::{RayexecError, Result};
+
+use crate::arrays::batch::Batch;
+use crate::arrays::executor::scalar::interleave;
 
 /// Tracks the state per input into the merge.
 #[derive(Debug, Clone)]

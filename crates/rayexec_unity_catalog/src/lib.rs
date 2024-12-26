@@ -10,8 +10,8 @@ use catalog::UnityCatalog;
 use connection::{UnityCatalogConnection, CATALOG_OPTION_KEY, ENDPOINT_OPTION_KEY};
 use functions::{ListSchemasOperation, ListTablesOperation, UnityObjects};
 use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use rayexec_execution::arrays::scalar::OwnedScalarValue;
 use rayexec_execution::datasource::{
     take_option,
     DataSource,

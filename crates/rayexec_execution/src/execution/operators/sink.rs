@@ -5,8 +5,6 @@ use std::task::{Context, Poll, Waker};
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use parking_lot::Mutex;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::util::futures::make_static;
@@ -20,6 +18,8 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 

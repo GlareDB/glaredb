@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::PhysicalF64;
 use rayexec_error::Result;
 
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{StddevPopFinalize, VarianceState};
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::physical_type::PhysicalF64;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_binary_aggregate_states,

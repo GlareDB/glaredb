@@ -1,5 +1,5 @@
-use rayexec_bullet::scalar::decimal::Decimal128Scalar;
 use rayexec_error::RayexecError;
+use rayexec_execution::arrays::scalar::decimal::Decimal128Scalar;
 use tokio_postgres::types::{FromSql, Type};
 
 const NBASE: i128 = 10000;

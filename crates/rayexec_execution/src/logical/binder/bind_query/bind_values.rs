@@ -1,7 +1,7 @@
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
+use crate::arrays::datatype::DataType;
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};

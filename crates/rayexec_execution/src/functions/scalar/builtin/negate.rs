@@ -1,9 +1,11 @@
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{
+use rayexec_error::Result;
+
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
+use crate::arrays::executor::physical_type::{
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
@@ -15,10 +17,8 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalI8,
     PhysicalStorage,
 };
-use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::storage::PrimitiveStorage;
-use rayexec_error::Result;
-
+use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

@@ -12,8 +12,9 @@ use std::fmt::Display;
 use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
+
+use crate::arrays::datatype::{DataType, DataTypeId};
 
 /// Function signature.
 // TODO: Include named args. Also make sure to update PartialEq too.

@@ -2,14 +2,14 @@ use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::executor::scalar::{interleave, SelectExecutor};
-use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::executor::scalar::{interleave, SelectExecutor};
+use crate::arrays::selection::SelectionVector;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalWhenThen {
@@ -116,10 +116,9 @@ impl fmt::Display for PhysicalCaseExpr {
 #[cfg(test)]
 mod tests {
 
-    use rayexec_bullet::datatype::DataType;
-    use rayexec_bullet::scalar::ScalarValue;
-
     use super::*;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::scalar::ScalarValue;
     use crate::expr::case_expr::{CaseExpr, WhenThen};
     use crate::expr::physical::planner::PhysicalExpressionPlanner;
     use crate::expr::{self, Expression};

@@ -2,12 +2,14 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::compute::cast::array::decimal_rescale;
-use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::{
+use rayexec_error::{RayexecError, Result};
+
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::compute::cast::array::decimal_rescale;
+use crate::arrays::compute::cast::behavior::CastFailBehavior;
+use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
+use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -29,11 +31,9 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::{BinaryExecutor, BinaryListReducer, FlexibleListExecutor};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use rayexec_bullet::storage::PrimitiveStorage;
-use rayexec_error::{RayexecError, Result};
-
+use crate::arrays::executor::scalar::{BinaryExecutor, BinaryListReducer, FlexibleListExecutor};
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

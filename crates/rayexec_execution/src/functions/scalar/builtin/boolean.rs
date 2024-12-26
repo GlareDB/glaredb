@@ -1,15 +1,15 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalBool;
-use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
-use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::arrays::array::Array;
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
+use crate::arrays::executor::physical_type::PhysicalBool;
+use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
+use crate::arrays::storage::BooleanStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -219,9 +219,8 @@ impl ScalarFunctionImpl for OrImpl {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::scalar::ScalarValue;
-
     use super::*;
+    use crate::arrays::scalar::ScalarValue;
     use crate::expr;
 
     #[test]

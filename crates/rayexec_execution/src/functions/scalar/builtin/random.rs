@@ -1,9 +1,9 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::scalar::{

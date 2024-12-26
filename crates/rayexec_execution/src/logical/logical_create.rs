@@ -1,9 +1,9 @@
-use rayexec_bullet::field::Field;
 use rayexec_error::Result;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
+use crate::arrays::field::Field;
 use crate::database::create::OnConflict;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;

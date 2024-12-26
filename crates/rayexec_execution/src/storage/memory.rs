@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage};
+use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::sink::PartitionSink;

@@ -1,10 +1,10 @@
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
 use super::table_list::TableRef;
+use crate::arrays::datatype::DataType;
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;

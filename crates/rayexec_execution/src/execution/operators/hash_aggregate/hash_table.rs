@@ -1,8 +1,6 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::chunk::GroupChunk;
@@ -10,6 +8,8 @@ use super::compare::group_values_eq;
 use super::drain::HashTableDrain;
 use super::entry::EntryKey;
 use super::Aggregate;
+use crate::arrays::array::Array;
+use crate::arrays::selection::SelectionVector;
 
 const LOAD_FACTOR: f64 = 0.7;
 
@@ -479,10 +479,9 @@ const fn is_power_of_2(v: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::bitmap::Bitmap;
-    use rayexec_bullet::datatype::DataType;
-
     use super::*;
+    use crate::arrays::bitmap::Bitmap;
+    use crate::arrays::datatype::DataType;
     use crate::expr;
     use crate::functions::aggregate::builtin::sum::Sum;
     use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};

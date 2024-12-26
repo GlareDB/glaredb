@@ -1,11 +1,11 @@
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::sink::{PartitionSink, SinkOperation};
 use super::source::{PartitionSource, SourceOperation};
 use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;

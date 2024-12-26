@@ -1,11 +1,11 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::field::Field;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::DatabaseContext;
+use crate::arrays::field::Field;
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::scalar::ScalarFunction;

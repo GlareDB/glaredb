@@ -1,15 +1,15 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use rayexec_bullet::datatype::{
+use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_execution::arrays::datatype::{
     DataType,
     DecimalTypeMeta,
     ListTypeMeta,
     TimeUnit,
     TimestampTypeMeta,
 };
-use rayexec_bullet::field::{Field, Schema as BulletSchema};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_execution::arrays::field::{Field, Schema as BulletSchema};
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 

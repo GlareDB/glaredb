@@ -1,17 +1,20 @@
 use std::borrow::Borrow;
 
 use half::f16;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{
+use rayexec_error::{not_implemented, RayexecError, Result};
+use serde::{Deserialize, Serialize};
+
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{
     ArrayBuilder,
     ArrayDataBuffer,
     BooleanBuffer,
     GermanVarlenBuffer,
     PrimitiveBuffer,
 };
-use rayexec_bullet::executor::physical_type::{
+use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -32,10 +35,7 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_error::{not_implemented, RayexecError, Result};
-use serde::{Deserialize, Serialize};
-
+use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

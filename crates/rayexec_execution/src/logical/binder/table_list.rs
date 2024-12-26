@@ -1,8 +1,9 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
+
+use crate::arrays::datatype::DataType;
 
 /// Reference to a table in a context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

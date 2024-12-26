@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
 
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::DatabaseContext;
 use crate::functions::table::{PlannedTableFunction, TableFunction};
 use crate::proto::DatabaseProtoConv;

@@ -9,21 +9,6 @@ use super::compression::CompressionType;
 use super::gen::message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBatch};
 use super::gen::schema::Buffer as IpcBuffer;
 use super::IpcConfig;
-use crate::array::{Array, ArrayData, BinaryData};
-use crate::batch::Batch;
-use crate::bitmap::Bitmap;
-use crate::bitutil::byte_ceil;
-use crate::datatype::DataType;
-use crate::executor::physical_type::PhysicalType;
-use crate::field::Schema;
-use crate::ipc::gen::message::RecordBatchBuilder;
-use crate::scalar::interval::Interval;
-use crate::storage::{
-    BooleanStorage,
-    GermanVarlenStorage,
-    PrimitiveStorage,
-    UnionedGermanMetadata,
-};
 
 pub fn ipc_to_batch(
     batch: IpcRecordBatch,

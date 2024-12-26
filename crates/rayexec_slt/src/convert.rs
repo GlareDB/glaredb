@@ -1,7 +1,7 @@
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::field::Schema;
-use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_error::Result;
+use rayexec_execution::arrays::datatype::DataType;
+use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 use rayexec_shell::result_table::MaterializedResultTable;
 use sqllogictest::DefaultColumnType;
 

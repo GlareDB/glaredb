@@ -1,8 +1,8 @@
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
 use rayexec_error::Result;
 
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,

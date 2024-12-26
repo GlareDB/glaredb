@@ -1,9 +1,9 @@
 use std::collections::{BTreeSet, HashMap};
 
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
+use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::ScalarValue;
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};

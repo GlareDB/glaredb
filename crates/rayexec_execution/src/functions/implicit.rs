@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::{DataType, DataTypeId};
 
 /// Score that should be used if no cast is needed.
 pub const NO_CAST_SCORE: u32 = 400;
@@ -224,9 +224,8 @@ const fn float64_cast_score(want: DataTypeId) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::{TimeUnit, TimestampTypeMeta};
-
     use super::*;
+    use crate::arrays::datatype::{TimeUnit, TimestampTypeMeta};
 
     #[test]
     fn implicit_cast_from_utf8() {

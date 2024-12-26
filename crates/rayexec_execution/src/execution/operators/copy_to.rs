@@ -1,9 +1,9 @@
-use rayexec_bullet::field::Schema;
 use rayexec_error::{OptionExt, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_proto::ProtoConv;
 
 use super::sink::{PartitionSink, SinkOperation, SinkOperator};
+use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::functions::copy::CopyToFunction;

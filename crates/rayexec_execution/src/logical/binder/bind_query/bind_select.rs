@@ -155,9 +155,8 @@ impl<'a> SelectBinder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
-
     use super::*;
+    use crate::arrays::datatype::DataType;
     use crate::logical::binder::bind_context::testutil::columns_in_scope;
 
     #[test]
