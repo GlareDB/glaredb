@@ -2,21 +2,21 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::ipc::stream::{StreamReader, StreamWriter};
 use rayexec_bullet::ipc::IpcConfig;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -24,22 +24,22 @@ use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
 }
 
 #[derive(Debug)]
 pub struct PhysicalValues {
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
 }
 
 impl PhysicalValues {
-    pub fn new(batches: Vec<Batch>) -> Self {
+    pub fn new(batches: Vec<BatchOld>) -> Self {
         PhysicalValues { batches }
     }
 }
 
-impl ExecutableOperator for PhysicalValues {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalValues {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -57,42 +57,42 @@ impl ExecutableOperator for PhysicalValues {
         }
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
-                partition_states: states.into_iter().map(PartitionState::Values).collect(),
+                partition_states: states.into_iter().map(PartitionStateOld::Values).collect(),
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+        _batch: BatchOld,
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Values(state) => match state.batches.pop() {
-                Some(batch) => Ok(PollPull::Computed(batch.into())),
-                None => Ok(PollPull::Exhausted),
+            PartitionStateOld::Values(state) => match state.batches.pop() {
+                Some(batch) => Ok(PollPullOld::Computed(batch.into())),
+                None => Ok(PollPullOld::Exhausted),
             },
             other => panic!("invalid partition state: {other:?}"),
         }

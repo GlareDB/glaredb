@@ -1,10 +1,10 @@
 use rayexec_error::Result;
 
 use super::check_validity;
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::physical_type::PhysicalStorageOld;
 use crate::executor::scalar::validate_logical_len;
 use crate::selection;
 use crate::storage::AddressableStorage;
@@ -14,15 +14,15 @@ pub struct BinaryExecutor;
 
 impl BinaryExecutor {
     pub fn execute<'a, S1, S2, B, Op>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a ArrayOld,
+        array2: &'a ArrayOld,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: PhysicalStorageOld,
+        S2: PhysicalStorageOld,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
@@ -58,7 +58,7 @@ impl BinaryExecutor {
                     output_buffer.idx = idx;
                     op(val1, val2, &mut output_buffer);
                 } else {
-                    out_validity_builder.set_unchecked(idx, false);
+                    out_validity_builder.set(idx, false);
                 }
             }
 
@@ -81,7 +81,7 @@ impl BinaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(ArrayOld {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -95,22 +95,22 @@ mod tests {
     use selection::SelectionVector;
 
     use super::*;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::executor::physical_type::{PhysicalI32Old, PhysicalUtf8Old};
     use crate::scalar::ScalarValue;
 
     #[test]
     fn binary_simple_add() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter([4, 5, 6]);
+        let left = ArrayOld::from_iter([1, 2, 3]);
+        let right = ArrayOld::from_iter([4, 5, 6]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Int32,
+            datatype: DataTypeOld::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32Old, PhysicalI32Old, _, _>(
             &left,
             &right,
             builder,
@@ -125,16 +125,16 @@ mod tests {
 
     #[test]
     fn binary_string_repeat() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter(["hello", "world", "goodbye!"]);
+        let left = ArrayOld::from_iter([1, 2, 3]);
+        let right = ArrayOld::from_iter(["hello", "world", "goodbye!"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32Old, PhysicalUtf8Old, _, _>(
             &left,
             &right,
             builder,
@@ -162,17 +162,17 @@ mod tests {
     #[test]
     fn binary_add_with_invalid() {
         // Make left constant null.
-        let mut left = Array::from_iter([1]);
+        let mut left = ArrayOld::from_iter([1]);
         left.put_selection(SelectionVector::repeated(3, 0));
         left.set_physical_validity(0, false);
 
-        let right = Array::from_iter([2, 3, 4]);
+        let right = ArrayOld::from_iter([2, 3, 4]);
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor::execute::<PhysicalI32Old, PhysicalI32Old, _, _>(
             &left,
             &right,
             ArrayBuilder {
-                datatype: DataType::Int32,
+                datatype: DataTypeOld::Int32,
                 buffer: PrimitiveBuffer::with_len(3),
             },
             |a, b, buf| buf.put(&(a + b)),

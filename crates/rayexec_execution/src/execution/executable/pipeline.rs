@@ -2,20 +2,20 @@ use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::profiler::OperatorProfileData;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
+    ExecutableOperatorOld,
+    OperatorStateOld,
+    PartitionStateOld,
     PhysicalOperator,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::time::{RuntimeInstant, Timer};
@@ -81,8 +81,8 @@ impl ExecutablePipeline {
     pub(crate) fn push_operator(
         &mut self,
         physical: Arc<PhysicalOperator>,
-        operator_state: Arc<OperatorState>,
-        partition_states: Vec<PartitionState>,
+        operator_state: Arc<OperatorStateOld>,
+        partition_states: Vec<PartitionStateOld>,
     ) -> Result<()> {
         if partition_states.len() != self.num_partitions() {
             return Err(RayexecError::new(format!(
@@ -247,17 +247,17 @@ pub struct OperatorWithState {
     physical: Arc<PhysicalOperator>,
 
     /// The state that's shared across all partitions for this operator.
-    operator_state: Arc<OperatorState>,
+    operator_state: Arc<OperatorStateOld>,
 
     /// The state for this operator that's exclusive to this partition.
-    partition_state: PartitionState,
+    partition_state: PartitionStateOld,
 
     /// Profile data for this operator.
     profile_data: OperatorProfileData,
 }
 
 impl OperatorWithState {
-    pub fn physical_operator(&self) -> &dyn ExecutableOperator {
+    pub fn physical_operator(&self) -> &dyn ExecutableOperatorOld {
         self.physical.as_ref()
     }
 
@@ -274,7 +274,10 @@ pub enum PipelinePartitionState {
         operator_idx: usize,
     },
     /// Need to push to an operator.
-    PushTo { batch: Batch, operator_idx: usize },
+    PushTo {
+        batch: BatchOld,
+        operator_idx: usize,
+    },
     /// Need to finalize a push to an operator.
     FinalizePush { operator_idx: usize },
     /// Pipeline is completed.
@@ -346,7 +349,7 @@ impl ExecutablePartitionPipeline {
 
                     // Otherwise do a normal pull.
                     let timer = Timer::<I>::start();
-                    let poll_pull = operator.physical.poll_pull(
+                    let poll_pull = operator.physical.poll_pull_old(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
@@ -355,7 +358,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.elapsed += elapsed;
 
                     match poll_pull {
-                        Ok(PollPull::Computed(mut computed)) => {
+                        Ok(PollPullOld::Computed(mut computed)) => {
                             operator.profile_data.rows_emitted += computed.total_num_rows(); // TODO: We should have something to indicate materialized vs not.
 
                             let batch = match computed.try_pop_front()? {
@@ -385,10 +388,10 @@ impl ExecutablePartitionPipeline {
                             };
                             continue;
                         }
-                        Ok(PollPull::Pending) => {
+                        Ok(PollPullOld::Pending) => {
                             return Poll::Pending;
                         }
-                        Ok(PollPull::Exhausted) => {
+                        Ok(PollPullOld::Exhausted) => {
                             // Finalize the next operator to indicate that it
                             // will no longer be receiving batch inputs.
                             *state = PipelinePartitionState::FinalizePush {
@@ -416,7 +419,7 @@ impl ExecutablePartitionPipeline {
                         .expect("next operator to exist");
 
                     let timer = Timer::<I>::start();
-                    let poll_finalize = next_operator.physical.poll_finalize_push(
+                    let poll_finalize = next_operator.physical.poll_finalize_push_old(
                         cx,
                         &mut next_operator.partition_state,
                         &next_operator.operator_state,
@@ -425,7 +428,7 @@ impl ExecutablePartitionPipeline {
                     next_operator.profile_data.elapsed += elapsed;
 
                     match poll_finalize {
-                        Ok(PollFinalize::Finalized) => {
+                        Ok(PollFinalizeOld::Finalized) => {
                             if self.pull_start.pull_start == self.operators.len() - 1 {
                                 // This partition pipeline has been completely exhausted, and
                                 // we've just finalized the "sink" operator. We're done.
@@ -437,7 +440,7 @@ impl ExecutablePartitionPipeline {
                             // next non-exhausted operator.
                             *state = self.pull_start.next_start_state()?;
                         }
-                        Ok(PollFinalize::Pending) => return Poll::Pending,
+                        Ok(PollFinalizeOld::Pending) => return Poll::Pending,
                         Err(e) => {
                             // Erroring on finalize is not recoverable.
                             *state = PipelinePartitionState::Completed;
@@ -450,7 +453,7 @@ impl ExecutablePartitionPipeline {
                     operator_idx,
                 } => {
                     // To satisfy ownership. State will be updated anyways.
-                    let batch = std::mem::replace(batch, Batch::empty());
+                    let batch = std::mem::replace(batch, BatchOld::empty());
 
                     let operator = self
                         .operators
@@ -460,7 +463,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.rows_read += batch.num_rows();
 
                     let timer = Timer::<I>::start();
-                    let poll_push = operator.physical.poll_push(
+                    let poll_push = operator.physical.poll_push_old(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
@@ -470,7 +473,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.elapsed += elapsed;
 
                     match poll_push {
-                        Ok(PollPush::Pushed) => {
+                        Ok(PollPushOld::Pushed) => {
                             // We successfully pushed to the operator.
                             //
                             // If we pushed to last operator (the 'sink'), we
@@ -489,7 +492,7 @@ impl ExecutablePartitionPipeline {
                             }
                             continue;
                         }
-                        Ok(PollPush::Pending(batch)) => {
+                        Ok(PollPushOld::Pending(batch)) => {
                             // Operator not ready to accept input.
                             //
                             // Waker has been registered, and this pipeline will
@@ -502,7 +505,7 @@ impl ExecutablePartitionPipeline {
                             };
                             return Poll::Pending;
                         }
-                        Ok(PollPush::Break) => {
+                        Ok(PollPushOld::Break) => {
                             // Operator has received everything it needs. Set
                             // the pipeline to start pulling from the operator,
                             // even if the operator we're currently pull from
@@ -520,7 +523,7 @@ impl ExecutablePartitionPipeline {
                             };
                             continue;
                         }
-                        Ok(PollPush::NeedsMore) => {
+                        Ok(PollPushOld::NeedsMore) => {
                             // Operator accepted input, but needs more input
                             // before it will produce output.
                             //

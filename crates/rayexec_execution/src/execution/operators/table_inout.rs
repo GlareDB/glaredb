@@ -1,20 +1,20 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -25,7 +25,7 @@ use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 pub struct TableInOutPartitionState {
     function_state: Box<dyn inout::TableInOutPartitionState>,
     /// Additional outputs that will be included on the output batch.
-    additional_outputs: Vec<Array>,
+    additional_outputs: Vec<ArrayOld>,
 }
 
 #[derive(Debug)]
@@ -38,8 +38,8 @@ pub struct PhysicalTableInOut {
     pub projected_outputs: Vec<PhysicalScalarExpression>,
 }
 
-impl ExecutableOperator for PhysicalTableInOut {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalTableInOut {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -59,7 +59,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         let states: Vec<_> = states
             .into_iter()
             .map(|state| {
-                PartitionState::TableInOut(TableInOutPartitionState {
+                PartitionStateOld::TableInOut(TableInOutPartitionState {
                     function_state: state,
                     additional_outputs: Vec::new(),
                 })
@@ -67,22 +67,22 @@ impl ExecutableOperator for PhysicalTableInOut {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+        batch: BatchOld,
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
+            PartitionStateOld::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -93,12 +93,12 @@ impl ExecutableOperator for PhysicalTableInOut {
             .function_inputs
             .iter()
             .map(|expr| {
-                let arr = expr.eval(&batch)?;
+                let arr = expr.eval2(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let inputs = Batch::try_new(inputs)?;
+        let inputs = BatchOld::try_new(inputs)?;
 
         // Try to push first to avoid overwriting any buffered additional
         // outputs.
@@ -108,7 +108,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         // TODO: Remove needing to do this, the clones should be cheap, but the
         // expression execution is wasteful.
         match state.function_state.poll_push(cx, inputs)? {
-            PollPush::Pending(_) => Ok(PollPush::Pending(orig)),
+            PollPushOld::Pending(_) => Ok(PollPushOld::Pending(orig)),
             other => {
                 // Batch was pushed to the function state, compute additional
                 // outputs.
@@ -116,7 +116,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     .projected_outputs
                     .iter()
                     .map(|expr| {
-                        let arr = expr.eval(&batch)?;
+                        let arr = expr.eval2(&batch)?;
                         Ok(arr.into_owned())
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -128,28 +128,28 @@ impl ExecutableOperator for PhysicalTableInOut {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
+            PartitionStateOld::TableInOut(state) => state,
             other => panic!("invalid state: {other:?}"),
         };
 
         state.function_state.poll_finalize_push(cx)
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
+            PartitionStateOld::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -175,12 +175,12 @@ impl ExecutableOperator for PhysicalTableInOut {
                     arrays.push(additional);
                 }
 
-                let new_batch = Batch::try_new(arrays)?;
+                let new_batch = BatchOld::try_new(arrays)?;
 
-                Ok(PollPull::Computed(new_batch.into()))
+                Ok(PollPullOld::Computed(new_batch.into()))
             }
-            inout::InOutPollPull::Pending => Ok(PollPull::Pending),
-            inout::InOutPollPull::Exhausted => Ok(PollPull::Exhausted),
+            inout::InOutPollPull::Pending => Ok(PollPullOld::Pending),
+            inout::InOutPollPull::Exhausted => Ok(PollPullOld::Exhausted),
         }
     }
 }

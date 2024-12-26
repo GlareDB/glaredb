@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
@@ -10,14 +10,14 @@ use super::util::outer_join_tracker::LeftOuterJoinTracker;
 use super::ComputedBatches;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
@@ -30,7 +30,7 @@ pub struct NestedLoopJoinBuildPartitionState {
     /// All batches on the build side for a single partition.
     ///
     /// For hash joins, this would be a partition-local hash map.
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
 }
 
 /// Partition-local state on the probe side.
@@ -47,7 +47,7 @@ pub struct NestedLoopJoinProbePartitionState {
     /// All batches from all partitions received on the build side.
     ///
     /// Store in the probe side local state to avoid needing to lock.
-    all_batches: Arc<Vec<Batch>>,
+    all_batches: Arc<Vec<BatchOld>>,
 
     /// Bool for determining if `all_batches` has been populated from the global
     /// operator state.
@@ -125,7 +125,7 @@ enum SharedOperatorState {
     Building {
         /// Build sides partitions write their batches here once they're done
         /// building.
-        batches: Vec<Batch>,
+        batches: Vec<BatchOld>,
 
         /// Number of partitions we're still waiting to complete on the build
         /// side.
@@ -143,7 +143,7 @@ enum SharedOperatorState {
     /// Build is complete, we're now in the probing phase.
     Probing {
         /// All batches from all partitions.
-        batches: Arc<Vec<Batch>>,
+        batches: Arc<Vec<BatchOld>>,
 
         /// Union of all bitmaps across all partitions.
         ///
@@ -208,8 +208,8 @@ impl PhysicalNestedLoopJoin {
     }
 }
 
-impl ExecutableOperator for PhysicalNestedLoopJoin {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalNestedLoopJoin {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -219,20 +219,20 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 
         let left_states = (0..num_partitions)
             .map(|_| {
-                PartitionState::NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState::default())
+                PartitionStateOld::NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState::default())
             })
             .collect();
 
         let right_states = (0..num_partitions)
             .map(|partition| {
-                PartitionState::NestedLoopJoinProbe(
+                PartitionStateOld::NestedLoopJoinProbe(
                     NestedLoopJoinProbePartitionState::new_for_partition(partition),
                 )
             })
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::NestedLoopJoin(
+            operator_state: Arc::new(OperatorStateOld::NestedLoopJoin(
                 NestedLoopJoinOperatorState::new(num_partitions, num_partitions),
             )),
             partition_states: InputOutputStates::NaryInputSingleOutput {
@@ -242,25 +242,25 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+        batch: BatchOld,
+    ) -> Result<PollPushOld> {
         match partition_state {
-            PartitionState::NestedLoopJoinBuild(state) => {
+            PartitionStateOld::NestedLoopJoinBuild(state) => {
                 state.batches.push(batch);
-                Ok(PollPush::Pushed)
+                Ok(PollPushOld::Pushed)
             }
-            PartitionState::NestedLoopJoinProbe(state) => {
+            PartitionStateOld::NestedLoopJoinProbe(state) => {
                 // Check that the partition-local state has a reference to the
                 // global vec of batches.
                 if !state.is_populated {
                     // Need to get the global reference.
                     let operator_state = match operator_state {
-                        OperatorState::NestedLoopJoin(operater_state) => operater_state,
+                        OperatorStateOld::NestedLoopJoin(operater_state) => operater_state,
                         other => panic!("invalid operator state: {other:?}"),
                     };
 
@@ -273,7 +273,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                             // ourselves for a later wakeup when the build is
                             // complete.
                             probe_side_wakers[state.partition_idx] = Some(cx.waker().clone());
-                            return Ok(PollPush::Pending(batch));
+                            return Ok(PollPushOld::Pending(batch));
                         }
                         SharedOperatorState::Probing {
                             batches,
@@ -298,7 +298,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 // it's empty.
                 if !state.buffered.is_empty() {
                     state.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPushOld::Pending(batch));
                 }
 
                 // Do the join.
@@ -318,7 +318,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 state.buffered = ComputedBatches::new(batches);
                 if state.buffered.is_empty() {
                     // Nothing produces, signal to push more.
-                    return Ok(PollPush::NeedsMore);
+                    return Ok(PollPushOld::NeedsMore);
                 }
 
                 // We have stuff in the buffer, wake up the puller.
@@ -326,22 +326,22 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPushOld::Pushed)
             }
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         match partition_state {
-            PartitionState::NestedLoopJoinBuild(state) => {
+            PartitionStateOld::NestedLoopJoinBuild(state) => {
                 let operator_state = match operator_state {
-                    OperatorState::NestedLoopJoin(operater_state) => operater_state,
+                    OperatorStateOld::NestedLoopJoin(operater_state) => operater_state,
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -365,45 +365,45 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                         }
 
                         // And we're done.
-                        Ok(PollFinalize::Finalized)
+                        Ok(PollFinalizeOld::Finalized)
                     }
                     other => panic!("inner join state is not building: {other:?}"),
                 }
             }
-            PartitionState::NestedLoopJoinProbe(state) => {
+            PartitionStateOld::NestedLoopJoinProbe(state) => {
                 state.input_finished = true;
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::NestedLoopJoinProbe(state) => {
+            PartitionStateOld::NestedLoopJoinProbe(state) => {
                 let computed = state.buffered.take();
                 if computed.has_batches() {
-                    Ok(PollPull::Computed(computed))
+                    Ok(PollPullOld::Computed(computed))
                 } else if state.input_finished {
-                    Ok(PollPull::Exhausted)
+                    Ok(PollPullOld::Exhausted)
                 } else {
                     // We just gotta wait for more input.
                     if let Some(waker) = state.push_waker.take() {
                         waker.wake();
                     }
                     state.pull_waker = Some(cx.waker().clone());
-                    Ok(PollPull::Pending)
+                    Ok(PollPullOld::Pending)
                 }
             }
-            PartitionState::NestedLoopJoinBuild(_) => {
+            PartitionStateOld::NestedLoopJoinBuild(_) => {
                 // We should never attempt to pull with the build state. Builds
                 // just act as a "sink" into the join. The probe is the proper
                 // push/pull operator that happens to wait on the build to
@@ -421,12 +421,12 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 /// result.
 fn cross_join(
     left_batch_idx: usize,
-    left: &Batch,
-    right: &Batch,
+    left: &BatchOld,
+    right: &BatchOld,
     filter_expr: Option<&PhysicalScalarExpression>,
     mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
     _right_join: bool,
-) -> Result<Vec<Batch>> {
+) -> Result<Vec<BatchOld>> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 
     // For each row in the left batch, join the entirety of right.
@@ -439,7 +439,7 @@ fn cross_join(
         // Columns from the right, all rows.
         let right_columns = right.clone().into_arrays();
 
-        let mut output = Batch::try_new(left_columns.into_iter().chain(right_columns))?;
+        let mut output = BatchOld::try_new(left_columns.into_iter().chain(right_columns))?;
 
         // If we have a filter, apply it to the output batch.
         if let Some(filter_expr) = &filter_expr {

@@ -35,7 +35,7 @@ pub use fill::*;
 use rayexec_error::{RayexecError, Result};
 
 use super::builder::ArrayDataBuffer;
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 
 #[inline]
@@ -64,7 +64,7 @@ where
 /// array matches the logical length of some other array.
 ///
 /// Returns the logical length.
-pub(crate) fn validate_logical_len<B>(buffer: &B, array: &Array) -> Result<usize>
+pub(crate) fn validate_logical_len<B>(buffer: &B, array: &ArrayOld) -> Result<usize>
 where
     B: ArrayDataBuffer,
 {

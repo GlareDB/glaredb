@@ -1,7 +1,7 @@
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_error::{RayexecError, Result};
 
@@ -45,9 +45,9 @@ impl ScalarFunction for Lower {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
+            DataTypeOld::Utf8 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Utf8,
+                return_type: DataTypeOld::Utf8,
                 inputs,
                 function_impl: Box::new(LowerImpl),
             }),
@@ -60,7 +60,7 @@ impl ScalarFunction for Lower {
 pub struct LowerImpl;
 
 impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         case_convert_execute(input, str::to_lowercase)
     }
@@ -100,9 +100,9 @@ impl ScalarFunction for Upper {
     ) -> Result<PlannedScalarFunction> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
+            DataTypeOld::Utf8 => Ok(PlannedScalarFunction {
                 function: Box::new(*self),
-                return_type: DataType::Utf8,
+                return_type: DataTypeOld::Utf8,
                 inputs,
                 function_impl: Box::new(UpperImpl),
             }),
@@ -115,13 +115,13 @@ impl ScalarFunction for Upper {
 pub struct UpperImpl;
 
 impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let input = inputs[0];
         case_convert_execute(input, str::to_uppercase)
     }
 }
 
-fn case_convert_execute<F>(input: &Array, case_fn: F) -> Result<Array>
+fn case_convert_execute<F>(input: &ArrayOld, case_fn: F) -> Result<ArrayOld>
 where
     F: Fn(&str) -> String,
 {
@@ -131,11 +131,11 @@ where
     };
 
     let builder = ArrayBuilder {
-        datatype: DataType::Utf8,
+        datatype: DataTypeOld::Utf8,
         buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
     };
 
-    UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+    UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(input, builder, |v, buf| {
         // TODO: Non-allocating variant.
         buf.put(&case_fn(v))
     })

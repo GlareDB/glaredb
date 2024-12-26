@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
@@ -23,10 +23,10 @@ impl IntermediatePipelineBuildState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let names = Array::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
+        let names = ArrayOld::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
         let datatypes =
-            Array::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
-        let batch = Batch::try_new(vec![names, datatypes])?;
+            ArrayOld::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
+        let batch = BatchOld::try_new(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),

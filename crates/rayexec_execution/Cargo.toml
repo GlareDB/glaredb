@@ -10,6 +10,7 @@ rayexec_parser = { path = "../rayexec_parser" }
 rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_io = { path = "../rayexec_io" }
 fmtutil = { path = "../fmtutil" }
+iterutil = { path = "../iterutil" }
 # stackutil = { path = "../stackutil" } TODO: psm hash issues when compiling to wasm on macos
 
 ahash = { workspace = true }
@@ -17,6 +18,7 @@ dyn-clone = "1.0.17"
 chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
+num = "0.4.3"
 num-traits = "0.2.19"
 num_cpus = "1.16.0"
 once_cell = { workspace = true }

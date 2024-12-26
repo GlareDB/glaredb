@@ -292,11 +292,11 @@ impl ProtoConv for StructTypeMeta {
 /// Metadata associated with lists.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ListTypeMeta {
-    pub datatype: Box<DataType>,
+    pub datatype: Box<DataTypeOld>,
 }
 
 impl ListTypeMeta {
-    pub fn new(element_type: DataType) -> Self {
+    pub fn new(element_type: DataTypeOld) -> Self {
         ListTypeMeta {
             datatype: Box::new(element_type),
         }
@@ -314,7 +314,9 @@ impl ProtoConv for ListTypeMeta {
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(Self {
-            datatype: Box::new(DataType::from_proto(*proto.datatype.required("datatype")?)?),
+            datatype: Box::new(DataTypeOld::from_proto(
+                *proto.datatype.required("datatype")?,
+            )?),
         })
     }
 }
@@ -326,7 +328,7 @@ impl ProtoConv for ListTypeMeta {
 /// Some types may include additional metadata, which acts to refine the type
 /// even further.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum DataType {
+pub enum DataTypeOld {
     /// Constant null columns.
     Null,
     Boolean,
@@ -363,7 +365,7 @@ pub enum DataType {
     List(ListTypeMeta),
 }
 
-impl DataType {
+impl DataTypeOld {
     /// Try to create a default data type from the the data type id.
     ///
     /// Errors on attempts to create a data type from an id that we either don't
@@ -374,37 +376,37 @@ impl DataType {
             DataTypeId::Any => {
                 return Err(RayexecError::new("Cannot create a default Any datatype"))
             }
-            DataTypeId::Null => DataType::Null,
-            DataTypeId::Boolean => DataType::Boolean,
-            DataTypeId::Int8 => DataType::Int8,
-            DataTypeId::Int16 => DataType::Int16,
-            DataTypeId::Int32 => DataType::Int32,
-            DataTypeId::Int64 => DataType::Int64,
-            DataTypeId::Int128 => DataType::Int128,
-            DataTypeId::UInt8 => DataType::UInt8,
-            DataTypeId::UInt16 => DataType::UInt16,
-            DataTypeId::UInt32 => DataType::UInt32,
-            DataTypeId::UInt64 => DataType::UInt64,
-            DataTypeId::UInt128 => DataType::UInt128,
-            DataTypeId::Float16 => DataType::Float16,
-            DataTypeId::Float32 => DataType::Float32,
-            DataTypeId::Float64 => DataType::Float64,
-            DataTypeId::Decimal64 => DataType::Decimal64(DecimalTypeMeta::new(
+            DataTypeId::Null => DataTypeOld::Null,
+            DataTypeId::Boolean => DataTypeOld::Boolean,
+            DataTypeId::Int8 => DataTypeOld::Int8,
+            DataTypeId::Int16 => DataTypeOld::Int16,
+            DataTypeId::Int32 => DataTypeOld::Int32,
+            DataTypeId::Int64 => DataTypeOld::Int64,
+            DataTypeId::Int128 => DataTypeOld::Int128,
+            DataTypeId::UInt8 => DataTypeOld::UInt8,
+            DataTypeId::UInt16 => DataTypeOld::UInt16,
+            DataTypeId::UInt32 => DataTypeOld::UInt32,
+            DataTypeId::UInt64 => DataTypeOld::UInt64,
+            DataTypeId::UInt128 => DataTypeOld::UInt128,
+            DataTypeId::Float16 => DataTypeOld::Float16,
+            DataTypeId::Float32 => DataTypeOld::Float32,
+            DataTypeId::Float64 => DataTypeOld::Float64,
+            DataTypeId::Decimal64 => DataTypeOld::Decimal64(DecimalTypeMeta::new(
                 Decimal64Type::MAX_PRECISION,
                 Decimal64Type::DEFAULT_SCALE,
             )),
-            DataTypeId::Decimal128 => DataType::Decimal128(DecimalTypeMeta::new(
+            DataTypeId::Decimal128 => DataTypeOld::Decimal128(DecimalTypeMeta::new(
                 Decimal128Type::MAX_PRECISION,
                 Decimal128Type::DEFAULT_SCALE,
             )),
-            DataTypeId::Timestamp => DataType::Timestamp(TimestampTypeMeta {
+            DataTypeId::Timestamp => DataTypeOld::Timestamp(TimestampTypeMeta {
                 unit: TimeUnit::Microsecond,
             }),
-            DataTypeId::Date32 => DataType::Date32,
-            DataTypeId::Date64 => DataType::Date64,
-            DataTypeId::Interval => DataType::Interval,
-            DataTypeId::Utf8 => DataType::Utf8,
-            DataTypeId::Binary => DataType::Binary,
+            DataTypeId::Date32 => DataTypeOld::Date32,
+            DataTypeId::Date64 => DataTypeOld::Date64,
+            DataTypeId::Interval => DataTypeOld::Interval,
+            DataTypeId::Utf8 => DataTypeOld::Utf8,
+            DataTypeId::Binary => DataTypeOld::Binary,
             DataTypeId::Struct => {
                 return Err(RayexecError::new("Cannot create a default Struct datatype"))
             }
@@ -417,126 +419,126 @@ impl DataType {
     /// Get the data type id from the data type.
     pub const fn datatype_id(&self) -> DataTypeId {
         match self {
-            DataType::Null => DataTypeId::Null,
-            DataType::Boolean => DataTypeId::Boolean,
-            DataType::Int8 => DataTypeId::Int8,
-            DataType::Int16 => DataTypeId::Int16,
-            DataType::Int32 => DataTypeId::Int32,
-            DataType::Int64 => DataTypeId::Int64,
-            DataType::Int128 => DataTypeId::Int128,
-            DataType::UInt8 => DataTypeId::UInt8,
-            DataType::UInt16 => DataTypeId::UInt16,
-            DataType::UInt32 => DataTypeId::UInt32,
-            DataType::UInt64 => DataTypeId::UInt64,
-            DataType::UInt128 => DataTypeId::UInt128,
-            DataType::Float16 => DataTypeId::Float16,
-            DataType::Float32 => DataTypeId::Float32,
-            DataType::Float64 => DataTypeId::Float64,
-            DataType::Decimal64(_) => DataTypeId::Decimal64,
-            DataType::Decimal128(_) => DataTypeId::Decimal128,
-            DataType::Timestamp(_) => DataTypeId::Timestamp,
-            DataType::Date32 => DataTypeId::Date32,
-            DataType::Date64 => DataTypeId::Date64,
-            DataType::Interval => DataTypeId::Interval,
-            DataType::Utf8 => DataTypeId::Utf8,
-            DataType::Binary => DataTypeId::Binary,
-            DataType::Struct(_) => DataTypeId::Struct,
-            DataType::List(_) => DataTypeId::List,
+            DataTypeOld::Null => DataTypeId::Null,
+            DataTypeOld::Boolean => DataTypeId::Boolean,
+            DataTypeOld::Int8 => DataTypeId::Int8,
+            DataTypeOld::Int16 => DataTypeId::Int16,
+            DataTypeOld::Int32 => DataTypeId::Int32,
+            DataTypeOld::Int64 => DataTypeId::Int64,
+            DataTypeOld::Int128 => DataTypeId::Int128,
+            DataTypeOld::UInt8 => DataTypeId::UInt8,
+            DataTypeOld::UInt16 => DataTypeId::UInt16,
+            DataTypeOld::UInt32 => DataTypeId::UInt32,
+            DataTypeOld::UInt64 => DataTypeId::UInt64,
+            DataTypeOld::UInt128 => DataTypeId::UInt128,
+            DataTypeOld::Float16 => DataTypeId::Float16,
+            DataTypeOld::Float32 => DataTypeId::Float32,
+            DataTypeOld::Float64 => DataTypeId::Float64,
+            DataTypeOld::Decimal64(_) => DataTypeId::Decimal64,
+            DataTypeOld::Decimal128(_) => DataTypeId::Decimal128,
+            DataTypeOld::Timestamp(_) => DataTypeId::Timestamp,
+            DataTypeOld::Date32 => DataTypeId::Date32,
+            DataTypeOld::Date64 => DataTypeId::Date64,
+            DataTypeOld::Interval => DataTypeId::Interval,
+            DataTypeOld::Utf8 => DataTypeId::Utf8,
+            DataTypeOld::Binary => DataTypeId::Binary,
+            DataTypeOld::Struct(_) => DataTypeId::Struct,
+            DataTypeOld::List(_) => DataTypeId::List,
         }
     }
 
     pub fn physical_type(&self) -> Result<PhysicalType> {
         Ok(match self {
-            DataType::Null => PhysicalType::UntypedNull,
-            DataType::Boolean => PhysicalType::Boolean,
-            DataType::Int8 => PhysicalType::Int8,
-            DataType::Int16 => PhysicalType::Int16,
-            DataType::Int32 => PhysicalType::Int32,
-            DataType::Int64 => PhysicalType::Int64,
-            DataType::Int128 => PhysicalType::Int128,
-            DataType::UInt8 => PhysicalType::UInt8,
-            DataType::UInt16 => PhysicalType::UInt16,
-            DataType::UInt32 => PhysicalType::UInt32,
-            DataType::UInt64 => PhysicalType::UInt64,
-            DataType::UInt128 => PhysicalType::UInt128,
-            DataType::Float16 => PhysicalType::Float16,
-            DataType::Float32 => PhysicalType::Float32,
-            DataType::Float64 => PhysicalType::Float64,
-            DataType::Decimal64(_) => PhysicalType::Int64,
-            DataType::Decimal128(_) => PhysicalType::Int128,
-            DataType::Timestamp(_) => PhysicalType::Int64,
-            DataType::Date32 => PhysicalType::Int32,
-            DataType::Date64 => PhysicalType::Int64,
-            DataType::Interval => PhysicalType::Interval,
-            DataType::Utf8 => PhysicalType::Utf8,
-            DataType::Binary => PhysicalType::Binary,
-            DataType::Struct(_) => not_implemented!("struct data type to physical type"),
-            DataType::List(_) => PhysicalType::List,
+            DataTypeOld::Null => PhysicalType::UntypedNull,
+            DataTypeOld::Boolean => PhysicalType::Boolean,
+            DataTypeOld::Int8 => PhysicalType::Int8,
+            DataTypeOld::Int16 => PhysicalType::Int16,
+            DataTypeOld::Int32 => PhysicalType::Int32,
+            DataTypeOld::Int64 => PhysicalType::Int64,
+            DataTypeOld::Int128 => PhysicalType::Int128,
+            DataTypeOld::UInt8 => PhysicalType::UInt8,
+            DataTypeOld::UInt16 => PhysicalType::UInt16,
+            DataTypeOld::UInt32 => PhysicalType::UInt32,
+            DataTypeOld::UInt64 => PhysicalType::UInt64,
+            DataTypeOld::UInt128 => PhysicalType::UInt128,
+            DataTypeOld::Float16 => PhysicalType::Float16,
+            DataTypeOld::Float32 => PhysicalType::Float32,
+            DataTypeOld::Float64 => PhysicalType::Float64,
+            DataTypeOld::Decimal64(_) => PhysicalType::Int64,
+            DataTypeOld::Decimal128(_) => PhysicalType::Int128,
+            DataTypeOld::Timestamp(_) => PhysicalType::Int64,
+            DataTypeOld::Date32 => PhysicalType::Int32,
+            DataTypeOld::Date64 => PhysicalType::Int64,
+            DataTypeOld::Interval => PhysicalType::Interval,
+            DataTypeOld::Utf8 => PhysicalType::Utf8,
+            DataTypeOld::Binary => PhysicalType::Binary,
+            DataTypeOld::Struct(_) => not_implemented!("struct data type to physical type"),
+            DataTypeOld::List(_) => PhysicalType::List,
         })
     }
 
     /// Return if this datatype is null.
     pub const fn is_null(&self) -> bool {
-        matches!(self, DataType::Null)
+        matches!(self, DataTypeOld::Null)
     }
 
     /// Return if this datatype is a list.
     pub const fn is_list(&self) -> bool {
-        matches!(self, DataType::List(_))
+        matches!(self, DataTypeOld::List(_))
     }
 
     pub const fn is_utf8(&self) -> bool {
-        matches!(self, DataType::Utf8)
+        matches!(self, DataTypeOld::Utf8)
     }
 
     pub const fn is_primitive_numeric(&self) -> bool {
         matches!(
             self,
-            DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64
-                | DataType::Int128
-                | DataType::UInt8
-                | DataType::UInt16
-                | DataType::UInt32
-                | DataType::UInt64
-                | DataType::UInt128
-                | DataType::Float16
-                | DataType::Float32
-                | DataType::Float64
+            DataTypeOld::Int8
+                | DataTypeOld::Int16
+                | DataTypeOld::Int32
+                | DataTypeOld::Int64
+                | DataTypeOld::Int128
+                | DataTypeOld::UInt8
+                | DataTypeOld::UInt16
+                | DataTypeOld::UInt32
+                | DataTypeOld::UInt64
+                | DataTypeOld::UInt128
+                | DataTypeOld::Float16
+                | DataTypeOld::Float32
+                | DataTypeOld::Float64
         )
     }
 
     pub const fn is_numeric(&self) -> bool {
         matches!(
             self,
-            DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64
-                | DataType::Int128
-                | DataType::UInt8
-                | DataType::UInt16
-                | DataType::UInt32
-                | DataType::UInt64
-                | DataType::UInt128
-                | DataType::Float32
-                | DataType::Float64
-                | DataType::Decimal64(_)
-                | DataType::Decimal128(_)
+            DataTypeOld::Int8
+                | DataTypeOld::Int16
+                | DataTypeOld::Int32
+                | DataTypeOld::Int64
+                | DataTypeOld::Int128
+                | DataTypeOld::UInt8
+                | DataTypeOld::UInt16
+                | DataTypeOld::UInt32
+                | DataTypeOld::UInt64
+                | DataTypeOld::UInt128
+                | DataTypeOld::Float32
+                | DataTypeOld::Float64
+                | DataTypeOld::Decimal64(_)
+                | DataTypeOld::Decimal128(_)
         )
     }
 
     pub const fn is_float(&self) -> bool {
         matches!(
             self,
-            DataType::Float16 | DataType::Float32 | DataType::Float64
+            DataTypeOld::Float16 | DataTypeOld::Float32 | DataTypeOld::Float64
         )
     }
 
     pub const fn is_decimal(&self) -> bool {
-        matches!(self, DataType::Decimal64(_) | DataType::Decimal128(_))
+        matches!(self, DataTypeOld::Decimal64(_) | DataTypeOld::Decimal128(_))
     }
 
     pub fn try_get_decimal_type_meta(&self) -> Result<DecimalTypeMeta> {
@@ -550,7 +552,7 @@ impl DataType {
     }
 }
 
-impl ProtoConv for DataType {
+impl ProtoConv for DataTypeOld {
     type ProtoType = rayexec_proto::generated::schema::DataType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
@@ -558,31 +560,31 @@ impl ProtoConv for DataType {
         use rayexec_proto::generated::schema::EmptyMeta;
 
         let value = match self {
-            DataType::Null => Value::TypeNull(EmptyMeta {}),
-            DataType::Boolean => Value::TypeBoolean(EmptyMeta {}),
-            DataType::Int8 => Value::TypeInt8(EmptyMeta {}),
-            DataType::Int16 => Value::TypeInt16(EmptyMeta {}),
-            DataType::Int32 => Value::TypeInt32(EmptyMeta {}),
-            DataType::Int64 => Value::TypeInt64(EmptyMeta {}),
-            DataType::Int128 => Value::TypeInt128(EmptyMeta {}),
-            DataType::UInt8 => Value::TypeUint8(EmptyMeta {}),
-            DataType::UInt16 => Value::TypeUint16(EmptyMeta {}),
-            DataType::UInt32 => Value::TypeUint32(EmptyMeta {}),
-            DataType::UInt64 => Value::TypeUint64(EmptyMeta {}),
-            DataType::UInt128 => Value::TypeUint128(EmptyMeta {}),
-            DataType::Float16 => Value::TypeFloat16(EmptyMeta {}),
-            DataType::Float32 => Value::TypeFloat32(EmptyMeta {}),
-            DataType::Float64 => Value::TypeFloat64(EmptyMeta {}),
-            DataType::Decimal64(m) => Value::TypeDecimal64(m.to_proto()?),
-            DataType::Decimal128(m) => Value::TypeDecimal128(m.to_proto()?),
-            DataType::Timestamp(m) => Value::TypeTimestamp(m.to_proto()?),
-            DataType::Date32 => Value::TypeDate32(EmptyMeta {}),
-            DataType::Date64 => Value::TypeDate64(EmptyMeta {}),
-            DataType::Interval => Value::TypeInterval(EmptyMeta {}),
-            DataType::Utf8 => Value::TypeUtf8(EmptyMeta {}),
-            DataType::Binary => Value::TypeBinary(EmptyMeta {}),
-            DataType::Struct(m) => Value::TypeStruct(m.to_proto()?),
-            DataType::List(m) => Value::TypeList(Box::new(m.to_proto()?)),
+            DataTypeOld::Null => Value::TypeNull(EmptyMeta {}),
+            DataTypeOld::Boolean => Value::TypeBoolean(EmptyMeta {}),
+            DataTypeOld::Int8 => Value::TypeInt8(EmptyMeta {}),
+            DataTypeOld::Int16 => Value::TypeInt16(EmptyMeta {}),
+            DataTypeOld::Int32 => Value::TypeInt32(EmptyMeta {}),
+            DataTypeOld::Int64 => Value::TypeInt64(EmptyMeta {}),
+            DataTypeOld::Int128 => Value::TypeInt128(EmptyMeta {}),
+            DataTypeOld::UInt8 => Value::TypeUint8(EmptyMeta {}),
+            DataTypeOld::UInt16 => Value::TypeUint16(EmptyMeta {}),
+            DataTypeOld::UInt32 => Value::TypeUint32(EmptyMeta {}),
+            DataTypeOld::UInt64 => Value::TypeUint64(EmptyMeta {}),
+            DataTypeOld::UInt128 => Value::TypeUint128(EmptyMeta {}),
+            DataTypeOld::Float16 => Value::TypeFloat16(EmptyMeta {}),
+            DataTypeOld::Float32 => Value::TypeFloat32(EmptyMeta {}),
+            DataTypeOld::Float64 => Value::TypeFloat64(EmptyMeta {}),
+            DataTypeOld::Decimal64(m) => Value::TypeDecimal64(m.to_proto()?),
+            DataTypeOld::Decimal128(m) => Value::TypeDecimal128(m.to_proto()?),
+            DataTypeOld::Timestamp(m) => Value::TypeTimestamp(m.to_proto()?),
+            DataTypeOld::Date32 => Value::TypeDate32(EmptyMeta {}),
+            DataTypeOld::Date64 => Value::TypeDate64(EmptyMeta {}),
+            DataTypeOld::Interval => Value::TypeInterval(EmptyMeta {}),
+            DataTypeOld::Utf8 => Value::TypeUtf8(EmptyMeta {}),
+            DataTypeOld::Binary => Value::TypeBinary(EmptyMeta {}),
+            DataTypeOld::Struct(m) => Value::TypeStruct(m.to_proto()?),
+            DataTypeOld::List(m) => Value::TypeList(Box::new(m.to_proto()?)),
         };
         Ok(Self::ProtoType { value: Some(value) })
     }
@@ -591,36 +593,36 @@ impl ProtoConv for DataType {
         use rayexec_proto::generated::schema::data_type::Value;
 
         Ok(match proto.value.required("value")? {
-            Value::TypeNull(_) => DataType::Null,
-            Value::TypeBoolean(_) => DataType::Boolean,
-            Value::TypeInt8(_) => DataType::Int8,
-            Value::TypeInt16(_) => DataType::Int16,
-            Value::TypeInt32(_) => DataType::Int32,
-            Value::TypeInt64(_) => DataType::Int64,
-            Value::TypeInt128(_) => DataType::Int128,
-            Value::TypeUint8(_) => DataType::UInt8,
-            Value::TypeUint16(_) => DataType::UInt16,
-            Value::TypeUint32(_) => DataType::UInt32,
-            Value::TypeUint64(_) => DataType::UInt64,
-            Value::TypeUint128(_) => DataType::UInt128,
-            Value::TypeFloat16(_) => DataType::Float16,
-            Value::TypeFloat32(_) => DataType::Float32,
-            Value::TypeFloat64(_) => DataType::Float64,
-            Value::TypeDecimal64(m) => DataType::Decimal64(DecimalTypeMeta::from_proto(m)?),
-            Value::TypeDecimal128(m) => DataType::Decimal128(DecimalTypeMeta::from_proto(m)?),
-            Value::TypeTimestamp(m) => DataType::Timestamp(TimestampTypeMeta::from_proto(m)?),
-            Value::TypeDate32(_) => DataType::Date32,
-            Value::TypeDate64(_) => DataType::Date64,
-            Value::TypeInterval(_) => DataType::Interval,
-            Value::TypeUtf8(_) => DataType::Utf8,
-            Value::TypeBinary(_) => DataType::Binary,
-            Value::TypeStruct(m) => DataType::Struct(StructTypeMeta::from_proto(m)?),
-            Value::TypeList(m) => DataType::List(ListTypeMeta::from_proto(*m)?),
+            Value::TypeNull(_) => DataTypeOld::Null,
+            Value::TypeBoolean(_) => DataTypeOld::Boolean,
+            Value::TypeInt8(_) => DataTypeOld::Int8,
+            Value::TypeInt16(_) => DataTypeOld::Int16,
+            Value::TypeInt32(_) => DataTypeOld::Int32,
+            Value::TypeInt64(_) => DataTypeOld::Int64,
+            Value::TypeInt128(_) => DataTypeOld::Int128,
+            Value::TypeUint8(_) => DataTypeOld::UInt8,
+            Value::TypeUint16(_) => DataTypeOld::UInt16,
+            Value::TypeUint32(_) => DataTypeOld::UInt32,
+            Value::TypeUint64(_) => DataTypeOld::UInt64,
+            Value::TypeUint128(_) => DataTypeOld::UInt128,
+            Value::TypeFloat16(_) => DataTypeOld::Float16,
+            Value::TypeFloat32(_) => DataTypeOld::Float32,
+            Value::TypeFloat64(_) => DataTypeOld::Float64,
+            Value::TypeDecimal64(m) => DataTypeOld::Decimal64(DecimalTypeMeta::from_proto(m)?),
+            Value::TypeDecimal128(m) => DataTypeOld::Decimal128(DecimalTypeMeta::from_proto(m)?),
+            Value::TypeTimestamp(m) => DataTypeOld::Timestamp(TimestampTypeMeta::from_proto(m)?),
+            Value::TypeDate32(_) => DataTypeOld::Date32,
+            Value::TypeDate64(_) => DataTypeOld::Date64,
+            Value::TypeInterval(_) => DataTypeOld::Interval,
+            Value::TypeUtf8(_) => DataTypeOld::Utf8,
+            Value::TypeBinary(_) => DataTypeOld::Binary,
+            Value::TypeStruct(m) => DataTypeOld::Struct(StructTypeMeta::from_proto(m)?),
+            Value::TypeList(m) => DataTypeOld::List(ListTypeMeta::from_proto(*m)?),
         })
     }
 }
 
-impl fmt::Display for DataType {
+impl fmt::Display for DataTypeOld {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Null => write!(f, "Null"),
@@ -657,7 +659,7 @@ impl fmt::Display for DataType {
                         .join(", ")
                 )
             }
-            DataType::List(meta) => write!(f, "List[{}]", meta.datatype),
+            DataTypeOld::List(meta) => write!(f, "List[{}]", meta.datatype),
         }
     }
 }

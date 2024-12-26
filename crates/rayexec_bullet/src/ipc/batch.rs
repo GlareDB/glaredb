@@ -9,11 +9,11 @@ use super::compression::CompressionType;
 use super::gen::message::{FieldNode as IpcFieldNode, RecordBatch as IpcRecordBatch};
 use super::gen::schema::Buffer as IpcBuffer;
 use super::IpcConfig;
-use crate::array::{Array, ArrayData, BinaryData};
-use crate::batch::Batch;
+use crate::array::{ArrayData, ArrayOld, BinaryData};
+use crate::batch::BatchOld;
 use crate::bitmap::Bitmap;
 use crate::bitutil::byte_ceil;
-use crate::datatype::DataType;
+use crate::datatype::DataTypeOld;
 use crate::executor::physical_type::PhysicalType;
 use crate::field::Schema;
 use crate::ipc::gen::message::RecordBatchBuilder;
@@ -30,7 +30,7 @@ pub fn ipc_to_batch(
     data: &[u8],
     schema: &Schema,
     _conf: &IpcConfig,
-) -> Result<Batch> {
+) -> Result<BatchOld> {
     let mut buffers = BufferReader {
         data,
         _decompress_buffer: Vec::new(),
@@ -45,7 +45,7 @@ pub fn ipc_to_batch(
         columns.push(array);
     }
 
-    Batch::try_new(columns)
+    BatchOld::try_new(columns)
 }
 
 struct BufferReader<'a> {
@@ -87,7 +87,7 @@ impl<'a> BufferReader<'a> {
     }
 }
 
-fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array> {
+fn decode_array(buffers: &mut BufferReader, datatype: &DataTypeOld) -> Result<ArrayOld> {
     let node = buffers.try_next_node()?;
     let len = node.length() as usize;
     // Validity buffer always exists for primitive+varlen arrays even if there's
@@ -129,7 +129,7 @@ fn decode_array(buffers: &mut BufferReader, datatype: &DataType) -> Result<Array
         PhysicalType::List => not_implemented!("IPC-decode untyped null"),
     };
 
-    Ok(Array {
+    Ok(ArrayOld {
         datatype: datatype.clone(),
         selection: None,
         validity,
@@ -157,7 +157,7 @@ fn decode_varlen_values(buffers: [&[u8]; 2]) -> Result<ArrayData> {
 
 /// Encode a batch into `data`, returning the message header.
 pub fn batch_to_ipc<'a>(
-    batch: &Batch,
+    batch: &BatchOld,
     data: &mut Vec<u8>,
     builder: &mut FlatBufferBuilder<'a>,
 ) -> Result<WIPOffset<IpcRecordBatch<'a>>> {
@@ -206,7 +206,7 @@ pub fn batch_to_ipc<'a>(
 }
 
 fn encode_array(
-    array: &Array,
+    array: &ArrayOld,
     data: &mut Vec<u8>,
     fields: &mut Vec<IpcFieldNode>,
     buffers: &mut Vec<IpcBuffer>,
@@ -312,7 +312,7 @@ mod tests {
     use crate::datatype::DecimalTypeMeta;
     use crate::field::Field;
 
-    fn roundtrip(schema: Schema, batch: Batch) {
+    fn roundtrip(schema: Schema, batch: BatchOld) {
         let mut builder = FlatBufferBuilder::new();
         let mut data_buf = Vec::new();
 
@@ -329,12 +329,15 @@ mod tests {
 
     #[test]
     fn simple_batch_roundtrip() {
-        let batch =
-            Batch::try_new([Array::from_iter([3, 2, 1]), Array::from_iter([9, 8, 7])]).unwrap();
+        let batch = BatchOld::try_new([
+            ArrayOld::from_iter([3, 2, 1]),
+            ArrayOld::from_iter([9, 8, 7]),
+        ])
+        .unwrap();
 
         let schema = Schema::new([
-            Field::new("f1", DataType::Int32, true),
-            Field::new("f2", DataType::Int32, true),
+            Field::new("f1", DataTypeOld::Int32, true),
+            Field::new("f2", DataTypeOld::Int32, true),
         ]);
 
         roundtrip(schema, batch);
@@ -342,22 +345,22 @@ mod tests {
 
     #[test]
     fn utf8_roundtrip() {
-        let batch = Batch::try_new([Array::from_iter(["mario", "peach", "yoshi"])]).unwrap();
+        let batch = BatchOld::try_new([ArrayOld::from_iter(["mario", "peach", "yoshi"])]).unwrap();
 
-        let schema = Schema::new([Field::new("f1", DataType::Utf8, true)]);
+        let schema = Schema::new([Field::new("f1", DataTypeOld::Utf8, true)]);
 
         roundtrip(schema, batch);
     }
 
     #[test]
     fn decimal128_roundtrip() {
-        let datatype = DataType::Decimal128(DecimalTypeMeta::new(4, 2));
-        let arr = Array::new_with_array_data(
+        let datatype = DataTypeOld::Decimal128(DecimalTypeMeta::new(4, 2));
+        let arr = ArrayOld::new_with_array_data(
             datatype.clone(),
             PrimitiveStorage::from(vec![1000_i128, 1200, 1250]),
         );
 
-        let batch = Batch::try_new([arr]).unwrap();
+        let batch = BatchOld::try_new([arr]).unwrap();
 
         let schema = Schema::new([Field::new("f1", datatype, true)]);
 

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_error::Result;
@@ -13,7 +13,7 @@ const FORMATTER: Formatter = Formatter::new(FormatOptions {
 pub fn write_markdown_table<'a>(
     output: &mut dyn fmt::Write,
     schema: &Schema,
-    batches: impl IntoIterator<Item = &'a Batch>,
+    batches: impl IntoIterator<Item = &'a BatchOld>,
 ) -> Result<()> {
     // 'field1 | field2 | field3'
     let header = schema
@@ -54,23 +54,23 @@ pub fn write_markdown_table<'a>(
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::array::ArrayOld;
+    use rayexec_bullet::datatype::DataTypeOld;
     use rayexec_bullet::field::Field;
 
     use super::*;
 
     #[test]
     fn simple() {
-        let batch = Batch::try_new([
-            Array::from_iter([1, 2, 3]),
-            Array::from_iter(["cat", "dog", "mouse"]),
+        let batch = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3]),
+            ArrayOld::from_iter(["cat", "dog", "mouse"]),
         ])
         .unwrap();
 
         let schema = Schema::new([
-            Field::new("Numbers", DataType::Int32, false),
-            Field::new("Strings", DataType::Utf8, false),
+            Field::new("Numbers", DataTypeOld::Int32, false),
+            Field::new("Strings", DataTypeOld::Utf8, false),
         ]);
 
         let mut buf = String::new();

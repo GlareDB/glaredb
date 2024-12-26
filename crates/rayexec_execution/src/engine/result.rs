@@ -5,7 +5,7 @@ use std::task::{Context, Poll, Waker};
 use futures::future::BoxFuture;
 use futures::{Future, Stream};
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use tracing::warn;
@@ -52,7 +52,7 @@ pub struct ResultStream {
 }
 
 impl Stream for ResultStream {
-    type Item = Result<Batch>;
+    type Item = Result<BatchOld>;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut inner = self.inner.lock();
 
@@ -117,7 +117,7 @@ pub struct ResultPartitionSink {
 }
 
 impl PartitionSink for ResultPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: BatchOld) -> BoxFuture<'_, Result<()>> {
         Box::pin(PushFuture {
             batch: Some(batch),
             inner: self.inner.clone(),
@@ -157,7 +157,7 @@ impl ErrorSink for ResultErrorSink {
 /// This lets us inject an error into the stream that arises outside of stream.
 #[derive(Debug)]
 struct InnerState {
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     error: Option<RayexecError>,
     finished: bool,
     push_waker: Option<Waker>,
@@ -165,7 +165,7 @@ struct InnerState {
 }
 
 struct PushFuture {
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     inner: Arc<Mutex<InnerState>>,
 }
 

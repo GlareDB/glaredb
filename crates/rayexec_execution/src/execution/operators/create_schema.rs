@@ -4,19 +4,19 @@ use std::task::{Context, Poll};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::catalog::CatalogTx;
 use crate::database::create::CreateSchemaInfo;
@@ -49,8 +49,8 @@ impl PhysicalCreateSchema {
     }
 }
 
-impl ExecutableOperator for PhysicalCreateSchema {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalCreateSchema {
+    fn create_states_old(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -74,45 +74,45 @@ impl ExecutableOperator for PhysicalCreateSchema {
         });
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
-                    create,
-                })],
+                partition_states: vec![PartitionStateOld::CreateSchema(
+                    CreateSchemaPartitionState { create },
+                )],
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+        _batch: BatchOld,
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::CreateSchema(state) => match state.create.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
+            PartitionStateOld::CreateSchema(state) => match state.create.poll_unpin(cx) {
+                Poll::Ready(Ok(_)) => Ok(PollPullOld::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
-                Poll::Pending => Ok(PollPull::Pending),
+                Poll::Pending => Ok(PollPullOld::Pending),
             },
             other => panic!("invalid partition state: {other:?}"),
         }

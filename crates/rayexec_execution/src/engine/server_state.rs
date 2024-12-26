@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
@@ -184,7 +184,7 @@ where
         Ok(())
     }
 
-    pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {
+    pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: BatchOld) -> Result<()> {
         self.buffers.push_batch_for_stream(&stream_id, batch)
     }
 

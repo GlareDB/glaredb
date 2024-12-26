@@ -22,11 +22,11 @@ use std::fmt;
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::array::{ArrayData, ArrayOld};
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::bitmap::Bitmap;
 use rayexec_bullet::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
-use rayexec_bullet::datatype::{DataType, TimeUnit, TimestampTypeMeta};
+use rayexec_bullet::datatype::{DataTypeOld, TimeUnit, TimestampTypeMeta};
 use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
@@ -170,13 +170,15 @@ enum CandidateType {
 }
 
 impl CandidateType {
-    const fn as_datatype(&self) -> DataType {
+    const fn as_datatype(&self) -> DataTypeOld {
         match self {
-            Self::Boolean => DataType::Boolean,
-            Self::Int64 => DataType::Int64,
-            Self::Float64 => DataType::Float64,
-            Self::Timestamp => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
-            Self::Utf8 => DataType::Utf8,
+            Self::Boolean => DataTypeOld::Boolean,
+            Self::Int64 => DataTypeOld::Int64,
+            Self::Float64 => DataTypeOld::Float64,
+            Self::Timestamp => {
+                DataTypeOld::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            }
+            Self::Utf8 => DataTypeOld::Utf8,
         }
     }
 
@@ -232,7 +234,7 @@ pub struct CsvSchema {
 
 impl CsvSchema {
     /// Create a new schema using gnerated names.
-    pub fn new_with_generated_names(types: Vec<DataType>) -> Self {
+    pub fn new_with_generated_names(types: Vec<DataTypeOld>) -> Self {
         let schema = Schema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
             name: format!("column{idx}"),
             datatype: typ,
@@ -337,7 +339,7 @@ impl AsyncCsvReader {
         AsyncCsvReader { stream }
     }
 
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<BatchOld>> {
         self.stream.next_batch().await
     }
 }
@@ -382,7 +384,7 @@ struct AsyncCsvStream {
 }
 
 impl AsyncCsvStream {
-    async fn next_batch(&mut self) -> Result<Option<Batch>> {
+    async fn next_batch(&mut self) -> Result<Option<BatchOld>> {
         loop {
             let (buf, offset) = match self.buf.take() {
                 Some(buf) => (buf, self.buf_offset),
@@ -450,42 +452,42 @@ impl AsyncCsvStream {
         completed: CompletedRecords,
         schema: &Schema,
         skip_header: bool,
-    ) -> Result<Batch> {
+    ) -> Result<BatchOld> {
         let skip_records = if skip_header { 1 } else { 0 };
 
         let mut arrs = Vec::with_capacity(schema.fields.len());
         for (idx, field) in schema.fields.iter().enumerate() {
             let arr = match &field.datatype {
-                DataType::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
-                DataType::Int64 => Self::build_primitive(
+                DataTypeOld::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
+                DataTypeOld::Int64 => Self::build_primitive(
                     &field.datatype,
                     &completed,
                     idx,
                     skip_records,
                     Int64Parser::new(),
                 )?,
-                DataType::Float64 => Self::build_primitive(
+                DataTypeOld::Float64 => Self::build_primitive(
                     &field.datatype,
                     &completed,
                     idx,
                     skip_records,
                     Float64Parser::new(),
                 )?,
-                DataType::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
+                DataTypeOld::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
                 other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
             };
 
             arrs.push(arr);
         }
 
-        Batch::try_new(arrs)
+        BatchOld::try_new(arrs)
     }
 
     fn build_boolean(
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<Array> {
+    ) -> Result<ArrayOld> {
         let mut values = Bitmap::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -502,20 +504,20 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
-            DataType::Boolean,
+        Ok(ArrayOld::new_with_validity_and_array_data(
+            DataTypeOld::Boolean,
             validity,
             BooleanStorage::from(values),
         ))
     }
 
     fn build_primitive<T, P>(
-        datatype: &DataType,
+        datatype: &DataTypeOld,
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
         mut parser: P,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         T: Default,
         P: Parser<Type = T>,
@@ -539,7 +541,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(ArrayOld::new_with_validity_and_array_data(
             datatype.clone(),
             validity,
             PrimitiveStorage::from(values),
@@ -550,7 +552,7 @@ impl AsyncCsvStream {
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<Array> {
+    ) -> Result<ArrayOld> {
         let mut values = GermanVarlenBuffer::with_len(completed.num_completed() - skip_records);
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -564,8 +566,8 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
-            DataType::Utf8,
+        Ok(ArrayOld::new_with_validity_and_array_data(
+            DataTypeOld::Utf8,
             validity,
             values.into_data(),
         ))

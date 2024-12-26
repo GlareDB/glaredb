@@ -5,17 +5,17 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
-use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use super::{ExecutionStates, InputOutputStates, PollFinalizeOld};
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
-    PollPull,
-    PollPush,
+    ExecutableOperatorOld,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -57,8 +57,8 @@ pub struct RoundRobinOperatorState {
 #[derive(Debug)]
 pub struct PhysicalRoundRobinRepartition;
 
-impl ExecutableOperator for PhysicalRoundRobinRepartition {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalRoundRobinRepartition {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -96,7 +96,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         let mut push_states = Vec::with_capacity(input_partitions);
         let mut push_to = 0;
         for idx in 0..input_partitions {
-            let state = PartitionState::RoundRobinPush(RoundRobinPushPartitionState {
+            let state = PartitionStateOld::RoundRobinPush(RoundRobinPushPartitionState {
                 own_idx: idx,
                 push_to,
                 output_buffers: output_buffers.clone(),
@@ -111,11 +111,13 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
 
         let pull_states: Vec<_> = output_buffers
             .into_iter()
-            .map(|buffer| PartitionState::RoundRobinPull(RoundRobinPullPartitionState { buffer }))
+            .map(|buffer| {
+                PartitionStateOld::RoundRobinPull(RoundRobinPullPartitionState { buffer })
+            })
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::RoundRobin(operator_state)),
+            operator_state: Arc::new(OperatorStateOld::RoundRobin(operator_state)),
             partition_states: InputOutputStates::SeparateInputOutput {
                 push_states,
                 pull_states,
@@ -123,15 +125,15 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+        batch: BatchOld,
+    ) -> Result<PollPushOld> {
         let state = match partition_state {
-            PartitionState::RoundRobinPush(state) => state,
+            PartitionStateOld::RoundRobinPush(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -146,7 +148,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         // wakeup when there's room.
         if output.batches.len() >= state.max_buffer_capacity {
             output.send_wakers[state.own_idx] = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPushOld::Pending(batch));
         }
 
         // Otherwise push our batch.
@@ -160,17 +162,17 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         // call to `poll_push`.
         state.push_to = (state.push_to + 1) % state.output_buffers.len();
 
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         let operator_state = match operator_state {
-            OperatorState::RoundRobin(state) => state,
+            OperatorStateOld::RoundRobin(state) => state,
             other => panic!("invalid operator state: {other:?}"),
         };
 
@@ -186,7 +188,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         // non-exhausted inputs.
         if prev == 1 {
             let state = match partition_state {
-                PartitionState::RoundRobinPush(state) => state,
+                PartitionStateOld::RoundRobinPush(state) => state,
                 other => panic!("invalid partition state: {other:?}"),
             };
 
@@ -199,17 +201,17 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
             }
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::RoundRobinPull(state) => state,
+            PartitionStateOld::RoundRobinPull(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
@@ -218,11 +220,11 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         match inner.batches.pop_front() {
             Some(batch) => {
                 inner.wake_n_senders(1);
-                Ok(PollPull::Computed(batch.into()))
+                Ok(PollPullOld::Computed(batch.into()))
             }
             None => {
                 if inner.exhausted {
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPullOld::Exhausted);
                 }
                 // Register ourselves for wakeup.
                 inner.recv_waker = Some(cx.waker().clone());
@@ -230,7 +232,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
                 // Try to wake up any pushers to fill up the buffer.
                 inner.wake_all_senders();
 
-                Ok(PollPull::Pending)
+                Ok(PollPullOld::Pending)
             }
         }
     }
@@ -247,7 +249,7 @@ struct BatchBufferInner {
     /// Batches buffer.
     ///
     /// Should be bounded to some capacity.
-    batches: VecDeque<Batch>,
+    batches: VecDeque<BatchOld>,
 
     /// Waker on the receiving side of the buffer.
     recv_waker: Option<Waker>,

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
@@ -119,7 +119,7 @@ struct CreateTablePartitionSink {
 }
 
 impl PartitionSink for CreateTablePartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: BatchOld) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.create_table_if_has_fut().await?;
             self.wait_for_sink_if_none().await;

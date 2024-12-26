@@ -3,8 +3,8 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::array::{ArrayData, ArrayOld};
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::aggregate::{
     AggregateState,
     BinaryNonNullUpdater,
@@ -13,7 +13,7 @@ use rayexec_bullet::executor::aggregate::{
     UnaryNonNullUpdater,
 };
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalStorage;
+use rayexec_bullet::executor::physical_type::PhysicalStorageOld;
 use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
@@ -55,16 +55,16 @@ pub fn new_unary_aggregate_states<Storage, State, Output, StateInit, StateFinali
     state_finalize: StateFinalize,
 ) -> Box<dyn AggregateGroupStates>
 where
-    Storage: PhysicalStorage,
+    Storage: PhysicalStorageOld,
     State: for<'a> AggregateState<
-            <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
+            <<Storage as PhysicalStorageOld>::Storage<'a> as AddressableStorage>::T,
             Output,
         > + Sync
         + Send
         + 'static,
     Output: Sync + Send + 'static,
     StateInit: Fn() -> State + Sync + Send + 'static,
-    StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send + 'static,
+    StateFinalize: Fn(&mut [State]) -> Result<ArrayOld> + Sync + Send + 'static,
 {
     Box::new(TypedAggregateGroupStates {
         states: Vec::new(),
@@ -82,15 +82,15 @@ pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit,
     state_finalize: StateFinalize,
 ) -> Box<dyn AggregateGroupStates>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
+    Storage1: PhysicalStorageOld,
+    Storage2: PhysicalStorageOld,
     State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
         + Sync
         + Send
         + 'static,
     Output: Sync + Send + 'static,
     StateInit: Fn() -> State + Sync + Send + 'static,
-    StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send + 'static,
+    StateFinalize: Fn(&mut [State]) -> Result<ArrayOld> + Sync + Send + 'static,
 {
     Box::new(TypedAggregateGroupStates {
         states: Vec::new(),
@@ -109,8 +109,8 @@ where
     Input: Sync + Send,
     Output: Sync + Send,
     StateInit: Fn() -> State + Sync + Send,
-    StateUpdate: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Sync + Send,
-    StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send,
+    StateUpdate: Fn(&[&ArrayOld], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Sync + Send,
+    StateFinalize: Fn(&mut [State]) -> Result<ArrayOld> + Sync + Send,
 {
     fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_> {
         OpaqueStatesMut(&mut self.states)
@@ -124,7 +124,11 @@ where
         self.states.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()> {
+    fn update_states(
+        &mut self,
+        inputs: &[&ArrayOld],
+        mapping: ChunkGroupAddressIter,
+    ) -> Result<()> {
         (self.state_update)(inputs, mapping, &mut self.states)
     }
 
@@ -137,7 +141,7 @@ where
         StateCombiner::combine(consume_states, mapping, &mut self.states)
     }
 
-    fn finalize(&mut self) -> Result<Array> {
+    fn finalize(&mut self) -> Result<ArrayOld> {
         (self.state_finalize)(&mut self.states)
     }
 }
@@ -166,7 +170,8 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     fn num_states(&self) -> usize;
 
     /// Update states from inputs using some mapping.
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()>;
+    fn update_states(&mut self, inputs: &[&ArrayOld], mapping: ChunkGroupAddressIter)
+        -> Result<()>;
 
     /// Combine states from another partition into self using some mapping.
     fn combine(
@@ -176,7 +181,7 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     ) -> Result<()>;
 
     /// Finalize the states and return an array.
-    fn finalize(&mut self) -> Result<Array>;
+    fn finalize(&mut self) -> Result<ArrayOld>;
 }
 
 #[derive(Debug)]
@@ -194,25 +199,25 @@ impl<'a> OpaqueStatesMut<'a> {
 
 /// Update function for a unary aggregate.
 pub fn unary_update<State, Storage, Output>(
-    arrays: &[&Array],
+    arrays: &[&ArrayOld],
     mapping: ChunkGroupAddressIter,
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage: PhysicalStorage,
+    Storage: PhysicalStorageOld,
     State: for<'a> AggregateState<Storage::Type<'a>, Output>,
 {
     UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
 }
 
 pub fn binary_update<State, Storage1, Storage2, Output>(
-    arrays: &[&Array],
+    arrays: &[&ArrayOld],
     mapping: ChunkGroupAddressIter,
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
+    Storage1: PhysicalStorageOld,
+    Storage2: PhysicalStorageOld,
     State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
 {
     BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(
@@ -220,11 +225,14 @@ where
     )
 }
 
-pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array> {
-    Ok(Array::new_untyped_null_array(states.len()))
+pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<ArrayOld> {
+    Ok(ArrayOld::new_untyped_null_array(states.len()))
 }
 
-pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array>
+pub fn boolean_finalize<State, Input>(
+    datatype: DataTypeOld,
+    states: &mut [State],
+) -> Result<ArrayOld>
 where
     State: AggregateState<Input, bool>,
 {
@@ -236,9 +244,9 @@ where
 }
 
 pub fn primitive_finalize<State, Input, Output>(
-    datatype: DataType,
+    datatype: DataTypeOld,
     states: &mut [State],
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     State: AggregateState<Input, Output>,
     Output: Copy + Default,

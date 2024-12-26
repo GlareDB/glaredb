@@ -1,7 +1,7 @@
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
@@ -12,8 +12,8 @@ pub struct GroupingSetExpr {
 }
 
 impl GroupingSetExpr {
-    pub fn datatype(&self) -> DataType {
-        DataType::UInt64
+    pub fn datatype(&self) -> DataTypeOld {
+        DataTypeOld::UInt64
     }
 }
 

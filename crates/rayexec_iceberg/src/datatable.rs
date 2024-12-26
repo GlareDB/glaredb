@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 use rayexec_execution::storage::table_storage::{DataTable, DataTableScan, Projections};
 
@@ -34,7 +34,7 @@ struct IcebergTableScan {
 }
 
 impl DataTableScan for IcebergTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async { self.scan.read_next().await })
     }
 }

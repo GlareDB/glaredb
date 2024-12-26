@@ -1,5 +1,5 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::scalar::interval::Interval;
 use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
@@ -758,7 +758,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         }))
                     }
                     None => Ok(Expression::Cast(CastExpr {
-                        to: DataType::Interval,
+                        to: DataTypeOld::Interval,
                         expr: Box::new(expr),
                     })),
                 }
@@ -1005,7 +1005,7 @@ impl<'a> BaseExpressionBinder<'a> {
         let return_type = if subquery_type == SubqueryType::Scalar {
             query_return_type.clone()
         } else {
-            DataType::Boolean
+            DataTypeOld::Boolean
         };
 
         if matches!(
@@ -1383,8 +1383,8 @@ impl<'a> BaseExpressionBinder<'a> {
             }
 
             match input.datatype(bind_context.get_table_list())? {
-                DataType::Decimal64(m) => decimal64_meta = Some(m),
-                DataType::Decimal128(m) => decimal128_meta = Some(m),
+                DataTypeOld::Decimal64(m) => decimal64_meta = Some(m),
+                DataTypeOld::Decimal128(m) => decimal128_meta = Some(m),
                 _ => (),
             }
         }
@@ -1392,12 +1392,12 @@ impl<'a> BaseExpressionBinder<'a> {
         for input in &mut inputs {
             if let Expression::Cast(cast) = input {
                 match &mut cast.to {
-                    DataType::Decimal64(curr) => {
+                    DataTypeOld::Decimal64(curr) => {
                         if let Some(m) = decimal64_meta {
                             *curr = m;
                         }
                     }
-                    DataType::Decimal128(curr) => {
+                    DataTypeOld::Decimal128(curr) => {
                         if let Some(m) = decimal128_meta {
                             *curr = m;
                         }
@@ -1458,7 +1458,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 .map(|(input, cast_to)| {
                     Ok(match cast_to {
                         CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
+                            to: DataTypeOld::try_default_datatype(to)?,
                             expr: Box::new(input),
                         }),
                         CastType::NoCastNeeded => input,
@@ -1507,7 +1507,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 .map(|(input, cast_to)| {
                     Ok(match cast_to {
                         CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
+                            to: DataTypeOld::try_default_datatype(to)?,
                             expr: Box::new(input),
                         }),
                         CastType::NoCastNeeded => input,
@@ -1560,7 +1560,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 .map(|(input, cast_to)| {
                     Ok(match cast_to {
                         CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
+                            to: DataTypeOld::try_default_datatype(to)?,
                             expr: Box::new(input),
                         }),
                         CastType::NoCastNeeded => input,

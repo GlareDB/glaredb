@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::Expression;
@@ -41,7 +41,7 @@ pub struct CaseExpr {
 }
 
 impl CaseExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataTypeOld> {
         let mut case_iter = self.cases.iter();
         let datatype = match case_iter.next() {
             Some(case) => case.then.datatype(table_list)?,

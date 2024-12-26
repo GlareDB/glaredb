@@ -1,7 +1,7 @@
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::Expression;
@@ -77,7 +77,7 @@ pub struct WindowExpr {
 }
 
 impl WindowExpr {
-    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
+    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataTypeOld> {
         Ok(self.agg.return_type.clone())
     }
 }

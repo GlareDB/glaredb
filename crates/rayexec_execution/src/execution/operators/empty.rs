@@ -1,17 +1,17 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
@@ -28,54 +28,56 @@ pub struct EmptyPartitionState {
 #[derive(Debug)]
 pub struct PhysicalEmpty;
 
-impl ExecutableOperator for PhysicalEmpty {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalEmpty {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
+            operator_state: Arc::new(OperatorStateOld::None),
             partition_states: InputOutputStates::OneToOne {
                 partition_states: (0..partitions[0])
-                    .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
+                    .map(|_| PartitionStateOld::Empty(EmptyPartitionState { finished: false }))
                     .collect(),
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+        _batch: BatchOld,
+    ) -> Result<PollPushOld> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         match partition_state {
-            PartitionState::Empty(state) => {
+            PartitionStateOld::Empty(state) => {
                 if state.finished {
-                    Ok(PollPull::Exhausted)
+                    Ok(PollPullOld::Exhausted)
                 } else {
                     state.finished = true;
-                    Ok(PollPull::Computed(Batch::empty_with_num_rows(1).into()))
+                    Ok(PollPullOld::Computed(
+                        BatchOld::empty_with_num_rows(1).into(),
+                    ))
                 }
             }
             other => panic!("inner join state is not building: {other:?}"),

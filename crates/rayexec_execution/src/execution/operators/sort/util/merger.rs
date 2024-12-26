@@ -1,7 +1,7 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::accumulator::IndicesAccumulator;
@@ -12,7 +12,7 @@ pub enum MergeResult {
     /// We have a merged batch.
     ///
     /// Nothing else needed before the next call to `try_merge`.
-    Batch(Batch),
+    Batch(BatchOld),
 
     /// Need to push a new batch for the input at the given index.
     ///
@@ -73,7 +73,7 @@ where
     /// The initial heap will be created from the first element of each
     /// iterator. If an input is never expected to produce references, its iter
     /// state should be Finished and the batch should be None.
-    pub fn try_new(inputs: Vec<(Option<Batch>, IterState<I>)>) -> Result<Self> {
+    pub fn try_new(inputs: Vec<(Option<BatchOld>, IterState<I>)>) -> Result<Self> {
         let mut heap = BinaryHeap::new();
         let mut iters = Vec::with_capacity(inputs.len());
         let mut acc = IndicesAccumulator::new(inputs.len());
@@ -128,7 +128,12 @@ where
     }
 
     /// Push a batch and iterator for an input.
-    pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, mut iter: I) -> Result<()> {
+    pub fn push_batch_for_input(
+        &mut self,
+        input: usize,
+        batch: BatchOld,
+        mut iter: I,
+    ) -> Result<()> {
         assert!(self.needs_input);
 
         self.needs_input = false;

@@ -2,14 +2,14 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::{AsPrimitive, Float};
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalStorage,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalStorageOld,
 };
 use rayexec_bullet::executor::scalar::{BinaryListReducer, ListExecutor};
 use rayexec_error::Result;
@@ -65,16 +65,16 @@ impl ScalarFunction for L2Distance {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::List(a), DataType::List(b)) => {
+            (DataTypeOld::List(a), DataTypeOld::List(b)) => {
                 match (a.datatype.as_ref(), b.datatype.as_ref()) {
-                    (DataType::Float16, DataType::Float16) => {
-                        Box::new(L2DistanceImpl::<PhysicalF16>::new())
+                    (DataTypeOld::Float16, DataTypeOld::Float16) => {
+                        Box::new(L2DistanceImpl::<PhysicalF16Old>::new())
                     }
-                    (DataType::Float32, DataType::Float32) => {
-                        Box::new(L2DistanceImpl::<PhysicalF32>::new())
+                    (DataTypeOld::Float32, DataTypeOld::Float32) => {
+                        Box::new(L2DistanceImpl::<PhysicalF32Old>::new())
                     }
-                    (DataType::Float64, DataType::Float64) => {
-                        Box::new(L2DistanceImpl::<PhysicalF64>::new())
+                    (DataTypeOld::Float64, DataTypeOld::Float64) => {
+                        Box::new(L2DistanceImpl::<PhysicalF64Old>::new())
                     }
                     (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
                 }
@@ -84,7 +84,7 @@ impl ScalarFunction for L2Distance {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Float64,
+            return_type: DataTypeOld::Float64,
             inputs,
             function_impl,
         })
@@ -92,13 +92,13 @@ impl ScalarFunction for L2Distance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2DistanceImpl<S: PhysicalStorage> {
+pub struct L2DistanceImpl<S: PhysicalStorageOld> {
     _s: PhantomData<S>,
 }
 
 impl<S> L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
 {
     fn new() -> Self {
         L2DistanceImpl { _s: PhantomData }
@@ -107,15 +107,15 @@ where
 
 impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 
         let builder = ArrayBuilder {
-            datatype: DataType::Float64,
+            datatype: DataTypeOld::Float64,
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 

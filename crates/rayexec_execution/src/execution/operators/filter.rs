@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{OptionExt, Result};
 
 use super::simple::{SimpleOperator, StatelessOperation};
@@ -23,7 +23,7 @@ impl FilterOperation {
 }
 
 impl StatelessOperation for FilterOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
+    fn execute(&self, batch: BatchOld) -> Result<BatchOld> {
         let selection = self.predicate.select(&batch)?;
         let batch = batch.select(Arc::new(selection)); // TODO: Select mut
 

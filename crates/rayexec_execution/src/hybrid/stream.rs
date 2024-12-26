@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
@@ -64,7 +64,7 @@ pub struct ClientToServerPartitionSink<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: BatchOld) -> BoxFuture<'_, Result<()>> {
         // TODO: Figure out backpressure
         Box::pin(async { self.client.push(self.stream_id, 0, batch).await })
     }
@@ -116,7 +116,7 @@ pub struct ServerToClientPartitionSource<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSource for ServerToClientPartitionSource<C> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async {
             // TODO: Backoff + hint somehow
             loop {

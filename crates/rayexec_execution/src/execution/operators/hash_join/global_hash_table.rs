@@ -3,8 +3,8 @@ use std::fmt;
 use std::sync::Arc;
 
 use hashbrown::raw::RawTable;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::batch::BatchOld;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
@@ -26,7 +26,7 @@ use crate::execution::operators::util::outer_join_tracker::{
 /// side.
 pub struct GlobalHashTable {
     /// All collected batches.
-    batches: Vec<Batch>,
+    batches: Vec<BatchOld>,
     /// Conditions we're joining on.
     conditions: LeftPrecomputedJoinConditions,
     /// Hash table pointing to a row.
@@ -34,7 +34,7 @@ pub struct GlobalHashTable {
     /// Column types for left side of join.
     ///
     /// Used when generating the left columns for a RIGHT OUTER join.
-    left_types: Vec<DataType>,
+    left_types: Vec<DataTypeOld>,
     /// If we're a right join.
     right_join: bool,
     /// If we're a mark join.
@@ -47,7 +47,7 @@ pub struct GlobalHashTable {
 impl GlobalHashTable {
     /// Merge many partition hash tables into a new global hash table.
     pub fn new(
-        left_types: Vec<DataType>,
+        left_types: Vec<DataTypeOld>,
         right_join: bool,
         is_mark: bool,
         partition_tables: Vec<PartitionHashTable>,
@@ -119,17 +119,17 @@ impl GlobalHashTable {
         }
     }
 
-    pub fn collected_batches(&self) -> &[Batch] {
+    pub fn collected_batches(&self) -> &[BatchOld] {
         &self.batches
     }
 
     /// Probe the table.
     pub fn probe(
         &self,
-        right: &Batch,
+        right: &BatchOld,
         hashes: &[u64],
         mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
-    ) -> Result<Vec<Batch>> {
+    ) -> Result<Vec<BatchOld>> {
         // Track per-batch row indices that match the input columns.
         //
         // The value is a vec of (left_idx, right_idx) pairs pointing to rows in
@@ -228,7 +228,7 @@ impl GlobalHashTable {
             let right_cols = right.select(Arc::new(right_row_sel)).into_arrays();
 
             // Create final batch.
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = BatchOld::try_new(left_cols.into_iter().chain(right_cols))?;
             batches.push(batch);
         }
 

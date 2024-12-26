@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::physical_type::PhysicalI64;
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::batch::BatchOld;
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
+use rayexec_bullet::executor::physical_type::PhysicalI64Old;
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::{RayexecError, Result};
 
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{PollFinalizeOld, PollPushOld};
 use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -97,7 +97,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
             .collect::<Result<Vec<_>>>()?;
 
         for datatype in &datatypes {
-            if datatype != &DataType::Int64 {
+            if datatype != &DataTypeOld::Int64 {
                 return Err(invalid_input_types_error(&GenerateSeries, &datatypes));
             }
         }
@@ -113,7 +113,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
             named_inputs,
             function_impl: TableFunctionImpl::InOut(Box::new(GenerateSeriesInOutImpl)),
             cardinality: StatisticsValue::Unknown,
-            schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
+            schema: Schema::new([Field::new("generate_series", DataTypeOld::Int64, false)]),
         })
     }
 }
@@ -164,7 +164,7 @@ struct SeriesParams {
 
 impl SeriesParams {
     /// Generate the next set of rows using the current parameters.
-    fn generate_next(&mut self, batch_size: usize) -> Array {
+    fn generate_next(&mut self, batch_size: usize) -> ArrayOld {
         debug_assert!(!self.exhausted);
 
         let mut series: Vec<i64> = Vec::new();
@@ -195,7 +195,7 @@ impl SeriesParams {
             self.curr = *last + self.step;
         }
 
-        Array::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
+        ArrayOld::new_with_array_data(DataTypeOld::Int64, PrimitiveStorage::from(series))
     }
 }
 
@@ -203,7 +203,7 @@ impl SeriesParams {
 pub struct GenerateSeriesInOutPartitionState {
     batch_size: usize,
     /// Batch we're working on.
-    batch: Option<Batch>,
+    batch: Option<BatchOld>,
     /// Current row number
     next_row_idx: usize,
     /// If we're finished.
@@ -215,29 +215,29 @@ pub struct GenerateSeriesInOutPartitionState {
 }
 
 impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, batch: BatchOld) -> Result<PollPushOld> {
         if self.batch.is_some() {
             // Still processing current batch, come back later.
             self.push_waker = Some(cx.waker().clone());
             if let Some(pull_waker) = self.pull_waker.take() {
                 pull_waker.wake();
             }
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPushOld::Pending(batch));
         }
 
         self.batch = Some(batch);
         self.next_row_idx = 0;
 
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalizeOld> {
         self.finished = true;
         if let Some(waker) = self.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
@@ -259,15 +259,15 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
             };
 
             // Generate new params from row.
-            let start = UnaryExecutor::value_at::<PhysicalI64>(
+            let start = UnaryExecutor::value_at::<PhysicalI64Old>(
                 batch.column(0).unwrap(),
                 self.next_row_idx,
             )?;
-            let end = UnaryExecutor::value_at::<PhysicalI64>(
+            let end = UnaryExecutor::value_at::<PhysicalI64Old>(
                 batch.column(1).unwrap(),
                 self.next_row_idx,
             )?;
-            let step = UnaryExecutor::value_at::<PhysicalI64>(
+            let step = UnaryExecutor::value_at::<PhysicalI64Old>(
                 batch.column(2).unwrap(),
                 self.next_row_idx,
             )?;
@@ -308,7 +308,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_new([out])?;
+        let batch = BatchOld::try_new([out])?;
 
         let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
 

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::{AsScalarFunction, Expression};
@@ -50,7 +50,7 @@ pub struct ArithExpr {
 }
 
 impl ArithExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataTypeOld> {
         // TODO: Be more efficient here.
         Ok(self
             .op

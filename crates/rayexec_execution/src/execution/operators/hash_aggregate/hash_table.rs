@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
@@ -86,7 +86,12 @@ impl HashTable {
         self.entries.len()
     }
 
-    pub fn insert(&mut self, groups: &[Array], hashes: &[u64], inputs: &[Array]) -> Result<()> {
+    pub fn insert(
+        &mut self,
+        groups: &[ArrayOld],
+        hashes: &[u64],
+        inputs: &[ArrayOld],
+    ) -> Result<()> {
         // Find and create groups as needed.
         self.find_or_create_groups(groups, hashes)?;
 
@@ -155,7 +160,7 @@ impl HashTable {
         }
     }
 
-    fn find_or_create_groups(&mut self, groups: &[Array], hashes: &[u64]) -> Result<()> {
+    fn find_or_create_groups(&mut self, groups: &[ArrayOld], hashes: &[u64]) -> Result<()> {
         let num_inputs = hashes.len();
 
         // Resize addresses, this will be where we store all the group
@@ -480,7 +485,7 @@ const fn is_power_of_2(v: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use rayexec_bullet::bitmap::Bitmap;
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::expr;
@@ -503,7 +508,7 @@ mod tests {
     /// Plans a SUM aggregate, and assumes the input can be casted to an Int64.
     fn make_planned_aggregate<I>(cols: I, input_idx: usize) -> PlannedAggregateFunction
     where
-        I: IntoIterator<Item = (&'static str, DataType)>,
+        I: IntoIterator<Item = (&'static str, DataTypeOld)>,
     {
         let (names, types): (Vec<_>, Vec<_>) = cols
             .into_iter()
@@ -513,19 +518,19 @@ mod tests {
         let mut table_list = TableList::empty();
         let table_ref = table_list.push_table(None, types, names).unwrap();
 
-        let input = expr::cast(expr::col_ref(table_ref, input_idx), DataType::Int64);
+        let input = expr::cast(expr::col_ref(table_ref, input_idx), DataTypeOld::Int64);
 
         Sum.plan(&table_list, vec![input]).unwrap()
     }
 
     #[test]
     fn insert_simple() {
-        let groups = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups = [ArrayOld::from_iter(["g1", "g2", "g1"])];
+        let inputs = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
 
         let hashes = [4, 5, 4]; // Hashes for group values.
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Utf8), ("i", DataTypeOld::Int32)], 1);
         let mut table = make_hash_table(agg);
         table.insert(&groups, &hashes, &inputs).unwrap();
 
@@ -536,15 +541,15 @@ mod tests {
     fn insert_chunk_append() {
         // Assumes knowledge of internals.
 
-        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups1 = [ArrayOld::from_iter(["g1", "g2", "g1"])];
+        let inputs1 = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
         let hashes1 = [4, 5, 4];
 
-        let groups2 = [Array::from_iter(["g1", "g2", "g3"])];
-        let inputs2 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups2 = [ArrayOld::from_iter(["g1", "g2", "g3"])];
+        let inputs2 = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
         let hashes2 = [4, 5, 6];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Utf8), ("i", DataTypeOld::Int32)], 1);
         let mut table = make_hash_table(agg);
         table.insert(&groups1, &hashes1, &inputs1).unwrap();
         table.insert(&groups2, &hashes2, &inputs2).unwrap();
@@ -555,12 +560,12 @@ mod tests {
 
     #[test]
     fn insert_hash_collision() {
-        let groups = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups = [ArrayOld::from_iter(["g1", "g2", "g1"])];
+        let inputs = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
 
         let hashes = [4, 4, 4];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Utf8), ("i", DataTypeOld::Int32)], 1);
         let mut table = make_hash_table(agg);
         table.insert(&groups, &hashes, &inputs).unwrap();
 
@@ -571,12 +576,12 @@ mod tests {
     fn insert_require_resize() {
         // 17 unique groups (> initial 16 capacity)
 
-        let groups = [Array::from_iter(0..17)];
-        let inputs = [Array::from_iter(0_i64..17_i64)];
+        let groups = [ArrayOld::from_iter(0..17)];
+        let inputs = [ArrayOld::from_iter(0_i64..17_i64)];
 
         let hashes = vec![44; 17]; // All hashes collide.
 
-        let agg = make_planned_aggregate([("g", DataType::Int32), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Int32), ("i", DataTypeOld::Int32)], 1);
         let mut table = make_hash_table(agg);
         table.insert(&groups, &hashes, &inputs).unwrap();
 
@@ -588,12 +593,12 @@ mod tests {
         // 33 unique groups, more than twice initial capacity. Caught bug where
         // resize by doubling didn't increase capacity enough.
 
-        let groups = [Array::from_iter(0..33)];
-        let inputs = [Array::from_iter(0_i64..33_i64)];
+        let groups = [ArrayOld::from_iter(0..33)];
+        let inputs = [ArrayOld::from_iter(0_i64..33_i64)];
 
         let hashes = vec![44; 33]; // All hashes collide.
 
-        let agg = make_planned_aggregate([("g", DataType::Int32), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Int32), ("i", DataTypeOld::Int32)], 1);
         let mut table = make_hash_table(agg);
         table.insert(&groups, &hashes, &inputs).unwrap();
 
@@ -602,17 +607,17 @@ mod tests {
 
     #[test]
     fn merge_simple() {
-        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups1 = [ArrayOld::from_iter(["g1", "g2", "g1"])];
+        let inputs1 = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Utf8), ("i", DataTypeOld::Int32)], 1);
 
         let hashes = vec![4, 5, 4];
         let mut t1 = make_hash_table(agg.clone());
         t1.insert(&groups1, &hashes, &inputs1).unwrap();
 
-        let groups2 = [Array::from_iter(["g3", "g2", "g1"])];
-        let inputs2 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups2 = [ArrayOld::from_iter(["g3", "g2", "g1"])];
+        let inputs2 = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
 
         let hashes = vec![6, 5, 4];
 
@@ -628,10 +633,10 @@ mod tests {
     fn merge_non_empty_then_merge_empty() {
         // Tests that we properly resize internal buffers to account for merging
         // in empty hash tables after already merging in non-empty hash tables.
-        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups1 = [ArrayOld::from_iter(["g1", "g2", "g1"])];
+        let inputs1 = [ArrayOld::from_iter::<[i64; 3]>([1, 2, 3])];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+        let agg = make_planned_aggregate([("g", DataTypeOld::Utf8), ("i", DataTypeOld::Int32)], 1);
 
         let hashes = vec![4, 5, 4];
         // First hash table, we're merging everything into this one.
@@ -639,8 +644,8 @@ mod tests {
         t1.insert(&groups1, &hashes, &inputs1).unwrap();
 
         // Second hash table, not empty
-        let groups2 = [Array::from_iter(["g1", "g2"])];
-        let inputs2 = [Array::from_iter::<[i64; 2]>([4, 5])];
+        let groups2 = [ArrayOld::from_iter(["g1", "g2"])];
+        let inputs2 = [ArrayOld::from_iter::<[i64; 2]>([4, 5])];
         let hashes = vec![4, 5];
         let mut t2 = make_hash_table(agg.clone());
         t2.insert(&groups2, &hashes, &inputs2).unwrap();

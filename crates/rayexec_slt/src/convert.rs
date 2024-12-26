@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_error::Result;
@@ -34,16 +34,16 @@ pub fn schema_to_types(schema: &Schema) -> Vec<DefaultColumnType> {
     let mut typs = Vec::new();
     for field in &schema.fields {
         let typ = match field.datatype {
-            DataType::Int8
-            | DataType::Int16
-            | DataType::Int32
-            | DataType::Int64
-            | DataType::UInt8
-            | DataType::UInt16
-            | DataType::UInt32
-            | DataType::UInt64 => DefaultColumnType::Integer,
-            DataType::Float32 | DataType::Float64 => DefaultColumnType::FloatingPoint,
-            DataType::Utf8 | DataType::Boolean => DefaultColumnType::Text,
+            DataTypeOld::Int8
+            | DataTypeOld::Int16
+            | DataTypeOld::Int32
+            | DataTypeOld::Int64
+            | DataTypeOld::UInt8
+            | DataTypeOld::UInt16
+            | DataTypeOld::UInt32
+            | DataTypeOld::UInt64 => DefaultColumnType::Integer,
+            DataTypeOld::Float32 | DataTypeOld::Float64 => DefaultColumnType::FloatingPoint,
+            DataTypeOld::Utf8 | DataTypeOld::Boolean => DefaultColumnType::Text,
             _ => DefaultColumnType::Any,
         };
         typs.push(typ);

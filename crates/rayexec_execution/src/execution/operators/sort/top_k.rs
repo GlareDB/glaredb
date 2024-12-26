@@ -1,17 +1,17 @@
 use std::task::Context;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::Result;
 
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -24,8 +24,8 @@ pub struct TopKOperatorState {}
 #[derive(Debug)]
 pub struct PhysicalTopK {}
 
-impl ExecutableOperator for PhysicalTopK {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalTopK {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
@@ -33,31 +33,31 @@ impl ExecutableOperator for PhysicalTopK {
         unimplemented!()
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+        _batch: BatchOld,
+    ) -> Result<PollPushOld> {
         unimplemented!()
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         unimplemented!()
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        _partition_state: &mut PartitionStateOld,
+        _operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         unimplemented!()
     }
 }

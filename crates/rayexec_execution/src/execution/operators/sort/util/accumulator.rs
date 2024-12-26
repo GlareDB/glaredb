@@ -1,4 +1,4 @@
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::executor::scalar::interleave;
 use rayexec_error::{RayexecError, Result};
 
@@ -14,7 +14,7 @@ struct InputState {
 #[derive(Debug)]
 pub struct IndicesAccumulator {
     /// Batches we're using for the build.
-    batches: Vec<(usize, Batch)>,
+    batches: Vec<(usize, BatchOld)>,
     /// States for each input we're reading from.
     states: Vec<InputState>,
     /// Interleave indices referencing the stored batches.
@@ -36,7 +36,7 @@ impl IndicesAccumulator {
     ///
     /// The inputs's state will be updated to point to the beginning of this
     /// batch (making any previous batches pushed for this input unreachable).
-    pub fn push_input_batch(&mut self, input: usize, batch: Batch) {
+    pub fn push_input_batch(&mut self, input: usize, batch: BatchOld) {
         let idx = self.batches.len();
         self.batches.push((input, batch));
         self.states[input] = InputState { batch_idx: idx };
@@ -56,7 +56,7 @@ impl IndicesAccumulator {
     /// Build a batch from the accumulated interleave indices.
     ///
     /// Internally drops batches that will no longer be part of the output.
-    pub fn build(&mut self) -> Result<Option<Batch>> {
+    pub fn build(&mut self) -> Result<Option<BatchOld>> {
         if self.indices.is_empty() {
             return Ok(None);
         }
@@ -77,7 +77,7 @@ impl IndicesAccumulator {
             .collect::<Result<Vec<_>>>()?;
         self.indices.clear();
 
-        let batch = Batch::try_new(merged)?;
+        let batch = BatchOld::try_new(merged)?;
 
         // Drops batches that are no longer reachable (won't be contributing to
         // the output).

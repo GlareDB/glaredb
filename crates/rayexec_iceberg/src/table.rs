@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::field::Schema;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::storage::table_storage::Projections;
@@ -276,7 +276,7 @@ pub struct TableScan {
 }
 
 impl TableScan {
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<BatchOld>> {
         loop {
             if self.current.is_none() {
                 let file = match self.files.pop_front() {

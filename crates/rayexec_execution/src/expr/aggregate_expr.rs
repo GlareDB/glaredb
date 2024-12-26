@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::Expression;
@@ -19,7 +19,7 @@ pub struct AggregateExpr {
 }
 
 impl AggregateExpr {
-    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
+    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataTypeOld> {
         Ok(self.agg.return_type.clone())
     }
 }

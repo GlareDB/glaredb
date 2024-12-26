@@ -1,7 +1,7 @@
 use std::fmt;
 use std::hash::Hash;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::comparison_expr::ComparisonOperator;
@@ -31,7 +31,7 @@ pub struct SubqueryExpr {
     pub bind_idx: BindScopeRef,
     pub subquery: Box<BoundQuery>,
     pub subquery_type: SubqueryType,
-    pub return_type: DataType,
+    pub return_type: DataTypeOld,
 }
 
 impl SubqueryExpr {

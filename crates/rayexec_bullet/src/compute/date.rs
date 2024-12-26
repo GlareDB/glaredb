@@ -1,10 +1,10 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::array::Array;
-use crate::datatype::{DataType, DecimalTypeMeta, TimeUnit};
+use crate::array::ArrayOld;
+use crate::datatype::{DataTypeOld, DecimalTypeMeta, TimeUnit};
 use crate::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::executor::physical_type::{PhysicalI32, PhysicalI64};
+use crate::executor::physical_type::{PhysicalI32Old, PhysicalI64Old};
 use crate::executor::scalar::UnaryExecutor;
 use crate::scalar::decimal::{Decimal64Type, DecimalType};
 
@@ -69,10 +69,10 @@ pub enum DatePart {
 ///
 /// The results should be decimal representing the part extracted, and should
 /// use the Decimal64 default precision and scale.
-pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
+pub fn extract_date_part(part: DatePart, arr: &ArrayOld) -> Result<ArrayOld> {
     let datatype = arr.datatype();
     match datatype {
-        DataType::Date32 => match part {
+        DataTypeOld::Date32 => match part {
             DatePart::Microseconds => date32_extract_with_fn(arr, extract_microseconds),
             DatePart::Milliseconds => date32_extract_with_fn(arr, extract_milliseconds),
             DatePart::Second => date32_extract_with_fn(arr, extract_seconds),
@@ -85,7 +85,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
             DatePart::Year => date32_extract_with_fn(arr, extract_year),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        DataType::Date64 => match part {
+        DataTypeOld::Date64 => match part {
             DatePart::Microseconds => date64_extract_with_fn(arr, extract_microseconds),
             DatePart::Milliseconds => date64_extract_with_fn(arr, extract_milliseconds),
             DatePart::Second => date64_extract_with_fn(arr, extract_seconds),
@@ -98,7 +98,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
             DatePart::Year => date64_extract_with_fn(arr, extract_year),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        DataType::Timestamp(m) => match part {
+        DataTypeOld::Timestamp(m) => match part {
             DatePart::Microseconds => timestamp_extract_with_fn(m.unit, arr, extract_microseconds),
             DatePart::Milliseconds => timestamp_extract_with_fn(m.unit, arr, extract_milliseconds),
             DatePart::Second => timestamp_extract_with_fn(m.unit, arr, extract_seconds),
@@ -119,7 +119,7 @@ pub fn extract_date_part(part: DatePart, arr: &Array) -> Result<Array> {
     }
 }
 
-fn timestamp_extract_with_fn<F>(unit: TimeUnit, arr: &Array, f: F) -> Result<Array>
+fn timestamp_extract_with_fn<F>(unit: TimeUnit, arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
@@ -140,18 +140,18 @@ where
 }
 
 fn timestamp_extract_with_fn_and_datetime_builder<F, B>(
-    arr: &Array,
+    arr: &ArrayOld,
     f: F,
     builder: B,
-) -> Result<Array>
+) -> Result<ArrayOld>
 where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor::execute::<PhysicalI64Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
+            datatype: DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: Decimal64Type::MAX_PRECISION,
                 scale: Decimal64Type::DEFAULT_SCALE,
             }),
@@ -164,14 +164,14 @@ where
     )
 }
 
-fn date32_extract_with_fn<F>(arr: &Array, f: F) -> Result<Array>
+fn date32_extract_with_fn<F>(arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI32, _, _>(
+    UnaryExecutor::execute::<PhysicalI32Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
+            datatype: DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: Decimal64Type::MAX_PRECISION,
                 scale: Decimal64Type::DEFAULT_SCALE,
             }),
@@ -185,14 +185,14 @@ where
     )
 }
 
-fn date64_extract_with_fn<F>(arr: &Array, f: F) -> Result<Array>
+fn date64_extract_with_fn<F>(arr: &ArrayOld, f: F) -> Result<ArrayOld>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor::execute::<PhysicalI64Old, _, _>(
         arr,
         ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
+            datatype: DataTypeOld::Decimal64(DecimalTypeMeta {
                 precision: Decimal64Type::MAX_PRECISION,
                 scale: Decimal64Type::DEFAULT_SCALE,
             }),

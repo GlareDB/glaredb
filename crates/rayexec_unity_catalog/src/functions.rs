@@ -6,9 +6,9 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{FutureExt, TryStreamExt};
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::batch::BatchOld;
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::field::{Field, Schema};
 use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
@@ -66,7 +66,7 @@ pub trait UnityObjectsOperation<R: Runtime>:
     /// Read the next batch from the stream.
     ///
     /// Returns Ok(None) when stream is finished.
-    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>>;
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<BatchOld>>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,9 +101,9 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("name", DataType::Utf8, false),
-            Field::new("catalog_name", DataType::Utf8, false),
-            Field::new("comment", DataType::Utf8, true),
+            Field::new("name", DataTypeOld::Utf8, false),
+            Field::new("catalog_name", DataTypeOld::Utf8, false),
+            Field::new("comment", DataTypeOld::Utf8, true),
         ])
     }
 
@@ -128,18 +128,18 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
         Ok(ListSchemasStreamState { stream })
     }
 
-    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async {
             let resp = state.stream.try_next().await?;
             match resp {
                 Some(resp) => {
-                    let names = Array::from_iter(resp.schemas.iter().map(|s| s.name.as_str()));
+                    let names = ArrayOld::from_iter(resp.schemas.iter().map(|s| s.name.as_str()));
                     let catalog_names =
-                        Array::from_iter(resp.schemas.iter().map(|s| s.catalog_name.as_str()));
+                        ArrayOld::from_iter(resp.schemas.iter().map(|s| s.catalog_name.as_str()));
                     let comments =
-                        Array::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
+                        ArrayOld::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
 
-                    let batch = Batch::try_new([names, catalog_names, comments])?;
+                    let batch = BatchOld::try_new([names, catalog_names, comments])?;
                     Ok(Some(batch))
                 }
                 None => Ok(None),
@@ -181,13 +181,13 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
 
     fn schema() -> Schema {
         Schema::new([
-            Field::new("name", DataType::Utf8, false),
-            Field::new("catalog_name", DataType::Utf8, false),
-            Field::new("schema_name", DataType::Utf8, false),
-            Field::new("table_type", DataType::Utf8, false),
-            Field::new("data_source_format", DataType::Utf8, false),
-            Field::new("storage_location", DataType::Utf8, false),
-            Field::new("comment", DataType::Utf8, true),
+            Field::new("name", DataTypeOld::Utf8, false),
+            Field::new("catalog_name", DataTypeOld::Utf8, false),
+            Field::new("schema_name", DataTypeOld::Utf8, false),
+            Field::new("table_type", DataTypeOld::Utf8, false),
+            Field::new("data_source_format", DataTypeOld::Utf8, false),
+            Field::new("storage_location", DataTypeOld::Utf8, false),
+            Field::new("comment", DataTypeOld::Utf8, true),
         ])
     }
 
@@ -216,26 +216,28 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
         Ok(ListTablesStreamState { stream })
     }
 
-    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn next_batch(state: &mut Self::StreamState) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         Box::pin(async {
             let resp = state.stream.try_next().await?;
             match resp {
                 Some(resp) => {
-                    let names = Array::from_iter(resp.tables.iter().map(|s| s.name.as_str()));
+                    let names = ArrayOld::from_iter(resp.tables.iter().map(|s| s.name.as_str()));
                     let catalog_names =
-                        Array::from_iter(resp.tables.iter().map(|s| s.catalog_name.as_str()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.catalog_name.as_str()));
                     let schema_names =
-                        Array::from_iter(resp.tables.iter().map(|s| s.schema_name.as_str()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.schema_name.as_str()));
                     let table_types =
-                        Array::from_iter(resp.tables.iter().map(|s| s.table_type.as_str()));
-                    let data_source_formats =
-                        Array::from_iter(resp.tables.iter().map(|s| s.data_source_format.as_str()));
-                    let storage_locations =
-                        Array::from_iter(resp.tables.iter().map(|s| s.storage_location.as_str()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.table_type.as_str()));
+                    let data_source_formats = ArrayOld::from_iter(
+                        resp.tables.iter().map(|s| s.data_source_format.as_str()),
+                    );
+                    let storage_locations = ArrayOld::from_iter(
+                        resp.tables.iter().map(|s| s.storage_location.as_str()),
+                    );
                     let comments =
-                        Array::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
+                        ArrayOld::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
 
-                    let batch = Batch::try_new([
+                    let batch = BatchOld::try_new([
                         names,
                         catalog_names,
                         schema_names,
@@ -352,7 +354,7 @@ pub struct UnityObjectsDataTableScan<R: Runtime, O: UnityObjectsOperation<R>> {
 }
 
 impl<R: Runtime, O: UnityObjectsOperation<R>> DataTableScan for UnityObjectsDataTableScan<R, O> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<BatchOld>>> {
         O::next_batch(&mut self.stream)
     }
 }

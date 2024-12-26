@@ -1,7 +1,7 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
+use rayexec_bullet::executor::physical_type::PhysicalUtf8Old;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::Result;
 
@@ -55,7 +55,7 @@ impl ScalarFunction for StartsWith {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Utf8, DataType::Utf8) => (),
+            (DataTypeOld::Utf8, DataTypeOld::Utf8) => (),
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         }
 
@@ -71,7 +71,7 @@ impl ScalarFunction for StartsWith {
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(StartsWithImpl { constant }),
         })
@@ -84,19 +84,19 @@ pub struct StartsWithImpl {
 }
 
 impl ScalarFunctionImpl for StartsWithImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
+            datatype: DataTypeOld::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
         match self.constant.as_ref() {
             Some(constant) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                UnaryExecutor::execute::<PhysicalUtf8Old, _, _>(inputs[0], builder, |s, buf| {
                     buf.put(&s.starts_with(constant))
                 })
             }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+            None => BinaryExecutor::execute::<PhysicalUtf8Old, PhysicalUtf8Old, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,

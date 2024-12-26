@@ -1,13 +1,13 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {
-    pub to: DataType,
+    pub to: DataTypeOld,
     pub expr: Box<Expression>,
 }
 

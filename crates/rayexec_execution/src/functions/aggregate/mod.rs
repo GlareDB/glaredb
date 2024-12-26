@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::aggregate::RowToStateMapping;
 use rayexec_error::Result;
 use states::AggregateGroupStates;
@@ -48,7 +48,7 @@ impl Eq for dyn AggregateFunction {}
 #[derive(Debug, Clone)]
 pub struct PlannedAggregateFunction {
     pub function: Box<dyn AggregateFunction>,
-    pub return_type: DataType,
+    pub return_type: DataTypeOld,
     pub inputs: Vec<Expression>,
     pub function_impl: Box<dyn AggregateFunctionImpl>,
 }

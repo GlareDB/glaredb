@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
 
@@ -16,7 +16,7 @@ pub struct BatchResizer {
     /// Target batch size.
     target: usize,
     /// Pending input batches.
-    pending: Vec<Batch>,
+    pending: Vec<BatchOld>,
     /// Current total row count for all batches.
     pending_row_count: usize,
 }
@@ -36,7 +36,7 @@ impl BatchResizer {
     /// Typically this will return either no batches or a single batch. However
     /// there is a case where this can return multiple batches if 'len(input) +
     /// pending_row_count > target * 2' (aka very large input batch).
-    pub fn try_push(&mut self, batch: Batch) -> Result<ComputedBatches> {
+    pub fn try_push(&mut self, batch: BatchOld) -> Result<ComputedBatches> {
         if batch.num_rows() == 0 {
             return Ok(ComputedBatches::None);
         }
@@ -44,7 +44,7 @@ impl BatchResizer {
         if self.pending_row_count + batch.num_rows() == self.target {
             self.pending.push(batch);
 
-            let out = Batch::concat(&self.pending)?;
+            let out = BatchOld::concat(&self.pending)?;
             self.pending.clear();
             self.pending_row_count = 0;
 
@@ -67,7 +67,7 @@ impl BatchResizer {
             self.pending.push(batch_a);
 
             // Concat current pending + batch a.
-            let out = Batch::concat(&self.pending)?;
+            let out = BatchOld::concat(&self.pending)?;
             self.pending.clear();
             self.pending_row_count = 0;
 
@@ -107,7 +107,7 @@ impl BatchResizer {
             return Ok(ComputedBatches::None);
         }
 
-        let out = Batch::concat(&self.pending)?;
+        let out = BatchOld::concat(&self.pending)?;
         self.pending.clear();
         self.pending_row_count = 0;
         Ok(ComputedBatches::Single(out))
@@ -116,22 +116,22 @@ impl BatchResizer {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
+    use rayexec_bullet::array::ArrayOld;
     use rayexec_bullet::testutil::assert_batches_eq;
 
     use super::*;
 
     #[test]
     fn push_within_target() {
-        let batch1 = Batch::try_new([
-            Array::from_iter([1, 2, 3]),
-            Array::from_iter(["a", "b", "c"]),
+        let batch1 = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3]),
+            ArrayOld::from_iter(["a", "b", "c"]),
         ])
         .unwrap();
 
-        let batch2 = Batch::try_new([
-            Array::from_iter([4, 5, 6]),
-            Array::from_iter(["d", "e", "f"]),
+        let batch2 = BatchOld::try_new([
+            ArrayOld::from_iter([4, 5, 6]),
+            ArrayOld::from_iter(["d", "e", "f"]),
         ])
         .unwrap();
 
@@ -146,16 +146,16 @@ mod tests {
             other => panic!("unexpected out: {other:?}"),
         };
 
-        let expected = Batch::try_new([
-            Array::from_iter([1, 2, 3, 4]),
-            Array::from_iter(["a", "b", "c", "d"]),
+        let expected = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3, 4]),
+            ArrayOld::from_iter(["a", "b", "c", "d"]),
         ])
         .unwrap();
 
         assert_batches_eq(&expected, &got);
 
         let expected_rem =
-            Batch::try_new([Array::from_iter([5, 6]), Array::from_iter(["e", "f"])]).unwrap();
+            BatchOld::try_new([ArrayOld::from_iter([5, 6]), ArrayOld::from_iter(["e", "f"])]).unwrap();
 
         let remaining = match resizer.flush_remaining().unwrap() {
             ComputedBatches::Single(batch) => batch,
@@ -169,9 +169,9 @@ mod tests {
     fn push_large_batch() {
         // len(batch) > target && len(batch) < target * 2
 
-        let batch = Batch::try_new([
-            Array::from_iter([1, 2, 3, 4, 5]),
-            Array::from_iter(["a", "b", "c", "d", "e"]),
+        let batch = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3, 4, 5]),
+            ArrayOld::from_iter(["a", "b", "c", "d", "e"]),
         ])
         .unwrap();
 
@@ -181,16 +181,16 @@ mod tests {
             other => panic!("unexpected out: {other:?}"),
         };
 
-        let expected = Batch::try_new([
-            Array::from_iter([1, 2, 3, 4]),
-            Array::from_iter(["a", "b", "c", "d"]),
+        let expected = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3, 4]),
+            ArrayOld::from_iter(["a", "b", "c", "d"]),
         ])
         .unwrap();
 
         assert_batches_eq(&expected, &got);
 
         let expected_rem =
-            Batch::try_new([Array::from_iter([5]), Array::from_iter(["e"])]).unwrap();
+            BatchOld::try_new([ArrayOld::from_iter([5]), ArrayOld::from_iter(["e"])]).unwrap();
 
         let remaining = match resizer.flush_remaining().unwrap() {
             ComputedBatches::Single(batch) => batch,
@@ -204,9 +204,9 @@ mod tests {
     fn push_very_large_batch() {
         // len(batch) > target * 2
 
-        let batch = Batch::try_new([
-            Array::from_iter([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
-            Array::from_iter(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]),
+        let batch = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            ArrayOld::from_iter(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]),
         ])
         .unwrap();
 
@@ -218,22 +218,22 @@ mod tests {
 
         assert_eq!(2, gots.len());
 
-        let expected1 = Batch::try_new([
-            Array::from_iter([1, 2, 3, 4]),
-            Array::from_iter(["a", "b", "c", "d"]),
+        let expected1 = BatchOld::try_new([
+            ArrayOld::from_iter([1, 2, 3, 4]),
+            ArrayOld::from_iter(["a", "b", "c", "d"]),
         ])
         .unwrap();
         assert_batches_eq(&expected1, &gots[0]);
 
-        let expected2 = Batch::try_new([
-            Array::from_iter([5, 6, 7, 8]),
-            Array::from_iter(["e", "f", "g", "h"]),
+        let expected2 = BatchOld::try_new([
+            ArrayOld::from_iter([5, 6, 7, 8]),
+            ArrayOld::from_iter(["e", "f", "g", "h"]),
         ])
         .unwrap();
         assert_batches_eq(&expected2, &gots[1]);
 
         let expected_rem =
-            Batch::try_new([Array::from_iter([9, 10]), Array::from_iter(["i", "j"])]).unwrap();
+            BatchOld::try_new([ArrayOld::from_iter([9, 10]), ArrayOld::from_iter(["i", "j"])]).unwrap();
 
         let remaining = match resizer.flush_remaining().unwrap() {
             ComputedBatches::Single(batch) => batch,

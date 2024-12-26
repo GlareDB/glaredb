@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_bullet::selection::SelectionVector;
 use rayexec_error::Result;
@@ -50,7 +50,11 @@ impl AggregateGroupStates for DistinctGroupedStates {
         self.distinct_inputs.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()> {
+    fn update_states(
+        &mut self,
+        inputs: &[&ArrayOld],
+        mapping: ChunkGroupAddressIter,
+    ) -> Result<()> {
         // TODO: Would be cool not needing to do this.
         let mappings: Vec<_> = mapping.collect();
 
@@ -114,7 +118,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<Array> {
+    fn finalize(&mut self) -> Result<ArrayOld> {
         // And now we actually create the states we need.
         self.states.new_states(self.distinct_inputs.len());
 

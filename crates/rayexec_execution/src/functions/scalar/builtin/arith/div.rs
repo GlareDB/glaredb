@@ -1,26 +1,26 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
 use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
 use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use rayexec_bullet::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalStorage,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
+    PhysicalF16Old,
+    PhysicalF32Old,
+    PhysicalF64Old,
+    PhysicalI128Old,
+    PhysicalI16Old,
+    PhysicalI32Old,
+    PhysicalI64Old,
+    PhysicalI8Old,
+    PhysicalStorageOld,
+    PhysicalU128Old,
+    PhysicalU16Old,
+    PhysicalU32Old,
+    PhysicalU64Old,
+    PhysicalU8Old,
 };
 use rayexec_bullet::executor::scalar::BinaryExecutor;
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -105,67 +105,67 @@ impl ScalarFunction for Div {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(DivImpl::<PhysicalF16>::new(DataType::Float16)),
-                DataType::Float16,
+            (DataTypeOld::Float16, DataTypeOld::Float16) => (
+                Box::new(DivImpl::<PhysicalF16Old>::new(DataTypeOld::Float16)),
+                DataTypeOld::Float16,
             ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(DivImpl::<PhysicalF32>::new(DataType::Float32)),
-                DataType::Float32,
+            (DataTypeOld::Float32, DataTypeOld::Float32) => (
+                Box::new(DivImpl::<PhysicalF32Old>::new(DataTypeOld::Float32)),
+                DataTypeOld::Float32,
             ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(DivImpl::<PhysicalF64>::new(DataType::Float64)),
-                DataType::Float64,
+            (DataTypeOld::Float64, DataTypeOld::Float64) => (
+                Box::new(DivImpl::<PhysicalF64Old>::new(DataTypeOld::Float64)),
+                DataTypeOld::Float64,
             ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(DivImpl::<PhysicalI8>::new(DataType::Int8)),
-                DataType::Int8,
+            (DataTypeOld::Int8, DataTypeOld::Int8) => (
+                Box::new(DivImpl::<PhysicalI8Old>::new(DataTypeOld::Int8)),
+                DataTypeOld::Int8,
             ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(DivImpl::<PhysicalI16>::new(DataType::Int16)),
-                DataType::Int16,
+            (DataTypeOld::Int16, DataTypeOld::Int16) => (
+                Box::new(DivImpl::<PhysicalI16Old>::new(DataTypeOld::Int16)),
+                DataTypeOld::Int16,
             ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(DivImpl::<PhysicalI32>::new(DataType::Int32)),
-                DataType::Int32,
+            (DataTypeOld::Int32, DataTypeOld::Int32) => (
+                Box::new(DivImpl::<PhysicalI32Old>::new(DataTypeOld::Int32)),
+                DataTypeOld::Int32,
             ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(DivImpl::<PhysicalI64>::new(DataType::Int64)),
-                DataType::Int64,
+            (DataTypeOld::Int64, DataTypeOld::Int64) => (
+                Box::new(DivImpl::<PhysicalI64Old>::new(DataTypeOld::Int64)),
+                DataTypeOld::Int64,
             ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(DivImpl::<PhysicalI128>::new(DataType::Int128)),
-                DataType::Int128,
+            (DataTypeOld::Int128, DataTypeOld::Int128) => (
+                Box::new(DivImpl::<PhysicalI128Old>::new(DataTypeOld::Int128)),
+                DataTypeOld::Int128,
             ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(DivImpl::<PhysicalU8>::new(DataType::UInt8)),
-                DataType::UInt8,
+            (DataTypeOld::UInt8, DataTypeOld::UInt8) => (
+                Box::new(DivImpl::<PhysicalU8Old>::new(DataTypeOld::UInt8)),
+                DataTypeOld::UInt8,
             ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(DivImpl::<PhysicalU16>::new(DataType::UInt16)),
-                DataType::UInt16,
+            (DataTypeOld::UInt16, DataTypeOld::UInt16) => (
+                Box::new(DivImpl::<PhysicalU16Old>::new(DataTypeOld::UInt16)),
+                DataTypeOld::UInt16,
             ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(DivImpl::<PhysicalU32>::new(DataType::UInt32)),
-                DataType::UInt32,
+            (DataTypeOld::UInt32, DataTypeOld::UInt32) => (
+                Box::new(DivImpl::<PhysicalU32Old>::new(DataTypeOld::UInt32)),
+                DataTypeOld::UInt32,
             ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(DivImpl::<PhysicalU64>::new(DataType::UInt64)),
-                DataType::UInt64,
+            (DataTypeOld::UInt64, DataTypeOld::UInt64) => (
+                Box::new(DivImpl::<PhysicalU64Old>::new(DataTypeOld::UInt64)),
+                DataTypeOld::UInt64,
             ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(DivImpl::<PhysicalU128>::new(DataType::UInt128)),
-                DataType::UInt128,
+            (DataTypeOld::UInt128, DataTypeOld::UInt128) => (
+                Box::new(DivImpl::<PhysicalU128Old>::new(DataTypeOld::UInt128)),
+                DataTypeOld::UInt128,
             ),
 
             // Decimals
-            (DataType::Decimal64(_), DataType::Decimal64(_)) => (
+            (DataTypeOld::Decimal64(_), DataTypeOld::Decimal64(_)) => (
                 Box::new(DecimalDivImpl::<Decimal64Type>::new()),
-                DataType::Float64,
+                DataTypeOld::Float64,
             ),
-            (DataType::Decimal128(_), DataType::Decimal128(_)) => (
+            (DataTypeOld::Decimal128(_), DataTypeOld::Decimal128(_)) => (
                 Box::new(DecimalDivImpl::<Decimal128Type>::new()),
-                DataType::Float64,
+                DataTypeOld::Float64,
             ),
 
             // TODO: Interval, dates
@@ -198,40 +198,43 @@ impl<D> ScalarFunctionImpl for DecimalDivImpl<D>
 where
     D: DecimalType,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 
         let a = cast_decimal_to_float::<D::Storage, f64>(
             a,
-            DataType::Float64,
+            DataTypeOld::Float64,
             CastFailBehavior::Error,
         )?;
         let b = cast_decimal_to_float::<D::Storage, f64>(
             b,
-            DataType::Float64,
+            DataTypeOld::Float64,
             CastFailBehavior::Error,
         )?;
 
         let builder = ArrayBuilder {
-            datatype: DataType::Float64,
+            datatype: DataTypeOld::Float64,
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(&a, &b, builder, |a, b, buf| {
-            buf.put(&(a / b))
-        })
+        BinaryExecutor::execute::<PhysicalF64Old, PhysicalF64Old, _, _>(
+            &a,
+            &b,
+            builder,
+            |a, b, buf| buf.put(&(a / b)),
+        )
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct DivImpl<S> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _s: PhantomData<S>,
 }
 
 impl<S> DivImpl<S> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         DivImpl {
             datatype,
             _s: PhantomData,
@@ -241,11 +244,11 @@ impl<S> DivImpl<S> {
 
 impl<S> ScalarFunctionImpl for DivImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorageOld,
     for<'a> S::Type<'a>: std::ops::Div<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -260,7 +263,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::expr;
@@ -268,14 +271,14 @@ mod tests {
 
     #[test]
     fn div_i32() {
-        let a = Array::from_iter([4, 5, 6]);
-        let b = Array::from_iter([1, 2, 3]);
+        let a = ArrayOld::from_iter([4, 5, 6]);
+        let b = ArrayOld::from_iter([1, 2, 3]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Int32, DataType::Int32],
+                vec![DataTypeOld::Int32, DataTypeOld::Int32],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -287,8 +290,8 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([4, 2, 2]);
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
+        let expected = ArrayOld::from_iter([4, 2, 2]);
 
         assert_eq!(expected, out);
     }

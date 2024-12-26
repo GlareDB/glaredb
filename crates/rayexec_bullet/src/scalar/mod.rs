@@ -14,7 +14,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use crate::array::{Array, ArrayData};
+use crate::array::{ArrayData, ArrayOld};
 use crate::bitmap::Bitmap;
 use crate::compute::cast::format::{
     BoolFormatter,
@@ -42,7 +42,7 @@ use crate::compute::cast::format::{
     UInt64Formatter,
     UInt8Formatter,
 };
-use crate::datatype::{DataType, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::datatype::{DataTypeOld, DecimalTypeMeta, ListTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::executor::scalar::concat;
 use crate::selection::SelectionVector;
 use crate::storage::{
@@ -122,42 +122,42 @@ impl Hash for ScalarValue<'_> {
 pub type OwnedScalarValue = ScalarValue<'static>;
 
 impl ScalarValue<'_> {
-    pub fn datatype(&self) -> DataType {
+    pub fn datatype(&self) -> DataTypeOld {
         match self {
-            ScalarValue::Null => DataType::Null,
-            ScalarValue::Boolean(_) => DataType::Boolean,
-            ScalarValue::Float16(_) => DataType::Float16,
-            ScalarValue::Float32(_) => DataType::Float32,
-            ScalarValue::Float64(_) => DataType::Float64,
-            ScalarValue::Int8(_) => DataType::Int8,
-            ScalarValue::Int16(_) => DataType::Int16,
-            ScalarValue::Int32(_) => DataType::Int32,
-            ScalarValue::Int64(_) => DataType::Int64,
-            ScalarValue::Int128(_) => DataType::Int128,
-            ScalarValue::UInt8(_) => DataType::UInt8,
-            ScalarValue::UInt16(_) => DataType::UInt16,
-            ScalarValue::UInt32(_) => DataType::UInt32,
-            ScalarValue::UInt64(_) => DataType::UInt64,
-            ScalarValue::UInt128(_) => DataType::UInt128,
+            ScalarValue::Null => DataTypeOld::Null,
+            ScalarValue::Boolean(_) => DataTypeOld::Boolean,
+            ScalarValue::Float16(_) => DataTypeOld::Float16,
+            ScalarValue::Float32(_) => DataTypeOld::Float32,
+            ScalarValue::Float64(_) => DataTypeOld::Float64,
+            ScalarValue::Int8(_) => DataTypeOld::Int8,
+            ScalarValue::Int16(_) => DataTypeOld::Int16,
+            ScalarValue::Int32(_) => DataTypeOld::Int32,
+            ScalarValue::Int64(_) => DataTypeOld::Int64,
+            ScalarValue::Int128(_) => DataTypeOld::Int128,
+            ScalarValue::UInt8(_) => DataTypeOld::UInt8,
+            ScalarValue::UInt16(_) => DataTypeOld::UInt16,
+            ScalarValue::UInt32(_) => DataTypeOld::UInt32,
+            ScalarValue::UInt64(_) => DataTypeOld::UInt64,
+            ScalarValue::UInt128(_) => DataTypeOld::UInt128,
             ScalarValue::Decimal64(v) => {
-                DataType::Decimal64(DecimalTypeMeta::new(v.precision, v.scale))
+                DataTypeOld::Decimal64(DecimalTypeMeta::new(v.precision, v.scale))
             }
             ScalarValue::Decimal128(v) => {
-                DataType::Decimal128(DecimalTypeMeta::new(v.precision, v.scale))
+                DataTypeOld::Decimal128(DecimalTypeMeta::new(v.precision, v.scale))
             }
-            ScalarValue::Date32(_) => DataType::Date32,
-            ScalarValue::Date64(_) => DataType::Date64,
-            ScalarValue::Timestamp(v) => DataType::Timestamp(TimestampTypeMeta::new(v.unit)),
-            ScalarValue::Interval(_) => DataType::Interval,
-            ScalarValue::Utf8(_) => DataType::Utf8,
-            ScalarValue::Binary(_) => DataType::Binary,
+            ScalarValue::Date32(_) => DataTypeOld::Date32,
+            ScalarValue::Date64(_) => DataTypeOld::Date64,
+            ScalarValue::Timestamp(v) => DataTypeOld::Timestamp(TimestampTypeMeta::new(v.unit)),
+            ScalarValue::Interval(_) => DataTypeOld::Interval,
+            ScalarValue::Utf8(_) => DataTypeOld::Utf8,
+            ScalarValue::Binary(_) => DataTypeOld::Binary,
             ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
             ScalarValue::List(list) => match list.first() {
-                Some(first) => DataType::List(ListTypeMeta {
+                Some(first) => DataTypeOld::List(ListTypeMeta {
                     datatype: Box::new(first.datatype()),
                 }),
-                None => DataType::List(ListTypeMeta {
-                    datatype: Box::new(DataType::Null),
+                None => DataTypeOld::List(ListTypeMeta {
+                    datatype: Box::new(DataTypeOld::Null),
                 }),
             },
         }
@@ -198,9 +198,9 @@ impl ScalarValue<'_> {
     }
 
     /// Create an array of size `n` using the scalar value.
-    pub fn as_array(&self, n: usize) -> Result<Array> {
+    pub fn as_array(&self, n: usize) -> Result<ArrayOld> {
         let data: ArrayData = match self {
-            Self::Null => return Ok(Array::new_untyped_null_array(n)),
+            Self::Null => return Ok(ArrayOld::new_untyped_null_array(n)),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
             Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
@@ -229,7 +229,7 @@ impl ScalarValue<'_> {
 
                     ListStorage {
                         metadata: vec![metadata].into(),
-                        array: Array::new_untyped_null_array(0),
+                        array: ArrayOld::new_untyped_null_array(0),
                     }
                     .into()
                 } else {
@@ -255,7 +255,7 @@ impl ScalarValue<'_> {
             other => not_implemented!("{other:?} to array"), // Struct, List
         };
 
-        let mut array = Array::new_with_array_data(self.datatype(), data);
+        let mut array = ArrayOld::new_with_array_data(self.datatype(), data);
         array.selection = Some(SelectionVector::repeated(n, 0).into());
 
         Ok(array)

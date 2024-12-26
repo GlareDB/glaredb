@@ -4,11 +4,14 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::array::ArrayOld;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::FunctionInfo;
+use crate::arrays::batch::Batch;
+use crate::arrays::executor::OutBuffer;
+use crate::arrays::flat_array::FlatSelection;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 
@@ -75,7 +78,7 @@ pub struct PlannedScalarFunction {
     /// serialized/deserializing planned functions.
     pub function: Box<dyn ScalarFunction>,
     /// Return type of the functions.
-    pub return_type: DataType,
+    pub return_type: DataTypeOld,
     /// Inputs to the functions.
     pub inputs: Vec<Expression>,
     /// The function implmentation.
@@ -103,7 +106,13 @@ impl Hash for PlannedScalarFunction {
 }
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array>;
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
+        unimplemented!()
+    }
+
+    fn execute(&self, batch: &Batch, out: OutBuffer) -> Result<()> {
+        unimplemented!()
+    }
 }
 
 impl Clone for Box<dyn ScalarFunctionImpl> {

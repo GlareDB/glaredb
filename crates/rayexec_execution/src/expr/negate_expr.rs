@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::Result;
 
 use super::{AsScalarFunction, Expression};
@@ -31,9 +31,9 @@ pub struct NegateExpr {
 }
 
 impl NegateExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self, table_list: &TableList) -> Result<DataTypeOld> {
         Ok(match self.op {
-            NegateOperator::Not => DataType::Boolean,
+            NegateOperator::Not => DataTypeOld::Boolean,
             NegateOperator::Negate => {
                 // Sure
                 self.op

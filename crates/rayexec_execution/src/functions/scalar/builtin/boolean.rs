@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::array::Array;
+use rayexec_bullet::array::ArrayOld;
 use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalBool;
+use rayexec_bullet::executor::physical_type::PhysicalBoolOld;
 use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
 use rayexec_bullet::storage::BooleanStorage;
 use rayexec_error::Result;
@@ -53,13 +53,13 @@ impl ScalarFunction for And {
             .map(|input| input.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
-        if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
+        if !datatypes.iter().all(|dt| dt == &DataTypeOld::Boolean) {
             return Err(invalid_input_types_error(self, &datatypes));
         }
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(AndImpl),
         })
@@ -70,11 +70,11 @@ impl ScalarFunction for And {
 pub struct AndImpl;
 
 impl ScalarFunctionImpl for AndImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         match inputs.len() {
             0 => {
-                let mut array = Array::new_with_array_data(
-                    DataType::Boolean,
+                let mut array = ArrayOld::new_with_array_data(
+                    DataTypeOld::Boolean,
                     BooleanStorage::from(Bitmap::new_with_val(false, 1)),
                 );
                 array.set_physical_validity(0, false);
@@ -84,11 +84,11 @@ impl ScalarFunctionImpl for AndImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute::<PhysicalBoolOld, PhysicalBoolOld, _, _>(
                     a,
                     b,
                     ArrayBuilder {
-                        datatype: DataType::Boolean,
+                        datatype: DataTypeOld::Boolean,
                         buffer: BooleanBuffer::with_len(a.logical_len()),
                     },
                     |a, b, buf| buf.put(&(a && b)),
@@ -98,12 +98,12 @@ impl ScalarFunctionImpl for AndImpl {
                 let a = inputs[0];
                 let b = inputs[1];
                 let c = inputs[2];
-                TernaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
+                TernaryExecutor::execute::<PhysicalBoolOld, PhysicalBoolOld, PhysicalBoolOld, _, _>(
                     a,
                     b,
                     c,
                     ArrayBuilder {
-                        datatype: DataType::Boolean,
+                        datatype: DataTypeOld::Boolean,
                         buffer: BooleanBuffer::with_len(a.logical_len()),
                     },
                     |a, b, c, buf| buf.put(&(a && b && c)),
@@ -111,10 +111,10 @@ impl ScalarFunctionImpl for AndImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool, _, _>(
+                UniformExecutor::execute::<PhysicalBoolOld, _, _>(
                     inputs,
                     ArrayBuilder {
-                        datatype: DataType::Boolean,
+                        datatype: DataTypeOld::Boolean,
                         buffer: BooleanBuffer::with_len(len),
                     },
                     |bools, buf| buf.put(&(bools.iter().all(|b| *b))),
@@ -161,13 +161,13 @@ impl ScalarFunction for Or {
             .map(|input| input.datatype(table_list))
             .collect::<Result<Vec<_>>>()?;
 
-        if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
+        if !datatypes.iter().all(|dt| dt == &DataTypeOld::Boolean) {
             return Err(invalid_input_types_error(self, &datatypes));
         }
 
         Ok(PlannedScalarFunction {
             function: Box::new(*self),
-            return_type: DataType::Boolean,
+            return_type: DataTypeOld::Boolean,
             inputs,
             function_impl: Box::new(OrImpl),
         })
@@ -178,11 +178,11 @@ impl ScalarFunction for Or {
 pub struct OrImpl;
 
 impl ScalarFunctionImpl for OrImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute_old(&self, inputs: &[&ArrayOld]) -> Result<ArrayOld> {
         match inputs.len() {
             0 => {
-                let mut array = Array::new_with_array_data(
-                    DataType::Boolean,
+                let mut array = ArrayOld::new_with_array_data(
+                    DataTypeOld::Boolean,
                     BooleanStorage::from(Bitmap::new_with_val(false, 1)),
                 );
                 array.set_physical_validity(0, false);
@@ -192,11 +192,11 @@ impl ScalarFunctionImpl for OrImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute::<PhysicalBoolOld, PhysicalBoolOld, _, _>(
                     a,
                     b,
                     ArrayBuilder {
-                        datatype: DataType::Boolean,
+                        datatype: DataTypeOld::Boolean,
                         buffer: BooleanBuffer::with_len(a.logical_len()),
                     },
                     |a, b, buf| buf.put(&(a || b)),
@@ -204,10 +204,10 @@ impl ScalarFunctionImpl for OrImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool, _, _>(
+                UniformExecutor::execute::<PhysicalBoolOld, _, _>(
                     inputs,
                     ArrayBuilder {
-                        datatype: DataType::Boolean,
+                        datatype: DataTypeOld::Boolean,
                         buffer: BooleanBuffer::with_len(len),
                     },
                     |bools, buf| buf.put(&(bools.iter().any(|b| *b))),
@@ -226,14 +226,14 @@ mod tests {
 
     #[test]
     fn and_bool_2() {
-        let a = Array::from_iter([true, false, false]);
-        let b = Array::from_iter([true, true, false]);
+        let a = ArrayOld::from_iter([true, false, false]);
+        let b = ArrayOld::from_iter([true, true, false]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Boolean, DataType::Boolean],
+                vec![DataTypeOld::Boolean, DataTypeOld::Boolean],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -245,7 +245,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
 
         assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
@@ -254,15 +254,19 @@ mod tests {
 
     #[test]
     fn and_bool_3() {
-        let a = Array::from_iter([true, true, true]);
-        let b = Array::from_iter([false, true, true]);
-        let c = Array::from_iter([true, true, false]);
+        let a = ArrayOld::from_iter([true, true, true]);
+        let b = ArrayOld::from_iter([false, true, true]);
+        let c = ArrayOld::from_iter([true, true, false]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Boolean, DataType::Boolean, DataType::Boolean],
+                vec![
+                    DataTypeOld::Boolean,
+                    DataTypeOld::Boolean,
+                    DataTypeOld::Boolean,
+                ],
                 vec!["a".to_string(), "b".to_string(), "c".to_string()],
             )
             .unwrap();
@@ -278,7 +282,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b, &c]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b, &c]).unwrap();
 
         assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
@@ -287,14 +291,14 @@ mod tests {
 
     #[test]
     fn or_bool_2() {
-        let a = Array::from_iter([true, false, false]);
-        let b = Array::from_iter([true, true, false]);
+        let a = ArrayOld::from_iter([true, false, false]);
+        let b = ArrayOld::from_iter([true, true, false]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Boolean, DataType::Boolean],
+                vec![DataTypeOld::Boolean, DataTypeOld::Boolean],
                 vec!["a".to_string(), "b".to_string()],
             )
             .unwrap();
@@ -306,7 +310,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute_old(&[&a, &b]).unwrap();
 
         assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());

@@ -12,7 +12,7 @@ use std::fmt::Display;
 use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_error::{RayexecError, Result};
 
 /// Function signature.
@@ -68,7 +68,7 @@ impl Signature {
     }
 
     /// Return if inputs given data types exactly satisfy the signature.
-    fn exact_match(&self, inputs: &[DataType]) -> bool {
+    fn exact_match(&self, inputs: &[DataTypeOld]) -> bool {
         if self.positional_args.len() != inputs.len() && !self.is_variadic() {
             return false;
         }
@@ -141,7 +141,7 @@ pub trait FunctionInfo {
     /// Get the signature for a function if it's an exact match for the inputs.
     ///
     /// If there are no exact signatures for these types, None will be retuned.
-    fn exact_signature(&self, inputs: &[DataType]) -> Option<&Signature> {
+    fn exact_signature(&self, inputs: &[DataTypeOld]) -> Option<&Signature> {
         self.signatures().iter().find(|sig| sig.exact_match(inputs))
     }
 
@@ -152,7 +152,7 @@ pub trait FunctionInfo {
     ///
     /// Candidates are returned in sorted order with the highest cast score
     /// being first.
-    fn candidate(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
+    fn candidate(&self, inputs: &[DataTypeOld]) -> Vec<CandidateSignature> {
         CandidateSignature::find_candidates(inputs, self.signatures())
     }
 }
@@ -188,7 +188,7 @@ impl CandidateSignature {
     ///
     /// This will return a sorted vec where the first element is the candidate
     /// with the highest score.
-    fn find_candidates(inputs: &[DataType], sigs: &[Signature]) -> Vec<Self> {
+    fn find_candidates(inputs: &[DataTypeOld], sigs: &[Signature]) -> Vec<Self> {
         let mut candidates = Vec::new();
 
         let mut buf = Vec::new();
@@ -223,7 +223,7 @@ impl CandidateSignature {
     ///
     /// Returns true if everything is able to be implicitly cast, false otherwise.
     fn compare_and_fill_types(
-        have: &[DataType],
+        have: &[DataTypeOld],
         want: &[DataTypeId],
         variadic: Option<DataTypeId>,
         buf: &mut Vec<CastType>,
@@ -293,7 +293,7 @@ impl CandidateSignature {
 
     /// Get the best common data type that we can cast to for the given inputs. Returns None
     /// if there isn't a common data type.
-    fn best_datatype_for_variadic_any(inputs: &[DataType]) -> Option<DataTypeId> {
+    fn best_datatype_for_variadic_any(inputs: &[DataTypeOld]) -> Option<DataTypeId> {
         let mut best_type = None;
         let mut best_total_score = 0;
 
@@ -369,7 +369,7 @@ pub fn plan_check_num_args_one_of<T, const N: usize>(
 // TODO: Include valid signatures in the error
 pub fn invalid_input_types_error<T>(func: &impl FunctionInfo, got: &[T]) -> RayexecError
 where
-    T: Borrow<DataType> + Display,
+    T: Borrow<DataTypeOld> + Display,
 {
     // TODO: Include relevant valid signatures. What "relevant" means and how we
     // determine that is stil tbd.
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn find_candidate_no_match() {
-        let inputs = &[DataType::Int64];
+        let inputs = &[DataTypeOld::Int64];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::List],
             variadic_arg: None,
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn find_candidate_simple_no_variadic() {
-        let inputs = &[DataType::Int64];
+        let inputs = &[DataTypeOld::Int64];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::Int64],
             variadic_arg: None,
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn find_candidate_simple_with_variadic() {
-        let inputs = &[DataType::Int64, DataType::Int64, DataType::Int64];
+        let inputs = &[DataTypeOld::Int64, DataTypeOld::Int64, DataTypeOld::Int64];
         let sigs = &[Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
@@ -443,14 +443,18 @@ mod tests {
 
     #[test]
     fn best_datatype_for_ints_and_floats() {
-        let inputs = &[DataType::Int64, DataType::Float64, DataType::Int64];
+        let inputs = &[DataTypeOld::Int64, DataTypeOld::Float64, DataTypeOld::Int64];
         let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
         assert_eq!(Some(DataTypeId::Float64), best);
     }
 
     #[test]
     fn best_datatype_for_floats() {
-        let inputs = &[DataType::Float64, DataType::Float64, DataType::Float64];
+        let inputs = &[
+            DataTypeOld::Float64,
+            DataTypeOld::Float64,
+            DataTypeOld::Float64,
+        ];
         let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
         assert_eq!(Some(DataTypeId::Float64), best);
     }

@@ -1,7 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::PrimitiveStorage;
-use crate::array::Array;
+use crate::array::ArrayOld;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ListItemMetadata {
@@ -12,13 +12,13 @@ pub struct ListItemMetadata {
 #[derive(Debug, PartialEq)]
 pub struct ListStorage {
     pub(crate) metadata: PrimitiveStorage<ListItemMetadata>,
-    pub(crate) array: Array,
+    pub(crate) array: ArrayOld,
 }
 
 impl ListStorage {
     pub fn try_new(
         metadata: impl Into<PrimitiveStorage<ListItemMetadata>>,
-        array: Array,
+        array: ArrayOld,
     ) -> Result<Self> {
         let metadata = metadata.into();
 
@@ -41,14 +41,14 @@ impl ListStorage {
         Ok(ListStorage { metadata, array })
     }
 
-    pub fn empty_list(array: Array) -> Self {
+    pub fn empty_list(array: ArrayOld) -> Self {
         ListStorage {
             metadata: vec![ListItemMetadata { offset: 0, len: 0 }].into(),
             array,
         }
     }
 
-    pub fn single_list(array: Array) -> Self {
+    pub fn single_list(array: ArrayOld) -> Self {
         let len = array.logical_len();
 
         ListStorage {
@@ -61,7 +61,7 @@ impl ListStorage {
         }
     }
 
-    pub fn inner_array(&self) -> &Array {
+    pub fn inner_array(&self) -> &ArrayOld {
         &self.array
     }
 

@@ -11,10 +11,10 @@ use parquet::file::properties::{WriterProperties, WriterPropertiesPtr};
 use parquet::file::writer::{write_page, SerializedFileWriter};
 use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::physical_type::{PhysicalBinary, PhysicalStorage};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
+use rayexec_bullet::batch::BatchOld;
+use rayexec_bullet::datatype::DataTypeOld;
+use rayexec_bullet::executor::physical_type::{PhysicalBinaryOld, PhysicalStorageOld};
 use rayexec_bullet::field::Schema;
 use rayexec_bullet::storage::AddressableStorage;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
@@ -59,7 +59,7 @@ impl AsyncBatchWriter {
     }
 
     /// Encode and write a batch to the underlying file sink.
-    pub async fn write(&mut self, batch: &Batch) -> Result<()> {
+    pub async fn write(&mut self, batch: &BatchOld) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());
         }
@@ -145,20 +145,20 @@ impl RowGroupWriter {
 
         for field in schema.fields.iter() {
             match &field.datatype {
-                DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64
-                | DataType::UInt8
-                | DataType::UInt16
-                | DataType::UInt32
-                | DataType::UInt64
-                | DataType::Float32
-                | DataType::Float64
-                | DataType::Timestamp(_)
-                | DataType::Decimal64(_)
-                | DataType::Decimal128(_)
-                | DataType::Utf8 => {
+                DataTypeOld::Int8
+                | DataTypeOld::Int16
+                | DataTypeOld::Int32
+                | DataTypeOld::Int64
+                | DataTypeOld::UInt8
+                | DataTypeOld::UInt16
+                | DataTypeOld::UInt32
+                | DataTypeOld::UInt64
+                | DataTypeOld::Float32
+                | DataTypeOld::Float64
+                | DataTypeOld::Timestamp(_)
+                | DataTypeOld::Decimal64(_)
+                | DataTypeOld::Decimal128(_)
+                | DataTypeOld::Utf8 => {
                     let page_writer = BufferedPageWriter {
                         buf: ColumnBuffer(Vec::new()), // TODO: Could reuse across row groups.
                     };
@@ -178,7 +178,7 @@ impl RowGroupWriter {
         })
     }
 
-    fn write(&mut self, batch: &Batch) -> Result<()> {
+    fn write(&mut self, batch: &BatchOld) -> Result<()> {
         for (writer, col) in self.column_writers.iter_mut().zip(batch.columns()) {
             if col.has_selection() {
                 let unselected_array = col.unselect()?;
@@ -234,7 +234,7 @@ impl PageWriter for BufferedPageWriter {
 
 /// Write an array into the column writer.
 // TODO: Validity.
-fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Result<()> {
+fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &ArrayOld) -> Result<()> {
     if array.has_selection() {
         return Err(RayexecError::new(
             "Array needs to be unselected before it can be written",
@@ -313,7 +313,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
                 // TODO: Try not to copy here. There's a hard requirement on the
                 // physical type being `Bytes`, and so a conversion needs to
                 // happen somewhere.
-                let storage = PhysicalBinary::get_storage(array.array_data())?;
+                let storage = PhysicalBinaryOld::get_storage(array.array_data())?;
                 let mut data = Vec::with_capacity(storage.len());
                 for idx in 0..storage.len() {
                     let val = storage.get(idx).required("binary data")?;

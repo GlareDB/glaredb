@@ -4,9 +4,9 @@ use std::ops::AddAssign;
 
 use num_traits::CheckedAdd;
 use rayexec_bullet::array::ArrayData;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::{PhysicalF64, PhysicalI64};
+use rayexec_bullet::executor::physical_type::{PhysicalF64Old, PhysicalI64Old};
 use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use rayexec_bullet::storage::PrimitiveStorage;
 use rayexec_error::Result;
@@ -81,17 +81,17 @@ impl AggregateFunction for Sum {
 
         let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
             match inputs[0].datatype(table_list)? {
-                DataType::Int64 => (Box::new(SumInt64Impl), DataType::Int64),
-                DataType::Float64 => (Box::new(SumFloat64Impl), DataType::Float64),
-                DataType::Decimal64(m) => {
-                    let datatype = DataType::Decimal64(m);
+                DataTypeOld::Int64 => (Box::new(SumInt64Impl), DataTypeOld::Int64),
+                DataTypeOld::Float64 => (Box::new(SumFloat64Impl), DataTypeOld::Float64),
+                DataTypeOld::Decimal64(m) => {
+                    let datatype = DataTypeOld::Decimal64(m);
                     (
                         Box::new(SumDecimalImpl::<Decimal64Type>::new(datatype.clone())),
                         datatype,
                     )
                 }
-                DataType::Decimal128(m) => {
-                    let datatype = DataType::Decimal128(m);
+                DataTypeOld::Decimal128(m) => {
+                    let datatype = DataTypeOld::Decimal128(m);
                     (
                         Box::new(SumDecimalImpl::<Decimal128Type>::new(datatype.clone())),
                         datatype,
@@ -114,9 +114,9 @@ pub struct SumInt64Impl;
 
 impl AggregateFunctionImpl for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64Old, _, _, _, _>(
             SumStateCheckedAdd::<i64>::default,
-            move |states| primitive_finalize(DataType::Int64, states),
+            move |states| primitive_finalize(DataTypeOld::Int64, states),
         )
     }
 }
@@ -126,21 +126,21 @@ pub struct SumFloat64Impl;
 
 impl AggregateFunctionImpl for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64Old, _, _, _, _>(
             SumStateAdd::<f64>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
+            move |states| primitive_finalize(DataTypeOld::Float64, states),
         )
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SumDecimalImpl<D> {
-    datatype: DataType,
+    datatype: DataTypeOld,
     _d: PhantomData<D>,
 }
 
 impl<D> SumDecimalImpl<D> {
-    fn new(datatype: DataType) -> Self {
+    fn new(datatype: DataTypeOld) -> Self {
         SumDecimalImpl {
             datatype,
             _d: PhantomData,
@@ -221,7 +221,7 @@ impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
+    use rayexec_bullet::array::ArrayOld;
     use rayexec_bullet::scalar::ScalarValue;
 
     use super::*;
@@ -233,12 +233,12 @@ mod tests {
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = &ArrayOld::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &ArrayOld::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
-            .push_table(None, vec![DataType::Int64], vec!["c0".to_string()])
+            .push_table(None, vec![DataTypeOld::Int64], vec!["c0".to_string()])
             .unwrap();
 
         let specialized = Sum
@@ -310,14 +310,14 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = &ArrayOld::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &ArrayOld::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Utf8, DataType::Int64],
+                vec![DataTypeOld::Utf8, DataTypeOld::Int64],
                 vec!["col1".to_string(), "col2".to_string()],
             )
             .unwrap();
@@ -432,14 +432,14 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
-        let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
+        let partition_1_vals = &ArrayOld::from_iter::<[i64; 4]>([1, 2, 3, 4]);
+        let partition_2_vals = &ArrayOld::from_iter::<[i64; 4]>([5, 6, 7, 8]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(
                 None,
-                vec![DataType::Utf8, DataType::Int64],
+                vec![DataTypeOld::Utf8, DataTypeOld::Int64],
                 vec!["col1".to_string(), "col2".to_string()],
             )
             .unwrap();

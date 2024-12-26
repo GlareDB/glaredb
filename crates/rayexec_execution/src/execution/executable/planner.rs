@@ -21,10 +21,10 @@ use crate::execution::operators::round_robin::PhysicalRoundRobinRepartition;
 use crate::execution::operators::sink::{SinkOperation, SinkOperator};
 use crate::execution::operators::source::{SourceOperation, SourceOperator};
 use crate::execution::operators::{
-    ExecutableOperator,
+    ExecutableOperatorOld,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
+    OperatorStateOld,
+    PartitionStateOld,
     PhysicalOperator,
 };
 use crate::hybrid::buffer::ServerStreamBuffers;
@@ -363,7 +363,7 @@ impl PendingQuery {
                 }
 
                 let operator = Arc::new(PhysicalOperator::ResultSink(SinkOperator::new(sink)));
-                let states = operator.create_states(context, vec![partitions])?;
+                let states = operator.create_states_old(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states for query sink")),
@@ -429,7 +429,7 @@ impl PendingQuery {
                     }
                 };
 
-                let states = operator.create_states(context, vec![partitions])?;
+                let states = operator.create_states_old(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states")),
@@ -549,7 +549,7 @@ impl PendingQuery {
                     }
                 };
 
-                let states = operator.create_states(context, vec![partitions])?;
+                let states = operator.create_states_old(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
                     _ => {
@@ -610,7 +610,7 @@ impl PendingQuery {
     ) -> Result<ExecutablePipeline> {
         let rr_operator = Arc::new(PhysicalOperator::RoundRobin(PhysicalRoundRobinRepartition));
         let states = rr_operator
-            .create_states(context, vec![pipeline.num_partitions(), output_partitions])?;
+            .create_states_old(context, vec![pipeline.num_partitions(), output_partitions])?;
 
         let (push_states, pull_states) = match states.partition_states {
             InputOutputStates::SeparateInputOutput {
@@ -671,15 +671,15 @@ struct PendingOperatorWithState {
     /// The physical operator.
     operator: Arc<PhysicalOperator>,
     /// Global operator state.
-    operator_state: Arc<OperatorState>,
+    operator_state: Arc<OperatorStateOld>,
     /// Input states that get taken when building up the final execution
     /// pipeline.
-    input_states: Vec<Option<Vec<PartitionState>>>,
+    input_states: Vec<Option<Vec<PartitionStateOld>>>,
     /// Output states that get popped when building the final pipeline.
     ///
     /// May be empty if the operator uses the same partition state for pushing
     /// and pulling.
-    pull_states: VecDeque<Vec<PartitionState>>,
+    pull_states: VecDeque<Vec<PartitionStateOld>>,
     /// Index of the input state to use for the pull state. This corresponds to
     /// the "trunk" of the pipeline.
     trunk_idx: usize,
@@ -696,7 +696,9 @@ impl PendingOperatorWithState {
             .unwrap_or(config.partitions);
 
         // TODO: How to get other input partitions.
-        let states = operator.operator.create_states(context, vec![partitions])?;
+        let states = operator
+            .operator
+            .create_states_old(context, vec![partitions])?;
 
         Ok(match states.partition_states {
             InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
@@ -732,7 +734,7 @@ impl PendingOperatorWithState {
         })
     }
 
-    fn take_input_states(&mut self, idx: usize) -> Result<Vec<PartitionState>> {
+    fn take_input_states(&mut self, idx: usize) -> Result<Vec<PartitionStateOld>> {
         self.input_states
             .get_mut(idx)
             .ok_or_else(|| RayexecError::new(format!("Missing input states at idx {idx}")))?

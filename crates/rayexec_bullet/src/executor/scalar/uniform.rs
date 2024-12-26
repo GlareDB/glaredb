@@ -1,10 +1,10 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::check_validity;
-use crate::array::Array;
+use crate::array::ArrayOld;
 use crate::bitmap::Bitmap;
 use crate::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::executor::physical_type::PhysicalStorage;
+use crate::executor::physical_type::PhysicalStorageOld;
 use crate::executor::scalar::validate_logical_len;
 use crate::selection;
 use crate::storage::AddressableStorage;
@@ -14,13 +14,13 @@ pub struct UniformExecutor;
 
 impl UniformExecutor {
     pub fn execute<'a, S, B, Op>(
-        arrays: &[&'a Array],
+        arrays: &[&'a ArrayOld],
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<ArrayOld>
     where
         Op: FnMut(&[S::Type<'a>], &mut OutputBuffer<B>),
-        S: PhysicalStorage,
+        S: PhysicalStorageOld,
         B: ArrayDataBuffer,
     {
         let len = match arrays.first() {
@@ -61,7 +61,7 @@ impl UniformExecutor {
                     let sel = selection::get(selections[arr_idx], idx);
                     if row_invalid || !check_validity(sel, validities[arr_idx]) {
                         row_invalid = true;
-                        out_validity_builder.set_unchecked(idx, false);
+                        out_validity_builder.set(idx, false);
                         continue;
                     }
 
@@ -95,7 +95,7 @@ impl UniformExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(ArrayOld {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -109,25 +109,25 @@ mod tests {
     use selection::SelectionVector;
 
     use super::*;
-    use crate::datatype::DataType;
+    use crate::datatype::DataTypeOld;
     use crate::executor::builder::GermanVarlenBuffer;
-    use crate::executor::physical_type::PhysicalUtf8;
+    use crate::executor::physical_type::PhysicalUtf8Old;
     use crate::scalar::ScalarValue;
 
     #[test]
     fn uniform_string_concat_row_wise() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let second = Array::from_iter(["1", "2", "3"]);
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let first = ArrayOld::from_iter(["a", "b", "c"]);
+        let second = ArrayOld::from_iter(["1", "2", "3"]);
+        let third = ArrayOld::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -150,19 +150,19 @@ mod tests {
 
     #[test]
     fn uniform_string_concat_row_wise_with_invalid() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let mut second = Array::from_iter(["1", "2", "3"]);
+        let first = ArrayOld::from_iter(["a", "b", "c"]);
+        let mut second = ArrayOld::from_iter(["1", "2", "3"]);
         second.set_physical_validity(1, false); // "2" => NULL
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let third = ArrayOld::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -182,20 +182,20 @@ mod tests {
 
     #[test]
     fn uniform_string_concat_row_wise_with_invalid_and_reordered() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let mut second = Array::from_iter(["1", "2", "3"]);
+        let first = ArrayOld::from_iter(["a", "b", "c"]);
+        let mut second = ArrayOld::from_iter(["1", "2", "3"]);
         second.select_mut(SelectionVector::from_iter([1, 0, 2])); // ["1", "2", "3"] => ["2", "1", "3"]
         second.set_physical_validity(1, false); // "2" => NULL, referencing physical index
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let third = ArrayOld::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
+            datatype: DataTypeOld::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(3),
         };
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8Old, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {

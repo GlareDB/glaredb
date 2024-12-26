@@ -1,4 +1,5 @@
 edition = "2021"
+max_width = 120
 comment_width = 100
 combine_control_expr = true
 format_code_in_doc_comments = true

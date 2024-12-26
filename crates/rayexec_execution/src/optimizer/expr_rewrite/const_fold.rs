@@ -1,4 +1,4 @@
-use rayexec_bullet::batch::Batch;
+use rayexec_bullet::batch::BatchOld;
 use rayexec_error::{RayexecError, Result};
 
 use super::ExpressionRewriteRule;
@@ -26,8 +26,8 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
     if expr.is_const_foldable() {
         let planner = PhysicalExpressionPlanner::new(table_list);
         let phys_expr = planner.plan_scalar(&[], expr)?;
-        let dummy = Batch::empty_with_num_rows(1);
-        let val = phys_expr.eval(&dummy)?;
+        let dummy = BatchOld::empty_with_num_rows(1);
+        let val = phys_expr.eval2(&dummy)?;
 
         if val.logical_len() != 1 {
             return Err(RayexecError::new(format!(
@@ -58,7 +58,7 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
+    use rayexec_bullet::datatype::DataTypeOld;
 
     use super::*;
     use crate::expr::{add, and, cast, col_ref, lit};
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn fold_string_to_float_cast() {
-        let expr = cast(lit("3.1"), DataType::Float64);
+        let expr = cast(lit("3.1"), DataTypeOld::Float64);
 
         let expected = lit(3.1_f64);
 

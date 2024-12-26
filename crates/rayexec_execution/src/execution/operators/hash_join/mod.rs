@@ -10,22 +10,22 @@ use condition::HashJoinCondition;
 use global_hash_table::GlobalHashTable;
 use parking_lot::Mutex;
 use partition_hash_table::PartitionHashTable;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::batch::BatchOld;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_bullet::executor::scalar::HashExecutor;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
 use super::{
     ComputedBatches,
-    ExecutableOperator,
+    ExecutableOperatorOld,
     ExecutionStates,
     InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    OperatorStateOld,
+    PartitionStateOld,
+    PollFinalizeOld,
+    PollPullOld,
+    PollPushOld,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -128,10 +128,10 @@ pub struct PhysicalHashJoin {
     conditions: Vec<HashJoinCondition>,
     /// Types for the batches we'll be receiving from the left side. Used during
     /// RIGHT joins to produce null columns on the left side.
-    left_types: Vec<DataType>,
+    left_types: Vec<DataTypeOld>,
     /// Types for the batches we'll be receiving from the right side. Used
     /// during LEFT joins to produce null columns on the right side.
-    right_types: Vec<DataType>,
+    right_types: Vec<DataTypeOld>,
 }
 
 impl PhysicalHashJoin {
@@ -145,8 +145,8 @@ impl PhysicalHashJoin {
         join_type: JoinType,
         equality_inidices: &[usize],
         conditions: Vec<HashJoinCondition>,
-        left_types: Vec<DataType>,
-        right_types: Vec<DataType>,
+        left_types: Vec<DataTypeOld>,
+        right_types: Vec<DataTypeOld>,
     ) -> Self {
         assert!(!equality_inidices.is_empty());
 
@@ -187,8 +187,8 @@ impl PhysicalHashJoin {
     }
 }
 
-impl ExecutableOperator for PhysicalHashJoin {
-    fn create_states(
+impl ExecutableOperatorOld for PhysicalHashJoin {
+    fn create_states_old(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -214,7 +214,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
         let build_states: Vec<_> = (0..build_partitions)
             .map(|_| {
-                PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
+                PartitionStateOld::HashJoinBuild(HashJoinBuildPartitionState {
                     local_hashtable: Some(PartitionHashTable::new(&self.conditions)),
                     hash_buf: Vec::new(),
                 })
@@ -223,7 +223,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
         let probe_states: Vec<_> = (0..probe_partitions)
             .map(|idx| {
-                PartitionState::HashJoinProbe(HashJoinProbePartitionState {
+                PartitionStateOld::HashJoinProbe(HashJoinProbePartitionState {
                     partition_idx: idx,
                     global: None,
                     hash_buf: Vec::new(),
@@ -238,7 +238,7 @@ impl ExecutableOperator for PhysicalHashJoin {
             .collect();
 
         Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::HashJoin(operator_state)),
+            operator_state: Arc::new(OperatorStateOld::HashJoin(operator_state)),
             partition_states: InputOutputStates::NaryInputSingleOutput {
                 partition_states: vec![build_states, probe_states],
                 pull_states: Self::PROBE_SIDE_INPUT_INDEX,
@@ -246,28 +246,28 @@ impl ExecutableOperator for PhysicalHashJoin {
         })
     }
 
-    fn poll_push(
+    fn poll_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+        batch: BatchOld,
+    ) -> Result<PollPushOld> {
         match partition_state {
-            PartitionState::HashJoinBuild(state) => {
+            PartitionStateOld::HashJoinBuild(state) => {
                 self.insert_into_local_table(state, batch)?;
-                Ok(PollPush::NeedsMore)
+                Ok(PollPushOld::NeedsMore)
             }
-            PartitionState::HashJoinProbe(state) => {
+            PartitionStateOld::HashJoinProbe(state) => {
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
                 if !state.buffered_output.is_empty() {
                     state.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPushOld::Pending(batch));
                 }
 
                 let operator_state = match operator_state {
-                    OperatorState::HashJoin(state) => state,
+                    OperatorStateOld::HashJoin(state) => state,
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -280,7 +280,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                     // waker to come back later.
                     if shared.build_inputs_remaining != 0 {
                         shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
-                        return Ok(PollPush::Pending(batch));
+                        return Ok(PollPushOld::Pending(batch));
                     }
 
                     let global = match shared.global_hash_table.as_ref() {
@@ -290,7 +290,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                             // thread. Come back when it's ready.
                             shared.probe_push_wakers[state.partition_idx] =
                                 Some(cx.waker().clone());
-                            return Ok(PollPush::Pending(batch));
+                            return Ok(PollPushOld::Pending(batch));
                         }
                     };
 
@@ -314,7 +314,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 state.hash_buf.resize(batch.num_rows(), 0);
 
                 for (idx, equality) in self.equalities.iter().enumerate() {
-                    let result = equality.right.eval(&batch)?;
+                    let result = equality.right.eval2(&batch)?;
 
                     if idx == 0 {
                         HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
@@ -334,29 +334,29 @@ impl ExecutableOperator for PhysicalHashJoin {
                 state.buffered_output = ComputedBatches::new(batches);
                 if state.buffered_output.is_empty() {
                     // No batches joined, keep pushing to this operator.
-                    return Ok(PollPush::NeedsMore);
+                    return Ok(PollPushOld::NeedsMore);
                 }
 
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPushOld::Pushed)
             }
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+    ) -> Result<PollFinalizeOld> {
         match partition_state {
-            PartitionState::HashJoinBuild(state) => {
+            PartitionStateOld::HashJoinBuild(state) => {
                 let mut shared = match operator_state {
-                    OperatorState::HashJoin(state) => state.inner.lock(),
+                    OperatorStateOld::HashJoin(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -392,7 +392,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                     // Reacquire, and place in global state.
                     let mut shared = match operator_state {
-                        OperatorState::HashJoin(state) => state.inner.lock(),
+                        OperatorStateOld::HashJoin(state) => state.inner.lock(),
                         other => panic!("invalid operator state: {other:?}"),
                     };
 
@@ -413,11 +413,11 @@ impl ExecutableOperator for PhysicalHashJoin {
                     }
                 }
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
-            PartitionState::HashJoinProbe(state) => {
+            PartitionStateOld::HashJoinProbe(state) => {
                 let mut shared = match operator_state {
-                    OperatorState::HashJoin(state) => state.inner.lock(),
+                    OperatorStateOld::HashJoin(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
                 };
 
@@ -429,7 +429,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 // left side.
                 if shared.build_inputs_remaining != 0 {
                     shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
-                    return Ok(PollFinalize::Pending);
+                    return Ok(PollFinalizeOld::Pending);
                 }
 
                 // It's possible for this partition not have this if we pushed
@@ -443,7 +443,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                     }
                     None => {
                         shared.probe_push_wakers[state.partition_idx] = Some(cx.waker().clone());
-                        return Ok(PollFinalize::Pending);
+                        return Ok(PollFinalizeOld::Pending);
                     }
                 }
 
@@ -485,21 +485,21 @@ impl ExecutableOperator for PhysicalHashJoin {
                     waker.wake();
                 }
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalizeOld::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_pull(
+    fn poll_pull_old(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+        partition_state: &mut PartitionStateOld,
+        operator_state: &OperatorStateOld,
+    ) -> Result<PollPullOld> {
         let state = match partition_state {
-            PartitionState::HashJoinProbe(state) => state,
-            PartitionState::HashJoinBuild(_) => {
+            PartitionStateOld::HashJoinProbe(state) => state,
+            PartitionStateOld::HashJoinBuild(_) => {
                 // We should only be pulling with the "probe" state. The "build"
                 // state acts as a sink into the operator.
                 panic!("should not pull with a build state")
@@ -515,7 +515,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 waker.wake();
             }
 
-            Ok(PollPull::Computed(computed))
+            Ok(PollPullOld::Computed(computed))
         } else {
             // No batches computed, check if we're done.
             if state.input_finished {
@@ -523,14 +523,14 @@ impl ExecutableOperator for PhysicalHashJoin {
                     // We don't yet have a drain, check the global state to see
                     // if we can create it.
                     let mut shared = match operator_state {
-                        OperatorState::HashJoin(state) => state.inner.lock(),
+                        OperatorStateOld::HashJoin(state) => state.inner.lock(),
                         other => panic!("invalid operator state: {other:?}"),
                     };
 
                     if shared.probe_inputs_remaining != 0 {
                         // Global state does not yet have all inputs. Need to wait.
                         shared.probe_drain_wakers[state.partition_idx] = Some(cx.waker().clone());
-                        return Ok(PollPull::Pending);
+                        return Ok(PollPullOld::Pending);
                     }
 
                     let start_idx = state.partition_idx;
@@ -565,26 +565,26 @@ impl ExecutableOperator for PhysicalHashJoin {
                     if matches!(self.join_type, JoinType::LeftMark { .. }) {
                         // Mark drain
                         match drain_state.drain_mark_next()? {
-                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
-                            None => return Ok(PollPull::Exhausted),
+                            Some(batch) => return Ok(PollPullOld::Computed(batch.into())),
+                            None => return Ok(PollPullOld::Exhausted),
                         }
                     } else if matches!(self.join_type, JoinType::Semi) {
                         // Semi drain
                         match drain_state.drain_semi_next()? {
-                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
-                            None => return Ok(PollPull::Exhausted),
+                            Some(batch) => return Ok(PollPullOld::Computed(batch.into())),
+                            None => return Ok(PollPullOld::Exhausted),
                         }
                     } else {
                         // Normal left drain
                         match drain_state.drain_next()? {
-                            Some(batch) => return Ok(PollPull::Computed(batch.into())),
-                            None => return Ok(PollPull::Exhausted),
+                            Some(batch) => return Ok(PollPullOld::Computed(batch.into())),
+                            None => return Ok(PollPullOld::Exhausted),
                         }
                     }
                 }
 
                 // We're done.
-                return Ok(PollPull::Exhausted);
+                return Ok(PollPullOld::Exhausted);
             }
 
             // No batch available, come back later.
@@ -595,7 +595,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 waker.wake();
             }
 
-            Ok(PollPull::Pending)
+            Ok(PollPullOld::Pending)
         }
     }
 }
@@ -605,7 +605,7 @@ impl PhysicalHashJoin {
     fn insert_into_local_table(
         &self,
         state: &mut HashJoinBuildPartitionState,
-        batch: Batch,
+        batch: BatchOld,
     ) -> Result<()> {
         // Compute left hashes on equality conditions.
 
@@ -613,7 +613,7 @@ impl PhysicalHashJoin {
         state.hash_buf.resize(batch.num_rows(), 0);
 
         for (idx, equality) in self.equalities.iter().enumerate() {
-            let result = equality.left.eval(&batch)?;
+            let result = equality.left.eval2(&batch)?;
 
             if idx == 0 {
                 HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;

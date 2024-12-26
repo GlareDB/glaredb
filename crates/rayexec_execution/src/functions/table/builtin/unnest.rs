@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use rayexec_bullet::array::{ArrayData, ArrayOld};
+use rayexec_bullet::batch::BatchOld;
+use rayexec_bullet::datatype::{DataTypeId, DataTypeOld};
 use rayexec_bullet::executor::physical_type::{PhysicalList, PhysicalType};
 use rayexec_bullet::executor::scalar::UnaryExecutor;
 use rayexec_bullet::field::{Field, Schema};
@@ -11,7 +11,7 @@ use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::unnest::unnest;
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{PollFinalizeOld, PollPushOld};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -82,8 +82,8 @@ impl InOutPlanner for Unnest {
         let datatype = positional_inputs[0].datatype(table_list)?;
 
         let return_type = match datatype {
-            DataType::List(m) => *m.datatype,
-            DataType::Null => DataType::Null,
+            DataTypeOld::List(m) => *m.datatype,
+            DataTypeOld::Null => DataTypeOld::Null,
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 
@@ -134,7 +134,7 @@ impl TableInOutFunction for UnnestInOutImpl {
 #[derive(Debug)]
 pub struct UnnestInOutPartitionState {
     /// The array we're unnesting.
-    input: Option<Array>,
+    input: Option<ArrayOld>,
     /// Number of rows in the input batch.
     input_num_rows: usize,
     /// Current row we're processing.
@@ -152,7 +152,7 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, inputs: BatchOld) -> Result<PollPushOld> {
         if self.current_row < self.input_num_rows {
             // Still processing inputs, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -160,7 +160,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                 waker.wake();
             }
 
-            return Ok(PollPush::Pending(inputs));
+            return Ok(PollPushOld::Pending(inputs));
         }
 
         self.input_num_rows = inputs.num_rows();
@@ -177,17 +177,17 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPushOld::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalizeOld> {
         self.finished = true;
 
         if let Some(waker) = self.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalizeOld::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
@@ -220,13 +220,13 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                     }
                     None => {
                         // Row is null, produce as single null
-                        Array::new_typed_null_array(child.datatype().clone(), 1)?
+                        ArrayOld::new_typed_null_array(child.datatype().clone(), 1)?
                     }
                 }
             }
             PhysicalType::UntypedNull => {
                 // Just produce null array of length 1.
-                Array::new_untyped_null_array(1)
+                ArrayOld::new_untyped_null_array(1)
             }
             other => {
                 return Err(RayexecError::new(format!(
@@ -247,7 +247,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             }
         }
 
-        let batch = Batch::try_new([output])?;
+        let batch = BatchOld::try_new([output])?;
 
         Ok(InOutPollPull::Batch { batch, row_nums })
     }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use rayexec_bullet::datatype::DataTypeOld;
 use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +70,7 @@ impl fmt::Display for TableAlias {
 pub struct Table {
     pub reference: TableRef,
     pub alias: Option<TableAlias>,
-    pub column_types: Vec<DataType>,
+    pub column_types: Vec<DataTypeOld>,
     pub column_names: Vec<String>,
 }
 
@@ -110,7 +110,7 @@ impl TableList {
     pub fn push_table(
         &mut self,
         alias: Option<TableAlias>,
-        column_types: Vec<DataType>,
+        column_types: Vec<DataTypeOld>,
         column_names: Vec<String>,
     ) -> Result<TableRef> {
         if column_types.len() != column_names.len() {
@@ -133,7 +133,7 @@ impl TableList {
         Ok(reference)
     }
 
-    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
+    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataTypeOld)> {
         let table = self.get(table_ref)?;
         let name = table
             .column_names

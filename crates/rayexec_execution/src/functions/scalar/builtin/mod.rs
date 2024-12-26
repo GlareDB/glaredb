@@ -10,6 +10,7 @@ pub mod random;
 pub mod similarity;
 pub mod string;
 pub mod struct_funcs;
+pub mod temp_add_2;
 
 use std::sync::LazyLock;
 
