@@ -1,4 +1,4 @@
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 

@@ -1,4 +1,4 @@
-use rayexec_bullet::field::Field;
+use crate::arrays::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 

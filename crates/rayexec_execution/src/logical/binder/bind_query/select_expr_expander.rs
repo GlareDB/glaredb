@@ -292,7 +292,7 @@ impl<'a> SelectExprExpander<'a> {
 #[cfg(test)]
 mod tests {
     use ast::ObjectReference;
-    use rayexec_bullet::datatype::DataType;
+    use crate::arrays::datatype::DataType;
 
     use super::*;
 

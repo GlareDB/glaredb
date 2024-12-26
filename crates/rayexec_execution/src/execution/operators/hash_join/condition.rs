@@ -1,10 +1,10 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::executor::scalar::SelectExecutor;
-use rayexec_bullet::selection::SelectionVector;
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::executor::scalar::SelectExecutor;
+use crate::arrays::selection::SelectionVector;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::physical::PhysicalScalarExpression;

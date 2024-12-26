@@ -3,9 +3,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::scalar::ScalarValue;
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::scalar::ScalarValue;
 use rayexec_error::Result;
 
 use super::{

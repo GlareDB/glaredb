@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_bullet::field::Field;
+use crate::arrays::field::Field;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 

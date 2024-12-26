@@ -5,8 +5,8 @@ use std::task::{Context, Poll, Waker};
 use futures::future::BoxFuture;
 use futures::{Future, Stream};
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::Schema;
+use crate::arrays::batch::Batch;
+use crate::arrays::field::Schema;
 use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 

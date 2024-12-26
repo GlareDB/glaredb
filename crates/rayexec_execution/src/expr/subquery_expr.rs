@@ -1,7 +1,7 @@
 use std::fmt;
 use std::hash::Hash;
 
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use super::comparison_expr::ComparisonOperator;

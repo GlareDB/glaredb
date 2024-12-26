@@ -1,6 +1,6 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::executor::physical_type::PhysicalType;
-use rayexec_bullet::executor::scalar::concat;
+use crate::arrays::array::Array;
+use crate::arrays::executor::physical_type::PhysicalType;
+use crate::arrays::executor::scalar::concat;
 use rayexec_error::Result;
 
 use super::hash_table::GroupAddress;

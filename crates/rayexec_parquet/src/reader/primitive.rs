@@ -3,13 +3,13 @@ use parquet::column::page::PageReader;
 use parquet::column::reader::basic::BasicColumnValueDecoder;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::compute::cast::array::cast_array;
-use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::bitmap::Bitmap;
+use rayexec_execution::arrays::compute::cast::array::cast_array;
+use rayexec_execution::arrays::compute::cast::behavior::CastFailBehavior;
+use rayexec_execution::arrays::datatype::DataType;
+use rayexec_execution::arrays::storage::{BooleanStorage, PrimitiveStorage};
 
 use super::{
     def_levels_into_bitmap,

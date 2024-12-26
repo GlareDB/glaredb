@@ -5,14 +5,14 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
-use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::scalar::OwnedScalarValue;
-use rayexec_bullet::storage::{GermanVarlenStorage, ListItemMetadata, ListStorage};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
+use crate::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
+use crate::arrays::field::{Field, Schema};
+use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::storage::{GermanVarlenStorage, ListItemMetadata, ListStorage};
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use crate::database::catalog::CatalogTx;

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::datatype::DataType;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 

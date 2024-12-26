@@ -3,18 +3,18 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::aggregate::{
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::datatype::DataType;
+use crate::arrays::executor::aggregate::{
     AggregateState,
     BinaryNonNullUpdater,
     StateCombiner,
     StateFinalizer,
     UnaryNonNullUpdater,
 };
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalStorage;
-use rayexec_bullet::storage::{AddressableStorage, PrimitiveStorage};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
+use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
 
 use super::ChunkGroupAddressIter;

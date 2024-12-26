@@ -1,4 +1,4 @@
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::Result;
 
 use super::binder::bind_context::BindContext;

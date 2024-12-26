@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 

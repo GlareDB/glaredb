@@ -11,9 +11,9 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use rayexec_bullet::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast::{self, ColumnDef, ObjectReference};

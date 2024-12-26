@@ -15,7 +15,7 @@ use std::sync::Arc;
 use catalog::CatalogTx;
 use create::{CreateSchemaInfo, OnConflict};
 use memory_catalog::MemoryCatalog;
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 

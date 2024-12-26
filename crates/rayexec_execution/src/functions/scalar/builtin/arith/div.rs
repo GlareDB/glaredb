@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::compute::cast::array::cast_decimal_to_float;
-use rayexec_bullet::compute::cast::behavior::CastFailBehavior;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use rayexec_bullet::executor::physical_type::{
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::compute::cast::array::cast_decimal_to_float;
+use crate::arrays::compute::cast::behavior::CastFailBehavior;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use crate::arrays::executor::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -22,9 +22,9 @@ use rayexec_bullet::executor::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
-use rayexec_bullet::executor::scalar::BinaryExecutor;
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use rayexec_bullet::storage::PrimitiveStorage;
+use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::storage::PrimitiveStorage;
 use rayexec_error::Result;
 
 use crate::expr::Expression;
@@ -260,7 +260,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::datatype::DataType;
+    use crate::arrays::datatype::DataType;
 
     use super::*;
     use crate::expr;

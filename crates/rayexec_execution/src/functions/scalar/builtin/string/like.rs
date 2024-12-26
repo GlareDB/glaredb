@@ -1,8 +1,8 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::PhysicalUtf8;
-use rayexec_bullet::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
+use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use rayexec_error::{Result, ResultExt};
 use regex::{escape, Regex};
 

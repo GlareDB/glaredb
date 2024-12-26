@@ -1,4 +1,4 @@
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::scalar::OwnedScalarValue;
 
 use crate::expr::comparison_expr::ComparisonOperator;
 

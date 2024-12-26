@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use regex::Regex;
 

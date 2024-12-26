@@ -1,16 +1,16 @@
 use std::marker::PhantomData;
 
 use num_traits::Float;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, BooleanBuffer};
-use rayexec_bullet::executor::physical_type::{
+use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
+use crate::arrays::executor::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalStorage,
 };
-use rayexec_bullet::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor;
 use rayexec_error::Result;
 
 use super::ScalarFunction;

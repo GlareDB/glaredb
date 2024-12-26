@@ -5,8 +5,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::aggregate::RowToStateMapping;
+use crate::arrays::datatype::DataType;
+use crate::arrays::executor::aggregate::RowToStateMapping;
 use rayexec_error::Result;
 use states::AggregateGroupStates;
 

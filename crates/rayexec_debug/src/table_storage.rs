@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::Field;
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::field::Field;
 use rayexec_execution::database::catalog_entry::CatalogEntry;
 use rayexec_execution::execution::operators::sink::PartitionSink;
 use rayexec_execution::storage::table_storage::{

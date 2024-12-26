@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::array::Array;
+use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use super::FunctionInfo;

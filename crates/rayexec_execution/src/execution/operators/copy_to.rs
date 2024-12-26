@@ -1,4 +1,4 @@
-use rayexec_bullet::field::Schema;
+use crate::arrays::field::Schema;
 use rayexec_error::{OptionExt, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_proto::ProtoConv;

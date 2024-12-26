@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use rayexec_bullet::batch::Batch;
+use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::{

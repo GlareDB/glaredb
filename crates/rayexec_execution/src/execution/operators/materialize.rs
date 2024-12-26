@@ -1,6 +1,6 @@
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::sink::{PartitionSink, SinkOperation};

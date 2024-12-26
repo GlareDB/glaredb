@@ -1,9 +1,9 @@
 use std::fmt;
 
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::field::Schema;
-use rayexec_bullet::format::{FormatOptions, Formatter};
 use rayexec_error::Result;
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 
 const FORMATTER: Formatter = Formatter::new(FormatOptions {
     null: "",
@@ -54,9 +54,9 @@ pub fn write_markdown_table<'a>(
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
-    use rayexec_bullet::datatype::DataType;
-    use rayexec_bullet::field::Field;
+    use rayexec_execution::arrays::array::Array;
+    use rayexec_execution::arrays::datatype::DataType;
+    use rayexec_execution::arrays::field::Field;
 
     use super::*;
 

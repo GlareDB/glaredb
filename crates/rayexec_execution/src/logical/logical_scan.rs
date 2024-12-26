@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use super::binder::bind_context::BindContext;

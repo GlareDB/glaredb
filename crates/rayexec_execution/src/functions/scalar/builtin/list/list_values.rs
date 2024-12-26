@@ -1,7 +1,7 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId, ListTypeMeta};
-use rayexec_bullet::executor::scalar::concat;
-use rayexec_bullet::storage::ListStorage;
+use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
+use crate::arrays::executor::scalar::concat;
+use crate::arrays::storage::ListStorage;
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::Expression;

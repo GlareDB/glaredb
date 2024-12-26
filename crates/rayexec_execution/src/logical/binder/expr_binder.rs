@@ -1,7 +1,7 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::scalar::interval::Interval;
-use rayexec_bullet::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::interval::Interval;
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 

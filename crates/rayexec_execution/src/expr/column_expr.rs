@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};

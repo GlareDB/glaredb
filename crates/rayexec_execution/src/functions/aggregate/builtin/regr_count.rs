@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::aggregate::AggregateState;
-use rayexec_bullet::executor::physical_type::PhysicalAny;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::physical_type::PhysicalAny;
 use rayexec_error::Result;
 
 use crate::expr::Expression;

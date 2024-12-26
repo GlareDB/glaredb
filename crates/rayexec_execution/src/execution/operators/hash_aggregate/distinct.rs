@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::executor::scalar::HashExecutor;
-use rayexec_bullet::selection::SelectionVector;
+use crate::arrays::array::Array;
+use crate::arrays::executor::scalar::HashExecutor;
+use crate::arrays::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;

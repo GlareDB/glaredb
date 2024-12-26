@@ -1,4 +1,4 @@
-use rayexec_bullet::field::Schema;
+use crate::arrays::field::Schema;
 use rayexec_error::Result;
 use rayexec_io::location::FileLocation;
 

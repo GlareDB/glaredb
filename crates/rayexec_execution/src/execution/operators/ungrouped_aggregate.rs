@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::hash_aggregate::distinct::DistinctGroupedStates;

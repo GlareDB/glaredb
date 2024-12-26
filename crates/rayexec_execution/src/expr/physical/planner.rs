@@ -1,5 +1,5 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::scalar::ScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::case_expr::PhysicalCaseExpr;

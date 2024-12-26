@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::scalar::ScalarValue;
+use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::ScalarValue;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::expr::aggregate_expr::AggregateExpr;

@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::selection::SelectionVector;
+use crate::arrays::batch::Batch;
+use crate::arrays::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::util::outer_join_tracker::LeftOuterJoinTracker;

@@ -4,10 +4,10 @@ use parquet::column::reader::view::ViewColumnValueDecoder;
 use parquet::data_type::{ByteArray, DataType as ParquetDataType};
 use parquet::decoding::view::ViewBuffer;
 use parquet::schema::types::ColumnDescPtr;
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::executor::builder::ArrayDataBuffer;
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::datatype::DataType;
+use rayexec_execution::arrays::executor::builder::ArrayDataBuffer;
 
 use super::{def_levels_into_bitmap, insert_null_values, ArrayBuilder, ValuesReader};
 
@@ -62,7 +62,7 @@ where
                     }
                 }
             }
-            (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to bullet type in varlen reader; parqet: {p_other}, bullet: {d_other}")))
+            (p_other, d_other) => return Err(RayexecError::new(format!("Unknown conversion from parquet to glaredb type in varlen reader; parqet: {p_other}, bullet: {d_other}")))
         };
 
         Ok(arr)

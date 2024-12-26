@@ -302,7 +302,7 @@ impl LogicalNode for Node<LogicalCrossJoin> {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::scalar::ScalarValue;
+    use crate::arrays::scalar::ScalarValue;
 
     use super::*;
     use crate::expr::literal_expr::LiteralExpr;

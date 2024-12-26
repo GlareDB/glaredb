@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::field::Field;
 use rayexec_debug::table_storage::TablePreload;
 use rayexec_debug::{DebugDataSource, DebugDataSourceOptions};
 use rayexec_error::Result;
+use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::datatype::DataType;
+use rayexec_execution::arrays::field::Field;
 use rayexec_execution::datasource::DataSourceRegistry;
 use rayexec_execution::engine::Engine;
 use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};

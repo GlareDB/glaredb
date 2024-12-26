@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::selection::SelectionVector;
+use crate::arrays::batch::Batch;
+use crate::arrays::selection::SelectionVector;
 use rayexec_error::Result;
 
 use crate::execution::computed_batch::ComputedBatches;
@@ -116,8 +116,8 @@ impl BatchResizer {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::array::Array;
-    use rayexec_bullet::testutil::assert_batches_eq;
+    use crate::arrays::array::Array;
+    use crate::arrays::testutil::assert_batches_eq;
 
     use super::*;
 

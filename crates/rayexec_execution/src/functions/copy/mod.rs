@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use dyn_clone::DynClone;
-use rayexec_bullet::field::Schema;
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::field::Schema;
+use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;

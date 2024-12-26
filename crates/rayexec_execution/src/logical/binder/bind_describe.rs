@@ -1,5 +1,5 @@
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::field::{Field, Schema};
+use crate::arrays::datatype::DataType;
+use crate::arrays::field::{Field, Schema};
 use rayexec_error::Result;
 use rayexec_parser::ast;
 

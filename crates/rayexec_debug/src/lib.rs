@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use discard::DiscardCopyToFunction;
 use futures::future::BoxFuture;
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::arrays::scalar::OwnedScalarValue;
 use rayexec_execution::database::catalog_entry::TableEntry;
 use rayexec_execution::database::memory_catalog::MemoryCatalog;
 use rayexec_execution::datasource::{DataSource, DataSourceConnection, DataSourceCopyTo};

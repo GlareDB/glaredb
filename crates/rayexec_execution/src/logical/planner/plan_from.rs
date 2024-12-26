@@ -1,4 +1,4 @@
-use rayexec_bullet::scalar::ScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 use super::plan_query::QueryPlanner;

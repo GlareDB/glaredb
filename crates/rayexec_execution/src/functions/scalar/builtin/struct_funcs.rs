@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_bullet::datatype::DataTypeId;
+use crate::arrays::datatype::DataTypeId;
 use rayexec_error::{not_implemented, Result};
 
 use crate::expr::Expression;

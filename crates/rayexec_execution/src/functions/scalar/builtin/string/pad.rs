@@ -1,8 +1,8 @@
-use rayexec_bullet::array::Array;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use rayexec_bullet::executor::physical_type::{PhysicalI64, PhysicalUtf8};
-use rayexec_bullet::executor::scalar::{BinaryExecutor, TernaryExecutor};
+use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
+use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use rayexec_error::Result;
 
 use crate::expr::Expression;

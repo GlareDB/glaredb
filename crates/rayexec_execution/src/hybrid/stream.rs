@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use rayexec_bullet::batch::Batch;
+use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 

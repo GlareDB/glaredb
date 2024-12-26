@@ -6,12 +6,12 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{FutureExt, TryStreamExt};
-use rayexec_bullet::array::Array;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::scalar::OwnedScalarValue;
 use rayexec_error::Result;
+use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::datatype::{DataType, DataTypeId};
+use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::scalar::OwnedScalarValue;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::expr;
 use rayexec_execution::functions::table::{

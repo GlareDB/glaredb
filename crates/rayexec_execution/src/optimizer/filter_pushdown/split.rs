@@ -19,7 +19,7 @@ pub fn split_conjunction(expr: Expression, out: &mut Vec<Expression>) {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::scalar::ScalarValue;
+    use crate::arrays::scalar::ScalarValue;
 
     use super::*;
     use crate::expr::literal_expr::LiteralExpr;

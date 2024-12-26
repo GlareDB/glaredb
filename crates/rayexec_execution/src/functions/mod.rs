@@ -12,7 +12,7 @@ use std::fmt::Display;
 use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
 use implicit::{implicit_cast_score, NO_CAST_SCORE};
-use rayexec_bullet::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use rayexec_error::{RayexecError, Result};
 
 /// Function signature.

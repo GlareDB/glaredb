@@ -3,9 +3,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use hashbrown::raw::RawTable;
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::DataType;
-use rayexec_bullet::selection::SelectionVector;
+use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
+use crate::arrays::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::condition::{

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_bullet::batch::Batch;
+use crate::arrays::batch::Batch;
 use rayexec_error::{OptionExt, Result};
 
 use super::simple::{SimpleOperator, StatelessOperation};

@@ -9,16 +9,16 @@ use parquet::basic::{
 };
 use parquet::format::{MicroSeconds, MilliSeconds, NanoSeconds};
 use parquet::schema::types::{BasicTypeInfo, SchemaDescriptor, Type};
-use rayexec_bullet::datatype::{
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::datatype::{
     DataType,
     DecimalTypeMeta,
     ListTypeMeta,
     TimeUnit,
     TimestampTypeMeta,
 };
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 
 /// Converts a parquet schema to a bullet schema.
 ///

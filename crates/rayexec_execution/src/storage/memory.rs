@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_bullet::batch::Batch;
+use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage};

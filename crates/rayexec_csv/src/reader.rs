@@ -22,15 +22,20 @@ use std::fmt;
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::bitmap::Bitmap;
-use rayexec_bullet::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
-use rayexec_bullet::datatype::{DataType, TimeUnit, TimestampTypeMeta};
-use rayexec_bullet::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_error::{RayexecError, Result};
+use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::bitmap::Bitmap;
+use rayexec_execution::arrays::compute::cast::parse::{
+    BoolParser,
+    Float64Parser,
+    Int64Parser,
+    Parser,
+};
+use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
+use rayexec_execution::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
+use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_io::FileSource;
 use serde::{Deserialize, Serialize};
 

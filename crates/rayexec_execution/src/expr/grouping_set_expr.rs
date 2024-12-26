@@ -1,7 +1,7 @@
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_bullet::datatype::DataType;
+use crate::arrays::datatype::DataType;
 
 use super::Expression;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};

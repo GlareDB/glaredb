@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::task::{Context, Waker};
 
-use rayexec_bullet::array::{Array, ArrayData};
-use rayexec_bullet::batch::Batch;
-use rayexec_bullet::datatype::{DataType, DataTypeId};
-use rayexec_bullet::executor::physical_type::{PhysicalList, PhysicalType};
-use rayexec_bullet::executor::scalar::UnaryExecutor;
-use rayexec_bullet::field::{Field, Schema};
-use rayexec_bullet::scalar::OwnedScalarValue;
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::batch::Batch;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType};
+use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::field::{Field, Schema};
+use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::unnest::unnest;

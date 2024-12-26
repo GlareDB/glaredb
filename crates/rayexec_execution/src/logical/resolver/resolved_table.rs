@@ -111,7 +111,7 @@ impl ProtoConv for UnresolvedTableReference {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_bullet::scalar::OwnedScalarValue;
+    use crate::arrays::scalar::OwnedScalarValue;
     use rayexec_proto::testutil::assert_proto_roundtrip;
 
     use super::*;
