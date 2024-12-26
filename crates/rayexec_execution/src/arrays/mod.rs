@@ -12,5 +12,3 @@ pub mod selection;
 pub mod storage;
 
 pub mod testutil;
-
-mod bitutil;

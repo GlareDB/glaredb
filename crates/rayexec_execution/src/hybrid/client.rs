@@ -337,7 +337,7 @@ impl ProtoConv for IpcBatch {
         // Ok(Self::ProtoType { ipc: buf })
     }
 
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
+    fn from_proto(_proto: Self::ProtoType) -> Result<Self> {
         unimplemented!()
         // let mut reader = StreamReader::try_new(Cursor::new(proto.ipc), IpcConfig {})?;
         // let batch = reader

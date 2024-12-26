@@ -1,8 +1,7 @@
-use std::io::Cursor;
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use super::{
     ExecutableOperator,
@@ -15,7 +14,6 @@ use super::{
     PollPush,
 };
 use crate::arrays::batch::Batch;
-use crate::arrays::field::{Field, Schema};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -139,7 +137,7 @@ impl DatabaseProtoConv for PhysicalValues {
         // })
     }
 
-    fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
+    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         unimplemented!()
         // let ipc = proto.batches.required("batches")?.ipc;
 
