@@ -1,9 +1,9 @@
-use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ErroringColumnBinder;
+use crate::arrays::datatype::DataType;
 use crate::config::session::SessionConfig;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll};

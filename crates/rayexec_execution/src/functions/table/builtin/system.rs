@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
+use rayexec_error::{OptionExt, RayexecError, Result};
+
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
@@ -13,8 +15,6 @@ use crate::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::arrays::storage::{GermanVarlenStorage, ListItemMetadata, ListStorage};
-use rayexec_error::{OptionExt, RayexecError, Result};
-
 use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;

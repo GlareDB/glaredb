@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 
 use super::{
@@ -14,6 +13,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -232,9 +232,8 @@ impl DatabaseProtoConv for PhysicalLimit {
 mod tests {
     use std::sync::Arc;
 
-    use crate::arrays::scalar::ScalarValue;
-
     use super::*;
+    use crate::arrays::scalar::ScalarValue;
     use crate::execution::operators::test_util::{
         logical_value,
         make_i32_batch,

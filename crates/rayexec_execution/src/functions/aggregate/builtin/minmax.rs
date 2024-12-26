@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use half::f16;
+use rayexec_error::{not_implemented, Result};
+
 use crate::arrays::array::ArrayData;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
@@ -29,8 +31,6 @@ use crate::arrays::executor::physical_type::{
 };
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
-use rayexec_error::{not_implemented, Result};
-
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     boolean_finalize,

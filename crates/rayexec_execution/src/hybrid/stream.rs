@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
 use super::client::{HybridClient, PullStatus};
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::{PartitionSink, SinkOperation};

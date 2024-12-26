@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 
 use super::util::merger::{IterState, KWayMerger, MergeResult};
 use super::util::sort_keys::SortKeysExtractor;
 use super::util::sorted_batch::{IndexSortedBatch, SortedIndicesIter};
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::execution::operators::{

@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use rayexec_error::Result;
+
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::selection::SelectionVector;
-use rayexec_error::Result;
 
 /// Bitmaps corresponding to rows in the batches collected on the left side of
 /// the join.

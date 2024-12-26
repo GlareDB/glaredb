@@ -224,9 +224,8 @@ const fn float64_cast_score(want: DataTypeId) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use crate::arrays::datatype::{TimeUnit, TimestampTypeMeta};
-
     use super::*;
+    use crate::arrays::datatype::{TimeUnit, TimestampTypeMeta};
 
     #[test]
     fn implicit_cast_from_utf8() {

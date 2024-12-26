@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use dyn_clone::DynClone;
-use crate::arrays::field::Schema;
-use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 
+use crate::arrays::field::Schema;
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::execution::operators::sink::PartitionSink;
 
 pub const FORMAT_OPT_KEY: &str = "format";

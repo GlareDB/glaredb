@@ -32,14 +32,14 @@ use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
 use negate_expr::NegateExpr;
-use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use subquery_expr::SubqueryExpr;
 use unnest_expr::UnnestExpr;
 use window_expr::WindowExpr;
 
+use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::scalar::{FunctionVolatility, ScalarFunction};
 use crate::logical::binder::table_list::{TableList, TableRef};

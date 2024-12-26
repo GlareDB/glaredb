@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
+use rayexec_error::{not_implemented, RayexecError, Result};
+
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalI64;
 use crate::arrays::executor::scalar::UnaryExecutor;
-use rayexec_error::{not_implemented, RayexecError, Result};
-
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};

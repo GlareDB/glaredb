@@ -1,9 +1,9 @@
 use std::fmt;
 
-use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use super::Expression;
+use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::logical::binder::bind_context::BindContext;

@@ -1,6 +1,9 @@
 use std::borrow::Borrow;
 
 use half::f16;
+use rayexec_error::{not_implemented, RayexecError, Result};
+use serde::{Deserialize, Serialize};
+
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -33,9 +36,6 @@ use crate::arrays::executor::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
-use rayexec_error::{not_implemented, RayexecError, Result};
-use serde::{Deserialize, Serialize};
-
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

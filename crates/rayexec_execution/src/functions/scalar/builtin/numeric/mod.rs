@@ -33,6 +33,11 @@ pub use ln::*;
 pub use log::*;
 use num_traits::Float;
 pub use radians::*;
+use rayexec_error::{RayexecError, Result};
+pub use sin::*;
+pub use sqrt::*;
+pub use tan::*;
+
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::{
@@ -43,11 +48,6 @@ use crate::arrays::executor::physical_type::{
     PhysicalType,
 };
 use crate::arrays::storage::PrimitiveStorage;
-use rayexec_error::{RayexecError, Result};
-pub use sin::*;
-pub use sqrt::*;
-pub use tan::*;
-
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};

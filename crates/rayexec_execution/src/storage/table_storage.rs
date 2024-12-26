@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 
 use futures::future::BoxFuture;
-use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
+use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::operators::sink::PartitionSink;
 

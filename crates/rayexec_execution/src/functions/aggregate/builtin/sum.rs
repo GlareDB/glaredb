@@ -3,14 +3,14 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::CheckedAdd;
+use rayexec_error::Result;
+
 use crate::arrays::array::ArrayData;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::physical_type::{PhysicalF64, PhysicalI64};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
-use rayexec_error::Result;
-
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_unary_aggregate_states,
@@ -221,10 +221,9 @@ impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::arrays::array::Array;
     use crate::arrays::scalar::ScalarValue;
-
-    use super::*;
     use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
     use crate::expr;
     use crate::functions::aggregate::ChunkGroupAddressIter;

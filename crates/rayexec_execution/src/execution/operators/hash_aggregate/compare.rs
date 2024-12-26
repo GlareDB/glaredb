@@ -1,5 +1,9 @@
 use std::collections::BTreeSet;
 
+use rayexec_error::{not_implemented, Result};
+
+use super::chunk::GroupChunk;
+use super::hash_table::GroupAddress;
 use crate::arrays::array::Array;
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
@@ -26,10 +30,6 @@ use crate::arrays::executor::physical_type::{
 use crate::arrays::executor::scalar::{can_skip_validity_check, check_validity};
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::AddressableStorage;
-use rayexec_error::{not_implemented, Result};
-
-use super::chunk::GroupChunk;
-use super::hash_table::GroupAddress;
 
 pub fn group_values_eq(
     inputs: &[Array],

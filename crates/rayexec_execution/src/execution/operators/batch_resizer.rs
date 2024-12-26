@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 
 use super::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
@@ -15,6 +14,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

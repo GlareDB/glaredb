@@ -5,10 +5,10 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,

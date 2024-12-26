@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use rayexec_error::{RayexecError, Result};
+
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
@@ -32,8 +34,6 @@ use crate::arrays::executor::physical_type::{
 use crate::arrays::executor::scalar::{BinaryExecutor, BinaryListReducer, FlexibleListExecutor};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
-use rayexec_error::{RayexecError, Result};
-
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

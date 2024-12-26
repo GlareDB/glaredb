@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
@@ -8,6 +7,7 @@ use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use super::copy::{CopyToArgs, CopyToFunction};
 use super::scalar::{PlannedScalarFunction, ScalarFunction};
 use super::table::{PlannedTableFunction, TableFunction};
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;

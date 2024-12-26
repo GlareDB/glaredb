@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use crate::arrays::field::{Field, Schema};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_parser::parser;
 use rayexec_parser::statement::RawStatement;
@@ -11,6 +10,7 @@ use super::profiler::PlanningProfileData;
 use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream};
 use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
+use crate::arrays::field::{Field, Schema};
 use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;

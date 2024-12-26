@@ -3,9 +3,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
-use crate::arrays::scalar::ScalarValue;
 use rayexec_error::Result;
 
 use super::{
@@ -16,6 +13,9 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::scalar::ScalarValue;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::task::{Context, Waker};
 
+use rayexec_error::{RayexecError, Result};
+
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -9,8 +11,6 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::arrays::storage::PrimitiveStorage;
-use rayexec_error::{RayexecError, Result};
-
 use crate::execution::operators::{PollFinalize, PollPush};
 use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};

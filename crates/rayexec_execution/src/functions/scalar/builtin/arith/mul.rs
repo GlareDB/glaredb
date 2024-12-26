@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use num_traits::{NumCast, PrimInt};
+use rayexec_error::Result;
+
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
@@ -26,8 +28,6 @@ use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::PrimitiveStorage;
-use rayexec_error::Result;
-
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -333,9 +333,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::arrays::datatype::DataType;
-
     use super::*;
+    use crate::arrays::datatype::DataType;
     use crate::expr;
     use crate::functions::scalar::ScalarFunction;
 

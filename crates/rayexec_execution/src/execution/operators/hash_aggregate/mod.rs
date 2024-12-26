@@ -13,6 +13,9 @@ use distinct::DistinctGroupedStates;
 use drain::HashTableDrain;
 use hash_table::HashTable;
 use parking_lot::Mutex;
+use rayexec_error::{RayexecError, Result};
+
+use super::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
@@ -22,9 +25,6 @@ use crate::arrays::executor::physical_type::PhysicalU64;
 use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor};
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::selection::SelectionVector;
-use rayexec_error::{RayexecError, Result};
-
-use super::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::util::hash::partition_for_hash;

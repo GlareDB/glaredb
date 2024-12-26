@@ -1,5 +1,3 @@
-use crate::arrays::datatype::DataType;
-use crate::arrays::field::{Field, Schema};
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast;
@@ -7,6 +5,8 @@ use rayexec_parser::ast;
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::bind_from::BoundFrom;
 use super::bind_query::BoundQuery;
+use crate::arrays::datatype::DataType;
+use crate::arrays::field::{Field, Schema};
 use crate::functions::copy::CopyToFunction;
 use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;

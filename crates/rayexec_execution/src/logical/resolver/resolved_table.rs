@@ -111,10 +111,10 @@ impl ProtoConv for UnresolvedTableReference {
 
 #[cfg(test)]
 mod tests {
-    use crate::arrays::scalar::OwnedScalarValue;
     use rayexec_proto::testutil::assert_proto_roundtrip;
 
     use super::*;
+    use crate::arrays::scalar::OwnedScalarValue;
 
     #[test]
     fn roundtrip_unbound_table_reference() {

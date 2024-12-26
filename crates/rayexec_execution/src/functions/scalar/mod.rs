@@ -4,11 +4,11 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use crate::arrays::array::Array;
-use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use super::FunctionInfo;
+use crate::arrays::array::Array;
+use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 

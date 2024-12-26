@@ -3,6 +3,9 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use rayexec_error::{RayexecError, Result};
+
+use super::ChunkGroupAddressIter;
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::aggregate::{
@@ -15,9 +18,6 @@ use crate::arrays::executor::aggregate::{
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalStorage;
 use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
-use rayexec_error::{RayexecError, Result};
-
-use super::ChunkGroupAddressIter;
 
 pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize> {
     states: Vec<State>,

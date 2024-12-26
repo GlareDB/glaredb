@@ -1,12 +1,12 @@
 use std::fmt;
 use std::sync::Arc;
 
+use rayexec_error::{RayexecError, Result};
+
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
-use rayexec_error::{RayexecError, Result};
-
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::functions::scalar::builtin::boolean::AndImpl;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};

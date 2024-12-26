@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::expr_binder::RecursionContext;
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::column_binder::ErroringColumnBinder;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;

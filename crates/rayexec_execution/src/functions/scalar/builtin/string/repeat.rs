@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
+use rayexec_error::Result;
+
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::executor::scalar::BinaryExecutor;
-use rayexec_error::Result;
-
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

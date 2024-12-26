@@ -292,9 +292,9 @@ impl<'a> SelectExprExpander<'a> {
 #[cfg(test)]
 mod tests {
     use ast::ObjectReference;
-    use crate::arrays::datatype::DataType;
 
     use super::*;
+    use crate::arrays::datatype::DataType;
 
     #[test]
     fn expand_none() {

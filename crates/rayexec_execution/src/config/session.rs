@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use crate::runtime::{PipelineExecutor, Runtime};
 
 /// Configuration for the session.

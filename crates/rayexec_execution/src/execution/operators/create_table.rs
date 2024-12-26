@@ -1,12 +1,12 @@
 use std::fmt;
 
 use futures::future::BoxFuture;
-use crate::arrays::batch::Batch;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::sink::{PartitionSink, SinkOperation, SinkOperator};
 use super::util::barrier::PartitionBarrier;
+use crate::arrays::batch::Batch;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::CreateTableInfo;
 use crate::database::DatabaseContext;

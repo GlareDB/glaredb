@@ -59,7 +59,6 @@ use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectOperation};
-use crate::arrays::batch::Batch;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
@@ -102,6 +101,7 @@ use self::sort::gather_sort::{
 use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

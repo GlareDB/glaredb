@@ -4,7 +4,6 @@ use std::task::{Context, Poll};
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 
 use super::{
@@ -17,6 +16,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::CreateViewInfo;
 use crate::database::DatabaseContext;

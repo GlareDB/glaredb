@@ -1,6 +1,5 @@
 use std::task::Context;
 
-use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 
 use super::{
@@ -12,6 +11,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 

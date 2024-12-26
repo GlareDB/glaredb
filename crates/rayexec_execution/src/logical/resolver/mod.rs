@@ -11,9 +11,6 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast::{self, ColumnDef, ObjectReference};
@@ -31,6 +28,9 @@ use serde::{Deserialize, Serialize};
 use super::binder::constant_binder::ConstantBinder;
 use super::binder::expr_binder::BaseExpressionBinder;
 use super::binder::table_list::TableAlias;
+use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 use crate::database::builtin_views::{
     BuiltinView,
     SHOW_DATABASES_VIEW,

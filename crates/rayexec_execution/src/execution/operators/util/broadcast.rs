@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use parking_lot::Mutex;
+
 use crate::arrays::batch::Batch;
 
 #[derive(Debug)]
@@ -149,9 +150,9 @@ mod tests {
     use std::task::Wake;
 
     use futures::FutureExt;
-    use crate::arrays::array::Array;
 
     use super::*;
+    use crate::arrays::array::Array;
 
     struct NopWaker {}
 

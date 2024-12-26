@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use rayexec_error::Result;
+
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::physical_type::PhysicalF64;
-use rayexec_error::Result;
-
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_unary_aggregate_states,

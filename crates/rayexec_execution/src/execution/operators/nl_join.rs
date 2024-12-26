@@ -2,12 +2,12 @@ use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use crate::arrays::batch::Batch;
-use crate::arrays::selection::SelectionVector;
 use rayexec_error::Result;
 
 use super::util::outer_join_tracker::LeftOuterJoinTracker;
 use super::ComputedBatches;
+use crate::arrays::batch::Batch;
+use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,

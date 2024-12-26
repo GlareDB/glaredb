@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
 use num_traits::Float;
+use rayexec_error::Result;
+
+use super::ScalarFunction;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
@@ -11,9 +14,6 @@ use crate::arrays::executor::physical_type::{
     PhysicalStorage,
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
-use rayexec_error::Result;
-
-use super::ScalarFunction;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};

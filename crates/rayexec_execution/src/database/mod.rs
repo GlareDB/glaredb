@@ -15,10 +15,10 @@ use std::sync::Arc;
 use catalog::CatalogTx;
 use create::{CreateSchemaInfo, OnConflict};
 use memory_catalog::MemoryCatalog;
-use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::memory::MemoryTableStorage;
 use crate::storage::table_storage::TableStorage;

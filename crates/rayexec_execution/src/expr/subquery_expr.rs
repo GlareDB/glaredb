@@ -1,11 +1,11 @@
 use std::fmt;
 use std::hash::Hash;
 
-use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
 use super::comparison_expr::ComparisonOperator;
 use super::Expression;
+use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::bind_query::BoundQuery;

@@ -1,9 +1,9 @@
-use crate::arrays::field::Field;
 use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
+use crate::arrays::field::Field;
 use crate::database::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;

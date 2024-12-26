@@ -1,12 +1,12 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
-use crate::arrays::scalar::OwnedScalarValue;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 

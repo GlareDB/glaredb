@@ -1,9 +1,9 @@
+use rayexec_error::{RayexecError, Result};
+
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::executor::scalar::concat;
 use crate::arrays::storage::ListStorage;
-use rayexec_error::{RayexecError, Result};
-
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

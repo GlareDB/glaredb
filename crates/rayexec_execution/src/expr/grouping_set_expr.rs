@@ -1,9 +1,9 @@
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use crate::arrays::datatype::DataType;
 
 use super::Expression;
+use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -2,11 +2,11 @@ use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::arrays::batch::Batch;
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::profiler::OperatorProfileData;
+use crate::arrays::batch::Batch;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::{
     ExecutableOperator,

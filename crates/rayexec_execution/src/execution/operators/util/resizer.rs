@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use crate::arrays::batch::Batch;
-use crate::arrays::selection::SelectionVector;
 use rayexec_error::Result;
 
+use crate::arrays::batch::Batch;
+use crate::arrays::selection::SelectionVector;
 use crate::execution::computed_batch::ComputedBatches;
 
 // TODO: Shouldn't be a const, should be determined when we create the
@@ -116,10 +116,9 @@ impl BatchResizer {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::arrays::array::Array;
     use crate::arrays::testutil::assert_batches_eq;
-
-    use super::*;
 
     #[test]
     fn push_within_target() {

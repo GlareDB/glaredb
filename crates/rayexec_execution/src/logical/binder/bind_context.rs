@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use crate::arrays::datatype::DataType;
 use rayexec_error::{RayexecError, Result};
 
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
+use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 

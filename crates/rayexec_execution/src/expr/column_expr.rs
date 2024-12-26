@@ -1,8 +1,8 @@
 use std::fmt;
 
-use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
+use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::logical::binder::table_list::{TableList, TableRef};
 

@@ -1,6 +1,6 @@
-use crate::arrays::datatype::DataType;
 use rayexec_error::Result;
 
+use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;

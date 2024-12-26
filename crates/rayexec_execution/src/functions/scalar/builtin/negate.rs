@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use rayexec_error::Result;
+
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
@@ -17,8 +19,6 @@ use crate::arrays::executor::physical_type::{
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::storage::PrimitiveStorage;
-use rayexec_error::Result;
-
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

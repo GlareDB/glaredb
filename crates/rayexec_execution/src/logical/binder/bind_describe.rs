@@ -1,9 +1,9 @@
-use crate::arrays::datatype::DataType;
-use crate::arrays::field::{Field, Schema};
 use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
+use crate::arrays::datatype::DataType;
+use crate::arrays::field::{Field, Schema};
 use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_describe::LogicalDescribe;

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use crate::arrays::batch::Batch;
 use rayexec_error::{OptionExt, Result};
 
 use super::simple::{SimpleOperator, StatelessOperation};
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;

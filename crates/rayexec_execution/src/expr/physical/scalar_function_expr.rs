@@ -2,11 +2,11 @@ use std::borrow::Cow;
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::proto::DatabaseProtoConv;
