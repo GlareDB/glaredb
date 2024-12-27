@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
@@ -100,7 +100,7 @@ impl<S> ScalarFunctionImpl for NegateImpl<S>
 where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: std::ops::Neg<Output = S::Type<'static>> + Default + Copy,
-    ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
+    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
     fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         use std::ops::Neg;

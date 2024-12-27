@@ -38,7 +38,7 @@ pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::{
     PhysicalF16,
@@ -85,7 +85,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,
-        ArrayData: From<PrimitiveStorage<S::Type<'a>>>;
+        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>;
 }
 
 /// Helper struct for creating functions that accept and produce a single

@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use half::f16;
 use rayexec_error::{not_implemented, Result};
 
-use crate::arrays::array::ArrayData;
+use crate::arrays::array::ArrayData2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
@@ -349,7 +349,7 @@ where
     for<'a> S: PhysicalStorage<Type<'a> = T>,
     T: PartialOrd + Debug + Default + Sync + Send + Copy + 'static,
     M: AggregateState<T, T> + Default + Sync + Send + 'static,
-    ArrayData: From<PrimitiveStorage<T>>,
+    ArrayData2: From<PrimitiveStorage<T>>,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();

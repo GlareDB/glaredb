@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{
@@ -286,7 +286,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array2], total_len: usize) -> Res
     let inner_arrays = arrays
         .iter()
         .map(|arr| match arr.array_data() {
-            ArrayData::List(list) => {
+            ArrayData2::List(list) => {
                 if list.array.has_selection() {
                     return Err(RayexecError::new("List child array has selection"));
                 }

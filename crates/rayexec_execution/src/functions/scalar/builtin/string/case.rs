@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
@@ -126,7 +126,7 @@ where
     F: Fn(&str) -> String,
 {
     let cap = match input.array_data() {
-        ArrayData::Binary(bin) => bin.binary_data_size_bytes(),
+        ArrayData2::Binary(bin) => bin.binary_data_size_bytes(),
         _ => return Err(RayexecError::new("Unexpected array data type")),
     };
 

@@ -14,7 +14,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,
@@ -205,7 +205,7 @@ impl ScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array2> {
-        let data: ArrayData = match self {
+        let data: ArrayData2 = match self {
             Self::Null => return Ok(Array2::new_untyped_null_array(n)),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
             Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),

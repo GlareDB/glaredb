@@ -40,7 +40,7 @@ where
         manager: &B,
         capacity: usize,
     ) -> Result<Self> {
-        let primary = RawBufferParts::try_new(manager, capacity)?;
+        let primary = RawBufferParts::try_new::<S::PrimaryBufferType>(manager, capacity)?;
 
         Ok(ArrayBuffer {
             physical_type: S::PHYSICAL_TYPE,

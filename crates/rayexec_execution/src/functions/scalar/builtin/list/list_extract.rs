@@ -4,7 +4,7 @@ use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{
@@ -128,7 +128,7 @@ impl ScalarFunctionImpl for ListExtractImpl {
 
 fn extract(array: &Array2, idx: usize) -> Result<Array2> {
     let data = match array.array_data() {
-        ArrayData::List(list) => list.as_ref(),
+        ArrayData2::List(list) => list.as_ref(),
         _other => return Err(RayexecError::new("Unexpected storage type")),
     };
 

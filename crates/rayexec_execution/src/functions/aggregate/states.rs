@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use rayexec_error::{RayexecError, Result};
 
 use super::ChunkGroupAddressIter;
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::aggregate::{
     AggregateState,
@@ -242,7 +242,7 @@ pub fn primitive_finalize<State, Input, Output>(
 where
     State: AggregateState<Input, Output>,
     Output: Copy + Default,
-    ArrayData: From<PrimitiveStorage<Output>>,
+    ArrayData2: From<PrimitiveStorage<Output>>,
 {
     let builder = ArrayBuilder {
         datatype,

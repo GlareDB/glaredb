@@ -2,7 +2,7 @@ use num_traits::Float;
 use rayexec_error::Result;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalStorage;
@@ -22,7 +22,7 @@ impl UnaryInputNumericOperation for ExpOp {
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,
-        ArrayData: From<PrimitiveStorage<S::Type<'a>>>,
+        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>,
     {
         let builder = ArrayBuilder {
             datatype: ret,

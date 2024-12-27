@@ -3,7 +3,7 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType};
@@ -209,7 +209,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
         let output = match input.physical_type() {
             PhysicalType::List => {
                 let child = match input.array_data() {
-                    ArrayData::List(list) => list.inner_array(),
+                    ArrayData2::List(list) => list.inner_array(),
                     _other => return Err(RayexecError::new("Unexpected storage type")),
                 };
 

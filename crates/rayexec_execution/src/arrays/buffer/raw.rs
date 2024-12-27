@@ -1,3 +1,5 @@
+use rayexec_error::Result;
+
 use super::buffer_manager::BufferManager;
 
 #[derive(Debug)]

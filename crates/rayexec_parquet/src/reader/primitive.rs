@@ -4,7 +4,7 @@ use parquet::column::reader::basic::BasicColumnValueDecoder;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::{Array2, ArrayData};
+use rayexec_execution::arrays::array::{Array2, ArrayData2};
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::compute::cast::array::cast_array;
 use rayexec_execution::arrays::compute::cast::behavior::CastFailBehavior;
@@ -123,7 +123,7 @@ where
 }
 
 impl IntoArrayData for Vec<bool> {
-    fn into_array_data(self) -> ArrayData {
+    fn into_array_data(self) -> ArrayData2 {
         let values = Bitmap::from_iter(self);
         BooleanStorage::from(values).into()
     }
@@ -132,7 +132,7 @@ impl IntoArrayData for Vec<bool> {
 macro_rules! impl_into_array_primitive {
     ($prim:ty) => {
         impl IntoArrayData for Vec<$prim> {
-            fn into_array_data(self) -> ArrayData {
+            fn into_array_data(self) -> ArrayData2 {
                 PrimitiveStorage::from(self).into()
             }
         }
@@ -153,7 +153,7 @@ impl_into_array_primitive!(f32);
 impl_into_array_primitive!(f64);
 
 impl IntoArrayData for Vec<Int96> {
-    fn into_array_data(self) -> ArrayData {
+    fn into_array_data(self) -> ArrayData2 {
         let values: Vec<_> = self.into_iter().map(|v| v.to_nanos()).collect();
         PrimitiveStorage::from(values).into()
     }

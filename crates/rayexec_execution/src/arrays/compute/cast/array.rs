@@ -48,7 +48,7 @@ use super::parse::{
     UInt64Parser,
     UInt8Parser,
 };
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, TimeUnit};
 use crate::arrays::executor::builder::{
@@ -252,7 +252,7 @@ where
     S: PhysicalStorage,
     D: DecimalType,
     S::Type<'a>: PrimInt,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     let new_meta = to.try_get_decimal_type_meta()?;
     let arr_meta = arr.datatype().try_get_decimal_type_meta()?;
@@ -321,7 +321,7 @@ where
     S: PhysicalStorage,
     D: DecimalType,
     S::Type<'a>: Float,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     let decimal_meta = to.try_get_decimal_type_meta()?;
     let scale = decimal_meta.scale;
@@ -369,7 +369,7 @@ where
     S: PhysicalStorage,
     F: Float + Default + Copy,
     <<S as PhysicalStorage>::Storage<'a> as AddressableStorage>::T: ToPrimitive,
-    ArrayData: From<PrimitiveStorage<F>>,
+    ArrayData2: From<PrimitiveStorage<F>>,
 {
     let decimal_meta = arr.datatype().try_get_decimal_type_meta()?;
 
@@ -423,7 +423,7 @@ where
     S: PhysicalStorage,
     D: DecimalType,
     S::Type<'a>: PrimInt,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     let decimal_meta = to.try_get_decimal_type_meta()?;
     let scale = decimal_meta.scale;
@@ -516,7 +516,7 @@ where
     S: PhysicalStorage,
     S::Type<'a>: ToPrimitive,
     T: NumCast + Default + Copy,
-    ArrayData: From<PrimitiveStorage<T>>,
+    ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
     let output = UnaryExecutor::execute::<S, _, _>(
@@ -707,7 +707,7 @@ fn cast_parse_primitive<P, T>(
 where
     T: Default + Copy,
     P: Parser<Type = T>,
-    ArrayData: From<PrimitiveStorage<T>>,
+    ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
     let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(

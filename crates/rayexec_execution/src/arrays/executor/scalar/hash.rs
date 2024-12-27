@@ -2,7 +2,7 @@ use ahash::RandomState;
 use half::f16;
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array2, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -220,7 +220,7 @@ impl HashExecutor {
         H: SetHash,
     {
         let inner = match array.array_data() {
-            ArrayData::List(list) => &list.array,
+            ArrayData2::List(list) => &list.array,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected array data for list hashing: {:?}",
