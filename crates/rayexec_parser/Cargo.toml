@@ -6,7 +6,7 @@ edition = { workspace = true }
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
 rayexec_proto = { path = '../rayexec_proto' }
-unicase = "2.7.0"
+unicase = "2.8.1"
 tracing = { workspace = true }
 serde = { workspace = true }
 
