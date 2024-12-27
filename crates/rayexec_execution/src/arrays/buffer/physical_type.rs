@@ -1,5 +1,12 @@
 use std::fmt::{self, Debug};
 
+use half::f16;
+use rayexec_error::Result;
+
+use super::buffer_manager::BufferManager;
+use super::ArrayBuffer;
+use crate::arrays::scalar::interval::Interval;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
     UntypedNull,
@@ -89,6 +96,21 @@ where
     }
 }
 
+impl<T> Addressable for &mut [T]
+where
+    T: Debug + Send + Copy,
+{
+    type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        (**self).get(idx)
+    }
+}
+
 /// Represents in-memory storage that we can get mutable references to.
 pub trait AddressableMut: Addressable {
     /// Get a mutable reference to a value at the given index.
@@ -98,6 +120,19 @@ pub trait AddressableMut: Addressable {
     ///
     /// Should panic if index is out of bounds.
     fn put(&mut self, idx: usize, val: &Self::T);
+}
+
+impl<T> AddressableMut for &mut [T]
+where
+    T: Debug + Send + Copy,
+{
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        (**self).get_mut(idx)
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        self[idx] = *val;
+    }
 }
 
 /// Trait for determining how we access the underlying storage for arrays.
@@ -114,8 +149,74 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     /// For primitive buffers, this will be the same as the primary buffer type.
     type StorageType: ?Sized;
 
+    /// The type of the addressable storage.
+    type Addressable<'a>: Addressable<T = Self::StorageType>;
+
     /// Size in bytes of the type being stored in the primary buffer.
     fn primary_buffer_type_size() -> usize {
         std::mem::size_of::<Self::PrimaryBufferType>()
     }
+
+    /// Get addressable storage for indexing into the array.
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>>;
 }
+
+pub trait MutablePhysicalStorage: PhysicalStorage {
+    type AddressableMut<'a>: AddressableMut<T = Self::StorageType>;
+
+    /// Get mutable addressable storage for the array.
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>>;
+}
+
+macro_rules! generate_primitive {
+    ($prim:ty, $name:ident, $phys_typ:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct $name;
+
+        impl PhysicalStorage for $name {
+            const PHYSICAL_TYPE: PhysicalType = PhysicalType::$phys_typ;
+
+            type PrimaryBufferType = $prim;
+            type StorageType = Self::PrimaryBufferType;
+            type Addressable<'a> = &'a [Self::StorageType];
+
+            fn get_addressable<B: BufferManager>(
+                buffer: &ArrayBuffer<B>,
+            ) -> Result<Self::Addressable<'_>> {
+                buffer.try_as_slice::<Self>()
+            }
+        }
+
+        impl MutablePhysicalStorage for $name {
+            type AddressableMut<'a> = &'a mut [Self::StorageType];
+
+            fn get_addressable_mut<B: BufferManager>(
+                buffer: &mut ArrayBuffer<B>,
+            ) -> Result<Self::AddressableMut<'_>> {
+                buffer.try_as_slice_mut::<Self>()
+            }
+        }
+    };
+}
+
+generate_primitive!(bool, PhysicalBool, Boolean);
+
+generate_primitive!(i8, PhysicalI8, Int8);
+generate_primitive!(i16, PhysicalI16, Int16);
+generate_primitive!(i32, PhysicalI32, Int32);
+generate_primitive!(i64, PhysicalI64, Int64);
+generate_primitive!(i128, PhysicalI128, Int128);
+
+generate_primitive!(u8, PhysicalU8, UInt8);
+generate_primitive!(u16, PhysicalU16, UInt16);
+generate_primitive!(u32, PhysicalU32, UInt32);
+generate_primitive!(u64, PhysicalU64, UInt64);
+generate_primitive!(u128, PhysicalU128, UInt128);
+
+generate_primitive!(f16, PhysicalF16, Float16);
+generate_primitive!(f32, PhysicalF32, Float32);
+generate_primitive!(f64, PhysicalF64, Float64);
+
+generate_primitive!(Interval, PhysicalInterval, Interval);

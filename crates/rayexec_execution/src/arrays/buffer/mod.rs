@@ -5,11 +5,10 @@ pub mod string_view;
 mod raw;
 
 use buffer_manager::{BufferManager, NopBufferManager};
+use physical_type::{PhysicalStorage, PhysicalType};
 use raw::RawBufferParts;
 use rayexec_error::Result;
 use string_view::StringViewHeap;
-
-use super::executor::physical_type::{PhysicalStorage, PhysicalType};
 
 #[derive(Debug)]
 pub struct ArrayBuffer<B: BufferManager = NopBufferManager> {
@@ -36,6 +35,14 @@ where
         manager: &B,
         capacity: usize,
     ) -> Result<Self> {
+        unimplemented!()
+    }
+
+    pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
+        unimplemented!()
+    }
+
+    pub fn try_as_slice_mut<S: PhysicalStorage>(&mut self) -> Result<&mut [S::PrimaryBufferType]> {
         unimplemented!()
     }
 }
