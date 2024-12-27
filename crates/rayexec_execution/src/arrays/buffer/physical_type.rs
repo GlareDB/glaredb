@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Debug};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -56,5 +56,66 @@ impl PhysicalType {
 impl fmt::Display for PhysicalType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+/// Represents an in-memory array that can be indexed into to retrieve values.
+pub trait Addressable: Debug {
+    /// The type that get's returned.
+    type T: Send + Debug + ?Sized;
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get a value at the given index.
+    fn get(&self, idx: usize) -> Option<&Self::T>;
+}
+
+impl<T> Addressable for &[T]
+where
+    T: Debug + Send,
+{
+    type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        (**self).get(idx)
+    }
+}
+
+/// Represents in-memory storage that we can get mutable references to.
+pub trait AddressableMut: Addressable {
+    /// Get a mutable reference to a value at the given index.
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
+
+    /// Put a value at the given index.
+    ///
+    /// Should panic if index is out of bounds.
+    fn put(&mut self, idx: usize, val: &Self::T);
+}
+
+/// Trait for determining how we access the underlying storage for arrays.
+pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+    const PHYSICAL_TYPE: PhysicalType;
+
+    /// The type that's stored in the primary buffer.
+    ///
+    /// This should be small and fixed sized.
+    type PrimaryBufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
+
+    /// The logical type being stored that can be accessed.
+    ///
+    /// For primitive buffers, this will be the same as the primary buffer type.
+    type StorageType: ?Sized;
+
+    /// Size in bytes of the type being stored in the primary buffer.
+    fn primary_buffer_type_size() -> usize {
+        std::mem::size_of::<Self::PrimaryBufferType>()
     }
 }
