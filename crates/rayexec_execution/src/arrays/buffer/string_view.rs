@@ -1,5 +1,49 @@
 use std::fmt;
 
+use super::physical_type::{Addressable, AddressableMut};
+
+#[derive(Debug)]
+pub struct StringViewAddressable<'a> {
+    pub(crate) metadata: &'a [StringViewMetadataUnion],
+    pub(crate) heap: &'a StringViewHeap,
+}
+
+impl<'a> Addressable for StringViewAddressable<'a> {
+    type T = str;
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        let m = self.metadata.get(idx)?;
+        let bs = self.heap.get(m)?;
+        Some(unsafe { std::str::from_utf8_unchecked(bs) })
+    }
+}
+
+#[derive(Debug)]
+pub struct StringViewAddressableMut<'a> {
+    pub(crate) metadata: &'a mut [StringViewMetadataUnion],
+    pub(crate) heap: &'a mut StringViewHeap,
+}
+
+impl<'a> AddressableMut for StringViewAddressableMut<'a> {
+    type T = str;
+
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        let m = self.metadata.get_mut(idx)?;
+        let bs = self.heap.get_mut(m)?;
+        Some(unsafe { std::str::from_utf8_unchecked_mut(bs) })
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        let bs = val.as_bytes();
+        let new_m = self.heap.push_bytes(bs);
+        self.metadata[idx] = new_m;
+    }
+}
+
 /// Metadata for small (<= 12 bytes) varlen data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]

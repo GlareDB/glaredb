@@ -7,8 +7,13 @@ mod raw;
 use buffer_manager::{BufferManager, NopBufferManager};
 use physical_type::{PhysicalStorage, PhysicalType};
 use raw::RawBufferParts;
-use rayexec_error::Result;
-use string_view::StringViewHeap;
+use rayexec_error::{RayexecError, Result};
+use string_view::{
+    StringViewAddressable,
+    StringViewAddressableMut,
+    StringViewHeap,
+    StringViewMetadataUnion,
+};
 
 #[derive(Debug)]
 pub struct ArrayBuffer<B: BufferManager = NopBufferManager> {
@@ -35,15 +40,73 @@ where
         manager: &B,
         capacity: usize,
     ) -> Result<Self> {
-        unimplemented!()
+        let primary = RawBufferParts::try_new(manager, capacity)?;
+
+        Ok(ArrayBuffer {
+            physical_type: S::PHYSICAL_TYPE,
+            primary,
+            secondary: Box::new(SecondaryBuffer::None),
+        })
+    }
+
+    pub(crate) fn put_secondary_buffer(&mut self, secondary: SecondaryBuffer<B>) {
+        self.secondary = Box::new(secondary)
     }
 
     pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
-        unimplemented!()
+        self.check_type(S::PHYSICAL_TYPE)?;
+        let slice = unsafe { self.primary.as_slice::<S::PrimaryBufferType>() };
+
+        Ok(slice)
     }
 
     pub fn try_as_slice_mut<S: PhysicalStorage>(&mut self) -> Result<&mut [S::PrimaryBufferType]> {
-        unimplemented!()
+        self.check_type(S::PHYSICAL_TYPE)?;
+        let slice = unsafe { self.primary.as_slice_mut::<S::PrimaryBufferType>() };
+
+        Ok(slice)
+    }
+
+    pub fn get_secondary(&self) -> &SecondaryBuffer<B> {
+        &self.secondary
+    }
+
+    pub fn get_secondary_mut(&mut self) -> &mut SecondaryBuffer<B> {
+        &mut self.secondary
+    }
+
+    pub fn try_as_string_view_addressable(&self) -> Result<StringViewAddressable> {
+        self.check_type(PhysicalType::Utf8)?;
+
+        let metadata = unsafe { self.primary.as_slice::<StringViewMetadataUnion>() };
+        let heap = match self.secondary.as_ref() {
+            SecondaryBuffer::StringViewHeap(heap) => heap,
+            _ => return Err(RayexecError::new("Missing string heap")),
+        };
+
+        Ok(StringViewAddressable { metadata, heap })
+    }
+
+    pub fn try_as_string_view_addressable_mut(&mut self) -> Result<StringViewAddressableMut> {
+        self.check_type(PhysicalType::Utf8)?;
+
+        let metadata = unsafe { self.primary.as_slice_mut::<StringViewMetadataUnion>() };
+        let heap = match self.secondary.as_mut() {
+            SecondaryBuffer::StringViewHeap(heap) => heap,
+            _ => return Err(RayexecError::new("Missing string heap")),
+        };
+
+        Ok(StringViewAddressableMut { metadata, heap })
+    }
+
+    fn check_type(&self, want: PhysicalType) -> Result<()> {
+        if want != self.physical_type {
+            return Err(RayexecError::new("Physical types don't match")
+                .with_field("have", self.physical_type)
+                .with_field("want", want));
+        }
+
+        Ok(())
     }
 }
 
@@ -58,12 +121,11 @@ impl<B: BufferManager> Drop for ArrayBuffer<B> {
     fn drop(&mut self) {
         let ptr = self.primary.ptr;
 
-        unimplemented!()
-        // let len = self.primary.len * self.physical_type.primary_buffer_mem_size();
-        // let cap = self.primary.cap * self.physical_type.primary_buffer_mem_size();
+        let len = self.primary.len * self.physical_type.primary_buffer_mem_size();
+        let cap = self.primary.cap * self.physical_type.primary_buffer_mem_size();
 
-        // let vec = unsafe { Vec::from_raw_parts(ptr, len, cap) };
-        // std::mem::drop(vec);
+        let vec = unsafe { Vec::from_raw_parts(ptr, len, cap) };
+        std::mem::drop(vec);
 
         // self.primary.reservation.free()
     }

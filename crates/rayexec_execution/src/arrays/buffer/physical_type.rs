@@ -4,6 +4,11 @@ use half::f16;
 use rayexec_error::Result;
 
 use super::buffer_manager::BufferManager;
+use super::string_view::{
+    StringViewAddressable,
+    StringViewAddressableMut,
+    StringViewMetadataUnion,
+};
 use super::ArrayBuffer;
 use crate::arrays::scalar::interval::Interval;
 
@@ -33,6 +38,28 @@ pub enum PhysicalType {
 }
 
 impl PhysicalType {
+    pub const fn primary_buffer_mem_size(&self) -> usize {
+        match self {
+            Self::Boolean => PhysicalBool::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int8 => PhysicalI8::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int16 => PhysicalI16::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int32 => PhysicalI32::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int64 => PhysicalI64::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int128 => PhysicalI128::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt8 => PhysicalU8::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt16 => PhysicalU16::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt32 => PhysicalU32::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt64 => PhysicalU64::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt128 => PhysicalU128::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Float16 => PhysicalF16::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Float32 => PhysicalF32::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+
+            _ => unimplemented!(),
+        }
+    }
+
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::UntypedNull => "UntypedNull",
@@ -96,23 +123,10 @@ where
     }
 }
 
-impl<T> Addressable for &mut [T]
-where
-    T: Debug + Send + Copy,
-{
-    type T = T;
-
-    fn len(&self) -> usize {
-        (**self).len()
-    }
-
-    fn get(&self, idx: usize) -> Option<&Self::T> {
-        (**self).get(idx)
-    }
-}
-
 /// Represents in-memory storage that we can get mutable references to.
-pub trait AddressableMut: Addressable {
+pub trait AddressableMut: Debug {
+    type T: Send + Debug + ?Sized;
+
     /// Get a mutable reference to a value at the given index.
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
 
@@ -126,6 +140,8 @@ impl<T> AddressableMut for &mut [T]
 where
     T: Debug + Send + Copy,
 {
+    type T = T;
+
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         (**self).get_mut(idx)
     }
@@ -139,6 +155,9 @@ where
 pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
 
+    /// Size in bytes of the type being stored in the primary buffer.
+    const PRIMARY_BUFFER_TYPE_SIZE: usize = std::mem::size_of::<Self::PrimaryBufferType>();
+
     /// The type that's stored in the primary buffer.
     ///
     /// This should be small and fixed sized.
@@ -151,11 +170,6 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
 
     /// The type of the addressable storage.
     type Addressable<'a>: Addressable<T = Self::StorageType>;
-
-    /// Size in bytes of the type being stored in the primary buffer.
-    fn primary_buffer_type_size() -> usize {
-        std::mem::size_of::<Self::PrimaryBufferType>()
-    }
 
     /// Get addressable storage for indexing into the array.
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>>;
@@ -220,3 +234,29 @@ generate_primitive!(f32, PhysicalF32, Float32);
 generate_primitive!(f64, PhysicalF64, Float64);
 
 generate_primitive!(Interval, PhysicalInterval, Interval);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalUtf8;
+
+impl PhysicalStorage for PhysicalUtf8 {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Utf8;
+
+    type PrimaryBufferType = StringViewMetadataUnion;
+    type StorageType = str;
+
+    type Addressable<'a> = StringViewAddressable<'a>;
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_string_view_addressable()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalUtf8 {
+    type AddressableMut<'a> = StringViewAddressableMut<'a>;
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_string_view_addressable_mut()
+    }
+}
