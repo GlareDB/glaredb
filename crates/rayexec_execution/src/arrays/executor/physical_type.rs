@@ -178,6 +178,11 @@ impl VarlenType for [u8] {
 /// Contains a lifetime to enable tying the returned storage to the provided
 /// array data.
 pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+    // /// The type that's stored in the primary buffer.
+    // ///
+    // /// This should be small and fixed sized.
+    // type PrimaryBufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
+
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
     /// The type of the underlying array storage.
