@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalI64;
@@ -140,7 +140,7 @@ pub struct DateTruncImpl {
 }
 
 impl ScalarFunctionImpl for DateTruncImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = &inputs[1];
 
         let trunc = match self.input_unit {

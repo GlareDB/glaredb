@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
@@ -60,7 +60,7 @@ impl ScalarFunction for Lower {
 pub struct LowerImpl;
 
 impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         case_convert_execute(input, str::to_lowercase)
     }
@@ -115,13 +115,13 @@ impl ScalarFunction for Upper {
 pub struct UpperImpl;
 
 impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         case_convert_execute(input, str::to_uppercase)
     }
 }
 
-fn case_convert_execute<F>(input: &Array, case_fn: F) -> Result<Array>
+fn case_convert_execute<F>(input: &Array2, case_fn: F) -> Result<Array2>
 where
     F: Fn(&str) -> String,
 {

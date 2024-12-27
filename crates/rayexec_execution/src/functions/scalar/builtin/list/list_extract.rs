@@ -4,7 +4,7 @@ use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{
@@ -120,13 +120,13 @@ pub struct ListExtractImpl {
 }
 
 impl ScalarFunctionImpl for ListExtractImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         extract(input, self.index)
     }
 }
 
-fn extract(array: &Array, idx: usize) -> Result<Array> {
+fn extract(array: &Array2, idx: usize) -> Result<Array2> {
     let data = match array.array_data() {
         ArrayData::List(list) => list.as_ref(),
         _other => return Err(RayexecError::new("Unexpected storage type")),
@@ -252,10 +252,10 @@ fn extract(array: &Array, idx: usize) -> Result<Array> {
 
 fn extract_inner<'a, S, B>(
     mut builder: ArrayBuilder<B>,
-    outer: &Array,
-    inner: &'a Array,
+    outer: &Array2,
+    inner: &'a Array2,
     el_idx: usize,
-) -> Result<Array>
+) -> Result<Array2>
 where
     S: PhysicalStorage,
     B: ArrayDataBuffer,
@@ -290,7 +290,7 @@ where
         validity.set_unchecked(idx, false);
     })?;
 
-    Ok(Array::new_with_validity_and_array_data(
+    Ok(Array2::new_with_validity_and_array_data(
         builder.datatype,
         validity,
         builder.buffer.into_data(),

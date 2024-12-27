@@ -16,7 +16,7 @@ use literal_expr::PhysicalLiteralExpr;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
@@ -34,7 +34,7 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
         match self {
             Self::Case(e) => e.eval(batch),
             Self::Cast(e) => e.eval(batch),
@@ -199,8 +199,8 @@ mod tests {
     #[test]
     fn select_some() {
         let batch = Batch::try_new([
-            Array::from_iter([1, 4, 6, 9, 12]),
-            Array::from_iter([2, 3, 8, 9, 10]),
+            Array2::from_iter([1, 4, 6, 9, 12]),
+            Array2::from_iter([2, 3, 8, 9, 10]),
         ])
         .unwrap();
 
@@ -226,8 +226,8 @@ mod tests {
     #[test]
     fn select_none() {
         let batch = Batch::try_new([
-            Array::from_iter([1, 2, 6, 9, 9]),
-            Array::from_iter([2, 3, 8, 9, 10]),
+            Array2::from_iter([1, 2, 6, 9, 9]),
+            Array2::from_iter([2, 3, 8, 9, 10]),
         ])
         .unwrap();
 

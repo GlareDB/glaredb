@@ -7,7 +7,7 @@ use dyn_clone::DynClone;
 use rayexec_error::Result;
 
 use super::FunctionInfo;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
@@ -103,7 +103,7 @@ impl Hash for PlannedScalarFunction {
 }
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array>;
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2>;
 }
 
 impl Clone for Box<dyn ScalarFunctionImpl> {

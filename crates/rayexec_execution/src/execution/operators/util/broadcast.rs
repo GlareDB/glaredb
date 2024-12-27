@@ -152,7 +152,7 @@ mod tests {
     use futures::FutureExt;
 
     use super::*;
-    use crate::arrays::array::Array;
+    use crate::arrays::array::Array2;
 
     struct NopWaker {}
 
@@ -171,7 +171,7 @@ mod tests {
 
     /// Create a batch with a single int64 value.
     fn test_batch(n: i64) -> Batch {
-        let col = Array::from_iter([n]);
+        let col = Array2::from_iter([n]);
         Batch::try_new([col]).unwrap()
     }
 

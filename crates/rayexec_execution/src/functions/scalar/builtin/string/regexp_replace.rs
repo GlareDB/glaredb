@@ -1,7 +1,7 @@
 use rayexec_error::{Result, ResultExt};
 use regex::Regex;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
@@ -98,7 +98,7 @@ pub struct RegexpReplaceImpl {
 }
 
 impl ScalarFunctionImpl for RegexpReplaceImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),

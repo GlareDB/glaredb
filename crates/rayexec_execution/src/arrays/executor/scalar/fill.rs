@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{
@@ -81,7 +81,7 @@ where
     ///
     /// `fill_map` is an iterator of mappings that map indices from `array` to
     /// where they should be placed in the buffer.
-    pub fn fill<'a, S, I>(&mut self, array: &'a Array, fill_map: I) -> Result<()>
+    pub fn fill<'a, S, I>(&mut self, array: &'a Array2, fill_map: I) -> Result<()>
     where
         S: PhysicalStorage,
         I: IntoIterator<Item = FillMapping>,
@@ -118,14 +118,14 @@ where
         Ok(())
     }
 
-    pub fn finish(self) -> Array {
+    pub fn finish(self) -> Array2 {
         let validity = if self.validity.is_all_true() {
             None
         } else {
             Some(self.validity.into())
         };
 
-        Array {
+        Array2 {
             datatype: self.builder.datatype,
             selection: None,
             validity,
@@ -135,7 +135,7 @@ where
 }
 
 /// Concatenate multiple arrays into a single array.
-pub fn concat(arrays: &[&Array]) -> Result<Array> {
+pub fn concat(arrays: &[&Array2]) -> Result<Array2> {
     let total_len: usize = arrays.iter().map(|a| a.logical_len()).sum();
     concat_with_exact_total_len(arrays, total_len)
 }
@@ -146,14 +146,14 @@ pub fn concat(arrays: &[&Array]) -> Result<Array> {
 ///
 /// This function exists so that we can compute the total length once for a set
 /// of batches that we're concatenating instead of once per array.
-pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -> Result<Array> {
+pub(crate) fn concat_with_exact_total_len(arrays: &[&Array2], total_len: usize) -> Result<Array2> {
     let datatype = match arrays.first() {
         Some(arr) => arr.datatype(),
         None => return Err(RayexecError::new("Cannot concat zero arrays")),
     };
 
     match datatype.physical_type()? {
-        PhysicalType::UntypedNull => Ok(Array {
+        PhysicalType::UntypedNull => Ok(Array2 {
             datatype: datatype.clone(),
             selection: None,
             validity: None,
@@ -282,7 +282,7 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
     }
 }
 
-fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Result<Array> {
+fn concat_lists(datatype: DataType, arrays: &[&Array2], total_len: usize) -> Result<Array2> {
     let inner_arrays = arrays
         .iter()
         .map(|arr| match arr.array_data() {
@@ -329,7 +329,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
         array: concatenated,
     };
 
-    Ok(Array {
+    Ok(Array2 {
         datatype,
         selection: None,
         validity: Some(validity.into()),
@@ -338,9 +338,9 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
 }
 
 fn concat_with_fill_state<'a, S, B>(
-    arrays: &'a [&Array],
+    arrays: &'a [&Array2],
     mut fill_state: FillState<B>,
-) -> Result<Array>
+) -> Result<Array2>
 where
     S: PhysicalStorage,
     B: ArrayDataBuffer,
@@ -370,14 +370,14 @@ where
 /// array.
 ///
 /// Indices may be specified more than once.
-pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array> {
+pub fn interleave(arrays: &[&Array2], indices: &[(usize, usize)]) -> Result<Array2> {
     let datatype = match arrays.first() {
         Some(arr) => arr.datatype(),
         None => return Err(RayexecError::new("Cannot interleave zero arrays")),
     };
 
     match datatype.physical_type()? {
-        PhysicalType::UntypedNull => Ok(Array {
+        PhysicalType::UntypedNull => Ok(Array2 {
             datatype: datatype.clone(),
             selection: None,
             validity: None,
@@ -512,10 +512,10 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
 }
 
 fn interleave_with_fill_state<'a, S, B>(
-    arrays: &'a [&Array],
+    arrays: &'a [&Array2],
     indices: &[(usize, usize)],
     mut fill_state: FillState<B>,
-) -> Result<Array>
+) -> Result<Array2>
 where
     S: PhysicalStorage,
     B: ArrayDataBuffer,
@@ -560,7 +560,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         });
 
-        let arr = Array::from_iter([4, 5, 6]);
+        let arr = Array2::from_iter([4, 5, 6]);
         let mapping = [
             FillMapping { from: 0, to: 0 },
             FillMapping { from: 1, to: 1 },
@@ -583,7 +583,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         });
 
-        let arr = Array::from_iter([4, 5, 6]);
+        let arr = Array2::from_iter([4, 5, 6]);
         let mapping = [
             FillMapping { from: 1, to: 0 },
             FillMapping { from: 1, to: 1 },
@@ -606,7 +606,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         });
 
-        let arr = Array::from_iter([4, 5, 6]);
+        let arr = Array2::from_iter([4, 5, 6]);
         let mapping = [
             FillMapping { from: 0, to: 1 },
             FillMapping { from: 1, to: 2 },
@@ -629,7 +629,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(6),
         });
 
-        let arr1 = Array::from_iter([4, 5, 6]);
+        let arr1 = Array2::from_iter([4, 5, 6]);
         let mapping1 = [
             FillMapping { from: 0, to: 2 },
             FillMapping { from: 1, to: 4 },
@@ -637,7 +637,7 @@ mod tests {
         ];
         state.fill::<PhysicalI32, _>(&arr1, mapping1).unwrap();
 
-        let arr2 = Array::from_iter([7, 8, 9]);
+        let arr2 = Array2::from_iter([7, 8, 9]);
         let mapping2 = [
             FillMapping { from: 0, to: 1 },
             FillMapping { from: 1, to: 3 },
@@ -657,8 +657,8 @@ mod tests {
 
     #[test]
     fn interleave_2() {
-        let arr1 = Array::from_iter([4, 5, 6]);
-        let arr2 = Array::from_iter([7, 8, 9]);
+        let arr1 = Array2::from_iter([4, 5, 6]);
+        let arr2 = Array2::from_iter([7, 8, 9]);
 
         let indices = [(0, 1), (0, 2), (1, 0), (1, 1), (0, 0), (1, 2)];
 
@@ -674,8 +674,8 @@ mod tests {
 
     #[test]
     fn interleave_2_repeated() {
-        let arr1 = Array::from_iter([4, 5]);
-        let arr2 = Array::from_iter([7, 8]);
+        let arr1 = Array2::from_iter([4, 5]);
+        let arr2 = Array2::from_iter([7, 8]);
 
         let indices = [(0, 1), (1, 1), (0, 1), (1, 1)];
 
@@ -689,8 +689,8 @@ mod tests {
 
     #[test]
     fn concat_2() {
-        let arr1 = Array::from_iter([4, 5, 6]);
-        let arr2 = Array::from_iter([7, 8]);
+        let arr1 = Array2::from_iter([4, 5, 6]);
+        let arr2 = Array2::from_iter([7, 8]);
 
         let got = concat(&[&arr1, &arr2]).unwrap();
 

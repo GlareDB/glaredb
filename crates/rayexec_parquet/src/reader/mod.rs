@@ -19,7 +19,7 @@ use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::array::{Array2, ArrayData};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::datatype::DataType;
@@ -32,7 +32,7 @@ use crate::metadata::Metadata;
 
 pub trait ArrayBuilder<P: PageReader>: Send {
     /// Consume the current buffer and build an array.
-    fn build(&mut self) -> Result<Array>;
+    fn build(&mut self) -> Result<Array2>;
 
     /// Sets the page reader the builder should now be reading from.
     fn set_page_reader(&mut self, page_reader: P) -> Result<()>;

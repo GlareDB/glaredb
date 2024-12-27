@@ -4,7 +4,7 @@ use std::ops::AddAssign;
 use num_traits::{AsPrimitive, Float};
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
@@ -110,7 +110,7 @@ where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 

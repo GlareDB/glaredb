@@ -4,7 +4,7 @@ use std::fmt;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::DatabaseContext;
@@ -16,7 +16,7 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
         let arr = self.literal.as_array(batch.num_rows())?;
         Ok(Cow::Owned(arr))
     }

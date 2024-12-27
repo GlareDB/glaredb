@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
@@ -84,7 +84,7 @@ pub struct StartsWithImpl {
 }
 
 impl ScalarFunctionImpl for StartsWithImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),

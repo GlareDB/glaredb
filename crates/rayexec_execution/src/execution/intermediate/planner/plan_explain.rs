@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use tracing::error;
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
@@ -82,8 +82,8 @@ impl IntermediatePipelineBuildState<'_> {
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
             Batch::try_new([
-                Array::from_iter(type_strings),
-                Array::from_iter(plan_strings),
+                Array2::from_iter(type_strings),
+                Array2::from_iter(plan_strings),
             ])?,
         ])));
 

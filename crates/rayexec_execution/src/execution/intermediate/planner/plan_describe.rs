@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
@@ -23,9 +23,9 @@ impl IntermediatePipelineBuildState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let names = Array::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
+        let names = Array2::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
         let datatypes =
-            Array::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
+            Array2::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
         let batch = Batch::try_new(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {

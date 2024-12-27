@@ -15,7 +15,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{
@@ -56,9 +56,9 @@ use crate::expr::physical::PhysicalScalarExpression;
 #[derive(Debug)]
 pub struct UnnestPartitionState {
     /// Projections that need to extended to match the unnest outputs.
-    project_inputs: Vec<Array>,
+    project_inputs: Vec<Array2>,
     /// Inputs we're processing.
-    unnest_inputs: Vec<Array>,
+    unnest_inputs: Vec<Array2>,
     /// Number of rows in the input.
     input_num_rows: usize,
     /// Row we're currently unnesting.
@@ -93,11 +93,11 @@ impl ExecutableOperator for PhysicalUnnest {
             .map(|_| {
                 PartitionState::Unnest(UnnestPartitionState {
                     project_inputs: vec![
-                        Array::new_untyped_null_array(0);
+                        Array2::new_untyped_null_array(0);
                         self.project_expressions.len()
                     ],
                     unnest_inputs: vec![
-                        Array::new_untyped_null_array(0);
+                        Array2::new_untyped_null_array(0);
                         self.unnest_expressions.len()
                     ],
                     input_num_rows: 0,
@@ -259,7 +259,7 @@ impl ExecutableOperator for PhysicalUnnest {
                         None => {
                             // Row is null, produce nulls according to longest
                             // length.
-                            let out = Array::new_typed_null_array(
+                            let out = Array2::new_typed_null_array(
                                 child.datatype().clone(),
                                 longest as usize,
                             )?;
@@ -269,7 +269,7 @@ impl ExecutableOperator for PhysicalUnnest {
                 }
                 PhysicalType::UntypedNull => {
                     // Just produce null array according to longest length.
-                    let out = Array::new_untyped_null_array(longest as usize);
+                    let out = Array2::new_untyped_null_array(longest as usize);
                     outputs.push(out);
                 }
                 other => {
@@ -304,11 +304,11 @@ impl Explainable for PhysicalUnnest {
     }
 }
 
-pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
+pub(crate) fn unnest(child: &Array2, longest_len: usize, meta: ListItemMetadata) -> Result<Array2> {
     let datatype = child.datatype().clone();
 
     match child.physical_type() {
-        PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
+        PhysicalType::UntypedNull => Ok(Array2::new_untyped_null_array(longest_len)),
         PhysicalType::Boolean => {
             let builder = ArrayBuilder {
                 datatype,
@@ -427,9 +427,9 @@ pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) 
 
 fn unnest_inner<'a, S, B>(
     mut builder: ArrayBuilder<B>,
-    child: &'a Array,
+    child: &'a Array2,
     meta: ListItemMetadata,
-) -> Result<Array>
+) -> Result<Array2>
 where
     S: PhysicalStorage,
     B: ArrayDataBuffer,
@@ -459,7 +459,7 @@ where
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(Array2::new_with_validity_and_array_data(
                 builder.datatype,
                 out_validity,
                 builder.buffer.into_data(),
@@ -482,7 +482,7 @@ where
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(Array2::new_with_validity_and_array_data(
                 builder.datatype,
                 out_validity,
                 builder.buffer.into_data(),

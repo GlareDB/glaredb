@@ -6,7 +6,7 @@ use num_traits::AsPrimitive;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -159,7 +159,7 @@ where
                 builder.buffer.put(idx, &val);
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(Array2::new_with_validity_and_array_data(
                 builder.datatype,
                 validities,
                 builder.buffer.into_data(),

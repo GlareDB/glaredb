@@ -222,7 +222,7 @@ impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::Array;
+    use crate::arrays::array::Array2;
     use crate::arrays::scalar::ScalarValue;
     use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
     use crate::expr;
@@ -232,8 +232,8 @@ mod tests {
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = &Array2::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array2::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -309,8 +309,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = &Array2::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array2::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -431,8 +431,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
-        let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
+        let partition_1_vals = &Array2::from_iter::<[i64; 4]>([1, 2, 3, 4]);
+        let partition_2_vals = &Array2::from_iter::<[i64; 4]>([5, 6, 7, 8]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list

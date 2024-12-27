@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, Result};
 
 use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -32,7 +32,7 @@ use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::AddressableStorage;
 
 pub fn group_values_eq(
-    inputs: &[Array],
+    inputs: &[Array2],
     input_sel: &SelectionVector,
     chunks: &[GroupChunk],
     addresses: &[GroupAddress],
@@ -69,8 +69,8 @@ pub fn group_values_eq(
 }
 
 fn compare_group_rows_eq<I1, I2>(
-    arrays1: &[Array],
-    arrays2: &[Array],
+    arrays1: &[Array2],
+    arrays2: &[Array2],
     rows1: I1,
     rows2: I2,
     not_eq_rows: &mut BTreeSet<usize>,
@@ -173,8 +173,8 @@ where
 /// When a row is not equal, the row from the `rows1` iter will be inserted into
 /// `not_eq_rows`.
 fn compare_rows_eq<'a, S, I1, I2>(
-    array1: &'a Array,
-    array2: &'a Array,
+    array1: &'a Array2,
+    array2: &'a Array2,
     rows1: I1,
     rows2: I2,
     not_eq_rows: &mut BTreeSet<usize>,

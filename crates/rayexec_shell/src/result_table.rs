@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 use futures::stream::Stream;
 use futures::{StreamExt, TryStreamExt};
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::array::Array2;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;
@@ -148,7 +148,7 @@ impl MaterializedResultTable {
     /// within that array.
     pub fn with_cell<F, T>(&self, cell_fn: F, col: usize, row: usize) -> Result<T>
     where
-        F: Fn(&Array, usize) -> Result<T>,
+        F: Fn(&Array2, usize) -> Result<T>,
     {
         let (batch_idx, row) = find_normalized_row(row, self.batches.iter().map(|b| b.num_rows()))
             .ok_or_else(|| RayexecError::new(format!("Row out of range: {}", row)))?;
@@ -185,7 +185,7 @@ impl MaterializedResultTable {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterializedColumn {
-    pub(crate) arrays: Vec<Array>,
+    pub(crate) arrays: Vec<Array2>,
 }
 
 impl MaterializedColumn {
@@ -199,7 +199,7 @@ impl MaterializedColumn {
 
     pub fn with_row<F, T>(&self, row_fn: F, row: usize) -> Result<T>
     where
-        F: Fn(&Array, usize) -> Result<T>,
+        F: Fn(&Array2, usize) -> Result<T>,
     {
         let (arr_idx, row) =
             find_normalized_row(row, self.arrays.iter().map(|arr| arr.logical_len()))

@@ -2,7 +2,7 @@ use ahash::RandomState;
 use half::f16;
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -38,7 +38,7 @@ pub struct HashExecutor;
 impl HashExecutor {
     /// Hashes the given array values, combining them with the existing hashes
     /// in `hashes`.
-    pub fn hash_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
+    pub fn hash_combine(array: &Array2, hashes: &mut [u64]) -> Result<()> {
         match array.physical_type() {
             PhysicalType::UntypedNull => {
                 Self::hash_one_inner::<PhysicalUntypedNull, CombineSetHash>(array, hashes)?
@@ -102,7 +102,7 @@ impl HashExecutor {
 
     /// Hash the given array and write the values into `hashes`, overwriting any
     /// existing values.
-    pub fn hash_no_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
+    pub fn hash_no_combine(array: &Array2, hashes: &mut [u64]) -> Result<()> {
         match array.physical_type() {
             PhysicalType::UntypedNull => {
                 Self::hash_one_inner::<PhysicalUntypedNull, OverwriteSetHash>(array, hashes)?
@@ -164,7 +164,7 @@ impl HashExecutor {
         Ok(())
     }
 
-    pub fn hash_many<'b>(arrays: &[Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
+    pub fn hash_many<'b>(arrays: &[Array2], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
         for (idx, array) in arrays.iter().enumerate() {
             let combine_hash = idx > 0;
 
@@ -178,7 +178,7 @@ impl HashExecutor {
         Ok(hashes)
     }
 
-    fn hash_one_inner<'a, 'b, S, H>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
+    fn hash_one_inner<'a, 'b, S, H>(array: &'a Array2, hashes: &'b mut [u64]) -> Result<()>
     where
         S: PhysicalStorage,
         S::Type<'a>: HashValue,
@@ -215,7 +215,7 @@ impl HashExecutor {
         Ok(())
     }
 
-    fn hash_list<H>(array: &Array, hashes: &mut [u64]) -> Result<()>
+    fn hash_list<H>(array: &Array2, hashes: &mut [u64]) -> Result<()>
     where
         H: SetHash,
     {

@@ -13,7 +13,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -25,7 +25,7 @@ use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 pub struct TableInOutPartitionState {
     function_state: Box<dyn inout::TableInOutPartitionState>,
     /// Additional outputs that will be included on the output batch.
-    additional_outputs: Vec<Array>,
+    additional_outputs: Vec<Array2>,
 }
 
 #[derive(Debug)]

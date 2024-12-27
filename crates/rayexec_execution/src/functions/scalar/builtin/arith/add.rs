@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
@@ -208,7 +208,7 @@ where
     for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
     ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -230,8 +230,8 @@ mod tests {
 
     #[test]
     fn add_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([4, 5, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -250,7 +250,7 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([5, 7, 9]);
+        let expected = Array2::from_iter([5, 7, 9]);
 
         assert_eq!(expected, out);
     }

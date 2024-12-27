@@ -4,7 +4,7 @@ use parquet::column::reader::basic::BasicColumnValueDecoder;
 use parquet::data_type::{DataType as ParquetDataType, Int96};
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::array::{Array2, ArrayData};
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::compute::cast::array::cast_array;
 use rayexec_execution::arrays::compute::cast::behavior::CastFailBehavior;
@@ -43,7 +43,7 @@ where
     }
 
     /// Take the currently read values and convert into an array.
-    pub fn take_array(&mut self) -> Result<Array> {
+    pub fn take_array(&mut self) -> Result<Array2> {
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
@@ -87,8 +87,10 @@ where
         let needs_cast = build_type != self.datatype;
 
         let mut array = match bitmap {
-            Some(bitmap) => Array::new_with_validity_and_array_data(build_type, bitmap, array_data),
-            None => Array::new_with_array_data(build_type, array_data),
+            Some(bitmap) => {
+                Array2::new_with_validity_and_array_data(build_type, bitmap, array_data)
+            }
+            None => Array2::new_with_array_data(build_type, array_data),
         };
 
         if needs_cast {
@@ -106,7 +108,7 @@ where
     T::T: Copy + Default,
     Vec<T::T>: IntoArrayData,
 {
-    fn build(&mut self) -> Result<Array> {
+    fn build(&mut self) -> Result<Array2> {
         self.take_array()
     }
 

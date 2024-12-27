@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
@@ -45,7 +45,7 @@ impl fmt::Display for HashJoinCondition {
 #[derive(Debug)]
 pub struct LeftPrecomputedJoinCondition {
     /// Precomputed results for left batches.
-    pub left_precomputed: Vec<Array>,
+    pub left_precomputed: Vec<Array2>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
     pub function: PlannedScalarFunction,

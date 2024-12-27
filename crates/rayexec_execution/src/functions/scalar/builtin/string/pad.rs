@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
@@ -96,7 +96,7 @@ impl ScalarFunction for LeftPad {
 pub struct LeftPadImpl;
 
 impl ScalarFunctionImpl for LeftPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -209,7 +209,7 @@ impl ScalarFunction for RightPad {
 pub struct RightPadImpl;
 
 impl ScalarFunctionImpl for RightPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,

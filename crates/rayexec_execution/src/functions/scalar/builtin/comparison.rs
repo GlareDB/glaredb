@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
@@ -660,7 +660,7 @@ impl<O> ScalarFunctionImpl for ListComparisonImpl<O>
 where
     O: ComparisonOperation,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -797,7 +797,7 @@ where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: PartialEq + PartialOrd,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -845,7 +845,7 @@ where
     T: DecimalType,
     ArrayData: From<PrimitiveStorage<T::Primitive>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -901,8 +901,8 @@ mod tests {
 
     #[test]
     fn eq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([2, 2, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -921,15 +921,15 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([false, true, false]);
+        let expected = Array2::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn neq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([2, 2, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -948,15 +948,15 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([true, false, true]);
+        let expected = Array2::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn lt_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([2, 2, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -975,15 +975,15 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([true, false, true]);
+        let expected = Array2::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn lt_eq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([2, 2, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1002,15 +1002,15 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([true, true, true]);
+        let expected = Array2::from_iter([true, true, true]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn gt_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([2, 2, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1029,15 +1029,15 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([false, false, false]);
+        let expected = Array2::from_iter([false, false, false]);
 
         assert_eq!(expected, out);
     }
 
     #[test]
     fn gt_eq_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([2, 2, 6]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([2, 2, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1056,7 +1056,7 @@ mod tests {
             .unwrap();
 
         let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([false, true, false]);
+        let expected = Array2::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
     }

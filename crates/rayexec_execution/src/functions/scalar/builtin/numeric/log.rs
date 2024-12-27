@@ -2,7 +2,7 @@ use num_traits::Float;
 use rayexec_error::Result;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalStorage;
@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for LogOp {
     const NAME: &'static str = "log";
     const DESCRIPTION: &'static str = "Compute base-10 log of value";
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,
@@ -41,7 +41,7 @@ impl UnaryInputNumericOperation for LogOp2 {
     const NAME: &'static str = "log2";
     const DESCRIPTION: &'static str = "Compute base-2 log of value";
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,

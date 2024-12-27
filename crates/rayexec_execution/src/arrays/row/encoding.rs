@@ -1,7 +1,7 @@
 use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::array::{Array2, ArrayData, BinaryData};
 use crate::arrays::executor::physical_type::{
     AsBytes,
     PhysicalBinary,
@@ -159,7 +159,7 @@ pub struct ComparableRowEncoder {
 }
 
 impl ComparableRowEncoder {
-    pub fn encode(&self, columns: &[&Array]) -> Result<ComparableRows> {
+    pub fn encode(&self, columns: &[&Array2]) -> Result<ComparableRows> {
         if columns.len() != self.columns.len() {
             return Err(RayexecError::new("Column mismatch"));
         }
@@ -255,7 +255,7 @@ impl ComparableRowEncoder {
 
     /// Compute the size of the data buffer we'll need for storing all encoded
     /// rows.
-    fn compute_data_size(&self, columns: &[&Array]) -> Result<usize> {
+    fn compute_data_size(&self, columns: &[&Array2]) -> Result<usize> {
         let mut size = 0;
         for arr in columns {
             let mut arr_size = match arr.array_data() {
@@ -301,7 +301,7 @@ impl ComparableRowEncoder {
     /// This should return the new offset to write to for the next value.
     fn encode_varlen<'a, S>(
         col: &ComparableColumn,
-        arr: &'a Array,
+        arr: &'a Array2,
         row: usize,
         buf: &mut [u8],
         start: usize,
@@ -342,7 +342,7 @@ impl ComparableRowEncoder {
     /// This should return the new offset to write to for the next value.
     fn encode_primitive<'a, S>(
         col: &ComparableColumn,
-        arr: &'a Array,
+        arr: &'a Array2,
         row: usize,
         buf: &mut [u8],
         start: usize,
@@ -482,8 +482,8 @@ mod tests {
 
     #[test]
     fn simple_primitive_cmp_between_cols_asc() {
-        let col1 = Array::from_iter([-1, 0, 1]);
-        let col2 = Array::from_iter([1, 0, -1]);
+        let col1 = Array2::from_iter([-1, 0, 1]);
+        let col2 = Array2::from_iter([1, 0, -1]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -508,8 +508,8 @@ mod tests {
 
     #[test]
     fn simple_primitive_cmp_between_cols_desc() {
-        let col1 = Array::from_iter([-1, 0, 1]);
-        let col2 = Array::from_iter([1, 0, -1]);
+        let col1 = Array2::from_iter([-1, 0, 1]);
+        let col2 = Array2::from_iter([1, 0, -1]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -535,8 +535,8 @@ mod tests {
 
     #[test]
     fn simple_varlen_cmp_between_cols_asc() {
-        let col1 = Array::from_iter(["a", "aa", "bb"]);
-        let col2 = Array::from_iter(["aa", "a", "bb"]);
+        let col1 = Array2::from_iter(["a", "aa", "bb"]);
+        let col2 = Array2::from_iter(["aa", "a", "bb"]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -561,8 +561,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_last_asc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+        let col1 = Array2::from_iter([Some(-1), None, Some(1), Some(2)]);
+        let col2 = Array2::from_iter([Some(1), Some(0), Some(-1), None]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -585,8 +585,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_last_desc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+        let col1 = Array2::from_iter([Some(-1), None, Some(1), Some(2)]);
+        let col2 = Array2::from_iter([Some(1), Some(0), Some(-1), None]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -609,8 +609,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_first_asc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+        let col1 = Array2::from_iter([Some(-1), None, Some(1), Some(2)]);
+        let col2 = Array2::from_iter([Some(1), Some(0), Some(-1), None]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {
@@ -633,8 +633,8 @@ mod tests {
 
     #[test]
     fn primitive_nulls_first_desc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+        let col1 = Array2::from_iter([Some(-1), None, Some(1), Some(2)]);
+        let col2 = Array2::from_iter([Some(1), Some(0), Some(-1), None]);
 
         let encoder = ComparableRowEncoder {
             columns: vec![ComparableColumn {

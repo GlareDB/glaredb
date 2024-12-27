@@ -5,7 +5,7 @@ use fmtutil::IntoDisplayableSlice;
 use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::functions::scalar::PlannedScalarFunction;
@@ -18,7 +18,7 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
         let inputs = self
             .inputs
             .iter()

@@ -16,7 +16,7 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
@@ -514,7 +514,7 @@ impl PhysicalHashAggregate {
         state.hash_buf.resize(num_rows, 0);
         state.partitions_idx_buf.resize(num_rows, 0);
 
-        let mut masked_grouping_columns: Vec<Array> = Vec::with_capacity(grouping_columns.len());
+        let mut masked_grouping_columns: Vec<Array2> = Vec::with_capacity(grouping_columns.len());
 
         // Reused to select hashes per partition.
         let mut partition_hashes = Vec::new();
@@ -527,7 +527,7 @@ impl PhysicalHashAggregate {
             for (col_idx, col_is_null) in null_mask.iter().enumerate() {
                 if col_is_null {
                     // Create column with all nulls but retain the datatype.
-                    let null_col = Array::new_typed_null_array(
+                    let null_col = Array2::new_typed_null_array(
                         grouping_columns[col_idx].datatype().clone(),
                         num_rows,
                     )?;

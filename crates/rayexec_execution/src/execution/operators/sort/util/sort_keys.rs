@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows};
 use crate::expr::physical::PhysicalSortExpression;
@@ -38,7 +38,7 @@ impl SortKeysExtractor {
     }
 
     /// Get the columns that make up the sort keys.
-    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array>> {
+    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array2>> {
         let sort_cols = self
             .order_by
             .iter()

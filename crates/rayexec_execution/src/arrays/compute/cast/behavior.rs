@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 
 /// Behavior when a cast fail due to under/overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub enum CastFailBehavior {
 }
 
 impl CastFailBehavior {
-    pub(crate) fn new_state_for_array(&self, _arr: &Array) -> CastFailState {
+    pub(crate) fn new_state_for_array(&self, _arr: &Array2) -> CastFailState {
         match self {
             CastFailBehavior::Error => CastFailState::TrackOneAndError(None),
             CastFailBehavior::Null => CastFailState::TrackManyAndInvalidate(Vec::new()),
@@ -63,7 +63,7 @@ impl CastFailState {
         }
     }
 
-    pub(crate) fn check_and_apply(self, original: &Array, mut output: Array) -> Result<Array> {
+    pub(crate) fn check_and_apply(self, original: &Array2, mut output: Array2) -> Result<Array2> {
         match self {
             Self::TrackOneAndError(None) => Ok(output),
             Self::TrackOneAndError(Some(error_idx)) => {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
@@ -106,7 +106,7 @@ impl LeftOuterJoinDrainState {
             .columns()
             .iter()
             .cloned()
-            .chain([Array::new_with_array_data(
+            .chain([Array2::new_with_array_data(
                 DataType::Boolean,
                 ArrayData::Boolean(Arc::new(bitmap.clone().into())),
             )]);
@@ -152,7 +152,7 @@ impl LeftOuterJoinDrainState {
             let right_cols = self
                 .right_types
                 .iter()
-                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+                .map(|datatype| Array2::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
             let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
@@ -187,7 +187,7 @@ impl LeftOuterJoinDrainState {
             let right_cols = self
                 .right_types
                 .iter()
-                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+                .map(|datatype| Array2::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
             let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
@@ -241,7 +241,7 @@ impl RightOuterJoinTracker {
 
         let left_null_cols = left_types
             .iter()
-            .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+            .map(|datatype| Array2::new_typed_null_array(datatype.clone(), num_rows))
             .collect::<Result<Vec<_>>>()?;
 
         let batch = Batch::try_new(left_null_cols.into_iter().chain(right_cols))?;

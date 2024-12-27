@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalI64;
@@ -102,13 +102,13 @@ impl ScalarFunction for EpochMs {
 pub struct EpochImpl<const S: i64>;
 
 impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         to_timestamp::<S>(input)
     }
 }
 
-fn to_timestamp<const S: i64>(input: &Array) -> Result<Array> {
+fn to_timestamp<const S: i64>(input: &Array2) -> Result<Array2> {
     let builder = ArrayBuilder {
         datatype: DataType::Timestamp(TimestampTypeMeta {
             unit: TimeUnit::Microsecond,

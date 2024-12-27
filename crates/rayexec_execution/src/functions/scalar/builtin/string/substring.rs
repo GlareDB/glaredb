@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
@@ -105,7 +105,7 @@ impl ScalarFunction for Substring {
 pub struct SubstringFromImpl;
 
 impl ScalarFunctionImpl for SubstringFromImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let len = inputs[0].logical_len();
         BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
             inputs[0],
@@ -123,7 +123,7 @@ impl ScalarFunctionImpl for SubstringFromImpl {
 pub struct SubstringFromToImpl;
 
 impl ScalarFunctionImpl for SubstringFromToImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let len = inputs[0].logical_len();
         TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
             inputs[0],

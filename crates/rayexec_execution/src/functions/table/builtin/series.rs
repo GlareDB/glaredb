@@ -3,7 +3,7 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::PhysicalI64;
@@ -164,7 +164,7 @@ struct SeriesParams {
 
 impl SeriesParams {
     /// Generate the next set of rows using the current parameters.
-    fn generate_next(&mut self, batch_size: usize) -> Array {
+    fn generate_next(&mut self, batch_size: usize) -> Array2 {
         debug_assert!(!self.exhausted);
 
         let mut series: Vec<i64> = Vec::new();
@@ -195,7 +195,7 @@ impl SeriesParams {
             self.curr = *last + self.step;
         }
 
-        Array::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
+        Array2::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
     }
 }
 

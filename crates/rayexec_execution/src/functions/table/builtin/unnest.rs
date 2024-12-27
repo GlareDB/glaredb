@@ -3,7 +3,7 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType};
@@ -134,7 +134,7 @@ impl TableInOutFunction for UnnestInOutImpl {
 #[derive(Debug)]
 pub struct UnnestInOutPartitionState {
     /// The array we're unnesting.
-    input: Option<Array>,
+    input: Option<Array2>,
     /// Number of rows in the input batch.
     input_num_rows: usize,
     /// Current row we're processing.
@@ -220,13 +220,13 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                     }
                     None => {
                         // Row is null, produce as single null
-                        Array::new_typed_null_array(child.datatype().clone(), 1)?
+                        Array2::new_typed_null_array(child.datatype().clone(), 1)?
                     }
                 }
             }
             PhysicalType::UntypedNull => {
                 // Just produce null array of length 1.
-                Array::new_untyped_null_array(1)
+                Array2::new_untyped_null_array(1)
             }
             other => {
                 return Err(RayexecError::new(format!(

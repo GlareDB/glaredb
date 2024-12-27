@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::scan::PhysicalScan;
@@ -84,7 +84,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         // TODO: This could probably be simplified.
 
-        let mut row_arrs: Vec<Vec<Array>> = Vec::new(); // Row oriented.
+        let mut row_arrs: Vec<Vec<Array2>> = Vec::new(); // Row oriented.
         let dummy_batch = Batch::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.

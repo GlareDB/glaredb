@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{PhysicalAny, PhysicalBool};
@@ -101,7 +101,7 @@ impl ScalarFunction for IsNotNull {
 pub struct CheckNullImpl<const IS_NULL: bool>;
 
 impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let (initial, updated) = if IS_NULL {
@@ -123,7 +123,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
 
         // Drop validity.
         let data = array.into_array_data();
-        Ok(Array::new_with_array_data(DataType::Boolean, data))
+        Ok(Array2::new_with_array_data(DataType::Boolean, data))
     }
 }
 
@@ -303,7 +303,7 @@ impl ScalarFunction for IsNotFalse {
 pub struct CheckBoolImpl<const NOT: bool, const BOOL: bool>;
 
 impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT, BOOL> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let initial = NOT;
@@ -319,6 +319,6 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
 
         // Drop validity.
         let data = array.into_array_data();
-        Ok(Array::new_with_array_data(DataType::Boolean, data))
+        Ok(Array2::new_with_array_data(DataType::Boolean, data))
     }
 }

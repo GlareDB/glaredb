@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::executor::scalar::HashExecutor;
 use crate::arrays::selection::SelectionVector;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
@@ -50,7 +50,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
         self.distinct_inputs.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()> {
+    fn update_states(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
         // TODO: Would be cool not needing to do this.
         let mappings: Vec<_> = mapping.collect();
 
@@ -114,7 +114,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<Array> {
+    fn finalize(&mut self) -> Result<Array2> {
         // And now we actually create the states we need.
         self.states.new_states(self.distinct_inputs.len());
 

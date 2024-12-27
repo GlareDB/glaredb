@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
@@ -61,7 +61,7 @@ impl ScalarFunction for Ascii {
 pub struct AsciiImpl;
 
 impl ScalarFunctionImpl for AsciiImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Int32,

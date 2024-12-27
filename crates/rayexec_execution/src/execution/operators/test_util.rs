@@ -13,7 +13,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::scalar::ScalarValue;
 use crate::database::system::new_system_catalog;
@@ -114,5 +114,5 @@ pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
 
 /// Makes a batch with a single column i32 values provided by the iterator.
 pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
+    Batch::try_new(vec![Array2::from_iter(iter.into_iter())]).unwrap()
 }

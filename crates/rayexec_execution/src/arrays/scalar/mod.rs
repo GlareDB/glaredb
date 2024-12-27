@@ -14,7 +14,7 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,
@@ -204,9 +204,9 @@ impl ScalarValue<'_> {
     }
 
     /// Create an array of size `n` using the scalar value.
-    pub fn as_array(&self, n: usize) -> Result<Array> {
+    pub fn as_array(&self, n: usize) -> Result<Array2> {
         let data: ArrayData = match self {
-            Self::Null => return Ok(Array::new_untyped_null_array(n)),
+            Self::Null => return Ok(Array2::new_untyped_null_array(n)),
             Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
             Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
             Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
@@ -235,7 +235,7 @@ impl ScalarValue<'_> {
 
                     ListStorage {
                         metadata: vec![metadata].into(),
-                        array: Array::new_untyped_null_array(0),
+                        array: Array2::new_untyped_null_array(0),
                     }
                     .into()
                 } else {
@@ -261,7 +261,7 @@ impl ScalarValue<'_> {
             other => not_implemented!("{other:?} to array"), // Struct, List
         };
 
-        let mut array = Array::new_with_array_data(self.datatype(), data);
+        let mut array = Array2::new_with_array_data(self.datatype(), data);
         array.selection = Some(SelectionVector::repeated(n, 0).into());
 
         Ok(array)

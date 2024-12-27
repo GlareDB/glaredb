@@ -5,11 +5,11 @@
 //!
 //! Should not be used outside of tests.
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 
 /// Asserts that two arrays are logically equal.
-pub fn assert_arrays_eq(a: &Array, b: &Array) {
+pub fn assert_arrays_eq(a: &Array2, b: &Array2) {
     assert_eq!(a.datatype(), b.datatype(), "data types differ");
     assert_eq!(a.logical_len(), b.logical_len(), "logical lengths differ");
 
@@ -41,16 +41,16 @@ mod tests {
 
     #[test]
     fn arrays_eq() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([1, 2, 3]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter([1, 2, 3]);
 
         assert_arrays_eq(&a, &b);
     }
 
     #[test]
     fn arrays_eq_with_selection() {
-        let a = Array::from_iter([2, 2, 2]);
-        let mut b = Array::from_iter([2]);
+        let a = Array2::from_iter([2, 2, 2]);
+        let mut b = Array2::from_iter([2]);
         b.select_mut(SelectionVector::repeated(3, 0));
 
         assert_arrays_eq(&a, &b);
@@ -59,8 +59,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn arrays_not_eq() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter(["a", "b", "c"]);
+        let a = Array2::from_iter([1, 2, 3]);
+        let b = Array2::from_iter(["a", "b", "c"]);
 
         assert_arrays_eq(&a, &b);
     }

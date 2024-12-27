@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -62,10 +62,10 @@ impl ScalarFunction for Random {
 pub struct RandomImpl;
 
 impl ScalarFunctionImpl for RandomImpl {
-    fn execute(&self, _inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, _inputs: &[&Array2]) -> Result<Array2> {
         // TODO: Need to pass in dummy input to produce all unique values.
         let val = rand::random::<f64>();
-        Ok(Array::new_with_array_data(
+        Ok(Array2::new_with_array_data(
             DataType::Float64,
             PrimitiveStorage::from(vec![val]),
         ))

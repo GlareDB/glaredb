@@ -38,7 +38,7 @@ pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::{
     PhysicalF16,
@@ -81,7 +81,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,
@@ -145,7 +145,7 @@ pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         match input.physical_type() {
             PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),

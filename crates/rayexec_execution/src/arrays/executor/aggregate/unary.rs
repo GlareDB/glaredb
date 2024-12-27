@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::{AggregateState, RowToStateMapping};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::PhysicalStorage;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
@@ -12,7 +12,7 @@ pub struct UnaryNonNullUpdater;
 
 impl UnaryNonNullUpdater {
     pub fn update<'a, S, I, State, Output>(
-        array: &'a Array,
+        array: &'a Array2,
         mapping: I,
         states: &mut [State],
     ) -> Result<()>
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn unary_primitive_single_state() {
         let mut states = [TestSumState::default()];
-        let array = Array::from_iter([1, 2, 3, 4, 5]);
+        let array = Array2::from_iter([1, 2, 3, 4, 5]);
         let mapping = [
             RowToStateMapping {
                 from_row: 1,
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn unary_primitive_single_state_skip_null() {
         let mut states = [TestSumState::default()];
-        let array = Array::from_iter([Some(1), Some(2), Some(3), None, Some(5)]);
+        let array = Array2::from_iter([Some(1), Some(2), Some(3), None, Some(5)]);
         let mapping = [
             RowToStateMapping {
                 from_row: 1,
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn unary_primitive_multiple_state() {
         let mut states = [TestSumState::default(), TestSumState::default()];
-        let array = Array::from_iter([1, 2, 3, 4, 5]);
+        let array = Array2::from_iter([1, 2, 3, 4, 5]);
         let mapping = [
             RowToStateMapping {
                 from_row: 1,
@@ -185,7 +185,7 @@ mod tests {
     fn unary_str_single_state() {
         // Test just checks to ensure working with varlen is sane.
         let mut states = [TestStringAgg::default()];
-        let array = Array::from_iter(["aa", "bbb", "cccc"]);
+        let array = Array2::from_iter(["aa", "bbb", "cccc"]);
         let mapping = [
             RowToStateMapping {
                 from_row: 0,

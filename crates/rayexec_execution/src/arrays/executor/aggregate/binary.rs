@@ -1,7 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::{AggregateState, RowToStateMapping};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::PhysicalStorage;
 use crate::arrays::executor::scalar::check_validity;
 use crate::arrays::selection;
@@ -13,8 +13,8 @@ pub struct BinaryNonNullUpdater;
 
 impl BinaryNonNullUpdater {
     pub fn update<'a, S1, S2, I, State, Output>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a Array2,
+        array2: &'a Array2,
         mapping: I,
         states: &mut [State],
     ) -> Result<()>
@@ -113,8 +113,8 @@ mod tests {
     #[test]
     fn binary_primitive_single_state() {
         let mut states = [TestAddSumAndProductState::default()];
-        let array1 = Array::from_iter([1, 2, 3, 4, 5]);
-        let array2 = Array::from_iter([6, 7, 8, 9, 10]);
+        let array1 = Array2::from_iter([1, 2, 3, 4, 5]);
+        let array2 = Array2::from_iter([6, 7, 8, 9, 10]);
 
         let mapping = [
             RowToStateMapping {

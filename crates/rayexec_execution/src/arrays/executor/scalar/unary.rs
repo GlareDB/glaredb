@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::validate_logical_len;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
 use crate::arrays::executor::physical_type::PhysicalStorage;
@@ -14,10 +14,10 @@ pub struct UnaryExecutor;
 impl UnaryExecutor {
     /// Executes `op` on every non-null input.
     pub fn execute<'a, S, B, Op>(
-        array: &'a Array,
+        array: &'a Array2,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         Op: FnMut(S::Type<'a>, &mut OutputBuffer<B>),
         S: PhysicalStorage,
@@ -67,7 +67,7 @@ impl UnaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(Array2 {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -80,7 +80,7 @@ impl UnaryExecutor {
     ///
     /// `op` is called for each logical entry in the array with the index and
     /// either Some(val) if the value is valid, or None if it's not.
-    pub fn for_each<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
+    pub fn for_each<'a, S, Op>(array: &'a Array2, mut op: Op) -> Result<()>
     where
         Op: FnMut(usize, Option<S::Type<'a>>),
         S: PhysicalStorage,
@@ -119,7 +119,7 @@ impl UnaryExecutor {
     /// Gets the value some index in the array.
     ///
     /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at<S>(array: &Array, idx: usize) -> Result<Option<S::Type<'_>>>
+    pub fn value_at<S>(array: &Array2, idx: usize) -> Result<Option<S::Type<'_>>>
     where
         S: PhysicalStorage,
     {
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2() {
-        let array = Array::from_iter([1, 2, 3]);
+        let array = Array2::from_iter([1, 2, 3]);
         let builder = ArrayBuilder {
             datatype: DataType::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
@@ -179,7 +179,7 @@ mod tests {
     fn string_double_named_func() {
         // Example with defined function, and allocating a new string every time.
 
-        let array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
@@ -210,7 +210,7 @@ mod tests {
     fn string_double_closure() {
         // Example with closure that reuses a string.
 
-        let array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
@@ -243,7 +243,7 @@ mod tests {
     fn string_trunc_closure() {
         // Example with closure returning referencing to input.
 
-        let array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
@@ -268,7 +268,7 @@ mod tests {
         // Example with selection vector whose logical length is greater than
         // the underlying physical data len.
 
-        let mut array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let mut array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let mut selection = SelectionVector::with_range(0..5);
         selection.set_unchecked(0, 3);
         selection.set_unchecked(1, 3);

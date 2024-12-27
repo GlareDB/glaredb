@@ -5,7 +5,7 @@ use parquet::data_type::{ByteArray, DataType as ParquetDataType};
 use parquet::decoding::view::ViewBuffer;
 use parquet::schema::types::ColumnDescPtr;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::Array;
+use rayexec_execution::arrays::array::Array2;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::executor::builder::ArrayDataBuffer;
 
@@ -32,7 +32,7 @@ where
         }
     }
 
-    pub fn take_array(&mut self) -> Result<Array> {
+    pub fn take_array(&mut self) -> Result<Array2> {
         let def_levels = self.values_reader.take_def_levels();
         let _rep_levels = self.values_reader.take_rep_levels();
 
@@ -55,10 +55,10 @@ where
                         // The "null" values will just be zeroed metadata fields.
                         insert_null_values(buffer.metadata_mut(), &bitmap);
 
-                        Array::new_with_validity_and_array_data(self.datatype.clone(), bitmap, buffer.into_data())
+                        Array2::new_with_validity_and_array_data(self.datatype.clone(), bitmap, buffer.into_data())
                     }
                     None => {
-                        Array::new_with_array_data(self.datatype.clone(), view_buffer.into_buffer().into_data())
+                        Array2::new_with_array_data(self.datatype.clone(), view_buffer.into_buffer().into_data())
                     }
                 }
             }
@@ -73,7 +73,7 @@ impl<P> ArrayBuilder<P> for VarlenArrayReader<P>
 where
     P: PageReader,
 {
-    fn build(&mut self) -> Result<Array> {
+    fn build(&mut self) -> Result<Array2> {
         self.take_array()
     }
 

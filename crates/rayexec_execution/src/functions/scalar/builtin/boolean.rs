@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
@@ -70,10 +70,10 @@ impl ScalarFunction for And {
 pub struct AndImpl;
 
 impl ScalarFunctionImpl for AndImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         match inputs.len() {
             0 => {
-                let mut array = Array::new_with_array_data(
+                let mut array = Array2::new_with_array_data(
                     DataType::Boolean,
                     BooleanStorage::from(Bitmap::new_with_val(false, 1)),
                 );
@@ -178,10 +178,10 @@ impl ScalarFunction for Or {
 pub struct OrImpl;
 
 impl ScalarFunctionImpl for OrImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         match inputs.len() {
             0 => {
-                let mut array = Array::new_with_array_data(
+                let mut array = Array2::new_with_array_data(
                     DataType::Boolean,
                     BooleanStorage::from(Bitmap::new_with_val(false, 1)),
                 );
@@ -225,8 +225,8 @@ mod tests {
 
     #[test]
     fn and_bool_2() {
-        let a = Array::from_iter([true, false, false]);
-        let b = Array::from_iter([true, true, false]);
+        let a = Array2::from_iter([true, false, false]);
+        let b = Array2::from_iter([true, true, false]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -253,9 +253,9 @@ mod tests {
 
     #[test]
     fn and_bool_3() {
-        let a = Array::from_iter([true, true, true]);
-        let b = Array::from_iter([false, true, true]);
-        let c = Array::from_iter([true, true, false]);
+        let a = Array2::from_iter([true, true, true]);
+        let b = Array2::from_iter([false, true, true]);
+        let c = Array2::from_iter([true, true, false]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -286,8 +286,8 @@ mod tests {
 
     #[test]
     fn or_bool_2() {
-        let a = Array::from_iter([true, false, false]);
-        let b = Array::from_iter([true, true, false]);
+        let a = Array2::from_iter([true, false, false]);
+        let b = Array2::from_iter([true, true, false]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list

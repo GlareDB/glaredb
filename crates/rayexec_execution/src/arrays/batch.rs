@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::executor::scalar::concat_with_exact_total_len;
 use crate::arrays::row::ScalarRow;
 use crate::arrays::selection::SelectionVector;
@@ -11,7 +11,7 @@ use crate::arrays::selection::SelectionVector;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Columns that make up this batch.
-    cols: Vec<Array>,
+    cols: Vec<Array2>,
 
     /// Number of rows in this batch. Needed to allow for a batch that has no
     /// columns but a non-zero number of rows.
@@ -80,7 +80,7 @@ impl Batch {
     /// Create a new batch from some number of arrays.
     ///
     /// All arrays should have the same logical length.
-    pub fn try_new(cols: impl IntoIterator<Item = Array>) -> Result<Self> {
+    pub fn try_new(cols: impl IntoIterator<Item = Array2>) -> Result<Self> {
         let cols: Vec<_> = cols.into_iter().collect();
         let len = match cols.first() {
             Some(arr) => arr.logical_len(),
@@ -158,15 +158,15 @@ impl Batch {
         Some(ScalarRow::from_iter(row))
     }
 
-    pub fn column(&self, idx: usize) -> Option<&Array> {
+    pub fn column(&self, idx: usize) -> Option<&Array2> {
         self.cols.get(idx)
     }
 
-    pub fn columns(&self) -> &[Array] {
+    pub fn columns(&self) -> &[Array2] {
         &self.cols
     }
 
-    pub fn columns_mut(&mut self) -> &mut [Array] {
+    pub fn columns_mut(&mut self) -> &mut [Array2] {
         &mut self.cols
     }
 
@@ -178,7 +178,7 @@ impl Batch {
         self.num_rows
     }
 
-    pub fn into_arrays(self) -> Vec<Array> {
+    pub fn into_arrays(self) -> Vec<Array2> {
         self.cols
     }
 }

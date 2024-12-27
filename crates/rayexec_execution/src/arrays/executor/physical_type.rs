@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
-use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::array::{Array2, ArrayData, BinaryData};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{
     AddressableStorage,
@@ -65,7 +65,7 @@ impl PhysicalType {
             Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
             Self::List => ListStorage {
                 metadata: vec![ListItemMetadata::default(); len].into(),
-                array: Array::new_untyped_null_array(0),
+                array: Array2::new_untyped_null_array(0),
             }
             .into(),
         }

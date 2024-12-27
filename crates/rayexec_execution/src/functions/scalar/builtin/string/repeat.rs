@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
@@ -65,7 +65,7 @@ impl ScalarFunction for Repeat {
 pub struct RepeatUtf8Impl;
 
 impl ScalarFunctionImpl for RepeatUtf8Impl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let strings = inputs[0];
         let nums = inputs[1];
 

@@ -7,7 +7,7 @@ use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
@@ -79,8 +79,8 @@ impl SystemFunctionImpl for ListDatabasesImpl {
         }
 
         Batch::try_new([
-            Array::new_with_array_data(DataType::Utf8, database_names.into_data()),
-            Array::new_with_array_data(DataType::Utf8, datasources.into_data()),
+            Array2::new_with_array_data(DataType::Utf8, database_names.into_data()),
+            Array2::new_with_array_data(DataType::Utf8, datasources.into_data()),
         ])
     }
 }
@@ -232,32 +232,32 @@ impl SystemFunctionImpl for ListFunctionsImpl {
         })?;
 
         Batch::try_new([
-            Array::new_with_array_data(DataType::Utf8, database_names),
-            Array::new_with_array_data(DataType::Utf8, schema_names),
-            Array::new_with_array_data(DataType::Utf8, function_names),
-            Array::new_with_array_data(DataType::Utf8, function_types),
-            Array::new_with_array_data(
+            Array2::new_with_array_data(DataType::Utf8, database_names),
+            Array2::new_with_array_data(DataType::Utf8, schema_names),
+            Array2::new_with_array_data(DataType::Utf8, function_names),
+            Array2::new_with_array_data(DataType::Utf8, function_types),
+            Array2::new_with_array_data(
                 DataType::List(ListTypeMeta::new(DataType::Utf8)),
                 ListStorage::try_new(
                     argument_types_metadatas,
-                    Array::new_with_array_data(DataType::Utf8, argument_types),
+                    Array2::new_with_array_data(DataType::Utf8, argument_types),
                 )?,
             ),
-            Array::new_with_array_data(
+            Array2::new_with_array_data(
                 DataType::List(ListTypeMeta::new(DataType::Utf8)),
                 ListStorage::try_new(
                     argument_names_metadatas,
-                    Array::new_with_array_data(DataType::Utf8, argument_names),
+                    Array2::new_with_array_data(DataType::Utf8, argument_names),
                 )?,
             ),
-            Array::new_with_array_data(DataType::Utf8, return_types),
-            Array::new_with_validity_and_array_data(
+            Array2::new_with_array_data(DataType::Utf8, return_types),
+            Array2::new_with_validity_and_array_data(
                 DataType::Utf8,
                 descriptions_validity,
                 descriptions,
             ),
-            Array::new_with_validity_and_array_data(DataType::Utf8, examples_validity, examples),
-            Array::new_with_validity_and_array_data(
+            Array2::new_with_validity_and_array_data(DataType::Utf8, examples_validity, examples),
+            Array2::new_with_validity_and_array_data(
                 DataType::Utf8,
                 example_outputs_validity,
                 example_outputs,
@@ -309,9 +309,9 @@ impl SystemFunctionImpl for ListTablesImpl {
         })?;
 
         Batch::try_new([
-            Array::new_with_array_data(DataType::Utf8, database_names),
-            Array::new_with_array_data(DataType::Utf8, schema_names),
-            Array::new_with_array_data(DataType::Utf8, table_names),
+            Array2::new_with_array_data(DataType::Utf8, database_names),
+            Array2::new_with_array_data(DataType::Utf8, schema_names),
+            Array2::new_with_array_data(DataType::Utf8, table_names),
         ])
     }
 }
@@ -349,8 +349,8 @@ impl SystemFunctionImpl for ListSchemasImpl {
         })?;
 
         Batch::try_new([
-            Array::new_with_array_data(DataType::Utf8, database_names),
-            Array::new_with_array_data(DataType::Utf8, schema_names),
+            Array2::new_with_array_data(DataType::Utf8, database_names),
+            Array2::new_with_array_data(DataType::Utf8, schema_names),
         ])
     }
 }

@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::executor::scalar::concat;
 use crate::arrays::storage::ListStorage;
@@ -90,20 +90,27 @@ pub struct ListValuesImpl {
 }
 
 impl ScalarFunctionImpl for ListValuesImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         if inputs.is_empty() {
             let inner_type = match &self.list_datatype {
                 DataType::List(l) => l.datatype.as_ref(),
                 other => panic!("invalid data type: {other}"),
             };
 
-            let data = ListStorage::empty_list(Array::new_typed_null_array(inner_type.clone(), 1)?);
-            return Ok(Array::new_with_array_data(self.list_datatype.clone(), data));
+            let data =
+                ListStorage::empty_list(Array2::new_typed_null_array(inner_type.clone(), 1)?);
+            return Ok(Array2::new_with_array_data(
+                self.list_datatype.clone(),
+                data,
+            ));
         }
 
         let out = concat(inputs)?;
         let data = ListStorage::single_list(out);
 
-        Ok(Array::new_with_array_data(self.list_datatype.clone(), data))
+        Ok(Array2::new_with_array_data(
+            self.list_datatype.clone(),
+            data,
+        ))
     }
 }
