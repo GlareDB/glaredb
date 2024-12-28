@@ -16,7 +16,7 @@ use super::{
     PollPush,
 };
 use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{
     ArrayBuilder,
@@ -122,7 +122,7 @@ impl ExecutableOperator for PhysicalUnnest {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
@@ -290,7 +290,7 @@ impl ExecutableOperator for PhysicalUnnest {
             }
         }
 
-        let batch = Batch::try_new(outputs)?;
+        let batch = Batch2::try_new(outputs)?;
 
         Ok(PollPull::Computed(batch.into()))
     }

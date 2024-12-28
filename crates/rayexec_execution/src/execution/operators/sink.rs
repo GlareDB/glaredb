@@ -19,7 +19,7 @@ use super::{
     PollPush,
 };
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -64,7 +64,7 @@ pub trait PartitionSink: Debug + Send {
     /// Push a batch to the sink.
     ///
     /// Batches are pushed in the order they're received in.
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>>;
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>>;
 
     /// Finalize the sink.
     ///
@@ -183,7 +183,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::Sink(state) => match state {
@@ -233,7 +233,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
                             //
                             // I think we'll want to do a similar thing for inserts so that
                             // we can implement them as "just" async functions.
-                            Ok(PollPush::Pending(Batch::empty()))
+                            Ok(PollPush::Pending(Batch2::empty()))
                         }
                     }
                 }
@@ -370,7 +370,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                         let row_count = shared.global_row_count as u64;
 
-                        let row_count_batch = Batch::try_new([Array2::from_iter([row_count])])?;
+                        let row_count_batch = Batch2::try_new([Array2::from_iter([row_count])])?;
 
                         return Ok(PollPull::Computed(row_count_batch.into()));
                     }

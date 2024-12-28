@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use super::sink::{PartitionSink, SinkOperation, SinkOperator};
 use super::util::barrier::PartitionBarrier;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::CreateTableInfo;
 use crate::database::DatabaseContext;
@@ -119,7 +119,7 @@ struct CreateTablePartitionSink {
 }
 
 impl PartitionSink for CreateTablePartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.create_table_if_has_fut().await?;
             self.wait_for_sink_if_none().await;

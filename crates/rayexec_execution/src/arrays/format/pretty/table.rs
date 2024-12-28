@@ -8,7 +8,7 @@ use textwrap::{fill_inplace, wrap};
 
 use super::display::{table_width, Alignment, PrettyFooter, PrettyHeader, PrettyValues};
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::Schema;
 use crate::arrays::format::{FormatOptions, Formatter};
@@ -21,7 +21,7 @@ const DEFAULT_MAX_ROWS: usize = 50;
 
 pub fn pretty_format_batches(
     schema: &Schema,
-    batches: &[Batch],
+    batches: &[Batch2],
     max_width: usize,
     max_rows: Option<usize>,
 ) -> Result<impl fmt::Display> {
@@ -40,7 +40,7 @@ impl PrettyTable {
     /// Try to create a new pretty-formatted table.
     pub fn try_new(
         schema: &Schema,
-        batches: &[Batch],
+        batches: &[Batch2],
         max_width: usize,
         max_rows: Option<usize>,
     ) -> Result<Self> {
@@ -248,7 +248,7 @@ impl PrettyTable {
     }
 
     fn column_values_for_batch(
-        batch: &Batch,
+        batch: &Batch2,
         format: &TableFormat,
         range: Range<usize>,
     ) -> Result<(Vec<ColumnValues>, usize)> {
@@ -841,7 +841,7 @@ mod tests {
             Field::new("b", DataType::Int32, true),
         ]);
 
-        let batch = Batch::try_new(vec![
+        let batch = Batch2::try_new(vec![
             Array2::from_iter([Some("a"), Some("b"), None, Some("d")]),
             Array2::from_iter([Some(1), None, Some(10), Some(100)]),
         ])
@@ -873,7 +873,7 @@ mod tests {
             Field::new("c3", DataType::Utf8, true),
         ]);
 
-        let batch = Batch::try_new(vec![
+        let batch = Batch2::try_new(vec![
             Array2::from_iter([Some("a\nb"), Some("c"), Some("d")]),
             Array2::from_iter([Some(1), Some(10), Some(100)]),
             Array2::from_iter([Some("Mario"), Some("Yoshi"), Some("Luigi\nPeach")]),
@@ -906,7 +906,7 @@ mod tests {
             Field::new("b", DataType::Int32, true),
         ]);
 
-        let batch = Batch::try_new(vec![
+        let batch = Batch2::try_new(vec![
             Array2::from_iter([Some("a")]),
             Array2::from_iter([Some(1)]),
         ])
@@ -940,7 +940,7 @@ mod tests {
         ]);
 
         let create_batch = |s, n| {
-            Batch::try_new([Array2::from_iter([Some(s)]), Array2::from_iter([Some(n)])]).unwrap()
+            Batch2::try_new([Array2::from_iter([Some(s)]), Array2::from_iter([Some(n)])]).unwrap()
         };
 
         let batches = vec![
@@ -983,10 +983,11 @@ mod tests {
         let a_vals: Vec<_> = (0..10).map(|v| v.to_string()).collect();
         let b_vals: Vec<_> = (0..10).map(Some).collect();
 
-        let batches =
-            vec![
-                Batch::try_new(vec![Array2::from_iter(a_vals), Array2::from_iter(b_vals)]).unwrap(),
-            ];
+        let batches = vec![Batch2::try_new(vec![
+            Array2::from_iter(a_vals),
+            Array2::from_iter(b_vals),
+        ])
+        .unwrap()];
 
         let table = pretty_format_batches(&schema, &batches, 80, Some(4)).unwrap();
 
@@ -1019,10 +1020,11 @@ mod tests {
         let a_vals: Vec<_> = (0..10).map(|v| Some(v.to_string())).collect();
         let b_vals: Vec<_> = (0..10).map(Some).collect();
 
-        let batches =
-            vec![
-                Batch::try_new(vec![Array2::from_iter(a_vals), Array2::from_iter(b_vals)]).unwrap(),
-            ];
+        let batches = vec![Batch2::try_new(vec![
+            Array2::from_iter(a_vals),
+            Array2::from_iter(b_vals),
+        ])
+        .unwrap()];
 
         let table = pretty_format_batches(&schema, &batches, 80, Some(3)).unwrap();
 
@@ -1054,7 +1056,7 @@ mod tests {
         ]);
 
         let create_batch = |a, b, c, d| {
-            Batch::try_new(vec![
+            Batch2::try_new(vec![
                 Array2::from_iter([Some(a)]),
                 Array2::from_iter([Some(b)]),
                 Array2::from_iter([Some(c)]),
@@ -1104,7 +1106,7 @@ mod tests {
         ]);
 
         let create_batch = |a, b, c, d| {
-            Batch::try_new(vec![
+            Batch2::try_new(vec![
                 Array2::from_iter([Some(a)]),
                 Array2::from_iter([Some(b)]),
                 Array2::from_iter([Some(c)]),
@@ -1148,7 +1150,7 @@ mod tests {
         ]);
 
         let create_batch = |a, b, c| {
-            Batch::try_new(vec![
+            Batch2::try_new(vec![
                 Array2::from_iter([Some(a)]),
                 Array2::from_iter([Some(b)]),
                 Array2::from_iter([Some(c)]),
@@ -1191,7 +1193,7 @@ mod tests {
         ]);
 
         let create_batch = |a, b, c, d| {
-            Batch::try_new(vec![
+            Batch2::try_new(vec![
                 Array2::from_iter([Some(a)]),
                 Array2::from_iter([Some(b)]),
                 Array2::from_iter([Some(c)]),
@@ -1266,21 +1268,21 @@ mod tests {
         ]);
 
         // First record should be printed.
-        let first = Batch::try_new(vec![
+        let first = Batch2::try_new(vec![
             Array2::from_iter([Some("1"), Some("2")]),
             Array2::from_iter([Some(1), Some(2)]),
         ])
         .unwrap();
 
         // Nothing in this batch should be printed.
-        let middle = Batch::try_new(vec![
+        let middle = Batch2::try_new(vec![
             Array2::from_iter([Some("3"), Some("4")]),
             Array2::from_iter([Some(3), Some(4)]),
         ])
         .unwrap();
 
         // Last record should be printed.
-        let last = Batch::try_new(vec![
+        let last = Batch2::try_new(vec![
             Array2::from_iter([Some("5"), Some("6")]),
             Array2::from_iter([Some(5), Some(6)]),
         ])

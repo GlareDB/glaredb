@@ -17,7 +17,7 @@ use rayexec_error::{not_implemented, OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -34,7 +34,7 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
+    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         match self {
             Self::Case(e) => e.eval(batch),
             Self::Cast(e) => e.eval(batch),
@@ -48,7 +48,7 @@ impl PhysicalScalarExpression {
     ///
     /// The selection vector will include row indices where the expression
     /// evaluates to true.
-    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
+    pub fn select(&self, batch: &Batch2) -> Result<SelectionVector> {
         let selected = self.eval(batch)?;
 
         let mut selection = SelectionVector::with_capacity(selected.logical_len());
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn select_some() {
-        let batch = Batch::try_new([
+        let batch = Batch2::try_new([
             Array2::from_iter([1, 4, 6, 9, 12]),
             Array2::from_iter([2, 3, 8, 9, 10]),
         ])
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn select_none() {
-        let batch = Batch::try_new([
+        let batch = Batch2::try_new([
             Array2::from_iter([1, 2, 6, 9, 9]),
             Array2::from_iter([2, 3, 8, 9, 10]),
         ])

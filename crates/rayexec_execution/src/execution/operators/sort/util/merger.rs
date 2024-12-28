@@ -5,14 +5,14 @@ use rayexec_error::{RayexecError, Result};
 
 use super::accumulator::IndicesAccumulator;
 use super::sorted_batch::RowReference;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 
 #[derive(Debug)]
 pub enum MergeResult {
     /// We have a merged batch.
     ///
     /// Nothing else needed before the next call to `try_merge`.
-    Batch(Batch),
+    Batch(Batch2),
 
     /// Need to push a new batch for the input at the given index.
     ///
@@ -73,7 +73,7 @@ where
     /// The initial heap will be created from the first element of each
     /// iterator. If an input is never expected to produce references, its iter
     /// state should be Finished and the batch should be None.
-    pub fn try_new(inputs: Vec<(Option<Batch>, IterState<I>)>) -> Result<Self> {
+    pub fn try_new(inputs: Vec<(Option<Batch2>, IterState<I>)>) -> Result<Self> {
         let mut heap = BinaryHeap::new();
         let mut iters = Vec::with_capacity(inputs.len());
         let mut acc = IndicesAccumulator::new(inputs.len());
@@ -128,7 +128,7 @@ where
     }
 
     /// Push a batch and iterator for an input.
-    pub fn push_batch_for_input(&mut self, input: usize, batch: Batch, mut iter: I) -> Result<()> {
+    pub fn push_batch_for_input(&mut self, input: usize, batch: Batch2, mut iter: I) -> Result<()> {
         assert!(self.needs_input);
 
         self.needs_input = false;

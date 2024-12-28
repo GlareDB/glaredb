@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::scan::PhysicalScan;
 use crate::execution::operators::table_function::PhysicalTableFunction;
@@ -77,7 +77,7 @@ impl IntermediatePipelineBuildState<'_> {
         &self,
         projections: Projections,
         rows: Vec<Vec<Expression>>,
-    ) -> Result<Vec<Batch>> {
+    ) -> Result<Vec<Batch2>> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
@@ -85,7 +85,7 @@ impl IntermediatePipelineBuildState<'_> {
         // TODO: This could probably be simplified.
 
         let mut row_arrs: Vec<Vec<Array2>> = Vec::new(); // Row oriented.
-        let dummy_batch = Batch::empty_with_num_rows(1);
+        let dummy_batch = Batch2::empty_with_num_rows(1);
 
         // Convert expressions into arrays of one element each.
         for row_exprs in rows {
@@ -106,7 +106,7 @@ impl IntermediatePipelineBuildState<'_> {
         let batches = row_arrs
             .into_iter()
             .map(|cols| {
-                let batch = Batch::try_new(cols)?;
+                let batch = Batch2::try_new(cols)?;
 
                 // TODO: Got lazy, we can just avoid evaluating the expressions above.
                 match &projections.column_indices {

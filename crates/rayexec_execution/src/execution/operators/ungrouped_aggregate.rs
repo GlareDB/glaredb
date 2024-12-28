@@ -16,7 +16,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -46,7 +46,7 @@ pub enum UngroupedAggregatePartitionState {
         ///
         /// Currently only one partition will actually produce output. The rest
         /// will be empty.
-        batches: Vec<Batch>,
+        batches: Vec<Batch2>,
     },
 }
 
@@ -140,7 +140,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
@@ -237,7 +237,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|s| s.finalize())
                         .collect::<Result<Vec<_>>>()?;
 
-                    let batch = Batch::try_new(arrays)?;
+                    let batch = Batch2::try_new(arrays)?;
 
                     *state = UngroupedAggregatePartitionState::Producing {
                         partition_idx: *partition_idx,

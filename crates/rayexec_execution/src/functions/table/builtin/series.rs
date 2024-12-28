@@ -4,7 +4,7 @@ use std::task::{Context, Waker};
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::PhysicalI64;
 use crate::arrays::executor::scalar::UnaryExecutor;
@@ -203,7 +203,7 @@ impl SeriesParams {
 pub struct GenerateSeriesInOutPartitionState {
     batch_size: usize,
     /// Batch we're working on.
-    batch: Option<Batch>,
+    batch: Option<Batch2>,
     /// Current row number
     next_row_idx: usize,
     /// If we're finished.
@@ -215,7 +215,7 @@ pub struct GenerateSeriesInOutPartitionState {
 }
 
 impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, batch: Batch2) -> Result<PollPush> {
         if self.batch.is_some() {
             // Still processing current batch, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -308,7 +308,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_new([out])?;
+        let batch = Batch2::try_new([out])?;
 
         let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
 

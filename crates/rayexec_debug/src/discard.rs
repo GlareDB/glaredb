@@ -1,6 +1,6 @@
 use futures::future::BoxFuture;
 use rayexec_error::Result;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::execution::operators::sink::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
@@ -33,7 +33,7 @@ impl CopyToFunction for DiscardCopyToFunction {
 struct DiscardCopyToSink;
 
 impl PartitionSink for DiscardCopyToSink {
-    fn push(&mut self, _batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, _batch: Batch2) -> BoxFuture<'_, Result<()>> {
         Box::pin(async { Ok(()) })
     }
 

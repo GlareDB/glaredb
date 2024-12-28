@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use super::util::merger::{IterState, KWayMerger, MergeResult};
 use super::util::sort_keys::SortKeysExtractor;
 use super::util::sorted_batch::{IndexSortedBatch, SortedIndicesIter};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::execution::operators::{
@@ -96,7 +96,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
@@ -207,7 +207,7 @@ impl PhysicalScatterSort {
     fn insert_batch_for_comparison(
         &self,
         state: &mut ConsumingPartitionState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<()> {
         let keys = state.extractor.sort_keys(&batch)?;
 

@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::simple::{SimpleOperator, StatelessOperation};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
@@ -21,7 +21,7 @@ impl ProjectOperation {
 }
 
 impl StatelessOperation for ProjectOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
+    fn execute(&self, batch: Batch2) -> Result<Batch2> {
         let arrs = self
             .exprs
             .iter()
@@ -31,7 +31,7 @@ impl StatelessOperation for ProjectOperation {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Batch::try_new(arrs)
+        Batch2::try_new(arrs)
     }
 }
 

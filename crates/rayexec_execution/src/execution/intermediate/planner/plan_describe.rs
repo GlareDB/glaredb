@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
@@ -26,7 +26,7 @@ impl IntermediatePipelineBuildState<'_> {
         let names = Array2::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
         let datatypes =
             Array2::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
-        let batch = Batch::try_new(vec![names, datatypes])?;
+        let batch = Batch2::try_new(vec![names, datatypes])?;
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),

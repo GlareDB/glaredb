@@ -2,13 +2,13 @@ use std::fmt::Write as _;
 
 use rayexec_error::Result;
 
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::field::Schema;
 use crate::arrays::format::{FormatOptions, Formatter};
 
 pub fn ugly_format_no_schema<'a, I>(batches: I) -> Result<String>
 where
-    I: IntoIterator<Item = &'a Batch>,
+    I: IntoIterator<Item = &'a Batch2>,
 {
     const OPTS: FormatOptions = FormatOptions::new();
     let formatter = Formatter::new(OPTS);
@@ -40,7 +40,7 @@ where
 
 pub fn ugly_format<'a, I>(schema: &Schema, batches: I) -> Result<String>
 where
-    I: IntoIterator<Item = &'a Batch>,
+    I: IntoIterator<Item = &'a Batch2>,
 {
     const OPTS: FormatOptions = FormatOptions::new();
     let formatter = Formatter::new(OPTS);

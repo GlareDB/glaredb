@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use super::PhysicalScalarExpression;
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::compute::cast::array::cast_array;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::DataType;
@@ -20,7 +20,7 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
+    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         let input = self.expr.eval(batch)?;
         let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
         Ok(Cow::Owned(out))

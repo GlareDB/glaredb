@@ -6,7 +6,7 @@ use rayexec_error::Result;
 
 use super::util::outer_join_tracker::LeftOuterJoinTracker;
 use super::ComputedBatches;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
@@ -30,7 +30,7 @@ pub struct NestedLoopJoinBuildPartitionState {
     /// All batches on the build side for a single partition.
     ///
     /// For hash joins, this would be a partition-local hash map.
-    batches: Vec<Batch>,
+    batches: Vec<Batch2>,
 }
 
 /// Partition-local state on the probe side.
@@ -47,7 +47,7 @@ pub struct NestedLoopJoinProbePartitionState {
     /// All batches from all partitions received on the build side.
     ///
     /// Store in the probe side local state to avoid needing to lock.
-    all_batches: Arc<Vec<Batch>>,
+    all_batches: Arc<Vec<Batch2>>,
 
     /// Bool for determining if `all_batches` has been populated from the global
     /// operator state.
@@ -125,7 +125,7 @@ enum SharedOperatorState {
     Building {
         /// Build sides partitions write their batches here once they're done
         /// building.
-        batches: Vec<Batch>,
+        batches: Vec<Batch2>,
 
         /// Number of partitions we're still waiting to complete on the build
         /// side.
@@ -143,7 +143,7 @@ enum SharedOperatorState {
     /// Build is complete, we're now in the probing phase.
     Probing {
         /// All batches from all partitions.
-        batches: Arc<Vec<Batch>>,
+        batches: Arc<Vec<Batch2>>,
 
         /// Union of all bitmaps across all partitions.
         ///
@@ -247,7 +247,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::NestedLoopJoinBuild(state) => {
@@ -421,12 +421,12 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 /// result.
 fn cross_join(
     left_batch_idx: usize,
-    left: &Batch,
-    right: &Batch,
+    left: &Batch2,
+    right: &Batch2,
     filter_expr: Option<&PhysicalScalarExpression>,
     mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
     _right_join: bool,
-) -> Result<Vec<Batch>> {
+) -> Result<Vec<Batch2>> {
     let mut batches = Vec::with_capacity(left.num_rows() * right.num_rows());
 
     // For each row in the left batch, join the entirety of right.
@@ -439,7 +439,7 @@ fn cross_join(
         // Columns from the right, all rows.
         let right_columns = right.clone().into_arrays();
 
-        let mut output = Batch::try_new(left_columns.into_iter().chain(right_columns))?;
+        let mut output = Batch2::try_new(left_columns.into_iter().chain(right_columns))?;
 
         // If we have a filter, apply it to the output batch.
         if let Some(filter_expr) = &filter_expr {

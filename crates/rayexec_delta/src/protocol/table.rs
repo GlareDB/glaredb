@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use futures::{StreamExt, TryStreamExt};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use rayexec_execution::arrays::field::{Field, Schema};
 use rayexec_execution::arrays::scalar::decimal::{Decimal128Type, DecimalType};
@@ -182,7 +182,7 @@ pub struct TableScan {
 
 impl TableScan {
     /// Read the next batch.
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<Batch2>> {
         loop {
             if self.current.is_none() {
                 let path = match self.paths.pop_front() {

@@ -1,7 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::row::encoding::{ComparableColumn, ComparableRowEncoder, ComparableRows};
 use crate::expr::physical::PhysicalSortExpression;
 
@@ -31,14 +31,14 @@ impl SortKeysExtractor {
     }
 
     /// Get the sort keys for the batch as rows.
-    pub fn sort_keys(&self, batch: &Batch) -> Result<ComparableRows> {
+    pub fn sort_keys(&self, batch: &Batch2) -> Result<ComparableRows> {
         let cols = self.sort_columns(batch)?;
         let rows = self.encoder.encode(&cols)?;
         Ok(rows)
     }
 
     /// Get the columns that make up the sort keys.
-    pub fn sort_columns<'a>(&self, batch: &'a Batch) -> Result<Vec<&'a Array2>> {
+    pub fn sort_columns<'a>(&self, batch: &'a Batch2) -> Result<Vec<&'a Array2>> {
         let sort_cols = self
             .order_by
             .iter()

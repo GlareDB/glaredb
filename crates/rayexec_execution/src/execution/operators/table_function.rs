@@ -17,7 +17,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::functions::table::{PlannedTableFunction, TableFunctionImpl};
@@ -27,7 +27,7 @@ use crate::storage::table_storage::{DataTableScan, Projections};
 pub struct TableFunctionPartitionState {
     scan_state: Box<dyn DataTableScan>,
     /// In progress pull we're working on.
-    future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
+    future: Option<BoxFuture<'static, Result<Option<Batch2>>>>,
 }
 
 impl fmt::Debug for TableFunctionPartitionState {
@@ -94,7 +94,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: Batch2,
     ) -> Result<PollPush> {
         // Could UNNEST be implemented as a table function?
         Err(RayexecError::new("Cannot push to physical table function"))

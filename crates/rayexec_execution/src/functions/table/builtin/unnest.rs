@@ -4,7 +4,7 @@ use std::task::{Context, Waker};
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType2};
 use crate::arrays::executor::scalar::UnaryExecutor;
@@ -152,7 +152,7 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, inputs: Batch2) -> Result<PollPush> {
         if self.current_row < self.input_num_rows {
             // Still processing inputs, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -247,7 +247,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             }
         }
 
-        let batch = Batch::try_new([output])?;
+        let batch = Batch2::try_new([output])?;
 
         Ok(InOutPollPull::Batch { batch, row_nums })
     }

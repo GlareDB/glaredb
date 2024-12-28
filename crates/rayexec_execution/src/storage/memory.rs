@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::sink::PartitionSink;
@@ -84,7 +84,7 @@ impl TableStorage for MemoryTableStorage {
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryDataTable {
-    data: Arc<Mutex<Vec<Batch>>>,
+    data: Arc<Mutex<Vec<Batch2>>>,
 }
 
 impl DataTable for MemoryDataTable {
@@ -129,11 +129,11 @@ impl DataTable for MemoryDataTable {
 
 #[derive(Debug)]
 pub struct MemoryDataTableScan {
-    data: Vec<Batch>,
+    data: Vec<Batch2>,
 }
 
 impl DataTableScan for MemoryDataTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async { Ok(self.data.pop()) })
     }
 }
@@ -142,11 +142,11 @@ impl DataTableScan for MemoryDataTableScan {
 pub struct MemoryDataTableInsert {
     resizer: BatchResizer, // TODO: Need to replace.
     collected: Vec<ComputedBatches>,
-    data: Arc<Mutex<Vec<Batch>>>,
+    data: Arc<Mutex<Vec<Batch2>>>,
 }
 
 impl PartitionSink for MemoryDataTableInsert {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             let batches = self.resizer.try_push(batch)?;
             if batches.is_empty() {

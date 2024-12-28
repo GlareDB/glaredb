@@ -9,7 +9,7 @@ use crate::arrays::selection::SelectionVector;
 
 /// A batch of same-length arrays.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Batch {
+pub struct Batch2 {
     /// Columns that make up this batch.
     cols: Vec<Array2>,
 
@@ -18,16 +18,16 @@ pub struct Batch {
     num_rows: usize,
 }
 
-impl Batch {
+impl Batch2 {
     pub const fn empty() -> Self {
-        Batch {
+        Batch2 {
             cols: Vec::new(),
             num_rows: 0,
         }
     }
 
     pub fn empty_with_num_rows(num_rows: usize) -> Self {
-        Batch {
+        Batch2 {
             cols: Vec::new(),
             num_rows,
         }
@@ -36,7 +36,7 @@ impl Batch {
     /// Concat multiple batches into one.
     ///
     /// Batches are requried to have the same logical schemas.
-    pub fn concat(batches: &[Batch]) -> Result<Self> {
+    pub fn concat(batches: &[Batch2]) -> Result<Self> {
         let num_cols = match batches.first() {
             Some(batch) => batch.num_columns(),
             None => return Err(RayexecError::new("Cannot concat zero batches")),
@@ -57,7 +57,7 @@ impl Batch {
         // Special case for zero col batches. The true number of rows wouldn't
         // be reflected if we just attempted to concat no array.
         if num_cols == 0 {
-            return Ok(Batch::empty_with_num_rows(num_rows));
+            return Ok(Batch2::empty_with_num_rows(num_rows));
         }
 
         let mut output_cols = Vec::with_capacity(num_cols);
@@ -74,7 +74,7 @@ impl Batch {
             working_arrays.clear();
         }
 
-        Batch::try_new(output_cols)
+        Batch2::try_new(output_cols)
     }
 
     /// Create a new batch from some number of arrays.
@@ -96,7 +96,7 @@ impl Batch {
             }
         }
 
-        Ok(Batch {
+        Ok(Batch2 {
             cols,
             num_rows: len,
         })
@@ -106,7 +106,7 @@ impl Batch {
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
 
-        Batch {
+        Batch2 {
             cols,
             num_rows: self.num_rows,
         }
@@ -114,7 +114,7 @@ impl Batch {
 
     pub fn slice(&self, offset: usize, count: usize) -> Self {
         let cols = self.cols.iter().map(|c| c.slice(offset, count)).collect();
-        Batch {
+        Batch2 {
             cols,
             num_rows: count,
         }
@@ -124,7 +124,7 @@ impl Batch {
     ///
     /// This accepts an Arc selection as it'll be cloned for each array in the
     /// batch.
-    pub fn select(&self, selection: Arc<SelectionVector>) -> Batch {
+    pub fn select(&self, selection: Arc<SelectionVector>) -> Batch2 {
         let cols = self
             .cols
             .iter()
@@ -135,7 +135,7 @@ impl Batch {
             })
             .collect();
 
-        Batch {
+        Batch2 {
             cols,
             num_rows: selection.as_ref().num_rows(),
         }

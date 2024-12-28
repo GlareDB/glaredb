@@ -4,7 +4,7 @@ use std::fmt;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 
@@ -14,7 +14,7 @@ pub struct PhysicalColumnExpr {
 }
 
 impl PhysicalColumnExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
+    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         let col = batch.column(self.idx).ok_or_else(|| {
             RayexecError::new(format!(
                 "Tried to get column at index {} in a batch with {} columns",

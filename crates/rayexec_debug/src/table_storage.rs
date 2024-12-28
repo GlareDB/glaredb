@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::field::Field;
 use rayexec_execution::database::catalog_entry::CatalogEntry;
 use rayexec_execution::execution::operators::sink::PartitionSink;
@@ -28,7 +28,7 @@ pub struct TablePreload {
     pub schema: String,
     pub name: String,
     pub columns: Vec<Field>,
-    pub data: Batch,
+    pub data: Batch2,
 }
 
 #[derive(Debug, Default)]
@@ -124,7 +124,7 @@ impl TableStorage for DebugTableStorage {
 
 #[derive(Debug, Clone, Default)]
 pub struct DebugDataTable {
-    data: Arc<Mutex<Vec<Batch>>>,
+    data: Arc<Mutex<Vec<Batch2>>>,
 }
 
 impl DataTable for DebugDataTable {
@@ -168,23 +168,23 @@ impl DataTable for DebugDataTable {
 
 #[derive(Debug)]
 pub struct DebugDataTableScan {
-    data: Vec<Batch>,
+    data: Vec<Batch2>,
 }
 
 impl DataTableScan for DebugDataTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async { Ok(self.data.pop()) })
     }
 }
 
 #[derive(Debug)]
 pub struct DebugDataTableInsert {
-    collected: Vec<Batch>,
-    data: Arc<Mutex<Vec<Batch>>>,
+    collected: Vec<Batch2>,
+    data: Arc<Mutex<Vec<Batch2>>>,
 }
 
 impl PartitionSink for DebugDataTableInsert {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.collected.push(batch);
             Ok(())

@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use rayexec_error::Result;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::execution::operators::sink::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
@@ -53,7 +53,7 @@ pub struct CsvCopyToSink {
 }
 
 impl CsvCopyToSink {
-    async fn push_inner(&mut self, batch: Batch) -> Result<()> {
+    async fn push_inner(&mut self, batch: Batch2) -> Result<()> {
         let mut buf = Vec::with_capacity(1024);
         self.encoder.encode(&batch, &mut buf)?;
         self.sink.write_all(buf.into()).await?;
@@ -68,7 +68,7 @@ impl CsvCopyToSink {
 }
 
 impl PartitionSink for CsvCopyToSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         self.push_inner(batch).boxed()
     }
 

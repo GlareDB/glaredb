@@ -14,7 +14,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -65,7 +65,7 @@ impl ExecutableOperator for PhysicalBatchResizer {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::BatchResizer(state) => state,

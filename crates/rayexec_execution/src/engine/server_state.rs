@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::field::{Field, Schema};
 use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
 use crate::config::session::SessionConfig;
@@ -184,7 +184,7 @@ where
         Ok(())
     }
 
-    pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {
+    pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch2) -> Result<()> {
         self.buffers.push_batch_for_stream(&stream_id, batch)
     }
 

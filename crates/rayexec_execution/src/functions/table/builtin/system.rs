@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
@@ -42,7 +42,7 @@ pub trait SystemFunctionImpl: Debug + Sync + Send + Copy + 'static {
     fn schema() -> Schema;
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    ) -> Result<Batch>;
+    ) -> Result<Batch2>;
 }
 
 pub type ListDatabases = SystemFunction<ListDatabasesImpl>;
@@ -62,7 +62,7 @@ impl SystemFunctionImpl for ListDatabasesImpl {
 
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    ) -> Result<Batch> {
+    ) -> Result<Batch2> {
         let len = databases.len();
 
         let mut database_names = GermanVarlenBuffer::<str>::with_len(len);
@@ -78,7 +78,7 @@ impl SystemFunctionImpl for ListDatabasesImpl {
             );
         }
 
-        Batch::try_new([
+        Batch2::try_new([
             Array2::new_with_array_data(DataType::Utf8, database_names.into_data()),
             Array2::new_with_array_data(DataType::Utf8, datasources.into_data()),
         ])
@@ -118,7 +118,7 @@ impl SystemFunctionImpl for ListFunctionsImpl {
 
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    ) -> Result<Batch> {
+    ) -> Result<Batch2> {
         let database = databases.pop_front().required("database")?;
 
         let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
@@ -231,7 +231,7 @@ impl SystemFunctionImpl for ListFunctionsImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch2::try_new([
             Array2::new_with_array_data(DataType::Utf8, database_names),
             Array2::new_with_array_data(DataType::Utf8, schema_names),
             Array2::new_with_array_data(DataType::Utf8, function_names),
@@ -284,7 +284,7 @@ impl SystemFunctionImpl for ListTablesImpl {
 
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    ) -> Result<Batch> {
+    ) -> Result<Batch2> {
         let database = databases.pop_front().required("database")?;
 
         let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
@@ -308,7 +308,7 @@ impl SystemFunctionImpl for ListTablesImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch2::try_new([
             Array2::new_with_array_data(DataType::Utf8, database_names),
             Array2::new_with_array_data(DataType::Utf8, schema_names),
             Array2::new_with_array_data(DataType::Utf8, table_names),
@@ -333,7 +333,7 @@ impl SystemFunctionImpl for ListSchemasImpl {
 
     fn new_batch(
         databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
-    ) -> Result<Batch> {
+    ) -> Result<Batch2> {
         let database = databases.pop_front().required("database")?;
 
         let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
@@ -348,7 +348,7 @@ impl SystemFunctionImpl for ListSchemasImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch2::try_new([
             Array2::new_with_array_data(DataType::Utf8, database_names),
             Array2::new_with_array_data(DataType::Utf8, schema_names),
         ])
@@ -469,7 +469,7 @@ struct SystemDataTableScan<F: SystemFunctionImpl> {
 }
 
 impl<F: SystemFunctionImpl> DataTableScan for SystemDataTableScan<F> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async {
             if self.databases.is_empty() {
                 return Ok(None);

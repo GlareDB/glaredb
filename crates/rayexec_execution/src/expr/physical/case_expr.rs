@@ -6,7 +6,7 @@ use rayexec_error::Result;
 
 use super::PhysicalScalarExpression;
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::scalar::{interleave, SelectExecutor};
 use crate::arrays::selection::SelectionVector;
@@ -30,7 +30,7 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array2>> {
+    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         let mut arrays = Vec::new();
         let mut indices: Vec<(usize, usize)> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
 
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn case_simple() {
-        let batch = Batch::try_new([
+        let batch = Batch2::try_new([
             Array2::from_iter([1, 2, 3, 4]),
             Array2::from_iter([12, 13, 14, 15]),
         ])

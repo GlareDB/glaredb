@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::row::encoding::{ComparableRow, ComparableRows};
 
 /// A batch that's been physically sorted.
@@ -12,14 +12,14 @@ use crate::arrays::row::encoding::{ComparableRow, ComparableRows};
 #[derive(Debug)]
 pub struct PhysicallySortedBatch {
     /// The sorted batch.
-    pub batch: Batch,
+    pub batch: Batch2,
 
     /// The sorted keys.
     pub keys: ComparableRows,
 }
 
 impl PhysicallySortedBatch {
-    pub fn into_batch_and_iter(self) -> (Batch, SortedKeysIter) {
+    pub fn into_batch_and_iter(self) -> (Batch2, SortedKeysIter) {
         let iter = SortedKeysIter {
             row_idx: 0,
             keys: Arc::new(self.keys),
@@ -71,11 +71,11 @@ pub struct IndexSortedBatch {
     /// Unsorted keys for the batch.
     pub keys: ComparableRows,
     /// The original unsorted batch.
-    pub batch: Batch,
+    pub batch: Batch2,
 }
 
 impl IndexSortedBatch {
-    pub fn into_batch_and_iter(self) -> (Batch, SortedIndicesIter) {
+    pub fn into_batch_and_iter(self) -> (Batch2, SortedIndicesIter) {
         let iter = SortedIndicesIter {
             indices: self.sort_indices,
             idx: 0,

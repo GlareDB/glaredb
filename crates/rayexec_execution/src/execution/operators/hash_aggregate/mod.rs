@@ -17,7 +17,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
 use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
@@ -298,7 +298,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::HashAggregate(state) => state,
@@ -466,7 +466,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     arrays.push(array);
                 }
 
-                let batch = Batch::try_new(arrays)?;
+                let batch = Batch2::try_new(arrays)?;
 
                 Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }
@@ -484,7 +484,7 @@ impl PhysicalHashAggregate {
     fn insert_batch_agg_hash_table(
         &self,
         state: &mut AggregatingPartitionState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<()> {
         if batch.num_rows() == 0 {
             return Ok(());

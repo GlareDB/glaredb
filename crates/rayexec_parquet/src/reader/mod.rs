@@ -20,7 +20,7 @@ use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::array::{Array2, ArrayData2};
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::field::Schema;
@@ -232,7 +232,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         })
     }
 
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<Batch2>> {
         if self.current_row_group.is_none() {
             match self.row_groups.pop_front() {
                 Some(group) => {
@@ -266,7 +266,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     /// Try to read the next batch from the array builders.
     ///
     /// Returns Ok(None) when there's nothing left to read.
-    fn maybe_read_batch(&mut self) -> Result<Option<Batch>> {
+    fn maybe_read_batch(&mut self) -> Result<Option<Batch2>> {
         for state in self.column_states.iter_mut() {
             state.builder.read_rows(self.batch_size)?;
         }
@@ -276,7 +276,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             .map(|state| state.builder.build())
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(arrays)?;
+        let batch = Batch2::try_new(arrays)?;
 
         if batch.num_rows() == 0 {
             Ok(None)

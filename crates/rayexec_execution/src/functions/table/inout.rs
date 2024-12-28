@@ -4,7 +4,7 @@ use std::task::Context;
 use dyn_clone::DynClone;
 use rayexec_error::Result;
 
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::execution::operators::{PollFinalize, PollPush};
 
 pub trait TableInOutFunction: Debug + Sync + Send + DynClone {
@@ -16,13 +16,13 @@ pub trait TableInOutFunction: Debug + Sync + Send + DynClone {
 
 #[derive(Debug)]
 pub enum InOutPollPull {
-    Batch { batch: Batch, row_nums: Vec<usize> },
+    Batch { batch: Batch2, row_nums: Vec<usize> },
     Pending,
     Exhausted,
 }
 
 pub trait TableInOutPartitionState: Debug + Sync + Send {
-    fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush>;
+    fn poll_push(&mut self, cx: &mut Context, inputs: Batch2) -> Result<PollPush>;
     fn poll_finalize_push(&mut self, cx: &mut Context) -> Result<PollFinalize>;
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull>;
 }

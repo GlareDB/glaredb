@@ -7,7 +7,7 @@ use rayexec_error::Result;
 use super::util::merger::{KWayMerger, MergeResult};
 use super::util::sort_keys::SortKeysExtractor;
 use super::util::sorted_batch::{PhysicallySortedBatch, SortedKeysIter};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sort::util::merger::IterState;
 use crate::execution::operators::{
@@ -244,7 +244,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::GatherSortPush(state) => state,

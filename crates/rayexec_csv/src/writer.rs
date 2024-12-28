@@ -2,7 +2,7 @@ use std::io::Write as _;
 
 use csv::ByteRecord;
 use rayexec_error::{Result, ResultExt};
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 
@@ -38,7 +38,7 @@ impl CsvEncoder {
         }
     }
 
-    pub fn encode(&mut self, batch: &Batch, output_buf: &mut Vec<u8>) -> Result<()> {
+    pub fn encode(&mut self, batch: &Batch2, output_buf: &mut Vec<u8>) -> Result<()> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
 
         let mut csv_writer = csv::WriterBuilder::new()

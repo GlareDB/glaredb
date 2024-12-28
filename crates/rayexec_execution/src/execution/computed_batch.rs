@@ -2,18 +2,18 @@ use std::collections::VecDeque;
 
 use rayexec_error::Result;
 
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 
 /// Computed batch results from an operator.
 #[derive(Debug, PartialEq)]
 pub enum ComputedBatches {
     /// A single batch was computed.
-    Single(Batch),
+    Single(Batch2),
     /// Multiple batches were computed.
     ///
     /// These should be ordered by which batch should be pushed to next operator
     /// first.
-    Multi(VecDeque<Batch>),
+    Multi(VecDeque<Batch2>),
     /// No batches computed.
     None,
     // TODO: Spill references
@@ -25,7 +25,7 @@ impl ComputedBatches {
     /// This will filter out any batches that have no rows.
     pub fn new<I>(batches: I) -> Self
     where
-        I: IntoIterator<Item = Batch>,
+        I: IntoIterator<Item = Batch2>,
         I::IntoIter: ExactSizeIterator,
     {
         let mut iter = batches.into_iter();
@@ -83,7 +83,7 @@ impl ComputedBatches {
 
     /// Tries to get the next batch from this collection, returning None when no
     /// batches remain.
-    pub fn try_pop_front(&mut self) -> Result<Option<Batch>> {
+    pub fn try_pop_front(&mut self) -> Result<Option<Batch2>> {
         match self {
             Self::Single(_) => {
                 let orig = std::mem::replace(self, Self::None);
@@ -100,8 +100,8 @@ impl ComputedBatches {
     }
 }
 
-impl From<Batch> for ComputedBatches {
-    fn from(value: Batch) -> Self {
+impl From<Batch2> for ComputedBatches {
+    fn from(value: Batch2) -> Self {
         Self::Single(value)
     }
 }

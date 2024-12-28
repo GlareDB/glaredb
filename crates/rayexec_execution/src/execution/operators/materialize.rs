@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 use super::sink::{PartitionSink, SinkOperation};
 use super::source::{PartitionSource, SourceOperation};
 use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;
@@ -131,7 +131,7 @@ pub struct MaterializedDataPartitionSource {
 }
 
 impl PartitionSource for MaterializedDataPartitionSource {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         let fut = self.recv.recv();
         Box::pin(async move { Ok(fut.await) })
     }
@@ -143,7 +143,7 @@ pub struct MaterializedDataPartitionSink {
 }
 
 impl PartitionSink for MaterializedDataPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.sender.send(batch);
             Ok(())

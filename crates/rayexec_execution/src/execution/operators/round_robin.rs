@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,
@@ -128,7 +128,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::RoundRobinPush(state) => state,
@@ -247,7 +247,7 @@ struct BatchBufferInner {
     /// Batches buffer.
     ///
     /// Should be bounded to some capacity.
-    batches: VecDeque<Batch>,
+    batches: VecDeque<Batch2>,
 
     /// Waker on the receiving side of the buffer.
     recv_waker: Option<Waker>,

@@ -12,7 +12,7 @@ use futures::stream::BoxStream;
 use futures::{StreamExt, TryFutureExt};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::array::Array2;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::datatype::{DataType, DecimalTypeMeta};
 use rayexec_execution::arrays::field::Field;
 use rayexec_execution::arrays::scalar::OwnedScalarValue;
@@ -236,11 +236,11 @@ impl DataTable for PostgresDataTable {
 }
 
 pub struct PostgresDataTableScan {
-    stream: BoxStream<'static, Result<Batch>>,
+    stream: BoxStream<'static, Result<Batch2>>,
 }
 
 impl DataTableScan for PostgresDataTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async { self.stream.next().await.transpose() })
     }
 }
@@ -390,7 +390,7 @@ impl PostgresClient {
         Ok(fields)
     }
 
-    fn binary_rows_to_batch(typs: &[DataType], rows: Vec<BinaryCopyOutRow>) -> Result<Batch> {
+    fn binary_rows_to_batch(typs: &[DataType], rows: Vec<BinaryCopyOutRow>) -> Result<Batch2> {
         fn row_iter<'a, T: FromSql<'a>>(
             rows: &'a [BinaryCopyOutRow],
             idx: usize,
@@ -439,6 +439,6 @@ impl PostgresClient {
             arrays.push(arr);
         }
 
-        Batch::try_new(arrays)
+        Batch2::try_new(arrays)
     }
 }

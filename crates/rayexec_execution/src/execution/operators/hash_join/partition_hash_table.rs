@@ -4,7 +4,7 @@ use hashbrown::raw::RawTable;
 use rayexec_error::Result;
 
 use super::condition::{HashJoinCondition, LeftPrecomputedJoinConditions};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 
 /// Points to a row in the hash table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,7 +17,7 @@ pub struct RowKey {
 
 pub struct PartitionHashTable {
     /// All collected batches.
-    pub batches: Vec<Batch>,
+    pub batches: Vec<Batch2>,
     /// Conditions we're joining on.
     pub conditions: LeftPrecomputedJoinConditions,
     /// Hash table pointing to a row.
@@ -39,7 +39,7 @@ impl PartitionHashTable {
     ///
     /// `hash_indices` indicates which columns in the batch was used to compute
     /// the hashes.
-    pub fn insert_batch(&mut self, batch: Batch, hashes: &[u64]) -> Result<()> {
+    pub fn insert_batch(&mut self, batch: Batch2, hashes: &[u64]) -> Result<()> {
         assert_eq!(batch.num_rows(), hashes.len());
 
         self.conditions.precompute_for_left_batch(&batch)?;

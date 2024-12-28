@@ -101,7 +101,7 @@ use self::sort::gather_sort::{
 use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -170,7 +170,7 @@ pub enum PollPush {
     ///
     /// A waker will be registered for a later wakeup. This same batch should be
     /// pushed at that time.
-    Pending(Batch),
+    Pending(Batch2),
 
     /// This operator requires no more input.
     ///
@@ -289,7 +289,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush>;
 
     /// Finalize pushing to partition.
@@ -392,7 +392,7 @@ impl ExecutableOperator for PhysicalOperator {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         match self {
             Self::HashAggregate(op) => op.poll_push(cx, partition_state, operator_state, batch),
