@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for RadiansOp {
     const NAME: &'static str = "radians";
     const DESCRIPTION: &'static str = "Converts degrees to radians";
 
-    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
+    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage2,
         S::Type<'a>: Float + Default,

@@ -1,6 +1,9 @@
 pub mod aggregate;
 pub mod scalar;
 
+use rayexec_error::Result;
+
+use super::array::exp::Array;
 use super::array::validity::Validity;
 use super::buffer::physical_type::AddressableMut;
 use super::buffer::ArrayBuffer;
@@ -11,6 +14,15 @@ use super::buffer::ArrayBuffer;
 pub struct OutBuffer<'a> {
     pub buffer: &'a mut ArrayBuffer,
     pub validity: &'a mut Validity,
+}
+
+impl<'a> OutBuffer<'a> {
+    pub fn from_array(array: &'a mut Array) -> Result<Self> {
+        Ok(OutBuffer {
+            buffer: array.data.try_as_mut()?,
+            validity: &mut array.validity,
+        })
+    }
 }
 
 /// Helper for assigning a value to a location in a buffer.

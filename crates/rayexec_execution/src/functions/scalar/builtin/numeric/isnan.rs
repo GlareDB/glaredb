@@ -8,9 +8,9 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalStorage2,
 };
 use crate::arrays::executor::scalar::UnaryExecutor2;
@@ -71,9 +71,9 @@ impl ScalarFunction for IsNan {
         plan_check_num_args(self, &inputs, 1)?;
 
         let function_impl: Box<dyn ScalarFunctionImpl> = match inputs[0].datatype(table_list)? {
-            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16>::new()),
-            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32>::new()),
-            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64>::new()),
+            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16_2>::new()),
+            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32_2>::new()),
+            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64_2>::new()),
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 

@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for AtanOp {
     const NAME: &'static str = "atan";
     const DESCRIPTION: &'static str = "Compute the arctangent of value";
 
-    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
+    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage2,
         S::Type<'a>: Float + Default,

@@ -11,9 +11,9 @@ use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -84,15 +84,15 @@ impl AggregateFunction for Min {
         let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type2()? {
             PhysicalType2::UntypedNull => Box::new(MinMaxUntypedNull),
             PhysicalType2::Boolean => Box::new(MinBoolImpl::new()),
-            PhysicalType2::Float16 => {
-                Box::new(MinPrimitiveImpl::<PhysicalF16, f16>::new(datatype.clone()))
-            }
-            PhysicalType2::Float32 => {
-                Box::new(MinPrimitiveImpl::<PhysicalF32, f32>::new(datatype.clone()))
-            }
-            PhysicalType2::Float64 => {
-                Box::new(MinPrimitiveImpl::<PhysicalF64, f64>::new(datatype.clone()))
-            }
+            PhysicalType2::Float16 => Box::new(MinPrimitiveImpl::<PhysicalF16_2, f16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType2::Float32 => Box::new(MinPrimitiveImpl::<PhysicalF32_2, f32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType2::Float64 => Box::new(MinPrimitiveImpl::<PhysicalF64_2, f64>::new(
+                datatype.clone(),
+            )),
             PhysicalType2::Int8 => {
                 Box::new(MinPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
             }
@@ -178,15 +178,15 @@ impl AggregateFunction for Max {
         let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type2()? {
             PhysicalType2::UntypedNull => Box::new(MinMaxUntypedNull),
             PhysicalType2::Boolean => Box::new(MaxBoolImpl::new()),
-            PhysicalType2::Float16 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalF16, f16>::new(datatype.clone()))
-            }
-            PhysicalType2::Float32 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalF32, f32>::new(datatype.clone()))
-            }
-            PhysicalType2::Float64 => {
-                Box::new(MaxPrimitiveImpl::<PhysicalF64, f64>::new(datatype.clone()))
-            }
+            PhysicalType2::Float16 => Box::new(MaxPrimitiveImpl::<PhysicalF16_2, f16>::new(
+                datatype.clone(),
+            )),
+            PhysicalType2::Float32 => Box::new(MaxPrimitiveImpl::<PhysicalF32_2, f32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType2::Float64 => Box::new(MaxPrimitiveImpl::<PhysicalF64_2, f64>::new(
+                datatype.clone(),
+            )),
             PhysicalType2::Int8 => {
                 Box::new(MaxPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
             }

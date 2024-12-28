@@ -114,6 +114,10 @@ where
         })
     }
 
+    pub fn datatype(&self) -> &DataType {
+        &self.datatype
+    }
+
     pub fn data(&self) -> &ArrayData<B> {
         &self.data
     }

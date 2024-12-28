@@ -59,9 +59,9 @@ use crate::arrays::executor::builder::{
 };
 use crate::arrays::executor::physical_type::{
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -128,13 +128,13 @@ pub fn cast_array(arr: &Array2, to: DataType, behavior: CastFailBehavior) -> Res
             cast_primitive_numeric_helper::<PhysicalU128>(arr, to, behavior)?
         }
         DataType::Float16 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalF16>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalF16_2>(arr, to, behavior)?
         }
         DataType::Float32 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalF32>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalF32_2>(arr, to, behavior)?
         }
         DataType::Float64 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalF64>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalF64_2>(arr, to, behavior)?
         }
 
         // Int to date32
@@ -188,10 +188,10 @@ pub fn cast_array(arr: &Array2, to: DataType, behavior: CastFailBehavior) -> Res
 
         // Float to decimal.
         DataType::Float32 if to.is_decimal() => {
-            cast_float_to_decimal_helper::<PhysicalF32>(arr, to, behavior)?
+            cast_float_to_decimal_helper::<PhysicalF32_2>(arr, to, behavior)?
         }
         DataType::Float64 if to.is_decimal() => {
-            cast_float_to_decimal_helper::<PhysicalF64>(arr, to, behavior)?
+            cast_float_to_decimal_helper::<PhysicalF64_2>(arr, to, behavior)?
         }
 
         // Decimal to decimal
@@ -610,10 +610,10 @@ pub fn cast_to_utf8(arr: &Array2, behavior: CastFailBehavior) -> Result<Array2> 
             cast_format::<PhysicalU128, _>(arr, UInt128Formatter::default(), behavior)
         }
         DataType::Float32 => {
-            cast_format::<PhysicalF32, _>(arr, Float32Formatter::default(), behavior)
+            cast_format::<PhysicalF32_2, _>(arr, Float32Formatter::default(), behavior)
         }
         DataType::Float64 => {
-            cast_format::<PhysicalF64, _>(arr, Float64Formatter::default(), behavior)
+            cast_format::<PhysicalF64_2, _>(arr, Float64Formatter::default(), behavior)
         }
         DataType::Decimal64(m) => cast_format::<PhysicalI64, _>(
             arr,

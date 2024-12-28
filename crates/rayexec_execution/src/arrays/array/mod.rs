@@ -25,9 +25,9 @@ use crate::arrays::executor::physical_type::{
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -397,7 +397,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Float16(_) => UnaryExecutor2::execute::<PhysicalF16, _, _>(
+            ArrayData2::Float16(_) => UnaryExecutor2::execute::<PhysicalF16_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -405,7 +405,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Float32(_) => UnaryExecutor2::execute::<PhysicalF32, _, _>(
+            ArrayData2::Float32(_) => UnaryExecutor2::execute::<PhysicalF32_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -413,7 +413,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Float64(_) => UnaryExecutor2::execute::<PhysicalF64, _, _>(
+            ArrayData2::Float64(_) => UnaryExecutor2::execute::<PhysicalF64_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -688,13 +688,13 @@ impl Array2 {
                 })
             }
             ScalarValue::Float32(v) => {
-                UnaryExecutor2::value_at::<PhysicalF32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalF32_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Float64(v) => {
-                UnaryExecutor2::value_at::<PhysicalF64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalF64_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })

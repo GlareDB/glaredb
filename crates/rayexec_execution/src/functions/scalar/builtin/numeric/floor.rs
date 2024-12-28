@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for FloorOp {
     const NAME: &'static str = "floor";
     const DESCRIPTION: &'static str = "Round number down";
 
-    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
+    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage2,
         S::Type<'a>: Float + Default,

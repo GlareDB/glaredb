@@ -2,6 +2,7 @@ use iterutil::IntoExactSizeIterator;
 use rayexec_error::Result;
 
 use super::array::exp::Array;
+use super::array::selection::Selection;
 use super::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use super::datatype::DataType;
 
@@ -65,6 +66,11 @@ where
             num_rows: 0,
             capacity,
         })
+    }
+
+    /// Returns a selection that selects rows [0, num_rows).
+    pub fn selection(&self) -> Selection {
+        Selection::Linear { len: self.num_rows }
     }
 
     pub fn arrays(&self) -> &[Array<B>] {

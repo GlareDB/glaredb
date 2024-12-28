@@ -18,7 +18,7 @@ impl UnaryInputNumericOperation for LogOp {
     const NAME: &'static str = "log";
     const DESCRIPTION: &'static str = "Compute base-10 log of value";
 
-    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
+    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage2,
         S::Type<'a>: Float + Default,
@@ -41,7 +41,7 @@ impl UnaryInputNumericOperation for LogOp2 {
     const NAME: &'static str = "log2";
     const DESCRIPTION: &'static str = "Compute base-2 log of value";
 
-    fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
+    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
         S: PhysicalStorage2,
         S::Type<'a>: Float + Default,

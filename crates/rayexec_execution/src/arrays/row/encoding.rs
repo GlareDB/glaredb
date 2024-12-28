@@ -6,9 +6,9 @@ use crate::arrays::executor::physical_type::{
     AsBytes,
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -228,13 +228,13 @@ impl ComparableRowEncoder {
                     ArrayData2::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Float16(_) => Self::encode_primitive::<PhysicalF16>(
+                    ArrayData2::Float16(_) => Self::encode_primitive::<PhysicalF16_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Float32(_) => Self::encode_primitive::<PhysicalF32>(
+                    ArrayData2::Float32(_) => Self::encode_primitive::<PhysicalF32_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Float64(_) => Self::encode_primitive::<PhysicalF64>(
+                    ArrayData2::Float64(_) => Self::encode_primitive::<PhysicalF64_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
                     ArrayData2::Interval(_) => Self::encode_primitive::<PhysicalInterval>(

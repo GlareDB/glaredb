@@ -15,9 +15,9 @@ use crate::arrays::executor::builder::{
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -241,21 +241,21 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array2], total_len: usize) 
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalF16, _>(arrays, state)
+            concat_with_fill_state::<PhysicalF16_2, _>(arrays, state)
         }
         PhysicalType2::Float32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalF32, _>(arrays, state)
+            concat_with_fill_state::<PhysicalF32_2, _>(arrays, state)
         }
         PhysicalType2::Float64 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalF64, _>(arrays, state)
+            concat_with_fill_state::<PhysicalF64_2, _>(arrays, state)
         }
         PhysicalType2::Interval => {
             let state = FillState::new(ArrayBuilder {
@@ -465,21 +465,21 @@ pub fn interleave(arrays: &[&Array2], indices: &[(usize, usize)]) -> Result<Arra
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalF16, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalF16_2, _>(arrays, indices, state)
         }
         PhysicalType2::Float32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalF32, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalF32_2, _>(arrays, indices, state)
         }
         PhysicalType2::Float64 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalF64, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalF64_2, _>(arrays, indices, state)
         }
         PhysicalType2::Interval => {
             let state = FillState::new(ArrayBuilder {

@@ -8,9 +8,9 @@ use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -137,13 +137,13 @@ where
                 compare_rows_eq::<PhysicalU128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType2::Float16 => {
-                compare_rows_eq::<PhysicalF16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalF16_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType2::Float32 => {
-                compare_rows_eq::<PhysicalF32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalF32_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType2::Float64 => {
-                compare_rows_eq::<PhysicalF64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+                compare_rows_eq::<PhysicalF64_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
             PhysicalType2::Interval => compare_rows_eq::<PhysicalInterval, _, _>(
                 array1,

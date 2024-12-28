@@ -11,9 +11,9 @@ use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -84,13 +84,13 @@ impl AggregateFunction for First {
         let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type2()? {
             PhysicalType2::UntypedNull => Box::new(FirstUntypedNullImpl),
             PhysicalType2::Boolean => Box::new(FirstBoolImpl),
-            PhysicalType2::Float16 => Box::new(FirstPrimitiveImpl::<PhysicalF16, f16>::new(
+            PhysicalType2::Float16 => Box::new(FirstPrimitiveImpl::<PhysicalF16_2, f16>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::Float32 => Box::new(FirstPrimitiveImpl::<PhysicalF32, f32>::new(
+            PhysicalType2::Float32 => Box::new(FirstPrimitiveImpl::<PhysicalF32_2, f32>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64, f64>::new(
+            PhysicalType2::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64_2, f64>::new(
                 datatype.clone(),
             )),
             PhysicalType2::Int8 => {

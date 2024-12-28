@@ -6,9 +6,9 @@ use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -77,13 +77,13 @@ impl HashExecutor {
                 Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
             }
             PhysicalType2::Float16 => {
-                Self::hash_one_inner::<PhysicalF16, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF16_2, CombineSetHash>(array, hashes)?
             }
             PhysicalType2::Float32 => {
-                Self::hash_one_inner::<PhysicalF32, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF32_2, CombineSetHash>(array, hashes)?
             }
             PhysicalType2::Float64 => {
-                Self::hash_one_inner::<PhysicalF64, CombineSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF64_2, CombineSetHash>(array, hashes)?
             }
             PhysicalType2::Binary => {
                 Self::hash_one_inner::<PhysicalBinary, CombineSetHash>(array, hashes)?
@@ -141,13 +141,13 @@ impl HashExecutor {
                 Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType2::Float16 => {
-                Self::hash_one_inner::<PhysicalF16, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF16_2, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType2::Float32 => {
-                Self::hash_one_inner::<PhysicalF32, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF32_2, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType2::Float64 => {
-                Self::hash_one_inner::<PhysicalF64, OverwriteSetHash>(array, hashes)?
+                Self::hash_one_inner::<PhysicalF64_2, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType2::Binary => {
                 Self::hash_one_inner::<PhysicalBinary, OverwriteSetHash>(array, hashes)?

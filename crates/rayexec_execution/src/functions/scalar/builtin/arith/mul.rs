@@ -8,9 +8,9 @@ use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -117,15 +117,15 @@ impl ScalarFunction for Mul {
             inputs[1].datatype(table_list)?,
         ) {
             (DataType::Float16, DataType::Float16) => (
-                Box::new(MulImpl::<PhysicalF16>::new(DataType::Float16)),
+                Box::new(MulImpl::<PhysicalF16_2>::new(DataType::Float16)),
                 DataType::Float16,
             ),
             (DataType::Float32, DataType::Float32) => (
-                Box::new(MulImpl::<PhysicalF32>::new(DataType::Float32)),
+                Box::new(MulImpl::<PhysicalF32_2>::new(DataType::Float32)),
                 DataType::Float32,
             ),
             (DataType::Float64, DataType::Float64) => (
-                Box::new(MulImpl::<PhysicalF64>::new(DataType::Float64)),
+                Box::new(MulImpl::<PhysicalF64_2>::new(DataType::Float64)),
                 DataType::Float64,
             ),
             (DataType::Int8, DataType::Int8) => (

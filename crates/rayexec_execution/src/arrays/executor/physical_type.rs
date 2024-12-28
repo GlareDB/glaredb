@@ -412,9 +412,9 @@ impl PhysicalStorage2 for PhysicalU128 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF16;
+pub struct PhysicalF16_2;
 
-impl PhysicalStorage2 for PhysicalF16 {
+impl PhysicalStorage2 for PhysicalF16_2 {
     type Type<'a> = f16;
     type Storage<'a> = PrimitiveStorageSlice<'a, f16>;
 
@@ -427,9 +427,9 @@ impl PhysicalStorage2 for PhysicalF16 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF32;
+pub struct PhysicalF32_2;
 
-impl PhysicalStorage2 for PhysicalF32 {
+impl PhysicalStorage2 for PhysicalF32_2 {
     type Type<'a> = f32;
     type Storage<'a> = PrimitiveStorageSlice<'a, f32>;
 
@@ -442,9 +442,9 @@ impl PhysicalStorage2 for PhysicalF32 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF64;
+pub struct PhysicalF64_2;
 
-impl PhysicalStorage2 for PhysicalF64 {
+impl PhysicalStorage2 for PhysicalF64_2 {
     type Type<'a> = f64;
     type Storage<'a> = PrimitiveStorageSlice<'a, f64>;
 

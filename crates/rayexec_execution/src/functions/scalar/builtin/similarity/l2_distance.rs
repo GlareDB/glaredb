@@ -8,9 +8,9 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalStorage2,
 };
 use crate::arrays::executor::scalar::{BinaryListReducer, ListExecutor};
@@ -68,13 +68,13 @@ impl ScalarFunction for L2Distance {
             (DataType::List(a), DataType::List(b)) => {
                 match (a.datatype.as_ref(), b.datatype.as_ref()) {
                     (DataType::Float16, DataType::Float16) => {
-                        Box::new(L2DistanceImpl::<PhysicalF16>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF16_2>::new())
                     }
                     (DataType::Float32, DataType::Float32) => {
-                        Box::new(L2DistanceImpl::<PhysicalF32>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF32_2>::new())
                     }
                     (DataType::Float64, DataType::Float64) => {
-                        Box::new(L2DistanceImpl::<PhysicalF64>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF64_2>::new())
                     }
                     (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
                 }

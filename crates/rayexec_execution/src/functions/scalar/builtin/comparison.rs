@@ -4,9 +4,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::exp::Array;
 use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::batch_exp::Batch;
 use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
@@ -14,9 +12,9 @@ use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -553,13 +551,13 @@ fn new_comparison_impl<O: ComparisonOperation>(
                 Box::new(BaseComparisonImpl::<O, PhysicalU128>::new())
             }
             (DataType::Float16, DataType::Float16) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalF16>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalF16_2>::new())
             }
             (DataType::Float32, DataType::Float32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalF32>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalF32_2>::new())
             }
             (DataType::Float64, DataType::Float64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalF64>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalF64_2>::new())
             }
             (DataType::Decimal64(left), DataType::Decimal64(right)) => Box::new(
                 RescalingComparisionImpl::<O, Decimal64Type>::new(left, right),
@@ -733,17 +731,17 @@ where
                 )?
             }
             PhysicalType2::Float16 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalF16, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalF16_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Float32 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalF32, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalF32_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Float64 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalF64, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalF64_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }

@@ -9,9 +9,9 @@ use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -106,15 +106,15 @@ impl ScalarFunction for Div {
             inputs[1].datatype(table_list)?,
         ) {
             (DataType::Float16, DataType::Float16) => (
-                Box::new(DivImpl::<PhysicalF16>::new(DataType::Float16)),
+                Box::new(DivImpl::<PhysicalF16_2>::new(DataType::Float16)),
                 DataType::Float16,
             ),
             (DataType::Float32, DataType::Float32) => (
-                Box::new(DivImpl::<PhysicalF32>::new(DataType::Float32)),
+                Box::new(DivImpl::<PhysicalF32_2>::new(DataType::Float32)),
                 DataType::Float32,
             ),
             (DataType::Float64, DataType::Float64) => (
-                Box::new(DivImpl::<PhysicalF64>::new(DataType::Float64)),
+                Box::new(DivImpl::<PhysicalF64_2>::new(DataType::Float64)),
                 DataType::Float64,
             ),
             (DataType::Int8, DataType::Int8) => (
@@ -218,9 +218,12 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor2::execute::<PhysicalF64, PhysicalF64, _, _>(&a, &b, builder, |a, b, buf| {
-            buf.put(&(a / b))
-        })
+        BinaryExecutor2::execute::<PhysicalF64_2, PhysicalF64_2, _, _>(
+            &a,
+            &b,
+            builder,
+            |a, b, buf| buf.put(&(a / b)),
+        )
     }
 }
 

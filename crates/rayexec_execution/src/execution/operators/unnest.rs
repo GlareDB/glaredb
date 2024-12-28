@@ -28,9 +28,9 @@ use crate::arrays::executor::builder::{
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -391,21 +391,21 @@ pub(crate) fn unnest(child: &Array2, longest_len: usize, meta: ListItemMetadata)
                 datatype,
                 buffer: PrimitiveBuffer::<f16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF16, _>(builder, child, meta)
+            unnest_inner::<PhysicalF16_2, _>(builder, child, meta)
         }
         PhysicalType2::Float32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF32, _>(builder, child, meta)
+            unnest_inner::<PhysicalF32_2, _>(builder, child, meta)
         }
         PhysicalType2::Float64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF64, _>(builder, child, meta)
+            unnest_inner::<PhysicalF64_2, _>(builder, child, meta)
         }
         PhysicalType2::Utf8 => {
             let builder = ArrayBuilder {

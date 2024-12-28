@@ -8,7 +8,7 @@ use rayexec_error::Result;
 use crate::arrays::array::ArrayData2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::physical_type::{PhysicalF64, PhysicalI64};
+use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -126,7 +126,7 @@ pub struct SumFloat64Impl;
 
 impl AggregateFunctionImpl for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
             SumStateAdd::<f64>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

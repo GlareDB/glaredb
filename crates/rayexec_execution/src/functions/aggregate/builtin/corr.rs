@@ -6,7 +6,7 @@ use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{StddevPopFinalize, VarianceState};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::physical_type::PhysicalF64;
+use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_binary_aggregate_states,
@@ -74,7 +74,7 @@ pub struct CorrImpl;
 
 impl AggregateFunctionImpl for CorrImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        new_binary_aggregate_states::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
             CorrelationState::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

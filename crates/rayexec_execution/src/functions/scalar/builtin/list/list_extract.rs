@@ -17,9 +17,9 @@ use crate::arrays::executor::builder::{
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
     PhysicalI128,
     PhysicalI16,
     PhysicalI32,
@@ -216,21 +216,21 @@ fn extract(array: &Array2, idx: usize) -> Result<Array2> {
                 datatype: DataType::Float16,
                 buffer: PrimitiveBuffer::<f16>::with_len(array.logical_len()),
             };
-            extract_inner::<PhysicalF16, _>(builder, array, data.inner_array(), idx)
+            extract_inner::<PhysicalF16_2, _>(builder, array, data.inner_array(), idx)
         }
         PhysicalType2::Float32 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Float32,
                 buffer: PrimitiveBuffer::<f32>::with_len(array.logical_len()),
             };
-            extract_inner::<PhysicalF32, _>(builder, array, data.inner_array(), idx)
+            extract_inner::<PhysicalF32_2, _>(builder, array, data.inner_array(), idx)
         }
         PhysicalType2::Float64 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Float64,
                 buffer: PrimitiveBuffer::<f64>::with_len(array.logical_len()),
             };
-            extract_inner::<PhysicalF64, _>(builder, array, data.inner_array(), idx)
+            extract_inner::<PhysicalF64_2, _>(builder, array, data.inner_array(), idx)
         }
         PhysicalType2::Utf8 => {
             let builder = ArrayBuilder {
