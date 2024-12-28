@@ -62,7 +62,7 @@ impl ScalarFunction for Random {
 pub struct RandomImpl;
 
 impl ScalarFunctionImpl for RandomImpl {
-    fn execute(&self, _inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, _inputs: &[&Array2]) -> Result<Array2> {
         // TODO: Need to pass in dummy input to produce all unique values.
         let val = rand::random::<f64>();
         Ok(Array2::new_with_array_data(

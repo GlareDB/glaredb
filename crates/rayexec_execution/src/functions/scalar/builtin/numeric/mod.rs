@@ -44,7 +44,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
 };
 use crate::arrays::storage::PrimitiveStorage;
@@ -83,7 +83,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
 
     fn execute_float<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         S::Type<'a>: Float + Default,
         ArrayData2: From<PrimitiveStorage<S::Type<'a>>>;
 }
@@ -145,7 +145,7 @@ pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         match input.physical_type() {
             PhysicalType2::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),

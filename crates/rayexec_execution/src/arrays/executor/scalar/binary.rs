@@ -4,15 +4,15 @@ use super::check_validity;
 use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::executor::scalar::validate_logical_len;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
-pub struct BinaryExecutor;
+pub struct BinaryExecutor2;
 
-impl BinaryExecutor {
+impl BinaryExecutor2 {
     pub fn execute<'a, S1, S2, B, Op>(
         array1: &'a Array2,
         array2: &'a Array2,
@@ -21,8 +21,8 @@ impl BinaryExecutor {
     ) -> Result<Array2>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: PhysicalStorage2,
+        S2: PhysicalStorage2,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
@@ -110,7 +110,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32, PhysicalI32, _, _>(
             &left,
             &right,
             builder,
@@ -134,7 +134,7 @@ mod tests {
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32, PhysicalUtf8, _, _>(
             &left,
             &right,
             builder,
@@ -168,7 +168,7 @@ mod tests {
 
         let right = Array2::from_iter([2, 3, 4]);
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32, PhysicalI32, _, _>(
             &left,
             &right,
             ArrayBuilder {

@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::executor::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage};
+use crate::arrays::executor::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage2};
 
 pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
@@ -30,11 +30,11 @@ impl DecimalPrimitive for i128 {
 
 pub trait DecimalType: Debug + Sync + Send + Copy + 'static
 where
-    for<'a> Self::Storage: PhysicalStorage<Type<'a> = Self::Primitive>,
+    for<'a> Self::Storage: PhysicalStorage2<Type<'a> = Self::Primitive>,
 {
     /// The underlying primitive type storing the decimal's value.
     type Primitive: DecimalPrimitive;
-    type Storage: PhysicalStorage;
+    type Storage: PhysicalStorage2;
 
     /// Max precision for this decimal type.
     const MAX_PRECISION: u8;

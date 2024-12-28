@@ -20,7 +20,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128,
     PhysicalU16,
@@ -214,7 +214,7 @@ impl<S, T> FirstPrimitiveImpl<S, T> {
 
 impl<S, T> AggregateFunctionImpl for FirstPrimitiveImpl<S, T>
 where
-    for<'a> S: PhysicalStorage<Type<'a> = T>,
+    for<'a> S: PhysicalStorage2<Type<'a> = T>,
     T: Copy + Debug + Default + Sync + Send + 'static,
     ArrayData2: From<PrimitiveStorage<T>>,
 {

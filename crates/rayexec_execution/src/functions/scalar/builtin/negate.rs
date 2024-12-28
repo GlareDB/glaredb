@@ -15,9 +15,9 @@ use crate::arrays::executor::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
-    PhysicalStorage,
+    PhysicalStorage2,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -98,11 +98,11 @@ impl<S> NegateImpl<S> {
 
 impl<S> ScalarFunctionImpl for NegateImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: std::ops::Neg<Output = S::Type<'static>> + Default + Copy,
     ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         use std::ops::Neg;
 
         let a = inputs[0];
@@ -112,7 +112,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        UnaryExecutor::execute::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
+        UnaryExecutor2::execute::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
     }
 }
 
@@ -165,8 +165,8 @@ impl ScalarFunction for Not {
 pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
-        UnaryExecutor::execute::<PhysicalBool, _, _>(
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
+        UnaryExecutor2::execute::<PhysicalBool, _, _>(
             inputs[0],
             ArrayBuilder {
                 datatype: DataType::Boolean,

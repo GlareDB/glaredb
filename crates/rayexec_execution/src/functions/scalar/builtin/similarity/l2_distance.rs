@@ -11,7 +11,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalStorage,
+    PhysicalStorage2,
 };
 use crate::arrays::executor::scalar::{BinaryListReducer, ListExecutor};
 use crate::expr::Expression;
@@ -92,13 +92,13 @@ impl ScalarFunction for L2Distance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2DistanceImpl<S: PhysicalStorage> {
+pub struct L2DistanceImpl<S: PhysicalStorage2> {
     _s: PhantomData<S>,
 }
 
 impl<S> L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
 {
     fn new() -> Self {
         L2DistanceImpl { _s: PhantomData }
@@ -107,10 +107,10 @@ where
 
 impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 

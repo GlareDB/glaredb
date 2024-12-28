@@ -4,7 +4,7 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -61,14 +61,14 @@ impl ScalarFunction for Ascii {
 pub struct AsciiImpl;
 
 impl ScalarFunctionImpl for AsciiImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Int32,
             buffer: PrimitiveBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
             let v = v.chars().next().map(|c| c as i32).unwrap_or(0);
             buf.put(&v)
         })

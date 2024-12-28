@@ -4,7 +4,7 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{PhysicalBinary, PhysicalUtf8};
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -64,7 +64,7 @@ impl ScalarFunction for Length {
 pub struct StrLengthImpl;
 
 impl ScalarFunctionImpl for StrLengthImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -72,7 +72,7 @@ impl ScalarFunctionImpl for StrLengthImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
             let len = v.chars().count() as i64;
             buf.put(&len)
         })
@@ -145,7 +145,7 @@ impl ScalarFunction for ByteLength {
 pub struct ByteLengthImpl;
 
 impl ScalarFunctionImpl for ByteLengthImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -154,7 +154,7 @@ impl ScalarFunctionImpl for ByteLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
             buf.put(&(v.len() as i64))
         })
     }
@@ -222,7 +222,7 @@ impl ScalarFunction for BitLength {
 pub struct BitLengthImpl;
 
 impl ScalarFunctionImpl for BitLengthImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -231,7 +231,7 @@ impl ScalarFunctionImpl for BitLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
             let bit_len = v.len() * 8;
             buf.put(&(bit_len as i64))
         })

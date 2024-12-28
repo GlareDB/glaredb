@@ -16,7 +16,7 @@ use crate::arrays::executor::aggregate::{
     UnaryNonNullUpdater,
 };
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 
 pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize> {
@@ -55,9 +55,9 @@ pub fn new_unary_aggregate_states<Storage, State, Output, StateInit, StateFinali
     state_finalize: StateFinalize,
 ) -> Box<dyn AggregateGroupStates>
 where
-    Storage: PhysicalStorage,
+    Storage: PhysicalStorage2,
     State: for<'a> AggregateState<
-            <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
+            <<Storage as PhysicalStorage2>::Storage<'a> as AddressableStorage>::T,
             Output,
         > + Sync
         + Send
@@ -82,8 +82,8 @@ pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit,
     state_finalize: StateFinalize,
 ) -> Box<dyn AggregateGroupStates>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
+    Storage1: PhysicalStorage2,
+    Storage2: PhysicalStorage2,
     State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
         + Sync
         + Send
@@ -199,7 +199,7 @@ pub fn unary_update<State, Storage, Output>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage: PhysicalStorage,
+    Storage: PhysicalStorage2,
     State: for<'a> AggregateState<Storage::Type<'a>, Output>,
 {
     UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
@@ -211,8 +211,8 @@ pub fn binary_update<State, Storage1, Storage2, Output>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
+    Storage1: PhysicalStorage2,
+    Storage2: PhysicalStorage2,
     State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
 {
     BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(

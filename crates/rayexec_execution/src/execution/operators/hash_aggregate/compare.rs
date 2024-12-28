@@ -17,7 +17,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128,
     PhysicalU16,
@@ -180,7 +180,7 @@ fn compare_rows_eq<'a, S, I1, I2>(
     not_eq_rows: &mut BTreeSet<usize>,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     <S::Storage<'a> as AddressableStorage>::T: PartialEq,
     I1: Iterator<Item = usize>,
     I2: Iterator<Item = usize>,

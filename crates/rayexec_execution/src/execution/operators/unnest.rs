@@ -37,7 +37,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalList,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128,
     PhysicalU16,
@@ -46,7 +46,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
 use crate::database::DatabaseContext;
@@ -212,7 +212,7 @@ impl ExecutableOperator for PhysicalUnnest {
                 continue;
             }
 
-            if let Some(list_meta) = UnaryExecutor::value_at::<PhysicalList>(
+            if let Some(list_meta) = UnaryExecutor2::value_at::<PhysicalList>(
                 &state.unnest_inputs[input_idx],
                 state.current_row,
             )? {
@@ -250,7 +250,7 @@ impl ExecutableOperator for PhysicalUnnest {
                         _other => return Err(RayexecError::new("Unexpected storage type")),
                     };
 
-                    match UnaryExecutor::value_at::<PhysicalList>(arr, state.current_row)? {
+                    match UnaryExecutor2::value_at::<PhysicalList>(arr, state.current_row)? {
                         Some(meta) => {
                             // Row is a list, unnest.
                             let out = unnest(child, longest as usize, meta)?;
@@ -431,7 +431,7 @@ fn unnest_inner<'a, S, B>(
     meta: ListItemMetadata,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     B: ArrayDataBuffer,
     S::Type<'a>: Borrow<B::Type>,
 {

@@ -5,7 +5,7 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalI64};
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 
 pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 1, 1) {
@@ -148,7 +148,7 @@ where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor2::execute::<PhysicalI64, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {
@@ -168,7 +168,7 @@ fn date32_extract_with_fn<F>(arr: &Array2, f: F) -> Result<Array2>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI32, _, _>(
+    UnaryExecutor2::execute::<PhysicalI32, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {
@@ -189,7 +189,7 @@ fn date64_extract_with_fn<F>(arr: &Array2, f: F) -> Result<Array2>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor2::execute::<PhysicalI64, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {

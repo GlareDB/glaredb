@@ -15,7 +15,7 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt}
 use rayexec_execution::arrays::array::{Array2, ArrayData2};
 use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::datatype::DataType;
-use rayexec_execution::arrays::executor::physical_type::{PhysicalBinary, PhysicalStorage};
+use rayexec_execution::arrays::executor::physical_type::{PhysicalBinary, PhysicalStorage2};
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::storage::AddressableStorage;
 use rayexec_io::FileSink;

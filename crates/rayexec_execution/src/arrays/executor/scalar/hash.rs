@@ -16,7 +16,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU16,
     PhysicalU32,
@@ -180,7 +180,7 @@ impl HashExecutor {
 
     fn hash_one_inner<'a, 'b, S, H>(array: &'a Array2, hashes: &'b mut [u64]) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         S::Type<'a>: HashValue,
         H: SetHash,
     {

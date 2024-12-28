@@ -15,14 +15,14 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::scalar::interval::Interval;
 
 /// Binary-encoded rows suitable for comparisons.
@@ -307,13 +307,13 @@ impl ComparableRowEncoder {
         start: usize,
     ) -> Result<usize>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         S::Type<'a>: ComparableEncode + AsBytes,
     {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at::<S>(arr, row)? {
+        match UnaryExecutor2::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + val.as_bytes().len();
@@ -348,13 +348,13 @@ impl ComparableRowEncoder {
         start: usize,
     ) -> Result<usize>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         S::Type<'a>: ComparableEncode,
     {
         let null_byte = col.null_byte();
         let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at::<S>(arr, row)? {
+        match UnaryExecutor2::value_at::<S>(arr, row)? {
             Some(val) => {
                 buf[start] = valid_byte;
                 let end = start + 1 + std::mem::size_of::<S::Type<'a>>();

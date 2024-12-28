@@ -3,7 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalStorage};
+use crate::arrays::executor::physical_type::{PhysicalList, PhysicalStorage2};
 use crate::arrays::executor::scalar::{
     can_skip_validity_check,
     check_validity,
@@ -42,7 +42,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
     ) -> Result<Array2>
     where
         R: BinaryListReducer<S::Type<'a>, B::Type>,
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         B: ArrayDataBuffer,
         <B as ArrayDataBuffer>::Type: Sized,
     {
@@ -170,7 +170,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 /// contain NULLs.
 fn get_inner_array_storage<S>(array: &Array2) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
 {
     match array.array_data() {
         ArrayData2::List(d) => {

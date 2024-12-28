@@ -8,7 +8,7 @@ use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::PhysicalBool;
-use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
+use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor, UniformExecutor};
 use crate::arrays::storage::BooleanStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -70,7 +70,7 @@ impl ScalarFunction for And {
 pub struct AndImpl;
 
 impl ScalarFunctionImpl for AndImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         match inputs.len() {
             0 => {
                 let mut array = Array2::new_with_array_data(
@@ -84,7 +84,7 @@ impl ScalarFunctionImpl for AndImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor2::execute::<PhysicalBool, PhysicalBool, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -178,7 +178,7 @@ impl ScalarFunction for Or {
 pub struct OrImpl;
 
 impl ScalarFunctionImpl for OrImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         match inputs.len() {
             0 => {
                 let mut array = Array2::new_with_array_data(
@@ -192,7 +192,7 @@ impl ScalarFunctionImpl for OrImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor2::execute::<PhysicalBool, PhysicalBool, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -244,7 +244,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
 
         assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
@@ -277,7 +277,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b, &c]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b, &c]).unwrap();
 
         assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
@@ -305,7 +305,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
 
         assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());

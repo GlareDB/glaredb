@@ -22,7 +22,7 @@ use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalU64;
-use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor};
+use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor2};
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -440,7 +440,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
                     };
 
-                    let array = UnaryExecutor::execute::<PhysicalU64, _, _>(
+                    let array = UnaryExecutor2::execute::<PhysicalU64, _, _>(
                         &group_ids,
                         builder,
                         |id, buf| {

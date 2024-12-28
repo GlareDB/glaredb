@@ -4,7 +4,7 @@ use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -60,7 +60,7 @@ impl ScalarFunction for Lower {
 pub struct LowerImpl;
 
 impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         case_convert_execute(input, str::to_lowercase)
     }
@@ -115,7 +115,7 @@ impl ScalarFunction for Upper {
 pub struct UpperImpl;
 
 impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         case_convert_execute(input, str::to_uppercase)
     }
@@ -135,7 +135,7 @@ where
         buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
     };
 
-    UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+    UnaryExecutor2::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
         // TODO: Non-allocating variant.
         buf.put(&case_fn(v))
     })

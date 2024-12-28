@@ -4,7 +4,9 @@ use std::marker::PhantomData;
 
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::{Array2, ArrayData2};
+use crate::arrays::batch_exp::Batch;
 use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
@@ -21,7 +23,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128,
     PhysicalU16,
@@ -31,7 +33,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use crate::arrays::executor::scalar::{BinaryExecutor, BinaryListReducer, FlexibleListExecutor};
+use crate::arrays::executor::scalar::{BinaryExecutor2, BinaryListReducer, FlexibleListExecutor};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -660,7 +662,7 @@ impl<O> ScalarFunctionImpl for ListComparisonImpl<O>
 where
     O: ComparisonOperation,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -772,7 +774,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-struct BaseComparisonImpl<O: ComparisonOperation, S: PhysicalStorage> {
+struct BaseComparisonImpl<O: ComparisonOperation, S: PhysicalStorage2> {
     _op: PhantomData<O>,
     _s: PhantomData<S>,
 }
@@ -780,7 +782,7 @@ struct BaseComparisonImpl<O: ComparisonOperation, S: PhysicalStorage> {
 impl<O, S> BaseComparisonImpl<O, S>
 where
     O: ComparisonOperation,
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: PartialEq + PartialOrd,
 {
     fn new() -> Self {
@@ -794,10 +796,10 @@ where
 impl<O, S> ScalarFunctionImpl for BaseComparisonImpl<O, S>
 where
     O: ComparisonOperation,
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: PartialEq + PartialOrd,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -806,7 +808,7 @@ where
             buffer: BooleanBuffer::with_len(left.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(left, right, builder, |a, b, buf| {
+        BinaryExecutor2::execute::<S, S, _, _>(left, right, builder, |a, b, buf| {
             buf.put(&O::compare(a, b))
         })
     }
@@ -845,7 +847,7 @@ where
     T: DecimalType,
     ArrayData2: From<PrimitiveStorage<T::Primitive>>,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -862,7 +864,7 @@ where
                     CastFailBehavior::Error,
                 )?;
 
-                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor2::execute::<T::Storage, T::Storage, _, _>(
                     left,
                     &scaled_right,
                     builder,
@@ -876,14 +878,14 @@ where
                     CastFailBehavior::Error,
                 )?;
 
-                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor2::execute::<T::Storage, T::Storage, _, _>(
                     &scaled_left,
                     right,
                     builder,
                     |a, b, buf| buf.put(&O::compare(a, b)),
                 )
             }
-            Ordering::Equal => BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+            Ordering::Equal => BinaryExecutor2::execute::<T::Storage, T::Storage, _, _>(
                 left,
                 right,
                 builder,
@@ -920,7 +922,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
@@ -947,7 +949,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
@@ -974,7 +976,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
@@ -1001,7 +1003,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([true, true, true]);
 
         assert_eq!(expected, out);
@@ -1028,7 +1030,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([false, false, false]);
 
         assert_eq!(expected, out);
@@ -1055,7 +1057,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([false, true, false]);
 
         assert_eq!(expected, out);

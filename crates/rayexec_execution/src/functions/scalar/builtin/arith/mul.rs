@@ -17,14 +17,14 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::PrimitiveStorage;
@@ -236,10 +236,10 @@ impl<Rhs, const LHS_RHS_FLIPPED: bool> IntervalMulImpl<Rhs, LHS_RHS_FLIPPED> {
 
 impl<Rhs, const LHS_RHS_FLIPPED: bool> ScalarFunctionImpl for IntervalMulImpl<Rhs, LHS_RHS_FLIPPED>
 where
-    Rhs: PhysicalStorage,
+    Rhs: PhysicalStorage2,
     for<'a> Rhs::Type<'a>: PrimInt,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let (lhs, rhs) = if LHS_RHS_FLIPPED {
             (inputs[1], inputs[0])
         } else {
@@ -251,7 +251,7 @@ where
             buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
+        BinaryExecutor2::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
             // TODO: Overflow check
             buf.put(&Interval {
                 months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
@@ -282,7 +282,7 @@ where
     D: DecimalType,
     ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -291,7 +291,7 @@ where
             buffer: PrimitiveBuffer::<D::Primitive>::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
+        BinaryExecutor2::execute::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
             buf.put(&(a * b))
         })
     }
@@ -314,11 +314,11 @@ impl<S> MulImpl<S> {
 
 impl<S> ScalarFunctionImpl for MulImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: std::ops::Mul<Output = S::Type<'static>> + Default + Copy,
     ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -327,7 +327,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
+        BinaryExecutor2::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
     }
 }
 
@@ -359,7 +359,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([4, 10, 18]);
 
         assert_eq!(expected, out);

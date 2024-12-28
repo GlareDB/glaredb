@@ -25,7 +25,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128,
     PhysicalU16,
@@ -34,7 +34,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::selection;
 use crate::arrays::storage::{
     AddressableStorage,
@@ -83,7 +83,7 @@ where
     /// where they should be placed in the buffer.
     pub fn fill<'a, S, I>(&mut self, array: &'a Array2, fill_map: I) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         I: IntoIterator<Item = FillMapping>,
         S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
     {
@@ -308,7 +308,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array2], total_len: usize) -> Res
     let mut acc_rows = 0;
 
     for (array, child_array) in arrays.iter().zip(inner_arrays) {
-        UnaryExecutor::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
+        UnaryExecutor2::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
             Some(metadata) => {
                 metadatas.push(ListItemMetadata {
                     offset: metadata.offset + acc_rows,
@@ -342,7 +342,7 @@ fn concat_with_fill_state<'a, S, B>(
     mut fill_state: FillState<B>,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     B: ArrayDataBuffer,
     S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
 {
@@ -517,7 +517,7 @@ fn interleave_with_fill_state<'a, S, B>(
     mut fill_state: FillState<B>,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     B: ArrayDataBuffer,
     S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
 {

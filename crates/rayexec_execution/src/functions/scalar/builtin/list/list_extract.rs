@@ -26,7 +26,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalList,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128,
     PhysicalU16,
@@ -35,7 +35,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -120,7 +120,7 @@ pub struct ListExtractImpl {
 }
 
 impl ScalarFunctionImpl for ListExtractImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         extract(input, self.index)
     }
@@ -257,7 +257,7 @@ fn extract_inner<'a, S, B>(
     el_idx: usize,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     B: ArrayDataBuffer,
     S::Type<'a>: Borrow<<B as ArrayDataBuffer>::Type>,
 {
@@ -265,7 +265,7 @@ where
 
     let mut validity = Bitmap::new_with_all_true(builder.buffer.len());
 
-    UnaryExecutor::for_each::<PhysicalList, _>(outer, |idx, metadata| {
+    UnaryExecutor2::for_each::<PhysicalList, _>(outer, |idx, metadata| {
         if let Some(metadata) = metadata {
             if el_idx >= metadata.len {
                 // Indexing outside of the list. Mark null
@@ -275,7 +275,7 @@ where
 
             // Otherwise put the element into the builder.
             let inner_el_idx = metadata.offset + el_idx;
-            match UnaryExecutor::value_at::<S>(inner, inner_el_idx as usize) {
+            match UnaryExecutor2::value_at::<S>(inner, inner_el_idx as usize) {
                 Ok(Some(el)) => {
                     builder.buffer.put(idx, el.borrow());
                     return;

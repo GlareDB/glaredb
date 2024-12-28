@@ -11,9 +11,9 @@ use crate::arrays::executor::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalStorage,
+    PhysicalStorage2,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
@@ -87,11 +87,11 @@ impl ScalarFunction for IsNan {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct IsNanImpl<S: PhysicalStorage> {
+pub struct IsNanImpl<S: PhysicalStorage2> {
     _s: PhantomData<S>,
 }
 
-impl<S: PhysicalStorage> IsNanImpl<S> {
+impl<S: PhysicalStorage2> IsNanImpl<S> {
     fn new() -> Self {
         IsNanImpl { _s: PhantomData }
     }
@@ -99,16 +99,16 @@ impl<S: PhysicalStorage> IsNanImpl<S> {
 
 impl<S> ScalarFunctionImpl for IsNanImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: Float,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
+        UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
     }
 }

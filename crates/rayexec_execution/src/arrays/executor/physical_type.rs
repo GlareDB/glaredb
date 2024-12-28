@@ -177,7 +177,7 @@ impl VarlenType for [u8] {
 ///
 /// Contains a lifetime to enable tying the returned storage to the provided
 /// array data.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+pub trait PhysicalStorage2: Debug + Sync + Send + Clone + Copy + 'static {
     // /// The type that's stored in the primary buffer.
     // ///
     // /// This should be small and fixed sized.
@@ -200,7 +200,7 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalAny;
 
-impl PhysicalStorage for PhysicalAny {
+impl PhysicalStorage2 for PhysicalAny {
     type Type<'a> = ();
     type Storage<'a> = UnitStorage;
 
@@ -234,7 +234,7 @@ impl AddressableStorage for UnitStorage {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalUntypedNull;
 
-impl PhysicalStorage for PhysicalUntypedNull {
+impl PhysicalStorage2 for PhysicalUntypedNull {
     type Type<'a> = UntypedNull;
     type Storage<'a> = UntypedNullStorage;
 
@@ -249,7 +249,7 @@ impl PhysicalStorage for PhysicalUntypedNull {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalBool;
 
-impl PhysicalStorage for PhysicalBool {
+impl PhysicalStorage2 for PhysicalBool {
     type Type<'a> = bool;
     type Storage<'a> = BooleanStorageRef<'a>;
 
@@ -264,7 +264,7 @@ impl PhysicalStorage for PhysicalBool {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalI8;
 
-impl PhysicalStorage for PhysicalI8 {
+impl PhysicalStorage2 for PhysicalI8 {
     type Type<'a> = i8;
     type Storage<'a> = PrimitiveStorageSlice<'a, i8>;
 
@@ -279,7 +279,7 @@ impl PhysicalStorage for PhysicalI8 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalI16;
 
-impl PhysicalStorage for PhysicalI16 {
+impl PhysicalStorage2 for PhysicalI16 {
     type Type<'a> = i16;
     type Storage<'a> = PrimitiveStorageSlice<'a, i16>;
 
@@ -294,7 +294,7 @@ impl PhysicalStorage for PhysicalI16 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalI32;
 
-impl PhysicalStorage for PhysicalI32 {
+impl PhysicalStorage2 for PhysicalI32 {
     type Type<'a> = i32;
     type Storage<'a> = PrimitiveStorageSlice<'a, i32>;
 
@@ -309,7 +309,7 @@ impl PhysicalStorage for PhysicalI32 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalI64;
 
-impl PhysicalStorage for PhysicalI64 {
+impl PhysicalStorage2 for PhysicalI64 {
     type Type<'a> = i64;
     type Storage<'a> = PrimitiveStorageSlice<'a, i64>;
 
@@ -324,7 +324,7 @@ impl PhysicalStorage for PhysicalI64 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalI128;
 
-impl PhysicalStorage for PhysicalI128 {
+impl PhysicalStorage2 for PhysicalI128 {
     type Type<'a> = i128;
     type Storage<'a> = PrimitiveStorageSlice<'a, i128>;
 
@@ -339,7 +339,7 @@ impl PhysicalStorage for PhysicalI128 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalU8;
 
-impl PhysicalStorage for PhysicalU8 {
+impl PhysicalStorage2 for PhysicalU8 {
     type Type<'a> = u8;
     type Storage<'a> = PrimitiveStorageSlice<'a, u8>;
 
@@ -354,7 +354,7 @@ impl PhysicalStorage for PhysicalU8 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalU16;
 
-impl PhysicalStorage for PhysicalU16 {
+impl PhysicalStorage2 for PhysicalU16 {
     type Type<'a> = u16;
     type Storage<'a> = PrimitiveStorageSlice<'a, u16>;
 
@@ -369,7 +369,7 @@ impl PhysicalStorage for PhysicalU16 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalU32;
 
-impl PhysicalStorage for PhysicalU32 {
+impl PhysicalStorage2 for PhysicalU32 {
     type Type<'a> = u32;
     type Storage<'a> = PrimitiveStorageSlice<'a, u32>;
 
@@ -384,7 +384,7 @@ impl PhysicalStorage for PhysicalU32 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalU64;
 
-impl PhysicalStorage for PhysicalU64 {
+impl PhysicalStorage2 for PhysicalU64 {
     type Type<'a> = u64;
     type Storage<'a> = PrimitiveStorageSlice<'a, u64>;
 
@@ -399,7 +399,7 @@ impl PhysicalStorage for PhysicalU64 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalU128;
 
-impl PhysicalStorage for PhysicalU128 {
+impl PhysicalStorage2 for PhysicalU128 {
     type Type<'a> = u128;
     type Storage<'a> = PrimitiveStorageSlice<'a, u128>;
 
@@ -414,7 +414,7 @@ impl PhysicalStorage for PhysicalU128 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalF16;
 
-impl PhysicalStorage for PhysicalF16 {
+impl PhysicalStorage2 for PhysicalF16 {
     type Type<'a> = f16;
     type Storage<'a> = PrimitiveStorageSlice<'a, f16>;
 
@@ -429,7 +429,7 @@ impl PhysicalStorage for PhysicalF16 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalF32;
 
-impl PhysicalStorage for PhysicalF32 {
+impl PhysicalStorage2 for PhysicalF32 {
     type Type<'a> = f32;
     type Storage<'a> = PrimitiveStorageSlice<'a, f32>;
 
@@ -444,7 +444,7 @@ impl PhysicalStorage for PhysicalF32 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalF64;
 
-impl PhysicalStorage for PhysicalF64 {
+impl PhysicalStorage2 for PhysicalF64 {
     type Type<'a> = f64;
     type Storage<'a> = PrimitiveStorageSlice<'a, f64>;
 
@@ -459,7 +459,7 @@ impl PhysicalStorage for PhysicalF64 {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalInterval;
 
-impl PhysicalStorage for PhysicalInterval {
+impl PhysicalStorage2 for PhysicalInterval {
     type Type<'a> = Interval;
     type Storage<'a> = PrimitiveStorageSlice<'a, Interval>;
 
@@ -474,7 +474,7 @@ impl PhysicalStorage for PhysicalInterval {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalBinary;
 
-impl PhysicalStorage for PhysicalBinary {
+impl PhysicalStorage2 for PhysicalBinary {
     type Type<'a> = &'a [u8];
     type Storage<'a> = BinaryDataStorage<'a>;
 
@@ -497,7 +497,7 @@ impl PhysicalStorage for PhysicalBinary {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalUtf8;
 
-impl PhysicalStorage for PhysicalUtf8 {
+impl PhysicalStorage2 for PhysicalUtf8 {
     type Type<'a> = &'a str;
     type Storage<'a> = StrDataStorage<'a>;
 
@@ -591,7 +591,7 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalList;
 
-impl PhysicalStorage for PhysicalList {
+impl PhysicalStorage2 for PhysicalList {
     type Type<'a> = ListItemMetadata;
     type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata>;
 

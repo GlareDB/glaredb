@@ -4,14 +4,14 @@ use super::validate_logical_len;
 use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone)]
-pub struct UnaryExecutor;
+pub struct UnaryExecutor2;
 
-impl UnaryExecutor {
+impl UnaryExecutor2 {
     /// Executes `op` on every non-null input.
     pub fn execute<'a, S, B, Op>(
         array: &'a Array2,
@@ -20,7 +20,7 @@ impl UnaryExecutor {
     ) -> Result<Array2>
     where
         Op: FnMut(S::Type<'a>, &mut OutputBuffer<B>),
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array)?;
@@ -83,7 +83,7 @@ impl UnaryExecutor {
     pub fn for_each<'a, S, Op>(array: &'a Array2, mut op: Op) -> Result<()>
     where
         Op: FnMut(usize, Option<S::Type<'a>>),
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
     {
         let selection = array.selection_vector();
         let len = array.logical_len();
@@ -121,7 +121,7 @@ impl UnaryExecutor {
     /// Returns Some if the value is valid, None otherwise.
     pub fn value_at<S>(array: &Array2, idx: usize) -> Result<Option<S::Type<'_>>>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
     {
         let selection = array.selection_vector();
 
@@ -165,7 +165,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = UnaryExecutor::execute::<PhysicalI32, _, _>(&array, builder, |v, buf| {
+        let got = UnaryExecutor2::execute::<PhysicalI32, _, _>(&array, builder, |v, buf| {
             buf.put(&(v + 2))
         })
         .unwrap();
@@ -194,7 +194,7 @@ mod tests {
             buf.put(&double)
         }
 
-        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
+        let got = UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
             .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
@@ -227,7 +227,7 @@ mod tests {
             buf.put(buffer.as_str())
         };
 
-        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
+        let got = UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
             .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
@@ -254,8 +254,9 @@ mod tests {
             buf.put(s.get(0..len).unwrap_or(""))
         };
 
-        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_truncate)
-            .unwrap();
+        let got =
+            UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_truncate)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("a"), got.physical_scalar(0).unwrap());
         assert_eq!(ScalarValue::from("bb"), got.physical_scalar(1).unwrap());
@@ -288,7 +289,7 @@ mod tests {
         };
 
         let got =
-            UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_uppercase)
+            UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_uppercase)
                 .unwrap();
 
         assert_eq!(ScalarValue::from("DDDD"), got.physical_scalar(0).unwrap());

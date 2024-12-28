@@ -6,7 +6,7 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
-use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -65,7 +65,7 @@ impl ScalarFunction for Repeat {
 pub struct RepeatUtf8Impl;
 
 impl ScalarFunctionImpl for RepeatUtf8Impl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let strings = inputs[0];
         let nums = inputs[1];
 
@@ -73,7 +73,7 @@ impl ScalarFunctionImpl for RepeatUtf8Impl {
 
         let mut string_buf = String::new();
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+        BinaryExecutor2::execute::<PhysicalUtf8, PhysicalI64, _, _>(
             strings,
             nums,
             ArrayBuilder {

@@ -17,14 +17,14 @@ use crate::arrays::executor::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -198,7 +198,7 @@ impl<D> ScalarFunctionImpl for DecimalDivImpl<D>
 where
     D: DecimalType,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -218,7 +218,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(&a, &b, builder, |a, b, buf| {
+        BinaryExecutor2::execute::<PhysicalF64, PhysicalF64, _, _>(&a, &b, builder, |a, b, buf| {
             buf.put(&(a / b))
         })
     }
@@ -241,11 +241,11 @@ impl<S> DivImpl<S> {
 
 impl<S> ScalarFunctionImpl for DivImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: std::ops::Div<Output = S::Type<'static>> + Default + Copy,
     ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -254,7 +254,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a / b)))
+        BinaryExecutor2::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a / b)))
     }
 }
 
@@ -286,7 +286,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([4, 2, 2]);
 
         assert_eq!(expected, out);

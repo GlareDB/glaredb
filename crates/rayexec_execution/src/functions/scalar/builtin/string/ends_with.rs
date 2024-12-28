@@ -4,7 +4,7 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
-use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::scalar::{BinaryExecutor2, UnaryExecutor2};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -86,13 +86,13 @@ pub struct EndsWithConstantImpl {
 }
 
 impl ScalarFunctionImpl for EndsWithConstantImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+        UnaryExecutor2::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
             buf.put(&s.ends_with(&self.constant))
         })
     }
@@ -102,13 +102,13 @@ impl ScalarFunctionImpl for EndsWithConstantImpl {
 pub struct EndsWithImpl;
 
 impl ScalarFunctionImpl for EndsWithImpl {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        BinaryExecutor2::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
             inputs[0],
             inputs[1],
             builder,

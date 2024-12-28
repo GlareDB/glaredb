@@ -67,7 +67,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -75,7 +75,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 
@@ -233,7 +233,7 @@ fn decimal_rescale_helper<'a, S>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     S::Type<'a>: PrimInt,
 {
     match to {
@@ -249,7 +249,7 @@ pub fn decimal_rescale<'a, S, D>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     D: DecimalType,
     S::Type<'a>: PrimInt,
     ArrayData2: From<PrimitiveStorage<D::Primitive>>,
@@ -263,7 +263,7 @@ where
     .expect("to be in range");
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor2::execute::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -302,7 +302,7 @@ fn cast_float_to_decimal_helper<'a, S>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     S::Type<'a>: Float,
 {
     match to {
@@ -318,7 +318,7 @@ fn cast_float_to_decimal<'a, S, D>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     D: DecimalType,
     S::Type<'a>: Float,
     ArrayData2: From<PrimitiveStorage<D::Primitive>>,
@@ -333,7 +333,7 @@ where
     .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor2::execute::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -366,9 +366,9 @@ pub fn cast_decimal_to_float<'a, S, F>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     F: Float + Default + Copy,
-    <<S as PhysicalStorage>::Storage<'a> as AddressableStorage>::T: ToPrimitive,
+    <<S as PhysicalStorage2>::Storage<'a> as AddressableStorage>::T: ToPrimitive,
     ArrayData2: From<PrimitiveStorage<F>>,
 {
     let decimal_meta = arr.datatype().try_get_decimal_type_meta()?;
@@ -387,7 +387,7 @@ where
 
     let mut fail_state = behavior.new_state_for_array(arr);
     let output =
-        UnaryExecutor::execute::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
+        UnaryExecutor2::execute::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
             Some(v) => {
                 let scaled = v.div(scale);
                 buf.put(&scaled);
@@ -404,7 +404,7 @@ fn cast_int_to_decimal_helper<'a, S>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     S::Type<'a>: PrimInt,
 {
     match to {
@@ -420,7 +420,7 @@ fn cast_int_to_decimal<'a, S, D>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     D: DecimalType,
     S::Type<'a>: PrimInt,
     ArrayData2: From<PrimitiveStorage<D::Primitive>>,
@@ -433,7 +433,7 @@ where
         .expect("to be in range");
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor2::execute::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -486,7 +486,7 @@ fn cast_primitive_numeric_helper<'a, S>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     S::Type<'a>: ToPrimitive,
 {
     match to {
@@ -513,13 +513,13 @@ pub fn cast_primitive_numeric<'a, S, T>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     S::Type<'a>: ToPrimitive,
     T: NumCast + Default + Copy,
     ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor2::execute::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype,
@@ -657,13 +657,13 @@ fn cast_format<'a, S, F>(
     behavior: CastFailBehavior,
 ) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     F: Formatter<Type = S::Type<'a>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
     let mut string_buf = String::new();
 
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor2::execute::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Utf8,
@@ -683,7 +683,7 @@ where
 
 fn cast_parse_bool(arr: &Array2, behavior: CastFailBehavior) -> Result<Array2> {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+    let output = UnaryExecutor2::execute::<PhysicalUtf8, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Boolean,
@@ -710,7 +710,7 @@ where
     ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+    let output = UnaryExecutor2::execute::<PhysicalUtf8, _, _>(
         arr,
         ArrayBuilder {
             datatype: datatype.clone(),

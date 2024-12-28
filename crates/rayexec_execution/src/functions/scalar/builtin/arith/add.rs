@@ -15,14 +15,14 @@ use crate::arrays::executor::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
-    PhysicalStorage,
+    PhysicalStorage2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -204,11 +204,11 @@ impl<S> AddImpl<S> {
 
 impl<S> ScalarFunctionImpl for AddImpl<S>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
     ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -217,7 +217,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a + b)))
+        BinaryExecutor2::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a + b)))
     }
 }
 
@@ -249,7 +249,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array2::from_iter([5, 7, 9]);
 
         assert_eq!(expected, out);

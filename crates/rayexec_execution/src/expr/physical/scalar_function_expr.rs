@@ -26,7 +26,7 @@ impl PhysicalScalarFunctionExpr {
             .collect::<Result<Vec<_>>>()?;
 
         let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
-        let mut out = self.function.function_impl.execute(&refs)?;
+        let mut out = self.function.function_impl.execute2(&refs)?;
 
         // If function is provided no input, it's expected to return an
         // array of length 1. We extend the array here so that it's the

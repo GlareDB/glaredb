@@ -2,7 +2,7 @@ use rayexec_error::Result;
 
 use super::{AggregateState, RowToStateMapping};
 use crate::arrays::array::Array2;
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
@@ -17,7 +17,7 @@ impl UnaryNonNullUpdater {
         states: &mut [State],
     ) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         I: IntoIterator<Item = RowToStateMapping>,
         State: AggregateState<S::Type<'a>, Output>,
     {

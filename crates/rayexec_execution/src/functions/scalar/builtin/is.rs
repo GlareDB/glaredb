@@ -4,7 +4,7 @@ use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{PhysicalAny, PhysicalBool};
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -101,7 +101,7 @@ impl ScalarFunction for IsNotNull {
 pub struct CheckNullImpl<const IS_NULL: bool>;
 
 impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let (initial, updated) = if IS_NULL {
@@ -117,7 +117,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor::execute::<PhysicalAny, _, _>(input, builder, |_, buf| {
+        let array = UnaryExecutor2::execute::<PhysicalAny, _, _>(input, builder, |_, buf| {
             buf.put(&updated)
         })?;
 
@@ -303,7 +303,7 @@ impl ScalarFunction for IsNotFalse {
 pub struct CheckBoolImpl<const NOT: bool, const BOOL: bool>;
 
 impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT, BOOL> {
-    fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
+    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
 
         let initial = NOT;
@@ -312,7 +312,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor::execute::<PhysicalBool, _, _>(input, builder, |val, buf| {
+        let array = UnaryExecutor2::execute::<PhysicalBool, _, _>(input, builder, |val, buf| {
             let b = if NOT { val != BOOL } else { val == BOOL };
             buf.put(&b)
         })?;
