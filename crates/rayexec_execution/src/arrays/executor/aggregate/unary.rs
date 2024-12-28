@@ -1,6 +1,6 @@
 use rayexec_error::Result;
 
-use super::{AggregateState, RowToStateMapping};
+use super::{AggregateState2, RowToStateMapping};
 use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::selection;
@@ -19,7 +19,7 @@ impl UnaryNonNullUpdater {
     where
         S: PhysicalStorage2,
         I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<S::Type<'a>, Output>,
+        State: AggregateState2<S::Type<'a>, Output>,
     {
         let selection = array.selection_vector();
 
@@ -67,7 +67,7 @@ mod tests {
         val: i32,
     }
 
-    impl AggregateState<i32, i32> for TestSumState {
+    impl AggregateState2<i32, i32> for TestSumState {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.val += other.val;
             Ok(())
@@ -165,7 +165,7 @@ mod tests {
         buf: String,
     }
 
-    impl AggregateState<&str, String> for TestStringAgg {
+    impl AggregateState2<&str, String> for TestStringAgg {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.buf.push_str(&other.buf);
             Ok(())

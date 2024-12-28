@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{StddevPopFinalize, VarianceState};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
@@ -88,7 +88,7 @@ pub struct CorrelationState {
     stddev_y: VarianceState<StddevPopFinalize>,
 }
 
-impl AggregateState<(f64, f64), f64> for CorrelationState {
+impl AggregateState2<(f64, f64), f64> for CorrelationState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.covar.merge(&mut other.covar)?;
         self.stddev_x.merge(&mut other.stddev_x)?;

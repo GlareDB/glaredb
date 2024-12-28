@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
@@ -174,7 +174,7 @@ pub struct CovarState<F: CovarFinalize> {
     _finalize: PhantomData<F>,
 }
 
-impl<F> AggregateState<(f64, f64), f64> for CovarState<F>
+impl<F> AggregateState2<(f64, f64), f64> for CovarState<F>
 where
     F: CovarFinalize,
 {

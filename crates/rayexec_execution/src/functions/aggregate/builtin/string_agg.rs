@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::aggregate::{AggregateState2, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8;
 use crate::arrays::scalar::ScalarValue;
@@ -119,7 +119,7 @@ pub struct StringAggState {
     string: Option<String>,
 }
 
-impl AggregateState<&str, String> for StringAggState {
+impl AggregateState2<&str, String> for StringAggState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.string.is_none() {
             std::mem::swap(self, other);

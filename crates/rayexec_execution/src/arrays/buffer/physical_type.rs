@@ -127,7 +127,7 @@ where
 
 /// Represents in-memory storage that we can get mutable references to.
 pub trait AddressableMut: Debug {
-    type T: Send + Debug + ?Sized;
+    type T: Debug + ?Sized;
 
     fn len(&self) -> usize;
 

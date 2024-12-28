@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -204,7 +204,7 @@ struct AvgStateDecimal<I> {
     _input: PhantomData<I>,
 }
 
-impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStateDecimal<I> {
+impl<I: Into<i128> + Default + Debug> AggregateState2<I, (i128, i64)> for AvgStateDecimal<I> {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
@@ -232,7 +232,7 @@ struct AvgStateF64<I, T> {
     _input: PhantomData<I>,
 }
 
-impl<I, T> AggregateState<I, f64> for AvgStateF64<I, T>
+impl<I, T> AggregateState2<I, f64> for AvgStateF64<I, T>
 where
     I: Into<T> + Default + Debug,
     T: AsPrimitive<f64> + AddAssign + Debug + Default,

@@ -6,10 +6,11 @@ use std::marker::PhantomData;
 use rayexec_error::{RayexecError, Result};
 
 use super::ChunkGroupAddressIter;
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::aggregate::{
-    AggregateState,
+    AggregateState2,
     BinaryNonNullUpdater,
     StateCombiner,
     StateFinalizer,
@@ -56,7 +57,7 @@ pub fn new_unary_aggregate_states<Storage, State, Output, StateInit, StateFinali
 ) -> Box<dyn AggregateGroupStates>
 where
     Storage: PhysicalStorage2,
-    State: for<'a> AggregateState<
+    State: for<'a> AggregateState2<
             <<Storage as PhysicalStorage2>::Storage<'a> as AddressableStorage>::T,
             Output,
         > + Sync
@@ -84,7 +85,7 @@ pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit,
 where
     Storage1: PhysicalStorage2,
     Storage2: PhysicalStorage2,
-    State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
+    State: for<'a> AggregateState2<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
         + Sync
         + Send
         + 'static,
@@ -105,7 +106,7 @@ where
 impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> AggregateGroupStates
     for TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
 where
-    State: AggregateState<Input, Output> + Sync + Send + 'static,
+    State: AggregateState2<Input, Output> + Sync + Send + 'static,
     Input: Sync + Send,
     Output: Sync + Send,
     StateInit: Fn() -> State + Sync + Send,
@@ -124,7 +125,7 @@ where
         self.states.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
+    fn update_states2(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
         (self.state_update)(inputs, mapping, &mut self.states)
     }
 
@@ -137,7 +138,7 @@ where
         StateCombiner::combine(consume_states, mapping, &mut self.states)
     }
 
-    fn finalize(&mut self) -> Result<Array2> {
+    fn finalize2(&mut self) -> Result<Array2> {
         (self.state_finalize)(&mut self.states)
     }
 }
@@ -166,7 +167,11 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     fn num_states(&self) -> usize;
 
     /// Update states from inputs using some mapping.
-    fn update_states(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()>;
+    fn update_states2(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()>;
+
+    fn update_states(&mut self, inputs: &[Array], mapping: ChunkGroupAddressIter) -> Result<()> {
+        unimplemented!()
+    }
 
     /// Combine states from another partition into self using some mapping.
     fn combine(
@@ -176,7 +181,11 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     ) -> Result<()>;
 
     /// Finalize the states and return an array.
-    fn finalize(&mut self) -> Result<Array2>;
+    fn finalize2(&mut self) -> Result<Array2>;
+
+    fn drain(&mut self, output: &mut Array) -> Result<()> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug)]
@@ -200,7 +209,7 @@ pub fn unary_update<State, Storage, Output>(
 ) -> Result<()>
 where
     Storage: PhysicalStorage2,
-    State: for<'a> AggregateState<Storage::Type<'a>, Output>,
+    State: for<'a> AggregateState2<Storage::Type<'a>, Output>,
 {
     UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
 }
@@ -213,7 +222,7 @@ pub fn binary_update<State, Storage1, Storage2, Output>(
 where
     Storage1: PhysicalStorage2,
     Storage2: PhysicalStorage2,
-    State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
+    State: for<'a> AggregateState2<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
 {
     BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(
         arrays[0], arrays[1], mapping, states,
@@ -226,7 +235,7 @@ pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array2> {
 
 pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array2>
 where
-    State: AggregateState<Input, bool>,
+    State: AggregateState2<Input, bool>,
 {
     let builder = ArrayBuilder {
         datatype,
@@ -240,7 +249,7 @@ pub fn primitive_finalize<State, Input, Output>(
     states: &mut [State],
 ) -> Result<Array2>
 where
-    State: AggregateState<Input, Output>,
+    State: AggregateState2<Input, Output>,
     Output: Copy + Default,
     ArrayData2: From<PrimitiveStorage<Output>>,
 {

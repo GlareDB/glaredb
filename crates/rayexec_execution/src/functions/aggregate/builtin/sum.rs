@@ -6,9 +6,12 @@ use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
 use crate::arrays::array::ArrayData2;
+use crate::arrays::buffer::physical_type::AddressableMut;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64};
+use crate::arrays::executor_exp::aggregate::AggregateState;
+use crate::arrays::executor_exp::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -182,6 +185,32 @@ impl<T: CheckedAdd + Default + Debug + Copy> AggregateState<T, T> for SumStateCh
         Ok(())
     }
 
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = T>,
+    {
+        if self.set {
+            output.put_null();
+        } else {
+            output.put(&self.sum);
+        }
+        Ok(())
+    }
+}
+
+impl<T: CheckedAdd + Default + Debug + Copy> AggregateState2<T, T> for SumStateCheckedAdd<T> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
+        self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
+        self.set = self.set || other.set;
+        Ok(())
+    }
+
+    fn update(&mut self, input: T) -> Result<()> {
+        self.sum = self.sum.checked_add(&input).unwrap_or_default(); // TODO
+        self.set = true;
+        Ok(())
+    }
+
     fn finalize(&mut self) -> Result<(T, bool)> {
         if self.set {
             Ok((self.sum, true))
@@ -197,7 +226,7 @@ pub struct SumStateAdd<T> {
     valid: bool,
 }
 
-impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd<T> {
+impl<T: AddAssign + Default + Debug + Copy> AggregateState2<T, T> for SumStateAdd<T> {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
@@ -265,10 +294,10 @@ mod tests {
             .collect();
 
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_states2(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_states2(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -287,7 +316,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.finalize2().unwrap();
 
         assert_eq!(1, out.logical_len());
         assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
@@ -367,10 +396,10 @@ mod tests {
         ];
 
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_states2(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_states2(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -400,7 +429,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.finalize2().unwrap();
 
         assert_eq!(2, out.logical_len());
         assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
@@ -499,10 +528,10 @@ mod tests {
         ];
 
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_states2(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_states2(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -528,7 +557,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.finalize2().unwrap();
 
         assert_eq!(3, out.logical_len());
         assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());

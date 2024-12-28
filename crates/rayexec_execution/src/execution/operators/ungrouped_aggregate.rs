@@ -165,7 +165,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .collect();
 
                     agg_states[agg_idx]
-                        .update_states(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
+                        .update_states2(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
                 }
 
                 // Keep pushing.
@@ -234,7 +234,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                     let arrays = final_states
                         .iter_mut()
-                        .map(|s| s.finalize())
+                        .map(|s| s.finalize2())
                         .collect::<Result<Vec<_>>>()?;
 
                     let batch = Batch2::try_new(arrays)?;

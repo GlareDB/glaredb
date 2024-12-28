@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalAny;
 use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{
@@ -87,7 +87,7 @@ pub struct CountNonNullState {
     count: i64,
 }
 
-impl AggregateState<(), i64> for CountNonNullState {
+impl AggregateState2<(), i64> for CountNonNullState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())

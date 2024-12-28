@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use super::{AggregateState, RowToStateMapping};
+use super::{AggregateState2, RowToStateMapping};
 use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::executor::scalar::check_validity;
@@ -22,7 +22,7 @@ impl BinaryNonNullUpdater {
         S1: PhysicalStorage2,
         S2: PhysicalStorage2,
         I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<(S1::Type<'a>, S2::Type<'a>), Output>,
+        State: AggregateState2<(S1::Type<'a>, S2::Type<'a>), Output>,
     {
         if array1.logical_len() != array2.logical_len() {
             return Err(RayexecError::new(format!(
@@ -92,7 +92,7 @@ mod tests {
         }
     }
 
-    impl AggregateState<(i32, i32), i32> for TestAddSumAndProductState {
+    impl AggregateState2<(i32, i32), i32> for TestAddSumAndProductState {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.sum += other.sum;
             self.product *= other.product;

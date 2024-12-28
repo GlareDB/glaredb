@@ -91,7 +91,7 @@ impl GroupChunk {
                 .filter_map(|(selected, arr)| if selected { Some(arr) } else { None })
                 .collect();
 
-            agg_states.states.update_states(
+            agg_states.states.update_states2(
                 &input_cols,
                 ChunkGroupAddressIter::new(self.chunk_idx, addrs),
             )?;

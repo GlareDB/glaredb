@@ -6,7 +6,7 @@ use rayexec_error::{not_implemented, Result};
 
 use crate::arrays::array::ArrayData2;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::aggregate::{AggregateState2, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
@@ -269,7 +269,7 @@ impl<M> MinMaxBinaryImpl<M> {
 
 impl<M> AggregateFunctionImpl for MinMaxBinaryImpl<M>
 where
-    M: for<'a> AggregateState<&'a [u8], Vec<u8>> + Default + Sync + Send + 'static,
+    M: for<'a> AggregateState2<&'a [u8], Vec<u8>> + Default + Sync + Send + 'static,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
@@ -306,7 +306,7 @@ impl<M> MinMaxBoolImpl<M> {
 
 impl<M> AggregateFunctionImpl for MinMaxBoolImpl<M>
 where
-    M: AggregateState<bool, bool> + Default + Sync + Send + 'static,
+    M: AggregateState2<bool, bool> + Default + Sync + Send + 'static,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalBool, _, _, _, _>(M::default, move |states| {
@@ -348,7 +348,7 @@ impl<M, S, T> AggregateFunctionImpl for MinMaxPrimitiveImpl<M, S, T>
 where
     for<'a> S: PhysicalStorage2<Type<'a> = T>,
     T: PartialOrd + Debug + Default + Sync + Send + Copy + 'static,
-    M: AggregateState<T, T> + Default + Sync + Send + 'static,
+    M: AggregateState2<T, T> + Default + Sync + Send + 'static,
     ArrayData2: From<PrimitiveStorage<T>>,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
@@ -372,7 +372,7 @@ pub struct MinState<T> {
     valid: bool,
 }
 
-impl<T> AggregateState<T, T> for MinState<T>
+impl<T> AggregateState2<T, T> for MinState<T>
 where
     T: PartialOrd + Debug + Default + Copy,
 {
@@ -412,7 +412,7 @@ pub struct MinStateBinary {
     valid: bool,
 }
 
-impl AggregateState<&[u8], Vec<u8>> for MinStateBinary {
+impl AggregateState2<&[u8], Vec<u8>> for MinStateBinary {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
@@ -450,7 +450,7 @@ pub struct MaxState<T> {
     valid: bool,
 }
 
-impl<T> AggregateState<T, T> for MaxState<T>
+impl<T> AggregateState2<T, T> for MaxState<T>
 where
     T: PartialOrd + Debug + Default + Copy,
 {
@@ -490,7 +490,7 @@ pub struct MaxStateBinary {
     valid: bool,
 }
 
-impl AggregateState<&[u8], Vec<u8>> for MaxStateBinary {
+impl AggregateState2<&[u8], Vec<u8>> for MaxStateBinary {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;

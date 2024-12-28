@@ -50,7 +50,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
         self.distinct_inputs.len()
     }
 
-    fn update_states(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
+    fn update_states2(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
         // TODO: Would be cool not needing to do this.
         let mappings: Vec<_> = mapping.collect();
 
@@ -114,7 +114,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<Array2> {
+    fn finalize2(&mut self) -> Result<Array2> {
         // And now we actually create the states we need.
         self.states.new_states(self.distinct_inputs.len());
 
@@ -146,11 +146,11 @@ impl AggregateGroupStates for DistinctGroupedStates {
                 let chunk_iter = ChunkGroupAddressIter::new(0, &addresses_buf);
 
                 let inputs: Vec<_> = arrays.iter().collect(); // TODO
-                self.states.update_states(&inputs, chunk_iter)?;
+                self.states.update_states2(&inputs, chunk_iter)?;
             }
         }
 
         // Now we can actually drain the states.
-        self.states.finalize()
+        self.states.finalize2()
     }
 }

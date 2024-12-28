@@ -6,7 +6,7 @@ use rayexec_error::{not_implemented, Result};
 
 use crate::arrays::array::ArrayData2;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::aggregate::{AggregateState2, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary,
@@ -232,7 +232,7 @@ pub struct FirstState<T> {
     value: Option<T>,
 }
 
-impl<T: Default + Debug + Copy> AggregateState<T, T> for FirstState<T> {
+impl<T: Default + Debug + Copy> AggregateState2<T, T> for FirstState<T> {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             self.value = other.value;
@@ -261,7 +261,7 @@ pub struct FirstStateBinary {
     value: Option<Vec<u8>>,
 }
 
-impl AggregateState<&[u8], Vec<u8>> for FirstStateBinary {
+impl AggregateState2<&[u8], Vec<u8>> for FirstStateBinary {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             std::mem::swap(&mut self.value, &mut other.value);

@@ -18,7 +18,7 @@ use crate::arrays::bitmap::Bitmap;
 ///
 /// An example state for SUM would be a struct that takes a running sum from
 /// values provided in `update`.
-pub trait AggregateState<Input, Output>: Debug {
+pub trait AggregateState2<Input, Output>: Debug {
     /// Merge other state into this state.
     fn merge(&mut self, other: &mut Self) -> Result<()>;
 
@@ -53,7 +53,7 @@ impl StateCombiner {
         targets: &mut [State],
     ) -> Result<()>
     where
-        State: AggregateState<Input, Output>,
+        State: AggregateState2<Input, Output>,
     {
         for mapping in mapping {
             let target = &mut targets[mapping.to_state];
@@ -77,7 +77,7 @@ impl StateFinalizer {
         B: ArrayDataBuffer,
         I: IntoIterator<Item = &'a mut State>,
         I::IntoIter: ExactSizeIterator,
-        State: AggregateState<Input, Output> + 'a,
+        State: AggregateState2<Input, Output> + 'a,
         Output: Borrow<B::Type>,
     {
         let states = states.into_iter();

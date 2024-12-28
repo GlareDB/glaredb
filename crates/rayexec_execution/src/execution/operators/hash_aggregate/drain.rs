@@ -27,7 +27,7 @@ impl HashTableDrain {
         let results = chunk
             .aggregate_states
             .iter_mut()
-            .map(|s| s.states.finalize())
+            .map(|s| s.states.finalize2())
             .collect::<Result<Vec<_>>>()?;
 
         // Chunk arrays includes the GROUP ID column (last).

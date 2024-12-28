@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{VariancePopFinalize, VarianceState};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
@@ -86,7 +86,7 @@ pub struct RegrSlopeState {
     var: VarianceState<VariancePopFinalize>,
 }
 
-impl AggregateState<(f64, f64), f64> for RegrSlopeState {
+impl AggregateState2<(f64, f64), f64> for RegrSlopeState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.cov.merge(&mut other.cov)?;
         self.var.merge(&mut other.var)?;
