@@ -1391,6 +1391,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "iterutil"
+version = "0.0.93"
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2265,6 +2269,7 @@ dependencies = [
  "half",
  "hashbrown 0.14.5",
  "indexmap",
+ "iterutil",
  "num",
  "num-traits",
  "num_cpus",
