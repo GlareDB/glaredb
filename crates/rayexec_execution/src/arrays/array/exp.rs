@@ -41,63 +41,64 @@ pub struct Array<B: BufferManager = NopBufferManager> {
     pub(crate) data: ArrayData<B>,
 }
 
-impl Array<NopBufferManager> {
+impl<B> Array<B>
+where
+    B: BufferManager,
+{
     /// Create a new array with the given capacity.
     ///
     /// This will take care of initalizing the primary and secondary data
     /// buffers depending on the type.
-    pub fn new(datatype: DataType, capacity: usize) -> Result<Self> {
-        let manager = NopBufferManager;
-
+    pub fn new(manager: &B, datatype: DataType, capacity: usize) -> Result<Self> {
         let buffer = match datatype.physical_type() {
             PhysicalType::Boolean => {
-                ArrayBuffer::with_primary_capacity::<PhysicalBool>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalBool>(manager, capacity)?
             }
             PhysicalType::Int8 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI8>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalI8>(manager, capacity)?
             }
             PhysicalType::Int16 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI16>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalI16>(manager, capacity)?
             }
             PhysicalType::Int32 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI32>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalI32>(manager, capacity)?
             }
             PhysicalType::Int64 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI64>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalI64>(manager, capacity)?
             }
             PhysicalType::Int128 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI128>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalI128>(manager, capacity)?
             }
             PhysicalType::UInt8 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU8>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalU8>(manager, capacity)?
             }
             PhysicalType::UInt16 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU16>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalU16>(manager, capacity)?
             }
             PhysicalType::UInt32 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU32>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalU32>(manager, capacity)?
             }
             PhysicalType::UInt64 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU64>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalU64>(manager, capacity)?
             }
             PhysicalType::UInt128 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU128>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalU128>(manager, capacity)?
             }
             PhysicalType::Float16 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalF16>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalF16>(manager, capacity)?
             }
             PhysicalType::Float32 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalF32>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalF32>(manager, capacity)?
             }
             PhysicalType::Float64 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalF64>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalF64>(manager, capacity)?
             }
             PhysicalType::Interval => {
-                ArrayBuffer::with_primary_capacity::<PhysicalInterval>(&manager, capacity)?
+                ArrayBuffer::with_primary_capacity::<PhysicalInterval>(manager, capacity)?
             }
             PhysicalType::Utf8 => {
                 let mut buffer =
-                    ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(&manager, capacity)?;
+                    ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(manager, capacity)?;
                 buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
                 buffer
             }
@@ -112,12 +113,7 @@ impl Array<NopBufferManager> {
             data: ArrayData::owned(buffer),
         })
     }
-}
 
-impl<B> Array<B>
-where
-    B: BufferManager,
-{
     pub fn data(&self) -> &ArrayData<B> {
         &self.data
     }
@@ -300,7 +296,9 @@ macro_rules! impl_primitive_from_iter {
             ) -> Result<Self, Self::Error> {
                 let iter = iter.into_iter();
 
-                let mut array = Array::new(DataType::$typ_variant, iter.len())?;
+                let manager = NopBufferManager;
+
+                let mut array = Array::new(&manager, DataType::$typ_variant, iter.len())?;
                 let slice = array.data.try_as_mut()?.try_as_slice_mut::<$phys>()?;
 
                 for (dest, v) in slice.iter_mut().zip(iter) {

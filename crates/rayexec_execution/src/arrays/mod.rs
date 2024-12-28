@@ -1,5 +1,6 @@
 pub mod array;
 pub mod batch;
+pub mod batch_exp;
 pub mod bitmap;
 pub mod buffer;
 pub mod compute;
