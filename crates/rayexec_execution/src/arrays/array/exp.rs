@@ -117,6 +117,14 @@ impl<B> Array<B>
 where
     B: BufferManager,
 {
+    pub fn data(&self) -> &ArrayData<B> {
+        &self.data
+    }
+
+    pub fn validity(&self) -> &Validity {
+        &self.validity
+    }
+
     pub fn capacity(&self) -> usize {
         self.data.capacity()
     }
@@ -247,3 +255,30 @@ impl_primitive_from_iter!(f32, PhysicalF32, Float32);
 impl_primitive_from_iter!(f64, PhysicalF64, Float64);
 
 impl_primitive_from_iter!(Interval, PhysicalInterval, Interval);
+
+impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
+    type Error = RayexecError;
+
+    fn try_from_iter<T: IntoExactSizeIterator<Item = &'a str>>(
+        iter: T,
+    ) -> Result<Self, Self::Error> {
+        let iter = iter.into_iter();
+        let len = iter.len();
+
+        let mut buffer =
+            ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(&NopBufferManager, len)?;
+        buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
+
+        let mut addressable = buffer.try_as_string_view_addressable_mut()?;
+
+        for (idx, v) in iter.enumerate() {
+            addressable.put(idx, v);
+        }
+
+        Ok(Array {
+            datatype: DataType::Utf8,
+            validity: Validity::new_all_valid(len),
+            data: ArrayData::owned(buffer),
+        })
+    }
+}

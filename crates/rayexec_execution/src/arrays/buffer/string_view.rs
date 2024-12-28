@@ -31,6 +31,10 @@ pub struct StringViewAddressableMut<'a> {
 impl<'a> AddressableMut for StringViewAddressableMut<'a> {
     type T = str;
 
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         let m = self.metadata.get_mut(idx)?;
         let bs = self.heap.get_mut(m)?;

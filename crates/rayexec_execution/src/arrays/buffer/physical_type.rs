@@ -55,6 +55,8 @@ impl PhysicalType {
             Self::Float32 => PhysicalF32::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Utf8 => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Dictionary => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
 
             _ => unimplemented!(),
         }
@@ -127,6 +129,12 @@ where
 pub trait AddressableMut: Debug {
     type T: Send + Debug + ?Sized;
 
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get a mutable reference to a value at the given index.
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
 
@@ -141,6 +149,10 @@ where
     T: Debug + Send + Copy,
 {
     type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
 
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         (**self).get_mut(idx)

@@ -5,6 +5,7 @@ pub mod buffer;
 pub mod compute;
 pub mod datatype;
 pub mod executor;
+pub mod executor_exp;
 pub mod field;
 pub mod format;
 pub mod row;
