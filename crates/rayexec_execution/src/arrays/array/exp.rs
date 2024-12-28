@@ -11,6 +11,7 @@ use crate::arrays::buffer::physical_type::{
     AddressableMut,
     MutablePhysicalStorage,
     PhysicalBool,
+    PhysicalDictionary,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -29,7 +30,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::buffer::string_view::StringViewHeap;
-use crate::arrays::buffer::{ArrayBuffer, SecondaryBuffer};
+use crate::arrays::buffer::{ArrayBuffer, DictionaryBuffer, SecondaryBuffer};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 
@@ -125,6 +126,16 @@ where
         &self.validity
     }
 
+    pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
+        if validity.len() != self.data().capacity() {
+            return Err(RayexecError::new("Invalid validity length")
+                .with_field("got", validity.len())
+                .with_field("want", self.data.capacity()));
+        }
+        self.validity = validity;
+        Ok(())
+    }
+
     pub fn capacity(&self) -> usize {
         self.data.capacity()
     }
@@ -167,6 +178,72 @@ where
             PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(self, mapping, dest)?,
             _ => unimplemented!(),
         }
+
+        Ok(())
+    }
+
+    /// Selects indice from the array.
+    ///
+    /// This will convert the underlying array buffer into a dictionary buffer.
+    pub fn select(
+        &mut self,
+        manager: &B,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+    ) -> Result<()> {
+        if self.is_dictionary() {
+            // Already dictionary, select the selection.
+            let sel = selection.into_iter();
+            let mut new_buf =
+                ArrayBuffer::with_primary_capacity::<PhysicalDictionary>(manager, sel.len())?;
+
+            let old_sel = self.data.try_as_slice::<PhysicalDictionary>()?;
+            let new_sel = new_buf.try_as_slice_mut::<PhysicalDictionary>()?;
+
+            for (sel_idx, sel_buf) in sel.zip(new_sel) {
+                let idx = old_sel[sel_idx];
+                *sel_buf = idx;
+            }
+
+            // Now swap the secondary buffers, the dictionary buffer will now be
+            // on `new_buf`.
+            std::mem::swap(
+                self.data.try_as_mut()?.get_secondary_mut(), // TODO: Should just clone the pointer if managed.
+                new_buf.get_secondary_mut(),
+            );
+
+            // And set the new buf, old buf gets dropped.
+            self.data = ArrayData::owned(new_buf);
+
+            return Ok(());
+        }
+
+        let sel = selection.into_iter();
+        let mut new_buf =
+            ArrayBuffer::with_primary_capacity::<PhysicalDictionary>(manager, sel.len())?;
+
+        let new_buf_slice = new_buf.try_as_slice_mut::<PhysicalDictionary>()?;
+
+        // Set all selection indices in the new array buffer.
+        for (sel_idx, sel_buf) in sel.zip(new_buf_slice) {
+            *sel_buf = sel_idx
+        }
+
+        // TODO: Probably verify selection all in bounds.
+
+        // Now replace the original buffer, and put the original buffer in the
+        // secondary buffer.
+        let orig_validity = std::mem::replace(
+            &mut self.validity,
+            Validity::new_all_valid(new_buf.capacity()),
+        );
+        let orig_buffer = std::mem::replace(&mut self.data, ArrayData::owned(new_buf));
+        // TODO: Should just clone the pointer if managed.
+        self.data
+            .try_as_mut()?
+            .put_secondary_buffer(SecondaryBuffer::Dictionary(DictionaryBuffer {
+                validity: orig_validity,
+                buffer: orig_buffer,
+            }));
 
         Ok(())
     }
@@ -280,5 +357,38 @@ impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
             validity: Validity::new_all_valid(len),
             data: ArrayData::owned(buffer),
         })
+    }
+}
+
+/// From iterator implementation that creates an array from optionally valid
+/// values. Some is treated as valid, None as invalid.
+impl<V> TryFromExactSizeIterator<Option<V>> for Array<NopBufferManager>
+where
+    V: Default,
+    Array<NopBufferManager>: TryFromExactSizeIterator<V, Error = RayexecError>,
+{
+    type Error = RayexecError;
+
+    fn try_from_iter<T: IntoExactSizeIterator<Item = Option<V>>>(
+        iter: T,
+    ) -> Result<Self, Self::Error> {
+        let iter = iter.into_iter();
+        let len = iter.len();
+
+        let mut validity = Validity::new_all_valid(len);
+
+        // New iterator that just uses the default value for missing values, and
+        // sets the validity as appropriate.
+        let iter = iter.enumerate().map(|(idx, v)| {
+            if v.is_none() {
+                validity.set_invalid(idx);
+            }
+            v.unwrap_or_default()
+        });
+
+        let mut array = Self::try_from_iter(iter)?;
+        array.put_validity(validity)?;
+
+        Ok(array)
     }
 }
