@@ -20,7 +20,7 @@ use crate::arrays::storage::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PhysicalType {
+pub enum PhysicalType2 {
     UntypedNull,
     Boolean,
     Int8,
@@ -42,7 +42,7 @@ pub enum PhysicalType {
     List,
 }
 
-impl PhysicalType {
+impl PhysicalType2 {
     pub fn zeroed_array_data(&self, len: usize) -> ArrayData2 {
         match self {
             Self::UntypedNull => UntypedNullStorage(len).into(),
@@ -72,7 +72,7 @@ impl PhysicalType {
     }
 }
 
-impl ProtoConv for PhysicalType {
+impl ProtoConv for PhysicalType2 {
     type ProtoType = rayexec_proto::generated::physical_type::PhysicalType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {

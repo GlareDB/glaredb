@@ -88,7 +88,7 @@ pub fn cast_array(arr: &Array2, to: DataType, behavior: CastFailBehavior) -> Res
     let arr = match arr.datatype() {
         DataType::Null => {
             // Can cast NULL to anything else.
-            let data = to.physical_type()?.zeroed_array_data(arr.logical_len());
+            let data = to.physical_type2()?.zeroed_array_data(arr.logical_len());
             let validity = Bitmap::new_with_all_false(arr.logical_len());
             Array2::new_with_validity_and_array_data(to, validity, data)
         }

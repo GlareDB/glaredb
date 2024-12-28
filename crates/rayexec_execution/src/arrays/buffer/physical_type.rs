@@ -260,3 +260,20 @@ impl MutablePhysicalStorage for PhysicalUtf8 {
         buffer.try_as_string_view_addressable_mut()
     }
 }
+
+/// Dictionary arrays have the selection vector as the primary data buffer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalDictionary;
+
+impl PhysicalStorage for PhysicalDictionary {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Dictionary;
+
+    type PrimaryBufferType = usize; // The index into the dictionary.
+    type StorageType = Self::PrimaryBufferType;
+
+    type Addressable<'a> = &'a [usize];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
+    }
+}

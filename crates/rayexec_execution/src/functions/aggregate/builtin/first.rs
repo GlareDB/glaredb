@@ -21,7 +21,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalStorage,
-    PhysicalType,
+    PhysicalType2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -81,58 +81,58 @@ impl AggregateFunction for First {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type()? {
-            PhysicalType::UntypedNull => Box::new(FirstUntypedNullImpl),
-            PhysicalType::Boolean => Box::new(FirstBoolImpl),
-            PhysicalType::Float16 => Box::new(FirstPrimitiveImpl::<PhysicalF16, f16>::new(
+        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type2()? {
+            PhysicalType2::UntypedNull => Box::new(FirstUntypedNullImpl),
+            PhysicalType2::Boolean => Box::new(FirstBoolImpl),
+            PhysicalType2::Float16 => Box::new(FirstPrimitiveImpl::<PhysicalF16, f16>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Float32 => Box::new(FirstPrimitiveImpl::<PhysicalF32, f32>::new(
+            PhysicalType2::Float32 => Box::new(FirstPrimitiveImpl::<PhysicalF32, f32>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64, f64>::new(
+            PhysicalType2::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64, f64>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Int8 => {
+            PhysicalType2::Int8 => {
                 Box::new(FirstPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
             }
-            PhysicalType::Int16 => Box::new(FirstPrimitiveImpl::<PhysicalI16, i16>::new(
+            PhysicalType2::Int16 => Box::new(FirstPrimitiveImpl::<PhysicalI16, i16>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Int32 => Box::new(FirstPrimitiveImpl::<PhysicalI32, i32>::new(
+            PhysicalType2::Int32 => Box::new(FirstPrimitiveImpl::<PhysicalI32, i32>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Int64 => Box::new(FirstPrimitiveImpl::<PhysicalI64, i64>::new(
+            PhysicalType2::Int64 => Box::new(FirstPrimitiveImpl::<PhysicalI64, i64>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Int128 => Box::new(FirstPrimitiveImpl::<PhysicalI128, i128>::new(
+            PhysicalType2::Int128 => Box::new(FirstPrimitiveImpl::<PhysicalI128, i128>::new(
                 datatype.clone(),
             )),
-            PhysicalType::UInt8 => {
+            PhysicalType2::UInt8 => {
                 Box::new(FirstPrimitiveImpl::<PhysicalU8, u8>::new(datatype.clone()))
             }
-            PhysicalType::UInt16 => Box::new(FirstPrimitiveImpl::<PhysicalU16, u16>::new(
+            PhysicalType2::UInt16 => Box::new(FirstPrimitiveImpl::<PhysicalU16, u16>::new(
                 datatype.clone(),
             )),
-            PhysicalType::UInt32 => Box::new(FirstPrimitiveImpl::<PhysicalU32, u32>::new(
+            PhysicalType2::UInt32 => Box::new(FirstPrimitiveImpl::<PhysicalU32, u32>::new(
                 datatype.clone(),
             )),
-            PhysicalType::UInt64 => Box::new(FirstPrimitiveImpl::<PhysicalU64, u64>::new(
+            PhysicalType2::UInt64 => Box::new(FirstPrimitiveImpl::<PhysicalU64, u64>::new(
                 datatype.clone(),
             )),
-            PhysicalType::UInt128 => Box::new(FirstPrimitiveImpl::<PhysicalU128, u128>::new(
+            PhysicalType2::UInt128 => Box::new(FirstPrimitiveImpl::<PhysicalU128, u128>::new(
                 datatype.clone(),
             )),
-            PhysicalType::Interval => Box::new(
+            PhysicalType2::Interval => Box::new(
                 FirstPrimitiveImpl::<PhysicalInterval, Interval>::new(datatype.clone()),
             ),
-            PhysicalType::Binary => Box::new(FirstBinaryImpl {
+            PhysicalType2::Binary => Box::new(FirstBinaryImpl {
                 datatype: datatype.clone(),
             }),
-            PhysicalType::Utf8 => Box::new(FirstBinaryImpl {
+            PhysicalType2::Utf8 => Box::new(FirstBinaryImpl {
                 datatype: datatype.clone(),
             }),
-            PhysicalType::List => {
+            PhysicalType2::List => {
                 // TODO: Easy, clone underlying array and select.
                 not_implemented!("FIRST for list arrays")
             }

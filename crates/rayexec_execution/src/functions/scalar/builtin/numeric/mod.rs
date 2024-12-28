@@ -45,7 +45,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalF32,
     PhysicalF64,
     PhysicalStorage,
-    PhysicalType,
+    PhysicalType2,
 };
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -148,9 +148,9 @@ impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScal
     fn execute(&self, inputs: &[&Array2]) -> Result<Array2> {
         let input = inputs[0];
         match input.physical_type() {
-            PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),
-            PhysicalType::Float32 => O::execute_float::<PhysicalF32>(input, self.ret.clone()),
-            PhysicalType::Float64 => O::execute_float::<PhysicalF64>(input, self.ret.clone()),
+            PhysicalType2::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),
+            PhysicalType2::Float32 => O::execute_float::<PhysicalF32>(input, self.ret.clone()),
+            PhysicalType2::Float64 => O::execute_float::<PhysicalF64>(input, self.ret.clone()),
             other => Err(RayexecError::new(format!(
                 "Invalid physical type: {other:?}"
             ))),

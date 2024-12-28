@@ -15,6 +15,9 @@ use string_view::{
     StringViewMetadataUnion,
 };
 
+use super::array::array_data::ArrayData;
+use super::array::validity::Validity;
+
 #[derive(Debug)]
 pub struct ArrayBuffer<B: BufferManager = NopBufferManager> {
     /// Physical type of the buffer.
@@ -51,6 +54,14 @@ where
 
     pub(crate) fn put_secondary_buffer(&mut self, secondary: SecondaryBuffer<B>) {
         self.secondary = Box::new(secondary)
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.primary.len
+    }
+
+    pub fn physical_type(&self) -> PhysicalType {
+        self.physical_type
     }
 
     pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
@@ -110,13 +121,6 @@ where
     }
 }
 
-#[derive(Debug)]
-pub enum SecondaryBuffer<B: BufferManager> {
-    StringViewHeap(StringViewHeap),
-    Temp(B),
-    None,
-}
-
 impl<B: BufferManager> Drop for ArrayBuffer<B> {
     fn drop(&mut self) {
         let ptr = self.primary.ptr;
@@ -128,5 +132,28 @@ impl<B: BufferManager> Drop for ArrayBuffer<B> {
         std::mem::drop(vec);
 
         // self.primary.reservation.free()
+    }
+}
+
+#[derive(Debug)]
+pub enum SecondaryBuffer<B: BufferManager> {
+    StringViewHeap(StringViewHeap),
+    Dictionary(DictionaryBuffer<B>),
+    None,
+}
+
+#[derive(Debug)]
+pub struct DictionaryBuffer<B: BufferManager> {
+    pub(crate) validity: Validity,
+    pub(crate) buffer: ArrayData<B>,
+}
+
+impl<B> DictionaryBuffer<B>
+where
+    B: BufferManager,
+{
+    pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
+        debug_assert_eq!(buffer.capacity(), validity.len());
+        DictionaryBuffer { buffer, validity }
     }
 }

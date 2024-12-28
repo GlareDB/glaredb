@@ -27,7 +27,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI8,
     PhysicalList,
     PhysicalStorage,
-    PhysicalType,
+    PhysicalType2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -133,113 +133,113 @@ fn extract(array: &Array2, idx: usize) -> Result<Array2> {
     };
 
     match data.inner_array().physical_type() {
-        PhysicalType::UntypedNull => not_implemented!("NULL list extract"),
-        PhysicalType::Boolean => {
+        PhysicalType2::UntypedNull => not_implemented!("NULL list extract"),
+        PhysicalType2::Boolean => {
             let builder = ArrayBuilder {
                 datatype: DataType::Boolean,
                 buffer: BooleanBuffer::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalBool, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Int8 => {
+        PhysicalType2::Int8 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Int8,
                 buffer: PrimitiveBuffer::<i8>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalI8, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Int16 => {
+        PhysicalType2::Int16 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Int16,
                 buffer: PrimitiveBuffer::<i16>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalI16, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Int32 => {
+        PhysicalType2::Int32 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Int32,
                 buffer: PrimitiveBuffer::<i32>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalI32, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Int64 => {
+        PhysicalType2::Int64 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Int64,
                 buffer: PrimitiveBuffer::<i64>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalI64, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Int128 => {
+        PhysicalType2::Int128 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Int128,
                 buffer: PrimitiveBuffer::<i128>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalI128, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::UInt8 => {
+        PhysicalType2::UInt8 => {
             let builder = ArrayBuilder {
                 datatype: DataType::UInt8,
                 buffer: PrimitiveBuffer::<u8>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalU8, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::UInt16 => {
+        PhysicalType2::UInt16 => {
             let builder = ArrayBuilder {
                 datatype: DataType::UInt16,
                 buffer: PrimitiveBuffer::<u16>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalU16, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::UInt32 => {
+        PhysicalType2::UInt32 => {
             let builder = ArrayBuilder {
                 datatype: DataType::UInt32,
                 buffer: PrimitiveBuffer::<u32>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalU32, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::UInt64 => {
+        PhysicalType2::UInt64 => {
             let builder = ArrayBuilder {
                 datatype: DataType::UInt64,
                 buffer: PrimitiveBuffer::<u64>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalU64, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::UInt128 => {
+        PhysicalType2::UInt128 => {
             let builder = ArrayBuilder {
                 datatype: DataType::UInt128,
                 buffer: PrimitiveBuffer::<u128>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalU128, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Float16 => {
+        PhysicalType2::Float16 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Float16,
                 buffer: PrimitiveBuffer::<f16>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalF16, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Float32 => {
+        PhysicalType2::Float32 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Float32,
                 buffer: PrimitiveBuffer::<f32>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalF32, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Float64 => {
+        PhysicalType2::Float64 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Float64,
                 buffer: PrimitiveBuffer::<f64>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalF64, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Utf8 => {
+        PhysicalType2::Utf8 => {
             let builder = ArrayBuilder {
                 datatype: DataType::Utf8,
                 buffer: GermanVarlenBuffer::<str>::with_len(array.logical_len()),
             };
             extract_inner::<PhysicalUtf8, _>(builder, array, data.inner_array(), idx)
         }
-        PhysicalType::Binary => {
+        PhysicalType2::Binary => {
             let builder = ArrayBuilder {
                 datatype: DataType::Binary,
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(array.logical_len()),

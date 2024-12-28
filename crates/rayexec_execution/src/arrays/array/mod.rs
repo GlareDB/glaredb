@@ -1,4 +1,7 @@
 pub mod array_data;
+pub mod exp;
+pub mod flat;
+pub mod selection;
 pub mod validity;
 
 mod shared_or_owned;
@@ -31,7 +34,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalType,
+    PhysicalType2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -102,7 +105,7 @@ impl Array2 {
     pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
         // Create physical array data of length 1, and use a selection vector to
         // extend it out to the desired size.
-        let data = datatype.physical_type()?.zeroed_array_data(1);
+        let data = datatype.physical_type2()?.zeroed_array_data(1);
         let validity = Bitmap::new_with_all_false(1);
         let selection = SelectionVector::repeated(len, 0);
 
@@ -254,11 +257,11 @@ impl Array2 {
     }
 
     /// Gets the physical type of the array.
-    pub fn physical_type(&self) -> PhysicalType {
+    pub fn physical_type(&self) -> PhysicalType2 {
         match self.data.physical_type() {
-            PhysicalType::Binary => match self.datatype {
-                DataType::Utf8 => PhysicalType::Utf8,
-                _ => PhysicalType::Binary,
+            PhysicalType2::Binary => match self.datatype {
+                DataType::Utf8 => PhysicalType2::Utf8,
+                _ => PhysicalType2::Binary,
             },
             other => other,
         }
@@ -916,26 +919,26 @@ pub enum ArrayData2 {
 }
 
 impl ArrayData2 {
-    pub fn physical_type(&self) -> PhysicalType {
+    pub fn physical_type(&self) -> PhysicalType2 {
         match self {
-            Self::UntypedNull(_) => PhysicalType::UntypedNull,
-            Self::Boolean(_) => PhysicalType::Boolean,
-            Self::Float16(_) => PhysicalType::Float16,
-            Self::Float32(_) => PhysicalType::Float32,
-            Self::Float64(_) => PhysicalType::Float64,
-            Self::Int8(_) => PhysicalType::Int8,
-            Self::Int16(_) => PhysicalType::Int16,
-            Self::Int32(_) => PhysicalType::Int32,
-            Self::Int64(_) => PhysicalType::Int64,
-            Self::Int128(_) => PhysicalType::Int128,
-            Self::UInt8(_) => PhysicalType::UInt8,
-            Self::UInt16(_) => PhysicalType::UInt16,
-            Self::UInt32(_) => PhysicalType::UInt32,
-            Self::UInt64(_) => PhysicalType::UInt64,
-            Self::UInt128(_) => PhysicalType::UInt128,
-            Self::Interval(_) => PhysicalType::Interval,
-            Self::Binary(_) => PhysicalType::Binary,
-            Self::List(_) => PhysicalType::List,
+            Self::UntypedNull(_) => PhysicalType2::UntypedNull,
+            Self::Boolean(_) => PhysicalType2::Boolean,
+            Self::Float16(_) => PhysicalType2::Float16,
+            Self::Float32(_) => PhysicalType2::Float32,
+            Self::Float64(_) => PhysicalType2::Float64,
+            Self::Int8(_) => PhysicalType2::Int8,
+            Self::Int16(_) => PhysicalType2::Int16,
+            Self::Int32(_) => PhysicalType2::Int32,
+            Self::Int64(_) => PhysicalType2::Int64,
+            Self::Int128(_) => PhysicalType2::Int128,
+            Self::UInt8(_) => PhysicalType2::UInt8,
+            Self::UInt16(_) => PhysicalType2::UInt16,
+            Self::UInt32(_) => PhysicalType2::UInt32,
+            Self::UInt64(_) => PhysicalType2::UInt64,
+            Self::UInt128(_) => PhysicalType2::UInt128,
+            Self::Interval(_) => PhysicalType2::Interval,
+            Self::Binary(_) => PhysicalType2::Binary,
+            Self::List(_) => PhysicalType2::List,
         }
     }
 

@@ -22,7 +22,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalStorage,
-    PhysicalType,
+    PhysicalType2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -585,7 +585,7 @@ fn new_comparison_impl<O: ComparisonOperation>(
             }
             (DataType::List(m1), DataType::List(m2)) if m1 == m2 => {
                 // TODO: We'll want to figure out casting for lists.
-                Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type()?))
+                Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type2()?))
             }
             (a, b) => return Err(invalid_input_types_error(func, &[a, b])),
         },
@@ -643,12 +643,12 @@ where
 
 #[derive(Debug, Clone)]
 struct ListComparisonImpl<O> {
-    inner_physical_type: PhysicalType,
+    inner_physical_type: PhysicalType2,
     _op: PhantomData<O>,
 }
 
 impl<O> ListComparisonImpl<O> {
-    fn new(inner_physical_type: PhysicalType) -> Self {
+    fn new(inner_physical_type: PhysicalType2) -> Self {
         ListComparisonImpl {
             _op: PhantomData,
             inner_physical_type,
@@ -670,97 +670,97 @@ where
         };
 
         let array = match self.inner_physical_type {
-            PhysicalType::UntypedNull => FlexibleListExecutor::binary_reduce::<
+            PhysicalType2::UntypedNull => FlexibleListExecutor::binary_reduce::<
                 PhysicalUntypedNull,
                 _,
                 ListComparisonReducer<_, O>,
             >(left, right, builder)?,
-            PhysicalType::Boolean => {
+            PhysicalType2::Boolean => {
                 FlexibleListExecutor::binary_reduce::<PhysicalBool, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Int8 => {
+            PhysicalType2::Int8 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalI8, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Int16 => {
+            PhysicalType2::Int16 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalI16, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Int32 => {
+            PhysicalType2::Int32 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalI32, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Int64 => {
+            PhysicalType2::Int64 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalI64, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Int128 => {
+            PhysicalType2::Int128 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalI128, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::UInt8 => {
+            PhysicalType2::UInt8 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalU8, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::UInt16 => {
+            PhysicalType2::UInt16 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalU16, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::UInt32 => {
+            PhysicalType2::UInt32 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalU32, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::UInt64 => {
+            PhysicalType2::UInt64 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalU64, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::UInt128 => {
+            PhysicalType2::UInt128 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalU128, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Float16 => {
+            PhysicalType2::Float16 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalF16, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Float32 => {
+            PhysicalType2::Float32 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalF32, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Float64 => {
+            PhysicalType2::Float64 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalF64, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Interval => FlexibleListExecutor::binary_reduce::<
+            PhysicalType2::Interval => FlexibleListExecutor::binary_reduce::<
                 PhysicalInterval,
                 _,
                 ListComparisonReducer<_, O>,
             >(left, right, builder)?,
-            PhysicalType::Binary => {
+            PhysicalType2::Binary => {
                 FlexibleListExecutor::binary_reduce::<PhysicalBinary, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::Utf8 => {
+            PhysicalType2::Utf8 => {
                 FlexibleListExecutor::binary_reduce::<PhysicalUtf8, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
-            PhysicalType::List => {
+            PhysicalType2::List => {
                 return Err(RayexecError::new(
                     "Comparison between nested lists not yet supported",
                 ))

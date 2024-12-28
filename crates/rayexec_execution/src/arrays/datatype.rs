@@ -4,7 +4,8 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt}
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::executor::physical_type::PhysicalType;
+use super::buffer::physical_type::PhysicalType;
+use crate::arrays::executor::physical_type::PhysicalType2;
 use crate::arrays::field::Field;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 
@@ -445,8 +446,8 @@ impl DataType {
         }
     }
 
-    pub fn physical_type(&self) -> Result<PhysicalType> {
-        Ok(match self {
+    pub fn physical_type(&self) -> PhysicalType {
+        match self {
             DataType::Null => PhysicalType::UntypedNull,
             DataType::Boolean => PhysicalType::Boolean,
             DataType::Int8 => PhysicalType::Int8,
@@ -470,8 +471,38 @@ impl DataType {
             DataType::Interval => PhysicalType::Interval,
             DataType::Utf8 => PhysicalType::Utf8,
             DataType::Binary => PhysicalType::Binary,
-            DataType::Struct(_) => not_implemented!("struct data type to physical type"),
+            DataType::Struct(_) => PhysicalType::Struct,
             DataType::List(_) => PhysicalType::List,
+        }
+    }
+
+    pub fn physical_type2(&self) -> Result<PhysicalType2> {
+        Ok(match self {
+            DataType::Null => PhysicalType2::UntypedNull,
+            DataType::Boolean => PhysicalType2::Boolean,
+            DataType::Int8 => PhysicalType2::Int8,
+            DataType::Int16 => PhysicalType2::Int16,
+            DataType::Int32 => PhysicalType2::Int32,
+            DataType::Int64 => PhysicalType2::Int64,
+            DataType::Int128 => PhysicalType2::Int128,
+            DataType::UInt8 => PhysicalType2::UInt8,
+            DataType::UInt16 => PhysicalType2::UInt16,
+            DataType::UInt32 => PhysicalType2::UInt32,
+            DataType::UInt64 => PhysicalType2::UInt64,
+            DataType::UInt128 => PhysicalType2::UInt128,
+            DataType::Float16 => PhysicalType2::Float16,
+            DataType::Float32 => PhysicalType2::Float32,
+            DataType::Float64 => PhysicalType2::Float64,
+            DataType::Decimal64(_) => PhysicalType2::Int64,
+            DataType::Decimal128(_) => PhysicalType2::Int128,
+            DataType::Timestamp(_) => PhysicalType2::Int64,
+            DataType::Date32 => PhysicalType2::Int32,
+            DataType::Date64 => PhysicalType2::Int64,
+            DataType::Interval => PhysicalType2::Interval,
+            DataType::Utf8 => PhysicalType2::Utf8,
+            DataType::Binary => PhysicalType2::Binary,
+            DataType::Struct(_) => not_implemented!("struct data type to physical type"),
+            DataType::List(_) => PhysicalType2::List,
         })
     }
 

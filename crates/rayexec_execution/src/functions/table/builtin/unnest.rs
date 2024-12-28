@@ -6,7 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType};
+use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType2};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
@@ -207,7 +207,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
 
         let input = self.input.as_ref().unwrap();
         let output = match input.physical_type() {
-            PhysicalType::List => {
+            PhysicalType2::List => {
                 let child = match input.array_data() {
                     ArrayData2::List(list) => list.inner_array(),
                     _other => return Err(RayexecError::new("Unexpected storage type")),
@@ -224,7 +224,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                     }
                 }
             }
-            PhysicalType::UntypedNull => {
+            PhysicalType2::UntypedNull => {
                 // Just produce null array of length 1.
                 Array2::new_untyped_null_array(1)
             }

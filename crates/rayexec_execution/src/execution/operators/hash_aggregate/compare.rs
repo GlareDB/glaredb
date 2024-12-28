@@ -18,7 +18,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalStorage,
-    PhysicalType,
+    PhysicalType2,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
@@ -96,69 +96,69 @@ where
         }
 
         match array1.physical_type() {
-            PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
+            PhysicalType2::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
                 array1,
                 array2,
                 rows1,
                 rows2,
                 not_eq_rows,
             )?,
-            PhysicalType::Boolean => {
+            PhysicalType2::Boolean => {
                 compare_rows_eq::<PhysicalBool, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int8 => {
+            PhysicalType2::Int8 => {
                 compare_rows_eq::<PhysicalI8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int16 => {
+            PhysicalType2::Int16 => {
                 compare_rows_eq::<PhysicalI16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int32 => {
+            PhysicalType2::Int32 => {
                 compare_rows_eq::<PhysicalI32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int64 => {
+            PhysicalType2::Int64 => {
                 compare_rows_eq::<PhysicalI64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int128 => {
+            PhysicalType2::Int128 => {
                 compare_rows_eq::<PhysicalI128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt8 => {
+            PhysicalType2::UInt8 => {
                 compare_rows_eq::<PhysicalU8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt16 => {
+            PhysicalType2::UInt16 => {
                 compare_rows_eq::<PhysicalU16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt32 => {
+            PhysicalType2::UInt32 => {
                 compare_rows_eq::<PhysicalU32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt64 => {
+            PhysicalType2::UInt64 => {
                 compare_rows_eq::<PhysicalU64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt128 => {
+            PhysicalType2::UInt128 => {
                 compare_rows_eq::<PhysicalU128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Float16 => {
+            PhysicalType2::Float16 => {
                 compare_rows_eq::<PhysicalF16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Float32 => {
+            PhysicalType2::Float32 => {
                 compare_rows_eq::<PhysicalF32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Float64 => {
+            PhysicalType2::Float64 => {
                 compare_rows_eq::<PhysicalF64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Interval => compare_rows_eq::<PhysicalInterval, _, _>(
+            PhysicalType2::Interval => compare_rows_eq::<PhysicalInterval, _, _>(
                 array1,
                 array2,
                 rows1,
                 rows2,
                 not_eq_rows,
             )?,
-            PhysicalType::Binary => {
+            PhysicalType2::Binary => {
                 compare_rows_eq::<PhysicalBinary, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Utf8 => {
+            PhysicalType2::Utf8 => {
                 compare_rows_eq::<PhysicalUtf8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::List => {
+            PhysicalType2::List => {
                 not_implemented!("Row compare list")
             }
         }

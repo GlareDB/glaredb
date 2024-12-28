@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use super::hash_table::GroupAddress;
 use super::AggregateStates;
 use crate::arrays::array::Array2;
-use crate::arrays::executor::physical_type::PhysicalType;
+use crate::arrays::executor::physical_type::PhysicalType2;
 use crate::arrays::executor::scalar::concat;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::functions::aggregate::ChunkGroupAddressIter;
@@ -27,7 +27,7 @@ impl GroupChunk {
     pub fn can_append(
         &self,
         new_groups: usize,
-        group_vals: impl ExactSizeIterator<Item = PhysicalType>,
+        group_vals: impl ExactSizeIterator<Item = PhysicalType2>,
     ) -> bool {
         if self.num_groups + new_groups > DEFAULT_TARGET_BATCH_SIZE {
             return false;

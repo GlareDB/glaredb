@@ -90,6 +90,7 @@ where
         }
     }
 }
+
 impl<B> AsRef<ArrayBuffer<B>> for ArrayData<B>
 where
     B: BufferManager,
