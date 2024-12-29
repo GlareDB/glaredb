@@ -114,7 +114,7 @@ pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
     ///
     /// `output` is guaranteed to be the exact size needed for the output as
     /// well as being the correct physical type.
-    fn execute(&self, input: Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         unimplemented!()
     }
 }

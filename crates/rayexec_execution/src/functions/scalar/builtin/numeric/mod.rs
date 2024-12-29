@@ -178,7 +178,7 @@ impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScal
         }
     }
 
-    fn execute(&self, input: Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 

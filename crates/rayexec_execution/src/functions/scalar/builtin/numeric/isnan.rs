@@ -114,7 +114,7 @@ where
         UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
     }
 
-    fn execute(&self, input: Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         unimplemented!()
     }
 }
