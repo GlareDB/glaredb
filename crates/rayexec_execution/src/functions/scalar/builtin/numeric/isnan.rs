@@ -4,7 +4,9 @@ use num_traits::Float;
 use rayexec_error::Result;
 
 use super::ScalarFunction;
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::Array2;
+use crate::arrays::batch_exp::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{
@@ -110,5 +112,9 @@ where
         };
 
         UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
+    }
+
+    fn execute(&self, input: Batch, output: &mut Array) -> Result<()> {
+        unimplemented!()
     }
 }

@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
+use crate::arrays::buffer::physical_type::MutablePhysicalStorage;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalStorage2;

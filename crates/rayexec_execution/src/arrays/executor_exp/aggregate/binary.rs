@@ -62,8 +62,10 @@ impl BinaryNonNullUpdater {
 
 #[cfg(test)]
 mod tests {
+    use iterutil::TryFromExactSizeIterator;
+
     use super::*;
-    use crate::arrays::buffer::physical_type::AddressableMut;
+    use crate::arrays::buffer::physical_type::{AddressableMut, PhysicalI32};
     use crate::arrays::executor_exp::PutBuffer;
 
     // SUM(col) + PRODUCT(col)
@@ -102,5 +104,21 @@ mod tests {
     }
 
     #[test]
-    fn test_name() {}
+    fn binary_primitive_single_state() {
+        let mut states = [TestAddSumAndProductState::default()];
+        let array1 = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
+        let array2 = Array::try_from_iter([6, 7, 8, 9, 10]).unwrap();
+
+        BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _>(
+            &array1,
+            &array2,
+            [1, 3, 4],
+            [0, 0, 0],
+            &mut states,
+        )
+        .unwrap();
+
+        assert_eq!(11, states[0].sum);
+        assert_eq!(630, states[0].product);
+    }
 }
