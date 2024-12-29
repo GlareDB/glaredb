@@ -154,7 +154,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalUtf8_2};
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = UnaryExecutor2::execute::<PhysicalI32, _, _>(&array, builder, |v, buf| {
+        let got = UnaryExecutor2::execute::<PhysicalI32_2, _, _>(&array, builder, |v, buf| {
             buf.put(&(v + 2))
         })
         .unwrap();
@@ -194,8 +194,9 @@ mod tests {
             buf.put(&double)
         }
 
-        let got = UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
-            .unwrap();
+        let got =
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_double)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.physical_scalar(1).unwrap());
@@ -227,8 +228,9 @@ mod tests {
             buf.put(buffer.as_str())
         };
 
-        let got = UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
-            .unwrap();
+        let got =
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_double)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.physical_scalar(1).unwrap());
@@ -255,7 +257,7 @@ mod tests {
         };
 
         let got =
-            UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_truncate)
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_truncate)
                 .unwrap();
 
         assert_eq!(ScalarValue::from("a"), got.physical_scalar(0).unwrap());
@@ -289,7 +291,7 @@ mod tests {
         };
 
         let got =
-            UnaryExecutor2::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_uppercase)
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_uppercase)
                 .unwrap();
 
         assert_eq!(ScalarValue::from("DDDD"), got.physical_scalar(0).unwrap());

@@ -15,7 +15,7 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt}
 use rayexec_execution::arrays::array::{Array2, ArrayData2};
 use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::datatype::DataType;
-use rayexec_execution::arrays::executor::physical_type::{PhysicalBinary, PhysicalStorage2};
+use rayexec_execution::arrays::executor::physical_type::{PhysicalBinary_2, PhysicalStorage2};
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::storage::AddressableStorage;
 use rayexec_io::FileSink;
@@ -313,7 +313,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array2) -> R
                 // TODO: Try not to copy here. There's a hard requirement on the
                 // physical type being `Bytes`, and so a conversion needs to
                 // happen somewhere.
-                let storage = PhysicalBinary::get_storage(array.array_data())?;
+                let storage = PhysicalBinary_2::get_storage(array.array_data())?;
                 let mut data = Vec::with_capacity(storage.len());
                 for idx in 0..storage.len() {
                     let val = storage.get(idx).required("binary data")?;

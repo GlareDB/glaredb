@@ -3,7 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalStorage2};
+use crate::arrays::executor::physical_type::{PhysicalList_2, PhysicalStorage2};
 use crate::arrays::executor::scalar::{
     can_skip_validity_check,
     check_validity,
@@ -56,8 +56,8 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
         let validity2 = array2.validity();
 
         if can_skip_validity_check([validity1, validity2]) {
-            let metadata1 = PhysicalList::get_storage(array1.array_data())?;
-            let metadata2 = PhysicalList::get_storage(array2.array_data())?;
+            let metadata1 = PhysicalList_2::get_storage(array1.array_data())?;
+            let metadata2 = PhysicalList_2::get_storage(array2.array_data())?;
 
             let (values1, inner_validity1) = get_inner_array_storage::<S>(array1)?;
             let (values2, inner_validity2) = get_inner_array_storage::<S>(array2)?;

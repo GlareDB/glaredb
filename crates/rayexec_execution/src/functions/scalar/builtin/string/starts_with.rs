@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::executor::scalar::{BinaryExecutor2, UnaryExecutor2};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -92,11 +92,11 @@ impl ScalarFunctionImpl for StartsWithImpl {
 
         match self.constant.as_ref() {
             Some(constant) => {
-                UnaryExecutor2::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(inputs[0], builder, |s, buf| {
                     buf.put(&s.starts_with(constant))
                 })
             }
-            None => BinaryExecutor2::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+            None => BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalUtf8_2, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,

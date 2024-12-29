@@ -11,18 +11,18 @@ use crate::arrays::executor::physical_type::{
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
     PhysicalStorage2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
 };
 use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -129,43 +129,43 @@ impl ScalarFunction for Mul {
                 DataType::Float64,
             ),
             (DataType::Int8, DataType::Int8) => (
-                Box::new(MulImpl::<PhysicalI8>::new(DataType::Int8)),
+                Box::new(MulImpl::<PhysicalI8_2>::new(DataType::Int8)),
                 DataType::Int8,
             ),
             (DataType::Int16, DataType::Int16) => (
-                Box::new(MulImpl::<PhysicalI16>::new(DataType::Int16)),
+                Box::new(MulImpl::<PhysicalI16_2>::new(DataType::Int16)),
                 DataType::Int16,
             ),
             (DataType::Int32, DataType::Int32) => (
-                Box::new(MulImpl::<PhysicalI32>::new(DataType::Int32)),
+                Box::new(MulImpl::<PhysicalI32_2>::new(DataType::Int32)),
                 DataType::Int32,
             ),
             (DataType::Int64, DataType::Int64) => (
-                Box::new(MulImpl::<PhysicalI64>::new(DataType::Int64)),
+                Box::new(MulImpl::<PhysicalI64_2>::new(DataType::Int64)),
                 DataType::Int64,
             ),
             (DataType::Int128, DataType::Int128) => (
-                Box::new(MulImpl::<PhysicalI128>::new(DataType::Int128)),
+                Box::new(MulImpl::<PhysicalI128_2>::new(DataType::Int128)),
                 DataType::Int128,
             ),
             (DataType::UInt8, DataType::UInt8) => (
-                Box::new(MulImpl::<PhysicalU8>::new(DataType::UInt8)),
+                Box::new(MulImpl::<PhysicalU8_2>::new(DataType::UInt8)),
                 DataType::UInt8,
             ),
             (DataType::UInt16, DataType::UInt16) => (
-                Box::new(MulImpl::<PhysicalU16>::new(DataType::UInt16)),
+                Box::new(MulImpl::<PhysicalU16_2>::new(DataType::UInt16)),
                 DataType::UInt16,
             ),
             (DataType::UInt32, DataType::UInt32) => (
-                Box::new(MulImpl::<PhysicalU32>::new(DataType::UInt32)),
+                Box::new(MulImpl::<PhysicalU32_2>::new(DataType::UInt32)),
                 DataType::UInt32,
             ),
             (DataType::UInt64, DataType::UInt64) => (
-                Box::new(MulImpl::<PhysicalU64>::new(DataType::UInt64)),
+                Box::new(MulImpl::<PhysicalU64_2>::new(DataType::UInt64)),
                 DataType::UInt64,
             ),
             (DataType::UInt128, DataType::UInt128) => (
-                Box::new(MulImpl::<PhysicalU128>::new(DataType::UInt128)),
+                Box::new(MulImpl::<PhysicalU128_2>::new(DataType::UInt128)),
                 DataType::UInt128,
             ),
 
@@ -194,19 +194,19 @@ impl ScalarFunction for Mul {
 
             // Interval
             (DataType::Interval, DataType::Int32) => (
-                Box::new(IntervalMulImpl::<PhysicalI32, false>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI32_2, false>::new()),
                 DataType::Interval,
             ),
             (DataType::Interval, DataType::Int64) => (
-                Box::new(IntervalMulImpl::<PhysicalI64, false>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI64_2, false>::new()),
                 DataType::Interval,
             ),
             (DataType::Int32, DataType::Interval) => (
-                Box::new(IntervalMulImpl::<PhysicalI32, true>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI32_2, true>::new()),
                 DataType::Interval,
             ),
             (DataType::Int64, DataType::Interval) => (
-                Box::new(IntervalMulImpl::<PhysicalI64, true>::new()),
+                Box::new(IntervalMulImpl::<PhysicalI64_2, true>::new()),
                 DataType::Interval,
             ),
 
@@ -251,7 +251,7 @@ where
             buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
         };
 
-        BinaryExecutor2::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
+        BinaryExecutor2::execute::<PhysicalInterval_2, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
             // TODO: Overflow check
             buf.put(&Interval {
                 months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),

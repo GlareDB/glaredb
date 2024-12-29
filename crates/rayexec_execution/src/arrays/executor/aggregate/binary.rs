@@ -77,7 +77,7 @@ impl BinaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::executor::physical_type::PhysicalI32;
+    use crate::arrays::executor::physical_type::PhysicalI32_2;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]
@@ -131,7 +131,7 @@ mod tests {
             },
         ];
 
-        BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _, _>(
+        BinaryNonNullUpdater::update::<PhysicalI32_2, PhysicalI32_2, _, _, _>(
             &array1,
             &array2,
             mapping,

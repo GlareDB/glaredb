@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{PhysicalBinary, PhysicalUtf8};
+use crate::arrays::executor::physical_type::{PhysicalBinary_2, PhysicalUtf8_2};
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -72,7 +72,7 @@ impl ScalarFunctionImpl for StrLengthImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor2::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(input, builder, |v, buf| {
             let len = v.chars().count() as i64;
             buf.put(&len)
         })
@@ -154,7 +154,7 @@ impl ScalarFunctionImpl for ByteLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor2::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalBinary_2, _, _>(input, builder, |v, buf| {
             buf.put(&(v.len() as i64))
         })
     }
@@ -231,7 +231,7 @@ impl ScalarFunctionImpl for BitLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor2::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalBinary_2, _, _>(input, builder, |v, buf| {
             let bit_len = v.len() * 8;
             buf.put(&(bit_len as i64))
         })

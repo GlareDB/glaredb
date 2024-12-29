@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
+use crate::arrays::executor::physical_type::{PhysicalI64_2, PhysicalUtf8_2};
 use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -104,7 +104,7 @@ impl ScalarFunctionImpl for LeftPadImpl {
         };
 
         match inputs.len() {
-            2 => BinaryExecutor2::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+            2 => BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalI64_2, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,
@@ -113,7 +113,7 @@ impl ScalarFunctionImpl for LeftPadImpl {
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
+            3 => TernaryExecutor::execute::<PhysicalUtf8_2, PhysicalI64_2, PhysicalUtf8_2, _, _>(
                 inputs[0],
                 inputs[1],
                 inputs[2],
@@ -217,7 +217,7 @@ impl ScalarFunctionImpl for RightPadImpl {
         };
 
         match inputs.len() {
-            2 => BinaryExecutor2::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+            2 => BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalI64_2, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,
@@ -226,7 +226,7 @@ impl ScalarFunctionImpl for RightPadImpl {
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
+            3 => TernaryExecutor::execute::<PhysicalUtf8_2, PhysicalI64_2, PhysicalUtf8_2, _, _>(
                 inputs[0],
                 inputs[1],
                 inputs[2],

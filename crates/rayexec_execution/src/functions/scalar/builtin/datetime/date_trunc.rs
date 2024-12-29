@@ -5,7 +5,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::PhysicalI64;
+use crate::arrays::executor::physical_type::PhysicalI64_2;
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -188,7 +188,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor2::execute::<PhysicalI64, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalI64_2, _, _>(input, builder, |v, buf| {
             let v = (v / trunc) * trunc;
             buf.put(&v)
         })

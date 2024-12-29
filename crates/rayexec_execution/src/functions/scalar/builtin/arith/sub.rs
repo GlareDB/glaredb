@@ -10,17 +10,17 @@ use crate::arrays::executor::physical_type::{
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
     PhysicalStorage2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
 };
 use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::arrays::storage::PrimitiveStorage;
@@ -125,59 +125,59 @@ impl ScalarFunction for Sub {
                 DataType::Float64,
             ),
             (DataType::Int8, DataType::Int8) => (
-                Box::new(SubImpl::<PhysicalI8>::new(DataType::Int8)),
+                Box::new(SubImpl::<PhysicalI8_2>::new(DataType::Int8)),
                 DataType::Int8,
             ),
             (DataType::Int16, DataType::Int16) => (
-                Box::new(SubImpl::<PhysicalI16>::new(DataType::Int16)),
+                Box::new(SubImpl::<PhysicalI16_2>::new(DataType::Int16)),
                 DataType::Int16,
             ),
             (DataType::Int32, DataType::Int32) => (
-                Box::new(SubImpl::<PhysicalI32>::new(DataType::Int32)),
+                Box::new(SubImpl::<PhysicalI32_2>::new(DataType::Int32)),
                 DataType::Int32,
             ),
             (DataType::Int64, DataType::Int64) => (
-                Box::new(SubImpl::<PhysicalI64>::new(DataType::Int64)),
+                Box::new(SubImpl::<PhysicalI64_2>::new(DataType::Int64)),
                 DataType::Int64,
             ),
             (DataType::Int128, DataType::Int128) => (
-                Box::new(SubImpl::<PhysicalI128>::new(DataType::Int128)),
+                Box::new(SubImpl::<PhysicalI128_2>::new(DataType::Int128)),
                 DataType::Int128,
             ),
             (DataType::UInt8, DataType::UInt8) => (
-                Box::new(SubImpl::<PhysicalU8>::new(DataType::UInt8)),
+                Box::new(SubImpl::<PhysicalU8_2>::new(DataType::UInt8)),
                 DataType::UInt8,
             ),
             (DataType::UInt16, DataType::UInt16) => (
-                Box::new(SubImpl::<PhysicalU16>::new(DataType::UInt16)),
+                Box::new(SubImpl::<PhysicalU16_2>::new(DataType::UInt16)),
                 DataType::UInt16,
             ),
             (DataType::UInt32, DataType::UInt32) => (
-                Box::new(SubImpl::<PhysicalU32>::new(DataType::UInt32)),
+                Box::new(SubImpl::<PhysicalU32_2>::new(DataType::UInt32)),
                 DataType::UInt32,
             ),
             (DataType::UInt64, DataType::UInt64) => (
-                Box::new(SubImpl::<PhysicalU64>::new(DataType::UInt64)),
+                Box::new(SubImpl::<PhysicalU64_2>::new(DataType::UInt64)),
                 DataType::UInt64,
             ),
             (DataType::UInt128, DataType::UInt128) => (
-                Box::new(SubImpl::<PhysicalU128>::new(DataType::UInt128)),
+                Box::new(SubImpl::<PhysicalU128_2>::new(DataType::UInt128)),
                 DataType::UInt128,
             ),
 
             // TODO: Split out decimal (for scaling)
             datatypes @ (DataType::Decimal64(_), DataType::Decimal64(_)) => (
-                Box::new(SubImpl::<PhysicalI64>::new(datatypes.0.clone())),
+                Box::new(SubImpl::<PhysicalI64_2>::new(datatypes.0.clone())),
                 datatypes.0,
             ),
             datatypes @ (DataType::Decimal128(_), DataType::Decimal128(_)) => (
-                Box::new(SubImpl::<PhysicalI128>::new(datatypes.0.clone())),
+                Box::new(SubImpl::<PhysicalI128_2>::new(datatypes.0.clone())),
                 datatypes.0,
             ),
 
             // Date + days
             (DataType::Date32, DataType::Int32) => (
-                Box::new(SubImpl::<PhysicalI32>::new(DataType::Date32)),
+                Box::new(SubImpl::<PhysicalI32_2>::new(DataType::Date32)),
                 DataType::Date32,
             ),
 

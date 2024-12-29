@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::{PhysicalI64, PhysicalUtf8};
+use crate::arrays::executor::physical_type::{PhysicalI64_2, PhysicalUtf8_2};
 use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -107,7 +107,7 @@ pub struct SubstringFromImpl;
 impl ScalarFunctionImpl for SubstringFromImpl {
     fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let len = inputs[0].logical_len();
-        BinaryExecutor2::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+        BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalI64_2, _, _>(
             inputs[0],
             inputs[1],
             ArrayBuilder {
@@ -125,7 +125,7 @@ pub struct SubstringFromToImpl;
 impl ScalarFunctionImpl for SubstringFromToImpl {
     fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let len = inputs[0].logical_len();
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
+        TernaryExecutor::execute::<PhysicalUtf8_2, PhysicalI64_2, PhysicalI64_2, _, _>(
             inputs[0],
             inputs[1],
             inputs[2],

@@ -9,25 +9,25 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState2, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
+    PhysicalBinary_2,
+    PhysicalBool_2,
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
     PhysicalStorage2,
     PhysicalType2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
+    PhysicalUntypedNull_2,
 };
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
@@ -93,38 +93,38 @@ impl AggregateFunction for First {
             PhysicalType2::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64_2, f64>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::Int8 => {
-                Box::new(FirstPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
-            }
-            PhysicalType2::Int16 => Box::new(FirstPrimitiveImpl::<PhysicalI16, i16>::new(
+            PhysicalType2::Int8 => Box::new(FirstPrimitiveImpl::<PhysicalI8_2, i8>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::Int32 => Box::new(FirstPrimitiveImpl::<PhysicalI32, i32>::new(
+            PhysicalType2::Int16 => Box::new(FirstPrimitiveImpl::<PhysicalI16_2, i16>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::Int64 => Box::new(FirstPrimitiveImpl::<PhysicalI64, i64>::new(
+            PhysicalType2::Int32 => Box::new(FirstPrimitiveImpl::<PhysicalI32_2, i32>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::Int128 => Box::new(FirstPrimitiveImpl::<PhysicalI128, i128>::new(
+            PhysicalType2::Int64 => Box::new(FirstPrimitiveImpl::<PhysicalI64_2, i64>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::UInt8 => {
-                Box::new(FirstPrimitiveImpl::<PhysicalU8, u8>::new(datatype.clone()))
-            }
-            PhysicalType2::UInt16 => Box::new(FirstPrimitiveImpl::<PhysicalU16, u16>::new(
+            PhysicalType2::Int128 => Box::new(FirstPrimitiveImpl::<PhysicalI128_2, i128>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::UInt32 => Box::new(FirstPrimitiveImpl::<PhysicalU32, u32>::new(
+            PhysicalType2::UInt8 => Box::new(FirstPrimitiveImpl::<PhysicalU8_2, u8>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::UInt64 => Box::new(FirstPrimitiveImpl::<PhysicalU64, u64>::new(
+            PhysicalType2::UInt16 => Box::new(FirstPrimitiveImpl::<PhysicalU16_2, u16>::new(
                 datatype.clone(),
             )),
-            PhysicalType2::UInt128 => Box::new(FirstPrimitiveImpl::<PhysicalU128, u128>::new(
+            PhysicalType2::UInt32 => Box::new(FirstPrimitiveImpl::<PhysicalU32_2, u32>::new(
+                datatype.clone(),
+            )),
+            PhysicalType2::UInt64 => Box::new(FirstPrimitiveImpl::<PhysicalU64_2, u64>::new(
+                datatype.clone(),
+            )),
+            PhysicalType2::UInt128 => Box::new(FirstPrimitiveImpl::<PhysicalU128_2, u128>::new(
                 datatype.clone(),
             )),
             PhysicalType2::Interval => Box::new(
-                FirstPrimitiveImpl::<PhysicalInterval, Interval>::new(datatype.clone()),
+                FirstPrimitiveImpl::<PhysicalInterval_2, Interval>::new(datatype.clone()),
             ),
             PhysicalType2::Binary => Box::new(FirstBinaryImpl {
                 datatype: datatype.clone(),
@@ -157,7 +157,7 @@ impl AggregateFunctionImpl for FirstBinaryImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<PhysicalBinary, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalBinary_2, _, _, _, _>(
             FirstStateBinary::default,
             move |states| {
                 let builder = ArrayBuilder {
@@ -175,7 +175,7 @@ pub struct FirstUntypedNullImpl;
 
 impl AggregateFunctionImpl for FirstUntypedNullImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalUntypedNull, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalUntypedNull_2, _, _, _, _>(
             FirstState::<UntypedNull>::default,
             untyped_null_finalize,
         )
@@ -187,7 +187,7 @@ pub struct FirstBoolImpl;
 
 impl AggregateFunctionImpl for FirstBoolImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalBool, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalBool_2, _, _, _, _>(
             FirstState::<bool>::default,
             move |states| boolean_finalize(DataType::Boolean, states),
         )

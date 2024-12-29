@@ -13,26 +13,26 @@ use crate::arrays::executor::builder::{
     PrimitiveBuffer,
 };
 use crate::arrays::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
+    PhysicalBinary_2,
+    PhysicalBool_2,
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalList,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
+    PhysicalList_2,
     PhysicalStorage2,
     PhysicalType2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUtf8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
+    PhysicalUtf8_2,
 };
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::selection;
@@ -164,77 +164,77 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array2], total_len: usize) 
                 datatype: datatype.clone(),
                 buffer: BooleanBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalBool, _>(arrays, state)
+            concat_with_fill_state::<PhysicalBool_2, _>(arrays, state)
         }
         PhysicalType2::Int8 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalI8, _>(arrays, state)
+            concat_with_fill_state::<PhysicalI8_2, _>(arrays, state)
         }
         PhysicalType2::Int16 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalI16, _>(arrays, state)
+            concat_with_fill_state::<PhysicalI16_2, _>(arrays, state)
         }
         PhysicalType2::Int32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalI32, _>(arrays, state)
+            concat_with_fill_state::<PhysicalI32_2, _>(arrays, state)
         }
         PhysicalType2::Int64 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalI64, _>(arrays, state)
+            concat_with_fill_state::<PhysicalI64_2, _>(arrays, state)
         }
         PhysicalType2::Int128 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalI128, _>(arrays, state)
+            concat_with_fill_state::<PhysicalI128_2, _>(arrays, state)
         }
         PhysicalType2::UInt8 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalU8, _>(arrays, state)
+            concat_with_fill_state::<PhysicalU8_2, _>(arrays, state)
         }
         PhysicalType2::UInt16 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalU16, _>(arrays, state)
+            concat_with_fill_state::<PhysicalU16_2, _>(arrays, state)
         }
         PhysicalType2::UInt32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalU32, _>(arrays, state)
+            concat_with_fill_state::<PhysicalU32_2, _>(arrays, state)
         }
         PhysicalType2::UInt64 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalU64, _>(arrays, state)
+            concat_with_fill_state::<PhysicalU64_2, _>(arrays, state)
         }
         PhysicalType2::UInt128 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalU128, _>(arrays, state)
+            concat_with_fill_state::<PhysicalU128_2, _>(arrays, state)
         }
         PhysicalType2::Float16 => {
             let state = FillState::new(ArrayBuilder {
@@ -262,21 +262,21 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array2], total_len: usize) 
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalInterval, _>(arrays, state)
+            concat_with_fill_state::<PhysicalInterval_2, _>(arrays, state)
         }
         PhysicalType2::Utf8 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: GermanVarlenBuffer::<str>::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalUtf8, _>(arrays, state)
+            concat_with_fill_state::<PhysicalUtf8_2, _>(arrays, state)
         }
         PhysicalType2::Binary => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(total_len),
             });
-            concat_with_fill_state::<PhysicalBinary, _>(arrays, state)
+            concat_with_fill_state::<PhysicalBinary_2, _>(arrays, state)
         }
         PhysicalType2::List => concat_lists(datatype.clone(), arrays, total_len),
     }
@@ -308,18 +308,21 @@ fn concat_lists(datatype: DataType, arrays: &[&Array2], total_len: usize) -> Res
     let mut acc_rows = 0;
 
     for (array, child_array) in arrays.iter().zip(inner_arrays) {
-        UnaryExecutor2::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
-            Some(metadata) => {
-                metadatas.push(ListItemMetadata {
-                    offset: metadata.offset + acc_rows,
-                    len: metadata.len,
-                });
-            }
-            None => {
-                metadatas.push(ListItemMetadata::default());
-                validity.set_unchecked(metadatas.len() - 1, false);
-            }
-        })?;
+        UnaryExecutor2::for_each::<PhysicalList_2, _>(
+            array,
+            |_row_num, metadata| match metadata {
+                Some(metadata) => {
+                    metadatas.push(ListItemMetadata {
+                        offset: metadata.offset + acc_rows,
+                        len: metadata.len,
+                    });
+                }
+                None => {
+                    metadatas.push(ListItemMetadata::default());
+                    validity.set_unchecked(metadatas.len() - 1, false);
+                }
+            },
+        )?;
 
         acc_rows += child_array.logical_len() as i32;
     }
@@ -388,77 +391,77 @@ pub fn interleave(arrays: &[&Array2], indices: &[(usize, usize)]) -> Result<Arra
                 datatype: datatype.clone(),
                 buffer: BooleanBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalBool, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalBool_2, _>(arrays, indices, state)
         }
         PhysicalType2::Int8 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalI8, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalI8_2, _>(arrays, indices, state)
         }
         PhysicalType2::Int16 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalI16, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalI16_2, _>(arrays, indices, state)
         }
         PhysicalType2::Int32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalI32, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalI32_2, _>(arrays, indices, state)
         }
         PhysicalType2::Int64 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalI64, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalI64_2, _>(arrays, indices, state)
         }
         PhysicalType2::Int128 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalI128, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalI128_2, _>(arrays, indices, state)
         }
         PhysicalType2::UInt8 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalU8, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalU8_2, _>(arrays, indices, state)
         }
         PhysicalType2::UInt16 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalU16, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalU16_2, _>(arrays, indices, state)
         }
         PhysicalType2::UInt32 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalU32, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalU32_2, _>(arrays, indices, state)
         }
         PhysicalType2::UInt64 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalU64, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalU64_2, _>(arrays, indices, state)
         }
         PhysicalType2::UInt128 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalU128, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalU128_2, _>(arrays, indices, state)
         }
         PhysicalType2::Float16 => {
             let state = FillState::new(ArrayBuilder {
@@ -486,21 +489,21 @@ pub fn interleave(arrays: &[&Array2], indices: &[(usize, usize)]) -> Result<Arra
                 datatype: datatype.clone(),
                 buffer: PrimitiveBuffer::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalInterval, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalInterval_2, _>(arrays, indices, state)
         }
         PhysicalType2::Utf8 => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: GermanVarlenBuffer::<str>::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalUtf8, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalUtf8_2, _>(arrays, indices, state)
         }
         PhysicalType2::Binary => {
             let state = FillState::new(ArrayBuilder {
                 datatype: datatype.clone(),
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(indices.len()),
             });
-            interleave_with_fill_state::<PhysicalBinary, _>(arrays, indices, state)
+            interleave_with_fill_state::<PhysicalBinary_2, _>(arrays, indices, state)
         }
         PhysicalType2::List => {
             // TODO: Also doable
@@ -550,7 +553,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::PrimitiveBuffer;
-    use crate::arrays::executor::physical_type::PhysicalI32;
+    use crate::arrays::executor::physical_type::PhysicalI32_2;
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
@@ -567,7 +570,7 @@ mod tests {
             FillMapping { from: 2, to: 2 },
         ];
 
-        state.fill::<PhysicalI32, _>(&arr, mapping).unwrap();
+        state.fill::<PhysicalI32_2, _>(&arr, mapping).unwrap();
 
         let got = state.finish();
 
@@ -590,7 +593,7 @@ mod tests {
             FillMapping { from: 1, to: 2 },
         ];
 
-        state.fill::<PhysicalI32, _>(&arr, mapping).unwrap();
+        state.fill::<PhysicalI32_2, _>(&arr, mapping).unwrap();
 
         let got = state.finish();
 
@@ -613,7 +616,7 @@ mod tests {
             FillMapping { from: 2, to: 0 },
         ];
 
-        state.fill::<PhysicalI32, _>(&arr, mapping).unwrap();
+        state.fill::<PhysicalI32_2, _>(&arr, mapping).unwrap();
 
         let got = state.finish();
 
@@ -635,7 +638,7 @@ mod tests {
             FillMapping { from: 1, to: 4 },
             FillMapping { from: 2, to: 0 },
         ];
-        state.fill::<PhysicalI32, _>(&arr1, mapping1).unwrap();
+        state.fill::<PhysicalI32_2, _>(&arr1, mapping1).unwrap();
 
         let arr2 = Array2::from_iter([7, 8, 9]);
         let mapping2 = [
@@ -643,7 +646,7 @@ mod tests {
             FillMapping { from: 1, to: 3 },
             FillMapping { from: 2, to: 5 },
         ];
-        state.fill::<PhysicalI32, _>(&arr2, mapping2).unwrap();
+        state.fill::<PhysicalI32_2, _>(&arr2, mapping2).unwrap();
 
         let got = state.finish();
 

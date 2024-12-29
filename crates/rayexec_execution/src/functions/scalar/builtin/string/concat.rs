@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::executor::scalar::{BinaryExecutor2, UniformExecutor};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -84,7 +84,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
 
                 // TODO: Compute data capacity.
 
-                BinaryExecutor2::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalUtf8_2, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -102,7 +102,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
             _ => {
                 let mut string_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8, _, _>(
+                UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Utf8,

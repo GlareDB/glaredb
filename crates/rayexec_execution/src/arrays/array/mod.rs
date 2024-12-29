@@ -23,24 +23,24 @@ use crate::arrays::executor::builder::{
 };
 use crate::arrays::executor::physical_type::{
     PhysicalAny,
-    PhysicalBinary,
-    PhysicalBool,
+    PhysicalBinary_2,
+    PhysicalBool_2,
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
     PhysicalType2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUtf8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
+    PhysicalUtf8_2,
 };
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
@@ -309,7 +309,7 @@ impl Array2 {
                 validity: None,
                 data: UntypedNullStorage(self.logical_len()).into(),
             }),
-            ArrayData2::Boolean(_) => UnaryExecutor2::execute::<PhysicalBool, _, _>(
+            ArrayData2::Boolean(_) => UnaryExecutor2::execute::<PhysicalBool_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -317,7 +317,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Int8(_) => UnaryExecutor2::execute::<PhysicalI8, _, _>(
+            ArrayData2::Int8(_) => UnaryExecutor2::execute::<PhysicalI8_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -325,7 +325,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Int16(_) => UnaryExecutor2::execute::<PhysicalI16, _, _>(
+            ArrayData2::Int16(_) => UnaryExecutor2::execute::<PhysicalI16_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -333,7 +333,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Int32(_) => UnaryExecutor2::execute::<PhysicalI32, _, _>(
+            ArrayData2::Int32(_) => UnaryExecutor2::execute::<PhysicalI32_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -341,7 +341,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Int64(_) => UnaryExecutor2::execute::<PhysicalI64, _, _>(
+            ArrayData2::Int64(_) => UnaryExecutor2::execute::<PhysicalI64_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -349,7 +349,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Int128(_) => UnaryExecutor2::execute::<PhysicalI128, _, _>(
+            ArrayData2::Int128(_) => UnaryExecutor2::execute::<PhysicalI128_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -357,7 +357,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::UInt8(_) => UnaryExecutor2::execute::<PhysicalU8, _, _>(
+            ArrayData2::UInt8(_) => UnaryExecutor2::execute::<PhysicalU8_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -365,7 +365,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::UInt16(_) => UnaryExecutor2::execute::<PhysicalU16, _, _>(
+            ArrayData2::UInt16(_) => UnaryExecutor2::execute::<PhysicalU16_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -373,7 +373,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::UInt32(_) => UnaryExecutor2::execute::<PhysicalU32, _, _>(
+            ArrayData2::UInt32(_) => UnaryExecutor2::execute::<PhysicalU32_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -381,7 +381,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::UInt64(_) => UnaryExecutor2::execute::<PhysicalU64, _, _>(
+            ArrayData2::UInt64(_) => UnaryExecutor2::execute::<PhysicalU64_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -389,7 +389,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::UInt128(_) => UnaryExecutor2::execute::<PhysicalU128, _, _>(
+            ArrayData2::UInt128(_) => UnaryExecutor2::execute::<PhysicalU128_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -421,7 +421,7 @@ impl Array2 {
                 },
                 |v, buf| buf.put(&v),
             ),
-            ArrayData2::Interval(_) => UnaryExecutor2::execute::<PhysicalInterval, _, _>(
+            ArrayData2::Interval(_) => UnaryExecutor2::execute::<PhysicalInterval_2, _, _>(
                 self,
                 ArrayBuilder {
                     datatype: self.datatype.clone(),
@@ -437,7 +437,7 @@ impl Array2 {
                 // data while just selecting the appropriate metadata. Instead
                 // this will just copy everything.
                 if self.datatype().is_utf8() {
-                    UnaryExecutor2::execute::<PhysicalUtf8, _, _>(
+                    UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(
                         self,
                         ArrayBuilder {
                             datatype: self.datatype.clone(),
@@ -446,7 +446,7 @@ impl Array2 {
                         |v, buf| buf.put(v),
                     )
                 } else {
-                    UnaryExecutor2::execute::<PhysicalBinary, _, _>(
+                    UnaryExecutor2::execute::<PhysicalBinary_2, _, _>(
                         self,
                         ArrayBuilder {
                             datatype: self.datatype.clone(),
@@ -622,67 +622,67 @@ impl Array2 {
                 UnaryExecutor2::value_at::<PhysicalAny>(self, row).map(|arr_val| arr_val.is_none())
             } // None == NULL
             ScalarValue::Boolean(v) => {
-                UnaryExecutor2::value_at::<PhysicalBool>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalBool_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int8(v) => {
-                UnaryExecutor2::value_at::<PhysicalI8>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI8_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int16(v) => {
-                UnaryExecutor2::value_at::<PhysicalI16>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI16_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int32(v) => {
-                UnaryExecutor2::value_at::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI32_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int64(v) => {
-                UnaryExecutor2::value_at::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI64_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int128(v) => {
-                UnaryExecutor2::value_at::<PhysicalI128>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI128_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt8(v) => {
-                UnaryExecutor2::value_at::<PhysicalU8>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalU8_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt16(v) => {
-                UnaryExecutor2::value_at::<PhysicalU16>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalU16_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt32(v) => {
-                UnaryExecutor2::value_at::<PhysicalU32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalU32_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt64(v) => {
-                UnaryExecutor2::value_at::<PhysicalU64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalU64_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt128(v) => {
-                UnaryExecutor2::value_at::<PhysicalU128>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalU128_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
@@ -700,36 +700,37 @@ impl Array2 {
                 })
             }
             ScalarValue::Date32(v) => {
-                UnaryExecutor2::value_at::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI32_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Date64(v) => {
-                UnaryExecutor2::value_at::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalI64_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
-            ScalarValue::Interval(v) => UnaryExecutor2::value_at::<PhysicalInterval>(self, row)
+            ScalarValue::Interval(v) => UnaryExecutor2::value_at::<PhysicalInterval_2>(self, row)
                 .map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 }),
             ScalarValue::Utf8(v) => {
-                UnaryExecutor2::value_at::<PhysicalUtf8>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalUtf8_2>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == v.as_ref(),
                     None => false,
                 })
             }
             ScalarValue::Binary(v) => {
-                UnaryExecutor2::value_at::<PhysicalBinary>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor2::value_at::<PhysicalBinary_2>(self, row).map(|arr_val| match arr_val
+                {
                     Some(arr_val) => arr_val == v.as_ref(),
                     None => false,
                 })
             }
             ScalarValue::Timestamp(v) => {
-                UnaryExecutor2::value_at::<PhysicalI64>(self, row).map(|arr_val| {
+                UnaryExecutor2::value_at::<PhysicalI64_2>(self, row).map(|arr_val| {
                     // Assumes time unit is the same
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -738,7 +739,7 @@ impl Array2 {
                 })
             }
             ScalarValue::Decimal64(v) => {
-                UnaryExecutor2::value_at::<PhysicalI64>(self, row).map(|arr_val| {
+                UnaryExecutor2::value_at::<PhysicalI64_2>(self, row).map(|arr_val| {
                     // Assumes precision/scale are the same.
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -747,7 +748,7 @@ impl Array2 {
                 })
             }
             ScalarValue::Decimal128(v) => {
-                UnaryExecutor2::value_at::<PhysicalI128>(self, row).map(|arr_val| {
+                UnaryExecutor2::value_at::<PhysicalI128_2>(self, row).map(|arr_val| {
                     // Assumes precision/scale are the same.
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,

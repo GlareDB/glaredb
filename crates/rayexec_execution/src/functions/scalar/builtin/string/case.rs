@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -135,7 +135,7 @@ where
         buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
     };
 
-    UnaryExecutor2::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+    UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(input, builder, |v, buf| {
         // TODO: Non-allocating variant.
         buf.put(&case_fn(v))
     })

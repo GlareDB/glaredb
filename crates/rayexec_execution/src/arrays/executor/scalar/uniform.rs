@@ -111,7 +111,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::GermanVarlenBuffer;
-    use crate::arrays::executor::physical_type::PhysicalUtf8;
+    use crate::arrays::executor::physical_type::PhysicalUtf8_2;
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -162,7 +162,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -195,7 +195,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {

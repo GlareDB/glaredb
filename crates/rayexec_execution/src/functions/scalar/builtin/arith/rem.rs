@@ -10,17 +10,17 @@ use crate::arrays::executor::physical_type::{
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
     PhysicalStorage2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
 };
 use crate::arrays::executor::scalar::BinaryExecutor2;
 use crate::arrays::storage::PrimitiveStorage;
@@ -126,43 +126,43 @@ impl ScalarFunction for Rem {
                 DataType::Float64,
             ),
             (DataType::Int8, DataType::Int8) => (
-                Box::new(RemImpl::<PhysicalI8>::new(DataType::Int8)),
+                Box::new(RemImpl::<PhysicalI8_2>::new(DataType::Int8)),
                 DataType::Int8,
             ),
             (DataType::Int16, DataType::Int16) => (
-                Box::new(RemImpl::<PhysicalI16>::new(DataType::Int16)),
+                Box::new(RemImpl::<PhysicalI16_2>::new(DataType::Int16)),
                 DataType::Int16,
             ),
             (DataType::Int32, DataType::Int32) => (
-                Box::new(RemImpl::<PhysicalI32>::new(DataType::Int32)),
+                Box::new(RemImpl::<PhysicalI32_2>::new(DataType::Int32)),
                 DataType::Int32,
             ),
             (DataType::Int64, DataType::Int64) => (
-                Box::new(RemImpl::<PhysicalI64>::new(DataType::Int64)),
+                Box::new(RemImpl::<PhysicalI64_2>::new(DataType::Int64)),
                 DataType::Int64,
             ),
             (DataType::Int128, DataType::Int128) => (
-                Box::new(RemImpl::<PhysicalI128>::new(DataType::Int128)),
+                Box::new(RemImpl::<PhysicalI128_2>::new(DataType::Int128)),
                 DataType::Int128,
             ),
             (DataType::UInt8, DataType::UInt8) => (
-                Box::new(RemImpl::<PhysicalU8>::new(DataType::UInt8)),
+                Box::new(RemImpl::<PhysicalU8_2>::new(DataType::UInt8)),
                 DataType::UInt8,
             ),
             (DataType::UInt16, DataType::UInt16) => (
-                Box::new(RemImpl::<PhysicalU16>::new(DataType::UInt16)),
+                Box::new(RemImpl::<PhysicalU16_2>::new(DataType::UInt16)),
                 DataType::UInt16,
             ),
             (DataType::UInt32, DataType::UInt32) => (
-                Box::new(RemImpl::<PhysicalU32>::new(DataType::UInt32)),
+                Box::new(RemImpl::<PhysicalU32_2>::new(DataType::UInt32)),
                 DataType::UInt32,
             ),
             (DataType::UInt64, DataType::UInt64) => (
-                Box::new(RemImpl::<PhysicalU64>::new(DataType::UInt64)),
+                Box::new(RemImpl::<PhysicalU64_2>::new(DataType::UInt64)),
                 DataType::UInt64,
             ),
             (DataType::UInt128, DataType::UInt128) => (
-                Box::new(RemImpl::<PhysicalU128>::new(DataType::UInt128)),
+                Box::new(RemImpl::<PhysicalU128_2>::new(DataType::UInt128)),
                 DataType::UInt128,
             ),
 

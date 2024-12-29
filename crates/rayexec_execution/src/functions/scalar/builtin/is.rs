@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::{PhysicalAny, PhysicalBool};
+use crate::arrays::executor::physical_type::{PhysicalAny, PhysicalBool_2};
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -312,7 +312,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor2::execute::<PhysicalBool, _, _>(input, builder, |val, buf| {
+        let array = UnaryExecutor2::execute::<PhysicalBool_2, _, _>(input, builder, |val, buf| {
             let b = if NOT { val != BOOL } else { val == BOOL };
             buf.put(&b)
         })?;

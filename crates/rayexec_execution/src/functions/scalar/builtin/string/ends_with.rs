@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::executor::scalar::{BinaryExecutor2, UnaryExecutor2};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -92,7 +92,7 @@ impl ScalarFunctionImpl for EndsWithConstantImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor2::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+        UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(inputs[0], builder, |s, buf| {
             buf.put(&s.ends_with(&self.constant))
         })
     }
@@ -108,7 +108,7 @@ impl ScalarFunctionImpl for EndsWithImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        BinaryExecutor2::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalUtf8_2, _, _>(
             inputs[0],
             inputs[1],
             builder,

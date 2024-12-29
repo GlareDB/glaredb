@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use crate::arrays::array::Array2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -68,7 +68,7 @@ impl ScalarFunctionImpl for AsciiImpl {
             buffer: PrimitiveBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor2::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(input, builder, |v, buf| {
             let v = v.chars().next().map(|c| c as i32).unwrap_or(0);
             buf.put(&v)
         })

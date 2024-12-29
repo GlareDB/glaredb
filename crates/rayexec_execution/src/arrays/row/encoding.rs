@@ -4,23 +4,23 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::arrays::array::{Array2, ArrayData2, BinaryData};
 use crate::arrays::executor::physical_type::{
     AsBytes,
-    PhysicalBinary,
-    PhysicalBool,
+    PhysicalBinary_2,
+    PhysicalBool_2,
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
     PhysicalStorage2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
 };
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::scalar::interval::Interval;
@@ -195,37 +195,37 @@ impl ComparableRowEncoder {
                     ArrayData2::UntypedNull(_) => {
                         Self::encode_untyped_null(cmp_col, data, row_offset)?
                     }
-                    ArrayData2::Boolean(_) => Self::encode_primitive::<PhysicalBool>(
+                    ArrayData2::Boolean(_) => Self::encode_primitive::<PhysicalBool_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Int8(_) => Self::encode_primitive::<PhysicalI8>(
+                    ArrayData2::Int8(_) => Self::encode_primitive::<PhysicalI8_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Int16(_) => Self::encode_primitive::<PhysicalI16>(
+                    ArrayData2::Int16(_) => Self::encode_primitive::<PhysicalI16_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Int32(_) => Self::encode_primitive::<PhysicalI32>(
+                    ArrayData2::Int32(_) => Self::encode_primitive::<PhysicalI32_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Int64(_) => Self::encode_primitive::<PhysicalI64>(
+                    ArrayData2::Int64(_) => Self::encode_primitive::<PhysicalI64_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Int128(_) => Self::encode_primitive::<PhysicalI128>(
+                    ArrayData2::Int128(_) => Self::encode_primitive::<PhysicalI128_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::UInt8(_) => Self::encode_primitive::<PhysicalU8>(
+                    ArrayData2::UInt8(_) => Self::encode_primitive::<PhysicalU8_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::UInt16(_) => Self::encode_primitive::<PhysicalU16>(
+                    ArrayData2::UInt16(_) => Self::encode_primitive::<PhysicalU16_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::UInt32(_) => Self::encode_primitive::<PhysicalU32>(
+                    ArrayData2::UInt32(_) => Self::encode_primitive::<PhysicalU32_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::UInt64(_) => Self::encode_primitive::<PhysicalU64>(
+                    ArrayData2::UInt64(_) => Self::encode_primitive::<PhysicalU64_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
+                    ArrayData2::UInt128(_) => Self::encode_primitive::<PhysicalU128_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
                     ArrayData2::Float16(_) => Self::encode_primitive::<PhysicalF16_2>(
@@ -237,10 +237,10 @@ impl ComparableRowEncoder {
                     ArrayData2::Float64(_) => Self::encode_primitive::<PhysicalF64_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Interval(_) => Self::encode_primitive::<PhysicalInterval>(
+                    ArrayData2::Interval(_) => Self::encode_primitive::<PhysicalInterval_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData2::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
+                    ArrayData2::Binary(_) => Self::encode_varlen::<PhysicalBinary_2>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
                     ArrayData2::List(_) => not_implemented!("Row encode list"),

@@ -11,7 +11,7 @@ use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64};
+use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64_2};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
@@ -190,7 +190,7 @@ pub struct AvgInt64Impl;
 
 impl AggregateFunctionImpl for AvgInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64_2, _, _, _, _>(
             AvgStateF64::<i64, i128>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

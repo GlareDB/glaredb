@@ -97,7 +97,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalUtf8_2};
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = BinaryExecutor2::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32_2, PhysicalI32_2, _, _>(
             &left,
             &right,
             builder,
@@ -134,7 +134,7 @@ mod tests {
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor2::execute::<PhysicalI32, PhysicalUtf8, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32_2, PhysicalUtf8_2, _, _>(
             &left,
             &right,
             builder,
@@ -168,7 +168,7 @@ mod tests {
 
         let right = Array2::from_iter([2, 3, 4]);
 
-        let got = BinaryExecutor2::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32_2, PhysicalI32_2, _, _>(
             &left,
             &right,
             ArrayBuilder {

@@ -60,7 +60,7 @@ impl UnaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalUtf8_2};
 
     #[derive(Debug, Default)]
     struct TestSumState {
@@ -102,7 +102,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!(11, states[0].val);
     }
@@ -126,7 +127,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!(7, states[0].val);
     }
@@ -154,7 +156,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!(5, states[0].val);
         assert_eq!(7, states[1].val);
@@ -201,7 +204,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater::update::<PhysicalUtf8_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!("aabbbcccc", &states[0].buf);
     }

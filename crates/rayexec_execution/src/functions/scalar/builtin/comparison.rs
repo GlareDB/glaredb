@@ -10,26 +10,26 @@ use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
+    PhysicalBinary_2,
+    PhysicalBool_2,
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
     PhysicalStorage2,
     PhysicalType2,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
+    PhysicalUntypedNull_2,
+    PhysicalUtf8_2,
 };
 use crate::arrays::executor::scalar::{BinaryExecutor2, BinaryListReducer, FlexibleListExecutor};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -517,38 +517,38 @@ fn new_comparison_impl<O: ComparisonOperation>(
             inputs[1].datatype(table_list)?,
         ) {
             (DataType::Boolean, DataType::Boolean) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalBool>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalBool_2>::new())
             }
             (DataType::Int8, DataType::Int8) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI8>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI8_2>::new())
             }
             (DataType::Int16, DataType::Int16) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI16>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI16_2>::new())
             }
             (DataType::Int32, DataType::Int32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI32>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI32_2>::new())
             }
             (DataType::Int64, DataType::Int64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI64>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI64_2>::new())
             }
             (DataType::Int128, DataType::Int128) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI128>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI128_2>::new())
             }
 
             (DataType::UInt8, DataType::UInt8) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU8>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalU8_2>::new())
             }
             (DataType::UInt16, DataType::UInt16) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU16>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalU16_2>::new())
             }
             (DataType::UInt32, DataType::UInt32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU32>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalU32_2>::new())
             }
             (DataType::UInt64, DataType::UInt64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU64>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalU64_2>::new())
             }
             (DataType::UInt128, DataType::UInt128) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU128>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalU128_2>::new())
             }
             (DataType::Float16, DataType::Float16) => {
                 Box::new(BaseComparisonImpl::<O, PhysicalF16_2>::new())
@@ -566,22 +566,22 @@ fn new_comparison_impl<O: ComparisonOperation>(
                 RescalingComparisionImpl::<O, Decimal128Type>::new(left, right),
             ),
             (DataType::Timestamp(_), DataType::Timestamp(_)) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalBool>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalBool_2>::new())
             }
             (DataType::Interval, DataType::Interval) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalInterval>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalInterval_2>::new())
             }
             (DataType::Date32, DataType::Date32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI32>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI32_2>::new())
             }
             (DataType::Date64, DataType::Date64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI64>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalI64_2>::new())
             }
             (DataType::Utf8, DataType::Utf8) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalUtf8>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalUtf8_2>::new())
             }
             (DataType::Binary, DataType::Binary) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalBinary>::new())
+                Box::new(BaseComparisonImpl::<O, PhysicalBinary_2>::new())
             }
             (DataType::List(m1), DataType::List(m2)) if m1 == m2 => {
                 // TODO: We'll want to figure out casting for lists.
@@ -671,62 +671,62 @@ where
 
         let array = match self.inner_physical_type {
             PhysicalType2::UntypedNull => FlexibleListExecutor::binary_reduce::<
-                PhysicalUntypedNull,
+                PhysicalUntypedNull_2,
                 _,
                 ListComparisonReducer<_, O>,
             >(left, right, builder)?,
             PhysicalType2::Boolean => {
-                FlexibleListExecutor::binary_reduce::<PhysicalBool, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalBool_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Int8 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalI8, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalI8_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Int16 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalI16, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalI16_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Int32 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalI32, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalI32_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Int64 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalI64, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalI64_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::Int128 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalI128, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalI128_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::UInt8 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalU8, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalU8_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::UInt16 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalU16, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalU16_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::UInt32 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalU32, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalU32_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::UInt64 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalU64, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalU64_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
             PhysicalType2::UInt128 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalU128, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalU128_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }
@@ -746,17 +746,17 @@ where
                 )?
             }
             PhysicalType2::Interval => FlexibleListExecutor::binary_reduce::<
-                PhysicalInterval,
+                PhysicalInterval_2,
                 _,
                 ListComparisonReducer<_, O>,
             >(left, right, builder)?,
-            PhysicalType2::Binary => {
-                FlexibleListExecutor::binary_reduce::<PhysicalBinary, _, ListComparisonReducer<_, O>>(
-                    left, right, builder,
-                )?
-            }
+            PhysicalType2::Binary => FlexibleListExecutor::binary_reduce::<
+                PhysicalBinary_2,
+                _,
+                ListComparisonReducer<_, O>,
+            >(left, right, builder)?,
             PhysicalType2::Utf8 => {
-                FlexibleListExecutor::binary_reduce::<PhysicalUtf8, _, ListComparisonReducer<_, O>>(
+                FlexibleListExecutor::binary_reduce::<PhysicalUtf8_2, _, ListComparisonReducer<_, O>>(
                     left, right, builder,
                 )?
             }

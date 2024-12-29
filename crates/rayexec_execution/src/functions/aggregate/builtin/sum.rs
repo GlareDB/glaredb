@@ -9,7 +9,7 @@ use crate::arrays::array::ArrayData2;
 use crate::arrays::buffer::physical_type::AddressableMut;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState2;
-use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64};
+use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64_2};
 use crate::arrays::executor_exp::aggregate::AggregateState;
 use crate::arrays::executor_exp::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -117,7 +117,7 @@ pub struct SumInt64Impl;
 
 impl AggregateFunctionImpl for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64_2, _, _, _, _>(
             SumStateCheckedAdd::<i64>::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )

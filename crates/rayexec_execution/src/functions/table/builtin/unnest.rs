@@ -6,7 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType2};
+use crate::arrays::executor::physical_type::{PhysicalList_2, PhysicalType2};
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
@@ -213,7 +213,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                     _other => return Err(RayexecError::new("Unexpected storage type")),
                 };
 
-                match UnaryExecutor2::value_at::<PhysicalList>(input, self.current_row)? {
+                match UnaryExecutor2::value_at::<PhysicalList_2>(input, self.current_row)? {
                     Some(meta) => {
                         // Row is a list, unnest.
                         unnest(child, meta.len as usize, meta)?

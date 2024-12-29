@@ -6,15 +6,15 @@ use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::{
-    PhysicalBool,
+    PhysicalBool_2,
     PhysicalF16_2,
     PhysicalF32_2,
     PhysicalF64_2,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
     PhysicalStorage2,
 };
 use crate::arrays::executor::scalar::UnaryExecutor2;
@@ -61,11 +61,11 @@ impl ScalarFunction for Negate {
 
         // TODO: Interval
         let function_impl: Box<dyn ScalarFunctionImpl> = match dt.clone() {
-            dt @ DataType::Int8 => Box::new(NegateImpl::<PhysicalI8>::new(dt)),
-            dt @ DataType::Int16 => Box::new(NegateImpl::<PhysicalI16>::new(dt)),
-            dt @ DataType::Int32 => Box::new(NegateImpl::<PhysicalI32>::new(dt)),
-            dt @ DataType::Int64 => Box::new(NegateImpl::<PhysicalI64>::new(dt)),
-            dt @ DataType::Int128 => Box::new(NegateImpl::<PhysicalI128>::new(dt)),
+            dt @ DataType::Int8 => Box::new(NegateImpl::<PhysicalI8_2>::new(dt)),
+            dt @ DataType::Int16 => Box::new(NegateImpl::<PhysicalI16_2>::new(dt)),
+            dt @ DataType::Int32 => Box::new(NegateImpl::<PhysicalI32_2>::new(dt)),
+            dt @ DataType::Int64 => Box::new(NegateImpl::<PhysicalI64_2>::new(dt)),
+            dt @ DataType::Int128 => Box::new(NegateImpl::<PhysicalI128_2>::new(dt)),
             dt @ DataType::Float16 => Box::new(NegateImpl::<PhysicalF16_2>::new(dt)),
             dt @ DataType::Float32 => Box::new(NegateImpl::<PhysicalF32_2>::new(dt)),
             dt @ DataType::Float64 => Box::new(NegateImpl::<PhysicalF64_2>::new(dt)),
@@ -166,7 +166,7 @@ pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
     fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        UnaryExecutor2::execute::<PhysicalBool, _, _>(
+        UnaryExecutor2::execute::<PhysicalBool_2, _, _>(
             inputs[0],
             ArrayBuilder {
                 datatype: DataType::Boolean,

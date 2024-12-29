@@ -6,7 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::physical_type::PhysicalI64;
+use crate::arrays::executor::physical_type::PhysicalI64_2;
 use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
@@ -259,15 +259,15 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
             };
 
             // Generate new params from row.
-            let start = UnaryExecutor2::value_at::<PhysicalI64>(
+            let start = UnaryExecutor2::value_at::<PhysicalI64_2>(
                 batch.column(0).unwrap(),
                 self.next_row_idx,
             )?;
-            let end = UnaryExecutor2::value_at::<PhysicalI64>(
+            let end = UnaryExecutor2::value_at::<PhysicalI64_2>(
                 batch.column(1).unwrap(),
                 self.next_row_idx,
             )?;
-            let step = UnaryExecutor2::value_at::<PhysicalI64>(
+            let step = UnaryExecutor2::value_at::<PhysicalI64_2>(
                 batch.column(2).unwrap(),
                 self.next_row_idx,
             )?;
