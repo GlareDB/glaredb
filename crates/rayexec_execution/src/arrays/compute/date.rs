@@ -1,11 +1,12 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
+use iterutil::IntoExactSizeIterator;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::arrays::array::Array2;
-use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalI64_2};
-use crate::arrays::executor::scalar::UnaryExecutor2;
+use crate::arrays::array::exp::Array;
+use crate::arrays::buffer::physical_type::{PhysicalI32, PhysicalI64};
+use crate::arrays::datatype::{DataType, TimeUnit};
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 
 pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 1, 1) {
@@ -69,48 +70,63 @@ pub enum DatePart {
 ///
 /// The results should be decimal representing the part extracted, and should
 /// use the Decimal64 default precision and scale.
-pub fn extract_date_part(part: DatePart, arr: &Array2) -> Result<Array2> {
+pub fn extract_date_part(
+    part: DatePart,
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
+) -> Result<()> {
     let datatype = arr.datatype();
     match datatype {
         DataType::Date32 => match part {
-            DatePart::Microseconds => date32_extract_with_fn(arr, extract_microseconds),
-            DatePart::Milliseconds => date32_extract_with_fn(arr, extract_milliseconds),
-            DatePart::Second => date32_extract_with_fn(arr, extract_seconds),
-            DatePart::Minute => date32_extract_with_fn(arr, extract_minute),
-            DatePart::DayOfWeek => date32_extract_with_fn(arr, extract_day_of_week),
-            DatePart::IsoDayOfWeek => date32_extract_with_fn(arr, extract_iso_day_of_week),
-            DatePart::Day => date32_extract_with_fn(arr, extract_day),
-            DatePart::Month => date32_extract_with_fn(arr, extract_month),
-            DatePart::Quarter => date32_extract_with_fn(arr, extract_quarter),
-            DatePart::Year => date32_extract_with_fn(arr, extract_year),
+            DatePart::Microseconds => date32_extract_with_fn(arr, sel, extract_microseconds, out),
+            DatePart::Milliseconds => date32_extract_with_fn(arr, sel, extract_milliseconds, out),
+            DatePart::Second => date32_extract_with_fn(arr, sel, extract_seconds, out),
+            DatePart::Minute => date32_extract_with_fn(arr, sel, extract_minute, out),
+            DatePart::DayOfWeek => date32_extract_with_fn(arr, sel, extract_day_of_week, out),
+            DatePart::IsoDayOfWeek => {
+                date32_extract_with_fn(arr, sel, extract_iso_day_of_week, out)
+            }
+            DatePart::Day => date32_extract_with_fn(arr, sel, extract_day, out),
+            DatePart::Month => date32_extract_with_fn(arr, sel, extract_month, out),
+            DatePart::Quarter => date32_extract_with_fn(arr, sel, extract_quarter, out),
+            DatePart::Year => date32_extract_with_fn(arr, sel, extract_year, out),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
         DataType::Date64 => match part {
-            DatePart::Microseconds => date64_extract_with_fn(arr, extract_microseconds),
-            DatePart::Milliseconds => date64_extract_with_fn(arr, extract_milliseconds),
-            DatePart::Second => date64_extract_with_fn(arr, extract_seconds),
-            DatePart::Minute => date64_extract_with_fn(arr, extract_minute),
-            DatePart::DayOfWeek => date64_extract_with_fn(arr, extract_day_of_week),
-            DatePart::IsoDayOfWeek => date64_extract_with_fn(arr, extract_iso_day_of_week),
-            DatePart::Day => date64_extract_with_fn(arr, extract_day),
-            DatePart::Month => date64_extract_with_fn(arr, extract_month),
-            DatePart::Quarter => date64_extract_with_fn(arr, extract_quarter),
-            DatePart::Year => date64_extract_with_fn(arr, extract_year),
+            DatePart::Microseconds => date64_extract_with_fn(arr, sel, extract_microseconds, out),
+            DatePart::Milliseconds => date64_extract_with_fn(arr, sel, extract_milliseconds, out),
+            DatePart::Second => date64_extract_with_fn(arr, sel, extract_seconds, out),
+            DatePart::Minute => date64_extract_with_fn(arr, sel, extract_minute, out),
+            DatePart::DayOfWeek => date64_extract_with_fn(arr, sel, extract_day_of_week, out),
+            DatePart::IsoDayOfWeek => {
+                date64_extract_with_fn(arr, sel, extract_iso_day_of_week, out)
+            }
+            DatePart::Day => date64_extract_with_fn(arr, sel, extract_day, out),
+            DatePart::Month => date64_extract_with_fn(arr, sel, extract_month, out),
+            DatePart::Quarter => date64_extract_with_fn(arr, sel, extract_quarter, out),
+            DatePart::Year => date64_extract_with_fn(arr, sel, extract_year, out),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
         DataType::Timestamp(m) => match part {
-            DatePart::Microseconds => timestamp_extract_with_fn(m.unit, arr, extract_microseconds),
-            DatePart::Milliseconds => timestamp_extract_with_fn(m.unit, arr, extract_milliseconds),
-            DatePart::Second => timestamp_extract_with_fn(m.unit, arr, extract_seconds),
-            DatePart::Minute => timestamp_extract_with_fn(m.unit, arr, extract_minute),
-            DatePart::DayOfWeek => timestamp_extract_with_fn(m.unit, arr, extract_day_of_week),
-            DatePart::IsoDayOfWeek => {
-                timestamp_extract_with_fn(m.unit, arr, extract_iso_day_of_week)
+            DatePart::Microseconds => {
+                timestamp_extract_with_fn(m.unit, arr, sel, extract_microseconds, out)
             }
-            DatePart::Day => timestamp_extract_with_fn(m.unit, arr, extract_day),
-            DatePart::Month => timestamp_extract_with_fn(m.unit, arr, extract_month),
-            DatePart::Quarter => timestamp_extract_with_fn(m.unit, arr, extract_quarter),
-            DatePart::Year => timestamp_extract_with_fn(m.unit, arr, extract_year),
+            DatePart::Milliseconds => {
+                timestamp_extract_with_fn(m.unit, arr, sel, extract_milliseconds, out)
+            }
+            DatePart::Second => timestamp_extract_with_fn(m.unit, arr, sel, extract_seconds, out),
+            DatePart::Minute => timestamp_extract_with_fn(m.unit, arr, sel, extract_minute, out),
+            DatePart::DayOfWeek => {
+                timestamp_extract_with_fn(m.unit, arr, sel, extract_day_of_week, out)
+            }
+            DatePart::IsoDayOfWeek => {
+                timestamp_extract_with_fn(m.unit, arr, sel, extract_iso_day_of_week, out)
+            }
+            DatePart::Day => timestamp_extract_with_fn(m.unit, arr, sel, extract_day, out),
+            DatePart::Month => timestamp_extract_with_fn(m.unit, arr, sel, extract_month, out),
+            DatePart::Quarter => timestamp_extract_with_fn(m.unit, arr, sel, extract_quarter, out),
+            DatePart::Year => timestamp_extract_with_fn(m.unit, arr, sel, extract_year, out),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
         other => Err(RayexecError::new(format!(
@@ -119,65 +135,84 @@ pub fn extract_date_part(part: DatePart, arr: &Array2) -> Result<Array2> {
     }
 }
 
-fn timestamp_extract_with_fn<F>(unit: TimeUnit, arr: &Array2, f: F) -> Result<Array2>
+fn timestamp_extract_with_fn<F>(
+    unit: TimeUnit,
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    f: F,
+    out: &mut Array,
+) -> Result<()>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
     match unit {
-        TimeUnit::Second => timestamp_extract_with_fn_and_datetime_builder(arr, f, |val| {
-            DateTime::from_timestamp(val, 0).unwrap_or_default()
-        }),
-        TimeUnit::Millisecond => timestamp_extract_with_fn_and_datetime_builder(arr, f, |val| {
-            DateTime::from_timestamp_millis(val).unwrap_or_default()
-        }),
-        TimeUnit::Microsecond => timestamp_extract_with_fn_and_datetime_builder(arr, f, |val| {
-            DateTime::from_timestamp_micros(val).unwrap_or_default()
-        }),
-        TimeUnit::Nanosecond => timestamp_extract_with_fn_and_datetime_builder(arr, f, |val| {
-            DateTime::from_timestamp_nanos(val)
-        }),
+        TimeUnit::Second => timestamp_extract_with_fn_and_datetime_builder(
+            arr,
+            sel,
+            f,
+            |val| DateTime::from_timestamp(val, 0).unwrap_or_default(),
+            out,
+        ),
+        TimeUnit::Millisecond => timestamp_extract_with_fn_and_datetime_builder(
+            arr,
+            sel,
+            f,
+            |val| DateTime::from_timestamp_millis(val).unwrap_or_default(),
+            out,
+        ),
+        TimeUnit::Microsecond => timestamp_extract_with_fn_and_datetime_builder(
+            arr,
+            sel,
+            f,
+            |val| DateTime::from_timestamp_micros(val).unwrap_or_default(),
+            out,
+        ),
+        TimeUnit::Nanosecond => timestamp_extract_with_fn_and_datetime_builder(
+            arr,
+            sel,
+            f,
+            |val| DateTime::from_timestamp_nanos(val),
+            out,
+        ),
     }
 }
 
 fn timestamp_extract_with_fn_and_datetime_builder<F, B>(
-    arr: &Array2,
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
     f: F,
     builder: B,
-) -> Result<Array2>
+    out: &mut Array,
+) -> Result<()>
 where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor2::execute::<PhysicalI64_2, _, _>(
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
         arr,
-        ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
-                precision: Decimal64Type::MAX_PRECISION,
-                scale: Decimal64Type::DEFAULT_SCALE,
-            }),
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |val, buf| {
+        sel,
+        OutBuffer::from_array(out)?,
+        |&val, buf| {
             let date = builder(val);
             buf.put(&f(date))
         },
     )
 }
 
-fn date32_extract_with_fn<F>(arr: &Array2, f: F) -> Result<Array2>
+fn date32_extract_with_fn<F>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    f: F,
+    out: &mut Array,
+) -> Result<()>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor2::execute::<PhysicalI32_2, _, _>(
+    UnaryExecutor::execute::<PhysicalI32, PhysicalI64, _>(
         arr,
-        ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
-                precision: Decimal64Type::MAX_PRECISION,
-                scale: Decimal64Type::DEFAULT_SCALE,
-            }),
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |val, buf| {
+        sel,
+        OutBuffer::from_array(out)?,
+        |&val, buf| {
             // TODO: Can this actually fail?
             let date = DateTime::from_timestamp(val as i64 * SECONDS_IN_DAY, 0).unwrap_or_default();
             buf.put(&f(date))
@@ -185,20 +220,20 @@ where
     )
 }
 
-fn date64_extract_with_fn<F>(arr: &Array2, f: F) -> Result<Array2>
+fn date64_extract_with_fn<F>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    f: F,
+    out: &mut Array,
+) -> Result<()>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor2::execute::<PhysicalI64_2, _, _>(
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
         arr,
-        ArrayBuilder {
-            datatype: DataType::Decimal64(DecimalTypeMeta {
-                precision: Decimal64Type::MAX_PRECISION,
-                scale: Decimal64Type::DEFAULT_SCALE,
-            }),
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |val, buf| {
+        sel,
+        OutBuffer::from_array(out)?,
+        |&val, buf| {
             // TODO: Can this actually fail?
             let date = DateTime::from_timestamp_millis(val).unwrap_or_default();
             buf.put(&f(date))
