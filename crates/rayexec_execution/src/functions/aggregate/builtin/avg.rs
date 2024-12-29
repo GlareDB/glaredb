@@ -166,7 +166,7 @@ where
             ))
         };
 
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+        new_unary_aggregate_states::<D::Storage2, _, _, _, _>(
             AvgStateDecimal::<D::Primitive>::default,
             state_finalize,
         )

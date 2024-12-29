@@ -159,7 +159,7 @@ where
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+        new_unary_aggregate_states::<D::Storage2, _, _, _, _>(
             SumStateCheckedAdd::<D::Primitive>::default,
             move |states| primitive_finalize(datatype.clone(), states),
         )

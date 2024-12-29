@@ -856,13 +856,13 @@ where
 
         match self.left.scale.cmp(&self.right.scale) {
             Ordering::Greater => {
-                let scaled_right = decimal_rescale::<T::Storage, T>(
+                let scaled_right = decimal_rescale::<T::Storage2, T>(
                     right,
                     left.datatype().clone(),
                     CastFailBehavior::Error,
                 )?;
 
-                BinaryExecutor2::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor2::execute::<T::Storage2, T::Storage2, _, _>(
                     left,
                     &scaled_right,
                     builder,
@@ -870,20 +870,20 @@ where
                 )
             }
             Ordering::Less => {
-                let scaled_left = decimal_rescale::<T::Storage, T>(
+                let scaled_left = decimal_rescale::<T::Storage2, T>(
                     left,
                     right.datatype().clone(),
                     CastFailBehavior::Error,
                 )?;
 
-                BinaryExecutor2::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor2::execute::<T::Storage2, T::Storage2, _, _>(
                     &scaled_left,
                     right,
                     builder,
                     |a, b, buf| buf.put(&O::compare(a, b)),
                 )
             }
-            Ordering::Equal => BinaryExecutor2::execute::<T::Storage, T::Storage, _, _>(
+            Ordering::Equal => BinaryExecutor2::execute::<T::Storage2, T::Storage2, _, _>(
                 left,
                 right,
                 builder,

@@ -3,27 +3,27 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{
-    PhysicalF16_2,
-    PhysicalF32_2,
-    PhysicalF64_2,
-    PhysicalI128_2,
-    PhysicalI16_2,
-    PhysicalI32_2,
-    PhysicalI64_2,
-    PhysicalI8_2,
-    PhysicalStorage2,
-    PhysicalU128_2,
-    PhysicalU16_2,
-    PhysicalU32_2,
-    PhysicalU64_2,
-    PhysicalU8_2,
+use crate::arrays::array::exp::Array;
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::physical_type::{
+    MutablePhysicalStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
 };
-use crate::arrays::executor::scalar::BinaryExecutor2;
-use crate::arrays::storage::PrimitiveStorage;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -113,58 +113,45 @@ impl ScalarFunction for Rem {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(RemImpl::<PhysicalF16_2>::new(DataType::Float16)),
-                DataType::Float16,
-            ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(RemImpl::<PhysicalF32_2>::new(DataType::Float32)),
-                DataType::Float32,
-            ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(RemImpl::<PhysicalF64_2>::new(DataType::Float64)),
-                DataType::Float64,
-            ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(RemImpl::<PhysicalI8_2>::new(DataType::Int8)),
-                DataType::Int8,
-            ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(RemImpl::<PhysicalI16_2>::new(DataType::Int16)),
-                DataType::Int16,
-            ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(RemImpl::<PhysicalI32_2>::new(DataType::Int32)),
-                DataType::Int32,
-            ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(RemImpl::<PhysicalI64_2>::new(DataType::Int64)),
-                DataType::Int64,
-            ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(RemImpl::<PhysicalI128_2>::new(DataType::Int128)),
-                DataType::Int128,
-            ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(RemImpl::<PhysicalU8_2>::new(DataType::UInt8)),
-                DataType::UInt8,
-            ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(RemImpl::<PhysicalU16_2>::new(DataType::UInt16)),
-                DataType::UInt16,
-            ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(RemImpl::<PhysicalU32_2>::new(DataType::UInt32)),
-                DataType::UInt32,
-            ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(RemImpl::<PhysicalU64_2>::new(DataType::UInt64)),
-                DataType::UInt64,
-            ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(RemImpl::<PhysicalU128_2>::new(DataType::UInt128)),
-                DataType::UInt128,
-            ),
+            (DataType::Float16, DataType::Float16) => {
+                (Box::new(RemImpl::<PhysicalF16>::new()), DataType::Float16)
+            }
+            (DataType::Float32, DataType::Float32) => {
+                (Box::new(RemImpl::<PhysicalF32>::new()), DataType::Float32)
+            }
+            (DataType::Float64, DataType::Float64) => {
+                (Box::new(RemImpl::<PhysicalF64>::new()), DataType::Float64)
+            }
+            (DataType::Int8, DataType::Int8) => {
+                (Box::new(RemImpl::<PhysicalI8>::new()), DataType::Int8)
+            }
+            (DataType::Int16, DataType::Int16) => {
+                (Box::new(RemImpl::<PhysicalI16>::new()), DataType::Int16)
+            }
+            (DataType::Int32, DataType::Int32) => {
+                (Box::new(RemImpl::<PhysicalI32>::new()), DataType::Int32)
+            }
+            (DataType::Int64, DataType::Int64) => {
+                (Box::new(RemImpl::<PhysicalI64>::new()), DataType::Int64)
+            }
+            (DataType::Int128, DataType::Int128) => {
+                (Box::new(RemImpl::<PhysicalI128>::new()), DataType::Int128)
+            }
+            (DataType::UInt8, DataType::UInt8) => {
+                (Box::new(RemImpl::<PhysicalU8>::new()), DataType::UInt8)
+            }
+            (DataType::UInt16, DataType::UInt16) => {
+                (Box::new(RemImpl::<PhysicalU16>::new()), DataType::UInt16)
+            }
+            (DataType::UInt32, DataType::UInt32) => {
+                (Box::new(RemImpl::<PhysicalU32>::new()), DataType::UInt32)
+            }
+            (DataType::UInt64, DataType::UInt64) => {
+                (Box::new(RemImpl::<PhysicalU64>::new()), DataType::UInt64)
+            }
+            (DataType::UInt128, DataType::UInt128) => {
+                (Box::new(RemImpl::<PhysicalU128>::new()), DataType::UInt128)
+            }
 
             // TODO: Interval, date, decimal
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
@@ -181,49 +168,52 @@ impl ScalarFunction for Rem {
 
 #[derive(Debug, Clone)]
 pub struct RemImpl<S> {
-    datatype: DataType,
     _s: PhantomData<S>,
 }
 
 impl<S> RemImpl<S> {
-    fn new(datatype: DataType) -> Self {
-        RemImpl {
-            datatype,
-            _s: PhantomData,
-        }
+    const fn new() -> Self {
+        RemImpl { _s: PhantomData }
     }
 }
 
 impl<S> ScalarFunctionImpl for RemImpl<S>
 where
-    S: PhysicalStorage2,
-    for<'a> S::Type<'a>: std::ops::Rem<Output = S::Type<'static>> + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
+    S: MutablePhysicalStorage,
+    S::StorageType: std::ops::Rem<Output = S::StorageType> + Sized + Copy,
 {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let a = inputs[0];
-        let b = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
-
-        BinaryExecutor2::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a % b)))
+        BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a % b)),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use iterutil::TryFromExactSizeIterator;
+
     use super::*;
+    use crate::arrays::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr;
     use crate::functions::scalar::ScalarFunction;
 
     #[test]
     fn rem_i32() {
-        let a = Array2::from_iter([4, 5, 6]);
-        let b = Array2::from_iter([1, 2, 3]);
+        let a = Array::try_from_iter([4, 5, 6]).unwrap();
+        let b = Array::try_from_iter([1, 2, 3]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -241,9 +231,10 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([0, 1, 0]);
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([0, 1, 0]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 }
