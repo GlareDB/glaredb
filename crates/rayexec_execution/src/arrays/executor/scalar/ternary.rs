@@ -12,9 +12,9 @@ use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
-pub struct TernaryExecutor;
+pub struct TernaryExecutor2;
 
-impl TernaryExecutor {
+impl TernaryExecutor2 {
     pub fn execute<'a, S1, S2, S3, B, Op>(
         array1: &'a Array2,
         array2: &'a Array2,

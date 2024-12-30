@@ -8,7 +8,7 @@ use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::PhysicalBool_2;
-use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor, UniformExecutor2};
+use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor2, UniformExecutor2};
 use crate::arrays::storage::BooleanStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -98,7 +98,7 @@ impl ScalarFunctionImpl for AndImpl {
                 let a = inputs[0];
                 let b = inputs[1];
                 let c = inputs[2];
-                TernaryExecutor::execute::<PhysicalBool_2, PhysicalBool_2, PhysicalBool_2, _, _>(
+                TernaryExecutor2::execute::<PhysicalBool_2, PhysicalBool_2, PhysicalBool_2, _, _>(
                     a,
                     b,
                     c,

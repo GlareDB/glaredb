@@ -3,11 +3,17 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::Array2;
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::physical_type::PhysicalUtf8;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::executor::scalar::{BinaryExecutor2, UnaryExecutor2};
+use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -222,16 +228,18 @@ impl<F: StringTrimOp> TrimWhitespaceImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-        UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(inputs[0], builder, |s, buf| {
-            let trimmed = F::trim_func(s, " ");
-            buf.put(trimmed)
-        })
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &input.arrays()[0],
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, buf| {
+                let trimmed = F::trim_func(s, " ");
+                buf.put(trimmed);
+            },
+        )
     }
 }
 
@@ -247,19 +255,18 @@ impl<F: StringTrimOp> TrimPatternImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimPatternImpl<F> {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-        BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalUtf8_2, _, _>(
-            inputs[0],
-            inputs[1],
-            builder,
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+            &input.arrays()[0],
+            sel,
+            &input.arrays()[1],
+            sel,
+            OutBuffer::from_array(output)?,
             |s, pattern, buf| {
                 let trimmed = F::trim_func(s, pattern);
-                buf.put(trimmed)
+                buf.put(trimmed);
             },
         )
     }
