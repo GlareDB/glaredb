@@ -3,13 +3,14 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::Array2;
-use crate::arrays::bitmap::Bitmap;
+use crate::arrays::array::exp::Array;
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::physical_type::PhysicalBool;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::PhysicalBool_2;
-use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor2, UniformExecutor2};
-use crate::arrays::storage::BooleanStorage;
+use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::arrays::executor_exp::scalar::uniform::UniformExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -70,57 +71,52 @@ impl ScalarFunction for And {
 pub struct AndImpl;
 
 impl ScalarFunctionImpl for AndImpl {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        match inputs.len() {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+
+        match input.arrays().len() {
             0 => {
-                let mut array = Array2::new_with_array_data(
-                    DataType::Boolean,
-                    BooleanStorage::from(Bitmap::new_with_val(false, 1)),
-                );
-                array.set_physical_validity(0, false);
-                Ok(array)
+                // TODO: Default to false?
+                let vals = output
+                    .data_mut()
+                    .try_as_mut()?
+                    .try_as_slice_mut::<PhysicalBool>()?;
+
+                for v in vals {
+                    *v = false;
+                }
             }
-            1 => Ok(inputs[0].clone()),
+            1 => {
+                let input = &input.arrays()[0];
+                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+                    input,
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |v, buf| buf.put(v),
+                )?;
+            }
             2 => {
-                let a = inputs[0];
-                let b = inputs[1];
-                BinaryExecutor2::execute::<PhysicalBool_2, PhysicalBool_2, _, _>(
+                let a = &input.arrays()[0];
+                let b = &input.arrays()[1];
+
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _>(
                     a,
+                    sel,
                     b,
-                    ArrayBuilder {
-                        datatype: DataType::Boolean,
-                        buffer: BooleanBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a && b)),
-                )
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |&a, &b, buf| buf.put(&(a && b)),
+                )?;
             }
-            3 => {
-                let a = inputs[0];
-                let b = inputs[1];
-                let c = inputs[2];
-                TernaryExecutor2::execute::<PhysicalBool_2, PhysicalBool_2, PhysicalBool_2, _, _>(
-                    a,
-                    b,
-                    c,
-                    ArrayBuilder {
-                        datatype: DataType::Boolean,
-                        buffer: BooleanBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, c, buf| buf.put(&(a && b && c)),
-                )
-            }
-            _ => {
-                let len = inputs[0].logical_len();
-                UniformExecutor2::execute::<PhysicalBool_2, _, _>(
-                    inputs,
-                    ArrayBuilder {
-                        datatype: DataType::Boolean,
-                        buffer: BooleanBuffer::with_len(len),
-                    },
-                    |bools, buf| buf.put(&(bools.iter().all(|b| *b))),
-                )
-            }
+            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+                input.arrays(),
+                sel,
+                OutBuffer::from_array(output)?,
+                |bools, buf| buf.put(&(bools.iter().all(|b| **b))),
+            )?,
         }
+
+        Ok(())
     }
 }
 
@@ -178,55 +174,69 @@ impl ScalarFunction for Or {
 pub struct OrImpl;
 
 impl ScalarFunctionImpl for OrImpl {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        match inputs.len() {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+
+        match input.arrays().len() {
             0 => {
-                let mut array = Array2::new_with_array_data(
-                    DataType::Boolean,
-                    BooleanStorage::from(Bitmap::new_with_val(false, 1)),
-                );
-                array.set_physical_validity(0, false);
-                Ok(array)
+                // TODO: Default to false?
+                let vals = output
+                    .data_mut()
+                    .try_as_mut()?
+                    .try_as_slice_mut::<PhysicalBool>()?;
+
+                for v in vals {
+                    *v = false;
+                }
             }
-            1 => Ok(inputs[0].clone()),
+            1 => {
+                let input = &input.arrays()[0];
+                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+                    input,
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |v, buf| buf.put(v),
+                )?;
+            }
             2 => {
-                let a = inputs[0];
-                let b = inputs[1];
-                BinaryExecutor2::execute::<PhysicalBool_2, PhysicalBool_2, _, _>(
+                let a = &input.arrays()[0];
+                let b = &input.arrays()[1];
+
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _>(
                     a,
+                    sel,
                     b,
-                    ArrayBuilder {
-                        datatype: DataType::Boolean,
-                        buffer: BooleanBuffer::with_len(a.logical_len()),
-                    },
-                    |a, b, buf| buf.put(&(a || b)),
-                )
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |&a, &b, buf| buf.put(&(a || b)),
+                )?;
             }
-            _ => {
-                let len = inputs[0].logical_len();
-                UniformExecutor2::execute::<PhysicalBool_2, _, _>(
-                    inputs,
-                    ArrayBuilder {
-                        datatype: DataType::Boolean,
-                        buffer: BooleanBuffer::with_len(len),
-                    },
-                    |bools, buf| buf.put(&(bools.iter().any(|b| *b))),
-                )
-            }
+            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+                input.arrays(),
+                sel,
+                OutBuffer::from_array(output)?,
+                |bools, buf| buf.put(&(bools.iter().any(|b| **b))),
+            )?,
         }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use iterutil::TryFromExactSizeIterator;
+
     use super::*;
-    use crate::arrays::scalar::ScalarValue;
+    use crate::arrays::buffer::buffer_manager::NopBufferManager;
+    use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr;
 
     #[test]
     fn and_bool_2() {
-        let a = Array2::from_iter([true, false, false]);
-        let b = Array2::from_iter([true, true, false]);
+        let a = Array::try_from_iter([true, false, false]).unwrap();
+        let b = Array::try_from_iter([true, true, false]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -244,18 +254,20 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
 
-        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([true, false, false]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn and_bool_3() {
-        let a = Array2::from_iter([true, true, true]);
-        let b = Array2::from_iter([false, true, true]);
-        let c = Array2::from_iter([true, true, false]);
+        let a = Array::try_from_iter([true, true, true]).unwrap();
+        let b = Array::try_from_iter([false, true, true]).unwrap();
+        let c = Array::try_from_iter([true, true, false]).unwrap();
+        let batch = Batch::from_arrays([a, b, c], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -277,17 +289,19 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b, &c]).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
 
-        assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([false, true, false]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn or_bool_2() {
-        let a = Array2::from_iter([true, false, false]);
-        let b = Array2::from_iter([true, true, false]);
+        let a = Array::try_from_iter([true, false, false]).unwrap();
+        let b = Array::try_from_iter([true, true, false]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -305,10 +319,11 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
 
-        assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from(false), out.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([true, true, false]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 }
