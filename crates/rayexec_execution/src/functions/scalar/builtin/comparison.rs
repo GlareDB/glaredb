@@ -5,6 +5,22 @@ use std::marker::PhantomData;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::{Array2, ArrayData2};
+use crate::arrays::buffer::physical_type::{
+    MutablePhysicalStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+};
 use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};

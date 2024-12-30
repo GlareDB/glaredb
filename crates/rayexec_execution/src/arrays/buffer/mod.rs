@@ -1,9 +1,11 @@
+pub mod any;
 pub mod buffer_manager;
 pub mod physical_type;
 pub mod string_view;
 
 mod raw;
 
+use any::AnyAddressable;
 use buffer_manager::{BufferManager, NopBufferManager};
 use fmtutil::IntoDisplayableSlice;
 use physical_type::{PhysicalStorage, PhysicalType};
@@ -19,6 +21,7 @@ use string_view::{
 };
 
 use super::array::array_data::ArrayData;
+use super::array::exp::Array;
 use super::array::validity::Validity;
 
 #[derive(Debug)]
@@ -87,6 +90,10 @@ where
 
     pub fn get_secondary_mut(&mut self) -> &mut SecondaryBuffer<B> {
         &mut self.secondary
+    }
+
+    pub fn as_any_addressable(&self) -> AnyAddressable<B> {
+        AnyAddressable { buffer: self }
     }
 
     pub fn try_as_string_view_addressable(&self) -> Result<StringViewAddressable> {
@@ -182,6 +189,7 @@ impl<B: BufferManager> Drop for ArrayBuffer<B> {
 pub enum SecondaryBuffer<B: BufferManager> {
     StringViewHeap(StringViewHeap),
     Dictionary(DictionaryBuffer<B>),
+    List(ListBuffer<B>),
     None,
 }
 
@@ -198,5 +206,25 @@ where
     pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
         debug_assert_eq!(buffer.capacity(), validity.len());
         DictionaryBuffer { buffer, validity }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ListItemMetadata {
+    pub offset: i32,
+    pub len: i32,
+}
+
+#[derive(Debug)]
+pub struct ListBuffer<B: BufferManager> {
+    pub(crate) child: Array<B>,
+}
+
+impl<B> ListBuffer<B>
+where
+    B: BufferManager,
+{
+    pub fn new(child: Array<B>) -> Self {
+        ListBuffer { child }
     }
 }

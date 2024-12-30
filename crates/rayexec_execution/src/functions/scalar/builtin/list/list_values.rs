@@ -1,6 +1,8 @@
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::Array2;
+use crate::arrays::batch_exp::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::executor::scalar::concat;
 use crate::arrays::storage::ListStorage;
@@ -90,6 +92,13 @@ pub struct ListValuesImpl {
 }
 
 impl ScalarFunctionImpl for ListValuesImpl {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let arrays = input.arrays();
+
+        unimplemented!()
+    }
+
     fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         if inputs.is_empty() {
             let inner_type = match &self.list_datatype {

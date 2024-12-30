@@ -21,6 +21,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
+    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -30,7 +31,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::buffer::string_view::StringViewHeap;
-use crate::arrays::buffer::{ArrayBuffer, DictionaryBuffer, SecondaryBuffer};
+use crate::arrays::buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, SecondaryBuffer};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 
@@ -102,6 +103,24 @@ where
                 buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
                 buffer
             }
+            PhysicalType::List => {
+                let inner_type = match &datatype {
+                    DataType::List(m) => m.datatype.as_ref().clone(),
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Expected list datatype, got {other}"
+                        )))
+                    }
+                };
+
+                let child = Self::new(manager, inner_type, capacity)?;
+
+                let mut buffer =
+                    ArrayBuffer::with_primary_capacity::<PhysicalList>(manager, capacity)?;
+                buffer.put_secondary_buffer(SecondaryBuffer::List(ListBuffer::new(child)));
+
+                buffer
+            }
             _ => unimplemented!(),
         };
 
@@ -116,6 +135,10 @@ where
 
     pub fn datatype(&self) -> &DataType {
         &self.datatype
+    }
+
+    pub fn physical_type(&self) -> PhysicalType {
+        self.data().physical_type()
     }
 
     pub fn data(&self) -> &ArrayData<B> {

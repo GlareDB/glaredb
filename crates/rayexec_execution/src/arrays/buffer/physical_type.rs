@@ -11,7 +11,7 @@ use super::string_view::{
     StringViewAddressableMut,
     StringViewMetadataUnion,
 };
-use super::ArrayBuffer;
+use super::{ArrayBuffer, ListItemMetadata};
 use crate::arrays::scalar::interval::Interval;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +42,7 @@ pub enum PhysicalType {
 impl PhysicalType {
     pub const fn primary_buffer_mem_size(&self) -> usize {
         match self {
+            Self::UntypedNull => PhysicalUntypedNull::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Boolean => PhysicalBool::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Int8 => PhysicalI8::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Int16 => PhysicalI16::PRIMARY_BUFFER_TYPE_SIZE,
@@ -58,6 +59,7 @@ impl PhysicalType {
             Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Utf8 => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::List => PhysicalList::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Dictionary => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
 
             _ => unimplemented!(),
@@ -249,6 +251,29 @@ generate_primitive!(f64, PhysicalF64, Float64);
 
 generate_primitive!(Interval, PhysicalInterval, Interval);
 
+/// Marker type representing a null value without an associated type.
+///
+/// This will be the type we use for queries like `SELECT NULL` where there's no
+/// additional type information in the query.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UntypedNull;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalUntypedNull;
+
+impl PhysicalStorage for PhysicalUntypedNull {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
+
+    type PrimaryBufferType = UntypedNull;
+    type StorageType = UntypedNull;
+
+    type Addressable<'a> = &'a [UntypedNull];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalUtf8;
 
@@ -315,5 +340,31 @@ impl PhysicalStorage for PhysicalDictionary {
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_slice::<Self>()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalList;
+
+impl PhysicalStorage for PhysicalList {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
+
+    type PrimaryBufferType = ListItemMetadata;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Addressable<'a> = &'a [Self::StorageType];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalList {
+    type AddressableMut<'a> = &'a mut [Self::StorageType];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
     }
 }

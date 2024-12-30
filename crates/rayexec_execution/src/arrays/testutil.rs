@@ -35,6 +35,7 @@ use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
 /// Assert two arrays are logically equal.
 ///
 /// This will assume that the array's capacity is the array's logical length.
+#[track_caller]
 pub fn assert_arrays_eq(array1: &Array, array2: &Array) {
     assert_eq!(
         array1.capacity(),
@@ -48,6 +49,7 @@ pub fn assert_arrays_eq(array1: &Array, array2: &Array) {
 ///
 /// This will check valid and invalid values. Assertion error messages will
 /// print out Some/None to represent valid/invalid.
+#[track_caller]
 pub fn assert_arrays_eq_count(array1: &Array, array2: &Array, count: usize) {
     assert_eq!(array1.datatype, array2.datatype);
 
@@ -102,6 +104,7 @@ pub fn assert_arrays_eq_count(array1: &Array, array2: &Array, count: usize) {
 }
 
 /// Asserts two batches are logically equal.
+#[track_caller]
 pub fn assert_batches_eq(batch1: &Batch, batch2: &Batch) {
     let arrays1 = batch1.arrays();
     let arrays2 = batch2.arrays();
