@@ -2,23 +2,23 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{
-    PhysicalBool_2,
-    PhysicalF16_2,
-    PhysicalF32_2,
-    PhysicalF64_2,
-    PhysicalI128_2,
-    PhysicalI16_2,
-    PhysicalI32_2,
-    PhysicalI64_2,
-    PhysicalI8_2,
-    PhysicalStorage2,
+use crate::arrays::array::exp::Array;
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::physical_type::{
+    MutablePhysicalStorage,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
 };
-use crate::arrays::executor::scalar::UnaryExecutor2;
-use crate::arrays::storage::PrimitiveStorage;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -61,14 +61,14 @@ impl ScalarFunction for Negate {
 
         // TODO: Interval
         let function_impl: Box<dyn ScalarFunctionImpl> = match dt.clone() {
-            dt @ DataType::Int8 => Box::new(NegateImpl::<PhysicalI8_2>::new(dt)),
-            dt @ DataType::Int16 => Box::new(NegateImpl::<PhysicalI16_2>::new(dt)),
-            dt @ DataType::Int32 => Box::new(NegateImpl::<PhysicalI32_2>::new(dt)),
-            dt @ DataType::Int64 => Box::new(NegateImpl::<PhysicalI64_2>::new(dt)),
-            dt @ DataType::Int128 => Box::new(NegateImpl::<PhysicalI128_2>::new(dt)),
-            dt @ DataType::Float16 => Box::new(NegateImpl::<PhysicalF16_2>::new(dt)),
-            dt @ DataType::Float32 => Box::new(NegateImpl::<PhysicalF32_2>::new(dt)),
-            dt @ DataType::Float64 => Box::new(NegateImpl::<PhysicalF64_2>::new(dt)),
+            DataType::Int8 => Box::new(NegateImpl::<PhysicalI8>::new()),
+            DataType::Int16 => Box::new(NegateImpl::<PhysicalI16>::new()),
+            DataType::Int32 => Box::new(NegateImpl::<PhysicalI32>::new()),
+            DataType::Int64 => Box::new(NegateImpl::<PhysicalI64>::new()),
+            DataType::Int128 => Box::new(NegateImpl::<PhysicalI128>::new()),
+            DataType::Float16 => Box::new(NegateImpl::<PhysicalF16>::new()),
+            DataType::Float32 => Box::new(NegateImpl::<PhysicalF32>::new()),
+            DataType::Float64 => Box::new(NegateImpl::<PhysicalF64>::new()),
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 
@@ -83,36 +83,29 @@ impl ScalarFunction for Negate {
 
 #[derive(Debug, Clone)]
 pub struct NegateImpl<S> {
-    datatype: DataType, // TODO: Would be nice not needing to store this.
     _s: PhantomData<S>,
 }
 
 impl<S> NegateImpl<S> {
-    fn new(datatype: DataType) -> Self {
-        NegateImpl {
-            datatype,
-            _s: PhantomData,
-        }
+    const fn new() -> Self {
+        NegateImpl { _s: PhantomData }
     }
 }
 
 impl<S> ScalarFunctionImpl for NegateImpl<S>
 where
-    S: PhysicalStorage2,
-    for<'a> S::Type<'a>: std::ops::Neg<Output = S::Type<'static>> + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
+    S: MutablePhysicalStorage,
+    S::StorageType: std::ops::Neg<Output = S::StorageType> + Copy,
 {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        use std::ops::Neg;
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-        let a = inputs[0];
-        let datatype = self.datatype.clone();
-        let builder = ArrayBuilder {
-            datatype,
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
-
-        UnaryExecutor2::execute::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
+        UnaryExecutor::execute::<S, S, _>(
+            &input.arrays()[0],
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, buf| buf.put(&(-a)),
+        )
     }
 }
 
@@ -165,14 +158,14 @@ impl ScalarFunction for Not {
 pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        UnaryExecutor2::execute::<PhysicalBool_2, _, _>(
-            inputs[0],
-            ArrayBuilder {
-                datatype: DataType::Boolean,
-                buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-            },
-            |b, buf| buf.put(&(!b)),
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+
+        UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+            &input.arrays()[0],
+            sel,
+            OutBuffer::from_array(output)?,
+            |&b, buf| buf.put(&(!b)),
         )
     }
 }

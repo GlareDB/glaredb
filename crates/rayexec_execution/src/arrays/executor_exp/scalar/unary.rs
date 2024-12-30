@@ -108,7 +108,11 @@ impl UnaryExecutor {
     /// Note that changing the lengths for variable length data is not yet
     /// supported, as the length change won't persist since the metadata isn't
     /// being changed.
-    pub fn execute_in_place<S, Op>(array: &mut Array, mut op: Op) -> Result<()>
+    pub fn execute_in_place<S, Op>(
+        array: &mut Array,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        mut op: Op,
+    ) -> Result<()>
     where
         S: MutablePhysicalStorage,
         Op: FnMut(&mut S::StorageType),
@@ -117,11 +121,11 @@ impl UnaryExecutor {
         let mut input = S::get_addressable_mut(array.data.try_as_mut()?)?;
 
         if validity.all_valid() {
-            for idx in 0..input.len() {
+            for idx in selection.into_iter() {
                 op(input.get_mut(idx).unwrap());
             }
         } else {
-            for idx in 0..input.len() {
+            for idx in selection.into_iter() {
                 if validity.is_valid(idx) {
                     op(input.get_mut(idx).unwrap());
                 }
@@ -238,7 +242,8 @@ mod tests {
     fn int32_inc_by_2_in_place() {
         let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
 
-        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, |v| *v = *v + 2).unwrap();
+        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v = *v + 2)
+            .unwrap();
 
         let arr_slice = array.data().try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[3, 4, 5], arr_slice);
@@ -351,7 +356,7 @@ mod tests {
     fn string_uppercase_in_place() {
         let mut array = Array::try_from_iter(["a", "bb", "ccc"]).unwrap();
 
-        UnaryExecutor::execute_in_place::<PhysicalUtf8, _>(&mut array, |v| {
+        UnaryExecutor::execute_in_place::<PhysicalUtf8, _>(&mut array, 0..3, |v| {
             v.make_ascii_uppercase()
         })
         .unwrap();
