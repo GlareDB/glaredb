@@ -122,6 +122,10 @@ where
         &self.data
     }
 
+    pub fn data_mut(&mut self) -> &mut ArrayData<B> {
+        &mut self.data
+    }
+
     pub fn validity(&self) -> &Validity {
         &self.validity
     }

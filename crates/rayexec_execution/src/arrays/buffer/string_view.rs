@@ -48,6 +48,49 @@ impl<'a> AddressableMut for StringViewAddressableMut<'a> {
     }
 }
 
+#[derive(Debug)]
+pub struct BinaryViewAddressable<'a> {
+    pub(crate) metadata: &'a [StringViewMetadataUnion],
+    pub(crate) heap: &'a StringViewHeap,
+}
+
+impl<'a> Addressable for BinaryViewAddressable<'a> {
+    type T = [u8];
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        let m = self.metadata.get(idx)?;
+        self.heap.get(m)
+    }
+}
+
+#[derive(Debug)]
+pub struct BinaryViewAddressableMut<'a> {
+    pub(crate) metadata: &'a mut [StringViewMetadataUnion],
+    pub(crate) heap: &'a mut StringViewHeap,
+}
+
+impl<'a> AddressableMut for BinaryViewAddressableMut<'a> {
+    type T = [u8];
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        let m = self.metadata.get_mut(idx)?;
+        self.heap.get_mut(m)
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        let new_m = self.heap.push_bytes(val);
+        self.metadata[idx] = new_m;
+    }
+}
+
 /// Metadata for small (<= 12 bytes) varlen data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]

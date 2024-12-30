@@ -5,10 +5,13 @@ pub mod string_view;
 mod raw;
 
 use buffer_manager::{BufferManager, NopBufferManager};
+use fmtutil::IntoDisplayableSlice;
 use physical_type::{PhysicalStorage, PhysicalType};
 use raw::RawBufferParts;
 use rayexec_error::{RayexecError, Result};
 use string_view::{
+    BinaryViewAddressable,
+    BinaryViewAddressableMut,
     StringViewAddressable,
     StringViewAddressableMut,
     StringViewHeap,
@@ -110,11 +113,51 @@ where
         Ok(StringViewAddressableMut { metadata, heap })
     }
 
+    pub fn try_as_binary_view_addressable(&self) -> Result<BinaryViewAddressable> {
+        self.check_type_one_of(&[PhysicalType::Utf8, PhysicalType::Binary])?;
+
+        let metadata = unsafe { self.primary.as_slice::<StringViewMetadataUnion>() };
+        let heap = match self.secondary.as_ref() {
+            SecondaryBuffer::StringViewHeap(heap) => heap,
+            _ => return Err(RayexecError::new("Missing string heap")),
+        };
+
+        Ok(BinaryViewAddressable { metadata, heap })
+    }
+
+    pub fn try_as_binary_view_addressable_mut(&mut self) -> Result<BinaryViewAddressableMut> {
+        // Note that unlike the non-mut version of this function, we only allow
+        // physical binary types here. For reads, treating strings as binary is
+        // completely fine, but allowing writing raw binary to a logical string
+        // array could lead to invalid utf8.
+        self.check_type(PhysicalType::Binary)?;
+
+        let metadata = unsafe { self.primary.as_slice_mut::<StringViewMetadataUnion>() };
+        let heap = match self.secondary.as_mut() {
+            SecondaryBuffer::StringViewHeap(heap) => heap,
+            _ => return Err(RayexecError::new("Missing string heap")),
+        };
+
+        Ok(BinaryViewAddressableMut { metadata, heap })
+    }
+
     fn check_type(&self, want: PhysicalType) -> Result<()> {
         if want != self.physical_type {
             return Err(RayexecError::new("Physical types don't match")
                 .with_field("have", self.physical_type)
                 .with_field("want", want));
+        }
+
+        Ok(())
+    }
+
+    fn check_type_one_of(&self, oneof: &[PhysicalType]) -> Result<()> {
+        if !oneof.contains(&self.physical_type) {
+            return Err(
+                RayexecError::new("Physical type not one of requested types")
+                    .with_field("have", self.physical_type)
+                    .with_field("oneof", oneof.display_as_list().to_string()),
+            );
         }
 
         Ok(())

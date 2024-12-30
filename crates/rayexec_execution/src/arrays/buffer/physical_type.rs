@@ -5,6 +5,8 @@ use rayexec_error::Result;
 
 use super::buffer_manager::BufferManager;
 use super::string_view::{
+    BinaryViewAddressable,
+    BinaryViewAddressableMut,
     StringViewAddressable,
     StringViewAddressableMut,
     StringViewMetadataUnion,
@@ -270,6 +272,32 @@ impl MutablePhysicalStorage for PhysicalUtf8 {
         buffer: &mut ArrayBuffer<B>,
     ) -> Result<Self::AddressableMut<'_>> {
         buffer.try_as_string_view_addressable_mut()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalBinary;
+
+impl PhysicalStorage for PhysicalBinary {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Binary;
+
+    type PrimaryBufferType = StringViewMetadataUnion;
+    type StorageType = [u8];
+
+    type Addressable<'a> = BinaryViewAddressable<'a>;
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_binary_view_addressable()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalBinary {
+    type AddressableMut<'a> = BinaryViewAddressableMut<'a>;
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_binary_view_addressable_mut()
     }
 }
 

@@ -8,7 +8,7 @@ use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::PhysicalBool_2;
-use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor, UniformExecutor};
+use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor, UniformExecutor2};
 use crate::arrays::storage::BooleanStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -111,7 +111,7 @@ impl ScalarFunctionImpl for AndImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool_2, _, _>(
+                UniformExecutor2::execute::<PhysicalBool_2, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Boolean,
@@ -204,7 +204,7 @@ impl ScalarFunctionImpl for OrImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool_2, _, _>(
+                UniformExecutor2::execute::<PhysicalBool_2, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Boolean,

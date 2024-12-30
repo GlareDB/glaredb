@@ -1,10 +1,13 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array2;
+use crate::arrays::array::exp::Array;
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::physical_type::{AddressableMut, PhysicalUtf8};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8_2;
-use crate::arrays::executor::scalar::{BinaryExecutor2, UniformExecutor};
+use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::arrays::executor_exp::scalar::uniform::UniformExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -68,55 +71,70 @@ impl ScalarFunction for Concat {
 pub struct StringConcatImpl;
 
 impl ScalarFunctionImpl for StringConcatImpl {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        match inputs.len() {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+
+        match input.arrays().len() {
             0 => {
-                let mut array = Array2::from_iter([""]);
-                array.set_physical_validity(0, false);
-                Ok(array)
+                // TODO: Zero args should actually error during planning.
+                // Currently this just sets everything to an empty string.
+                let mut addressable = output
+                    .data_mut()
+                    .try_as_mut()?
+                    .try_as_string_view_addressable_mut()?;
+
+                for idx in 0..addressable.len() {
+                    addressable.put(idx, "");
+                }
             }
-            1 => Ok(inputs[0].clone()),
+            1 => {
+                let input = &input.arrays()[0];
+
+                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                    input,
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, buf| buf.put(s),
+                )?;
+            }
             2 => {
-                let a = inputs[0];
-                let b = inputs[1];
+                let a = &input.arrays()[0];
+                let b = &input.arrays()[0];
 
-                let mut string_buf = String::new();
+                let mut str_buf = String::new();
 
-                // TODO: Compute data capacity.
-
-                BinaryExecutor2::execute::<PhysicalUtf8_2, PhysicalUtf8_2, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
                     a,
+                    sel,
                     b,
-                    ArrayBuilder {
-                        datatype: DataType::Utf8,
-                        buffer: GermanVarlenBuffer::with_len(a.logical_len()),
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s1, s2, buf| {
+                        str_buf.clear();
+                        str_buf.push_str(s1);
+                        str_buf.push_str(s2);
+                        buf.put(&str_buf);
                     },
-                    |a, b, buf| {
-                        string_buf.clear();
-                        string_buf.push_str(a);
-                        string_buf.push_str(b);
-                        buf.put(string_buf.as_str());
-                    },
-                )
+                )?;
             }
             _ => {
-                let mut string_buf = String::new();
+                let mut str_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
-                    inputs,
-                    ArrayBuilder {
-                        datatype: DataType::Utf8,
-                        buffer: GermanVarlenBuffer::with_len(inputs[0].logical_len()),
-                    },
-                    |strings, buf| {
-                        string_buf.clear();
-                        for s in strings {
-                            string_buf.push_str(s);
+                UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                    input.arrays(),
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |ss, buf| {
+                        str_buf.clear();
+                        for s in ss {
+                            str_buf.push_str(s);
                         }
-                        buf.put(string_buf.as_str());
+                        buf.put(&str_buf);
                     },
-                )
+                )?;
             }
         }
+
+        Ok(())
     }
 }

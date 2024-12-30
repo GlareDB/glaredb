@@ -10,9 +10,9 @@ use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
-pub struct UniformExecutor;
+pub struct UniformExecutor2;
 
-impl UniformExecutor {
+impl UniformExecutor2 {
     pub fn execute<'a, S, B, Op>(
         arrays: &[&'a Array2],
         builder: ArrayBuilder<B>,
@@ -127,7 +127,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
+        let got = UniformExecutor2::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -162,7 +162,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
+        let got = UniformExecutor2::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -195,7 +195,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8_2, _, _>(
+        let got = UniformExecutor2::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
