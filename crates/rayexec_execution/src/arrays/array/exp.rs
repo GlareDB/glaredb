@@ -153,6 +153,10 @@ where
         &self.validity
     }
 
+    pub fn validity_mut(&mut self) -> &mut Validity {
+        &mut self.validity
+    }
+
     pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
         if validity.len() != self.data().capacity() {
             return Err(RayexecError::new("Invalid validity length")

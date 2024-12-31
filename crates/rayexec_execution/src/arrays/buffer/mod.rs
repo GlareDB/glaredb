@@ -24,6 +24,12 @@ use super::array::array_data::ArrayData;
 use super::array::exp::Array;
 use super::array::validity::Validity;
 
+/// Buffer for arrays.
+///
+/// Buffers are able to hold a fixed number of elements in the primary buffer.
+/// Some types make use of secondary buffers for additional data. In such cases,
+/// the primary buffer may hold things like metadata or offsets depending on the
+/// type.
 #[derive(Debug)]
 pub struct ArrayBuffer<B: BufferManager = NopBufferManager> {
     /// Physical type of the buffer.
@@ -148,6 +154,38 @@ where
         Ok(BinaryViewAddressableMut { metadata, heap })
     }
 
+    /// Resize the primary buffer to be able to hold `capacity` elements.
+    pub fn resize_primary<S: PhysicalStorage>(
+        &mut self,
+        manager: &B,
+        capacity: usize,
+    ) -> Result<()> {
+        self.check_type(S::PHYSICAL_TYPE)?;
+
+        unsafe {
+            self.primary
+                .resize::<S::PrimaryBufferType>(manager, capacity)
+        }
+    }
+
+    /// Ensure the primary buffer can hold `capacity` elements.
+    ///
+    /// Does nothing if the primary buffer already has enough capacity.
+    pub fn reserve_primary<S: PhysicalStorage>(
+        &mut self,
+        manager: &B,
+        capacity: usize,
+    ) -> Result<()> {
+        self.check_type(S::PHYSICAL_TYPE)?;
+
+        if self.capacity() >= capacity {
+            return Ok(());
+        }
+
+        self.resize_primary::<S>(manager, capacity)
+    }
+
+    /// Checks that the physical type of this buffer matches `want`.
     fn check_type(&self, want: PhysicalType) -> Result<()> {
         if want != self.physical_type {
             return Err(RayexecError::new("Physical types don't match")
@@ -226,5 +264,54 @@ where
 {
     pub fn new(child: Array<B>) -> Self {
         ListBuffer { child }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use physical_type::PhysicalI32;
+
+    use super::*;
+
+    #[test]
+    fn resize_primitive_increase_size() {
+        let mut buffer =
+            ArrayBuffer::with_primary_capacity::<PhysicalI32>(&NopBufferManager, 4).unwrap();
+
+        let s = buffer.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(4, s.len());
+
+        buffer
+            .resize_primary::<PhysicalI32>(&NopBufferManager, 8)
+            .unwrap();
+
+        let s = buffer.try_as_slice_mut::<PhysicalI32>().unwrap();
+        assert_eq!(8, s.len());
+
+        // Sanity check, make sure we can write to it.
+        s.iter_mut().for_each(|v| *v = 12);
+
+        assert_eq!(vec![12; 8].as_slice(), s);
+    }
+
+    #[test]
+    fn resize_primitive_decrease_size() {
+        let mut buffer =
+            ArrayBuffer::with_primary_capacity::<PhysicalI32>(&NopBufferManager, 4).unwrap();
+
+        let s = buffer.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(4, s.len());
+
+        buffer
+            .resize_primary::<PhysicalI32>(&NopBufferManager, 2)
+            .unwrap();
+
+        let s = buffer.try_as_slice_mut::<PhysicalI32>().unwrap();
+        assert_eq!(2, s.len());
+
+        // Sanity check, make sure we can write to it.
+        s.iter_mut().for_each(|v| *v = 12);
+
+        assert_eq!(vec![12; 2].as_slice(), s);
     }
 }

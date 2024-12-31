@@ -8,6 +8,8 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
+use iterutil::IntoExactSizeIterator;
+
 use super::array::exp::Array;
 use super::batch_exp::Batch;
 use crate::arrays::array::flat::FlatArrayView;
@@ -21,6 +23,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
+    PhysicalList,
     PhysicalStorage,
     PhysicalType,
     PhysicalU128,
@@ -30,6 +33,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
+use crate::arrays::buffer::SecondaryBuffer;
 use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
 
 /// Assert two arrays are logically equal.
@@ -42,7 +46,10 @@ pub fn assert_arrays_eq(array1: &Array, array2: &Array) {
         array2.capacity(),
         "array capacities differ"
     );
-    assert_arrays_eq_count(array1, array2, array1.capacity())
+
+    let sel = 0..array1.capacity();
+
+    assert_arrays_eq_sel(array1, sel.clone(), array2, sel)
 }
 
 /// Asserts that two arrays are logically equal for the first `count` rows.
@@ -50,56 +57,122 @@ pub fn assert_arrays_eq(array1: &Array, array2: &Array) {
 /// This will check valid and invalid values. Assertion error messages will
 /// print out Some/None to represent valid/invalid.
 #[track_caller]
-pub fn assert_arrays_eq_count(array1: &Array, array2: &Array, count: usize) {
+pub fn assert_arrays_eq_sel(
+    array1: &Array,
+    sel1: impl IntoExactSizeIterator<Item = usize>,
+    array2: &Array,
+    sel2: impl IntoExactSizeIterator<Item = usize>,
+) {
     assert_eq!(array1.datatype, array2.datatype);
 
     let flat1 = array1.flat_view().unwrap();
     let flat2 = array2.flat_view().unwrap();
 
-    fn assert_eq_inner<S>(flat1: FlatArrayView, flat2: FlatArrayView, count: usize)
-    where
-        S: PhysicalStorage,
-        S::StorageType: ToOwned<Owned: Debug + PartialEq>,
-    {
-        let mut out = BTreeMap::new();
-        let sel = 0..count;
-
-        UnaryExecutor::for_each_flat::<S, _>(flat1, sel.clone(), |idx, v| {
-            out.insert(idx, v.map(|v| v.to_owned()));
-        })
-        .unwrap();
-
-        UnaryExecutor::for_each_flat::<S, _>(flat2, sel, |idx, v| match out.remove(&idx) {
-            Some(existing) => {
-                let v = v.map(|v| v.to_owned());
-                assert_eq!(existing, v, "values differ at index {idx}");
-            }
-            None => panic!("missing value for index in array 1 {idx}"),
-        })
-        .unwrap();
-
-        if !out.is_empty() {
-            panic!("extra entries in array 1: {:?}", out);
-        }
-    }
-
     match array1.datatype.physical_type() {
-        PhysicalType::Boolean => assert_eq_inner::<PhysicalBool>(flat1, flat2, count),
-        PhysicalType::Int8 => assert_eq_inner::<PhysicalI8>(flat1, flat2, count),
-        PhysicalType::Int16 => assert_eq_inner::<PhysicalI16>(flat1, flat2, count),
-        PhysicalType::Int32 => assert_eq_inner::<PhysicalI32>(flat1, flat2, count),
-        PhysicalType::Int64 => assert_eq_inner::<PhysicalI64>(flat1, flat2, count),
-        PhysicalType::Int128 => assert_eq_inner::<PhysicalI128>(flat1, flat2, count),
-        PhysicalType::UInt8 => assert_eq_inner::<PhysicalU8>(flat1, flat2, count),
-        PhysicalType::UInt16 => assert_eq_inner::<PhysicalU16>(flat1, flat2, count),
-        PhysicalType::UInt32 => assert_eq_inner::<PhysicalU32>(flat1, flat2, count),
-        PhysicalType::UInt64 => assert_eq_inner::<PhysicalU64>(flat1, flat2, count),
-        PhysicalType::UInt128 => assert_eq_inner::<PhysicalU128>(flat1, flat2, count),
-        PhysicalType::Float16 => assert_eq_inner::<PhysicalF16>(flat1, flat2, count),
-        PhysicalType::Float32 => assert_eq_inner::<PhysicalF32>(flat1, flat2, count),
-        PhysicalType::Float64 => assert_eq_inner::<PhysicalF64>(flat1, flat2, count),
-        PhysicalType::Utf8 => assert_eq_inner::<PhysicalUtf8>(flat1, flat2, count),
+        PhysicalType::Boolean => {
+            assert_arrays_eq_sel_inner::<PhysicalBool>(flat1, sel1, flat2, sel2)
+        }
+        PhysicalType::Int8 => assert_arrays_eq_sel_inner::<PhysicalI8>(flat1, sel1, flat2, sel2),
+        PhysicalType::Int16 => assert_arrays_eq_sel_inner::<PhysicalI16>(flat1, sel1, flat2, sel2),
+        PhysicalType::Int32 => assert_arrays_eq_sel_inner::<PhysicalI32>(flat1, sel1, flat2, sel2),
+        PhysicalType::Int64 => assert_arrays_eq_sel_inner::<PhysicalI64>(flat1, sel1, flat2, sel2),
+        PhysicalType::Int128 => {
+            assert_arrays_eq_sel_inner::<PhysicalI128>(flat1, sel1, flat2, sel2)
+        }
+        PhysicalType::UInt8 => assert_arrays_eq_sel_inner::<PhysicalU8>(flat1, sel1, flat2, sel2),
+        PhysicalType::UInt16 => assert_arrays_eq_sel_inner::<PhysicalU16>(flat1, sel1, flat2, sel2),
+        PhysicalType::UInt32 => assert_arrays_eq_sel_inner::<PhysicalU32>(flat1, sel1, flat2, sel2),
+        PhysicalType::UInt64 => assert_arrays_eq_sel_inner::<PhysicalU64>(flat1, sel1, flat2, sel2),
+        PhysicalType::UInt128 => {
+            assert_arrays_eq_sel_inner::<PhysicalU128>(flat1, sel1, flat2, sel2)
+        }
+        PhysicalType::Float16 => {
+            assert_arrays_eq_sel_inner::<PhysicalF16>(flat1, sel1, flat2, sel2)
+        }
+        PhysicalType::Float32 => {
+            assert_arrays_eq_sel_inner::<PhysicalF32>(flat1, sel1, flat2, sel2)
+        }
+        PhysicalType::Float64 => {
+            assert_arrays_eq_sel_inner::<PhysicalF64>(flat1, sel1, flat2, sel2)
+        }
+        PhysicalType::Utf8 => assert_arrays_eq_sel_inner::<PhysicalUtf8>(flat1, sel1, flat2, sel2),
+        PhysicalType::List => {
+            assert_arrays_eq_sel_list_inner(flat1, sel1, flat2, sel2);
+        }
         other => unimplemented!("{other:?}"),
+    }
+}
+
+fn assert_arrays_eq_sel_list_inner(
+    flat1: FlatArrayView,
+    sel1: impl IntoExactSizeIterator<Item = usize>,
+    flat2: FlatArrayView,
+    sel2: impl IntoExactSizeIterator<Item = usize>,
+) {
+    let inner1 = match flat1.array_buffer.get_secondary() {
+        SecondaryBuffer::List(list) => &list.child,
+        _ => panic!("Missing child for array 1"),
+    };
+
+    let inner2 = match flat2.array_buffer.get_secondary() {
+        SecondaryBuffer::List(list) => &list.child,
+        _ => panic!("Missing child for array 2"),
+    };
+
+    let metas1 = PhysicalList::get_addressable(&flat1.array_buffer).unwrap();
+    let metas2 = PhysicalList::get_addressable(&flat2.array_buffer).unwrap();
+
+    let sel1 = sel1.into_iter();
+    let sel2 = sel2.into_iter();
+    assert_eq!(sel1.len(), sel2.len());
+
+    for (row_idx, (idx1, idx2)) in sel1.zip(sel2).enumerate() {
+        let idx1 = flat1.selection.get(idx1).unwrap();
+        let idx2 = flat1.selection.get(idx2).unwrap();
+
+        assert_eq!(
+            flat1.validity.is_valid(idx1),
+            flat2.validity.is_valid(idx2),
+            "validity mismatch for row {row_idx}"
+        );
+
+        let m1 = metas1.get(idx1).unwrap();
+        let m2 = metas2.get(idx2).unwrap();
+
+        let sel1 = (m1.offset as usize)..((m1.offset + m1.len) as usize);
+        let sel2 = (m2.offset as usize)..((m2.offset + m2.len) as usize);
+
+        assert_arrays_eq_sel(inner1, sel1, inner2, sel2);
+    }
+}
+
+fn assert_arrays_eq_sel_inner<S>(
+    flat1: FlatArrayView,
+    sel1: impl IntoExactSizeIterator<Item = usize>,
+    flat2: FlatArrayView,
+    sel2: impl IntoExactSizeIterator<Item = usize>,
+) where
+    S: PhysicalStorage,
+    S::StorageType: ToOwned<Owned: Debug + PartialEq>,
+{
+    let mut out = BTreeMap::new();
+
+    UnaryExecutor::for_each_flat::<S, _>(flat1, sel1, |idx, v| {
+        out.insert(idx, v.map(|v| v.to_owned()));
+    })
+    .unwrap();
+
+    UnaryExecutor::for_each_flat::<S, _>(flat2, sel2, |idx, v| match out.remove(&idx) {
+        Some(existing) => {
+            let v = v.map(|v| v.to_owned());
+            assert_eq!(existing, v, "values differ at index {idx}");
+        }
+        None => panic!("missing value for index in array 1 {idx}"),
+    })
+    .unwrap();
+
+    if !out.is_empty() {
+        panic!("extra entries in array 1: {:?}", out);
     }
 }
 
@@ -121,7 +194,8 @@ pub fn assert_batches_eq(batch1: &Batch, batch2: &Batch) {
     );
 
     for (array1, array2) in arrays1.iter().zip(arrays2) {
-        assert_arrays_eq_count(array1, array2, batch1.num_rows());
+        let sel = 0..batch1.num_rows();
+        assert_arrays_eq_sel(array1, sel.clone(), array2, sel);
     }
 }
 

@@ -1,11 +1,35 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::exp::Array;
-use crate::arrays::array::Array2;
+use crate::arrays::array::validity::Validity;
 use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::buffer_manager::NopBufferManager;
+use crate::arrays::buffer::physical_type::{
+    Addressable,
+    AddressableMut,
+    MutablePhysicalStorage,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalList,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
+};
+use crate::arrays::buffer::{ListItemMetadata, SecondaryBuffer};
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
-use crate::arrays::executor::scalar::concat;
-use crate::arrays::storage::ListStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -54,9 +78,7 @@ impl ScalarFunction for ListValues {
                     function: Box::new(*self),
                     return_type: return_type.clone(),
                     inputs,
-                    function_impl: Box::new(ListValuesImpl {
-                        list_datatype: return_type,
-                    }),
+                    function_impl: Box::new(ListValuesImpl),
                 });
             }
         };
@@ -79,47 +101,168 @@ impl ScalarFunction for ListValues {
             function: Box::new(*self),
             return_type: return_type.clone(),
             inputs,
-            function_impl: Box::new(ListValuesImpl {
-                list_datatype: return_type,
-            }),
+            function_impl: Box::new(ListValuesImpl),
         })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ListValuesImpl {
-    list_datatype: DataType,
-}
+pub struct ListValuesImpl;
 
 impl ScalarFunctionImpl for ListValuesImpl {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        let sel = input.selection();
-        let arrays = input.arrays();
+        let inner_type = match output.datatype() {
+            DataType::List(m) => m.datatype.physical_type(),
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Expected output to be list datatype, got {other}",
+                )))
+            }
+        };
 
-        unimplemented!()
+        match inner_type {
+            PhysicalType::UntypedNull => execute_list_values::<PhysicalUntypedNull>(input, output),
+            PhysicalType::Boolean => execute_list_values::<PhysicalBool>(input, output),
+            PhysicalType::Int8 => execute_list_values::<PhysicalI8>(input, output),
+            PhysicalType::Int16 => execute_list_values::<PhysicalI16>(input, output),
+            PhysicalType::Int32 => execute_list_values::<PhysicalI32>(input, output),
+            PhysicalType::Int64 => execute_list_values::<PhysicalI64>(input, output),
+            PhysicalType::Int128 => execute_list_values::<PhysicalI128>(input, output),
+            PhysicalType::UInt8 => execute_list_values::<PhysicalU8>(input, output),
+            PhysicalType::UInt16 => execute_list_values::<PhysicalU16>(input, output),
+            PhysicalType::UInt32 => execute_list_values::<PhysicalU32>(input, output),
+            PhysicalType::UInt64 => execute_list_values::<PhysicalU64>(input, output),
+            PhysicalType::UInt128 => execute_list_values::<PhysicalU128>(input, output),
+            PhysicalType::Float16 => execute_list_values::<PhysicalF16>(input, output),
+            PhysicalType::Float32 => execute_list_values::<PhysicalF32>(input, output),
+            PhysicalType::Float64 => execute_list_values::<PhysicalF64>(input, output),
+            PhysicalType::Utf8 => execute_list_values::<PhysicalUtf8>(input, output),
+            PhysicalType::Binary => execute_list_values::<PhysicalBinary>(input, output),
+            other => not_implemented!("list values for physical type {other}"),
+        }
+    }
+}
+
+/// Helper for constructing the list values and writing them to `output`.
+///
+/// `S` should be the inner type.
+fn execute_list_values<S: MutablePhysicalStorage>(input: &Batch, output: &mut Array) -> Result<()> {
+    // TODO: Dictionary
+
+    let sel = input.selection();
+    let inputs = input
+        .arrays()
+        .iter()
+        .map(|arr| S::get_addressable(arr.data()))
+        .collect::<Result<Vec<_>>>()?;
+
+    let capacity = sel.len() * inputs.len();
+
+    let list_buf = match output.data_mut().try_as_mut()?.get_secondary_mut() {
+        SecondaryBuffer::List(list) => list,
+        _ => return Err(RayexecError::new("Expected list buffer")),
+    };
+
+    // Resize secondary buffer (and validity) to hold everything.
+    //
+    // TODO: Need to store buffer manager somewhere else.
+    list_buf
+        .child
+        .data_mut()
+        .try_as_mut()?
+        .reserve_primary::<S>(&NopBufferManager, capacity)?;
+
+    // Replace validity with properly sized one.
+    list_buf
+        .child
+        .put_validity(Validity::new_all_valid(capacity))?;
+
+    let mut child_outputs = S::get_addressable_mut(list_buf.child.data.try_as_mut()?)?;
+    let child_validity = &mut list_buf.child.validity;
+
+    // Write the list values from the input batch.
+    let mut output_idx = 0;
+    for row_idx in sel.into_iter() {
+        for (col, validity) in inputs
+            .iter()
+            .zip(input.arrays().iter().map(|arr| arr.validity()))
+        {
+            if validity.is_valid(row_idx) {
+                child_outputs.put(output_idx, col.get(row_idx).unwrap());
+            } else {
+                child_validity.set_invalid(output_idx);
+            }
+
+            output_idx += 1;
+        }
+    }
+    std::mem::drop(child_outputs);
+
+    // Now generate and set the metadatas.
+    let mut out = PhysicalList::get_addressable_mut(output.data_mut().try_as_mut()?)?;
+
+    let len = inputs.len() as i32;
+    for output_idx in 0..sel.len() {
+        // Note top-level not possible if we're provided a batch.
+        out.put(
+            output_idx,
+            &ListItemMetadata {
+                offset: (output_idx as i32) * len,
+                len,
+            },
+        );
     }
 
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        if inputs.is_empty() {
-            let inner_type = match &self.list_datatype {
-                DataType::List(l) => l.datatype.as_ref(),
-                other => panic!("invalid data type: {other}"),
-            };
+    Ok(())
+}
 
-            let data =
-                ListStorage::empty_list(Array2::new_typed_null_array(inner_type.clone(), 1)?);
-            return Ok(Array2::new_with_array_data(
-                self.list_datatype.clone(),
-                data,
-            ));
-        }
+#[cfg(test)]
+mod tests {
+    use iterutil::TryFromExactSizeIterator;
 
-        let out = concat(inputs)?;
-        let data = ListStorage::single_list(out);
+    use super::*;
+    use crate::arrays::buffer::physical_type::PhysicalStorage;
+    use crate::expr;
 
-        Ok(Array2::new_with_array_data(
-            self.list_datatype.clone(),
-            data,
-        ))
+    #[test]
+    fn list_values_primitive() {
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([4, 5, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
+        let planned = ListValues
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let mut out = Array::new(
+            &NopBufferManager,
+            DataType::List(ListTypeMeta::new(DataType::Int32)),
+            3,
+        )
+        .unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        // TODO: Assert list equality.
+
+        let expected_metas = &[
+            ListItemMetadata { offset: 0, len: 2 },
+            ListItemMetadata { offset: 2, len: 2 },
+            ListItemMetadata { offset: 4, len: 2 },
+        ];
+
+        let s = PhysicalList::get_addressable(&out.data).unwrap();
+        assert_eq!(expected_metas, s);
     }
 }

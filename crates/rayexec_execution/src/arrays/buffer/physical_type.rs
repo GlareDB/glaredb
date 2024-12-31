@@ -274,6 +274,16 @@ impl PhysicalStorage for PhysicalUntypedNull {
     }
 }
 
+impl MutablePhysicalStorage for PhysicalUntypedNull {
+    type AddressableMut<'a> = &'a mut [UntypedNull];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalUtf8;
 
