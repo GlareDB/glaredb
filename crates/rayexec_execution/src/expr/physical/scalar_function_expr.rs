@@ -18,11 +18,11 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
+    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         let inputs = self
             .inputs
             .iter()
-            .map(|input| input.eval(batch))
+            .map(|input| input.eval2(batch))
             .collect::<Result<Vec<_>>>()?;
 
         let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?

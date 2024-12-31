@@ -278,6 +278,36 @@ where
 
         Ok(())
     }
+
+    /// "Clones" some other array into this array.
+    ///
+    /// This will try to make the buffer from the other array managed to make it
+    /// cheaply cloneable and shared with this array.
+    ///
+    /// Array capacities and datatypes must be the same for both arrays.
+    pub fn clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(RayexecError::new(
+                "Attempted clone array from other array with different data types",
+            )
+            .with_field("own_datatype", self.datatype.clone())
+            .with_field("other_datatype", other.datatype.clone()));
+        }
+
+        if self.capacity() != other.capacity() {
+            return Err(RayexecError::new(
+                "Attempted to clone into array from other array with different capacity",
+            )
+            .with_field("own_capacity", self.capacity())
+            .with_field("other_capacity", other.capacity()));
+        }
+
+        let managed = other.data.make_managed(manager)?;
+        self.data.set_managed(managed)?;
+        self.validity = other.validity.clone();
+
+        Ok(())
+    }
 }
 
 /// Helper for copying rows.

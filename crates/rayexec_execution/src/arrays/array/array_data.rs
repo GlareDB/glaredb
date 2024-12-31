@@ -13,7 +13,8 @@ pub struct ArrayData<B: BufferManager = NopBufferManager> {
 
 #[derive(Debug)]
 enum ArrayDataInner<B: BufferManager> {
-    Managed(B::CowPtr<ArrayBuffer<B>>),
+    /// Array buffer is being managed and is behind a shared pointer.
+    Managed(B::CowPtr<ArrayBuffer<B>>, Option<ArrayBuffer<B>>),
     Owned(ArrayBuffer<B>),
     Uninit,
 }
@@ -22,20 +23,36 @@ impl<B> ArrayData<B>
 where
     B: BufferManager,
 {
-    pub fn owned(buffer: ArrayBuffer<B>) -> Self {
+    pub(crate) fn owned(buffer: ArrayBuffer<B>) -> Self {
         ArrayData {
             inner: ArrayDataInner::Owned(buffer),
         }
     }
 
-    pub fn managed(buffer: B::CowPtr<ArrayBuffer<B>>) -> Self {
-        ArrayData {
-            inner: ArrayDataInner::Managed(buffer),
+    /// Set this array data to point to a buffer that's being managed.
+    ///
+    /// If this array data was previously holding onto an owned buffer, we store
+    /// that so we can quickly reset back to it as needed without needing to
+    /// allocate an additional buffer.
+    pub(crate) fn set_managed(&mut self, managed: B::CowPtr<ArrayBuffer<B>>) -> Result<()> {
+        match std::mem::replace(&mut self.inner, ArrayDataInner::Uninit) {
+            ArrayDataInner::Managed(_, cached) => {
+                // Nothing fancy, just update the managed array.
+                self.inner = ArrayDataInner::Managed(managed, cached);
+            }
+            ArrayDataInner::Owned(owned) => {
+                // Cache our owned version so we can reset the data to a mutable
+                // variant as needed.
+                self.inner = ArrayDataInner::Managed(managed, Some(owned))
+            }
+            ArrayDataInner::Uninit => panic!("Array data in invalid state"),
         }
+
+        Ok(())
     }
 
     pub fn is_managed(&self) -> bool {
-        matches!(self.inner, ArrayDataInner::Managed(_))
+        matches!(self.inner, ArrayDataInner::Managed(_, _))
     }
 
     pub fn is_owned(&self) -> bool {
@@ -52,7 +69,7 @@ where
     /// A cloned pointer to the newly managed array will be returned.
     pub fn make_managed(&mut self, manager: &B) -> Result<B::CowPtr<ArrayBuffer<B>>> {
         match &mut self.inner {
-            ArrayDataInner::Managed(m) => Ok(m.clone()), // Already managed.
+            ArrayDataInner::Managed(m, _) => Ok(m.clone()), // Already managed.
             ArrayDataInner::Owned(_) => {
                 let orig = std::mem::replace(&mut self.inner, ArrayDataInner::Uninit);
                 let array = match orig {
@@ -62,9 +79,9 @@ where
 
                 match manager.make_cow(array) {
                     Ok(managed) => {
-                        self.inner = ArrayDataInner::Managed(managed);
+                        self.inner = ArrayDataInner::Managed(managed, None); // Manager took ownership, nothing to cache.
                         match &self.inner {
-                            ArrayDataInner::Managed(m) => Ok(m.clone()),
+                            ArrayDataInner::Managed(m, _) => Ok(m.clone()),
                             _ => unreachable!("variant just set"),
                         }
                     }
@@ -82,7 +99,7 @@ where
 
     pub fn try_as_mut(&mut self) -> Result<&mut ArrayBuffer<B>> {
         match &mut self.inner {
-            ArrayDataInner::Managed(_) => Err(RayexecError::new(
+            ArrayDataInner::Managed(_, _) => Err(RayexecError::new(
                 "Mut references from managed arrays not yet supported",
             )),
             ArrayDataInner::Owned(array) => Ok(array),
@@ -97,7 +114,7 @@ where
 {
     fn as_ref(&self) -> &ArrayBuffer<B> {
         match &self.inner {
-            ArrayDataInner::Managed(m) => m.as_ref(),
+            ArrayDataInner::Managed(m, _) => m.as_ref(),
             ArrayDataInner::Owned(array) => array,
             ArrayDataInner::Uninit => panic!("array in uninit state"),
         }

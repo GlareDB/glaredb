@@ -16,7 +16,7 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
-    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
+    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         let arr = self.literal.as_array(batch.num_rows())?;
         Ok(Cow::Owned(arr))
     }

@@ -314,7 +314,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 state.hash_buf.resize(batch.num_rows(), 0);
 
                 for (idx, equality) in self.equalities.iter().enumerate() {
-                    let result = equality.right.eval(&batch)?;
+                    let result = equality.right.eval2(&batch)?;
 
                     if idx == 0 {
                         HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
@@ -613,7 +613,7 @@ impl PhysicalHashJoin {
         state.hash_buf.resize(batch.num_rows(), 0);
 
         for (idx, equality) in self.equalities.iter().enumerate() {
-            let result = equality.left.eval(&batch)?;
+            let result = equality.left.eval2(&batch)?;
 
             if idx == 0 {
                 HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;

@@ -1,3 +1,4 @@
+pub mod evaluator;
 pub mod planner;
 
 pub mod case_expr;
@@ -34,13 +35,13 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
+    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         match self {
-            Self::Case(e) => e.eval(batch),
-            Self::Cast(e) => e.eval(batch),
-            Self::Column(e) => e.eval(batch),
-            Self::Literal(e) => e.eval(batch),
-            Self::ScalarFunction(e) => e.eval(batch),
+            Self::Case(e) => e.eval2(batch),
+            Self::Cast(e) => e.eval2(batch),
+            Self::Column(e) => e.eval2(batch),
+            Self::Literal(e) => e.eval2(batch),
+            Self::ScalarFunction(e) => e.eval2(batch),
         }
     }
 
@@ -49,7 +50,7 @@ impl PhysicalScalarExpression {
     /// The selection vector will include row indices where the expression
     /// evaluates to true.
     pub fn select(&self, batch: &Batch2) -> Result<SelectionVector> {
-        let selected = self.eval(batch)?;
+        let selected = self.eval2(batch)?;
 
         let mut selection = SelectionVector::with_capacity(selected.logical_len());
         SelectExecutor::select(&selected, &mut selection)?;

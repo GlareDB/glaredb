@@ -112,11 +112,14 @@ pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
     /// Execute the function the input batch, writing the output for each row
     /// into `output` at the same index.
     ///
-    /// `output` is guaranteed to be the exact size needed for the output as
-    /// well as being the correct physical type.
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        unimplemented!()
-    }
+    /// `output` has the following guarantees:
+    /// - Has at least the primary buffer capacity needed to write the results.
+    /// - All validities are initalized to 'valid'.
+    /// - Array data can be made mutable via `try_as_mut()`.
+    ///
+    /// The batch's `selection` method should be called to determine which rows
+    /// should be looked at during function eval.
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()>;
 }
 
 impl Clone for Box<dyn ScalarFunctionImpl> {

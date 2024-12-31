@@ -695,6 +695,10 @@ impl<O> ScalarFunctionImpl for ListComparisonImpl<O>
 where
     O: ComparisonOperation,
 {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        unimplemented!()
+    }
+
     fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
         let left = inputs[0];
         let right = inputs[1];

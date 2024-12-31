@@ -16,6 +16,8 @@ pub trait BufferManager: Debug + Sync + Send + Clone {
     fn make_cow<T: Debug>(&self, item: T) -> Result<Self::CowPtr<T>, T>;
 }
 
+// TODO: Probably rename, I don't think we want the 'cow' logic on this. Instead
+// that'll probably be on ArrayData.
 pub trait CowPtr<T>: Debug + Clone + AsRef<T> + Deref<Target = T> {
     // TODO: Clone on write.
     //

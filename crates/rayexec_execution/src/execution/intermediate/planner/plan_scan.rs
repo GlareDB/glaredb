@@ -96,7 +96,7 @@ impl IntermediatePipelineBuildState<'_> {
             let arrs = exprs
                 .into_iter()
                 .map(|expr| {
-                    let arr = expr.eval(&dummy_batch)?;
+                    let arr = expr.eval2(&dummy_batch)?;
                     Ok(arr.into_owned())
                 })
                 .collect::<Result<Vec<_>>>()?;

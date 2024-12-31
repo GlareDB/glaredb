@@ -27,7 +27,7 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
         let planner = PhysicalExpressionPlanner::new(table_list);
         let phys_expr = planner.plan_scalar(&[], expr)?;
         let dummy = Batch2::empty_with_num_rows(1);
-        let val = phys_expr.eval(&dummy)?;
+        let val = phys_expr.eval2(&dummy)?;
 
         if val.logical_len() != 1 {
             return Err(RayexecError::new(format!(
