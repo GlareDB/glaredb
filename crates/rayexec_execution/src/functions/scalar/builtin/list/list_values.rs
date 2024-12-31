@@ -1,3 +1,4 @@
+use iterutil::IntoExactSizeIterator;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::exp::Array;
@@ -111,51 +112,58 @@ pub struct ListValuesImpl;
 
 impl ScalarFunctionImpl for ListValuesImpl {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        let inner_type = match output.datatype() {
-            DataType::List(m) => m.datatype.physical_type(),
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Expected output to be list datatype, got {other}",
-                )))
-            }
-        };
+        list_values(input.arrays(), input.selection(), output)
+    }
+}
 
-        match inner_type {
-            PhysicalType::UntypedNull => execute_list_values::<PhysicalUntypedNull>(input, output),
-            PhysicalType::Boolean => execute_list_values::<PhysicalBool>(input, output),
-            PhysicalType::Int8 => execute_list_values::<PhysicalI8>(input, output),
-            PhysicalType::Int16 => execute_list_values::<PhysicalI16>(input, output),
-            PhysicalType::Int32 => execute_list_values::<PhysicalI32>(input, output),
-            PhysicalType::Int64 => execute_list_values::<PhysicalI64>(input, output),
-            PhysicalType::Int128 => execute_list_values::<PhysicalI128>(input, output),
-            PhysicalType::UInt8 => execute_list_values::<PhysicalU8>(input, output),
-            PhysicalType::UInt16 => execute_list_values::<PhysicalU16>(input, output),
-            PhysicalType::UInt32 => execute_list_values::<PhysicalU32>(input, output),
-            PhysicalType::UInt64 => execute_list_values::<PhysicalU64>(input, output),
-            PhysicalType::UInt128 => execute_list_values::<PhysicalU128>(input, output),
-            PhysicalType::Float16 => execute_list_values::<PhysicalF16>(input, output),
-            PhysicalType::Float32 => execute_list_values::<PhysicalF32>(input, output),
-            PhysicalType::Float64 => execute_list_values::<PhysicalF64>(input, output),
-            PhysicalType::Utf8 => execute_list_values::<PhysicalUtf8>(input, output),
-            PhysicalType::Binary => execute_list_values::<PhysicalBinary>(input, output),
-            other => not_implemented!("list values for physical type {other}"),
+pub fn list_values(
+    inputs: &[Array],
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    output: &mut Array,
+) -> Result<()> {
+    let inner_type = match output.datatype() {
+        DataType::List(m) => m.datatype.physical_type(),
+        other => {
+            return Err(RayexecError::new(format!(
+                "Expected output to be list datatype, got {other}",
+            )))
         }
+    };
+
+    match inner_type {
+        PhysicalType::UntypedNull => list_values_inner::<PhysicalUntypedNull>(inputs, sel, output),
+        PhysicalType::Boolean => list_values_inner::<PhysicalBool>(inputs, sel, output),
+        PhysicalType::Int8 => list_values_inner::<PhysicalI8>(inputs, sel, output),
+        PhysicalType::Int16 => list_values_inner::<PhysicalI16>(inputs, sel, output),
+        PhysicalType::Int32 => list_values_inner::<PhysicalI32>(inputs, sel, output),
+        PhysicalType::Int64 => list_values_inner::<PhysicalI64>(inputs, sel, output),
+        PhysicalType::Int128 => list_values_inner::<PhysicalI128>(inputs, sel, output),
+        PhysicalType::UInt8 => list_values_inner::<PhysicalU8>(inputs, sel, output),
+        PhysicalType::UInt16 => list_values_inner::<PhysicalU16>(inputs, sel, output),
+        PhysicalType::UInt32 => list_values_inner::<PhysicalU32>(inputs, sel, output),
+        PhysicalType::UInt64 => list_values_inner::<PhysicalU64>(inputs, sel, output),
+        PhysicalType::UInt128 => list_values_inner::<PhysicalU128>(inputs, sel, output),
+        PhysicalType::Float16 => list_values_inner::<PhysicalF16>(inputs, sel, output),
+        PhysicalType::Float32 => list_values_inner::<PhysicalF32>(inputs, sel, output),
+        PhysicalType::Float64 => list_values_inner::<PhysicalF64>(inputs, sel, output),
+        PhysicalType::Utf8 => list_values_inner::<PhysicalUtf8>(inputs, sel, output),
+        PhysicalType::Binary => list_values_inner::<PhysicalBinary>(inputs, sel, output),
+        other => not_implemented!("list values for physical type {other}"),
     }
 }
 
 /// Helper for constructing the list values and writing them to `output`.
 ///
 /// `S` should be the inner type.
-fn execute_list_values<S: MutablePhysicalStorage>(input: &Batch, output: &mut Array) -> Result<()> {
+fn list_values_inner<S: MutablePhysicalStorage>(
+    inputs: &[Array],
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    output: &mut Array,
+) -> Result<()> {
     // TODO: Dictionary
 
-    let sel = input.selection();
-    let inputs = input
-        .arrays()
-        .iter()
-        .map(|arr| S::get_addressable(arr.data()))
-        .collect::<Result<Vec<_>>>()?;
-
+    let sel = sel.into_iter();
+    let sel_len = sel.len();
     let capacity = sel.len() * inputs.len();
 
     let list_buf = match output.data_mut().try_as_mut()?.get_secondary_mut() {
@@ -180,13 +188,16 @@ fn execute_list_values<S: MutablePhysicalStorage>(input: &Batch, output: &mut Ar
     let mut child_outputs = S::get_addressable_mut(list_buf.child.data.try_as_mut()?)?;
     let child_validity = &mut list_buf.child.validity;
 
+    // TODO: Possibly avoid allocating here?
+    let col_bufs = inputs
+        .iter()
+        .map(|arr| S::get_addressable(arr.data()))
+        .collect::<Result<Vec<_>>>()?;
+
     // Write the list values from the input batch.
     let mut output_idx = 0;
-    for row_idx in sel.into_iter() {
-        for (col, validity) in inputs
-            .iter()
-            .zip(input.arrays().iter().map(|arr| arr.validity()))
-        {
+    for row_idx in sel {
+        for (col, validity) in col_bufs.iter().zip(inputs.iter().map(|arr| arr.validity())) {
             if validity.is_valid(row_idx) {
                 child_outputs.put(output_idx, col.get(row_idx).unwrap());
             } else {
@@ -202,7 +213,7 @@ fn execute_list_values<S: MutablePhysicalStorage>(input: &Batch, output: &mut Ar
     let mut out = PhysicalList::get_addressable_mut(output.data_mut().try_as_mut()?)?;
 
     let len = inputs.len() as i32;
-    for output_idx in 0..sel.len() {
+    for output_idx in 0..sel_len {
         // Note top-level not possible if we're provided a batch.
         out.put(
             output_idx,
