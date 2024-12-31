@@ -4,9 +4,12 @@ use std::marker::PhantomData;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array2, ArrayData2};
+use crate::arrays::array::exp::Array;
+use crate::arrays::array::Array2;
+use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::physical_type::{
-    MutablePhysicalStorage,
+    PhysicalBinary,
+    PhysicalBool,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -15,15 +18,16 @@ use crate::arrays::buffer::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
+    PhysicalInterval,
+    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
+    PhysicalUtf8,
 };
-use crate::arrays::compute::cast::array::decimal_rescale;
-use crate::arrays::compute::cast::behavior::CastFailBehavior;
-use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::physical_type::{
     PhysicalBinary_2,
@@ -48,8 +52,9 @@ use crate::arrays::executor::physical_type::{
     PhysicalUtf8_2,
 };
 use crate::arrays::executor::scalar::{BinaryExecutor2, BinaryListReducer2, FlexibleListExecutor};
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use crate::arrays::storage::PrimitiveStorage;
+use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
+use crate::arrays::executor_exp::OutBuffer;
+use crate::expr::cast_expr::CastExpr;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -223,12 +228,7 @@ impl ScalarFunction for Eq {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction> {
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<EqOperation>(self, &inputs, table_list)?,
-            inputs,
-        })
+        new_planned_comparison_function::<_, EqOperation>(*self, inputs, table_list)
     }
 }
 
@@ -268,12 +268,7 @@ impl ScalarFunction for Neq {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction> {
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<NotEqOperation>(self, &inputs, table_list)?,
-            inputs,
-        })
+        new_planned_comparison_function::<_, NotEqOperation>(*self, inputs, table_list)
     }
 }
 
@@ -309,12 +304,7 @@ impl ScalarFunction for Lt {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction> {
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<LtOperation>(self, &inputs, table_list)?,
-            inputs,
-        })
+        new_planned_comparison_function::<_, LtOperation>(*self, inputs, table_list)
     }
 }
 
@@ -350,12 +340,7 @@ impl ScalarFunction for LtEq {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction> {
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<LtEqOperation>(self, &inputs, table_list)?,
-            inputs,
-        })
+        new_planned_comparison_function::<_, LtEqOperation>(*self, inputs, table_list)
     }
 }
 
@@ -391,12 +376,7 @@ impl ScalarFunction for Gt {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction> {
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<GtOperation>(self, &inputs, table_list)?,
-            inputs,
-        })
+        new_planned_comparison_function::<_, GtOperation>(*self, inputs, table_list)
     }
 }
 
@@ -432,12 +412,7 @@ impl ScalarFunction for GtEq {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction> {
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            function_impl: new_comparison_impl::<GtEqOperation>(self, &inputs, table_list)?,
-            inputs,
-        })
+        new_planned_comparison_function::<_, GtEqOperation>(*self, inputs, table_list)
     }
 }
 
@@ -520,92 +495,136 @@ impl ComparisonOperation for GtEqOperation {
     }
 }
 
-/// Creates a new scalar function implementation based on input types.
-fn new_comparison_impl<O: ComparisonOperation>(
-    func: &impl FunctionInfo,
-    inputs: &[Expression],
+/// Create new planned scalar function for some comparison operation.
+///
+/// This will normalize input expressions as required.
+fn new_planned_comparison_function<F, O>(
+    func: F,
+    mut inputs: Vec<Expression>,
     table_list: &TableList,
-) -> Result<Box<dyn ScalarFunctionImpl>> {
-    plan_check_num_args(func, inputs, 2)?;
-    Ok(
-        match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Boolean, DataType::Boolean) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalBool_2>::new())
-            }
-            (DataType::Int8, DataType::Int8) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI8_2>::new())
-            }
-            (DataType::Int16, DataType::Int16) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI16_2>::new())
-            }
-            (DataType::Int32, DataType::Int32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI32_2>::new())
-            }
-            (DataType::Int64, DataType::Int64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI64_2>::new())
-            }
-            (DataType::Int128, DataType::Int128) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI128_2>::new())
-            }
+) -> Result<PlannedScalarFunction>
+where
+    F: ScalarFunction + 'static,
+    O: ComparisonOperation,
+{
+    plan_check_num_args(&func, &inputs, 2)?;
 
-            (DataType::UInt8, DataType::UInt8) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU8_2>::new())
+    let function_impl: Box<dyn ScalarFunctionImpl> = match (
+        inputs[0].datatype(table_list)?,
+        inputs[1].datatype(table_list)?,
+    ) {
+        (DataType::Boolean, DataType::Boolean) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
+        }
+        (DataType::Int8, DataType::Int8) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI8>::new())
+        }
+        (DataType::Int16, DataType::Int16) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI16>::new())
+        }
+        (DataType::Int32, DataType::Int32) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
+        }
+        (DataType::Int64, DataType::Int64) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
+        }
+        (DataType::Int128, DataType::Int128) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
+        }
+        (DataType::UInt8, DataType::UInt8) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalU8>::new())
+        }
+        (DataType::UInt16, DataType::UInt16) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalU16>::new())
+        }
+        (DataType::UInt32, DataType::UInt32) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalU32>::new())
+        }
+        (DataType::UInt64, DataType::UInt64) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalU64>::new())
+        }
+        (DataType::UInt128, DataType::UInt128) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalU128>::new())
+        }
+        (DataType::Float16, DataType::Float16) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalF16>::new())
+        }
+        (DataType::Float32, DataType::Float32) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalF32>::new())
+        }
+        (DataType::Float64, DataType::Float64) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalF64>::new())
+        }
+        (DataType::Decimal64(left), DataType::Decimal64(right)) => {
+            // Normalize decimals.
+            match left.scale.cmp(&right.scale) {
+                Ordering::Less => {
+                    // Scale up left.
+                    inputs[0] = Expression::Cast(CastExpr {
+                        to: DataType::Decimal64(right),
+                        expr: Box::new(inputs[0].clone()),
+                    })
+                }
+                Ordering::Greater => {
+                    // Scale up right.
+                    inputs[1] = Expression::Cast(CastExpr {
+                        to: DataType::Decimal64(left),
+                        expr: Box::new(inputs[1].clone()),
+                    })
+                }
+                Ordering::Equal => (), // Nothing to do
             }
-            (DataType::UInt16, DataType::UInt16) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU16_2>::new())
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
+        }
+        (DataType::Decimal128(left), DataType::Decimal128(right)) => {
+            // Normalize decimals.
+            match left.scale.cmp(&right.scale) {
+                Ordering::Less => {
+                    // Scale up left.
+                    inputs[0] = Expression::Cast(CastExpr {
+                        to: DataType::Decimal128(right),
+                        expr: Box::new(inputs[0].clone()),
+                    })
+                }
+                Ordering::Greater => {
+                    // Scale up right.
+                    inputs[1] = Expression::Cast(CastExpr {
+                        to: DataType::Decimal128(left),
+                        expr: Box::new(inputs[1].clone()),
+                    })
+                }
+                Ordering::Equal => (), // Nothing to do
             }
-            (DataType::UInt32, DataType::UInt32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU32_2>::new())
-            }
-            (DataType::UInt64, DataType::UInt64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU64_2>::new())
-            }
-            (DataType::UInt128, DataType::UInt128) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalU128_2>::new())
-            }
-            (DataType::Float16, DataType::Float16) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalF16_2>::new())
-            }
-            (DataType::Float32, DataType::Float32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalF32_2>::new())
-            }
-            (DataType::Float64, DataType::Float64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalF64_2>::new())
-            }
-            (DataType::Decimal64(left), DataType::Decimal64(right)) => Box::new(
-                RescalingComparisionImpl::<O, Decimal64Type>::new(left, right),
-            ),
-            (DataType::Decimal128(left), DataType::Decimal128(right)) => Box::new(
-                RescalingComparisionImpl::<O, Decimal128Type>::new(left, right),
-            ),
-            (DataType::Timestamp(_), DataType::Timestamp(_)) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalBool_2>::new())
-            }
-            (DataType::Interval, DataType::Interval) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalInterval_2>::new())
-            }
-            (DataType::Date32, DataType::Date32) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI32_2>::new())
-            }
-            (DataType::Date64, DataType::Date64) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalI64_2>::new())
-            }
-            (DataType::Utf8, DataType::Utf8) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalUtf8_2>::new())
-            }
-            (DataType::Binary, DataType::Binary) => {
-                Box::new(BaseComparisonImpl::<O, PhysicalBinary_2>::new())
-            }
-            (DataType::List(m1), DataType::List(m2)) if m1 == m2 => {
-                // TODO: We'll want to figure out casting for lists.
-                Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type2()?))
-            }
-            (a, b) => return Err(invalid_input_types_error(func, &[a, b])),
-        },
-    )
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
+        }
+        (DataType::Timestamp(_), DataType::Timestamp(_)) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
+        }
+        (DataType::Interval, DataType::Interval) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalInterval>::new())
+        }
+        (DataType::Date32, DataType::Date32) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
+        }
+        (DataType::Date64, DataType::Date64) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
+        }
+        (DataType::Utf8, DataType::Utf8) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalUtf8>::new())
+        }
+        (DataType::Binary, DataType::Binary) => {
+            Box::new(UnnestedComparisonImpl::<O, PhysicalBinary>::new())
+        }
+
+        (a, b) => return Err(invalid_input_types_error(&func, &[a, b])),
+    };
+
+    Ok(PlannedScalarFunction {
+        function: Box::new(func),
+        return_type: DataType::Boolean,
+        inputs,
+        function_impl,
+    })
 }
 
 #[derive(Debug)]
@@ -788,137 +807,61 @@ where
 }
 
 #[derive(Debug, Clone)]
-struct BaseComparisonImpl<O: ComparisonOperation, S: PhysicalStorage2> {
+struct UnnestedComparisonImpl<O: ComparisonOperation, S: PhysicalStorage> {
     _op: PhantomData<O>,
     _s: PhantomData<S>,
 }
 
-impl<O, S> BaseComparisonImpl<O, S>
+impl<O, S> UnnestedComparisonImpl<O, S>
 where
     O: ComparisonOperation,
-    S: PhysicalStorage2,
-    for<'a> S::Type<'a>: PartialEq + PartialOrd,
+    S: PhysicalStorage,
 {
-    fn new() -> Self {
-        BaseComparisonImpl {
+    const fn new() -> Self {
+        UnnestedComparisonImpl {
             _op: PhantomData,
             _s: PhantomData,
         }
     }
 }
 
-impl<O, S> ScalarFunctionImpl for BaseComparisonImpl<O, S>
+impl<O, S> ScalarFunctionImpl for UnnestedComparisonImpl<O, S>
 where
     O: ComparisonOperation,
-    S: PhysicalStorage2,
-    for<'a> S::Type<'a>: PartialEq + PartialOrd,
+    S: PhysicalStorage,
+    S::StorageType: PartialEq + PartialOrd,
 {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let left = inputs[0];
-        let right = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let left = &input.arrays()[0];
+        let right = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(left.logical_len()),
-        };
-
-        BinaryExecutor2::execute::<S, S, _, _>(left, right, builder, |a, b, buf| {
-            buf.put(&O::compare(a, b))
-        })
-    }
-}
-
-// TODO: Determine if this is still needed. Ideally scaling happens prior to
-// calling the comparison function.
-#[derive(Debug, Clone)]
-struct RescalingComparisionImpl<O: ComparisonOperation, T: DecimalType> {
-    _op: PhantomData<O>,
-    _t: PhantomData<T>,
-
-    left: DecimalTypeMeta,
-    right: DecimalTypeMeta,
-}
-
-impl<O, T> RescalingComparisionImpl<O, T>
-where
-    O: ComparisonOperation,
-    T: DecimalType,
-    ArrayData2: From<PrimitiveStorage<T::Primitive>>,
-{
-    fn new(left: DecimalTypeMeta, right: DecimalTypeMeta) -> Self {
-        RescalingComparisionImpl {
-            _op: PhantomData,
-            _t: PhantomData,
+        BinaryExecutor::execute::<S, S, PhysicalBool, _>(
             left,
+            sel,
             right,
-        }
-    }
-}
-
-impl<O, T> ScalarFunctionImpl for RescalingComparisionImpl<O, T>
-where
-    O: ComparisonOperation,
-    T: DecimalType,
-    ArrayData2: From<PrimitiveStorage<T::Primitive>>,
-{
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let left = inputs[0];
-        let right = inputs[1];
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(left.logical_len()),
-        };
-
-        match self.left.scale.cmp(&self.right.scale) {
-            Ordering::Greater => {
-                let scaled_right = decimal_rescale::<T::Storage2, T>(
-                    right,
-                    left.datatype().clone(),
-                    CastFailBehavior::Error,
-                )?;
-
-                BinaryExecutor2::execute::<T::Storage2, T::Storage2, _, _>(
-                    left,
-                    &scaled_right,
-                    builder,
-                    |a, b, buf| buf.put(&O::compare(a, b)),
-                )
-            }
-            Ordering::Less => {
-                let scaled_left = decimal_rescale::<T::Storage2, T>(
-                    left,
-                    right.datatype().clone(),
-                    CastFailBehavior::Error,
-                )?;
-
-                BinaryExecutor2::execute::<T::Storage2, T::Storage2, _, _>(
-                    &scaled_left,
-                    right,
-                    builder,
-                    |a, b, buf| buf.put(&O::compare(a, b)),
-                )
-            }
-            Ordering::Equal => BinaryExecutor2::execute::<T::Storage2, T::Storage2, _, _>(
-                left,
-                right,
-                builder,
-                |a, b, buf| buf.put(&O::compare(a, b)),
-            ),
-        }
+            sel,
+            OutBuffer::from_array(output)?,
+            |left, right, buf| buf.put(&O::compare(left, right)),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
 
+    use iterutil::TryFromExactSizeIterator;
+
     use super::*;
+    use crate::arrays::buffer::buffer_manager::NopBufferManager;
+    use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr;
 
     #[test]
     fn eq_i32() {
-        let a = Array2::from_iter([1, 2, 3]);
-        let b = Array2::from_iter([2, 2, 6]);
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([2, 2, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -936,16 +879,18 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([false, true, false]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([false, true, false]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn neq_i32() {
-        let a = Array2::from_iter([1, 2, 3]);
-        let b = Array2::from_iter([2, 2, 6]);
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([2, 2, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -963,16 +908,18 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([true, false, true]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([true, false, true]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn lt_i32() {
-        let a = Array2::from_iter([1, 2, 3]);
-        let b = Array2::from_iter([2, 2, 6]);
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([2, 2, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -990,16 +937,18 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([true, false, true]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([true, false, true]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn lt_eq_i32() {
-        let a = Array2::from_iter([1, 2, 3]);
-        let b = Array2::from_iter([2, 2, 6]);
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([2, 2, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1017,16 +966,18 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([true, true, true]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([true, true, true]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn gt_i32() {
-        let a = Array2::from_iter([1, 2, 3]);
-        let b = Array2::from_iter([2, 2, 6]);
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([2, 2, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1044,16 +995,18 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([false, false, false]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([false, false, false]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn gt_eq_i32() {
-        let a = Array2::from_iter([1, 2, 3]);
-        let b = Array2::from_iter([2, 2, 6]);
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([2, 2, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1071,9 +1024,10 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array2::from_iter([false, true, false]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+        let expected = Array::try_from_iter([false, true, false]).unwrap();
 
-        assert_eq!(expected, out);
+        assert_arrays_eq(&expected, &out);
     }
 }
