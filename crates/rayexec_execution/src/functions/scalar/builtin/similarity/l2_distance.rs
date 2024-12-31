@@ -4,16 +4,19 @@ use std::ops::AddAssign;
 use num_traits::{AsPrimitive, Float};
 use rayexec_error::Result;
 
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::Array2;
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{
-    PhysicalF16_2,
-    PhysicalF32_2,
-    PhysicalF64_2,
-    PhysicalStorage2,
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::physical_type::{
+    MutablePhysicalStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalStorage,
 };
-use crate::arrays::executor::scalar::{BinaryListReducer, ListExecutor};
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor_exp::scalar::list_reduce::{BinaryListReducer, BinaryReducer};
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -68,13 +71,13 @@ impl ScalarFunction for L2Distance {
             (DataType::List(a), DataType::List(b)) => {
                 match (a.datatype.as_ref(), b.datatype.as_ref()) {
                     (DataType::Float16, DataType::Float16) => {
-                        Box::new(L2DistanceImpl::<PhysicalF16_2>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF16>::new())
                     }
                     (DataType::Float32, DataType::Float32) => {
-                        Box::new(L2DistanceImpl::<PhysicalF32_2>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF32>::new())
                     }
                     (DataType::Float64, DataType::Float64) => {
-                        Box::new(L2DistanceImpl::<PhysicalF64_2>::new())
+                        Box::new(L2DistanceImpl::<PhysicalF64>::new())
                     }
                     (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
                 }
@@ -92,13 +95,13 @@ impl ScalarFunction for L2Distance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2DistanceImpl<S: PhysicalStorage2> {
+pub struct L2DistanceImpl<S: PhysicalStorage> {
     _s: PhantomData<S>,
 }
 
 impl<S> L2DistanceImpl<S>
 where
-    S: PhysicalStorage2,
+    S: PhysicalStorage,
 {
     fn new() -> Self {
         L2DistanceImpl { _s: PhantomData }
@@ -107,19 +110,21 @@ where
 
 impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
 where
-    S: PhysicalStorage2,
-    for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
+    S: MutablePhysicalStorage,
+    S::StorageType: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let a = inputs[0];
-        let b = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Float64,
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
-
-        ListExecutor::<false, false>::binary_reduce::<S, _, L2DistanceReducer<_>>(a, b, builder)
+        BinaryListReducer::reduce::<S, S, L2DistanceReducer<_>, PhysicalF64>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+        )
     }
 }
 
@@ -128,21 +133,92 @@ pub(crate) struct L2DistanceReducer<F> {
     pub distance: F,
 }
 
-impl<F> BinaryListReducer<F, f64> for L2DistanceReducer<F>
+impl<F> BinaryReducer<&F, &F, f64> for L2DistanceReducer<F>
 where
-    F: Float + AddAssign + AsPrimitive<f64> + Default,
+    F: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn new(left_len: i32, right_len: i32) -> Self {
-        debug_assert_eq!(left_len, right_len);
-        Self::default()
-    }
-
-    fn put_values(&mut self, v1: F, v2: F) {
+    fn put_values(&mut self, &v1: &F, &v2: &F) {
         let diff = v1 - v2;
         self.distance += diff * diff;
     }
 
     fn finish(self) -> f64 {
         self.distance.as_().sqrt()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iterutil::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::buffer::buffer_manager::NopBufferManager;
+    use crate::arrays::datatype::ListTypeMeta;
+    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::expr;
+    use crate::functions::scalar::builtin::list::list_values;
+
+    #[test]
+    fn l2_distance_ok() {
+        let mut a = Array::new(
+            &NopBufferManager,
+            DataType::List(ListTypeMeta::new(DataType::Float64)),
+            1,
+        )
+        .unwrap();
+        list_values(
+            &[
+                Array::try_from_iter([1.0]).unwrap(),
+                Array::try_from_iter([2.0]).unwrap(),
+                Array::try_from_iter([3.0]).unwrap(),
+            ],
+            0..1,
+            &mut a,
+        )
+        .unwrap();
+
+        let mut b = Array::new(
+            &NopBufferManager,
+            DataType::List(ListTypeMeta::new(DataType::Float64)),
+            1,
+        )
+        .unwrap();
+        list_values(
+            &[
+                Array::try_from_iter([1.0]).unwrap(),
+                Array::try_from_iter([2.0]).unwrap(),
+                Array::try_from_iter([4.0]).unwrap(),
+            ],
+            0..1,
+            &mut b,
+        )
+        .unwrap();
+
+        let batch = Batch::from_arrays([a, b], true).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![
+                    DataType::List(ListTypeMeta::new(DataType::Float64)),
+                    DataType::List(ListTypeMeta::new(DataType::Float64)),
+                ],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
+        let planned = L2Distance
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let mut out = Array::new(&NopBufferManager, DataType::Float64, 1).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        let expected = Array::try_from_iter([1.0]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

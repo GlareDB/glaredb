@@ -47,7 +47,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalUntypedNull_2,
     PhysicalUtf8_2,
 };
-use crate::arrays::executor::scalar::{BinaryExecutor2, BinaryListReducer, FlexibleListExecutor};
+use crate::arrays::executor::scalar::{BinaryExecutor2, BinaryListReducer2, FlexibleListExecutor};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -618,7 +618,7 @@ struct ListComparisonReducer<T, O> {
     _op: PhantomData<O>,
 }
 
-impl<T, O> BinaryListReducer<T, bool> for ListComparisonReducer<T, O>
+impl<T, O> BinaryListReducer2<T, bool> for ListComparisonReducer<T, O>
 where
     T: PartialEq + PartialOrd,
     O: ComparisonOperation,

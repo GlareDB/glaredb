@@ -12,7 +12,7 @@ use crate::arrays::executor::scalar::{
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
 
-pub trait BinaryListReducer<T, O> {
+pub trait BinaryListReducer2<T, O> {
     fn new(left_len: i32, right_len: i32) -> Self;
     fn put_values(&mut self, v1: T, v2: T);
     fn finish(self) -> O;
@@ -41,7 +41,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
         mut builder: ArrayBuilder<B>,
     ) -> Result<Array2>
     where
-        R: BinaryListReducer<S::Type<'a>, B::Type>,
+        R: BinaryListReducer2<S::Type<'a>, B::Type>,
         S: PhysicalStorage2,
         B: ArrayDataBuffer,
         <B as ArrayDataBuffer>::Type: Sized,

@@ -45,7 +45,8 @@ impl BinaryListReducer {
         S1: PhysicalStorage,
         S2: PhysicalStorage,
         O: MutablePhysicalStorage,
-        for<'a> R: BinaryReducer<&'a S1::StorageType, &'a S2::StorageType, &'a O::StorageType>,
+        O::StorageType: Sized,
+        for<'a> R: BinaryReducer<&'a S1::StorageType, &'a S2::StorageType, O::StorageType>,
     {
         if array1.is_dictionary() || array2.is_dictionary() {
             // TODO
@@ -61,7 +62,7 @@ impl BinaryListReducer {
             _ => return Err(RayexecError::new("Array 2 not a list array")),
         };
 
-        if !inner1.validity().all_valid() || inner2.validity().all_valid() {
+        if !inner1.validity().all_valid() || !inner2.validity().all_valid() {
             // TODO: This can be more selective. Rows that don't conform
             // could be skipped with the selections.
             return Err(RayexecError::new(
@@ -107,7 +108,7 @@ impl BinaryListReducer {
                     reducer.put_values(v1, v2);
                 }
 
-                output.put(output_idx, reducer.finish());
+                output.put(output_idx, &reducer.finish());
             }
         } else {
             for (output_idx, (input1_idx, input2_idx)) in
@@ -141,7 +142,7 @@ impl BinaryListReducer {
                     reducer.put_values(v1, v2);
                 }
 
-                output.put(output_idx, reducer.finish());
+                output.put(output_idx, &reducer.finish());
             }
         }
 
