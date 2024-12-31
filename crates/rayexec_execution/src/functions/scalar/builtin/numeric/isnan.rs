@@ -5,17 +5,17 @@ use rayexec_error::Result;
 
 use super::ScalarFunction;
 use crate::arrays::array::exp::Array;
-use crate::arrays::array::Array2;
 use crate::arrays::batch_exp::Batch;
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::{
-    PhysicalF16_2,
-    PhysicalF32_2,
-    PhysicalF64_2,
-    PhysicalStorage2,
+use crate::arrays::buffer::physical_type::{
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalStorage,
 };
-use crate::arrays::executor::scalar::UnaryExecutor2;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
@@ -73,9 +73,9 @@ impl ScalarFunction for IsNan {
         plan_check_num_args(self, &inputs, 1)?;
 
         let function_impl: Box<dyn ScalarFunctionImpl> = match inputs[0].datatype(table_list)? {
-            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16_2>::new()),
-            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32_2>::new()),
-            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64_2>::new()),
+            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16>::new()),
+            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32>::new()),
+            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64>::new()),
             other => return Err(invalid_input_types_error(self, &[other])),
         };
 
@@ -89,32 +89,30 @@ impl ScalarFunction for IsNan {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct IsNanImpl<S: PhysicalStorage2> {
+pub struct IsNanImpl<S: PhysicalStorage> {
     _s: PhantomData<S>,
 }
 
-impl<S: PhysicalStorage2> IsNanImpl<S> {
-    fn new() -> Self {
+impl<S: PhysicalStorage> IsNanImpl<S> {
+    const fn new() -> Self {
         IsNanImpl { _s: PhantomData }
     }
 }
 
 impl<S> ScalarFunctionImpl for IsNanImpl<S>
 where
-    S: PhysicalStorage2,
-    for<'a> S::Type<'a>: Float,
+    S: PhysicalStorage,
+    S::StorageType: Float,
 {
-    fn execute2(&self, inputs: &[&Array2]) -> Result<Array2> {
-        let input = inputs[0];
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(input.logical_len()),
-        };
-
-        UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
-    }
-
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        unimplemented!()
+        let sel = input.selection();
+        let input = &input.arrays()[0];
+
+        UnaryExecutor::execute::<S, PhysicalBool, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&v, buf| buf.put(&v.is_nan()),
+        )
     }
 }

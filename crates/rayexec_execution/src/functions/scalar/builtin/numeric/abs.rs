@@ -23,19 +23,6 @@ impl UnaryInputNumericOperation for AbsOp {
     const NAME: &'static str = "abs";
     const DESCRIPTION: &'static str = "Compute the absolute value of a number";
 
-    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
-    where
-        S: PhysicalStorage2,
-        S::Type<'a>: Float + Default,
-        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>,
-    {
-        let builder = ArrayBuilder {
-            datatype: ret,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-        UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.abs()))
-    }
-
     fn execute_float<S>(
         input: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,

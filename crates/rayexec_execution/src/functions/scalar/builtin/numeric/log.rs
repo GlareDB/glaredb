@@ -23,19 +23,6 @@ impl UnaryInputNumericOperation for LogOp {
     const NAME: &'static str = "log";
     const DESCRIPTION: &'static str = "Compute base-10 log of value";
 
-    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
-    where
-        S: PhysicalStorage2,
-        S::Type<'a>: Float + Default,
-        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>,
-    {
-        let builder = ArrayBuilder {
-            datatype: ret,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-        UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.log10()))
-    }
-
     fn execute_float<S>(
         input: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
@@ -62,19 +49,6 @@ pub struct LogOp2;
 impl UnaryInputNumericOperation for LogOp2 {
     const NAME: &'static str = "log2";
     const DESCRIPTION: &'static str = "Compute base-2 log of value";
-
-    fn execute_float2<'a, S>(input: &'a Array2, ret: DataType) -> Result<Array2>
-    where
-        S: PhysicalStorage2,
-        S::Type<'a>: Float + Default,
-        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>,
-    {
-        let builder = ArrayBuilder {
-            datatype: ret,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-        UnaryExecutor2::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.log2()))
-    }
 
     fn execute_float<S>(
         input: &Array,
