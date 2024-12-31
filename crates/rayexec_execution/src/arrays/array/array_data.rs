@@ -59,6 +59,30 @@ where
         matches!(self.inner, ArrayDataInner::Owned(_))
     }
 
+    /// Try to reset the array data for writes.
+    ///
+    /// If the buffer is already owned, nothing is done. If the buffer is
+    /// managed, but we have a cached owned buffer, we use the cached buffer to
+    /// make this `Owned`.
+    ///
+    /// Returns `Ok(())` if the reset was successful, `Err(())` otherwise. If
+    /// `Err(())` is returned, this remains unchanged.
+    pub fn try_reset_for_write(&mut self) -> Result<(), ()> {
+        match &mut self.inner {
+            ArrayDataInner::Managed(_, cached) => {
+                if let Some(cached) = cached.take() {
+                    self.inner = ArrayDataInner::Owned(cached);
+                    Ok(())
+                } else {
+                    // No cached buffer.
+                    Err(())
+                }
+            }
+            ArrayDataInner::Owned(_) => Ok(()), // Nothing to do, already writable.
+            ArrayDataInner::Uninit => panic!("Array data in invalid state"),
+        }
+    }
+
     /// Try to make the array managed by the buffer manager.
     ///
     /// Does nothing if the array is already managed.
@@ -67,7 +91,7 @@ where
     /// still valid (and remains in the 'owned' state).
     ///
     /// A cloned pointer to the newly managed array will be returned.
-    pub fn make_managed(&mut self, manager: &B) -> Result<B::CowPtr<ArrayBuffer<B>>> {
+    pub(crate) fn make_managed(&mut self, manager: &B) -> Result<B::CowPtr<ArrayBuffer<B>>> {
         match &mut self.inner {
             ArrayDataInner::Managed(m, _) => Ok(m.clone()), // Already managed.
             ArrayDataInner::Owned(_) => {

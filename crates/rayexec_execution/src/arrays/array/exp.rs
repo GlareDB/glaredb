@@ -51,79 +51,7 @@ where
     /// This will take care of initalizing the primary and secondary data
     /// buffers depending on the type.
     pub fn new(manager: &B, datatype: DataType, capacity: usize) -> Result<Self> {
-        let buffer = match datatype.physical_type() {
-            PhysicalType::Boolean => {
-                ArrayBuffer::with_primary_capacity::<PhysicalBool>(manager, capacity)?
-            }
-            PhysicalType::Int8 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI8>(manager, capacity)?
-            }
-            PhysicalType::Int16 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI16>(manager, capacity)?
-            }
-            PhysicalType::Int32 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI32>(manager, capacity)?
-            }
-            PhysicalType::Int64 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI64>(manager, capacity)?
-            }
-            PhysicalType::Int128 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalI128>(manager, capacity)?
-            }
-            PhysicalType::UInt8 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU8>(manager, capacity)?
-            }
-            PhysicalType::UInt16 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU16>(manager, capacity)?
-            }
-            PhysicalType::UInt32 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU32>(manager, capacity)?
-            }
-            PhysicalType::UInt64 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU64>(manager, capacity)?
-            }
-            PhysicalType::UInt128 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalU128>(manager, capacity)?
-            }
-            PhysicalType::Float16 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalF16>(manager, capacity)?
-            }
-            PhysicalType::Float32 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalF32>(manager, capacity)?
-            }
-            PhysicalType::Float64 => {
-                ArrayBuffer::with_primary_capacity::<PhysicalF64>(manager, capacity)?
-            }
-            PhysicalType::Interval => {
-                ArrayBuffer::with_primary_capacity::<PhysicalInterval>(manager, capacity)?
-            }
-            PhysicalType::Utf8 => {
-                let mut buffer =
-                    ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(manager, capacity)?;
-                buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
-                buffer
-            }
-            PhysicalType::List => {
-                let inner_type = match &datatype {
-                    DataType::List(m) => m.datatype.as_ref().clone(),
-                    other => {
-                        return Err(RayexecError::new(format!(
-                            "Expected list datatype, got {other}"
-                        )))
-                    }
-                };
-
-                let child = Self::new(manager, inner_type, capacity)?;
-
-                let mut buffer =
-                    ArrayBuffer::with_primary_capacity::<PhysicalList>(manager, capacity)?;
-                buffer.put_secondary_buffer(SecondaryBuffer::List(ListBuffer::new(child)));
-
-                buffer
-            }
-            _ => unimplemented!(),
-        };
-
+        let buffer = array_buffer_for_datatype(manager, &datatype, capacity)?;
         let validity = Validity::new_all_valid(capacity);
 
         Ok(Array {
@@ -308,6 +236,103 @@ where
 
         Ok(())
     }
+
+    /// Resets self to prepare for writing to the array.
+    ///
+    /// This will:
+    /// - Reset validity to all 'valid'.
+    /// - Create or reuse a writeable buffer for array data. No guarantees are
+    ///   made about the contents of the buffer.
+    pub fn reset_for_write(&mut self, manager: &B) -> Result<()> {
+        self.validity = Validity::new_all_valid(self.capacity());
+
+        if let Err(()) = self.data.try_reset_for_write() {
+            // Need to create a new buffer and set that.
+            let buffer = array_buffer_for_datatype(manager, &self.datatype, self.capacity())?;
+            self.data = ArrayData::owned(buffer)
+        }
+
+        Ok(())
+    }
+}
+
+/// Create a new array buffer for a datatype.
+fn array_buffer_for_datatype<B>(
+    manager: &B,
+    datatype: &DataType,
+    capacity: usize,
+) -> Result<ArrayBuffer<B>>
+where
+    B: BufferManager,
+{
+    let buffer = match datatype.physical_type() {
+        PhysicalType::Boolean => {
+            ArrayBuffer::with_primary_capacity::<PhysicalBool>(manager, capacity)?
+        }
+        PhysicalType::Int8 => ArrayBuffer::with_primary_capacity::<PhysicalI8>(manager, capacity)?,
+        PhysicalType::Int16 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI16>(manager, capacity)?
+        }
+        PhysicalType::Int32 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI32>(manager, capacity)?
+        }
+        PhysicalType::Int64 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI64>(manager, capacity)?
+        }
+        PhysicalType::Int128 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI128>(manager, capacity)?
+        }
+        PhysicalType::UInt8 => ArrayBuffer::with_primary_capacity::<PhysicalU8>(manager, capacity)?,
+        PhysicalType::UInt16 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU16>(manager, capacity)?
+        }
+        PhysicalType::UInt32 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU32>(manager, capacity)?
+        }
+        PhysicalType::UInt64 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU64>(manager, capacity)?
+        }
+        PhysicalType::UInt128 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU128>(manager, capacity)?
+        }
+        PhysicalType::Float16 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalF16>(manager, capacity)?
+        }
+        PhysicalType::Float32 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalF32>(manager, capacity)?
+        }
+        PhysicalType::Float64 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalF64>(manager, capacity)?
+        }
+        PhysicalType::Interval => {
+            ArrayBuffer::with_primary_capacity::<PhysicalInterval>(manager, capacity)?
+        }
+        PhysicalType::Utf8 => {
+            let mut buffer = ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(manager, capacity)?;
+            buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
+            buffer
+        }
+        PhysicalType::List => {
+            let inner_type = match &datatype {
+                DataType::List(m) => m.datatype.as_ref().clone(),
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected list datatype, got {other}"
+                    )))
+                }
+            };
+
+            let child = Array::new(manager, inner_type, capacity)?;
+
+            let mut buffer = ArrayBuffer::with_primary_capacity::<PhysicalList>(manager, capacity)?;
+            buffer.put_secondary_buffer(SecondaryBuffer::List(ListBuffer::new(child)));
+
+            buffer
+        }
+        _ => unimplemented!(),
+    };
+
+    Ok(buffer)
 }
 
 /// Helper for copying rows.
@@ -453,5 +478,49 @@ where
         array.put_validity(validity)?;
 
         Ok(array)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::testutil::assert_arrays_eq;
+
+    #[test]
+    fn reset_after_clone_from() {
+        let mut a1 = Array::try_from_iter(["a", "bb", "ccc"]).unwrap();
+        let mut a2 = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
+
+        a1.clone_from(&NopBufferManager, &mut a2).unwrap();
+
+        let expected = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
+        assert_arrays_eq(&expected, &a1);
+        assert_arrays_eq(&expected, &a2);
+
+        a1.reset_for_write(&NopBufferManager).unwrap();
+
+        // Ensure we can write to it.
+        let mut strings = a1
+            .data_mut()
+            .try_as_mut()
+            .unwrap()
+            .try_as_string_view_addressable_mut()
+            .unwrap();
+
+        strings.put(0, "hello");
+        strings.put(1, "world");
+        strings.put(2, "goodbye");
+
+        let expected = Array::try_from_iter(["hello", "world", "goodbye"]).unwrap();
+        assert_arrays_eq(&expected, &a1);
+    }
+
+    #[test]
+    fn reset_resets_validity() {
+        let mut a = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
+        assert!(!a.validity().all_valid());
+
+        a.reset_for_write(&NopBufferManager).unwrap();
+        assert!(a.validity().all_valid());
     }
 }
