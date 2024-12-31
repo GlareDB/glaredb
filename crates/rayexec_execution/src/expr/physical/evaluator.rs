@@ -4,6 +4,7 @@ use super::PhysicalScalarExpression;
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::buffer_manager::NopBufferManager;
 
 /// Evaluate expressions on batch inputs.
 #[derive(Debug)]
@@ -72,7 +73,11 @@ impl ExpressionEvaluator {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
-        // TODO: Reset array for writes.
+        // TODO: Figure out how the manager will be threaded down. Might just
+        // keep it on the array/buffer/batch/something else. We might need
+        // `Arc<dyn ...>` here, ideally the buffer reuse prevents us from
+        // needing to call into it often.
+        output.reset_for_write(&NopBufferManager)?;
 
         match expr {
             // PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),

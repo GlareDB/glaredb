@@ -9,6 +9,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch2;
 use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 
@@ -37,7 +38,14 @@ impl PhysicalColumnExpr {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
-        unimplemented!()
+        let col = &mut input.arrays_mut()[self.idx];
+        output.clone_from(&NopBufferManager, col)?;
+
+        if !sel.is_linear() || sel.len() != input.num_rows() {
+            output.select(&NopBufferManager, sel.iter())?;
+        }
+
+        Ok(())
     }
 }
 
@@ -60,5 +68,58 @@ impl DatabaseProtoConv for PhysicalColumnExpr {
         Ok(Self {
             idx: proto.idx as usize,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iterutil::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_arrays_eq;
+
+    #[test]
+    fn column_expr_eval() {
+        let mut input = Batch::from_arrays(
+            [
+                Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+                Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            ],
+            true,
+        )
+        .unwrap();
+
+        let expr = PhysicalColumnExpr { idx: 1 };
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let sel = Selection::linear(4);
+
+        expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
+            .unwrap();
+
+        let expected = Array::try_from_iter([1, 2, 3, 4]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn column_expr_eval_with_selection() {
+        let mut input = Batch::from_arrays(
+            [
+                Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+                Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            ],
+            true,
+        )
+        .unwrap();
+
+        let expr = PhysicalColumnExpr { idx: 1 };
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let sel = Selection::selection(&[1, 3]);
+
+        expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
+            .unwrap();
+
+        let expected = Array::try_from_iter([2, 4]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

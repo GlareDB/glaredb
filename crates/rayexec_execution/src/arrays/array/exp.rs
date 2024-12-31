@@ -246,6 +246,8 @@ where
     pub fn reset_for_write(&mut self, manager: &B) -> Result<()> {
         self.validity = Validity::new_all_valid(self.capacity());
 
+        // TODO: We should clear some secondary buffers (mostly string heap)
+
         if let Err(()) = self.data.try_reset_for_write() {
             // Need to create a new buffer and set that.
             let buffer = array_buffer_for_datatype(manager, &self.datatype, self.capacity())?;
