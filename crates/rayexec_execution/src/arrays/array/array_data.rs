@@ -67,7 +67,7 @@ where
     ///
     /// Returns `Ok(())` if the reset was successful, `Err(())` otherwise. If
     /// `Err(())` is returned, this remains unchanged.
-    pub fn try_reset_for_write(&mut self) -> Result<(), ()> {
+    pub(crate) fn try_reset_for_write(&mut self) -> Result<(), ()> {
         match &mut self.inner {
             ArrayDataInner::Managed(_, cached) => {
                 if let Some(cached) = cached.take() {

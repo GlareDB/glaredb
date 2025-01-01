@@ -210,6 +210,10 @@ impl StringViewHeap {
         StringViewHeap { buffer: Vec::new() }
     }
 
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+    }
+
     pub fn push_bytes(&mut self, value: &[u8]) -> StringViewMetadataUnion {
         if value.len() as i32 <= 12 {
             // Store completely inline.

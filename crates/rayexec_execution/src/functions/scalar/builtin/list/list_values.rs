@@ -185,6 +185,11 @@ fn list_values_inner<S: MutablePhysicalStorage>(
         .child
         .put_validity(Validity::new_all_valid(capacity))?;
 
+    // Update metadata on the list buffer itself. Note that this can be less
+    // than the buffer's actual capacity. This only matters during writes to
+    // know if we still have room to push to the child array.
+    list_buf.entries = capacity;
+
     let mut child_outputs = S::get_addressable_mut(list_buf.child.data.try_as_mut()?)?;
     let child_validity = &mut list_buf.child.validity;
 

@@ -1,6 +1,6 @@
 use half::f16;
 use iterutil::{IntoExactSizeIterator, TryFromExactSizeIterator};
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::array_data::ArrayData;
 use super::flat::FlatArrayView;
@@ -10,6 +10,7 @@ use crate::arrays::buffer::physical_type::{
     Addressable,
     AddressableMut,
     MutablePhysicalStorage,
+    PhysicalBinary,
     PhysicalBool,
     PhysicalDictionary,
     PhysicalF16,
@@ -31,9 +32,16 @@ use crate::arrays::buffer::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::buffer::string_view::StringViewHeap;
-use crate::arrays::buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, SecondaryBuffer};
+use crate::arrays::buffer::{
+    ArrayBuffer,
+    DictionaryBuffer,
+    ListBuffer,
+    ListItemMetadata,
+    SecondaryBuffer,
+};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
+use crate::arrays::scalar::ScalarValue;
 
 #[derive(Debug)]
 pub struct Array<B: BufferManager = NopBufferManager> {
@@ -243,6 +251,10 @@ where
     /// - Reset validity to all 'valid'.
     /// - Create or reuse a writeable buffer for array data. No guarantees are
     ///   made about the contents of the buffer.
+    ///
+    /// Bfuffer values _must_ be written for a row before attempting to read a
+    /// value for that row after calling this function. Underlying storage may
+    /// be cleared resulting in stale metadata (and thus invalid reads).
     pub fn reset_for_write(&mut self, manager: &B) -> Result<()> {
         self.validity = Validity::new_all_valid(self.capacity());
 
@@ -252,6 +264,141 @@ where
             // Need to create a new buffer and set that.
             let buffer = array_buffer_for_datatype(manager, &self.datatype, self.capacity())?;
             self.data = ArrayData::owned(buffer)
+        }
+
+        // Reset secondary buffers.
+        match self.data.try_as_mut()?.get_secondary_mut() {
+            SecondaryBuffer::StringViewHeap(heap) => {
+                heap.clear();
+                // All metadata is stale. Panics may occur if attempting to read
+                // prior to writing new values for a row.
+            }
+            SecondaryBuffer::List(list) => {
+                list.entries = 0;
+                // Child array keeps its capacity, it'll be overwritten. List
+                // item metadata will become stale, but technically won't error.
+            }
+            SecondaryBuffer::Dictionary(_) => (),
+            SecondaryBuffer::None => (),
+        }
+
+        Ok(())
+    }
+
+    /// Set a scalar value at a given index.
+    pub fn set_value(&mut self, idx: usize, val: &ScalarValue) -> Result<()> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        self.validity.set_valid(idx);
+        let data = self.data.try_as_mut()?;
+
+        match val {
+            ScalarValue::Null => {
+                self.validity.set_invalid(idx);
+            }
+            ScalarValue::Boolean(val) => {
+                PhysicalBool::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int8(val) => {
+                PhysicalI8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int16(val) => {
+                PhysicalI16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int32(val) => {
+                PhysicalI32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int128(val) => {
+                PhysicalI128::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt8(val) => {
+                PhysicalU8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt16(val) => {
+                PhysicalU16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt32(val) => {
+                PhysicalU32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt64(val) => {
+                PhysicalU64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt128(val) => {
+                PhysicalU128::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float16(val) => {
+                PhysicalF16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float32(val) => {
+                PhysicalF32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float64(val) => {
+                PhysicalF64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Decimal64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Decimal128(val) => {
+                PhysicalI128::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Date32(val) => {
+                PhysicalI32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Date64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Timestamp(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Interval(val) => {
+                PhysicalInterval::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Utf8(val) => {
+                PhysicalUtf8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Binary(val) => {
+                PhysicalBinary::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::List(list) => {
+                let secondary = self.data.try_as_mut()?.get_secondary_mut().get_list_mut()?;
+
+                // Ensure we have space to push.
+                let rem_cap = secondary.child.capacity() - secondary.entries;
+                if rem_cap < list.len() {
+                    // TODO: Just resize secondary.
+                    return Err(RayexecError::new(
+                        "Secondary list buffer does not have required capacity",
+                    )
+                    .with_field("remaining", rem_cap)
+                    .with_field("need", list.len()));
+                }
+
+                for (child_idx, val) in (secondary.entries..).zip(list) {
+                    secondary.child.set_value(child_idx, val)?;
+                }
+
+                // Now update entry count in child. Original value is our offset
+                // index.
+                let start_offset = secondary.entries;
+                secondary.entries += list.len();
+
+                // Set metadata pointing to new list.
+                PhysicalList::get_addressable_mut(self.data.try_as_mut()?)?.put(
+                    idx,
+                    &ListItemMetadata {
+                        offset: start_offset as i32,
+                        len: list.len() as i32,
+                    },
+                );
+            }
+            ScalarValue::Struct(_) => not_implemented!("set value for struct"),
         }
 
         Ok(())
