@@ -1,0 +1,15 @@
+[package]
+name = "rayexec_dbgen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayexec_error = { path = "../rayexec_error" }
+rayexec_bullet = { path = "../rayexec_bullet" }
+rayexec_execution = { path = "../rayexec_execution" }
+fmtutil = { path = "../fmtutil" }
+futures = { workspace = true }
+
+[build-dependencies]
+bindgen = "0.65.1"
+cc = "1.0"
