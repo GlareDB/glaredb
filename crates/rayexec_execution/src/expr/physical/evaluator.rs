@@ -80,9 +80,10 @@ impl ExpressionEvaluator {
         output.reset_for_write(&NopBufferManager)?;
 
         match expr {
-            // PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
-            // PhysicalScalarExpression::ScalarFunction(expr) => expr.eval(input, state, sel, output),
-            // PhysicalScalarExpression::Literal(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Cast(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::ScalarFunction(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Literal(expr) => expr.eval(input, state, sel, output),
             _ => unimplemented!(),
         }
     }

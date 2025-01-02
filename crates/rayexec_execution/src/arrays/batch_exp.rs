@@ -124,7 +124,7 @@ where
     }
 
     /// Returns a selection that selects rows [0, num_rows).
-    pub fn selection(&self) -> Selection {
+    pub fn selection<'a>(&self) -> Selection<'a> {
         Selection::Linear { len: self.num_rows }
     }
 

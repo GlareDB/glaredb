@@ -1,13 +1,10 @@
-use std::borrow::Cow;
 use std::fmt;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::evaluator::ExpressionState;
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch2;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
@@ -19,18 +16,6 @@ pub struct PhysicalColumnExpr {
 }
 
 impl PhysicalColumnExpr {
-    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
-        let col = batch.column(self.idx).ok_or_else(|| {
-            RayexecError::new(format!(
-                "Tried to get column at index {} in a batch with {} columns",
-                self.idx,
-                batch.columns().len()
-            ))
-        })?;
-
-        Ok(Cow::Borrowed(col))
-    }
-
     pub(crate) fn eval(
         &self,
         input: &mut Batch,

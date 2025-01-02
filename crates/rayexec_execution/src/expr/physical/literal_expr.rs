@@ -7,8 +7,6 @@ use rayexec_proto::ProtoConv;
 use super::evaluator::ExpressionState;
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch2;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::scalar::OwnedScalarValue;
@@ -21,11 +19,6 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
-    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
-        let arr = self.literal.as_array(batch.num_rows())?;
-        Ok(Cow::Owned(arr))
-    }
-
     pub(crate) fn eval(
         &self,
         _: &mut Batch,

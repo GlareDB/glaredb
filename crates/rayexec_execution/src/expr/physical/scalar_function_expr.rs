@@ -1,13 +1,14 @@
-use std::borrow::Cow;
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_error::Result;
 
-use super::PhysicalScalarExpression;
-use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch2;
+use super::{ExpressionState, PhysicalScalarExpression};
+use crate::arrays::array::exp::Array;
+use crate::arrays::array::selection::Selection;
+use crate::arrays::batch_exp::Batch;
 use crate::database::DatabaseContext;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::proto::DatabaseProtoConv;
 
@@ -18,27 +19,25 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
-    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|input| input.eval2(batch))
-            .collect::<Result<Vec<_>>>()?;
-
-        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
-        let mut out = self.function.function_impl.execute2(&refs)?;
-
-        // If function is provided no input, it's expected to return an
-        // array of length 1. We extend the array here so that it's the
-        // same size as the rest.
-        //
-        // TODO: Could just extend the selection vector too.
-        if refs.is_empty() {
-            let scalar = out.logical_value(0)?;
-            out = scalar.as_array(batch.num_rows())?;
+    pub(crate) fn eval(
+        &self,
+        input: &mut Batch,
+        state: &mut ExpressionState,
+        sel: Selection,
+        output: &mut Array,
+    ) -> Result<()> {
+        // Eval children.
+        for (child_idx, array) in state.buffer.arrays_mut().iter_mut().enumerate() {
+            let expr = &self.inputs[child_idx];
+            let child_state = &mut state.inputs[child_idx];
+            ExpressionEvaluator::eval_expression(expr, input, child_state, sel, array)?;
         }
 
-        Ok(Cow::Owned(out))
+        // Eval function with child outputs.
+        state.buffer.set_num_rows(sel.len())?;
+        self.function.function_impl.execute(&state.buffer, output)?;
+
+        Ok(())
     }
 }
 
