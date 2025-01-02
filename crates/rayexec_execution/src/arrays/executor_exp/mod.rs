@@ -31,9 +31,9 @@ pub struct PutBuffer<'a, M>
 where
     M: AddressableMut,
 {
-    idx: usize,
-    buffer: &'a mut M,
-    validity: &'a mut Validity,
+    pub(crate) idx: usize,
+    pub(crate) buffer: &'a mut M,
+    pub(crate) validity: &'a mut Validity,
 }
 
 impl<'a, M> PutBuffer<'a, M>

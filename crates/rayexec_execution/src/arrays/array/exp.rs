@@ -29,6 +29,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
+    PhysicalUntypedNull,
     PhysicalUtf8,
 };
 use crate::arrays::buffer::string_view::StringViewHeap;
@@ -415,6 +416,9 @@ where
     B: BufferManager,
 {
     let buffer = match datatype.physical_type() {
+        PhysicalType::UntypedNull => {
+            ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(manager, capacity)?
+        }
         PhysicalType::Boolean => {
             ArrayBuffer::with_primary_capacity::<PhysicalBool>(manager, capacity)?
         }
@@ -478,7 +482,7 @@ where
 
             buffer
         }
-        _ => unimplemented!(),
+        other => not_implemented!("create array buffer for physical type {other}"),
     };
 
     Ok(buffer)

@@ -22,8 +22,9 @@ pub struct PhysicalCastExpr {
 impl PhysicalCastExpr {
     pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         let input = self.expr.eval2(batch)?;
-        let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
-        Ok(Cow::Owned(out))
+        unimplemented!()
+        // let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
+        // Ok(Cow::Owned(out))
     }
 }
 

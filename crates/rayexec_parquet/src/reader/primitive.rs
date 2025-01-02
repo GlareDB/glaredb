@@ -93,9 +93,10 @@ where
             None => Array2::new_with_array_data(build_type, array_data),
         };
 
-        if needs_cast {
-            array = cast_array(&array, self.datatype.clone(), CastFailBehavior::Null)?;
-        }
+        // TODO
+        // if needs_cast {
+        //     array = cast_array(&array, self.datatype.clone(), CastFailBehavior::Null)?;
+        // }
 
         Ok(array)
     }

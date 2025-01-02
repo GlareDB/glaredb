@@ -5,12 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::buffer::physical_type::{
-    MutablePhysicalStorage,
-    PhysicalI128,
-    PhysicalI64,
-    PhysicalStorage,
-};
+use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalI128, PhysicalI64};
 use crate::arrays::executor::physical_type::{PhysicalI128_2, PhysicalI64_2, PhysicalStorage2};
 
 pub trait DecimalPrimitive:
