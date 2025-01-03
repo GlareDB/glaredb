@@ -1,26 +1,26 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::check_validity;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::executor::scalar::validate_logical_len;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
-pub struct UniformExecutor;
+pub struct UniformExecutor2;
 
-impl UniformExecutor {
+impl UniformExecutor2 {
     pub fn execute<'a, S, B, Op>(
-        arrays: &[&'a Array],
+        arrays: &[&'a Array2],
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         Op: FnMut(&[S::Type<'a>], &mut OutputBuffer<B>),
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         B: ArrayDataBuffer,
     {
         let len = match arrays.first() {
@@ -95,7 +95,7 @@ impl UniformExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(Array2 {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -111,14 +111,14 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::GermanVarlenBuffer;
-    use crate::arrays::executor::physical_type::PhysicalUtf8;
+    use crate::arrays::executor::physical_type::PhysicalUtf8_2;
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
     fn uniform_string_concat_row_wise() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let second = Array::from_iter(["1", "2", "3"]);
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let first = Array2::from_iter(["a", "b", "c"]);
+        let second = Array2::from_iter(["1", "2", "3"]);
+        let third = Array2::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -127,7 +127,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor2::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -150,10 +150,10 @@ mod tests {
 
     #[test]
     fn uniform_string_concat_row_wise_with_invalid() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let mut second = Array::from_iter(["1", "2", "3"]);
+        let first = Array2::from_iter(["a", "b", "c"]);
+        let mut second = Array2::from_iter(["1", "2", "3"]);
         second.set_physical_validity(1, false); // "2" => NULL
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let third = Array2::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -162,7 +162,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor2::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {
@@ -182,11 +182,11 @@ mod tests {
 
     #[test]
     fn uniform_string_concat_row_wise_with_invalid_and_reordered() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let mut second = Array::from_iter(["1", "2", "3"]);
+        let first = Array2::from_iter(["a", "b", "c"]);
+        let mut second = Array2::from_iter(["1", "2", "3"]);
         second.select_mut(SelectionVector::from_iter([1, 0, 2])); // ["1", "2", "3"] => ["2", "1", "3"]
         second.set_physical_validity(1, false); // "2" => NULL, referencing physical index
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let third = Array2::from_iter(["dog", "cat", "horse"]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -195,7 +195,7 @@ mod tests {
 
         let mut string_buffer = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
+        let got = UniformExecutor2::execute::<PhysicalUtf8_2, _, _>(
             &[&first, &second, &third],
             builder,
             |inputs, buf| {

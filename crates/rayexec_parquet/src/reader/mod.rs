@@ -19,8 +19,8 @@ use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::{Array, ArrayData};
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::array::{Array2, ArrayData2};
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::field::Schema;
@@ -32,7 +32,7 @@ use crate::metadata::Metadata;
 
 pub trait ArrayBuilder<P: PageReader>: Send {
     /// Consume the current buffer and build an array.
-    fn build(&mut self) -> Result<Array>;
+    fn build(&mut self) -> Result<Array2>;
 
     /// Sets the page reader the builder should now be reading from.
     fn set_page_reader(&mut self, page_reader: P) -> Result<()>;
@@ -115,7 +115,7 @@ where
 
 /// Trait for converting a buffer of values into array data.
 pub trait IntoArrayData {
-    fn into_array_data(self) -> ArrayData;
+    fn into_array_data(self) -> ArrayData2;
 }
 
 pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
@@ -232,7 +232,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
         })
     }
 
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<Batch2>> {
         if self.current_row_group.is_none() {
             match self.row_groups.pop_front() {
                 Some(group) => {
@@ -266,7 +266,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
     /// Try to read the next batch from the array builders.
     ///
     /// Returns Ok(None) when there's nothing left to read.
-    fn maybe_read_batch(&mut self) -> Result<Option<Batch>> {
+    fn maybe_read_batch(&mut self) -> Result<Option<Batch2>> {
         for state in self.column_states.iter_mut() {
             state.builder.read_rows(self.batch_size)?;
         }
@@ -276,7 +276,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             .map(|state| state.builder.build())
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(arrays)?;
+        let batch = Batch2::try_new(arrays)?;
 
         if batch.num_rows() == 0 {
             Ok(None)

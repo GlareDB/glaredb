@@ -13,8 +13,8 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use crate::arrays::array::Array2;
+use crate::arrays::batch::Batch2;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -25,7 +25,7 @@ use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 pub struct TableInOutPartitionState {
     function_state: Box<dyn inout::TableInOutPartitionState>,
     /// Additional outputs that will be included on the output batch.
-    additional_outputs: Vec<Array>,
+    additional_outputs: Vec<Array2>,
 }
 
 #[derive(Debug)]
@@ -79,7 +79,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
@@ -93,12 +93,12 @@ impl ExecutableOperator for PhysicalTableInOut {
             .function_inputs
             .iter()
             .map(|expr| {
-                let arr = expr.eval(&batch)?;
+                let arr = expr.eval2(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let inputs = Batch::try_new(inputs)?;
+        let inputs = Batch2::try_new(inputs)?;
 
         // Try to push first to avoid overwriting any buffered additional
         // outputs.
@@ -116,7 +116,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     .projected_outputs
                     .iter()
                     .map(|expr| {
-                        let arr = expr.eval(&batch)?;
+                        let arr = expr.eval2(&batch)?;
                         Ok(arr.into_owned())
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -175,7 +175,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     arrays.push(additional);
                 }
 
-                let new_batch = Batch::try_new(arrays)?;
+                let new_batch = Batch2::try_new(arrays)?;
 
                 Ok(PollPull::Computed(new_batch.into()))
             }

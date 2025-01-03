@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
 use super::client::{HybridClient, PullStatus};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::{PartitionSink, SinkOperation};
@@ -64,7 +64,7 @@ pub struct ClientToServerPartitionSink<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         // TODO: Figure out backpressure
         Box::pin(async { self.client.push(self.stream_id, 0, batch).await })
     }
@@ -116,7 +116,7 @@ pub struct ServerToClientPartitionSource<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSource for ServerToClientPartitionSource<C> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async {
             // TODO: Backoff + hint somehow
             loop {

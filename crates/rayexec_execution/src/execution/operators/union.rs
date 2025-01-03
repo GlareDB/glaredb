@@ -14,7 +14,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -22,7 +22,7 @@ use crate::proto::DatabaseProtoConv;
 #[derive(Debug)]
 pub struct UnionTopPartitionState {
     partition_idx: usize,
-    batch: Option<Batch>,
+    batch: Option<Batch2>,
     finished: bool,
     push_waker: Option<Waker>,
     pull_waker: Option<Waker>,
@@ -40,7 +40,7 @@ pub struct UnionOperatorState {
 
 #[derive(Debug)]
 struct SharedPartitionState {
-    batch: Option<Batch>,
+    batch: Option<Batch2>,
     finished: bool,
     push_waker: Option<Waker>,
     pull_waker: Option<Waker>,
@@ -120,7 +120,7 @@ impl ExecutableOperator for PhysicalUnion {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::UnionTop(state) => {

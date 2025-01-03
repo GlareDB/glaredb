@@ -17,7 +17,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::database::DatabaseContext;
@@ -28,7 +28,7 @@ use crate::storage::table_storage::{DataTableScan, Projections};
 pub struct ScanPartitionState {
     scan: Box<dyn DataTableScan>,
     /// In progress pull we're working on.
-    future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
+    future: Option<BoxFuture<'static, Result<Option<Batch2>>>>,
 }
 
 impl fmt::Debug for ScanPartitionState {
@@ -99,7 +99,7 @@ impl ExecutableOperator for PhysicalScan {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: Batch2,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }

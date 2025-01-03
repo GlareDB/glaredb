@@ -6,7 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::profiler::OperatorProfileData;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::{
     ExecutableOperator,
@@ -274,7 +274,7 @@ pub enum PipelinePartitionState {
         operator_idx: usize,
     },
     /// Need to push to an operator.
-    PushTo { batch: Batch, operator_idx: usize },
+    PushTo { batch: Batch2, operator_idx: usize },
     /// Need to finalize a push to an operator.
     FinalizePush { operator_idx: usize },
     /// Pipeline is completed.
@@ -450,7 +450,7 @@ impl ExecutablePartitionPipeline {
                     operator_idx,
                 } => {
                     // To satisfy ownership. State will be updated anyways.
-                    let batch = std::mem::replace(batch, Batch::empty());
+                    let batch = std::mem::replace(batch, Batch2::empty());
 
                     let operator = self
                         .operators

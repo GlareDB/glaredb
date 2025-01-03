@@ -3,9 +3,9 @@ use std::fmt::Debug;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::aggregate::{AggregateState2, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
@@ -99,7 +99,7 @@ impl AggregateFunctionImpl for StringAggImpl {
             string: None,
         };
 
-        new_unary_aggregate_states::<PhysicalUtf8, _, _, _, _>(state_init, move |states| {
+        new_unary_aggregate_states::<PhysicalUtf8_2, _, _, _, _>(state_init, move |states| {
             let builder = ArrayBuilder {
                 datatype: DataType::Utf8,
                 buffer: GermanVarlenBuffer::<str>::with_len(states.len()),
@@ -119,7 +119,7 @@ pub struct StringAggState {
     string: Option<String>,
 }
 
-impl AggregateState<&str, String> for StringAggState {
+impl AggregateState2<&str, String> for StringAggState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.string.is_none() {
             std::mem::swap(self, other);

@@ -13,23 +13,23 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
-    batches: Vec<Batch>,
+    batches: Vec<Batch2>,
 }
 
 #[derive(Debug)]
 pub struct PhysicalValues {
-    batches: Vec<Batch>,
+    batches: Vec<Batch2>,
 }
 
 impl PhysicalValues {
-    pub fn new(batches: Vec<Batch>) -> Self {
+    pub fn new(batches: Vec<Batch2>) -> Self {
         PhysicalValues { batches }
     }
 }
@@ -65,7 +65,7 @@ impl ExecutableOperator for PhysicalValues {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: Batch2,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }

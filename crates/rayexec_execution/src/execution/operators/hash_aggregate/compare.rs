@@ -4,35 +4,35 @@ use rayexec_error::{not_implemented, Result};
 
 use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalStorage,
-    PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
+    PhysicalBinary_2,
+    PhysicalBool_2,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalInterval_2,
+    PhysicalStorage2,
+    PhysicalType2,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
+    PhysicalUntypedNull_2,
+    PhysicalUtf8_2,
 };
 use crate::arrays::executor::scalar::{can_skip_validity_check, check_validity};
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::AddressableStorage;
 
 pub fn group_values_eq(
-    inputs: &[Array],
+    inputs: &[Array2],
     input_sel: &SelectionVector,
     chunks: &[GroupChunk],
     addresses: &[GroupAddress],
@@ -69,8 +69,8 @@ pub fn group_values_eq(
 }
 
 fn compare_group_rows_eq<I1, I2>(
-    arrays1: &[Array],
-    arrays2: &[Array],
+    arrays1: &[Array2],
+    arrays2: &[Array2],
     rows1: I1,
     rows2: I2,
     not_eq_rows: &mut BTreeSet<usize>,
@@ -96,69 +96,73 @@ where
         }
 
         match array1.physical_type() {
-            PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
+            PhysicalType2::UntypedNull => compare_rows_eq::<PhysicalUntypedNull_2, _, _>(
                 array1,
                 array2,
                 rows1,
                 rows2,
                 not_eq_rows,
             )?,
-            PhysicalType::Boolean => {
-                compare_rows_eq::<PhysicalBool, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Boolean => {
+                compare_rows_eq::<PhysicalBool_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int8 => {
-                compare_rows_eq::<PhysicalI8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Int8 => {
+                compare_rows_eq::<PhysicalI8_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int16 => {
-                compare_rows_eq::<PhysicalI16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Int16 => {
+                compare_rows_eq::<PhysicalI16_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int32 => {
-                compare_rows_eq::<PhysicalI32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Int32 => {
+                compare_rows_eq::<PhysicalI32_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int64 => {
-                compare_rows_eq::<PhysicalI64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Int64 => {
+                compare_rows_eq::<PhysicalI64_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Int128 => {
-                compare_rows_eq::<PhysicalI128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Int128 => {
+                compare_rows_eq::<PhysicalI128_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt8 => {
-                compare_rows_eq::<PhysicalU8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::UInt8 => {
+                compare_rows_eq::<PhysicalU8_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt16 => {
-                compare_rows_eq::<PhysicalU16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::UInt16 => {
+                compare_rows_eq::<PhysicalU16_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt32 => {
-                compare_rows_eq::<PhysicalU32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::UInt32 => {
+                compare_rows_eq::<PhysicalU32_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt64 => {
-                compare_rows_eq::<PhysicalU64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::UInt64 => {
+                compare_rows_eq::<PhysicalU64_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::UInt128 => {
-                compare_rows_eq::<PhysicalU128, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::UInt128 => {
+                compare_rows_eq::<PhysicalU128_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Float16 => {
-                compare_rows_eq::<PhysicalF16, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Float16 => {
+                compare_rows_eq::<PhysicalF16_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Float32 => {
-                compare_rows_eq::<PhysicalF32, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Float32 => {
+                compare_rows_eq::<PhysicalF32_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Float64 => {
-                compare_rows_eq::<PhysicalF64, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Float64 => {
+                compare_rows_eq::<PhysicalF64_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Interval => compare_rows_eq::<PhysicalInterval, _, _>(
+            PhysicalType2::Interval => compare_rows_eq::<PhysicalInterval_2, _, _>(
                 array1,
                 array2,
                 rows1,
                 rows2,
                 not_eq_rows,
             )?,
-            PhysicalType::Binary => {
-                compare_rows_eq::<PhysicalBinary, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
+            PhysicalType2::Binary => compare_rows_eq::<PhysicalBinary_2, _, _>(
+                array1,
+                array2,
+                rows1,
+                rows2,
+                not_eq_rows,
+            )?,
+            PhysicalType2::Utf8 => {
+                compare_rows_eq::<PhysicalUtf8_2, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::Utf8 => {
-                compare_rows_eq::<PhysicalUtf8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
-            }
-            PhysicalType::List => {
+            PhysicalType2::List => {
                 not_implemented!("Row compare list")
             }
         }
@@ -173,14 +177,14 @@ where
 /// When a row is not equal, the row from the `rows1` iter will be inserted into
 /// `not_eq_rows`.
 fn compare_rows_eq<'a, S, I1, I2>(
-    array1: &'a Array,
-    array2: &'a Array,
+    array1: &'a Array2,
+    array2: &'a Array2,
     rows1: I1,
     rows2: I2,
     not_eq_rows: &mut BTreeSet<usize>,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     <S::Storage<'a> as AddressableStorage>::T: PartialEq,
     I1: Iterator<Item = usize>,
     I2: Iterator<Item = usize>,

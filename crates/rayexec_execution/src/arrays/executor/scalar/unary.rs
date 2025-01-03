@@ -1,26 +1,26 @@
 use rayexec_error::Result;
 
 use super::validate_logical_len;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone)]
-pub struct UnaryExecutor;
+pub struct UnaryExecutor2;
 
-impl UnaryExecutor {
+impl UnaryExecutor2 {
     /// Executes `op` on every non-null input.
     pub fn execute<'a, S, B, Op>(
-        array: &'a Array,
+        array: &'a Array2,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         Op: FnMut(S::Type<'a>, &mut OutputBuffer<B>),
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array)?;
@@ -67,7 +67,7 @@ impl UnaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(Array2 {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -80,10 +80,10 @@ impl UnaryExecutor {
     ///
     /// `op` is called for each logical entry in the array with the index and
     /// either Some(val) if the value is valid, or None if it's not.
-    pub fn for_each<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
+    pub fn for_each<'a, S, Op>(array: &'a Array2, mut op: Op) -> Result<()>
     where
         Op: FnMut(usize, Option<S::Type<'a>>),
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
     {
         let selection = array.selection_vector();
         let len = array.logical_len();
@@ -119,9 +119,9 @@ impl UnaryExecutor {
     /// Gets the value some index in the array.
     ///
     /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at<S>(array: &Array, idx: usize) -> Result<Option<S::Type<'_>>>
+    pub fn value_at<S>(array: &Array2, idx: usize) -> Result<Option<S::Type<'_>>>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
     {
         let selection = array.selection_vector();
 
@@ -154,18 +154,18 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalUtf8_2};
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
     fn int32_inc_by_2() {
-        let array = Array::from_iter([1, 2, 3]);
+        let array = Array2::from_iter([1, 2, 3]);
         let builder = ArrayBuilder {
             datatype: DataType::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = UnaryExecutor::execute::<PhysicalI32, _, _>(&array, builder, |v, buf| {
+        let got = UnaryExecutor2::execute::<PhysicalI32_2, _, _>(&array, builder, |v, buf| {
             buf.put(&(v + 2))
         })
         .unwrap();
@@ -179,7 +179,7 @@ mod tests {
     fn string_double_named_func() {
         // Example with defined function, and allocating a new string every time.
 
-        let array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
@@ -194,8 +194,9 @@ mod tests {
             buf.put(&double)
         }
 
-        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
-            .unwrap();
+        let got =
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_double)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.physical_scalar(1).unwrap());
@@ -210,7 +211,7 @@ mod tests {
     fn string_double_closure() {
         // Example with closure that reuses a string.
 
-        let array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
@@ -227,8 +228,9 @@ mod tests {
             buf.put(buffer.as_str())
         };
 
-        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_double)
-            .unwrap();
+        let got =
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_double)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("aa"), got.physical_scalar(0).unwrap());
         assert_eq!(ScalarValue::from("bbbb"), got.physical_scalar(1).unwrap());
@@ -243,7 +245,7 @@ mod tests {
     fn string_trunc_closure() {
         // Example with closure returning referencing to input.
 
-        let array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(4),
@@ -254,8 +256,9 @@ mod tests {
             buf.put(s.get(0..len).unwrap_or(""))
         };
 
-        let got = UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_truncate)
-            .unwrap();
+        let got =
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_truncate)
+                .unwrap();
 
         assert_eq!(ScalarValue::from("a"), got.physical_scalar(0).unwrap());
         assert_eq!(ScalarValue::from("bb"), got.physical_scalar(1).unwrap());
@@ -268,7 +271,7 @@ mod tests {
         // Example with selection vector whose logical length is greater than
         // the underlying physical data len.
 
-        let mut array = Array::from_iter(["a", "bb", "ccc", "dddd"]);
+        let mut array = Array2::from_iter(["a", "bb", "ccc", "dddd"]);
         let mut selection = SelectionVector::with_range(0..5);
         selection.set_unchecked(0, 3);
         selection.set_unchecked(1, 3);
@@ -288,7 +291,7 @@ mod tests {
         };
 
         let got =
-            UnaryExecutor::execute::<PhysicalUtf8, _, _>(&array, builder, my_string_uppercase)
+            UnaryExecutor2::execute::<PhysicalUtf8_2, _, _>(&array, builder, my_string_uppercase)
                 .unwrap();
 
         assert_eq!(ScalarValue::from("DDDD"), got.physical_scalar(0).unwrap());

@@ -12,7 +12,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -49,7 +49,7 @@ impl ExecutableOperator for PhysicalEmpty {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: Batch2,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
@@ -75,7 +75,7 @@ impl ExecutableOperator for PhysicalEmpty {
                     Ok(PollPull::Exhausted)
                 } else {
                     state.finished = true;
-                    Ok(PollPull::Computed(Batch::empty_with_num_rows(1).into()))
+                    Ok(PollPull::Computed(Batch2::empty_with_num_rows(1).into()))
                 }
             }
             other => panic!("inner join state is not building: {other:?}"),

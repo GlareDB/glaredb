@@ -5,10 +5,13 @@ use std::ops::AddAssign;
 use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
-use crate::arrays::array::ArrayData;
+use crate::arrays::array::ArrayData2;
+use crate::arrays::buffer::physical_type::AddressableMut;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::physical_type::{PhysicalF64, PhysicalI64};
+use crate::arrays::executor::aggregate::AggregateState2;
+use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64_2};
+use crate::arrays::executor_exp::aggregate::AggregateState;
+use crate::arrays::executor_exp::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -114,7 +117,7 @@ pub struct SumInt64Impl;
 
 impl AggregateFunctionImpl for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64_2, _, _, _, _>(
             SumStateCheckedAdd::<i64>::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )
@@ -126,7 +129,7 @@ pub struct SumFloat64Impl;
 
 impl AggregateFunctionImpl for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
             SumStateAdd::<f64>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -151,12 +154,12 @@ impl<D> SumDecimalImpl<D> {
 impl<D> AggregateFunctionImpl for SumDecimalImpl<D>
 where
     D: DecimalType,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+        new_unary_aggregate_states::<D::Storage2, _, _, _, _>(
             SumStateCheckedAdd::<D::Primitive>::default,
             move |states| primitive_finalize(datatype.clone(), states),
         )
@@ -170,6 +173,32 @@ pub struct SumStateCheckedAdd<T> {
 }
 
 impl<T: CheckedAdd + Default + Debug + Copy> AggregateState<T, T> for SumStateCheckedAdd<T> {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
+        self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
+        self.set = self.set || other.set;
+        Ok(())
+    }
+
+    fn update(&mut self, input: T) -> Result<()> {
+        self.sum = self.sum.checked_add(&input).unwrap_or_default(); // TODO
+        self.set = true;
+        Ok(())
+    }
+
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = T>,
+    {
+        if self.set {
+            output.put_null();
+        } else {
+            output.put(&self.sum);
+        }
+        Ok(())
+    }
+}
+
+impl<T: CheckedAdd + Default + Debug + Copy> AggregateState2<T, T> for SumStateCheckedAdd<T> {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
         self.set = self.set || other.set;
@@ -197,7 +226,7 @@ pub struct SumStateAdd<T> {
     valid: bool,
 }
 
-impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd<T> {
+impl<T: AddAssign + Default + Debug + Copy> AggregateState2<T, T> for SumStateAdd<T> {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
@@ -222,7 +251,7 @@ impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::Array;
+    use crate::arrays::array::Array2;
     use crate::arrays::scalar::ScalarValue;
     use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
     use crate::expr;
@@ -232,8 +261,8 @@ mod tests {
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = &Array2::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array2::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -265,10 +294,10 @@ mod tests {
             .collect();
 
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_states2(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_states2(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -287,7 +316,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.finalize2().unwrap();
 
         assert_eq!(1, out.logical_len());
         assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
@@ -309,8 +338,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = &Array2::from_iter::<[i64; 3]>([1, 2, 3]);
+        let partition_2_vals = &Array2::from_iter::<[i64; 3]>([4, 5, 6]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -367,10 +396,10 @@ mod tests {
         ];
 
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_states2(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_states2(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -400,7 +429,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.finalize2().unwrap();
 
         assert_eq!(2, out.logical_len());
         assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
@@ -431,8 +460,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
-        let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
+        let partition_1_vals = &Array2::from_iter::<[i64; 4]>([1, 2, 3, 4]);
+        let partition_2_vals = &Array2::from_iter::<[i64; 4]>([5, 6, 7, 8]);
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -499,10 +528,10 @@ mod tests {
         ];
 
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_states2(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_states2(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
             .unwrap();
 
         // Combine states.
@@ -528,7 +557,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let out = states_1.finalize2().unwrap();
 
         assert_eq!(3, out.logical_len());
         assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());

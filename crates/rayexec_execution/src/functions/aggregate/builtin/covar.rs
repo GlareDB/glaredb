@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::physical_type::PhysicalF64;
+use crate::arrays::executor::aggregate::AggregateState2;
+use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_binary_aggregate_states,
@@ -72,7 +72,7 @@ pub struct CovarPopImpl;
 
 impl AggregateFunctionImpl for CovarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        new_binary_aggregate_states::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
             CovarState::<CovarPopFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -130,7 +130,7 @@ pub struct CovarSampImpl;
 
 impl AggregateFunctionImpl for CovarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        new_binary_aggregate_states::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
             CovarState::<CovarSampFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -174,7 +174,7 @@ pub struct CovarState<F: CovarFinalize> {
     _finalize: PhantomData<F>,
 }
 
-impl<F> AggregateState<(f64, f64), f64> for CovarState<F>
+impl<F> AggregateState2<(f64, f64), f64> for CovarState<F>
 where
     F: CovarFinalize,
 {

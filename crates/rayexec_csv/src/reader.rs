@@ -23,8 +23,8 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::{Array, ArrayData};
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::array::{Array2, ArrayData2};
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::compute::cast::parse::{
     BoolParser,
@@ -342,7 +342,7 @@ impl AsyncCsvReader {
         AsyncCsvReader { stream }
     }
 
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
+    pub async fn read_next(&mut self) -> Result<Option<Batch2>> {
         self.stream.next_batch().await
     }
 }
@@ -387,7 +387,7 @@ struct AsyncCsvStream {
 }
 
 impl AsyncCsvStream {
-    async fn next_batch(&mut self) -> Result<Option<Batch>> {
+    async fn next_batch(&mut self) -> Result<Option<Batch2>> {
         loop {
             let (buf, offset) = match self.buf.take() {
                 Some(buf) => (buf, self.buf_offset),
@@ -455,7 +455,7 @@ impl AsyncCsvStream {
         completed: CompletedRecords,
         schema: &Schema,
         skip_header: bool,
-    ) -> Result<Batch> {
+    ) -> Result<Batch2> {
         let skip_records = if skip_header { 1 } else { 0 };
 
         let mut arrs = Vec::with_capacity(schema.fields.len());
@@ -483,14 +483,14 @@ impl AsyncCsvStream {
             arrs.push(arr);
         }
 
-        Batch::try_new(arrs)
+        Batch2::try_new(arrs)
     }
 
     fn build_boolean(
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<Array> {
+    ) -> Result<Array2> {
         let mut values = Bitmap::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -507,7 +507,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(Array2::new_with_validity_and_array_data(
             DataType::Boolean,
             validity,
             BooleanStorage::from(values),
@@ -520,11 +520,11 @@ impl AsyncCsvStream {
         field_idx: usize,
         skip_records: usize,
         mut parser: P,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         T: Default,
         P: Parser<Type = T>,
-        PrimitiveStorage<T>: Into<ArrayData>,
+        PrimitiveStorage<T>: Into<ArrayData2>,
     {
         let mut values = Vec::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());
@@ -544,7 +544,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(Array2::new_with_validity_and_array_data(
             datatype.clone(),
             validity,
             PrimitiveStorage::from(values),
@@ -555,7 +555,7 @@ impl AsyncCsvStream {
         completed: &CompletedRecords,
         field_idx: usize,
         skip_records: usize,
-    ) -> Result<Array> {
+    ) -> Result<Array2> {
         let mut values = GermanVarlenBuffer::with_len(completed.num_completed() - skip_records);
         let mut validity = Bitmap::with_capacity(completed.num_completed());
 
@@ -569,7 +569,7 @@ impl AsyncCsvStream {
             }
         }
 
-        Ok(Array::new_with_validity_and_array_data(
+        Ok(Array2::new_with_validity_and_array_data(
             DataType::Utf8,
             validity,
             values.into_data(),

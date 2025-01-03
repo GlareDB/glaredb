@@ -1,7 +1,7 @@
 use std::fmt;
 
 use rayexec_error::Result;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 
@@ -13,7 +13,7 @@ const FORMATTER: Formatter = Formatter::new(FormatOptions {
 pub fn write_markdown_table<'a>(
     output: &mut dyn fmt::Write,
     schema: &Schema,
-    batches: impl IntoIterator<Item = &'a Batch>,
+    batches: impl IntoIterator<Item = &'a Batch2>,
 ) -> Result<()> {
     // 'field1 | field2 | field3'
     let header = schema
@@ -54,7 +54,7 @@ pub fn write_markdown_table<'a>(
 
 #[cfg(test)]
 mod tests {
-    use rayexec_execution::arrays::array::Array;
+    use rayexec_execution::arrays::array::Array2;
     use rayexec_execution::arrays::datatype::DataType;
     use rayexec_execution::arrays::field::Field;
 
@@ -62,9 +62,9 @@ mod tests {
 
     #[test]
     fn simple() {
-        let batch = Batch::try_new([
-            Array::from_iter([1, 2, 3]),
-            Array::from_iter(["cat", "dog", "mouse"]),
+        let batch = Batch2::try_new([
+            Array2::from_iter([1, 2, 3]),
+            Array2::from_iter(["cat", "dog", "mouse"]),
         ])
         .unwrap();
 

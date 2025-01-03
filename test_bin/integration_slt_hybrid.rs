@@ -5,8 +5,8 @@ use std::time::Duration;
 use rayexec_debug::table_storage::TablePreload;
 use rayexec_debug::{DebugDataSource, DebugDataSourceOptions};
 use rayexec_error::Result;
-use rayexec_execution::arrays::array::Array;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::array::Array2;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::field::Field;
 use rayexec_execution::datasource::DataSourceRegistry;
@@ -36,9 +36,9 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
-                        Array::from_iter([1_i64, 2_i64]),
-                        Array::from_iter(["a", "b"]),
+                    data: Batch2::try_new([
+                        Array2::from_iter([1_i64, 2_i64]),
+                        Array2::from_iter(["a", "b"]),
                     ])?,
                 },
                 // Table specific to insert into. Don't rely on this outside of
@@ -50,9 +50,9 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
-                        Array::from_iter([1_i64, 2_i64]),
-                        Array::from_iter(["a", "b"]),
+                    data: Batch2::try_new([
+                        Array2::from_iter([1_i64, 2_i64]),
+                        Array2::from_iter(["a", "b"]),
                     ])?,
                 },
             ],

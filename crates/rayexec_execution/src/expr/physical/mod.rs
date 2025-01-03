@@ -1,3 +1,4 @@
+pub mod evaluator;
 pub mod planner;
 
 pub mod case_expr;
@@ -12,12 +13,14 @@ use std::fmt;
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
+use evaluator::ExpressionState;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use crate::arrays::array::Array2;
+use crate::arrays::batch::Batch2;
+use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -34,22 +37,43 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         match self {
-            Self::Case(e) => e.eval(batch),
-            Self::Cast(e) => e.eval(batch),
-            Self::Column(e) => e.eval(batch),
-            Self::Literal(e) => e.eval(batch),
-            Self::ScalarFunction(e) => e.eval(batch),
+            Self::Case(expr) => expr.create_state(batch_size),
+            Self::Cast(expr) => expr.create_state(batch_size),
+            Self::Column(expr) => expr.create_state(batch_size),
+            Self::Literal(expr) => expr.create_state(batch_size),
+            Self::ScalarFunction(expr) => expr.create_state(batch_size),
         }
+    }
+
+    pub fn datatype(&self) -> DataType {
+        match self {
+            Self::Case(expr) => expr.datatype(),
+            Self::Cast(expr) => expr.datatype(),
+            Self::Column(expr) => expr.datatype(),
+            Self::Literal(expr) => expr.datatype(),
+            Self::ScalarFunction(expr) => expr.datatype(),
+        }
+    }
+
+    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
+        unimplemented!()
+        // match self {
+        //     Self::Case(e) => e.eval2(batch),
+        //     Self::Cast(e) => e.eval2(batch),
+        //     Self::Column(e) => e.eval2(batch),
+        //     Self::Literal(e) => e.eval2(batch),
+        //     Self::ScalarFunction(e) => e.eval2(batch),
+        // }
     }
 
     /// Produce a selection vector for the batch using this expression.
     ///
     /// The selection vector will include row indices where the expression
     /// evaluates to true.
-    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
-        let selected = self.eval(batch)?;
+    pub fn select(&self, batch: &Batch2) -> Result<SelectionVector> {
+        let selected = self.eval2(batch)?;
 
         let mut selection = SelectionVector::with_capacity(selected.logical_len());
         SelectExecutor::select(&selected, &mut selection)?;
@@ -198,9 +222,9 @@ mod tests {
 
     #[test]
     fn select_some() {
-        let batch = Batch::try_new([
-            Array::from_iter([1, 4, 6, 9, 12]),
-            Array::from_iter([2, 3, 8, 9, 10]),
+        let batch = Batch2::try_new([
+            Array2::from_iter([1, 4, 6, 9, 12]),
+            Array2::from_iter([2, 3, 8, 9, 10]),
         ])
         .unwrap();
 
@@ -225,9 +249,9 @@ mod tests {
 
     #[test]
     fn select_none() {
-        let batch = Batch::try_new([
-            Array::from_iter([1, 2, 6, 9, 9]),
-            Array::from_iter([2, 3, 8, 9, 10]),
+        let batch = Batch2::try_new([
+            Array2::from_iter([1, 2, 6, 9, 9]),
+            Array2::from_iter([2, 3, 8, 9, 10]),
         ])
         .unwrap();
 

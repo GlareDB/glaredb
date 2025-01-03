@@ -11,7 +11,7 @@ use super::condition::{
     LeftPrecomputedJoinConditions,
 };
 use super::partition_hash_table::{PartitionHashTable, RowKey};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::DataType;
 use crate::arrays::selection::SelectionVector;
 use crate::execution::operators::util::outer_join_tracker::{
@@ -26,7 +26,7 @@ use crate::execution::operators::util::outer_join_tracker::{
 /// side.
 pub struct GlobalHashTable {
     /// All collected batches.
-    batches: Vec<Batch>,
+    batches: Vec<Batch2>,
     /// Conditions we're joining on.
     conditions: LeftPrecomputedJoinConditions,
     /// Hash table pointing to a row.
@@ -119,17 +119,17 @@ impl GlobalHashTable {
         }
     }
 
-    pub fn collected_batches(&self) -> &[Batch] {
+    pub fn collected_batches(&self) -> &[Batch2] {
         &self.batches
     }
 
     /// Probe the table.
     pub fn probe(
         &self,
-        right: &Batch,
+        right: &Batch2,
         hashes: &[u64],
         mut left_outer_tracker: Option<&mut LeftOuterJoinTracker>,
-    ) -> Result<Vec<Batch>> {
+    ) -> Result<Vec<Batch2>> {
         // Track per-batch row indices that match the input columns.
         //
         // The value is a vec of (left_idx, right_idx) pairs pointing to rows in
@@ -228,7 +228,7 @@ impl GlobalHashTable {
             let right_cols = right.select(Arc::new(right_row_sel)).into_arrays();
 
             // Create final batch.
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch2::try_new(left_cols.into_iter().chain(right_cols))?;
             batches.push(batch);
         }
 

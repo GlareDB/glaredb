@@ -1,9 +1,9 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalStorage};
+use crate::arrays::executor::physical_type::{PhysicalList_2, PhysicalStorage2};
 use crate::arrays::executor::scalar::{
     can_skip_validity_check,
     check_validity,
@@ -12,7 +12,7 @@ use crate::arrays::executor::scalar::{
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
 
-pub trait BinaryListReducer<T, O> {
+pub trait BinaryListReducer2<T, O> {
     fn new(left_len: i32, right_len: i32) -> Self;
     fn put_values(&mut self, v1: T, v2: T);
     fn finish(self) -> O;
@@ -36,13 +36,13 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 {
     /// Execute a reducer on two list arrays.
     pub fn binary_reduce<'a, S, B, R>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a Array2,
+        array2: &'a Array2,
         mut builder: ArrayBuilder<B>,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
-        R: BinaryListReducer<S::Type<'a>, B::Type>,
-        S: PhysicalStorage,
+        R: BinaryListReducer2<S::Type<'a>, B::Type>,
+        S: PhysicalStorage2,
         B: ArrayDataBuffer,
         <B as ArrayDataBuffer>::Type: Sized,
     {
@@ -56,8 +56,8 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
         let validity2 = array2.validity();
 
         if can_skip_validity_check([validity1, validity2]) {
-            let metadata1 = PhysicalList::get_storage(array1.array_data())?;
-            let metadata2 = PhysicalList::get_storage(array2.array_data())?;
+            let metadata1 = PhysicalList_2::get_storage(array1.array_data())?;
+            let metadata2 = PhysicalList_2::get_storage(array2.array_data())?;
 
             let (values1, inner_validity1) = get_inner_array_storage::<S>(array1)?;
             let (values2, inner_validity2) = get_inner_array_storage::<S>(array2)?;
@@ -95,7 +95,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                     builder.buffer.put(idx, &out);
                 }
 
-                Ok(Array {
+                Ok(Array2 {
                     datatype: builder.datatype,
                     selection: None,
                     validity: None,
@@ -139,7 +139,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                     builder.buffer.put(idx, &out);
                 }
 
-                Ok(Array {
+                Ok(Array2 {
                     datatype: builder.datatype,
                     selection: None,
                     validity: None,
@@ -168,12 +168,12 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 
 /// Gets the inner array storage. Checks to ensure the inner array does not
 /// contain NULLs.
-fn get_inner_array_storage<S>(array: &Array) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
+fn get_inner_array_storage<S>(array: &Array2) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
 {
     match array.array_data() {
-        ArrayData::List(d) => {
+        ArrayData2::List(d) => {
             let storage = S::get_storage(d.array.array_data())?;
             let validity = d.array.validity();
             Ok((storage, validity))
@@ -182,9 +182,9 @@ where
     }
 }
 
-fn get_inner_array_selection(array: &Array) -> Result<Option<&SelectionVector>> {
+fn get_inner_array_selection(array: &Array2) -> Result<Option<&SelectionVector>> {
     match array.array_data() {
-        ArrayData::List(d) => Ok(d.array.selection_vector()),
+        ArrayData2::List(d) => Ok(d.array.selection_vector()),
         _ => Err(RayexecError::new("Expected list array data")),
     }
 }

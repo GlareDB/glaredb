@@ -13,7 +13,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -29,7 +29,7 @@ pub struct LimitPartitionState {
     remaining_count: usize,
 
     /// A buffered batch.
-    buffer: Option<Batch>,
+    buffer: Option<Batch2>,
 
     /// Waker on pull side if no batch is ready.
     pull_waker: Option<Waker>,
@@ -93,7 +93,7 @@ impl ExecutableOperator for PhysicalLimit {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,

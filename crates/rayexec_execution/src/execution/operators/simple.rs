@@ -14,14 +14,14 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct SimplePartitionState {
     /// A batch that's waiting to be pulled.
-    buffered: Option<Batch>,
+    buffered: Option<Batch2>,
 
     /// Waker on the pull side.
     ///
@@ -58,7 +58,7 @@ impl SimplePartitionState {
 
 /// A stateless operation on a batch.
 pub trait StatelessOperation: Sync + Send + Debug + Explainable {
-    fn execute(&self, batch: Batch) -> Result<Batch>;
+    fn execute(&self, batch: Batch2) -> Result<Batch2>;
 }
 
 /// A simple operator is an operator that wraps a function that requires no
@@ -97,7 +97,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,

@@ -10,6 +10,7 @@ rayexec_parser = { path = "../rayexec_parser" }
 # rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_io = { path = "../rayexec_io" }
 fmtutil = { path = "../fmtutil" }
+iterutil = { path = "../iterutil" }
 # stackutil = { path = "../stackutil" } TODO: psm hash issues when compiling to wasm on macos
 
 ahash = { workspace = true }

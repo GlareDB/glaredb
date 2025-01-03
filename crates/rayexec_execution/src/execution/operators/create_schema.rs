@@ -17,7 +17,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::CreateSchemaInfo;
 use crate::database::DatabaseContext;
@@ -88,7 +88,7 @@ impl ExecutableOperator for PhysicalCreateSchema {
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
+        _batch: Batch2,
     ) -> Result<PollPush> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }

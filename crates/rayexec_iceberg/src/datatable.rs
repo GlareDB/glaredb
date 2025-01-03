@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use rayexec_error::Result;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::storage::table_storage::{DataTable, DataTableScan, Projections};
 
 use crate::table::{Table, TableScan};
@@ -34,7 +34,7 @@ struct IcebergTableScan {
 }
 
 impl DataTableScan for IcebergTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async { self.scan.read_next().await })
     }
 }

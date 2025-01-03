@@ -24,7 +24,7 @@ use super::{
     PollPull,
     PollPush,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::HashExecutor;
 use crate::database::DatabaseContext;
@@ -251,7 +251,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<PollPush> {
         match partition_state {
             PartitionState::HashJoinBuild(state) => {
@@ -314,7 +314,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                 state.hash_buf.resize(batch.num_rows(), 0);
 
                 for (idx, equality) in self.equalities.iter().enumerate() {
-                    let result = equality.right.eval(&batch)?;
+                    let result = equality.right.eval2(&batch)?;
 
                     if idx == 0 {
                         HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
@@ -605,7 +605,7 @@ impl PhysicalHashJoin {
     fn insert_into_local_table(
         &self,
         state: &mut HashJoinBuildPartitionState,
-        batch: Batch,
+        batch: Batch2,
     ) -> Result<()> {
         // Compute left hashes on equality conditions.
 
@@ -613,7 +613,7 @@ impl PhysicalHashJoin {
         state.hash_buf.resize(batch.num_rows(), 0);
 
         for (idx, equality) in self.equalities.iter().enumerate() {
-            let result = equality.left.eval(&batch)?;
+            let result = equality.left.eval2(&batch)?;
 
             if idx == 0 {
                 HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;

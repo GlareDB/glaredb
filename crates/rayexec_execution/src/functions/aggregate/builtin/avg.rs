@@ -6,12 +6,12 @@ use num_traits::AsPrimitive;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{PhysicalF64, PhysicalI64};
+use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64_2};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
@@ -159,14 +159,14 @@ where
                 builder.buffer.put(idx, &val);
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(Array2::new_with_validity_and_array_data(
                 builder.datatype,
                 validities,
                 builder.buffer.into_data(),
             ))
         };
 
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+        new_unary_aggregate_states::<D::Storage2, _, _, _, _>(
             AvgStateDecimal::<D::Primitive>::default,
             state_finalize,
         )
@@ -178,7 +178,7 @@ pub struct AvgFloat64Impl;
 
 impl AggregateFunctionImpl for AvgFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
             AvgStateF64::<f64, f64>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -190,7 +190,7 @@ pub struct AvgInt64Impl;
 
 impl AggregateFunctionImpl for AvgInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        new_unary_aggregate_states::<PhysicalI64_2, _, _, _, _>(
             AvgStateF64::<i64, i128>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -204,7 +204,7 @@ struct AvgStateDecimal<I> {
     _input: PhantomData<I>,
 }
 
-impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStateDecimal<I> {
+impl<I: Into<i128> + Default + Debug> AggregateState2<I, (i128, i64)> for AvgStateDecimal<I> {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
@@ -232,7 +232,7 @@ struct AvgStateF64<I, T> {
     _input: PhantomData<I>,
 }
 
-impl<I, T> AggregateState<I, f64> for AvgStateF64<I, T>
+impl<I, T> AggregateState2<I, f64> for AvgStateF64<I, T>
 where
     I: Into<T> + Default + Debug,
     T: AsPrimitive<f64> + AddAssign + Debug + Default,
