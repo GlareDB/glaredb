@@ -23,6 +23,7 @@ use crate::arrays::buffer::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
+    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -41,7 +42,9 @@ use crate::arrays::buffer::{
     SecondaryBuffer,
 };
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
+use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::arrays::scalar::ScalarValue;
 
 #[derive(Debug)]
@@ -312,6 +315,156 @@ where
         }
 
         Ok(())
+    }
+
+    pub fn get_value(&self, idx: usize) -> Result<ScalarValue> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        let flat = self.flat_view()?;
+
+        if !flat.validity.is_valid(idx) {
+            return Ok(ScalarValue::Null);
+        }
+
+        match &self.datatype {
+            DataType::Boolean => {
+                let v = PhysicalBool::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Boolean(*v))
+            }
+            DataType::Int8 => {
+                let v = PhysicalI8::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int8(*v))
+            }
+            DataType::Int16 => {
+                let v = PhysicalI16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int16(*v))
+            }
+            DataType::Int32 => {
+                let v = PhysicalI32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int32(*v))
+            }
+            DataType::Int64 => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int64(*v))
+            }
+            DataType::Int128 => {
+                let v = PhysicalI128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int128(*v))
+            }
+            DataType::UInt8 => {
+                let v = PhysicalU8::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt8(*v))
+            }
+            DataType::UInt16 => {
+                let v = PhysicalU16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt16(*v))
+            }
+            DataType::UInt32 => {
+                let v = PhysicalU32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt32(*v))
+            }
+            DataType::UInt64 => {
+                let v = PhysicalU64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt64(*v))
+            }
+            DataType::UInt128 => {
+                let v = PhysicalU128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt128(*v))
+            }
+            DataType::Float16 => {
+                let v = PhysicalF16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float16(*v))
+            }
+            DataType::Float32 => {
+                let v = PhysicalF32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float32(*v))
+            }
+            DataType::Float64 => {
+                let v = PhysicalF64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float64(*v))
+            }
+            DataType::Decimal64(m) => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Decimal64(Decimal64Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: *v,
+                }))
+            }
+            DataType::Decimal128(m) => {
+                let v = PhysicalI128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Decimal128(Decimal128Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: *v,
+                }))
+            }
+            DataType::Interval => {
+                let v = PhysicalInterval::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Interval(*v))
+            }
+            DataType::Timestamp(m) => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Timestamp(TimestampScalar {
+                    unit: m.unit,
+                    value: *v,
+                }))
+            }
+            DataType::Utf8 => {
+                let addressable = PhysicalUtf8::get_addressable(flat.array_buffer)?;
+                // TODO: Don't allocate. Doesn't matter too much since this is
+                // just for constant eval right now.
+                let v = addressable.get(idx).unwrap().to_string();
+                Ok(ScalarValue::Utf8(v.into()))
+            }
+            DataType::Binary => {
+                let addressable = PhysicalBinary::get_addressable(flat.array_buffer)?;
+                let v = addressable.get(idx).unwrap().to_vec();
+                Ok(ScalarValue::Binary(v.into()))
+            }
+
+            _ => not_implemented!("get value for scalar type"),
+        }
     }
 
     /// Set a scalar value at a given index.

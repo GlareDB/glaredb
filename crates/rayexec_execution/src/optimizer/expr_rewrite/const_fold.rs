@@ -1,8 +1,8 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::ExpressionRewriteRule;
-use crate::arrays::batch::Batch2;
 use crate::expr::literal_expr::LiteralExpr;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
@@ -26,28 +26,11 @@ fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
     if expr.is_const_foldable() {
         let planner = PhysicalExpressionPlanner::new(table_list);
         let phys_expr = planner.plan_scalar(&[], expr)?;
-        let dummy = Batch2::empty_with_num_rows(1);
-        let val = phys_expr.eval2(&dummy)?;
-
-        if val.logical_len() != 1 {
-            return Err(RayexecError::new(format!(
-                "Expected 1 value from const eval, got {}",
-                val.logical_len()
-            )));
-        }
-
-        let val = val
-            .logical_value(0) // Len checked above.
-            .map_err(|_| {
-                RayexecError::new(format!(
-                    "Failed to get folded scalar value from expression: {expr}"
-                ))
-            })?;
+        let mut evaluator = ExpressionEvaluator::try_new(vec![phys_expr], 1)?;
+        let val = evaluator.try_eval_constant()?;
 
         // Our brand new expression.
-        *expr = Expression::Literal(LiteralExpr {
-            literal: val.into_owned(),
-        });
+        *expr = Expression::Literal(LiteralExpr { literal: val });
 
         return Ok(());
     }

@@ -5,6 +5,7 @@ use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::buffer_manager::NopBufferManager;
+use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
 
 /// Evaluate expressions on batch inputs.
 #[derive(Debug)]
@@ -31,12 +32,40 @@ impl ExpressionState {
 }
 
 impl ExpressionEvaluator {
-    pub fn new(expressions: Vec<PhysicalScalarExpression>, batch_size: usize) -> Self {
-        unimplemented!()
+    pub fn try_new(expressions: Vec<PhysicalScalarExpression>, batch_size: usize) -> Result<Self> {
+        let states = expressions
+            .iter()
+            .map(|expr| expr.create_state(batch_size))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(ExpressionEvaluator {
+            expressions,
+            states,
+        })
     }
 
     pub fn num_expressions(&self) -> usize {
         self.expressions.len()
+    }
+
+    pub fn try_eval_constant(&mut self) -> Result<OwnedScalarValue> {
+        if self.expressions.len() != 1 {
+            return Err(RayexecError::new(
+                "Single expression for constant eval required",
+            ));
+        }
+
+        let expr = &self.expressions[0];
+        let state = &mut self.states[0];
+
+        let mut input = Batch::empty_with_num_rows(1);
+        let mut out = Array::new(&NopBufferManager, expr.datatype(), 1)?;
+
+        Self::eval_expression(expr, &mut input, state, Selection::linear(1), &mut out)?;
+
+        let v = out.get_value(0)?;
+
+        Ok(v.into_owned())
     }
 
     /// Evaluate the expression on an input batch, writing the results to the

@@ -57,15 +57,6 @@ impl PhysicalScalarExpression {
         }
     }
 
-    // pub(crate) fn new_state(&self, batch_size: usize) -> Result<ExpressionState> {
-    //     match self {
-    //         Self::Cast(expr) => expr.new_state(batch_size),
-    //         Self::Column(expr) => expr.new_state(batch_size),
-    //         Self::Literal(expr) => expr.new_state(batch_size),
-    //         _ => unimplemented!(),
-    //     }
-    // }
-
     pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
         unimplemented!()
         // match self {
