@@ -32,5 +32,5 @@ erased-serde = "0.4.5"
 serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.6.0"
 uuid = { version = "1.10.0", features = ["v4"] }
-scc = "2.2.6"
+scc = "2.3.0"
 half = { version = "2.4.1", features = ["num-traits", "serde"] }
