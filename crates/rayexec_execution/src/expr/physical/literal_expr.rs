@@ -9,6 +9,7 @@ use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::buffer_manager::NopBufferManager;
+use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
@@ -19,6 +20,14 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
+    pub(crate) fn create_state(&self, _batch_size: usize) -> Result<ExpressionState> {
+        Ok(ExpressionState::empty())
+    }
+
+    pub fn datatype(&self) -> DataType {
+        self.literal.datatype()
+    }
+
     pub(crate) fn eval(
         &self,
         _: &mut Batch,

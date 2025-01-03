@@ -7,6 +7,8 @@ use super::{ExpressionState, PhysicalScalarExpression};
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::buffer_manager::NopBufferManager;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::functions::scalar::PlannedScalarFunction;
@@ -19,6 +21,28 @@ pub struct PhysicalScalarFunctionExpr {
 }
 
 impl PhysicalScalarFunctionExpr {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|input| input.create_state(batch_size))
+            .collect::<Result<Vec<_>>>()?;
+
+        let arrays = self
+            .inputs
+            .iter()
+            .map(|input| Array::new(&NopBufferManager, input.datatype(), batch_size))
+            .collect::<Result<Vec<_>>>()?;
+
+        let buffer = Batch::from_arrays(arrays, false)?;
+
+        Ok(ExpressionState { buffer, inputs })
+    }
+
+    pub fn datatype(&self) -> DataType {
+        self.function.return_type.clone()
+    }
+
     pub(crate) fn eval(
         &self,
         input: &mut Batch,

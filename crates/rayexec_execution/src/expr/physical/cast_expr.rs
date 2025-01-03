@@ -8,6 +8,7 @@ use super::{ExpressionState, PhysicalScalarExpression};
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::compute::cast::array::cast_array;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::DataType;
@@ -21,6 +22,24 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
+        let inputs = vec![self.expr.create_state(batch_size)?];
+        let buffer = Batch::from_arrays(
+            [Array::new(
+                &NopBufferManager,
+                self.expr.datatype(),
+                batch_size,
+            )?],
+            false,
+        )?;
+
+        Ok(ExpressionState { buffer, inputs })
+    }
+
+    pub fn datatype(&self) -> DataType {
+        self.to.clone()
+    }
+
     pub(crate) fn eval(
         &self,
         input: &mut Batch,
@@ -98,15 +117,7 @@ mod tests {
             })),
         };
 
-        let mut state = ExpressionState {
-            buffer: Batch::from_arrays(
-                [Array::new(&NopBufferManager, DataType::Utf8, 1024).unwrap()],
-                false,
-            )
-            .unwrap(),
-            inputs: vec![ExpressionState::empty()],
-        };
-
+        let mut state = expr.create_state(1024).unwrap();
         let mut out = Array::new(&NopBufferManager, DataType::Int32, 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(3);
         let sel = input.selection();

@@ -8,6 +8,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::buffer::physical_type::PhysicalBool;
+use crate::arrays::datatype::DataType;
 use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 
@@ -28,9 +29,42 @@ impl fmt::Display for PhysicalWhenThen {
 pub struct PhysicalCaseExpr {
     pub cases: Vec<PhysicalWhenThen>,
     pub else_expr: Box<PhysicalScalarExpression>,
+    pub datatype: DataType,
 }
 
 impl PhysicalCaseExpr {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
+        // 2 states per when/then pair, plus one for the 'else'.
+        let mut inputs = Vec::with_capacity(self.cases.len() * 2 + 1);
+        for case in &self.cases {
+            let when_input = case.when.create_state(batch_size)?;
+            inputs.push(when_input);
+
+            let then_input = case.then.create_state(batch_size)?;
+            inputs.push(then_input);
+        }
+
+        let else_input = self.else_expr.create_state(batch_size)?;
+        inputs.push(else_input);
+
+        // 2 arrays in the buffer, one 'boolean' for conditional evaluation, one
+        // for the result if condition is true. 'then' and 'else' expressions
+        // should evaluate to the same type.
+        let buffer = Batch::from_arrays(
+            [
+                Array::new(&NopBufferManager, DataType::Boolean, batch_size)?,
+                Array::new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
+            ],
+            false,
+        )?;
+
+        Ok(ExpressionState { buffer, inputs })
+    }
+
+    pub fn datatype(&self) -> DataType {
+        self.datatype.clone()
+    }
+
     pub(crate) fn eval(
         &self,
         input: &mut Batch,
@@ -167,12 +201,19 @@ mod tests {
         // ELSE 48
         let expr = PhysicalCaseExpr {
             cases: vec![PhysicalWhenThen {
-                when: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                then: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+                when: PhysicalScalarExpression::Column(PhysicalColumnExpr {
+                    idx: 0,
+                    datatype: DataType::Boolean,
+                }),
+                then: PhysicalScalarExpression::Column(PhysicalColumnExpr {
+                    idx: 1,
+                    datatype: DataType::Int32,
+                }),
             }],
             else_expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
                 literal: 48.into(),
             })),
+            datatype: DataType::Int32,
         };
 
         let mut input = Batch::from_arrays(
@@ -184,10 +225,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut state = ExpressionState {
-            buffer: Batch::new(&NopBufferManager, [DataType::Boolean, DataType::Int32], 3).unwrap(),
-            inputs: vec![ExpressionState::empty(), ExpressionState::empty()],
-        };
+        let mut state = expr.create_state(3).unwrap();
 
         let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(3), &mut out)
@@ -205,12 +243,19 @@ mod tests {
         // ELSE 48
         let expr = PhysicalCaseExpr {
             cases: vec![PhysicalWhenThen {
-                when: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
-                then: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+                when: PhysicalScalarExpression::Column(PhysicalColumnExpr {
+                    idx: 0,
+                    datatype: DataType::Boolean,
+                }),
+                then: PhysicalScalarExpression::Column(PhysicalColumnExpr {
+                    idx: 1,
+                    datatype: DataType::Int32,
+                }),
             }],
             else_expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
                 literal: 48.into(),
             })),
+            datatype: DataType::Int32,
         };
 
         let mut input = Batch::from_arrays(

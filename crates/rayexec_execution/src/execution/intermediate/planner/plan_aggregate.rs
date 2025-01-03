@@ -41,7 +41,6 @@ impl IntermediatePipelineBuildState<'_> {
                 }
             };
 
-            let start_col_index = preproject_exprs.len();
             for arg in &agg.agg.inputs {
                 let scalar = self
                     .expr_planner
@@ -49,13 +48,19 @@ impl IntermediatePipelineBuildState<'_> {
                     .context("Failed to plan expressions for aggregate pre-projection")?;
                 preproject_exprs.push(scalar);
             }
-            let end_col_index = preproject_exprs.len();
+
+            let columns = preproject_exprs
+                .iter()
+                .enumerate()
+                .map(|(idx, expr)| PhysicalColumnExpr {
+                    idx,
+                    datatype: expr.datatype(),
+                })
+                .collect();
 
             let phys_agg = PhysicalAggregateExpression {
                 function: agg.agg,
-                columns: (start_col_index..end_col_index)
-                    .map(|idx| PhysicalColumnExpr { idx })
-                    .collect(),
+                columns,
                 is_distinct: agg.distinct,
             };
 

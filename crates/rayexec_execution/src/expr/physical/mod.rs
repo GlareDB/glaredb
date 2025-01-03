@@ -20,6 +20,7 @@ use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch2;
+use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -36,6 +37,26 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
+        match self {
+            Self::Case(expr) => expr.create_state(batch_size),
+            Self::Cast(expr) => expr.create_state(batch_size),
+            Self::Column(expr) => expr.create_state(batch_size),
+            Self::Literal(expr) => expr.create_state(batch_size),
+            Self::ScalarFunction(expr) => expr.create_state(batch_size),
+        }
+    }
+
+    pub fn datatype(&self) -> DataType {
+        match self {
+            Self::Case(expr) => expr.datatype(),
+            Self::Cast(expr) => expr.datatype(),
+            Self::Column(expr) => expr.datatype(),
+            Self::Literal(expr) => expr.datatype(),
+            Self::ScalarFunction(expr) => expr.datatype(),
+        }
+    }
+
     // pub(crate) fn new_state(&self, batch_size: usize) -> Result<ExpressionState> {
     //     match self {
     //         Self::Cast(expr) => expr.new_state(batch_size),
