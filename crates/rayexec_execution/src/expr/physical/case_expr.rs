@@ -1,15 +1,15 @@
-use std::borrow::Cow;
 use std::fmt;
-use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use super::PhysicalScalarExpression;
-use crate::arrays::array::Array2;
-use crate::arrays::batch::Batch2;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::scalar::{interleave, SelectExecutor};
-use crate::arrays::selection::SelectionVector;
+use super::{ExpressionState, PhysicalScalarExpression};
+use crate::arrays::array::exp::Array;
+use crate::arrays::array::selection::Selection;
+use crate::arrays::batch_exp::Batch;
+use crate::arrays::buffer::buffer_manager::NopBufferManager;
+use crate::arrays::buffer::physical_type::PhysicalBool;
+use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalWhenThen {
@@ -23,6 +23,7 @@ impl fmt::Display for PhysicalWhenThen {
     }
 }
 
+/// Physical expression for 'CASE .. THEN .. ELSE ..' expressions.
 #[derive(Debug, Clone)]
 pub struct PhysicalCaseExpr {
     pub cases: Vec<PhysicalWhenThen>,
@@ -30,74 +31,111 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
-    pub fn eval2<'a>(&self, batch: &'a Batch2) -> Result<Cow<'a, Array2>> {
-        let mut arrays = Vec::new();
-        let mut indices: Vec<(usize, usize)> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
+    pub(crate) fn eval(
+        &self,
+        input: &mut Batch,
+        state: &mut ExpressionState,
+        sel: Selection,
+        output: &mut Array,
+    ) -> Result<()> {
+        // Indices where 'when' evaluated to true and the 'then' expression
+        // needs to be evaluated.
+        let mut then_selection = Vec::with_capacity(sel.len());
+        // Indices where 'then' evaluated to false or null.
+        let mut fallthrough_selection = Vec::with_capacity(sel.len());
 
-        // Track remaining rows we need to evaluate.
+        // Current selection for a single when/then pair.
         //
-        // True bits are rows we still need to consider.
-        let mut remaining = Bitmap::new_with_all_true(batch.num_rows());
+        // Initialized to the initial selection passed in.
+        let mut curr_selection: Vec<_> = sel.iter().collect(); // TODO: Would be cool not needing to allocate here.
 
-        let mut trues_sel = SelectionVector::with_capacity(batch.num_rows());
+        for (case_idx, case) in self.cases.iter().enumerate() {
+            fallthrough_selection.clear();
+            then_selection.clear();
 
-        for case in &self.cases {
-            // Generate selection from remaining bitmap.
-            let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
-
-            // Get batch with only remaining rows that we should consider.
-            let selected_batch = batch.select(selection.clone());
-
-            // Execute 'when'.
-            let selected = case.when.eval2(&selected_batch)?;
-
-            // Determine which rows should be executed for 'then', and which we
-            // need to fall through on.
-            SelectExecutor::select(&selected, &mut trues_sel)?;
-
-            // Select rows in batch to execute on based on 'trues'.
-            let execute_batch = selected_batch.select(Arc::new(trues_sel.clone()));
-            let output = case.then.eval2(&execute_batch)?;
-
-            // Store array for later interleaving.
-            let array_idx = arrays.len();
-            arrays.push(output.into_owned());
-
-            // Figure out mapping from the 'trues' selection to the original row
-            // index.
-            //
-            // The selection vector locations should index into the full-length
-            // selection vector to get the original row index.
-            for (array_row_idx, selected_row_idx) in trues_sel.iter_locations().enumerate() {
-                // Final output row.
-                let output_row_idx = selection.get(selected_row_idx);
-                indices[output_row_idx] = (array_idx, array_row_idx);
-
-                // Update bitmap, this row was handled.
-                remaining.set_unchecked(output_row_idx, false);
+            if curr_selection.is_empty() {
+                // Nothing left to do.
+                break;
             }
+
+            // Each case has two input states, one for 'when' and one for
+            // 'then'.
+            let when_state = &mut state.inputs[case_idx * 2];
+            // When array reused for each case.
+            let when_array = &mut state.buffer.arrays_mut()[0];
+            when_array.reset_for_write(&NopBufferManager)?;
+
+            // Eval 'when'
+            ExpressionEvaluator::eval_expression(
+                &case.when,
+                input,
+                when_state,
+                Selection::selection(&curr_selection),
+                when_array,
+            )?;
+
+            UnaryExecutor::for_each_flat::<PhysicalBool, _>(
+                when_array.flat_view()?,
+                Selection::selection(&curr_selection),
+                |idx, b| {
+                    if let Some(&true) = b {
+                        // 'When' expression evaluated to true, select it for
+                        // 'then' expression eval.
+                        then_selection.push(idx);
+                    } else {
+                        // Not true, need to fall through.
+                        fallthrough_selection.push(idx);
+                    }
+                },
+            )?;
+
+            if then_selection.is_empty() {
+                // Everything in this case's 'when' evaluated to false.
+                continue;
+            }
+
+            let then_state = &mut state.inputs[case_idx * 2 + 1];
+            // Reused, assumes all 'then' expressions and the 'else' expression
+            // are the same type.
+            let then_array = &mut state.buffer.arrays_mut()[1];
+            then_array.reset_for_write(&NopBufferManager)?;
+
+            // Eval 'then' with selection from 'when'.
+            ExpressionEvaluator::eval_expression(
+                &case.then,
+                input,
+                then_state,
+                Selection::selection(&then_selection),
+                then_array,
+            )?;
+
+            // Fill output array according to indices in 'when' selection.
+            then_array.copy_rows(then_selection.iter().copied().enumerate(), output)?;
+
+            // Update next iteration to use fallthrough indices.
+            std::mem::swap(&mut fallthrough_selection, &mut curr_selection);
         }
 
-        // Do all remaining rows.
-        if remaining.count_trues() != 0 {
-            let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
-            let remaining_batch = batch.select(selection.clone());
+        if !curr_selection.is_empty() {
+            // We have remaining indices that fell through all cases. Eval with
+            // else expression and add those in.
+            let else_state = state.inputs.last_mut().unwrap(); // Last state after all when/then states.
+            let else_array = &mut state.buffer.arrays_mut()[1];
+            else_array.reset_for_write(&NopBufferManager)?;
 
-            let output = self.else_expr.eval2(&remaining_batch)?;
-            let array_idx = arrays.len();
-            arrays.push(output.into_owned());
+            ExpressionEvaluator::eval_expression(
+                &self.else_expr,
+                input,
+                else_state,
+                Selection::selection(&curr_selection),
+                else_array,
+            )?;
 
-            // Update indices.
-            for (array_row_idx, output_row_idx) in selection.iter_locations().enumerate() {
-                indices[output_row_idx] = (array_idx, array_row_idx);
-            }
+            // And fill remaining.
+            else_array.copy_rows(curr_selection.iter().copied().enumerate(), output)?;
         }
 
-        // Interleave.
-        let refs: Vec<_> = arrays.iter().collect();
-        let arr = interleave(&refs, &indices)?;
-
-        Ok(Cow::Owned(arr))
+        Ok(())
     }
 }
 
@@ -115,83 +153,85 @@ impl fmt::Display for PhysicalCaseExpr {
 
 #[cfg(test)]
 mod tests {
+    use iterutil::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::scalar::ScalarValue;
-    use crate::expr::case_expr::{CaseExpr, WhenThen};
-    use crate::expr::physical::planner::PhysicalExpressionPlanner;
-    use crate::expr::{self, Expression};
-    use crate::functions::scalar::builtin::comparison::Eq;
-    use crate::functions::scalar::ScalarFunction;
-    use crate::logical::binder::table_list::TableList;
+    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 
     #[test]
     fn case_simple() {
-        let batch = Batch2::try_new([
-            Array2::from_iter([1, 2, 3, 4]),
-            Array2::from_iter([12, 13, 14, 15]),
-        ])
+        // CASE a THEN b
+        // ELSE 48
+        let expr = PhysicalCaseExpr {
+            cases: vec![PhysicalWhenThen {
+                when: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                then: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+            }],
+            else_expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                literal: 48.into(),
+            })),
+        };
+
+        let mut input = Batch::from_arrays(
+            [
+                Array::try_from_iter([true, true, false]).unwrap(),
+                Array::try_from_iter([1, 2, 3]).unwrap(),
+            ],
+            true,
+        )
         .unwrap();
 
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
+        let mut state = ExpressionState {
+            buffer: Batch::new(&NopBufferManager, [DataType::Boolean, DataType::Int32], 3).unwrap(),
+            inputs: vec![ExpressionState::empty(), ExpressionState::empty()],
+        };
+
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        expr.eval(&mut input, &mut state, Selection::linear(3), &mut out)
             .unwrap();
 
-        // CASE WHEN a = 2 THEN 'first_case'
-        //      WHEN a = 3 THEN 'second_case'
-        //      ELSE 'else'
-        // END
+        let expected = Array::try_from_iter([1, 2, 48]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
 
-        let when_expr_0 = Expression::ScalarFunction(
-            Eq.plan(&table_list, vec![expr::col_ref(table_ref, 0), expr::lit(2)])
-                .unwrap()
-                .into(),
-        );
-        let then_expr_0 = expr::lit("first_case");
+    #[test]
+    fn case_falsey() {
+        // Same as above but check that 'when' treats nulls as false.
 
-        let when_expr_1 = Expression::ScalarFunction(
-            Eq.plan(&table_list, vec![expr::col_ref(table_ref, 0), expr::lit(3)])
-                .unwrap()
-                .into(),
-        );
-        let then_expr_1 = expr::lit("second_case");
+        // CASE a THEN b
+        // ELSE 48
+        let expr = PhysicalCaseExpr {
+            cases: vec![PhysicalWhenThen {
+                when: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 0 }),
+                then: PhysicalScalarExpression::Column(PhysicalColumnExpr { idx: 1 }),
+            }],
+            else_expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                literal: 48.into(),
+            })),
+        };
 
-        let else_expr = expr::lit("else");
-
-        let case_expr = Expression::Case(CaseExpr {
-            cases: vec![
-                WhenThen {
-                    when: when_expr_0,
-                    then: then_expr_0,
-                },
-                WhenThen {
-                    when: when_expr_1,
-                    then: then_expr_1,
-                },
+        let mut input = Batch::from_arrays(
+            [
+                Array::try_from_iter([Some(true), None, Some(false)]).unwrap(),
+                Array::try_from_iter([1, 2, 3]).unwrap(),
             ],
-            else_expr: Some(Box::new(else_expr)),
-        });
+            true,
+        )
+        .unwrap();
 
-        let planner = PhysicalExpressionPlanner::new(&table_list);
-        let physical_case = planner.plan_scalar(&[table_ref], &case_expr).unwrap();
+        let mut state = ExpressionState {
+            buffer: Batch::new(&NopBufferManager, [DataType::Boolean, DataType::Int32], 3).unwrap(),
+            inputs: vec![ExpressionState::empty(), ExpressionState::empty()],
+        };
 
-        let got = physical_case.eval2(&batch).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        expr.eval(&mut input, &mut state, Selection::linear(3), &mut out)
+            .unwrap();
 
-        assert_eq!(ScalarValue::from("else"), got.logical_value(0).unwrap());
-        assert_eq!(
-            ScalarValue::from("first_case"),
-            got.logical_value(1).unwrap()
-        );
-        assert_eq!(
-            ScalarValue::from("second_case"),
-            got.logical_value(2).unwrap()
-        );
-        assert_eq!(ScalarValue::from("else"), got.logical_value(3).unwrap());
+        let expected = Array::try_from_iter([1, 48, 48]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

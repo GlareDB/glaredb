@@ -182,6 +182,11 @@ where
             // And set the new buf, old buf gets dropped.
             self.data = ArrayData::owned(new_buf);
 
+            debug_assert!(matches!(
+                self.data.get_secondary(),
+                SecondaryBuffer::Dictionary(_)
+            ));
+
             return Ok(());
         }
 
@@ -212,6 +217,11 @@ where
                 validity: orig_validity,
                 buffer: orig_buffer,
             }));
+
+        debug_assert!(matches!(
+            self.data.get_secondary(),
+            SecondaryBuffer::Dictionary(_)
+        ));
 
         Ok(())
     }
@@ -259,7 +269,25 @@ where
     pub fn reset_for_write(&mut self, manager: &B) -> Result<()> {
         self.validity = Validity::new_all_valid(self.capacity());
 
-        // TODO: We should clear some secondary buffers (mostly string heap)
+        // Check if dictionary first since we want to try to get the underlying
+        // buffer from that. We should only have layer of "dictionary", so we
+        // shouldn't need to recurse.
+        if self.data.as_ref().physical_type() == PhysicalType::Dictionary {
+            let secondary = self.data.try_as_mut()?.get_secondary_mut();
+            let dict = match std::mem::replace(secondary, SecondaryBuffer::None) {
+                SecondaryBuffer::Dictionary(dict) => dict,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected dictionary secondary buffer, got {other:?}",
+                    )))
+                }
+            };
+
+            // TODO: Not sure what to do if capacities don't match. Currently
+            // dictionaries are only created through 'select' and the index
+            // buffer gets initialized to the length of the selection.
+            self.data = dict.buffer;
+        }
 
         if let Err(()) = self.data.try_reset_for_write() {
             // Need to create a new buffer and set that.
