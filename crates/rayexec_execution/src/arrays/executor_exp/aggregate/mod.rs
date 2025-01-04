@@ -25,3 +25,28 @@ pub trait AggregateState<Input, Output: ?Sized>: Debug {
     where
         M: AddressableMut<T = Output>;
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct StateCombiner;
+
+impl StateCombiner {
+    /// Combine states, merging states from `consume` into `targets`.
+    ///
+    /// `mapping` provides (from, to) mappings between `consume` and `targets`.
+    pub fn combine<State, Input, Output>(
+        consume: &mut [State],
+        mapping: impl IntoIterator<Item = (usize, usize)>,
+        targets: &mut [State],
+    ) -> Result<()>
+    where
+        State: AggregateState<Input, Output>,
+    {
+        for (from, to) in mapping {
+            let consume = &mut consume[from];
+            let target = &mut targets[to];
+            target.merge(consume)?;
+        }
+
+        Ok(())
+    }
+}

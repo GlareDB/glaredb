@@ -8,7 +8,7 @@ use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
+    new_binary_aggregate_states2,
     primitive_finalize,
     AggregateGroupStates,
 };
@@ -72,7 +72,7 @@ pub struct RegrAvgYImpl;
 
 impl AggregateFunctionImpl for RegrAvgYImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
+        new_binary_aggregate_states2::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
             RegrAvgState::<Self>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -137,7 +137,7 @@ pub struct RegrAvgXImpl;
 
 impl AggregateFunctionImpl for RegrAvgXImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
+        new_binary_aggregate_states2::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
             RegrAvgState::<Self>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

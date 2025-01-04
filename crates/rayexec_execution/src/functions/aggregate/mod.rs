@@ -103,7 +103,7 @@ impl<'a> ChunkGroupAddressIter<'a> {
 }
 
 impl Iterator for ChunkGroupAddressIter<'_> {
-    type Item = RowToStateMapping;
+    type Item = (usize, usize);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -111,10 +111,7 @@ impl Iterator for ChunkGroupAddressIter<'_> {
             if addr.chunk_idx == self.chunk_idx {
                 let row = self.row_idx;
                 self.row_idx += 1;
-                return Some(RowToStateMapping {
-                    from_row: row,
-                    to_state: addr.row_idx as usize,
-                });
+                return Some((row, addr.row_idx as usize));
             }
             self.row_idx += 1;
         }

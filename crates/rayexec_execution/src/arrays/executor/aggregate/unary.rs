@@ -8,9 +8,9 @@ use crate::arrays::storage::AddressableStorage;
 
 /// Updates aggregate states for an aggregate that accepts one input.
 #[derive(Debug, Clone, Copy)]
-pub struct UnaryNonNullUpdater;
+pub struct UnaryNonNullUpdater2;
 
-impl UnaryNonNullUpdater {
+impl UnaryNonNullUpdater2 {
     pub fn update<'a, S, I, State, Output>(
         array: &'a Array2,
         mapping: I,
@@ -102,7 +102,7 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+        UnaryNonNullUpdater2::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
             .unwrap();
 
         assert_eq!(11, states[0].val);
@@ -127,7 +127,7 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+        UnaryNonNullUpdater2::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
             .unwrap();
 
         assert_eq!(7, states[0].val);
@@ -156,7 +156,7 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+        UnaryNonNullUpdater2::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
             .unwrap();
 
         assert_eq!(5, states[0].val);
@@ -204,7 +204,7 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalUtf8_2, _, _, _>(&array, mapping, &mut states)
+        UnaryNonNullUpdater2::update::<PhysicalUtf8_2, _, _, _>(&array, mapping, &mut states)
             .unwrap();
 
         assert_eq!("aabbbcccc", &states[0].buf);

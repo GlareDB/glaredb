@@ -8,7 +8,7 @@ use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalF64_2;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
+    new_unary_aggregate_states2,
     primitive_finalize,
     AggregateGroupStates,
 };
@@ -69,7 +69,7 @@ pub struct StddevPopImpl;
 
 impl AggregateFunctionImpl for StddevPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalF64_2, _, _, _, _>(
             VarianceState::<StddevPopFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -128,7 +128,7 @@ pub struct StddevSampImpl;
 
 impl AggregateFunctionImpl for StddevSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalF64_2, _, _, _, _>(
             VarianceState::<StddevSampFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -183,7 +183,7 @@ pub struct VarPopImpl;
 
 impl AggregateFunctionImpl for VarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalF64_2, _, _, _, _>(
             VarianceState::<VariancePopFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -238,7 +238,7 @@ pub struct VarSampImpl;
 
 impl AggregateFunctionImpl for VarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalF64_2, _, _, _, _>(
             VarianceState::<VarianceSampFinalize>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )

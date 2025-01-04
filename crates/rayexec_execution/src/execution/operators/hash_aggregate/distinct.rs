@@ -58,9 +58,9 @@ impl AggregateGroupStates for DistinctGroupedStates {
         // insert into the group specific hash table.
         for state_idx in 0..self.distinct_inputs.len() {
             let row_sel = Arc::new(SelectionVector::from_iter(mappings.iter().filter_map(
-                |row_mapping| {
-                    if row_mapping.to_state == state_idx {
-                        Some(row_mapping.from_row)
+                |&(from, to)| {
+                    if to == state_idx {
+                        Some(from)
                     } else {
                         None
                     }
@@ -105,9 +105,9 @@ impl AggregateGroupStates for DistinctGroupedStates {
             .opaque_states_mut()
             .downcast::<Vec<Option<HashTable>>>()?;
 
-        for mapping in mapping {
-            let target = self.distinct_inputs[mapping.to_state].as_mut().unwrap();
-            let consume = other_distinct_inputs[mapping.from_row].as_mut().unwrap();
+        for (from, to) in mapping {
+            let consume = other_distinct_inputs[from].as_mut().unwrap();
+            let target = self.distinct_inputs[to].as_mut().unwrap();
             target.merge(consume)?;
         }
 

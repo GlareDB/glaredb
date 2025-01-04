@@ -8,7 +8,7 @@ use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::physical_type::PhysicalUtf8_2;
 use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
+use crate::functions::aggregate::states::{new_unary_aggregate_states2, AggregateGroupStates};
 use crate::functions::aggregate::{
     AggregateFunction,
     AggregateFunctionImpl,
@@ -99,7 +99,7 @@ impl AggregateFunctionImpl for StringAggImpl {
             string: None,
         };
 
-        new_unary_aggregate_states::<PhysicalUtf8_2, _, _, _, _>(state_init, move |states| {
+        new_unary_aggregate_states2::<PhysicalUtf8_2, _, _, _, _>(state_init, move |states| {
             let builder = ArrayBuilder {
                 datatype: DataType::Utf8,
                 buffer: GermanVarlenBuffer::<str>::with_len(states.len()),

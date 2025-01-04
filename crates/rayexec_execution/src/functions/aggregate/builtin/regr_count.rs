@@ -7,7 +7,7 @@ use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalAny;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
+    new_binary_aggregate_states2,
     primitive_finalize,
     AggregateGroupStates,
 };
@@ -71,7 +71,7 @@ pub struct RegrCountImpl;
 
 impl AggregateFunctionImpl for RegrCountImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalAny, PhysicalAny, _, _, _, _>(
+        new_binary_aggregate_states2::<PhysicalAny, PhysicalAny, _, _, _, _>(
             RegrCountState::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )

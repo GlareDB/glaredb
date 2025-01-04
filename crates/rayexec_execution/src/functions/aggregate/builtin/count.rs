@@ -5,7 +5,7 @@ use crate::arrays::executor::aggregate::AggregateState2;
 use crate::arrays::executor::physical_type::PhysicalAny;
 use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
+    new_unary_aggregate_states2,
     primitive_finalize,
     AggregateGroupStates,
 };
@@ -75,7 +75,7 @@ pub struct CountNonNullImpl;
 
 impl AggregateFunctionImpl for CountNonNullImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalAny, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalAny, _, _, _, _>(
             CountNonNullState::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )

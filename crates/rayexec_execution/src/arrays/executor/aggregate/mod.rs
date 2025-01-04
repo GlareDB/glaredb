@@ -39,9 +39,9 @@ pub struct RowToStateMapping {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct StateCombiner;
+pub struct StateCombiner2;
 
-impl StateCombiner {
+impl StateCombiner2 {
     /// Combine states, merging states from `consume` into `targets`.
     ///
     /// `mapping` provides a mapping of consume states to the target index. The

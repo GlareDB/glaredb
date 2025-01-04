@@ -9,9 +9,9 @@ use crate::arrays::storage::AddressableStorage;
 
 /// Updates aggregate states for an aggregate that accepts two inputs.
 #[derive(Debug, Clone, Copy)]
-pub struct BinaryNonNullUpdater;
+pub struct BinaryNonNullUpdater2;
 
-impl BinaryNonNullUpdater {
+impl BinaryNonNullUpdater2 {
     pub fn update<'a, S1, S2, I, State, Output>(
         array1: &'a Array2,
         array2: &'a Array2,
@@ -131,7 +131,7 @@ mod tests {
             },
         ];
 
-        BinaryNonNullUpdater::update::<PhysicalI32_2, PhysicalI32_2, _, _, _>(
+        BinaryNonNullUpdater2::update::<PhysicalI32_2, PhysicalI32_2, _, _, _>(
             &array1,
             &array2,
             mapping,

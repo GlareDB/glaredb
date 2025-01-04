@@ -16,7 +16,7 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
+    new_unary_aggregate_states2,
     primitive_finalize,
     AggregateGroupStates,
 };
@@ -117,7 +117,7 @@ pub struct SumInt64Impl;
 
 impl AggregateFunctionImpl for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalI64_2, _, _, _, _>(
             SumStateCheckedAdd::<i64>::default,
             move |states| primitive_finalize(DataType::Int64, states),
         )
@@ -129,7 +129,7 @@ pub struct SumFloat64Impl;
 
 impl AggregateFunctionImpl for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalF64_2, _, _, _, _>(
             SumStateAdd::<f64>::default,
             move |states| primitive_finalize(DataType::Float64, states),
         )
@@ -159,7 +159,7 @@ where
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<D::Storage2, _, _, _, _>(
+        new_unary_aggregate_states2::<D::Storage2, _, _, _, _>(
             SumStateCheckedAdd::<D::Primitive>::default,
             move |states| primitive_finalize(datatype.clone(), states),
         )

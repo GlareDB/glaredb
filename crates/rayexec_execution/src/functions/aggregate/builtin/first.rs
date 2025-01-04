@@ -34,7 +34,7 @@ use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     boolean_finalize,
-    new_unary_aggregate_states,
+    new_unary_aggregate_states2,
     primitive_finalize,
     untyped_null_finalize,
     AggregateGroupStates,
@@ -157,7 +157,7 @@ impl AggregateFunctionImpl for FirstBinaryImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<PhysicalBinary_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalBinary_2, _, _, _, _>(
             FirstStateBinary::default,
             move |states| {
                 let builder = ArrayBuilder {
@@ -175,7 +175,7 @@ pub struct FirstUntypedNullImpl;
 
 impl AggregateFunctionImpl for FirstUntypedNullImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalUntypedNull_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalUntypedNull_2, _, _, _, _>(
             FirstState::<UntypedNull>::default,
             untyped_null_finalize,
         )
@@ -187,7 +187,7 @@ pub struct FirstBoolImpl;
 
 impl AggregateFunctionImpl for FirstBoolImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalBool_2, _, _, _, _>(
+        new_unary_aggregate_states2::<PhysicalBool_2, _, _, _, _>(
             FirstState::<bool>::default,
             move |states| boolean_finalize(DataType::Boolean, states),
         )
@@ -221,7 +221,7 @@ where
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();
 
-        new_unary_aggregate_states::<S, _, _, _, _>(FirstState::<T>::default, move |states| {
+        new_unary_aggregate_states2::<S, _, _, _, _>(FirstState::<T>::default, move |states| {
             primitive_finalize(datatype.clone(), states)
         })
     }
