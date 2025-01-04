@@ -168,7 +168,7 @@ where
 }
 
 /// Trait for determining how we access the underlying storage for arrays.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+pub trait PhysicalStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
 
     /// Size in bytes of the type being stored in the primary buffer.
@@ -182,7 +182,7 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     /// The logical type being stored that can be accessed.
     ///
     /// For primitive buffers, this will be the same as the primary buffer type.
-    type StorageType: ?Sized;
+    type StorageType: Sync + Send + ?Sized;
 
     /// The type of the addressable storage.
     type Addressable<'a>: Addressable<T = Self::StorageType>;
@@ -202,7 +202,7 @@ pub trait MutablePhysicalStorage: PhysicalStorage {
 
 macro_rules! generate_primitive {
     ($prim:ty, $name:ident, $phys_typ:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
         pub struct $name;
 
         impl PhysicalStorage for $name {
@@ -258,7 +258,7 @@ generate_primitive!(Interval, PhysicalInterval, Interval);
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct UntypedNull;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalUntypedNull;
 
 impl PhysicalStorage for PhysicalUntypedNull {
@@ -284,7 +284,7 @@ impl MutablePhysicalStorage for PhysicalUntypedNull {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalUtf8;
 
 impl PhysicalStorage for PhysicalUtf8 {
@@ -310,7 +310,7 @@ impl MutablePhysicalStorage for PhysicalUtf8 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalBinary;
 
 impl PhysicalStorage for PhysicalBinary {
@@ -337,7 +337,7 @@ impl MutablePhysicalStorage for PhysicalBinary {
 }
 
 /// Dictionary arrays have the selection vector as the primary data buffer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalDictionary;
 
 impl PhysicalStorage for PhysicalDictionary {
@@ -353,7 +353,7 @@ impl PhysicalStorage for PhysicalDictionary {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalList;
 
 impl PhysicalStorage for PhysicalList {

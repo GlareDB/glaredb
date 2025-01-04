@@ -6,26 +6,14 @@ use num_traits::AsPrimitive;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::Array2;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::buffer::physical_type::{
-    AddressableMut,
-    MutablePhysicalStorage,
-    PhysicalF64,
-    PhysicalI64,
-};
+use crate::arrays::buffer::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use crate::arrays::executor::aggregate::AggregateState2;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{PhysicalF64_2, PhysicalI64_2};
 use crate::arrays::executor_exp::aggregate::AggregateState;
 use crate::arrays::executor_exp::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    new_unary_aggregate_states2,
-    primitive_finalize,
     unary_update,
     AggregateGroupStates,
     TypedAggregateGroupStates,

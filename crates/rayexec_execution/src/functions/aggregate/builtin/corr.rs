@@ -4,14 +4,16 @@ use rayexec_error::Result;
 
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{StddevPopFinalize, VarianceState};
+use crate::arrays::buffer::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState2;
-use crate::arrays::executor::physical_type::PhysicalF64_2;
+use crate::arrays::executor_exp::aggregate::AggregateState;
+use crate::arrays::executor_exp::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_binary_aggregate_states2,
-    primitive_finalize,
+    binary_update,
+    drain,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -74,10 +76,11 @@ pub struct CorrImpl;
 
 impl AggregateFunctionImpl for CorrImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states2::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             CorrelationState::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -88,7 +91,25 @@ pub struct CorrelationState {
     stddev_y: VarianceState<StddevPopFinalize>,
 }
 
-impl AggregateState2<(f64, f64), f64> for CorrelationState {
+impl CorrelationState {
+    pub fn finalize_value(&self) -> Option<f64> {
+        let cov = self.covar.finalize_value()?;
+        let stddev_x = self.stddev_x.finalize_value()?;
+        let stddev_y = self.stddev_y.finalize_value()?;
+
+        let div = stddev_x * stddev_y;
+        if div == 0.0 {
+            // Return null, matches Postgres.
+            //
+            // Note duckdb returns NaN here.
+            return None;
+        }
+
+        Some(cov / div)
+    }
+}
+
+impl AggregateState<(&f64, &f64), f64> for CorrelationState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.covar.merge(&mut other.covar)?;
         self.stddev_x.merge(&mut other.stddev_x)?;
@@ -96,7 +117,7 @@ impl AggregateState2<(f64, f64), f64> for CorrelationState {
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
+    fn update(&mut self, input: (&f64, &f64)) -> Result<()> {
         self.covar.update(input)?;
 
         // Note input is passed in as (y, x)
@@ -106,23 +127,15 @@ impl AggregateState2<(f64, f64), f64> for CorrelationState {
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        let (cov, cov_valid) = self.covar.finalize()?;
-        let (stddev_x, stddev_x_valid) = self.stddev_x.finalize()?;
-        let (stddev_y, stddev_y_valid) = self.stddev_y.finalize()?;
-
-        if cov_valid && stddev_x_valid && stddev_y_valid {
-            let div = stddev_x * stddev_y;
-            if div == 0.0 {
-                // Matches Postgres.
-                //
-                // Note duckdb returns NaN here.
-                return Ok((0.0, false));
-            }
-            Ok((cov / div, true))
-        } else {
-            Ok((0.0, false))
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
+        match self.finalize_value() {
+            Some(val) => output.put(&val),
+            None => output.put_null(),
         }
+        Ok(())
     }
 }
 
@@ -133,9 +146,9 @@ mod tests {
     #[test]
     fn correlation_state_single_input() {
         let mut state = CorrelationState::default();
-        state.update((1.0, 1.0)).unwrap();
+        state.update((&1.0, &1.0)).unwrap();
 
-        let (_v, valid) = state.finalize().unwrap();
-        assert!(!valid);
+        let v = state.finalize_value();
+        assert_eq!(None, v);
     }
 }

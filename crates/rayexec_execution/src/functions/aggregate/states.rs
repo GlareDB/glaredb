@@ -26,6 +26,7 @@ use crate::arrays::executor::aggregate::{
 };
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use crate::arrays::executor::physical_type::PhysicalStorage2;
+use crate::arrays::executor_exp::aggregate::binary::BinaryNonNullUpdater;
 use crate::arrays::executor_exp::aggregate::unary::UnaryNonNullUpdater;
 use crate::arrays::executor_exp::aggregate::{AggregateState, StateCombiner};
 use crate::arrays::executor_exp::PutBuffer;
@@ -368,6 +369,30 @@ where
 {
     UnaryNonNullUpdater::update::<Storage, State, _>(
         &arrays[0],
+        selection,
+        mapping.iter().copied(),
+        states,
+    )
+}
+
+pub fn binary_update<Storage1, Storage2, Output, State>(
+    arrays: &[Array],
+    selection: Selection,
+    mapping: &[usize],
+    states: &mut [State],
+) -> Result<()>
+where
+    Storage1: PhysicalStorage,
+    Storage2: PhysicalStorage,
+    Output: MutablePhysicalStorage,
+    State: for<'a> AggregateState<
+        (&'a Storage1::StorageType, &'a Storage2::StorageType),
+        Output::StorageType,
+    >,
+{
+    BinaryNonNullUpdater::update::<Storage1, Storage2, State, _>(
+        &arrays[0],
+        &arrays[1],
         selection,
         mapping.iter().copied(),
         states,
