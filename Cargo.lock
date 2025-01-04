@@ -1392,7 +1392,7 @@ dependencies = [
 
 [[package]]
 name = "iterutil"
-version = "0.0.93"
+version = "0.0.94"
 
 [[package]]
 name = "itoa"
