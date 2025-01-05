@@ -1,16 +1,14 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
+use crate::arrays::buffer::physical_type::{AddressableMut, PhysicalF64, PhysicalStorage};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState2;
-use crate::arrays::executor::physical_type::PhysicalAny;
+use crate::arrays::executor_exp::aggregate::AggregateState;
+use crate::arrays::executor_exp::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_binary_aggregate_states2,
-    primitive_finalize,
-    AggregateGroupStates,
-};
+use crate::functions::aggregate::states::AggregateGroupStates;
 use crate::functions::aggregate::{
     AggregateFunction,
     AggregateFunctionImpl,
@@ -59,7 +57,7 @@ impl AggregateFunction for RegrCount {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrCountImpl),
+                function_impl: Box::new(RegrCountImpl::<PhysicalF64>::new()),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
@@ -67,14 +65,22 @@ impl AggregateFunction for RegrCount {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegrCountImpl;
+pub struct RegrCountImpl<S> {
+    _s: PhantomData<S>,
+}
 
-impl AggregateFunctionImpl for RegrCountImpl {
+impl<S> RegrCountImpl<S> {
+    const fn new() -> Self {
+        RegrCountImpl { _s: PhantomData }
+    }
+}
+
+impl<S> AggregateFunctionImpl for RegrCountImpl<S>
+where
+    S: PhysicalStorage,
+{
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states2::<PhysicalAny, PhysicalAny, _, _, _, _>(
-            RegrCountState::default,
-            move |states| primitive_finalize(DataType::Int64, states),
-        )
+        unimplemented!()
     }
 }
 
@@ -83,22 +89,30 @@ impl AggregateFunctionImpl for RegrCountImpl {
 /// Note that this can be used for any input type, but the sql function we
 /// expose only accepts f64 (to match Postgres).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct RegrCountState {
+pub struct RegrCountState<S> {
     count: i64,
+    _s: PhantomData<S>,
 }
 
-impl AggregateState2<((), ()), i64> for RegrCountState {
+impl<S> AggregateState<&S::StorageType, i64> for RegrCountState<S>
+where
+    S: PhysicalStorage,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, _input: ((), ())) -> Result<()> {
+    fn update(&mut self, _input: &S::StorageType) -> Result<()> {
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(i64, bool)> {
-        Ok((self.count, true))
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = i64>,
+    {
+        output.put(&self.count);
+        Ok(())
     }
 }

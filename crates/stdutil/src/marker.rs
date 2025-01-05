@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 /// bounds. This lets us make structs and other types covariant to `T` but
 /// without the potential inheritence of `?Sized` (or other undesired traits) in
 /// the outer type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PhantomCovariant<T>(PhantomData<fn() -> T>)
 where
     T: ?Sized;
@@ -18,5 +18,25 @@ where
 {
     pub const fn new() -> Self {
         PhantomCovariant(PhantomData)
+    }
+}
+
+impl<T> Clone for PhantomCovariant<T>
+where
+    T: ?Sized,
+{
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Copy for PhantomCovariant<T> where T: ?Sized {}
+
+impl<T> Default for PhantomCovariant<T>
+where
+    T: ?Sized,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
