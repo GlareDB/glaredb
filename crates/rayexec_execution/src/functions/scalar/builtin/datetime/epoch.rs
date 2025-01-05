@@ -1,4 +1,4 @@
-use iterutil::IntoExactSizeIterator;
+use stdutil::iter::IntoExactSizeIterator;
 use rayexec_error::Result;
 
 use crate::arrays::array::exp::Array;

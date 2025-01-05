@@ -29,7 +29,7 @@ pub use degrees::*;
 pub use exp::*;
 pub use floor::*;
 pub use isnan::*;
-use iterutil::IntoExactSizeIterator;
+use stdutil::iter::IntoExactSizeIterator;
 pub use ln::*;
 pub use log::*;
 use num_traits::Float;

@@ -1,6 +1,6 @@
 use half::f16;
-use iterutil::{IntoExactSizeIterator, TryFromExactSizeIterator};
 use rayexec_error::{not_implemented, RayexecError, Result};
+use stdutil::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 
 use super::array_data::ArrayData;
 use super::flat::FlatArrayView;

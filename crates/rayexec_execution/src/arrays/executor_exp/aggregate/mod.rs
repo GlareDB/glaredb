@@ -40,6 +40,7 @@ impl StateCombiner {
     ) -> Result<()>
     where
         State: AggregateState<Input, Output>,
+        Output: ?Sized,
     {
         for (from, to) in mapping {
             let consume = &mut consume[from];

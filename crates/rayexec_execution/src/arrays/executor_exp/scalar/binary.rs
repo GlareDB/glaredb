@@ -1,4 +1,4 @@
-use iterutil::IntoExactSizeIterator;
+use stdutil::iter::IntoExactSizeIterator;
 use rayexec_error::Result;
 
 use crate::arrays::array::exp::Array;
@@ -144,7 +144,7 @@ impl BinaryExecutor {
 
 #[cfg(test)]
 mod tests {
-    use iterutil::TryFromExactSizeIterator;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::validity::Validity;

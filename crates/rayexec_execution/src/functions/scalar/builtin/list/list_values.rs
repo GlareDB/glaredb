@@ -1,4 +1,4 @@
-use iterutil::IntoExactSizeIterator;
+use stdutil::iter::IntoExactSizeIterator;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::exp::Array;
@@ -234,7 +234,7 @@ fn list_values_inner<S: MutablePhysicalStorage>(
 
 #[cfg(test)]
 mod tests {
-    use iterutil::TryFromExactSizeIterator;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::buffer::physical_type::PhysicalStorage;

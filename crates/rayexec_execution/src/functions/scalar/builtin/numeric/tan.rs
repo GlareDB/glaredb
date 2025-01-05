@@ -1,4 +1,4 @@
-use iterutil::IntoExactSizeIterator;
+use stdutil::iter::IntoExactSizeIterator;
 use num_traits::Float;
 use rayexec_error::Result;
 

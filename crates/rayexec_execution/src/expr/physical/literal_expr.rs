@@ -68,7 +68,7 @@ impl DatabaseProtoConv for PhysicalLiteralExpr {
 
 #[cfg(test)]
 mod tests {
-    use iterutil::TryFromExactSizeIterator;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::datatype::DataType;

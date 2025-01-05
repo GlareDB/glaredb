@@ -1,5 +1,5 @@
-use iterutil::IntoExactSizeIterator;
 use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::flat::FlatArrayView;
@@ -179,7 +179,7 @@ impl UnaryExecutor {
 
 #[cfg(test)]
 mod tests {
-    use iterutil::TryFromExactSizeIterator;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::validity::Validity;

@@ -3,8 +3,9 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use iterutil::IntoExactSizeIterator;
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
+use stdutil::marker::PhantomCovariant;
 
 use super::ChunkGroupAddressIter;
 use crate::arrays::array::exp::Array;
@@ -32,7 +33,14 @@ use crate::arrays::executor_exp::aggregate::{AggregateState, StateCombiner};
 use crate::arrays::executor_exp::PutBuffer;
 use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 
-pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize> {
+pub struct TypedAggregateGroupStates<
+    State,
+    Input,
+    Output: ?Sized,
+    StateInit,
+    StateUpdate,
+    StateFinalize,
+> {
     /// States being tracked.
     states: Vec<State>,
 
@@ -47,11 +55,11 @@ pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdat
     /// How to finalize states.
     state_finalize: StateFinalize,
 
-    _input: PhantomData<Input>,
-    _output: PhantomData<Output>,
+    _input: PhantomCovariant<Input>,
+    _output: PhantomCovariant<Output>,
 }
 
-impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
+impl<State, Input, Output: ?Sized, StateInit, StateUpdate, StateFinalize>
     TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
 {
     pub fn new(
@@ -65,8 +73,8 @@ impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
             state_init,
             state_update,
             state_finalize,
-            _input: PhantomData,
-            _output: PhantomData,
+            _input: PhantomCovariant::new(),
+            _output: PhantomCovariant::new(),
         }
     }
 }
@@ -76,7 +84,7 @@ impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> AggregateGroup
 where
     State: AggregateState<Input, Output> + Sync + Send + 'static,
     Input: Sync + Send,
-    Output: Sync + Send,
+    Output: Sync + Send + ?Sized,
     StateInit: Fn() -> State + Sync + Send,
     StateUpdate: Fn(&[Array], Selection, &[usize], &mut [State]) -> Result<()> + Sync + Send,
     StateFinalize: Fn(&mut [State], &mut Array) -> Result<()> + Sync + Send,
@@ -155,7 +163,7 @@ where
     Ok(())
 }
 
-impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> fmt::Debug
+impl<State, Input, Output: ?Sized, StateInit, StateUpdate, StateFinalize> fmt::Debug
     for TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

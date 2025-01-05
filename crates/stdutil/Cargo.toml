@@ -1,5 +1,5 @@
 [package]
-name = "iterutil"
+name = "stdutil"
 version.workspace = true
 edition.workspace = true
 

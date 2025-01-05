@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
-use iterutil::IntoExactSizeIterator;
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::exp::Array;
 use super::batch_exp::Batch;
@@ -201,7 +201,7 @@ pub fn assert_batches_eq(batch1: &Batch, batch2: &Batch) {
 
 #[cfg(test)]
 mod tests {
-    use iterutil::TryFromExactSizeIterator;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::buffer::buffer_manager::NopBufferManager;

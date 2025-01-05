@@ -1,5 +1,5 @@
-use iterutil::IntoExactSizeIterator;
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::exp::Array;
 use super::array::selection::Selection;
@@ -139,7 +139,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iterutil::TryFromExactSizeIterator;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
 
