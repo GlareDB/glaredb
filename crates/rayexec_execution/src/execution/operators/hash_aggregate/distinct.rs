@@ -1,16 +1,10 @@
-use std::sync::Arc;
 
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array2;
-use crate::arrays::executor::scalar::HashExecutor;
-use crate::arrays::selection::SelectionVector;
-use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::functions::aggregate::states::{AggregateGroupStates, OpaqueStatesMut};
-use crate::functions::aggregate::ChunkGroupAddressIter;
 
 /// And implementation of GroupedStates that buffers inputs to an aggregate in a
 /// hash table to ensure the aggregate is computed with distinct values.

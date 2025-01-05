@@ -92,8 +92,8 @@ impl BinaryExecutor {
     {
         // TODO: length validation
 
-        let input1 = S1::get_addressable(&array1.array_buffer)?;
-        let input2 = S2::get_addressable(&array2.array_buffer)?;
+        let input1 = S1::get_addressable(array1.array_buffer)?;
+        let input2 = S2::get_addressable(array2.array_buffer)?;
 
         let mut output = O::get_addressable_mut(out.buffer)?;
 

@@ -6,7 +6,6 @@ use crate::arrays::array::Array2;
 use crate::arrays::executor::physical_type::PhysicalType2;
 use crate::arrays::executor::scalar::concat;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
-use crate::functions::aggregate::ChunkGroupAddressIter;
 
 /// Holds a chunk of value for the aggregate hash table.
 #[derive(Debug)]

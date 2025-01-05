@@ -60,8 +60,8 @@ impl UnaryExecutor {
         Ok(())
     }
 
-    pub fn execute_flat<'a, S, O, Op>(
-        array: FlatArrayView<'a>,
+    pub fn execute_flat<S, O, Op>(
+        array: FlatArrayView<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
         out: OutBuffer,
         mut op: Op,
@@ -71,7 +71,7 @@ impl UnaryExecutor {
         O: MutablePhysicalStorage,
         for<'b> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'b>>),
     {
-        let input = S::get_addressable(&array.array_buffer)?;
+        let input = S::get_addressable(array.array_buffer)?;
         let mut output = O::get_addressable_mut(out.buffer)?;
 
         let validity = array.validity;
@@ -141,8 +141,8 @@ impl UnaryExecutor {
     /// with None.
     ///
     /// Note this should really only be used for tests.
-    pub fn for_each_flat<'a, S, Op>(
-        array: FlatArrayView<'a>,
+    pub fn for_each_flat<S, Op>(
+        array: FlatArrayView<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
         mut op: Op,
     ) -> Result<()>
@@ -150,7 +150,7 @@ impl UnaryExecutor {
         S: PhysicalStorage,
         Op: FnMut(usize, Option<&S::StorageType>),
     {
-        let input = S::get_addressable(&array.array_buffer)?;
+        let input = S::get_addressable(array.array_buffer)?;
         let validity = array.validity;
 
         if validity.all_valid() {
@@ -242,7 +242,7 @@ mod tests {
     fn int32_inc_by_2_in_place() {
         let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
 
-        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v = *v + 2)
+        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v += 2)
             .unwrap();
 
         let arr_slice = array.data().try_as_slice::<PhysicalI32>().unwrap();

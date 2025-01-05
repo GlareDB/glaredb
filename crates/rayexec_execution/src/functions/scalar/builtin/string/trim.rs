@@ -4,13 +4,9 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use crate::arrays::array::exp::Array;
-use crate::arrays::array::Array2;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::physical_type::PhysicalUtf8;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8_2;
-use crate::arrays::executor::scalar::{BinaryExecutor2, UnaryExecutor2};
 use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
 use crate::arrays::executor_exp::scalar::unary::UnaryExecutor;
 use crate::arrays::executor_exp::OutBuffer;

@@ -119,8 +119,8 @@ fn assert_arrays_eq_sel_list_inner(
         _ => panic!("Missing child for array 2"),
     };
 
-    let metas1 = PhysicalList::get_addressable(&flat1.array_buffer).unwrap();
-    let metas2 = PhysicalList::get_addressable(&flat2.array_buffer).unwrap();
+    let metas1 = PhysicalList::get_addressable(flat1.array_buffer).unwrap();
+    let metas2 = PhysicalList::get_addressable(flat2.array_buffer).unwrap();
 
     let sel1 = sel1.into_iter();
     let sel2 = sel2.into_iter();

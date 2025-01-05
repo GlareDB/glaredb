@@ -230,13 +230,13 @@ mod tests {
     use super::*;
     use crate::arrays::array::exp::Array;
     use crate::arrays::array::selection::Selection;
-    use crate::arrays::array::Array2;
+    
     use crate::arrays::buffer::buffer_manager::NopBufferManager;
-    use crate::arrays::scalar::ScalarValue;
+    
     use crate::arrays::testutil::{assert_arrays_eq, assert_arrays_eq_sel};
-    use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
+    
     use crate::expr;
-    use crate::functions::aggregate::ChunkGroupAddressIter;
+    
 
     #[test]
     fn sum_i64_single_group_two_partitions() {

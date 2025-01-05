@@ -8,7 +8,7 @@ pub struct StringViewAddressable<'a> {
     pub(crate) heap: &'a StringViewHeap,
 }
 
-impl<'a> Addressable for StringViewAddressable<'a> {
+impl Addressable for StringViewAddressable<'_> {
     type T = str;
 
     fn len(&self) -> usize {
@@ -28,7 +28,7 @@ pub struct StringViewAddressableMut<'a> {
     pub(crate) heap: &'a mut StringViewHeap,
 }
 
-impl<'a> AddressableMut for StringViewAddressableMut<'a> {
+impl AddressableMut for StringViewAddressableMut<'_> {
     type T = str;
 
     fn len(&self) -> usize {
@@ -54,7 +54,7 @@ pub struct BinaryViewAddressable<'a> {
     pub(crate) heap: &'a StringViewHeap,
 }
 
-impl<'a> Addressable for BinaryViewAddressable<'a> {
+impl Addressable for BinaryViewAddressable<'_> {
     type T = [u8];
 
     fn len(&self) -> usize {
@@ -73,7 +73,7 @@ pub struct BinaryViewAddressableMut<'a> {
     pub(crate) heap: &'a mut StringViewHeap,
 }
 
-impl<'a> AddressableMut for BinaryViewAddressableMut<'a> {
+impl AddressableMut for BinaryViewAddressableMut<'_> {
     type T = [u8];
 
     fn len(&self) -> usize {
@@ -202,6 +202,12 @@ impl fmt::Debug for StringViewMetadataUnion {
 pub struct StringViewHeap {
     /// Buffer containing all blob data.
     buffer: Vec<u8>,
+}
+
+impl Default for StringViewHeap {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StringViewHeap {

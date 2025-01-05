@@ -386,7 +386,6 @@ where
                 None => {
                     fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
                     buf.put_null();
-                    return;
                 }
             }
         },
@@ -429,7 +428,6 @@ where
             None => {
                 fail_state.set_error(|| RayexecError::new("Failed to cast float to decimal"));
                 buf.put_null();
-                return;
             }
         },
     )?;
@@ -795,7 +793,7 @@ where
         OutBuffer::from_array(out)?,
         |v, buf| {
             string_buf.clear();
-            match formatter.write(&v, &mut string_buf) {
+            match formatter.write(v, &mut string_buf) {
                 Ok(_) => buf.put(string_buf.as_str()),
                 Err(_) => {
                     fail_state.set_error(|| RayexecError::new("Failed to cast to utf8"));

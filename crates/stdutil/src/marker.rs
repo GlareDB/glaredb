@@ -26,7 +26,7 @@ where
     T: ?Sized,
 {
     fn clone(&self) -> Self {
-        Self::new()
+        *self
     }
 }
 

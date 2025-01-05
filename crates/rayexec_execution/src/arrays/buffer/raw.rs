@@ -5,7 +5,7 @@ use super::buffer_manager::BufferManager;
 #[derive(Debug)]
 pub struct RawBufferParts<B: BufferManager> {
     /// Memory reservation for this buffer.
-    pub(crate) reservation: B::Reservation,
+    pub(crate) _reservation: B::Reservation,
     /// Raw pointer to start of vec.
     pub(crate) ptr: *mut u8,
     /// Number of elements `T` in the vec, not bytes.
@@ -40,7 +40,7 @@ impl<B: BufferManager> RawBufferParts<B> {
         std::mem::forget(data);
 
         Ok(RawBufferParts {
-            reservation,
+            _reservation: reservation,
             ptr: ptr.cast(),
             len,
             cap,

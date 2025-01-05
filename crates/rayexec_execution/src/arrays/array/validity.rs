@@ -94,7 +94,7 @@ pub struct ValidityIter<'a> {
     validity: &'a Validity,
 }
 
-impl<'a> Iterator for ValidityIter<'a> {
+impl Iterator for ValidityIter<'_> {
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {

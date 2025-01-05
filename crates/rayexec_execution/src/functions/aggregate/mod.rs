@@ -10,7 +10,6 @@ use states::AggregateGroupStates;
 
 use super::FunctionInfo;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::aggregate::RowToStateMapping;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;

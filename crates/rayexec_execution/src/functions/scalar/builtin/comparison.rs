@@ -41,7 +41,6 @@ use crate::arrays::executor::physical_type::{
     PhysicalI64_2,
     PhysicalI8_2,
     PhysicalInterval_2,
-    PhysicalStorage2,
     PhysicalType2,
     PhysicalU128_2,
     PhysicalU16_2,
@@ -51,7 +50,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalUntypedNull_2,
     PhysicalUtf8_2,
 };
-use crate::arrays::executor::scalar::{BinaryExecutor2, BinaryListReducer2, FlexibleListExecutor};
+use crate::arrays::executor::scalar::{BinaryListReducer2, FlexibleListExecutor};
 use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
 use crate::arrays::executor_exp::OutBuffer;
 use crate::expr::cast_expr::CastExpr;

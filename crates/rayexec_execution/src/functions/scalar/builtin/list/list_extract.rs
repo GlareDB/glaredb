@@ -166,7 +166,7 @@ where
 {
     let flat = array.flat_view()?;
 
-    let metas = PhysicalList::get_addressable(&flat.array_buffer)?;
+    let metas = PhysicalList::get_addressable(flat.array_buffer)?;
     let child = match flat.array_buffer.get_secondary() {
         SecondaryBuffer::List(l) => &l.child,
         _ => return Err(RayexecError::new("Missing secondary buffer for list")),

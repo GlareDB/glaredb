@@ -96,7 +96,7 @@ impl UniformExecutor {
 
         let inputs = arrays
             .iter()
-            .map(|arr| S::get_addressable(&arr.array_buffer))
+            .map(|arr| S::get_addressable(arr.array_buffer))
             .collect::<Result<Vec<_>>>()?;
 
         let all_valid = arrays.iter().all(|arr| arr.validity.all_valid());

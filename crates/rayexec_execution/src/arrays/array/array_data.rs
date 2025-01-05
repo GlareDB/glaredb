@@ -152,6 +152,6 @@ where
     type Target = ArrayBuffer<B>;
 
     fn deref(&self) -> &Self::Target {
-        ArrayData::as_ref(&self)
+        ArrayData::as_ref(self)
     }
 }

@@ -6,8 +6,6 @@ use parquet::schema::types::ColumnDescPtr;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::arrays::array::{Array2, ArrayData2};
 use rayexec_execution::arrays::bitmap::Bitmap;
-use rayexec_execution::arrays::compute::cast::array::cast_array;
-use rayexec_execution::arrays::compute::cast::behavior::CastFailBehavior;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::storage::{BooleanStorage, PrimitiveStorage};
 
@@ -86,7 +84,7 @@ where
 
         let needs_cast = build_type != self.datatype;
 
-        let mut array = match bitmap {
+        let array = match bitmap {
             Some(bitmap) => {
                 Array2::new_with_validity_and_array_data(build_type, bitmap, array_data)
             }

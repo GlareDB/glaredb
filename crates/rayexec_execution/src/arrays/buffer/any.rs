@@ -15,7 +15,7 @@ pub struct AnyAddressable<'a, B: BufferManager> {
     pub(crate) buffer: &'a ArrayBuffer<B>,
 }
 
-impl<'a, B> Addressable for AnyAddressable<'a, B>
+impl<B> Addressable for AnyAddressable<'_, B>
 where
     B: BufferManager,
 {

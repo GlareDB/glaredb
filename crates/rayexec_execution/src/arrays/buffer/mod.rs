@@ -23,7 +23,6 @@ use string_view::{
 use super::array::array_data::ArrayData;
 use super::array::exp::Array;
 use super::array::validity::Validity;
-use super::scalar::ScalarValue;
 
 /// Buffer for arrays.
 ///

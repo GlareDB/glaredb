@@ -5,7 +5,7 @@ use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::buffer_manager::NopBufferManager;
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::OwnedScalarValue;
 
 /// Evaluate expressions on batch inputs.
 #[derive(Debug)]

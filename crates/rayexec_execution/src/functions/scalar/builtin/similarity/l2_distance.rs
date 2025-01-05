@@ -5,7 +5,6 @@ use num_traits::{AsPrimitive, Float};
 use rayexec_error::Result;
 
 use crate::arrays::array::exp::Array;
-use crate::arrays::array::Array2;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::physical_type::{
     MutablePhysicalStorage,

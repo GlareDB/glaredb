@@ -171,7 +171,7 @@ where
             arr,
             sel,
             f,
-            |val| DateTime::from_timestamp_nanos(val),
+            DateTime::from_timestamp_nanos,
             out,
         ),
     }

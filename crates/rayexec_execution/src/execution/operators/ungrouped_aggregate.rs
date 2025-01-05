@@ -23,7 +23,6 @@ use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::states::AggregateGroupStates;
-use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
@@ -149,7 +148,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         };
 
         match state {
-            UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
+            UngroupedAggregatePartitionState::Aggregating {  .. } => {
                 // All rows map to the same group (group 0)
                 let addrs: Vec<_> = (0..batch.num_rows())
                     .map(|_| GroupAddress {
@@ -217,7 +216,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                 if shared.remaining == 0 {
                     // This partition is the chosen one to produce the output.
-                    let mut final_states = std::mem::take(&mut shared.agg_states);
+                    let final_states = std::mem::take(&mut shared.agg_states);
 
                     // Wake up other partitions to let them know they are not
                     // the chosen ones.

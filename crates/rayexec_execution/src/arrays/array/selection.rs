@@ -82,7 +82,7 @@ pub struct FlatSelectionIter<'a> {
     sel: Selection<'a>,
 }
 
-impl<'a> Iterator for FlatSelectionIter<'a> {
+impl Iterator for FlatSelectionIter<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -107,4 +107,4 @@ impl<'a> Iterator for FlatSelectionIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for FlatSelectionIter<'a> {}
+impl ExactSizeIterator for FlatSelectionIter<'_> {}

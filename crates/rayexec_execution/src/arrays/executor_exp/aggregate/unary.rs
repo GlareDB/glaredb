@@ -52,8 +52,8 @@ impl UnaryNonNullUpdater {
         Ok(())
     }
 
-    pub fn update_flat<'a, S, State, Output>(
-        array: FlatArrayView<'a>,
+    pub fn update_flat<S, State, Output>(
+        array: FlatArrayView<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
         mapping: impl IntoExactSizeIterator<Item = usize>,
         states: &mut [State],

@@ -1,13 +1,9 @@
 use rayexec_error::Result;
 
 use crate::arrays::array::exp::Array;
-use crate::arrays::array::Array2;
 use crate::arrays::batch_exp::Batch;
 use crate::arrays::buffer::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::{PhysicalI64_2, PhysicalUtf8_2};
-use crate::arrays::executor::scalar::{BinaryExecutor2, TernaryExecutor2};
 use crate::arrays::executor_exp::scalar::binary::BinaryExecutor;
 use crate::arrays::executor_exp::scalar::ternary::TernaryExecutor;
 use crate::arrays::executor_exp::OutBuffer;
