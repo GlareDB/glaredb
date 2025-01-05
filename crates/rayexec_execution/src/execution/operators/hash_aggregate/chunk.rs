@@ -69,7 +69,7 @@ impl GroupChunk {
         self.hashes.extend(hashes);
 
         for states in &mut self.aggregate_states {
-            states.states.new_states(new_groups);
+            states.states.new_groups(new_groups);
         }
 
         self.num_groups += new_groups;
@@ -110,10 +110,11 @@ impl GroupChunk {
             let own_state = &mut self.aggregate_states[agg_idx];
             let other_state = &mut other.aggregate_states[agg_idx];
 
-            own_state.states.combine(
-                &mut other_state.states,
-                ChunkGroupAddressIter::new(self.chunk_idx, addrs),
-            )?;
+            unimplemented!()
+            // own_state.states.combine(
+            //     &mut other_state.states,
+            //     ChunkGroupAddressIter::new(self.chunk_idx, addrs),
+            // )?;
         }
 
         Ok(())

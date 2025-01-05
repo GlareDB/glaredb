@@ -11,12 +11,7 @@ use super::ChunkGroupAddressIter;
 use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::{Array2, ArrayData2};
-use crate::arrays::buffer::physical_type::{
-    MutablePhysicalStorage,
-    PhysicalBool,
-    PhysicalStorage,
-    PhysicalType,
-};
+use crate::arrays::buffer::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::aggregate::{
     AggregateState2,
@@ -94,7 +89,7 @@ where
         OpaqueStatesMut(&mut self.states)
     }
 
-    fn new_states(&mut self, count: usize) {
+    fn new_groups(&mut self, count: usize) {
         debug_assert_eq!(0, self.drain_idx);
         self.states.extend((0..count).map(|_| (self.state_init)()))
     }
@@ -107,7 +102,7 @@ where
         unimplemented!()
     }
 
-    fn update_states(
+    fn update_group_states(
         &mut self,
         inputs: &[Array],
         selection: Selection,
@@ -122,11 +117,19 @@ where
     fn combine(
         &mut self,
         consume: &mut Box<dyn AggregateGroupStates>,
-        mapping: ChunkGroupAddressIter,
+        selection: Selection,
+        mapping: &[usize],
     ) -> Result<()> {
         debug_assert_eq!(0, self.drain_idx);
+        debug_assert_eq!(selection.len(), mapping.len());
+
         let consume_states = consume.opaque_states_mut().downcast::<Vec<State>>()?;
-        StateCombiner::combine(consume_states, mapping, &mut self.states)
+
+        StateCombiner::combine(
+            consume_states,
+            selection.iter().zip(mapping.iter().copied()),
+            &mut self.states,
+        )
     }
 
     fn finalize2(&mut self) -> Result<Array2> {
@@ -203,33 +206,6 @@ impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
     }
 }
 
-/// Helper for create an `AggregateGroupStates` that accepts one input.
-pub fn new_unary_aggregate_states2<Storage, State, Output, StateInit, StateFinalize>(
-    state_init: StateInit,
-    state_finalize: StateFinalize,
-) -> Box<dyn AggregateGroupStates>
-where
-    Storage: PhysicalStorage2,
-    State: for<'a> AggregateState2<
-            <<Storage as PhysicalStorage2>::Storage<'a> as AddressableStorage>::T,
-            Output,
-        > + Sync
-        + Send
-        + 'static,
-    Output: Sync + Send + 'static,
-    StateInit: Fn() -> State + Sync + Send + 'static,
-    StateFinalize: Fn(&mut [State]) -> Result<Array2> + Sync + Send + 'static,
-{
-    Box::new(TypedAggregateGroupStates2 {
-        states: Vec::<State>::new(),
-        state_init,
-        state_update: unary_update2::<State, Storage, Output>,
-        state_finalize,
-        _input: PhantomData,
-        _output: PhantomData,
-    })
-}
-
 /// Helper for create an `AggregateGroupStates` that accepts two inputs.
 pub fn new_binary_aggregate_states2<Storage1, Storage2, State, Output, StateInit, StateFinalize>(
     state_init: StateInit,
@@ -270,7 +246,7 @@ where
         OpaqueStatesMut(&mut self.states)
     }
 
-    fn new_states(&mut self, count: usize) {
+    fn new_groups(&mut self, count: usize) {
         self.states.extend((0..count).map(|_| (self.state_init)()))
     }
 
@@ -285,9 +261,10 @@ where
     fn combine(
         &mut self,
         consume: &mut Box<dyn AggregateGroupStates>,
-        mapping: ChunkGroupAddressIter,
+        selection: Selection,
+        mapping: &[usize],
     ) -> Result<()> {
-        let consume_states = consume.opaque_states_mut().downcast::<Vec<State>>()?;
+        // let consume_states = consume.opaque_states_mut().downcast::<Vec<State>>()?;
         // StateCombiner2::combine(consume_states, mapping, &mut self.states)
         unimplemented!()
     }
@@ -315,7 +292,7 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_>;
 
     /// Create `count` number of new states.
-    fn new_states(&mut self, count: usize);
+    fn new_groups(&mut self, count: usize);
 
     /// Returns the number of states being tracked.
     fn num_states(&self) -> usize;
@@ -323,7 +300,7 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     /// Update states from inputs using some mapping.
     fn update_states2(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()>;
 
-    fn update_states(
+    fn update_group_states(
         &mut self,
         inputs: &[Array],
         selection: Selection,
@@ -336,7 +313,8 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     fn combine(
         &mut self,
         consume: &mut Box<dyn AggregateGroupStates>,
-        mapping: ChunkGroupAddressIter,
+        selection: Selection,
+        mapping: &[usize],
     ) -> Result<()>;
 
     /// Finalize the states and return an array.
@@ -435,21 +413,6 @@ where
     // BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(
     //     arrays[0], arrays[1], mapping, states,
     // )
-}
-
-pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array2> {
-    Ok(Array2::new_untyped_null_array(states.len()))
-}
-
-pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array2>
-where
-    State: AggregateState2<Input, bool>,
-{
-    let builder = ArrayBuilder {
-        datatype,
-        buffer: BooleanBuffer::with_len(states.len()),
-    };
-    StateFinalizer::finalize(states, builder)
 }
 
 pub fn primitive_finalize<State, Input, Output>(

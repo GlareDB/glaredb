@@ -3,6 +3,7 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
+use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array2;
 use crate::arrays::executor::scalar::HashExecutor;
 use crate::arrays::selection::SelectionVector;
@@ -40,7 +41,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
         OpaqueStatesMut(&mut self.distinct_inputs)
     }
 
-    fn new_states(&mut self, count: usize) {
+    fn new_groups(&mut self, count: usize) {
         // Hash tables created with empty aggregates.
         self.distinct_inputs
             .extend((0..count).map(|_| Some(HashTable::new(16, Vec::new()))));
@@ -99,13 +100,14 @@ impl AggregateGroupStates for DistinctGroupedStates {
     fn combine(
         &mut self,
         consume: &mut Box<dyn AggregateGroupStates>,
-        mapping: ChunkGroupAddressIter,
+        selection: Selection,
+        mapping: &[usize],
     ) -> Result<()> {
         let other_distinct_inputs = consume
             .opaque_states_mut()
             .downcast::<Vec<Option<HashTable>>>()?;
 
-        for (from, to) in mapping {
+        for (from, to) in selection.iter().zip(mapping.iter().copied()) {
             let consume = other_distinct_inputs[from].as_mut().unwrap();
             let target = self.distinct_inputs[to].as_mut().unwrap();
             target.merge(consume)?;
@@ -116,7 +118,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
 
     fn finalize2(&mut self) -> Result<Array2> {
         // And now we actually create the states we need.
-        self.states.new_states(self.distinct_inputs.len());
+        self.states.new_groups(self.distinct_inputs.len());
 
         let mut addresses_buf = Vec::new();
 

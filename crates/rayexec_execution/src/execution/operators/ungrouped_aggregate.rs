@@ -16,6 +16,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
@@ -93,7 +94,7 @@ impl PhysicalUngroupedAggregate {
             } else {
                 agg.function.function_impl.new_states()
             };
-            state.new_states(1);
+            state.new_groups(1);
             states.push(state);
         }
 
@@ -201,17 +202,13 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 };
 
                 // Everything maps to the same group (group 0)
-                let mapping = [GroupAddress {
-                    chunk_idx: 0,
-                    row_idx: 0,
-                }];
-
                 for (mut local_agg_state, global_agg_state) in
                     agg_states.into_iter().zip(shared.agg_states.iter_mut())
                 {
                     global_agg_state.combine(
                         &mut local_agg_state,
-                        ChunkGroupAddressIter::new(0, &mapping),
+                        Selection::selection(&[0]),
+                        &[0],
                     )?;
                 }
 
