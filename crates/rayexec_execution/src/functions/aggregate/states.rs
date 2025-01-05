@@ -79,7 +79,7 @@ where
         self.states.extend((0..count).map(|_| (self.state_init)()))
     }
 
-    fn num_states(&self) -> usize {
+    fn num_groups(&self) -> usize {
         self.states.len()
     }
 
@@ -164,8 +164,13 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     fn new_groups(&mut self, count: usize);
 
     /// Returns the number of states being tracked.
-    fn num_states(&self) -> usize;
+    fn num_groups(&self) -> usize;
 
+    /// Updates groups states from array inputs.
+    ///
+    /// Selection indicates with rows from the input array to use during state
+    /// updates, and `mapping` provides the state index to use for each row.
+    /// Selection length and mapping array must be the same length.
     fn update_group_states(
         &mut self,
         inputs: &[Array],
@@ -174,6 +179,9 @@ pub trait AggregateGroupStates: Debug + Sync + Send {
     ) -> Result<()>;
 
     /// Combine states from another partition into self using some mapping.
+    ///
+    /// Selection indices which states to use from the `consume`, and mapping
+    /// indicates the target states to merge into for each selected states.
     fn combine(
         &mut self,
         consume: &mut Box<dyn AggregateGroupStates>,

@@ -51,7 +51,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
             .extend((0..count).map(|_| Some(HashTable::new(16, Vec::new()))));
     }
 
-    fn num_states(&self) -> usize {
+    fn num_groups(&self) -> usize {
         self.distinct_inputs.len()
     }
 
