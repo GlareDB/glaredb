@@ -3,14 +3,16 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
+use crate::arrays::buffer::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState2;
-use crate::arrays::executor::physical_type::PhysicalF64_2;
+use crate::arrays::executor_exp::aggregate::AggregateState;
+use crate::arrays::executor_exp::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_binary_aggregate_states2,
-    primitive_finalize,
+    binary_update,
+    drain,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -72,10 +74,11 @@ pub struct RegrAvgYImpl;
 
 impl AggregateFunctionImpl for RegrAvgYImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states2::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             RegrAvgState::<Self>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -137,10 +140,11 @@ pub struct RegrAvgXImpl;
 
 impl AggregateFunctionImpl for RegrAvgXImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states2::<PhysicalF64_2, PhysicalF64_2, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             RegrAvgState::<Self>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -165,7 +169,7 @@ where
     _input: PhantomData<F>,
 }
 
-impl<F> AggregateState2<(f64, f64), f64> for RegrAvgState<F>
+impl<F> AggregateState<(&f64, &f64), f64> for RegrAvgState<F>
 where
     F: RegrAvgInput,
 {
@@ -175,17 +179,22 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        self.sum += F::input(input);
+    fn update(&mut self, (&y, &x): (&f64, &f64)) -> Result<()> {
+        self.sum += F::input((y, x));
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
         if self.count == 0 {
-            Ok((0.0, false))
+            output.put_null();
         } else {
-            Ok((self.sum / self.count as f64, true))
+            let v = self.sum / self.count as f64;
+            output.put(&v);
         }
+        Ok(())
     }
 }

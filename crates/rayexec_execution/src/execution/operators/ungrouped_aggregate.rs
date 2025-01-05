@@ -165,8 +165,9 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|expr| batch.column(expr.idx).expect("column to exist"))
                         .collect();
 
-                    agg_states[agg_idx]
-                        .update_states2(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
+                    unimplemented!()
+                    // agg_states[agg_idx]
+                    //     .update_states2(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
                 }
 
                 // Keep pushing.
@@ -229,17 +230,18 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     // Lock no longer needed.
                     std::mem::drop(shared);
 
-                    let arrays = final_states
-                        .iter_mut()
-                        .map(|s| s.finalize2())
-                        .collect::<Result<Vec<_>>>()?;
+                    unimplemented!()
+                    // let arrays = final_states
+                    //     .iter_mut()
+                    //     .map(|s| s.finalize2())
+                    //     .collect::<Result<Vec<_>>>()?;
 
-                    let batch = Batch2::try_new(arrays)?;
+                    // let batch = Batch2::try_new(arrays)?;
 
-                    *state = UngroupedAggregatePartitionState::Producing {
-                        partition_idx: *partition_idx,
-                        batches: vec![batch],
-                    }
+                    // *state = UngroupedAggregatePartitionState::Producing {
+                    //     partition_idx: *partition_idx,
+                    //     batches: vec![batch],
+                    // }
                 }
 
                 Ok(PollFinalize::Finalized)

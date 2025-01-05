@@ -3,6 +3,7 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
+use crate::arrays::array::exp::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array2;
 use crate::arrays::executor::scalar::HashExecutor;
@@ -18,6 +19,8 @@ use crate::functions::aggregate::ChunkGroupAddressIter;
 pub struct DistinctGroupedStates {
     /// Distinct inputs per group.
     distinct_inputs: Vec<Option<HashTable>>,
+    /// Index to begin draining at.
+    drain_idx: usize,
     /// The underlying states.
     ///
     /// These won't be initialized until we've received all distinct input.
@@ -32,6 +35,7 @@ impl DistinctGroupedStates {
             distinct_inputs: Vec::new(),
             states,
             hash_buf: Vec::new(),
+            drain_idx: 0,
         }
     }
 }
@@ -51,51 +55,60 @@ impl AggregateGroupStates for DistinctGroupedStates {
         self.distinct_inputs.len()
     }
 
-    fn update_states2(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
-        // TODO: Would be cool not needing to do this.
-        let mappings: Vec<_> = mapping.collect();
-
-        // For each group we're tracking, select the rows from the input and
-        // insert into the group specific hash table.
-        for state_idx in 0..self.distinct_inputs.len() {
-            let row_sel = Arc::new(SelectionVector::from_iter(mappings.iter().filter_map(
-                |&(from, to)| {
-                    if to == state_idx {
-                        Some(from)
-                    } else {
-                        None
-                    }
-                },
-            )));
-
-            let inputs: Vec<_> = inputs
-                .iter()
-                .map(|&arr| {
-                    let mut arr = arr.clone();
-                    arr.select_mut(row_sel.clone());
-                    arr
-                })
-                .collect();
-
-            let len = match inputs.first() {
-                Some(arr) => arr.logical_len(),
-                None => return Ok(()),
-            };
-
-            self.hash_buf.clear();
-            self.hash_buf.resize(len, 0);
-
-            HashExecutor::hash_many(&inputs, &mut self.hash_buf)?;
-
-            // Insert into hash map with empty inputs.
-            self.distinct_inputs[state_idx]
-                .as_mut()
-                .expect("hash table to exist")
-                .insert(&inputs, &self.hash_buf, &[])?;
-        }
-
-        Ok(())
+    fn update_group_states(
+        &mut self,
+        inputs: &[Array],
+        selection: Selection,
+        mapping: &[usize],
+    ) -> Result<()> {
+        unimplemented!()
     }
+
+    // fn update_states2(&mut self, inputs: &[&Array2], mapping: ChunkGroupAddressIter) -> Result<()> {
+    //     // TODO: Would be cool not needing to do this.
+    //     let mappings: Vec<_> = mapping.collect();
+
+    //     // For each group we're tracking, select the rows from the input and
+    //     // insert into the group specific hash table.
+    //     for state_idx in 0..self.distinct_inputs.len() {
+    //         let row_sel = Arc::new(SelectionVector::from_iter(mappings.iter().filter_map(
+    //             |&(from, to)| {
+    //                 if to == state_idx {
+    //                     Some(from)
+    //                 } else {
+    //                     None
+    //                 }
+    //             },
+    //         )));
+
+    //         let inputs: Vec<_> = inputs
+    //             .iter()
+    //             .map(|&arr| {
+    //                 let mut arr = arr.clone();
+    //                 arr.select_mut(row_sel.clone());
+    //                 arr
+    //             })
+    //             .collect();
+
+    //         let len = match inputs.first() {
+    //             Some(arr) => arr.logical_len(),
+    //             None => return Ok(()),
+    //         };
+
+    //         self.hash_buf.clear();
+    //         self.hash_buf.resize(len, 0);
+
+    //         HashExecutor::hash_many(&inputs, &mut self.hash_buf)?;
+
+    //         // Insert into hash map with empty inputs.
+    //         self.distinct_inputs[state_idx]
+    //             .as_mut()
+    //             .expect("hash table to exist")
+    //             .insert(&inputs, &self.hash_buf, &[])?;
+    //     }
+
+    //     Ok(())
+    // }
 
     fn combine(
         &mut self,
@@ -116,43 +129,47 @@ impl AggregateGroupStates for DistinctGroupedStates {
         Ok(())
     }
 
-    fn finalize2(&mut self) -> Result<Array2> {
-        // And now we actually create the states we need.
-        self.states.new_groups(self.distinct_inputs.len());
+    // fn finalize2(&mut self) -> Result<Array2> {
+    //     // And now we actually create the states we need.
+    //     self.states.new_groups(self.distinct_inputs.len());
 
-        let mut addresses_buf = Vec::new();
+    //     let mut addresses_buf = Vec::new();
 
-        for (group_idx, hash_table) in self.distinct_inputs.iter_mut().enumerate() {
-            // Drain the hash table and inserting them into the newly created
-            // states.
-            let drain = hash_table.take().unwrap().into_drain();
+    //     for (group_idx, hash_table) in self.distinct_inputs.iter_mut().enumerate() {
+    //         // Drain the hash table and inserting them into the newly created
+    //         // states.
+    //         let drain = hash_table.take().unwrap().into_drain();
 
-            for result in drain {
-                let batch = result?;
-                let len = batch.num_rows();
-                // TODO: Prune group id column?
-                let arrays = batch.into_arrays();
+    //         for result in drain {
+    //             let batch = result?;
+    //             let len = batch.num_rows();
+    //             // TODO: Prune group id column?
+    //             let arrays = batch.into_arrays();
 
-                // TODO: Bit jank, but works. We just assume we're working with
-                // chunk 0 always.
-                //
-                // I would like to have `GroupStates` be able to accept any
-                // iterator that produce row mappings, but can't really do that
-                // with dynamic dispatch.
-                addresses_buf.clear();
-                addresses_buf.extend((0..len).map(|_| GroupAddress {
-                    chunk_idx: 0,
-                    row_idx: group_idx as u16,
-                }));
+    //             // TODO: Bit jank, but works. We just assume we're working with
+    //             // chunk 0 always.
+    //             //
+    //             // I would like to have `GroupStates` be able to accept any
+    //             // iterator that produce row mappings, but can't really do that
+    //             // with dynamic dispatch.
+    //             addresses_buf.clear();
+    //             addresses_buf.extend((0..len).map(|_| GroupAddress {
+    //                 chunk_idx: 0,
+    //                 row_idx: group_idx as u16,
+    //             }));
 
-                let chunk_iter = ChunkGroupAddressIter::new(0, &addresses_buf);
+    //             let chunk_iter = ChunkGroupAddressIter::new(0, &addresses_buf);
 
-                let inputs: Vec<_> = arrays.iter().collect(); // TODO
-                self.states.update_states2(&inputs, chunk_iter)?;
-            }
-        }
+    //             let inputs: Vec<_> = arrays.iter().collect(); // TODO
+    //             self.states.update_states2(&inputs, chunk_iter)?;
+    //         }
+    //     }
 
-        // Now we can actually drain the states.
-        self.states.finalize2()
+    //     // Now we can actually drain the states.
+    //     self.states.finalize2()
+    // }
+
+    fn drain(&mut self, output: &mut Array) -> Result<usize> {
+        unimplemented!()
     }
 }

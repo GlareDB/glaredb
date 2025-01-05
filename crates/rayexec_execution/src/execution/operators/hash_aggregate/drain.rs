@@ -23,17 +23,18 @@ impl HashTableDrain {
         let chunk = &mut self.table.chunks[self.drain_idx];
         self.drain_idx += 1;
 
-        // Computed aggregate columns.
-        let results = chunk
-            .aggregate_states
-            .iter_mut()
-            .map(|s| s.states.finalize2())
-            .collect::<Result<Vec<_>>>()?;
+        unimplemented!()
+        // // Computed aggregate columns.
+        // let results = chunk
+        //     .aggregate_states
+        //     .iter_mut()
+        //     .map(|s| s.states.finalize2())
+        //     .collect::<Result<Vec<_>>>()?;
 
-        // Chunk arrays includes the GROUP ID column (last).
-        let batch = Batch2::try_new(results.into_iter().chain(chunk.arrays.drain(..)))?;
+        // // Chunk arrays includes the GROUP ID column (last).
+        // let batch = Batch2::try_new(results.into_iter().chain(chunk.arrays.drain(..)))?;
 
-        Ok(Some(batch))
+        // Ok(Some(batch))
     }
 }
 
