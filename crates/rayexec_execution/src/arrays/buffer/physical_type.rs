@@ -255,7 +255,7 @@ generate_primitive!(Interval, PhysicalInterval, Interval);
 ///
 /// This will be the type we use for queries like `SELECT NULL` where there's no
 /// additional type information in the query.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UntypedNull;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
