@@ -24,7 +24,7 @@ pub struct PhysicalCastExpr {
 impl PhysicalCastExpr {
     pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         let inputs = vec![self.expr.create_state(batch_size)?];
-        let buffer = Batch::from_arrays(
+        let buffer = Batch::try_from_arrays(
             [Array::new(
                 &NopBufferManager,
                 self.expr.datatype(),

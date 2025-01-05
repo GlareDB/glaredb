@@ -7,7 +7,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
 
-pub type PhysicalProject = SimpleOperator<ProjectOperation>;
+pub type PhysicalProject2 = SimpleOperator<ProjectOperation>;
 
 #[derive(Debug)]
 pub struct ProjectOperation {
@@ -41,7 +41,7 @@ impl Explainable for ProjectOperation {
     }
 }
 
-impl DatabaseProtoConv for PhysicalProject {
+impl DatabaseProtoConv for PhysicalProject2 {
     type ProtoType = rayexec_proto::generated::execution::PhysicalProject;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {

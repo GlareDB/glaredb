@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn assert_batches_eq_simple() {
-        let batch1 = Batch::from_arrays(
+        let batch1 = Batch::try_from_arrays(
             [
                 Array::try_from_iter([4, 5, 6]).unwrap(),
                 Array::try_from_iter(["a", "b", "c"]).unwrap(),
@@ -244,7 +244,7 @@ mod tests {
             true,
         )
         .unwrap();
-        let batch2 = Batch::from_arrays(
+        let batch2 = Batch::try_from_arrays(
             [
                 Array::try_from_iter([4, 5, 6]).unwrap(),
                 Array::try_from_iter(["a", "b", "c"]).unwrap(),
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn assert_batches_eq_logical_row_count() {
-        let mut batch1 = Batch::from_arrays(
+        let mut batch1 = Batch::try_from_arrays(
             [
                 Array::try_from_iter([4, 5, 6, 7, 8]).unwrap(),
                 Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
@@ -268,7 +268,7 @@ mod tests {
         .unwrap();
         batch1.set_num_rows(3).unwrap();
 
-        let batch2 = Batch::from_arrays(
+        let batch2 = Batch::try_from_arrays(
             [
                 Array::try_from_iter([4, 5, 6]).unwrap(),
                 Array::try_from_iter(["a", "b", "c"]).unwrap(),

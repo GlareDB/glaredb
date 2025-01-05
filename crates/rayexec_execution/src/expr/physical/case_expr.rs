@@ -50,7 +50,7 @@ impl PhysicalCaseExpr {
         // 2 arrays in the buffer, one 'boolean' for conditional evaluation, one
         // for the result if condition is true. 'then' and 'else' expressions
         // should evaluate to the same type.
-        let buffer = Batch::from_arrays(
+        let buffer = Batch::try_from_arrays(
             [
                 Array::new(&NopBufferManager, DataType::Boolean, batch_size)?,
                 Array::new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
@@ -216,7 +216,7 @@ mod tests {
             datatype: DataType::Int32,
         };
 
-        let mut input = Batch::from_arrays(
+        let mut input = Batch::try_from_arrays(
             [
                 Array::try_from_iter([true, true, false]).unwrap(),
                 Array::try_from_iter([1, 2, 3]).unwrap(),
@@ -258,7 +258,7 @@ mod tests {
             datatype: DataType::Int32,
         };
 
-        let mut input = Batch::from_arrays(
+        let mut input = Batch::try_from_arrays(
             [
                 Array::try_from_iter([Some(true), None, Some(false)]).unwrap(),
                 Array::try_from_iter([1, 2, 3]).unwrap(),

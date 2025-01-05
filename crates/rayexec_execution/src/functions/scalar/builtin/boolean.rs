@@ -236,7 +236,7 @@ mod tests {
     fn and_bool_2() {
         let a = Array::try_from_iter([true, false, false]).unwrap();
         let b = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -267,7 +267,7 @@ mod tests {
         let a = Array::try_from_iter([true, true, true]).unwrap();
         let b = Array::try_from_iter([false, true, true]).unwrap();
         let c = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::from_arrays([a, b, c], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b, c], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -301,7 +301,7 @@ mod tests {
     fn or_bool_2() {
         let a = Array::try_from_iter([true, false, false]).unwrap();
         let b = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list

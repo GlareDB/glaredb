@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn column_expr_eval() {
-        let mut input = Batch::from_arrays(
+        let mut input = Batch::try_from_arrays(
             [
                 Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
                 Array::try_from_iter([1, 2, 3, 4]).unwrap(),
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn column_expr_eval_with_selection() {
-        let mut input = Batch::from_arrays(
+        let mut input = Batch::try_from_arrays(
             [
                 Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
                 Array::try_from_iter([1, 2, 3, 4]).unwrap(),

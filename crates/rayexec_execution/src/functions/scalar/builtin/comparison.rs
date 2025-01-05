@@ -864,7 +864,7 @@ mod tests {
     fn eq_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -893,7 +893,7 @@ mod tests {
     fn neq_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -922,7 +922,7 @@ mod tests {
     fn lt_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -951,7 +951,7 @@ mod tests {
     fn lt_eq_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -980,7 +980,7 @@ mod tests {
     fn gt_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -1009,7 +1009,7 @@ mod tests {
     fn gt_eq_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list

@@ -193,7 +193,7 @@ mod tests {
         )
         .unwrap();
 
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list

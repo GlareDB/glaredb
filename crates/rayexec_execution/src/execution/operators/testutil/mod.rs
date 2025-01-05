@@ -1,4 +1,7 @@
 //! Utilities for testing operator implementations.
+pub mod db_context;
+pub mod wrapper;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
@@ -19,13 +22,6 @@ use crate::arrays::scalar::ScalarValue;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
-
-pub fn test_database_context() -> DatabaseContext {
-    DatabaseContext::new(Arc::new(
-        new_system_catalog(&DataSourceRegistry::default()).unwrap(),
-    ))
-    .unwrap()
-}
 
 /// Test context containg a waker implementation that counts the number of times
 /// it's woken.

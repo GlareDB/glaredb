@@ -75,7 +75,7 @@ where
     /// `row_eq_cap` indicates if the logical cardinality of the batch should
     /// equal the capacity of the arrays. If false, the logical cardinality will
     /// be set to zero.
-    pub(crate) fn from_arrays(
+    pub(crate) fn try_from_arrays(
         arrays: impl IntoIterator<Item = Array<B>>,
         rows_eq_cap: bool,
     ) -> Result<Self> {
@@ -148,7 +148,7 @@ mod tests {
         let a = Array::try_from_iter([3, 4, 5]).unwrap();
         let b = Array::try_from_iter(["a", "b", "c"]).unwrap();
 
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         assert_eq!(3, batch.selection().len());
     }

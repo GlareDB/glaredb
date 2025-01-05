@@ -77,6 +77,9 @@ impl ExpressionEvaluator {
     ///
     /// `input` is mutable only to allow converting arrays from owned to
     /// managed.
+    ///
+    /// `output` will have num rows set to the number of logical rows in the
+    /// selection.
     pub fn eval_batch(
         &mut self,
         input: &mut Batch,
@@ -91,6 +94,8 @@ impl ExpressionEvaluator {
 
             Self::eval_expression(expr, input, state, sel, output)?;
         }
+
+        output.set_num_rows(sel.len())?;
 
         Ok(())
     }

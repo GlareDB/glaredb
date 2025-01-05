@@ -264,7 +264,7 @@ mod tests {
     fn div_i32() {
         let a = Array::try_from_iter([4, 5, 6]).unwrap();
         let b = Array::try_from_iter([1, 2, 3]).unwrap();
-        let batch = Batch::from_arrays([a, b], true).unwrap();
+        let batch = Batch::try_from_arrays([a, b], true).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list

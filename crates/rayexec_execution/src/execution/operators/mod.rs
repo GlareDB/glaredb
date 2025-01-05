@@ -30,10 +30,12 @@ pub mod unnest;
 pub mod values;
 pub mod window;
 
+pub mod physical_project;
+
 pub(crate) mod util;
 
 #[cfg(test)]
-mod test_util;
+mod testutil;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -58,8 +60,9 @@ use insert::PhysicalInsert;
 use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
-use project::{PhysicalProject, ProjectOperation};
-use rayexec_error::{not_implemented, OptionExt, Result};
+use physical_project::ProjectPartitionState;
+use project::{PhysicalProject2, ProjectOperation};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use simple::SimpleOperator;
@@ -102,6 +105,7 @@ use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
 use crate::arrays::batch::Batch2;
+use crate::arrays::batch_exp::Batch;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -111,6 +115,8 @@ use crate::proto::DatabaseProtoConv;
 // Current size: 264 bytes
 #[derive(Debug)]
 pub enum PartitionState {
+    Project(ProjectPartitionState),
+
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
@@ -154,6 +160,106 @@ pub enum OperatorState {
     Union(UnionOperatorState),
     Sink(SinkOperatorState),
     None,
+}
+
+/// Poll result for operator execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollExecute {
+    /// Operator accepted input and wrote its output to the output batch.
+    ///
+    /// The next poll should be with a new input batch.
+    Ready,
+    /// Push pending. Waker stored, re-execute with the exact same state.
+    Pending,
+    /// Operator accepted as much input at can handle. Don't provide any
+    /// additional input.
+    Break,
+    /// Operator needs more input before it'll produce any meaningful output.
+    NeedsMore,
+    /// Operator has more output. Call again with the same input batch.
+    HasMore,
+    /// No more output.
+    Exhausted,
+}
+
+/// Poll result for operator finalization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollFinalize {
+    /// Operator finalized, execution of this operator finished.
+    ///
+    /// `poll_execute` will not be called after this is returned.
+    Finalized,
+    /// This operator needs to be drained.
+    ///
+    /// `poll_execute` will be called with empty input batches until the
+    /// opperator indicates it's been exhausted.
+    NeedsDrain,
+    /// Finalize pending, re-execute with the same state.
+    Pending,
+}
+
+#[derive(Debug)]
+pub enum PartitionAndOperatorStates {
+    /// Operators that have a single input/output.
+    Branchless {
+        /// Global operator state.
+        operator_state: OperatorState,
+        /// State per-partition.
+        partition_states: Vec<PartitionState>,
+    },
+    /// Operators that produce 1 or more output branches.
+    ///
+    /// Mostly for materializations.
+    BranchingOutput {
+        /// Global operator state.
+        operator_state: OperatorState,
+        /// Single set of input states.
+        inputs_states: Vec<PartitionState>,
+        /// Multiple sets of output states.
+        output_states: Vec<Vec<PartitionState>>,
+    },
+    /// Operators that have two children, with this operator acting as the
+    /// "sink" for one child.
+    ///
+    /// For joins, the build side is the terminating input, while the probe side
+    /// is non-terminating.
+    TerminatingInput {
+        /// Global operator state.
+        operator_state: OperatorState,
+        /// States for the input that is non-terminating.
+        nonterminating_states: Vec<PartitionState>,
+        /// States for the input that is terminated by this operator.
+        terminating_states: Vec<PartitionState>,
+    },
+}
+
+impl PartitionAndOperatorStates {
+    pub fn branchless_into_states(self) -> Result<(OperatorState, Vec<PartitionState>)> {
+        match self {
+            Self::Branchless {
+                operator_state,
+                partition_states,
+            } => Ok((operator_state, partition_states)),
+            Self::BranchingOutput { .. } => Err(RayexecError::new(
+                "Expected branchless states, got branching output",
+            )),
+            Self::TerminatingInput { .. } => Err(RayexecError::new(
+                "Expected branchless states, got terminating input",
+            )),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExecuteInOutState<'a> {
+    /// Input batch being pushed to the operator.
+    ///
+    /// May be None for operators that are only producing output.
+    input: Option<&'a mut Batch>,
+    /// Output batch the operator should write to.
+    ///
+    /// May be None for operators that only consume batches.
+    output: Option<&'a mut Batch>,
 }
 
 /// Result of a push to an operator.
@@ -271,6 +377,34 @@ pub struct ExecutionStates2 {
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
+    fn create_states(
+        &self,
+        context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        unimplemented!()
+    }
+
+    fn poll_execute(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
+        unimplemented!()
+    }
+
+    fn poll_finalize(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
+    ) -> Result<PollFinalize> {
+        unimplemented!()
+    }
+
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
@@ -281,7 +415,9 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates2>;
+    ) -> Result<ExecutionStates2> {
+        unimplemented!()
+    }
 
     /// Try to push a batch for this partition.
     fn poll_push2(
@@ -290,7 +426,9 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush2>;
+    ) -> Result<PollPush2> {
+        unimplemented!()
+    }
 
     /// Finalize pushing to partition.
     ///
@@ -301,7 +439,9 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize2>;
+    ) -> Result<PollFinalize2> {
+        unimplemented!()
+    }
 
     /// Try to pull a batch for this partition.
     fn poll_pull2(
@@ -309,7 +449,9 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull2>;
+    ) -> Result<PollPull2> {
+        unimplemented!()
+    }
 }
 
 // 144 bytes
@@ -604,7 +746,7 @@ impl DatabaseProtoConv for PhysicalOperator {
                 PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
             }
             Value::Project(op) => {
-                PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
+                PhysicalOperator::Project(PhysicalProject2::from_proto_ctx(op, context)?)
             }
             Value::Insert(op) => {
                 PhysicalOperator::Insert(PhysicalInsert::from_proto_ctx(op, context)?)
