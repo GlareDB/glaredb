@@ -11,13 +11,13 @@ use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
@@ -209,11 +209,11 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl ExecutableOperator for PhysicalNestedLoopJoin {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         // TODO: Allow different number of partitions on left & right?
         let num_partitions = partitions[0];
 
@@ -231,28 +231,28 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
             })
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::NestedLoopJoin(
                 NestedLoopJoinOperatorState::new(num_partitions, num_partitions),
             )),
-            partition_states: InputOutputStates::NaryInputSingleOutput {
+            partition_states: InputOutputStates2::NaryInputSingleOutput {
                 partition_states: vec![left_states, right_states],
                 pull_states: 1,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         match partition_state {
             PartitionState::NestedLoopJoinBuild(state) => {
                 state.batches.push(batch);
-                Ok(PollPush::Pushed)
+                Ok(PollPush2::Pushed)
             }
             PartitionState::NestedLoopJoinProbe(state) => {
                 // Check that the partition-local state has a reference to the
@@ -273,7 +273,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                             // ourselves for a later wakeup when the build is
                             // complete.
                             probe_side_wakers[state.partition_idx] = Some(cx.waker().clone());
-                            return Ok(PollPush::Pending(batch));
+                            return Ok(PollPush2::Pending(batch));
                         }
                         SharedOperatorState::Probing {
                             batches,
@@ -298,7 +298,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 // it's empty.
                 if !state.buffered.is_empty() {
                     state.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPush2::Pending(batch));
                 }
 
                 // Do the join.
@@ -318,7 +318,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 state.buffered = ComputedBatches::new(batches);
                 if state.buffered.is_empty() {
                     // Nothing produces, signal to push more.
-                    return Ok(PollPush::NeedsMore);
+                    return Ok(PollPush2::NeedsMore);
                 }
 
                 // We have stuff in the buffer, wake up the puller.
@@ -326,18 +326,18 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPush2::Pushed)
             }
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         match partition_state {
             PartitionState::NestedLoopJoinBuild(state) => {
                 let operator_state = match operator_state {
@@ -365,7 +365,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                         }
 
                         // And we're done.
-                        Ok(PollFinalize::Finalized)
+                        Ok(PollFinalize2::Finalized)
                     }
                     other => panic!("inner join state is not building: {other:?}"),
                 }
@@ -375,32 +375,32 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalize2::Finalized)
             }
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         match partition_state {
             PartitionState::NestedLoopJoinProbe(state) => {
                 let computed = state.buffered.take();
                 if computed.has_batches() {
-                    Ok(PollPull::Computed(computed))
+                    Ok(PollPull2::Computed(computed))
                 } else if state.input_finished {
-                    Ok(PollPull::Exhausted)
+                    Ok(PollPull2::Exhausted)
                 } else {
                     // We just gotta wait for more input.
                     if let Some(waker) = state.push_waker.take() {
                         waker.wake();
                     }
                     state.pull_waker = Some(cx.waker().clone());
-                    Ok(PollPull::Pending)
+                    Ok(PollPull2::Pending)
                 }
             }
             PartitionState::NestedLoopJoinBuild(_) => {

@@ -5,13 +5,13 @@ use rayexec_error::Result;
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
@@ -62,16 +62,16 @@ impl PhysicalLimit {
 }
 
 impl ExecutableOperator for PhysicalLimit {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let partitions = partitions[0];
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: (0..partitions)
                     .map(|_| {
                         PartitionState::Limit(LimitPartitionState {
@@ -88,13 +88,13 @@ impl ExecutableOperator for PhysicalLimit {
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -102,7 +102,7 @@ impl ExecutableOperator for PhysicalLimit {
 
         if state.buffer.is_some() {
             state.push_waker = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPush2::Pending(batch));
         }
 
         let batch = if state.remaining_offset > 0 {
@@ -110,7 +110,7 @@ impl ExecutableOperator for PhysicalLimit {
             // batch, and keep asking for more input.
             if state.remaining_offset >= batch.num_rows() {
                 state.remaining_offset -= batch.num_rows();
-                return Ok(PollPush::NeedsMore);
+                return Ok(PollPush2::NeedsMore);
             }
 
             // Otherwise we have to slice the batch at the offset point.
@@ -148,18 +148,18 @@ impl ExecutableOperator for PhysicalLimit {
             // instead the partition pipeline will immediately start to pull
             // from this operator.
             state.finished = true;
-            Ok(PollPush::Break)
+            Ok(PollPush2::Break)
         } else {
-            Ok(PollPush::Pushed)
+            Ok(PollPush2::Pushed)
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -170,31 +170,31 @@ impl ExecutableOperator for PhysicalLimit {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         match state.buffer.take() {
-            Some(batch) => Ok(PollPull::Computed(batch.into())),
+            Some(batch) => Ok(PollPull2::Computed(batch.into())),
             None => {
                 if state.finished {
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPull2::Exhausted);
                 }
                 state.pull_waker = Some(cx.waker().clone());
                 if let Some(waker) = state.push_waker.take() {
                     waker.wake();
                 }
-                Ok(PollPull::Pending)
+                Ok(PollPull2::Pending)
             }
         }
     }
@@ -244,10 +244,10 @@ mod tests {
 
     fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionState> {
         let context = test_database_context();
-        let states = operator.create_states(&context, vec![partitions]).unwrap();
+        let states = operator.create_states2(&context, vec![partitions]).unwrap();
 
         match states.partition_states {
-            InputOutputStates::OneToOne { partition_states } => partition_states,
+            InputOutputStates2::OneToOne { partition_states } => partition_states,
             other => panic!("invalid states: {other:?}"),
         }
     }
@@ -268,7 +268,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Pending, poll_pull);
+        assert_eq!(PollPull2::Pending, poll_pull);
 
         // Push our first batch.
         let push_cx = TestWakerContext::new();
@@ -280,7 +280,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPush2::Pushed, poll_push);
 
         // Pull side should have been woken.
         assert_eq!(1, pull_cx.wake_count());
@@ -300,7 +300,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Break, poll_push);
+        assert_eq!(PollPush2::Break, poll_push);
 
         // We did _not_ store a new pull waker, the current count for the pull
         // waker should still be one.
@@ -340,7 +340,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Pushed, poll_push);
+        assert_eq!(PollPush2::Pushed, poll_push);
 
         let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
@@ -360,7 +360,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Break, poll_push);
+        assert_eq!(PollPush2::Break, poll_push);
 
         // Pull part of next batch.
         let poll_pull = pull_cx
@@ -395,7 +395,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::NeedsMore, poll_push);
+        assert_eq!(PollPush2::NeedsMore, poll_push);
 
         // Keep pushing...
         let poll_push = push_cx
@@ -406,7 +406,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Break, poll_push);
+        assert_eq!(PollPush2::Break, poll_push);
 
         let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
@@ -435,7 +435,7 @@ mod tests {
                 inputs.remove(0),
             )
             .unwrap();
-        assert_eq!(PollPush::Break, poll_push);
+        assert_eq!(PollPush2::Break, poll_push);
 
         let pull_cx = TestWakerContext::new();
         let poll_pull = pull_cx
@@ -446,6 +446,6 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPull2::Exhausted, poll_pull);
     }
 }

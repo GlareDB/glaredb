@@ -10,8 +10,8 @@ use super::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
-    PollPull,
-    PollPush,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::array::Array2;
 use crate::arrays::batch::Batch2;
@@ -73,8 +73,8 @@ impl TestWakerContext {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: impl Into<Batch2>,
-    ) -> Result<PollPush> {
-        operator.as_ref().poll_push(
+    ) -> Result<PollPush2> {
+        operator.as_ref().poll_push2(
             &mut self.context(),
             partition_state,
             operator_state,
@@ -87,10 +87,10 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         operator
             .as_ref()
-            .poll_pull(&mut self.context(), partition_state, operator_state)
+            .poll_pull2(&mut self.context(), partition_state, operator_state)
     }
 }
 
@@ -101,9 +101,9 @@ impl Wake for TestWakerInner {
 }
 
 /// Unwraps a batch from the PollPull::Batch variant.
-pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch2 {
+pub fn unwrap_poll_pull_batch(poll: PollPull2) -> Batch2 {
     match poll {
-        PollPull::Computed(ComputedBatches::Single(batch)) => batch,
+        PollPull2::Computed(ComputedBatches::Single(batch)) => batch,
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }

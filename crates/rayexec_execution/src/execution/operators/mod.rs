@@ -162,7 +162,7 @@ pub enum OperatorState {
 /// something else to complete (e.g. the right side of a join needs to the left
 /// side to complete first) or some internal buffer is full.
 #[derive(Debug, PartialEq)]
-pub enum PollPush {
+pub enum PollPush2 {
     /// Batch was successfully pushed.
     Pushed,
 
@@ -184,7 +184,7 @@ pub enum PollPush {
 
 /// Result of a pull from a Source.
 #[derive(Debug, PartialEq)]
-pub enum PollPull {
+pub enum PollPull2 {
     /// Successfully received computed results.
     Computed(ComputedBatches),
 
@@ -199,14 +199,14 @@ pub enum PollPull {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PollFinalize {
+pub enum PollFinalize2 {
     Finalized,
     Pending,
 }
 
 /// Describes the relationships of partition states for operators.
 #[derive(Debug)]
-pub enum InputOutputStates {
+pub enum InputOutputStates2 {
     /// Input and output partition states have a one-to-one mapping.
     ///
     /// The states used for pushing to an operator are the same states used to
@@ -262,12 +262,12 @@ pub enum InputOutputStates {
 
 /// States generates from an operator to use during execution.
 #[derive(Debug)]
-pub struct ExecutionStates {
+pub struct ExecutionStates2 {
     /// Global operator state.
     pub operator_state: Arc<OperatorState>,
 
     /// Partition states for the operator.
-    pub partition_states: InputOutputStates,
+    pub partition_states: InputOutputStates2,
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
@@ -277,39 +277,39 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     /// pushing batches through this operator.
     ///
     /// Joins are assumed to have two inputs.
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates>;
+    ) -> Result<ExecutionStates2>;
 
     /// Try to push a batch for this partition.
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush>;
+    ) -> Result<PollPush2>;
 
     /// Finalize pushing to partition.
     ///
     /// This indicates the operator will receive no more input for a given
     /// partition, allowing the operator to execution some finalization logic.
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize>;
+    ) -> Result<PollFinalize2>;
 
     /// Try to pull a batch for this partition.
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull>;
+    ) -> Result<PollPull2>;
 }
 
 // 144 bytes
@@ -348,173 +348,173 @@ pub enum PhysicalOperator {
 }
 
 impl ExecutableOperator for PhysicalOperator {
-    fn create_states(
+    fn create_states2(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         match self {
-            Self::HashAggregate(op) => op.create_states(context, partitions),
-            Self::UngroupedAggregate(op) => op.create_states(context, partitions),
-            Self::Window(op) => op.create_states(context, partitions),
-            Self::NestedLoopJoin(op) => op.create_states(context, partitions),
-            Self::HashJoin(op) => op.create_states(context, partitions),
-            Self::Values(op) => op.create_states(context, partitions),
-            Self::ResultSink(op) => op.create_states(context, partitions),
-            Self::DynSink(op) => op.create_states(context, partitions),
-            Self::DynSource(op) => op.create_states(context, partitions),
-            Self::MaterializedSink(op) => op.create_states(context, partitions),
-            Self::MaterializedSource(op) => op.create_states(context, partitions),
-            Self::RoundRobin(op) => op.create_states(context, partitions),
-            Self::MergeSorted(op) => op.create_states(context, partitions),
-            Self::LocalSort(op) => op.create_states(context, partitions),
-            Self::Limit(op) => op.create_states(context, partitions),
-            Self::Union(op) => op.create_states(context, partitions),
-            Self::Filter(op) => op.create_states(context, partitions),
-            Self::Project(op) => op.create_states(context, partitions),
-            Self::Unnest(op) => op.create_states(context, partitions),
-            Self::Scan(op) => op.create_states(context, partitions),
-            Self::TableFunction(op) => op.create_states(context, partitions),
-            Self::TableInOut(op) => op.create_states(context, partitions),
-            Self::Insert(op) => op.create_states(context, partitions),
-            Self::CopyTo(op) => op.create_states(context, partitions),
-            Self::CreateTable(op) => op.create_states(context, partitions),
-            Self::CreateSchema(op) => op.create_states(context, partitions),
-            Self::CreateView(op) => op.create_states(context, partitions),
-            Self::Drop(op) => op.create_states(context, partitions),
-            Self::Empty(op) => op.create_states(context, partitions),
-            Self::BatchResizer(op) => op.create_states(context, partitions),
+            Self::HashAggregate(op) => op.create_states2(context, partitions),
+            Self::UngroupedAggregate(op) => op.create_states2(context, partitions),
+            Self::Window(op) => op.create_states2(context, partitions),
+            Self::NestedLoopJoin(op) => op.create_states2(context, partitions),
+            Self::HashJoin(op) => op.create_states2(context, partitions),
+            Self::Values(op) => op.create_states2(context, partitions),
+            Self::ResultSink(op) => op.create_states2(context, partitions),
+            Self::DynSink(op) => op.create_states2(context, partitions),
+            Self::DynSource(op) => op.create_states2(context, partitions),
+            Self::MaterializedSink(op) => op.create_states2(context, partitions),
+            Self::MaterializedSource(op) => op.create_states2(context, partitions),
+            Self::RoundRobin(op) => op.create_states2(context, partitions),
+            Self::MergeSorted(op) => op.create_states2(context, partitions),
+            Self::LocalSort(op) => op.create_states2(context, partitions),
+            Self::Limit(op) => op.create_states2(context, partitions),
+            Self::Union(op) => op.create_states2(context, partitions),
+            Self::Filter(op) => op.create_states2(context, partitions),
+            Self::Project(op) => op.create_states2(context, partitions),
+            Self::Unnest(op) => op.create_states2(context, partitions),
+            Self::Scan(op) => op.create_states2(context, partitions),
+            Self::TableFunction(op) => op.create_states2(context, partitions),
+            Self::TableInOut(op) => op.create_states2(context, partitions),
+            Self::Insert(op) => op.create_states2(context, partitions),
+            Self::CopyTo(op) => op.create_states2(context, partitions),
+            Self::CreateTable(op) => op.create_states2(context, partitions),
+            Self::CreateSchema(op) => op.create_states2(context, partitions),
+            Self::CreateView(op) => op.create_states2(context, partitions),
+            Self::Drop(op) => op.create_states2(context, partitions),
+            Self::Empty(op) => op.create_states2(context, partitions),
+            Self::BatchResizer(op) => op.create_states2(context, partitions),
         }
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         match self {
-            Self::HashAggregate(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::HashAggregate(op) => op.poll_push2(cx, partition_state, operator_state, batch),
             Self::UngroupedAggregate(op) => {
-                op.poll_push(cx, partition_state, operator_state, batch)
+                op.poll_push2(cx, partition_state, operator_state, batch)
             }
-            Self::Window(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::NestedLoopJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::ResultSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::DynSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::DynSource(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::MaterializedSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::Window(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::NestedLoopJoin(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::HashJoin(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Values(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::ResultSink(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::DynSink(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::DynSource(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::MaterializedSink(op) => op.poll_push2(cx, partition_state, operator_state, batch),
             Self::MaterializedSource(op) => {
-                op.poll_push(cx, partition_state, operator_state, batch)
+                op.poll_push2(cx, partition_state, operator_state, batch)
             }
-            Self::RoundRobin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Limit(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Union(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Filter(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Project(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Unnest(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Scan(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::TableFunction(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::TableInOut(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Insert(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CopyTo(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CreateTable(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CreateSchema(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CreateView(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Drop(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Empty(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::BatchResizer(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::RoundRobin(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::MergeSorted(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::LocalSort(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Limit(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Union(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Filter(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Project(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Unnest(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Scan(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::TableFunction(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::TableInOut(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Insert(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::CopyTo(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::CreateTable(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::CreateSchema(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::CreateView(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Drop(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::Empty(op) => op.poll_push2(cx, partition_state, operator_state, batch),
+            Self::BatchResizer(op) => op.poll_push2(cx, partition_state, operator_state, batch),
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         match self {
-            Self::HashAggregate(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::HashAggregate(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
             Self::UngroupedAggregate(op) => {
-                op.poll_finalize_push(cx, partition_state, operator_state)
+                op.poll_finalize_push2(cx, partition_state, operator_state)
             }
-            Self::Window(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::NestedLoopJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::HashJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Values(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::ResultSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::DynSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::DynSource(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::Window(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::NestedLoopJoin(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::HashJoin(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Values(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::DynSink(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::DynSource(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
             Self::MaterializedSink(op) => {
-                op.poll_finalize_push(cx, partition_state, operator_state)
+                op.poll_finalize_push2(cx, partition_state, operator_state)
             }
             Self::MaterializedSource(op) => {
-                op.poll_finalize_push(cx, partition_state, operator_state)
+                op.poll_finalize_push2(cx, partition_state, operator_state)
             }
-            Self::RoundRobin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::MergeSorted(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::LocalSort(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Limit(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Union(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Filter(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Project(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Unnest(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Scan(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::TableFunction(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::TableInOut(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Insert(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CopyTo(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CreateTable(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CreateSchema(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CreateView(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Drop(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Empty(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::BatchResizer(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::RoundRobin(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::MergeSorted(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::LocalSort(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Limit(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Union(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Filter(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Project(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Unnest(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Scan(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::TableFunction(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::TableInOut(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Insert(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::CopyTo(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::CreateTable(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::CreateSchema(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::CreateView(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Drop(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::Empty(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
+            Self::BatchResizer(op) => op.poll_finalize_push2(cx, partition_state, operator_state),
         }
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         match self {
-            Self::HashAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::UngroupedAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Window(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::NestedLoopJoin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::ResultSink(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::DynSink(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::DynSource(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::MaterializedSink(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::MaterializedSource(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::RoundRobin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Limit(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Union(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Filter(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Project(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Unnest(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Scan(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::TableFunction(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::TableInOut(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Insert(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CopyTo(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CreateTable(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CreateSchema(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CreateView(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Drop(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Empty(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::BatchResizer(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::HashAggregate(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::UngroupedAggregate(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Window(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::NestedLoopJoin(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::HashJoin(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Values(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::DynSink(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::DynSource(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::MaterializedSink(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::MaterializedSource(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::RoundRobin(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::MergeSorted(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::LocalSort(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Limit(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Union(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Filter(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Project(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Unnest(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Scan(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::TableFunction(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::TableInOut(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Insert(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::CopyTo(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::CreateTable(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::CreateSchema(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::CreateView(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Drop(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::Empty(op) => op.poll_pull2(cx, partition_state, operator_state),
+            Self::BatchResizer(op) => op.poll_pull2(cx, partition_state, operator_state),
         }
     }
 }

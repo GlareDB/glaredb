@@ -7,15 +7,15 @@ use std::task::{Context, Waker};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use super::{ExecutionStates2, InputOutputStates2, PollFinalize2};
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
-    PollPull,
-    PollPush,
+    PollPull2,
+    PollPush2,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -58,11 +58,11 @@ pub struct RoundRobinOperatorState {
 pub struct PhysicalRoundRobinRepartition;
 
 impl ExecutableOperator for PhysicalRoundRobinRepartition {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         if partitions.len() != 2 {
             return Err(RayexecError::new(
                 "Round robin expects to values (input, output) in partition vec",
@@ -114,22 +114,22 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
             .map(|buffer| PartitionState::RoundRobinPull(RoundRobinPullPartitionState { buffer }))
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::RoundRobin(operator_state)),
-            partition_states: InputOutputStates::SeparateInputOutput {
+            partition_states: InputOutputStates2::SeparateInputOutput {
                 push_states,
                 pull_states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::RoundRobinPush(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -146,7 +146,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         // wakeup when there's room.
         if output.batches.len() >= state.max_buffer_capacity {
             output.send_wakers[state.own_idx] = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPush2::Pending(batch));
         }
 
         // Otherwise push our batch.
@@ -160,15 +160,15 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         // call to `poll_push`.
         state.push_to = (state.push_to + 1) % state.output_buffers.len();
 
-        Ok(PollPush::Pushed)
+        Ok(PollPush2::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let operator_state = match operator_state {
             OperatorState::RoundRobin(state) => state,
             other => panic!("invalid operator state: {other:?}"),
@@ -199,15 +199,15 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
             }
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::RoundRobinPull(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -218,11 +218,11 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         match inner.batches.pop_front() {
             Some(batch) => {
                 inner.wake_n_senders(1);
-                Ok(PollPull::Computed(batch.into()))
+                Ok(PollPull2::Computed(batch.into()))
             }
             None => {
                 if inner.exhausted {
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPull2::Exhausted);
                 }
                 // Register ourselves for wakeup.
                 inner.recv_waker = Some(cx.waker().clone());
@@ -230,7 +230,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
                 // Try to wake up any pushers to fill up the buffer.
                 inner.wake_all_senders();
 
-                Ok(PollPull::Pending)
+                Ok(PollPull2::Pending)
             }
         }
     }

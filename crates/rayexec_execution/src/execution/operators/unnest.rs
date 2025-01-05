@@ -7,13 +7,13 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::array::{Array2, ArrayData2};
 use crate::arrays::batch::Batch2;
@@ -82,11 +82,11 @@ pub struct PhysicalUnnest {
 }
 
 impl ExecutableOperator for PhysicalUnnest {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let partitions = partitions[0];
 
         let states: Vec<_> = (0..partitions)
@@ -109,21 +109,21 @@ impl ExecutableOperator for PhysicalUnnest {
             })
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -136,7 +136,7 @@ impl ExecutableOperator for PhysicalUnnest {
                 waker.wake();
             }
 
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPush2::Pending(batch));
         }
 
         // Compute inputs. These will be stored until we've processed all rows.
@@ -155,15 +155,15 @@ impl ExecutableOperator for PhysicalUnnest {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPush2::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -175,15 +175,15 @@ impl ExecutableOperator for PhysicalUnnest {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -191,7 +191,7 @@ impl ExecutableOperator for PhysicalUnnest {
 
         if state.current_row >= state.input_num_rows {
             if state.finished {
-                return Ok(PollPull::Exhausted);
+                return Ok(PollPull2::Exhausted);
             }
 
             // We're done with these inputs. Come back later.
@@ -200,7 +200,7 @@ impl ExecutableOperator for PhysicalUnnest {
                 waker.wake();
             }
 
-            return Ok(PollPull::Pending);
+            return Ok(PollPull2::Pending);
         }
 
         // We have input ready, get the longest list for the current row.
@@ -292,7 +292,7 @@ impl ExecutableOperator for PhysicalUnnest {
 
         let batch = Batch2::try_new(outputs)?;
 
-        Ok(PollPull::Computed(batch.into()))
+        Ok(PollPull2::Computed(batch.into()))
     }
 }
 

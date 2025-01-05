@@ -13,9 +13,9 @@ use crate::execution::operators::{
     OperatorState,
     PartitionState,
     PhysicalOperator,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::time::{RuntimeInstant, Timer};
@@ -346,7 +346,7 @@ impl ExecutablePartitionPipeline {
 
                     // Otherwise do a normal pull.
                     let timer = Timer::<I>::start();
-                    let poll_pull = operator.physical.poll_pull(
+                    let poll_pull = operator.physical.poll_pull2(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
@@ -355,7 +355,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.elapsed += elapsed;
 
                     match poll_pull {
-                        Ok(PollPull::Computed(mut computed)) => {
+                        Ok(PollPull2::Computed(mut computed)) => {
                             operator.profile_data.rows_emitted += computed.total_num_rows(); // TODO: We should have something to indicate materialized vs not.
 
                             let batch = match computed.try_pop_front()? {
@@ -385,10 +385,10 @@ impl ExecutablePartitionPipeline {
                             };
                             continue;
                         }
-                        Ok(PollPull::Pending) => {
+                        Ok(PollPull2::Pending) => {
                             return Poll::Pending;
                         }
-                        Ok(PollPull::Exhausted) => {
+                        Ok(PollPull2::Exhausted) => {
                             // Finalize the next operator to indicate that it
                             // will no longer be receiving batch inputs.
                             *state = PipelinePartitionState::FinalizePush {
@@ -416,7 +416,7 @@ impl ExecutablePartitionPipeline {
                         .expect("next operator to exist");
 
                     let timer = Timer::<I>::start();
-                    let poll_finalize = next_operator.physical.poll_finalize_push(
+                    let poll_finalize = next_operator.physical.poll_finalize_push2(
                         cx,
                         &mut next_operator.partition_state,
                         &next_operator.operator_state,
@@ -425,7 +425,7 @@ impl ExecutablePartitionPipeline {
                     next_operator.profile_data.elapsed += elapsed;
 
                     match poll_finalize {
-                        Ok(PollFinalize::Finalized) => {
+                        Ok(PollFinalize2::Finalized) => {
                             if self.pull_start.pull_start == self.operators.len() - 1 {
                                 // This partition pipeline has been completely exhausted, and
                                 // we've just finalized the "sink" operator. We're done.
@@ -437,7 +437,7 @@ impl ExecutablePartitionPipeline {
                             // next non-exhausted operator.
                             *state = self.pull_start.next_start_state()?;
                         }
-                        Ok(PollFinalize::Pending) => return Poll::Pending,
+                        Ok(PollFinalize2::Pending) => return Poll::Pending,
                         Err(e) => {
                             // Erroring on finalize is not recoverable.
                             *state = PipelinePartitionState::Completed;
@@ -460,7 +460,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.rows_read += batch.num_rows();
 
                     let timer = Timer::<I>::start();
-                    let poll_push = operator.physical.poll_push(
+                    let poll_push = operator.physical.poll_push2(
                         cx,
                         &mut operator.partition_state,
                         &operator.operator_state,
@@ -470,7 +470,7 @@ impl ExecutablePartitionPipeline {
                     operator.profile_data.elapsed += elapsed;
 
                     match poll_push {
-                        Ok(PollPush::Pushed) => {
+                        Ok(PollPush2::Pushed) => {
                             // We successfully pushed to the operator.
                             //
                             // If we pushed to last operator (the 'sink'), we
@@ -489,7 +489,7 @@ impl ExecutablePartitionPipeline {
                             }
                             continue;
                         }
-                        Ok(PollPush::Pending(batch)) => {
+                        Ok(PollPush2::Pending(batch)) => {
                             // Operator not ready to accept input.
                             //
                             // Waker has been registered, and this pipeline will
@@ -502,7 +502,7 @@ impl ExecutablePartitionPipeline {
                             };
                             return Poll::Pending;
                         }
-                        Ok(PollPush::Break) => {
+                        Ok(PollPush2::Break) => {
                             // Operator has received everything it needs. Set
                             // the pipeline to start pulling from the operator,
                             // even if the operator we're currently pull from
@@ -520,7 +520,7 @@ impl ExecutablePartitionPipeline {
                             };
                             continue;
                         }
-                        Ok(PollPush::NeedsMore) => {
+                        Ok(PollPush2::NeedsMore) => {
                             // Operator accepted input, but needs more input
                             // before it will produce output.
                             //

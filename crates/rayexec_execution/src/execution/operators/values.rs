@@ -5,13 +5,13 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
@@ -35,11 +35,11 @@ impl PhysicalValues {
 }
 
 impl ExecutableOperator for PhysicalValues {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let num_partitions = partitions[0];
 
         let mut states: Vec<_> = (0..num_partitions)
@@ -52,43 +52,43 @@ impl ExecutableOperator for PhysicalValues {
             states[idx % num_partitions].batches.push(batch.clone());
         }
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: states.into_iter().map(PartitionState::Values).collect(),
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         Err(RayexecError::new("Cannot push to Values operator"))
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         match partition_state {
             PartitionState::Values(state) => match state.batches.pop() {
-                Some(batch) => Ok(PollPull::Computed(batch.into())),
-                None => Ok(PollPull::Exhausted),
+                Some(batch) => Ok(PollPull2::Computed(batch.into())),
+                None => Ok(PollPull2::Exhausted),
             },
             other => panic!("invalid partition state: {other:?}"),
         }

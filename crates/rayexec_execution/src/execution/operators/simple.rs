@@ -6,13 +6,13 @@ use rayexec_error::Result;
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
@@ -77,14 +77,14 @@ impl<S: StatelessOperation> SimpleOperator<S> {
 }
 
 impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        Ok(ExecutionStates {
+    ) -> Result<ExecutionStates2> {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: (0..partitions[0])
                     .map(|_| PartitionState::Simple(SimplePartitionState::new()))
                     .collect(),
@@ -92,13 +92,13 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -110,7 +110,7 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
             if let Some(waker) = state.pull_waker.take() {
                 waker.wake();
             }
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPush2::Pending(batch));
         }
 
         // Otherwise we're good to go.
@@ -121,15 +121,15 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPush2::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -141,15 +141,15 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::Simple(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -160,18 +160,18 @@ impl<S: StatelessOperation> ExecutableOperator for SimpleOperator<S> {
                 if let Some(waker) = state.push_waker.take() {
                     waker.wake();
                 }
-                Ok(PollPull::Computed(out.into()))
+                Ok(PollPull2::Computed(out.into()))
             }
             None => {
                 if state.exhausted {
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPull2::Exhausted);
                 }
 
                 state.pull_waker = Some(cx.waker().clone());
                 if let Some(waker) = state.push_waker.take() {
                     waker.wake();
                 }
-                Ok(PollPull::Pending)
+                Ok(PollPull2::Pending)
             }
         }
     }

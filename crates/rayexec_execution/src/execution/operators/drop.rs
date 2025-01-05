@@ -9,13 +9,13 @@ use rayexec_proto::ProtoConv;
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::batch::Batch2;
 use crate::database::catalog::CatalogTx;
@@ -47,11 +47,11 @@ impl PhysicalDrop {
 }
 
 impl ExecutableOperator for PhysicalDrop {
-    fn create_states(
+    fn create_states2(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         if partitions[0] != 1 {
             return Err(RayexecError::new("Drop can only handle one partition"));
         }
@@ -68,44 +68,44 @@ impl ExecutableOperator for PhysicalDrop {
             Ok(())
         });
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         match partition_state {
             PartitionState::Drop(state) => match state.drop.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
+                Poll::Ready(Ok(_)) => Ok(PollPull2::Exhausted),
                 Poll::Ready(Err(e)) => Err(e),
-                Poll::Pending => Ok(PollPull::Pending),
+                Poll::Pending => Ok(PollPull2::Pending),
             },
             other => panic!("invalid partition state: {other:?}"),
         }

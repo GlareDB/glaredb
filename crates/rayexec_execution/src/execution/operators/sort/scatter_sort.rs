@@ -11,13 +11,13 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::execution::operators::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;
@@ -63,11 +63,11 @@ impl PhysicalScatterSort {
 }
 
 impl ExecutableOperator for PhysicalScatterSort {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let partitions = partitions[0];
 
         let extractor = SortKeysExtractor::new(&self.exprs);
@@ -83,21 +83,21 @@ impl ExecutableOperator for PhysicalScatterSort {
             })
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -107,7 +107,7 @@ impl ExecutableOperator for PhysicalScatterSort {
             ScatterSortPartitionState::Consuming(state) => {
                 self.insert_batch_for_comparison(state, batch)?;
 
-                Ok(PollPush::NeedsMore)
+                Ok(PollPush2::NeedsMore)
             }
             ScatterSortPartitionState::Producing { .. } => {
                 panic!("attempted to push to partition that's already produding data")
@@ -115,12 +115,12 @@ impl ExecutableOperator for PhysicalScatterSort {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -154,7 +154,7 @@ impl ExecutableOperator for PhysicalScatterSort {
                 // Update partition state to "producing" using the merger.
                 *state = ScatterSortPartitionState::Producing(ProducingPartitionState { merger });
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalize2::Finalized)
             }
             ScatterSortPartitionState::Producing { .. } => {
                 panic!("attempted to finalize partition that's already producing data")
@@ -162,12 +162,12 @@ impl ExecutableOperator for PhysicalScatterSort {
         }
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let mut state = match partition_state {
             PartitionState::ScatterSort(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -177,17 +177,17 @@ impl ExecutableOperator for PhysicalScatterSort {
             ScatterSortPartitionState::Consuming(state) => {
                 // Partition still collecting data to sort.
                 state.pull_waker = Some(cx.waker().clone());
-                Ok(PollPull::Pending)
+                Ok(PollPull2::Pending)
             }
             ScatterSortPartitionState::Producing(state) => {
                 loop {
                     // TODO: Configurable batch size.
                     match state.merger.try_merge(DEFAULT_TARGET_BATCH_SIZE)? {
                         MergeResult::Batch(batch) => {
-                            return Ok(PollPull::Computed(batch.into()));
+                            return Ok(PollPull2::Computed(batch.into()));
                         }
                         MergeResult::Exhausted => {
-                            return Ok(PollPull::Exhausted);
+                            return Ok(PollPull2::Exhausted);
                         }
                         MergeResult::NeedsInput(idx) => {
                             // We're merging all batch in this partition, and
@@ -274,10 +274,10 @@ mod tests {
 
     fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionState> {
         let context = test_database_context();
-        let states = operator.create_states(&context, vec![partitions]).unwrap();
+        let states = operator.create_states2(&context, vec![partitions]).unwrap();
 
         match states.partition_states {
-            InputOutputStates::OneToOne { partition_states } => partition_states,
+            InputOutputStates2::OneToOne { partition_states } => partition_states,
             other => panic!("unexpected states: {other:?}"),
         }
     }
@@ -307,10 +307,10 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPush2::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push2(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -352,10 +352,10 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPush2::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push2(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -401,10 +401,10 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPush2::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push2(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -441,7 +441,7 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPull2::Exhausted, poll_pull);
     }
 
     #[test]
@@ -469,10 +469,10 @@ mod tests {
             let poll_push = push_cx
                 .poll_push(&operator, &mut partition_states[0], &operator_state, input)
                 .unwrap();
-            assert_eq!(PollPush::NeedsMore, poll_push);
+            assert_eq!(PollPush2::NeedsMore, poll_push);
         }
         operator
-            .poll_finalize_push(
+            .poll_finalize_push2(
                 &mut push_cx.context(),
                 &mut partition_states[0],
                 &operator_state,
@@ -504,6 +504,6 @@ mod tests {
         let poll_pull = pull_cx
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
-        assert_eq!(PollPull::Exhausted, poll_pull);
+        assert_eq!(PollPull2::Exhausted, poll_pull);
     }
 }

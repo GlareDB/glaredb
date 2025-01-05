@@ -6,13 +6,13 @@ use rayexec_error::Result;
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
@@ -68,11 +68,11 @@ impl PhysicalUnion {
 }
 
 impl ExecutableOperator for PhysicalUnion {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let num_partitions = partitions[0];
 
         let top_states = (0..num_partitions)
@@ -106,27 +106,27 @@ impl ExecutableOperator for PhysicalUnion {
                 .collect(),
         };
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::Union(operator_state)),
-            partition_states: InputOutputStates::NaryInputSingleOutput {
+            partition_states: InputOutputStates2::NaryInputSingleOutput {
                 partition_states: vec![top_states, bottom_states],
                 pull_states: Self::UNION_TOP_INPUT_INDEX,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         match partition_state {
             PartitionState::UnionTop(state) => {
                 if state.batch.is_some() {
                     state.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPush2::Pending(batch));
                 }
                 state.batch = Some(batch);
 
@@ -134,7 +134,7 @@ impl ExecutableOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPush2::Pushed)
             }
 
             PartitionState::UnionBottom(state) => {
@@ -147,7 +147,7 @@ impl ExecutableOperator for PhysicalUnion {
 
                 if shared.batch.is_some() {
                     shared.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
+                    return Ok(PollPush2::Pending(batch));
                 }
 
                 shared.batch = Some(batch);
@@ -156,26 +156,26 @@ impl ExecutableOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(PollPush::Pushed)
+                Ok(PollPush2::Pushed)
             }
 
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         match partition_state {
             PartitionState::UnionTop(state) => {
                 state.finished = true;
                 if let Some(waker) = state.pull_waker.take() {
                     waker.wake();
                 }
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalize2::Finalized)
             }
 
             PartitionState::UnionBottom(state) => {
@@ -191,26 +191,26 @@ impl ExecutableOperator for PhysicalUnion {
                     waker.wake();
                 }
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalize2::Finalized)
             }
 
             other => panic!("invalid partition state: {other:?}"),
         }
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         match partition_state {
             PartitionState::UnionTop(state) => match state.batch.take() {
                 Some(batch) => {
                     if let Some(waker) = state.push_waker.take() {
                         waker.wake();
                     }
-                    Ok(PollPull::Computed(batch.into()))
+                    Ok(PollPull2::Computed(batch.into()))
                 }
                 None => {
                     let mut shared = match operator_state {
@@ -225,12 +225,12 @@ impl ExecutableOperator for PhysicalUnion {
                         if let Some(waker) = shared.push_waker.take() {
                             waker.wake();
                         }
-                        return Ok(PollPull::Computed(batch.into()));
+                        return Ok(PollPull2::Computed(batch.into()));
                     }
 
                     // If not, check if we're finished.
                     if shared.finished && state.finished {
-                        return Ok(PollPull::Exhausted);
+                        return Ok(PollPull2::Exhausted);
                     }
 
                     // No batches, and we're not finished. Need to wait.
@@ -239,7 +239,7 @@ impl ExecutableOperator for PhysicalUnion {
                         waker.wake();
                     }
 
-                    Ok(PollPull::Pending)
+                    Ok(PollPull2::Pending)
                 }
             },
             other => panic!("invalid partition state: {other:?}"),

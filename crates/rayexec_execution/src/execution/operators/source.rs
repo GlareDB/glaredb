@@ -10,13 +10,13 @@ use rayexec_error::{RayexecError, Result};
 use super::util::futures::make_static;
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
 use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
@@ -85,11 +85,11 @@ impl<S: SourceOperation> SourceOperator<S> {
 }
 
 impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let states = self
             .source
             .create_partition_sources(partitions[0])
@@ -102,63 +102,63 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
             })
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         _batch: Batch2,
-    ) -> Result<PollPush> {
+    ) -> Result<PollPush2> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         match partition_state {
             PartitionState::Source(state) => {
                 if let Some(future) = &mut state.future {
                     match future.poll_unpin(cx) {
                         Poll::Ready(Ok(Some(batch))) => {
                             state.future = None; // Future complete, next pull with create a new one.
-                            return Ok(PollPull::Computed(batch.into()));
+                            return Ok(PollPull2::Computed(batch.into()));
                         }
-                        Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
+                        Poll::Ready(Ok(None)) => return Ok(PollPull2::Exhausted),
                         Poll::Ready(Err(e)) => return Err(e),
-                        Poll::Pending => return Ok(PollPull::Pending),
+                        Poll::Pending => return Ok(PollPull2::Pending),
                     }
                 }
 
                 let mut future = state.source.pull();
                 match future.poll_unpin(cx) {
-                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
-                    Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
+                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull2::Computed(batch.into())),
+                    Poll::Ready(Ok(None)) => Ok(PollPull2::Exhausted),
                     Poll::Ready(Err(e)) => Err(e),
                     Poll::Pending => {
                         // SAFETY: Source lives on the partition state and
                         // outlives this future.
                         state.future = Some(unsafe { make_static(future) });
-                        Ok(PollPull::Pending)
+                        Ok(PollPull2::Pending)
                     }
                 }
             }
