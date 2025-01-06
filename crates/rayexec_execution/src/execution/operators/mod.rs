@@ -30,6 +30,7 @@ pub mod unnest;
 pub mod values;
 pub mod window;
 
+pub mod batch_collection;
 pub mod physical_filter;
 pub mod physical_project;
 

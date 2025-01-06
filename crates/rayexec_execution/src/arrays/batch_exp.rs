@@ -108,6 +108,7 @@ where
         })
     }
 
+    /// Clones `other` into self.
     pub fn clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
         if self.arrays.len() != other.arrays.len() {
             return Err(RayexecError::new(
@@ -124,6 +125,7 @@ where
         Ok(())
     }
 
+    /// Selects rows from the batch based on `selection`.
     pub fn select(&mut self, manager: &B, selection: &[usize]) -> Result<()> {
         for arr in &mut self.arrays {
             arr.select(manager, selection.iter().copied())?;
