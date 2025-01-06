@@ -32,6 +32,7 @@ pub mod window;
 
 pub mod batch_collection;
 pub mod physical_filter;
+pub mod physical_hash_join;
 pub mod physical_project;
 
 pub(crate) mod util;
@@ -53,9 +54,9 @@ use empty::PhysicalEmpty;
 use filter::{FilterOperation, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
 use hash_join::{
-    HashJoinBuildPartitionState,
+    HashJoinBuildPartitionState2,
     HashJoinOperatorState,
-    HashJoinProbePartitionState,
+    HashJoinProbePartitionState2,
     PhysicalHashJoin,
 };
 use insert::PhysicalInsert;
@@ -125,8 +126,8 @@ pub enum PartitionState {
     UngroupedAggregate(UngroupedAggregatePartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
-    HashJoinBuild(HashJoinBuildPartitionState),
-    HashJoinProbe(HashJoinProbePartitionState),
+    HashJoinBuild2(HashJoinBuildPartitionState2),
+    HashJoinProbe2(HashJoinProbePartitionState2),
     Values(ValuesPartitionState),
     Sink(SinkPartitionState),
     Source(SourcePartitionState),

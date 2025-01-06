@@ -32,7 +32,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
-pub struct HashJoinBuildPartitionState {
+pub struct HashJoinBuildPartitionState2 {
     /// Hash table this partition will be writing to.
     ///
     /// Optional to enable moving from the local to global state once this
@@ -43,7 +43,7 @@ pub struct HashJoinBuildPartitionState {
 }
 
 #[derive(Debug)]
-pub struct HashJoinProbePartitionState {
+pub struct HashJoinProbePartitionState2 {
     /// Index of this partition.
     partition_idx: usize,
     /// The final output table. If None, the global state should be checked to
@@ -214,7 +214,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
         let build_states: Vec<_> = (0..build_partitions)
             .map(|_| {
-                PartitionState::HashJoinBuild(HashJoinBuildPartitionState {
+                PartitionState::HashJoinBuild2(HashJoinBuildPartitionState2 {
                     local_hashtable: Some(PartitionHashTable::new(&self.conditions)),
                     hash_buf: Vec::new(),
                 })
@@ -223,7 +223,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
         let probe_states: Vec<_> = (0..probe_partitions)
             .map(|idx| {
-                PartitionState::HashJoinProbe(HashJoinProbePartitionState {
+                PartitionState::HashJoinProbe2(HashJoinProbePartitionState2 {
                     partition_idx: idx,
                     global: None,
                     hash_buf: Vec::new(),
@@ -254,11 +254,11 @@ impl ExecutableOperator for PhysicalHashJoin {
         batch: Batch2,
     ) -> Result<PollPush2> {
         match partition_state {
-            PartitionState::HashJoinBuild(state) => {
+            PartitionState::HashJoinBuild2(state) => {
                 self.insert_into_local_table(state, batch)?;
                 Ok(PollPush2::NeedsMore)
             }
-            PartitionState::HashJoinProbe(state) => {
+            PartitionState::HashJoinProbe2(state) => {
                 // If we have pending output, we need to wait for that to get
                 // pulled before trying to compute additional batches.
                 if !state.buffered_output.is_empty() {
@@ -354,7 +354,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         operator_state: &OperatorState,
     ) -> Result<PollFinalize2> {
         match partition_state {
-            PartitionState::HashJoinBuild(state) => {
+            PartitionState::HashJoinBuild2(state) => {
                 let mut shared = match operator_state {
                     OperatorState::HashJoin(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
@@ -415,7 +415,7 @@ impl ExecutableOperator for PhysicalHashJoin {
 
                 Ok(PollFinalize2::Finalized)
             }
-            PartitionState::HashJoinProbe(state) => {
+            PartitionState::HashJoinProbe2(state) => {
                 let mut shared = match operator_state {
                     OperatorState::HashJoin(state) => state.inner.lock(),
                     other => panic!("invalid operator state: {other:?}"),
@@ -498,8 +498,8 @@ impl ExecutableOperator for PhysicalHashJoin {
         operator_state: &OperatorState,
     ) -> Result<PollPull2> {
         let state = match partition_state {
-            PartitionState::HashJoinProbe(state) => state,
-            PartitionState::HashJoinBuild(_) => {
+            PartitionState::HashJoinProbe2(state) => state,
+            PartitionState::HashJoinBuild2(_) => {
                 // We should only be pulling with the "probe" state. The "build"
                 // state acts as a sink into the operator.
                 panic!("should not pull with a build state")
@@ -604,7 +604,7 @@ impl PhysicalHashJoin {
     /// Inserts a batch into a partition-local hash table.
     fn insert_into_local_table(
         &self,
-        state: &mut HashJoinBuildPartitionState,
+        state: &mut HashJoinBuildPartitionState2,
         batch: Batch2,
     ) -> Result<()> {
         // Compute left hashes on equality conditions.
