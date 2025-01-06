@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use crate::arrays::array::Array2;
+use crate::arrays::batch::Batch2;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -45,7 +45,7 @@ impl fmt::Display for HashJoinCondition {
 #[derive(Debug)]
 pub struct LeftPrecomputedJoinCondition {
     /// Precomputed results for left batches.
-    pub left_precomputed: Vec<Array>,
+    pub left_precomputed: Vec<Array2>,
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
     pub function: PlannedScalarFunction,
@@ -77,9 +77,9 @@ pub struct LeftPrecomputedJoinConditions {
 impl LeftPrecomputedJoinConditions {
     /// Compute the left side of the condition using the provided batch as
     /// input.
-    pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
+    pub fn precompute_for_left_batch(&mut self, left: &Batch2) -> Result<()> {
         for condition in &mut self.conditions {
-            let precomputed = condition.left.eval(left)?;
+            let precomputed = condition.left.eval2(left)?;
             condition.left_precomputed.push(precomputed.into_owned())
         }
 
@@ -96,7 +96,7 @@ impl LeftPrecomputedJoinConditions {
         left_batch_idx: usize,
         left_row_sel: SelectionVector,
         right_row_sel: SelectionVector,
-        right: &Batch,
+        right: &Batch2,
     ) -> Result<(SelectionVector, SelectionVector)> {
         assert_eq!(left_row_sel.num_rows(), right_row_sel.num_rows());
 
@@ -121,20 +121,20 @@ impl LeftPrecomputedJoinConditions {
             left_precomputed.select_mut(left_row_sel.clone());
 
             // Eval the right side.
-            let right_arr = condition.right.eval(&selected_right)?;
+            let right_arr = condition.right.eval2(&selected_right)?;
 
             // Compute join condition result.
             let result = condition
                 .function
                 .function_impl
-                .execute(&[&left_precomputed, right_arr.as_ref()])?;
+                .execute2(&[&left_precomputed, right_arr.as_ref()])?;
 
             results.push(result);
         }
 
         // AND the results.
         let refs: Vec<_> = results.iter().collect();
-        let out = AndImpl.execute(&refs)?;
+        let out = AndImpl.execute2(&refs)?;
 
         // Generate a selection for the left and right selections.
         let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());

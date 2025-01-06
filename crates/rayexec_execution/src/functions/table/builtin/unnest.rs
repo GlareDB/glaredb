@@ -3,15 +3,15 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::batch::Batch;
+use crate::arrays::array::{Array2, ArrayData2};
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType};
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::physical_type::{PhysicalList_2, PhysicalType2};
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::execution::operators::unnest::unnest;
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{PollFinalize2, PollPush2};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -134,7 +134,7 @@ impl TableInOutFunction for UnnestInOutImpl {
 #[derive(Debug)]
 pub struct UnnestInOutPartitionState {
     /// The array we're unnesting.
-    input: Option<Array>,
+    input: Option<Array2>,
     /// Number of rows in the input batch.
     input_num_rows: usize,
     /// Current row we're processing.
@@ -152,7 +152,7 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, inputs: Batch2) -> Result<PollPush2> {
         if self.current_row < self.input_num_rows {
             // Still processing inputs, come back later.
             self.push_waker = Some(cx.waker().clone());
@@ -160,7 +160,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                 waker.wake();
             }
 
-            return Ok(PollPush::Pending(inputs));
+            return Ok(PollPush2::Pending(inputs));
         }
 
         self.input_num_rows = inputs.num_rows();
@@ -177,17 +177,17 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPush2::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize2> {
         self.finished = true;
 
         if let Some(waker) = self.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
@@ -207,26 +207,26 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
 
         let input = self.input.as_ref().unwrap();
         let output = match input.physical_type() {
-            PhysicalType::List => {
+            PhysicalType2::List => {
                 let child = match input.array_data() {
-                    ArrayData::List(list) => list.inner_array(),
+                    ArrayData2::List(list) => list.inner_array(),
                     _other => return Err(RayexecError::new("Unexpected storage type")),
                 };
 
-                match UnaryExecutor::value_at::<PhysicalList>(input, self.current_row)? {
+                match UnaryExecutor2::value_at::<PhysicalList_2>(input, self.current_row)? {
                     Some(meta) => {
                         // Row is a list, unnest.
                         unnest(child, meta.len as usize, meta)?
                     }
                     None => {
                         // Row is null, produce as single null
-                        Array::new_typed_null_array(child.datatype().clone(), 1)?
+                        Array2::new_typed_null_array(child.datatype().clone(), 1)?
                     }
                 }
             }
-            PhysicalType::UntypedNull => {
+            PhysicalType2::UntypedNull => {
                 // Just produce null array of length 1.
-                Array::new_untyped_null_array(1)
+                Array2::new_untyped_null_array(1)
             }
             other => {
                 return Err(RayexecError::new(format!(
@@ -247,7 +247,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             }
         }
 
-        let batch = Batch::try_new([output])?;
+        let batch = Batch2::try_new([output])?;
 
         Ok(InOutPollPull::Batch { batch, row_nums })
     }

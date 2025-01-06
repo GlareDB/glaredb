@@ -11,14 +11,14 @@ use rayexec_error::Result;
 pub use unary::*;
 
 use super::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 
 /// State for a single group's aggregate.
 ///
 /// An example state for SUM would be a struct that takes a running sum from
 /// values provided in `update`.
-pub trait AggregateState<Input, Output>: Debug {
+pub trait AggregateState2<Input, Output>: Debug {
     /// Merge other state into this state.
     fn merge(&mut self, other: &mut Self) -> Result<()>;
 
@@ -39,9 +39,9 @@ pub struct RowToStateMapping {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct StateCombiner;
+pub struct StateCombiner2;
 
-impl StateCombiner {
+impl StateCombiner2 {
     /// Combine states, merging states from `consume` into `targets`.
     ///
     /// `mapping` provides a mapping of consume states to the target index. The
@@ -53,7 +53,7 @@ impl StateCombiner {
         targets: &mut [State],
     ) -> Result<()>
     where
-        State: AggregateState<Input, Output>,
+        State: AggregateState2<Input, Output>,
     {
         for mapping in mapping {
             let target = &mut targets[mapping.to_state];
@@ -72,12 +72,12 @@ impl StateFinalizer {
     pub fn finalize<'a, State, I, B, Input, Output>(
         states: I,
         mut builder: ArrayBuilder<B>,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         B: ArrayDataBuffer,
         I: IntoIterator<Item = &'a mut State>,
         I::IntoIter: ExactSizeIterator,
-        State: AggregateState<Input, Output> + 'a,
+        State: AggregateState2<Input, Output> + 'a,
         Output: Borrow<B::Type>,
     {
         let states = states.into_iter();
@@ -99,7 +99,7 @@ impl StateFinalizer {
             Some(validities.into())
         };
 
-        Ok(Array {
+        Ok(Array2 {
             datatype: builder.datatype,
             selection: None,
             validity: validities,

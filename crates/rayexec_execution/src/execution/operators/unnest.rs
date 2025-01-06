@@ -7,16 +7,16 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::batch::Batch;
+use crate::arrays::array::{Array2, ArrayData2};
+use crate::arrays::batch::Batch2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{
     ArrayBuilder,
@@ -26,27 +26,27 @@ use crate::arrays::executor::builder::{
     PrimitiveBuffer,
 };
 use crate::arrays::executor::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalList,
-    PhysicalStorage,
-    PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUtf8,
+    PhysicalBinary_2,
+    PhysicalBool_2,
+    PhysicalF16_2,
+    PhysicalF32_2,
+    PhysicalF64_2,
+    PhysicalI128_2,
+    PhysicalI16_2,
+    PhysicalI32_2,
+    PhysicalI64_2,
+    PhysicalI8_2,
+    PhysicalList_2,
+    PhysicalStorage2,
+    PhysicalType2,
+    PhysicalU128_2,
+    PhysicalU16_2,
+    PhysicalU32_2,
+    PhysicalU64_2,
+    PhysicalU8_2,
+    PhysicalUtf8_2,
 };
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
 use crate::database::DatabaseContext;
@@ -56,9 +56,9 @@ use crate::expr::physical::PhysicalScalarExpression;
 #[derive(Debug)]
 pub struct UnnestPartitionState {
     /// Projections that need to extended to match the unnest outputs.
-    project_inputs: Vec<Array>,
+    project_inputs: Vec<Array2>,
     /// Inputs we're processing.
-    unnest_inputs: Vec<Array>,
+    unnest_inputs: Vec<Array2>,
     /// Number of rows in the input.
     input_num_rows: usize,
     /// Row we're currently unnesting.
@@ -82,22 +82,22 @@ pub struct PhysicalUnnest {
 }
 
 impl ExecutableOperator for PhysicalUnnest {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let partitions = partitions[0];
 
         let states: Vec<_> = (0..partitions)
             .map(|_| {
                 PartitionState::Unnest(UnnestPartitionState {
                     project_inputs: vec![
-                        Array::new_untyped_null_array(0);
+                        Array2::new_untyped_null_array(0);
                         self.project_expressions.len()
                     ],
                     unnest_inputs: vec![
-                        Array::new_untyped_null_array(0);
+                        Array2::new_untyped_null_array(0);
                         self.unnest_expressions.len()
                     ],
                     input_num_rows: 0,
@@ -109,21 +109,21 @@ impl ExecutableOperator for PhysicalUnnest {
             })
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        batch: Batch2,
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -136,16 +136,16 @@ impl ExecutableOperator for PhysicalUnnest {
                 waker.wake();
             }
 
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPush2::Pending(batch));
         }
 
         // Compute inputs. These will be stored until we've processed all rows.
         for (col_idx, expr) in self.project_expressions.iter().enumerate() {
-            state.project_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.project_inputs[col_idx] = expr.eval2(&batch)?.into_owned();
         }
 
         for (col_idx, expr) in self.unnest_expressions.iter().enumerate() {
-            state.unnest_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.unnest_inputs[col_idx] = expr.eval2(&batch)?.into_owned();
         }
 
         state.input_num_rows = batch.num_rows();
@@ -155,15 +155,15 @@ impl ExecutableOperator for PhysicalUnnest {
             waker.wake();
         }
 
-        Ok(PollPush::Pushed)
+        Ok(PollPush2::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -175,15 +175,15 @@ impl ExecutableOperator for PhysicalUnnest {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::Unnest(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -191,7 +191,7 @@ impl ExecutableOperator for PhysicalUnnest {
 
         if state.current_row >= state.input_num_rows {
             if state.finished {
-                return Ok(PollPull::Exhausted);
+                return Ok(PollPull2::Exhausted);
             }
 
             // We're done with these inputs. Come back later.
@@ -200,19 +200,19 @@ impl ExecutableOperator for PhysicalUnnest {
                 waker.wake();
             }
 
-            return Ok(PollPull::Pending);
+            return Ok(PollPull2::Pending);
         }
 
         // We have input ready, get the longest list for the current row.
         let mut longest = 0;
         for input_idx in 0..state.unnest_inputs.len() {
-            if state.unnest_inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
+            if state.unnest_inputs[input_idx].physical_type() == PhysicalType2::UntypedNull {
                 // Just let other unnest expressions determine the number of
                 // rows.
                 continue;
             }
 
-            if let Some(list_meta) = UnaryExecutor::value_at::<PhysicalList>(
+            if let Some(list_meta) = UnaryExecutor2::value_at::<PhysicalList_2>(
                 &state.unnest_inputs[input_idx],
                 state.current_row,
             )? {
@@ -244,13 +244,13 @@ impl ExecutableOperator for PhysicalUnnest {
             let arr = &state.unnest_inputs[input_idx];
 
             match arr.physical_type() {
-                PhysicalType::List => {
+                PhysicalType2::List => {
                     let child = match arr.array_data() {
-                        ArrayData::List(list) => list.inner_array(),
+                        ArrayData2::List(list) => list.inner_array(),
                         _other => return Err(RayexecError::new("Unexpected storage type")),
                     };
 
-                    match UnaryExecutor::value_at::<PhysicalList>(arr, state.current_row)? {
+                    match UnaryExecutor2::value_at::<PhysicalList_2>(arr, state.current_row)? {
                         Some(meta) => {
                             // Row is a list, unnest.
                             let out = unnest(child, longest as usize, meta)?;
@@ -259,7 +259,7 @@ impl ExecutableOperator for PhysicalUnnest {
                         None => {
                             // Row is null, produce nulls according to longest
                             // length.
-                            let out = Array::new_typed_null_array(
+                            let out = Array2::new_typed_null_array(
                                 child.datatype().clone(),
                                 longest as usize,
                             )?;
@@ -267,9 +267,9 @@ impl ExecutableOperator for PhysicalUnnest {
                         }
                     }
                 }
-                PhysicalType::UntypedNull => {
+                PhysicalType2::UntypedNull => {
                     // Just produce null array according to longest length.
-                    let out = Array::new_untyped_null_array(longest as usize);
+                    let out = Array2::new_untyped_null_array(longest as usize);
                     outputs.push(out);
                 }
                 other => {
@@ -290,9 +290,9 @@ impl ExecutableOperator for PhysicalUnnest {
             }
         }
 
-        let batch = Batch::try_new(outputs)?;
+        let batch = Batch2::try_new(outputs)?;
 
-        Ok(PollPull::Computed(batch.into()))
+        Ok(PollPull2::Computed(batch.into()))
     }
 }
 
@@ -304,122 +304,122 @@ impl Explainable for PhysicalUnnest {
     }
 }
 
-pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
+pub(crate) fn unnest(child: &Array2, longest_len: usize, meta: ListItemMetadata) -> Result<Array2> {
     let datatype = child.datatype().clone();
 
     match child.physical_type() {
-        PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
-        PhysicalType::Boolean => {
+        PhysicalType2::UntypedNull => Ok(Array2::new_untyped_null_array(longest_len)),
+        PhysicalType2::Boolean => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: BooleanBuffer::with_len(longest_len),
             };
-            unnest_inner::<PhysicalBool, _>(builder, child, meta)
+            unnest_inner::<PhysicalBool_2, _>(builder, child, meta)
         }
-        PhysicalType::Int8 => {
+        PhysicalType2::Int8 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i8>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI8, _>(builder, child, meta)
+            unnest_inner::<PhysicalI8_2, _>(builder, child, meta)
         }
-        PhysicalType::Int16 => {
+        PhysicalType2::Int16 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI16, _>(builder, child, meta)
+            unnest_inner::<PhysicalI16_2, _>(builder, child, meta)
         }
-        PhysicalType::Int32 => {
+        PhysicalType2::Int32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI32, _>(builder, child, meta)
+            unnest_inner::<PhysicalI32_2, _>(builder, child, meta)
         }
-        PhysicalType::Int64 => {
+        PhysicalType2::Int64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI64, _>(builder, child, meta)
+            unnest_inner::<PhysicalI64_2, _>(builder, child, meta)
         }
-        PhysicalType::Int128 => {
+        PhysicalType2::Int128 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<i128>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalI128, _>(builder, child, meta)
+            unnest_inner::<PhysicalI128_2, _>(builder, child, meta)
         }
-        PhysicalType::UInt8 => {
+        PhysicalType2::UInt8 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u8>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU8, _>(builder, child, meta)
+            unnest_inner::<PhysicalU8_2, _>(builder, child, meta)
         }
-        PhysicalType::UInt16 => {
+        PhysicalType2::UInt16 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU16, _>(builder, child, meta)
+            unnest_inner::<PhysicalU16_2, _>(builder, child, meta)
         }
-        PhysicalType::UInt32 => {
+        PhysicalType2::UInt32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU32, _>(builder, child, meta)
+            unnest_inner::<PhysicalU32_2, _>(builder, child, meta)
         }
-        PhysicalType::UInt64 => {
+        PhysicalType2::UInt64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU64, _>(builder, child, meta)
+            unnest_inner::<PhysicalU64_2, _>(builder, child, meta)
         }
-        PhysicalType::UInt128 => {
+        PhysicalType2::UInt128 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<u128>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalU128, _>(builder, child, meta)
+            unnest_inner::<PhysicalU128_2, _>(builder, child, meta)
         }
-        PhysicalType::Float16 => {
+        PhysicalType2::Float16 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f16>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF16, _>(builder, child, meta)
+            unnest_inner::<PhysicalF16_2, _>(builder, child, meta)
         }
-        PhysicalType::Float32 => {
+        PhysicalType2::Float32 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f32>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF32, _>(builder, child, meta)
+            unnest_inner::<PhysicalF32_2, _>(builder, child, meta)
         }
-        PhysicalType::Float64 => {
+        PhysicalType2::Float64 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: PrimitiveBuffer::<f64>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalF64, _>(builder, child, meta)
+            unnest_inner::<PhysicalF64_2, _>(builder, child, meta)
         }
-        PhysicalType::Utf8 => {
+        PhysicalType2::Utf8 => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: GermanVarlenBuffer::<str>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalUtf8, _>(builder, child, meta)
+            unnest_inner::<PhysicalUtf8_2, _>(builder, child, meta)
         }
-        PhysicalType::Binary => {
+        PhysicalType2::Binary => {
             let builder = ArrayBuilder {
                 datatype,
                 buffer: GermanVarlenBuffer::<[u8]>::with_len(longest_len),
             };
-            unnest_inner::<PhysicalBinary, _>(builder, child, meta)
+            unnest_inner::<PhysicalBinary_2, _>(builder, child, meta)
         }
         other => not_implemented!("Unnest for physical type {other:?}"),
     }
@@ -427,11 +427,11 @@ pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) 
 
 fn unnest_inner<'a, S, B>(
     mut builder: ArrayBuilder<B>,
-    child: &'a Array,
+    child: &'a Array2,
     meta: ListItemMetadata,
-) -> Result<Array>
+) -> Result<Array2>
 where
-    S: PhysicalStorage,
+    S: PhysicalStorage2,
     B: ArrayDataBuffer,
     S::Type<'a>: Borrow<B::Type>,
 {
@@ -459,7 +459,7 @@ where
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(Array2::new_with_validity_and_array_data(
                 builder.datatype,
                 out_validity,
                 builder.buffer.into_data(),
@@ -482,7 +482,7 @@ where
                 builder.buffer.put(out_idx, val.borrow());
             }
 
-            Ok(Array::new_with_validity_and_array_data(
+            Ok(Array2::new_with_validity_and_array_data(
                 builder.datatype,
                 out_validity,
                 builder.buffer.into_data(),

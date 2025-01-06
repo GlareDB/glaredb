@@ -5,16 +5,16 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecutionStates2,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use crate::arrays::array::Array2;
+use crate::arrays::batch::Batch2;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -25,7 +25,7 @@ use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 pub struct TableInOutPartitionState {
     function_state: Box<dyn inout::TableInOutPartitionState>,
     /// Additional outputs that will be included on the output batch.
-    additional_outputs: Vec<Array>,
+    additional_outputs: Vec<Array2>,
 }
 
 #[derive(Debug)]
@@ -39,11 +39,11 @@ pub struct PhysicalTableInOut {
 }
 
 impl ExecutableOperator for PhysicalTableInOut {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let partitions = partitions[0];
 
         let states = match &self.function.function_impl {
@@ -66,21 +66,21 @@ impl ExecutableOperator for PhysicalTableInOut {
             })
             .collect();
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
+            partition_states: InputOutputStates2::OneToOne {
                 partition_states: states,
             },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        batch: Batch2,
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -93,12 +93,12 @@ impl ExecutableOperator for PhysicalTableInOut {
             .function_inputs
             .iter()
             .map(|expr| {
-                let arr = expr.eval(&batch)?;
+                let arr = expr.eval2(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let inputs = Batch::try_new(inputs)?;
+        let inputs = Batch2::try_new(inputs)?;
 
         // Try to push first to avoid overwriting any buffered additional
         // outputs.
@@ -108,7 +108,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         // TODO: Remove needing to do this, the clones should be cheap, but the
         // expression execution is wasteful.
         match state.function_state.poll_push(cx, inputs)? {
-            PollPush::Pending(_) => Ok(PollPush::Pending(orig)),
+            PollPush2::Pending(_) => Ok(PollPush2::Pending(orig)),
             other => {
                 // Batch was pushed to the function state, compute additional
                 // outputs.
@@ -116,7 +116,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     .projected_outputs
                     .iter()
                     .map(|expr| {
-                        let arr = expr.eval(&batch)?;
+                        let arr = expr.eval2(&batch)?;
                         Ok(arr.into_owned())
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -128,12 +128,12 @@ impl ExecutableOperator for PhysicalTableInOut {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
             other => panic!("invalid state: {other:?}"),
@@ -142,12 +142,12 @@ impl ExecutableOperator for PhysicalTableInOut {
         state.function_state.poll_finalize_push(cx)
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -175,12 +175,12 @@ impl ExecutableOperator for PhysicalTableInOut {
                     arrays.push(additional);
                 }
 
-                let new_batch = Batch::try_new(arrays)?;
+                let new_batch = Batch2::try_new(arrays)?;
 
-                Ok(PollPull::Computed(new_batch.into()))
+                Ok(PollPull2::Computed(new_batch.into()))
             }
-            inout::InOutPollPull::Pending => Ok(PollPull::Pending),
-            inout::InOutPollPull::Exhausted => Ok(PollPull::Exhausted),
+            inout::InOutPollPull::Pending => Ok(PollPull2::Pending),
+            inout::InOutPollPull::Exhausted => Ok(PollPull2::Exhausted),
         }
     }
 }

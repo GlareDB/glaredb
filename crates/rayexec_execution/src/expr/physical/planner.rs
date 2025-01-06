@@ -64,10 +64,15 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 let mut offset = 0;
                 for &table_ref in table_refs {
                     let table = self.table_list.get(table_ref)?;
+                    let datatype =
+                        table.column_types.get(col.column).cloned().ok_or_else(|| {
+                            RayexecError::new(format!("Missing column: {}", col.column))
+                        })?;
 
                     if col.table_scope == table_ref {
                         return Ok(PhysicalScalarExpression::Column(PhysicalColumnExpr {
                             idx: offset + col.column,
+                            datatype,
                         }));
                     }
 
@@ -176,7 +181,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 let else_expr = match &expr.else_expr {
                     Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
                     None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
-                        to: datatype,
+                        to: datatype.clone(),
                         expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
                             literal: ScalarValue::Null,
                         })),
@@ -186,6 +191,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
                     cases,
                     else_expr: Box::new(else_expr),
+                    datatype,
                 }))
             }
             other => Err(RayexecError::new(format!(

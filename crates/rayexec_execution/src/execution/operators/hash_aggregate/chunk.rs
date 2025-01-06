@@ -2,11 +2,10 @@ use rayexec_error::Result;
 
 use super::hash_table::GroupAddress;
 use super::AggregateStates;
-use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::PhysicalType;
+use crate::arrays::array::Array2;
+use crate::arrays::executor::physical_type::PhysicalType2;
 use crate::arrays::executor::scalar::concat;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
-use crate::functions::aggregate::ChunkGroupAddressIter;
 
 /// Holds a chunk of value for the aggregate hash table.
 #[derive(Debug)]
@@ -18,7 +17,7 @@ pub struct GroupChunk {
     /// All row hashes.
     pub hashes: Vec<u64>,
     /// Arrays making up the group values.
-    pub arrays: Vec<Array>,
+    pub arrays: Vec<Array2>,
     /// Aggregate states we're keeping track of.
     pub aggregate_states: Vec<AggregateStates>,
 }
@@ -27,7 +26,7 @@ impl GroupChunk {
     pub fn can_append(
         &self,
         new_groups: usize,
-        group_vals: impl ExactSizeIterator<Item = PhysicalType>,
+        group_vals: impl ExactSizeIterator<Item = PhysicalType2>,
     ) -> bool {
         if self.num_groups + new_groups > DEFAULT_TARGET_BATCH_SIZE {
             return false;
@@ -50,7 +49,7 @@ impl GroupChunk {
     /// states.
     pub fn append_group_values(
         &mut self,
-        group_vals: impl ExactSizeIterator<Item = Array>,
+        group_vals: impl ExactSizeIterator<Item = Array2>,
         hashes: impl ExactSizeIterator<Item = u64>,
     ) -> Result<()> {
         debug_assert_eq!(self.arrays.len(), group_vals.len());
@@ -69,7 +68,7 @@ impl GroupChunk {
         self.hashes.extend(hashes);
 
         for states in &mut self.aggregate_states {
-            states.states.new_states(new_groups);
+            states.states.new_groups(new_groups);
         }
 
         self.num_groups += new_groups;
@@ -82,7 +81,7 @@ impl GroupChunk {
     /// `addrs` contains a list of group addresses we'll be using to map input
     /// rows to the state index. If and address is for a different chunk, that
     /// row will be skipped.
-    pub fn update_states(&mut self, inputs: &[Array], addrs: &[GroupAddress]) -> Result<()> {
+    pub fn update_states(&mut self, inputs: &[Array2], addrs: &[GroupAddress]) -> Result<()> {
         for agg_states in &mut self.aggregate_states {
             let input_cols: Vec<_> = agg_states
                 .col_selection
@@ -91,10 +90,11 @@ impl GroupChunk {
                 .filter_map(|(selected, arr)| if selected { Some(arr) } else { None })
                 .collect();
 
-            agg_states.states.update_states(
-                &input_cols,
-                ChunkGroupAddressIter::new(self.chunk_idx, addrs),
-            )?;
+            unimplemented!()
+            // agg_states.states.update_states2(
+            //     &input_cols,
+            //     ChunkGroupAddressIter::new(self.chunk_idx, addrs),
+            // )?;
         }
 
         Ok(())
@@ -110,10 +110,11 @@ impl GroupChunk {
             let own_state = &mut self.aggregate_states[agg_idx];
             let other_state = &mut other.aggregate_states[agg_idx];
 
-            own_state.states.combine(
-                &mut other_state.states,
-                ChunkGroupAddressIter::new(self.chunk_idx, addrs),
-            )?;
+            unimplemented!()
+            // own_state.states.combine(
+            //     &mut other_state.states,
+            //     ChunkGroupAddressIter::new(self.chunk_idx, addrs),
+            // )?;
         }
 
         Ok(())

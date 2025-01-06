@@ -1,28 +1,28 @@
 use rayexec_error::{RayexecError, Result};
 
-use super::{AggregateState, RowToStateMapping};
-use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use super::{AggregateState2, RowToStateMapping};
+use crate::arrays::array::Array2;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::executor::scalar::check_validity;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 /// Updates aggregate states for an aggregate that accepts two inputs.
 #[derive(Debug, Clone, Copy)]
-pub struct BinaryNonNullUpdater;
+pub struct BinaryNonNullUpdater2;
 
-impl BinaryNonNullUpdater {
+impl BinaryNonNullUpdater2 {
     pub fn update<'a, S1, S2, I, State, Output>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a Array2,
+        array2: &'a Array2,
         mapping: I,
         states: &mut [State],
     ) -> Result<()>
     where
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: PhysicalStorage2,
+        S2: PhysicalStorage2,
         I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<(S1::Type<'a>, S2::Type<'a>), Output>,
+        State: AggregateState2<(S1::Type<'a>, S2::Type<'a>), Output>,
     {
         if array1.logical_len() != array2.logical_len() {
             return Err(RayexecError::new(format!(
@@ -77,7 +77,7 @@ impl BinaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::executor::physical_type::PhysicalI32;
+    use crate::arrays::executor::physical_type::PhysicalI32_2;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]
@@ -92,7 +92,7 @@ mod tests {
         }
     }
 
-    impl AggregateState<(i32, i32), i32> for TestAddSumAndProductState {
+    impl AggregateState2<(i32, i32), i32> for TestAddSumAndProductState {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.sum += other.sum;
             self.product *= other.product;
@@ -113,8 +113,8 @@ mod tests {
     #[test]
     fn binary_primitive_single_state() {
         let mut states = [TestAddSumAndProductState::default()];
-        let array1 = Array::from_iter([1, 2, 3, 4, 5]);
-        let array2 = Array::from_iter([6, 7, 8, 9, 10]);
+        let array1 = Array2::from_iter([1, 2, 3, 4, 5]);
+        let array2 = Array2::from_iter([6, 7, 8, 9, 10]);
 
         let mapping = [
             RowToStateMapping {
@@ -131,7 +131,7 @@ mod tests {
             },
         ];
 
-        BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _, _>(
+        BinaryNonNullUpdater2::update::<PhysicalI32_2, PhysicalI32_2, _, _, _>(
             &array1,
             &array2,
             mapping,

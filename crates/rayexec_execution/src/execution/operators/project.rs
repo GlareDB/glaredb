@@ -1,13 +1,13 @@
 use rayexec_error::Result;
 
 use super::simple::{SimpleOperator, StatelessOperation};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
 
-pub type PhysicalProject = SimpleOperator<ProjectOperation>;
+pub type PhysicalProject2 = SimpleOperator<ProjectOperation>;
 
 #[derive(Debug)]
 pub struct ProjectOperation {
@@ -21,17 +21,17 @@ impl ProjectOperation {
 }
 
 impl StatelessOperation for ProjectOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
+    fn execute(&self, batch: Batch2) -> Result<Batch2> {
         let arrs = self
             .exprs
             .iter()
             .map(|expr| {
-                let arr = expr.eval(&batch)?;
+                let arr = expr.eval2(&batch)?;
                 Ok(arr.into_owned())
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Batch::try_new(arrs)
+        Batch2::try_new(arrs)
     }
 }
 
@@ -41,7 +41,7 @@ impl Explainable for ProjectOperation {
     }
 }
 
-impl DatabaseProtoConv for PhysicalProject {
+impl DatabaseProtoConv for PhysicalProject2 {
     type ProtoType = rayexec_proto::generated::execution::PhysicalProject;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {

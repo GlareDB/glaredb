@@ -1,28 +1,28 @@
 use rayexec_error::Result;
 
 use super::check_validity;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::executor::scalar::validate_logical_len;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
-pub struct BinaryExecutor;
+pub struct BinaryExecutor2;
 
-impl BinaryExecutor {
+impl BinaryExecutor2 {
     pub fn execute<'a, S1, S2, B, Op>(
-        array1: &'a Array,
-        array2: &'a Array,
+        array1: &'a Array2,
+        array2: &'a Array2,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: PhysicalStorage2,
+        S2: PhysicalStorage2,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
@@ -81,7 +81,7 @@ impl BinaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(Array2 {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,
@@ -97,20 +97,20 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalUtf8_2};
     use crate::arrays::scalar::ScalarValue;
 
     #[test]
     fn binary_simple_add() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter([4, 5, 6]);
+        let left = Array2::from_iter([1, 2, 3]);
+        let right = Array2::from_iter([4, 5, 6]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Int32,
             buffer: PrimitiveBuffer::<i32>::with_len(3),
         };
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32_2, PhysicalI32_2, _, _>(
             &left,
             &right,
             builder,
@@ -125,8 +125,8 @@ mod tests {
 
     #[test]
     fn binary_string_repeat() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter(["hello", "world", "goodbye!"]);
+        let left = Array2::from_iter([1, 2, 3]);
+        let right = Array2::from_iter(["hello", "world", "goodbye!"]);
 
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -134,7 +134,7 @@ mod tests {
         };
 
         let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32_2, PhysicalUtf8_2, _, _>(
             &left,
             &right,
             builder,
@@ -162,13 +162,13 @@ mod tests {
     #[test]
     fn binary_add_with_invalid() {
         // Make left constant null.
-        let mut left = Array::from_iter([1]);
+        let mut left = Array2::from_iter([1]);
         left.put_selection(SelectionVector::repeated(3, 0));
         left.set_physical_validity(0, false);
 
-        let right = Array::from_iter([2, 3, 4]);
+        let right = Array2::from_iter([2, 3, 4]);
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        let got = BinaryExecutor2::execute::<PhysicalI32_2, PhysicalI32_2, _, _>(
             &left,
             &right,
             ArrayBuilder {

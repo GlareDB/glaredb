@@ -9,20 +9,20 @@ use super::hash_aggregate::distinct::DistinctGroupedStates;
 use super::hash_aggregate::hash_table::GroupAddress;
 use super::{
     ExecutableOperator,
-    ExecutionStates,
+    ExecutionStates2,
     OperatorState,
     PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
+    PollFinalize2,
+    PollPull2,
+    PollPush2,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::array::selection::Selection;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
-use crate::execution::operators::InputOutputStates;
+use crate::execution::operators::InputOutputStates2;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::states::AggregateGroupStates;
-use crate::functions::aggregate::ChunkGroupAddressIter;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
@@ -46,7 +46,7 @@ pub enum UngroupedAggregatePartitionState {
         ///
         /// Currently only one partition will actually produce output. The rest
         /// will be empty.
-        batches: Vec<Batch>,
+        batches: Vec<Batch2>,
     },
 }
 
@@ -93,7 +93,7 @@ impl PhysicalUngroupedAggregate {
             } else {
                 agg.function.function_impl.new_states()
             };
-            state.new_states(1);
+            state.new_groups(1);
             states.push(state);
         }
 
@@ -102,11 +102,11 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl ExecutableOperator for PhysicalUngroupedAggregate {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    ) -> Result<ExecutionStates2> {
         let num_partitions = partitions[0];
 
         let inner = OperatorStateInner {
@@ -129,26 +129,26 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(ExecutionStates {
+        Ok(ExecutionStates2 {
             operator_state: Arc::new(OperatorState::UngroupedAggregate(operator_state)),
-            partition_states: InputOutputStates::OneToOne { partition_states },
+            partition_states: InputOutputStates2::OneToOne { partition_states },
         })
     }
 
-    fn poll_push(
+    fn poll_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        batch: Batch2,
+    ) -> Result<PollPush2> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
         match state {
-            UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
+            UngroupedAggregatePartitionState::Aggregating { .. } => {
                 // All rows map to the same group (group 0)
                 let addrs: Vec<_> = (0..batch.num_rows())
                     .map(|_| GroupAddress {
@@ -164,12 +164,13 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|expr| batch.column(expr.idx).expect("column to exist"))
                         .collect();
 
-                    agg_states[agg_idx]
-                        .update_states(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
+                    unimplemented!()
+                    // agg_states[agg_idx]
+                    //     .update_states2(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
                 }
 
                 // Keep pushing.
-                Ok(PollPush::NeedsMore)
+                Ok(PollPush2::NeedsMore)
             }
             UngroupedAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
                 "Attempted to push to partition that should be producing batches",
@@ -177,12 +178,12 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize_push2(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
+    ) -> Result<PollFinalize2> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -201,17 +202,13 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 };
 
                 // Everything maps to the same group (group 0)
-                let mapping = [GroupAddress {
-                    chunk_idx: 0,
-                    row_idx: 0,
-                }];
-
                 for (mut local_agg_state, global_agg_state) in
                     agg_states.into_iter().zip(shared.agg_states.iter_mut())
                 {
                     global_agg_state.combine(
                         &mut local_agg_state,
-                        ChunkGroupAddressIter::new(0, &mapping),
+                        Selection::selection(&[0]),
+                        &[0],
                     )?;
                 }
 
@@ -219,7 +216,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                 if shared.remaining == 0 {
                     // This partition is the chosen one to produce the output.
-                    let mut final_states = std::mem::take(&mut shared.agg_states);
+                    let final_states = std::mem::take(&mut shared.agg_states);
 
                     // Wake up other partitions to let them know they are not
                     // the chosen ones.
@@ -232,20 +229,21 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     // Lock no longer needed.
                     std::mem::drop(shared);
 
-                    let arrays = final_states
-                        .iter_mut()
-                        .map(|s| s.finalize())
-                        .collect::<Result<Vec<_>>>()?;
+                    unimplemented!()
+                    // let arrays = final_states
+                    //     .iter_mut()
+                    //     .map(|s| s.finalize2())
+                    //     .collect::<Result<Vec<_>>>()?;
 
-                    let batch = Batch::try_new(arrays)?;
+                    // let batch = Batch2::try_new(arrays)?;
 
-                    *state = UngroupedAggregatePartitionState::Producing {
-                        partition_idx: *partition_idx,
-                        batches: vec![batch],
-                    }
+                    // *state = UngroupedAggregatePartitionState::Producing {
+                    //     partition_idx: *partition_idx,
+                    //     batches: vec![batch],
+                    // }
                 }
 
-                Ok(PollFinalize::Finalized)
+                Ok(PollFinalize2::Finalized)
             }
             UngroupedAggregatePartitionState::Producing { .. } => Err(RayexecError::new(
                 "Attempted to finalize push partition that's producing",
@@ -253,12 +251,12 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         }
     }
 
-    fn poll_pull(
+    fn poll_pull2(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
             other => panic!("invalid partition state: {other:?}"),
@@ -266,8 +264,8 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
         match state {
             UngroupedAggregatePartitionState::Producing { batches, .. } => match batches.pop() {
-                Some(batch) => Ok(PollPull::Computed(batch.into())),
-                None => Ok(PollPull::Exhausted),
+                Some(batch) => Ok(PollPull2::Computed(batch.into())),
+                None => Ok(PollPull2::Exhausted),
             },
             UngroupedAggregatePartitionState::Aggregating { partition_idx, .. } => {
                 let mut shared = match operator_state {
@@ -277,12 +275,12 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
 
                 if shared.remaining == 0 {
                     // We weren't the chosen partition to produce output. Immediately exhausted.
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPull2::Exhausted);
                 }
 
                 shared.pull_wakers[*partition_idx] = Some(cx.waker().clone());
 
-                Ok(PollPull::Pending)
+                Ok(PollPull2::Pending)
             }
         }
     }

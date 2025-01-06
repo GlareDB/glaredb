@@ -22,7 +22,7 @@ use crate::execution::operators::sink::{SinkOperation, SinkOperator};
 use crate::execution::operators::source::{SourceOperation, SourceOperator};
 use crate::execution::operators::{
     ExecutableOperator,
-    InputOutputStates,
+    InputOutputStates2,
     OperatorState,
     PartitionState,
     PhysicalOperator,
@@ -363,9 +363,9 @@ impl PendingQuery {
                 }
 
                 let operator = Arc::new(PhysicalOperator::ResultSink(SinkOperator::new(sink)));
-                let states = operator.create_states(context, vec![partitions])?;
+                let states = operator.create_states2(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
-                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    InputOutputStates2::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states for query sink")),
                 };
 
@@ -429,9 +429,9 @@ impl PendingQuery {
                     }
                 };
 
-                let states = operator.create_states(context, vec![partitions])?;
+                let states = operator.create_states2(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
-                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    InputOutputStates2::OneToOne { partition_states } => partition_states,
                     _ => return Err(RayexecError::new("invalid partition states")),
                 };
 
@@ -549,9 +549,9 @@ impl PendingQuery {
                     }
                 };
 
-                let states = operator.create_states(context, vec![partitions])?;
+                let states = operator.create_states2(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
-                    InputOutputStates::OneToOne { partition_states } => partition_states,
+                    InputOutputStates2::OneToOne { partition_states } => partition_states,
                     _ => {
                         return Err(RayexecError::new(
                             "Invalid partition states for query source",
@@ -610,10 +610,10 @@ impl PendingQuery {
     ) -> Result<ExecutablePipeline> {
         let rr_operator = Arc::new(PhysicalOperator::RoundRobin(PhysicalRoundRobinRepartition));
         let states = rr_operator
-            .create_states(context, vec![pipeline.num_partitions(), output_partitions])?;
+            .create_states2(context, vec![pipeline.num_partitions(), output_partitions])?;
 
         let (push_states, pull_states) = match states.partition_states {
-            InputOutputStates::SeparateInputOutput {
+            InputOutputStates2::SeparateInputOutput {
                 push_states,
                 pull_states,
             } => (push_states, pull_states),
@@ -696,17 +696,19 @@ impl PendingOperatorWithState {
             .unwrap_or(config.partitions);
 
         // TODO: How to get other input partitions.
-        let states = operator.operator.create_states(context, vec![partitions])?;
+        let states = operator
+            .operator
+            .create_states2(context, vec![partitions])?;
 
         Ok(match states.partition_states {
-            InputOutputStates::OneToOne { partition_states } => PendingOperatorWithState {
+            InputOutputStates2::OneToOne { partition_states } => PendingOperatorWithState {
                 operator: operator.operator,
                 operator_state: states.operator_state,
                 input_states: vec![Some(partition_states)],
                 pull_states: VecDeque::new(),
                 trunk_idx: 0,
             },
-            InputOutputStates::NaryInputSingleOutput {
+            InputOutputStates2::NaryInputSingleOutput {
                 partition_states,
                 pull_states,
             } => {
@@ -719,7 +721,7 @@ impl PendingOperatorWithState {
                     trunk_idx: pull_states,
                 }
             }
-            InputOutputStates::SeparateInputOutput {
+            InputOutputStates2::SeparateInputOutput {
                 push_states,
                 pull_states,
             } => PendingOperatorWithState {

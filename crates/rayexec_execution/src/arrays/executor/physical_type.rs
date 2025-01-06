@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 
 use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
-use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::array::{Array2, ArrayData2, BinaryData};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{
     AddressableStorage,
@@ -20,7 +20,7 @@ use crate::arrays::storage::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PhysicalType {
+pub enum PhysicalType2 {
     UntypedNull,
     Boolean,
     Int8,
@@ -42,8 +42,8 @@ pub enum PhysicalType {
     List,
 }
 
-impl PhysicalType {
-    pub fn zeroed_array_data(&self, len: usize) -> ArrayData {
+impl PhysicalType2 {
+    pub fn zeroed_array_data(&self, len: usize) -> ArrayData2 {
         match self {
             Self::UntypedNull => UntypedNullStorage(len).into(),
             Self::Boolean => BooleanBuffer::with_len(len).into_data(),
@@ -65,14 +65,14 @@ impl PhysicalType {
             Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
             Self::List => ListStorage {
                 metadata: vec![ListItemMetadata::default(); len].into(),
-                array: Array::new_untyped_null_array(0),
+                array: Array2::new_untyped_null_array(0),
             }
             .into(),
         }
     }
 }
 
-impl ProtoConv for PhysicalType {
+impl ProtoConv for PhysicalType2 {
     type ProtoType = rayexec_proto::generated::physical_type::PhysicalType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
@@ -177,14 +177,19 @@ impl VarlenType for [u8] {
 ///
 /// Contains a lifetime to enable tying the returned storage to the provided
 /// array data.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+pub trait PhysicalStorage2: Debug + Sync + Send + Clone + Copy + 'static {
+    // /// The type that's stored in the primary buffer.
+    // ///
+    // /// This should be small and fixed sized.
+    // type PrimaryBufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
+
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
     /// The type of the underlying array storage.
     type Storage<'a>: AddressableStorage<T = Self::Type<'a>>;
 
     /// Gets the storage for the array that we can access directly.
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>>;
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>>;
 }
 
 /// Type that's able to be used for any physical type.
@@ -195,11 +200,11 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalAny;
 
-impl PhysicalStorage for PhysicalAny {
+impl PhysicalStorage2 for PhysicalAny {
     type Type<'a> = ();
     type Storage<'a> = UnitStorage;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         Ok(UnitStorage(data.len()))
     }
 }
@@ -227,255 +232,255 @@ impl AddressableStorage for UnitStorage {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalUntypedNull;
+pub struct PhysicalUntypedNull_2;
 
-impl PhysicalStorage for PhysicalUntypedNull {
+impl PhysicalStorage2 for PhysicalUntypedNull_2 {
     type Type<'a> = UntypedNull;
     type Storage<'a> = UntypedNullStorage;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UntypedNull(s) => Ok(*s),
+            ArrayData2::UntypedNull(s) => Ok(*s),
             _ => Err(RayexecError::new("invalid storage")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalBool;
+pub struct PhysicalBool_2;
 
-impl PhysicalStorage for PhysicalBool {
+impl PhysicalStorage2 for PhysicalBool_2 {
     type Type<'a> = bool;
     type Storage<'a> = BooleanStorageRef<'a>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
+            ArrayData2::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
             _ => Err(RayexecError::new("invalid storage, expected boolean")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI8;
+pub struct PhysicalI8_2;
 
-impl PhysicalStorage for PhysicalI8 {
+impl PhysicalStorage2 for PhysicalI8_2 {
     type Type<'a> = i8;
     type Storage<'a> = PrimitiveStorageSlice<'a, i8>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Int8(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Int8(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected int8")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI16;
+pub struct PhysicalI16_2;
 
-impl PhysicalStorage for PhysicalI16 {
+impl PhysicalStorage2 for PhysicalI16_2 {
     type Type<'a> = i16;
     type Storage<'a> = PrimitiveStorageSlice<'a, i16>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Int16(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Int16(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected int16")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI32;
+pub struct PhysicalI32_2;
 
-impl PhysicalStorage for PhysicalI32 {
+impl PhysicalStorage2 for PhysicalI32_2 {
     type Type<'a> = i32;
     type Storage<'a> = PrimitiveStorageSlice<'a, i32>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Int32(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Int32(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected int32")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI64;
+pub struct PhysicalI64_2;
 
-impl PhysicalStorage for PhysicalI64 {
+impl PhysicalStorage2 for PhysicalI64_2 {
     type Type<'a> = i64;
     type Storage<'a> = PrimitiveStorageSlice<'a, i64>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Int64(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Int64(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected int64")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalI128;
+pub struct PhysicalI128_2;
 
-impl PhysicalStorage for PhysicalI128 {
+impl PhysicalStorage2 for PhysicalI128_2 {
     type Type<'a> = i128;
     type Storage<'a> = PrimitiveStorageSlice<'a, i128>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Int128(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Int128(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected int128")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU8;
+pub struct PhysicalU8_2;
 
-impl PhysicalStorage for PhysicalU8 {
+impl PhysicalStorage2 for PhysicalU8_2 {
     type Type<'a> = u8;
     type Storage<'a> = PrimitiveStorageSlice<'a, u8>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UInt8(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::UInt8(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected u8")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU16;
+pub struct PhysicalU16_2;
 
-impl PhysicalStorage for PhysicalU16 {
+impl PhysicalStorage2 for PhysicalU16_2 {
     type Type<'a> = u16;
     type Storage<'a> = PrimitiveStorageSlice<'a, u16>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UInt16(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::UInt16(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected u16")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU32;
+pub struct PhysicalU32_2;
 
-impl PhysicalStorage for PhysicalU32 {
+impl PhysicalStorage2 for PhysicalU32_2 {
     type Type<'a> = u32;
     type Storage<'a> = PrimitiveStorageSlice<'a, u32>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UInt32(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::UInt32(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected u32")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU64;
+pub struct PhysicalU64_2;
 
-impl PhysicalStorage for PhysicalU64 {
+impl PhysicalStorage2 for PhysicalU64_2 {
     type Type<'a> = u64;
     type Storage<'a> = PrimitiveStorageSlice<'a, u64>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UInt64(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::UInt64(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected u64")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalU128;
+pub struct PhysicalU128_2;
 
-impl PhysicalStorage for PhysicalU128 {
+impl PhysicalStorage2 for PhysicalU128_2 {
     type Type<'a> = u128;
     type Storage<'a> = PrimitiveStorageSlice<'a, u128>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected u128")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF16;
+pub struct PhysicalF16_2;
 
-impl PhysicalStorage for PhysicalF16 {
+impl PhysicalStorage2 for PhysicalF16_2 {
     type Type<'a> = f16;
     type Storage<'a> = PrimitiveStorageSlice<'a, f16>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Float16(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Float16(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected f32")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF32;
+pub struct PhysicalF32_2;
 
-impl PhysicalStorage for PhysicalF32 {
+impl PhysicalStorage2 for PhysicalF32_2 {
     type Type<'a> = f32;
     type Storage<'a> = PrimitiveStorageSlice<'a, f32>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Float32(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Float32(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected f32")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalF64;
+pub struct PhysicalF64_2;
 
-impl PhysicalStorage for PhysicalF64 {
+impl PhysicalStorage2 for PhysicalF64_2 {
     type Type<'a> = f64;
     type Storage<'a> = PrimitiveStorageSlice<'a, f64>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Float64(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Float64(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected f64")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalInterval;
+pub struct PhysicalInterval_2;
 
-impl PhysicalStorage for PhysicalInterval {
+impl PhysicalStorage2 for PhysicalInterval_2 {
     type Type<'a> = Interval;
     type Storage<'a> = PrimitiveStorageSlice<'a, Interval>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Interval(storage) => Ok(storage.as_primitive_storage_slice()),
+            ArrayData2::Interval(storage) => Ok(storage.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected interval")),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalBinary;
+pub struct PhysicalBinary_2;
 
-impl PhysicalStorage for PhysicalBinary {
+impl PhysicalStorage2 for PhysicalBinary_2 {
     type Type<'a> = &'a [u8];
     type Storage<'a> = BinaryDataStorage<'a>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Binary(binary) => match binary {
+            ArrayData2::Binary(binary) => match binary {
                 BinaryData::Binary(b) => {
                     Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()))
                 }
@@ -490,15 +495,15 @@ impl PhysicalStorage for PhysicalBinary {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalUtf8;
+pub struct PhysicalUtf8_2;
 
-impl PhysicalStorage for PhysicalUtf8 {
+impl PhysicalStorage2 for PhysicalUtf8_2 {
     type Type<'a> = &'a str;
     type Storage<'a> = StrDataStorage<'a>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Binary(binary) => match binary {
+            ArrayData2::Binary(binary) => match binary {
                 BinaryData::Binary(b) => {
                     Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()).into())
                 }
@@ -584,15 +589,15 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PhysicalList;
+pub struct PhysicalList_2;
 
-impl PhysicalStorage for PhysicalList {
+impl PhysicalStorage2 for PhysicalList_2 {
     type Type<'a> = ListItemMetadata;
     type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
+            ArrayData2::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected list")),
         }
     }

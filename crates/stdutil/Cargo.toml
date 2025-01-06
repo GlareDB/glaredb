@@ -1,0 +1,6 @@
+[package]
+name = "stdutil"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

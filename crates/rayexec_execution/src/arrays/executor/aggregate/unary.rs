@@ -1,25 +1,25 @@
 use rayexec_error::Result;
 
-use super::{AggregateState, RowToStateMapping};
-use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use super::{AggregateState2, RowToStateMapping};
+use crate::arrays::array::Array2;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 /// Updates aggregate states for an aggregate that accepts one input.
 #[derive(Debug, Clone, Copy)]
-pub struct UnaryNonNullUpdater;
+pub struct UnaryNonNullUpdater2;
 
-impl UnaryNonNullUpdater {
+impl UnaryNonNullUpdater2 {
     pub fn update<'a, S, I, State, Output>(
-        array: &'a Array,
+        array: &'a Array2,
         mapping: I,
         states: &mut [State],
     ) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: PhysicalStorage2,
         I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<S::Type<'a>, Output>,
+        State: AggregateState2<S::Type<'a>, Output>,
     {
         let selection = array.selection_vector();
 
@@ -60,14 +60,14 @@ impl UnaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::executor::physical_type::{PhysicalI32_2, PhysicalUtf8_2};
 
     #[derive(Debug, Default)]
     struct TestSumState {
         val: i32,
     }
 
-    impl AggregateState<i32, i32> for TestSumState {
+    impl AggregateState2<i32, i32> for TestSumState {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.val += other.val;
             Ok(())
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn unary_primitive_single_state() {
         let mut states = [TestSumState::default()];
-        let array = Array::from_iter([1, 2, 3, 4, 5]);
+        let array = Array2::from_iter([1, 2, 3, 4, 5]);
         let mapping = [
             RowToStateMapping {
                 from_row: 1,
@@ -102,7 +102,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater2::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!(11, states[0].val);
     }
@@ -110,7 +111,7 @@ mod tests {
     #[test]
     fn unary_primitive_single_state_skip_null() {
         let mut states = [TestSumState::default()];
-        let array = Array::from_iter([Some(1), Some(2), Some(3), None, Some(5)]);
+        let array = Array2::from_iter([Some(1), Some(2), Some(3), None, Some(5)]);
         let mapping = [
             RowToStateMapping {
                 from_row: 1,
@@ -126,7 +127,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater2::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!(7, states[0].val);
     }
@@ -134,7 +136,7 @@ mod tests {
     #[test]
     fn unary_primitive_multiple_state() {
         let mut states = [TestSumState::default(), TestSumState::default()];
-        let array = Array::from_iter([1, 2, 3, 4, 5]);
+        let array = Array2::from_iter([1, 2, 3, 4, 5]);
         let mapping = [
             RowToStateMapping {
                 from_row: 1,
@@ -154,7 +156,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater2::update::<PhysicalI32_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!(5, states[0].val);
         assert_eq!(7, states[1].val);
@@ -165,7 +168,7 @@ mod tests {
         buf: String,
     }
 
-    impl AggregateState<&str, String> for TestStringAgg {
+    impl AggregateState2<&str, String> for TestStringAgg {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.buf.push_str(&other.buf);
             Ok(())
@@ -185,7 +188,7 @@ mod tests {
     fn unary_str_single_state() {
         // Test just checks to ensure working with varlen is sane.
         let mut states = [TestStringAgg::default()];
-        let array = Array::from_iter(["aa", "bbb", "cccc"]);
+        let array = Array2::from_iter(["aa", "bbb", "cccc"]);
         let mapping = [
             RowToStateMapping {
                 from_row: 0,
@@ -201,7 +204,8 @@ mod tests {
             },
         ];
 
-        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _, _>(&array, mapping, &mut states).unwrap();
+        UnaryNonNullUpdater2::update::<PhysicalUtf8_2, _, _, _>(&array, mapping, &mut states)
+            .unwrap();
 
         assert_eq!("aabbbcccc", &states[0].buf);
     }

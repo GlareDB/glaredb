@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayexec_error::{OptionExt, Result};
 
 use super::simple::{SimpleOperator, StatelessOperation};
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
@@ -23,7 +23,7 @@ impl FilterOperation {
 }
 
 impl StatelessOperation for FilterOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
+    fn execute(&self, batch: Batch2) -> Result<Batch2> {
         let selection = self.predicate.select(&batch)?;
         let batch = batch.select(Arc::new(selection)); // TODO: Select mut
 

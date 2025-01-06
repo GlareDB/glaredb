@@ -3,30 +3,30 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 
 use super::check_validity;
-use crate::arrays::array::Array;
+use crate::arrays::array::Array2;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::executor::physical_type::PhysicalStorage2;
 use crate::arrays::executor::scalar::validate_logical_len;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
-pub struct TernaryExecutor;
+pub struct TernaryExecutor2;
 
-impl TernaryExecutor {
+impl TernaryExecutor2 {
     pub fn execute<'a, S1, S2, S3, B, Op>(
-        array1: &'a Array,
-        array2: &'a Array,
-        array3: &'a Array,
+        array1: &'a Array2,
+        array2: &'a Array2,
+        array3: &'a Array2,
         builder: ArrayBuilder<B>,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<Array2>
     where
         Op: FnMut(S1::Type<'a>, S2::Type<'a>, S3::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
-        S3: PhysicalStorage,
+        S1: PhysicalStorage2,
+        S2: PhysicalStorage2,
+        S3: PhysicalStorage2,
         B: ArrayDataBuffer,
     {
         let len = validate_logical_len(&builder.buffer, array1)?;
@@ -97,7 +97,7 @@ impl TernaryExecutor {
 
         let data = output_buffer.buffer.into_data();
 
-        Ok(Array {
+        Ok(Array2 {
             datatype: builder.datatype,
             selection: None,
             validity: out_validity,

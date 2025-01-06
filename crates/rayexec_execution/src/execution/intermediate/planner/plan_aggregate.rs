@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
-use crate::execution::operators::project::{PhysicalProject, ProjectOperation};
+use crate::execution::operators::project::{PhysicalProject2, ProjectOperation};
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -41,7 +41,6 @@ impl IntermediatePipelineBuildState<'_> {
                 }
             };
 
-            let start_col_index = preproject_exprs.len();
             for arg in &agg.agg.inputs {
                 let scalar = self
                     .expr_planner
@@ -49,13 +48,19 @@ impl IntermediatePipelineBuildState<'_> {
                     .context("Failed to plan expressions for aggregate pre-projection")?;
                 preproject_exprs.push(scalar);
             }
-            let end_col_index = preproject_exprs.len();
+
+            let columns = preproject_exprs
+                .iter()
+                .enumerate()
+                .map(|(idx, expr)| PhysicalColumnExpr {
+                    idx,
+                    datatype: expr.datatype(),
+                })
+                .collect();
 
             let phys_agg = PhysicalAggregateExpression {
                 function: agg.agg,
-                columns: (start_col_index..end_col_index)
-                    .map(|idx| PhysicalColumnExpr { idx })
-                    .collect(),
+                columns,
                 is_distinct: agg.distinct,
             };
 
@@ -77,7 +82,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         self.push_intermediate_operator(
             IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
+                operator: Arc::new(PhysicalOperator::Project(PhysicalProject2 {
                     operation: ProjectOperation::new(preproject_exprs),
                 })),
                 partitioning_requirement: None,

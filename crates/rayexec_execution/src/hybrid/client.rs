@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 use uuid::Uuid;
 
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::{IntermediatePipelineGroup, StreamId};
@@ -310,7 +310,7 @@ impl ProtoConv for PullStatus {
 /// Wrapper around a batch that implements IPC encoding/decoding when converting
 /// to protobuf.
 #[derive(Debug)]
-pub struct IpcBatch(pub Batch);
+pub struct IpcBatch(pub Batch2);
 
 // TODO: Don't allocate vectors in this.
 impl ProtoConv for IpcBatch {
@@ -478,7 +478,7 @@ impl<C: HttpClient> HybridClient<C> {
         Ok(())
     }
 
-    pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch) -> Result<()> {
+    pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch2) -> Result<()> {
         let url = self
             .url
             .join(REMOTE_ENDPOINTS.rpc_hybrid_push)

@@ -11,8 +11,8 @@ use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::{StreamExt, TryFutureExt};
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::Array;
-use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::array::Array2;
+use rayexec_execution::arrays::batch::Batch2;
 use rayexec_execution::arrays::datatype::{DataType, DecimalTypeMeta};
 use rayexec_execution::arrays::field::Field;
 use rayexec_execution::arrays::scalar::OwnedScalarValue;
@@ -236,11 +236,11 @@ impl DataTable for PostgresDataTable {
 }
 
 pub struct PostgresDataTableScan {
-    stream: BoxStream<'static, Result<Batch>>,
+    stream: BoxStream<'static, Result<Batch2>>,
 }
 
 impl DataTableScan for PostgresDataTableScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch2>>> {
         Box::pin(async { self.stream.next().await.transpose() })
     }
 }
@@ -390,7 +390,7 @@ impl PostgresClient {
         Ok(fields)
     }
 
-    fn binary_rows_to_batch(typs: &[DataType], rows: Vec<BinaryCopyOutRow>) -> Result<Batch> {
+    fn binary_rows_to_batch(typs: &[DataType], rows: Vec<BinaryCopyOutRow>) -> Result<Batch2> {
         fn row_iter<'a, T: FromSql<'a>>(
             rows: &'a [BinaryCopyOutRow],
             idx: usize,
@@ -401,32 +401,32 @@ impl PostgresClient {
         let mut arrays = Vec::with_capacity(typs.len());
         for (idx, typ) in typs.iter().enumerate() {
             let arr = match typ {
-                DataType::Boolean => Array::from_iter(row_iter::<bool>(&rows, idx)),
-                DataType::Int8 => Array::from_iter(row_iter::<i8>(&rows, idx)),
-                DataType::Int16 => Array::from_iter(row_iter::<i16>(&rows, idx)),
-                DataType::Int32 => Array::from_iter(row_iter::<i32>(&rows, idx)),
-                DataType::Int64 => Array::from_iter(row_iter::<i64>(&rows, idx)),
+                DataType::Boolean => Array2::from_iter(row_iter::<bool>(&rows, idx)),
+                DataType::Int8 => Array2::from_iter(row_iter::<i8>(&rows, idx)),
+                DataType::Int16 => Array2::from_iter(row_iter::<i16>(&rows, idx)),
+                DataType::Int32 => Array2::from_iter(row_iter::<i32>(&rows, idx)),
+                DataType::Int64 => Array2::from_iter(row_iter::<i64>(&rows, idx)),
                 DataType::Decimal128(m) => {
-                    let primitives = Array::from_iter(rows.iter().map(|row| {
+                    let primitives = Array2::from_iter(rows.iter().map(|row| {
                         let decimal = row.try_get::<PostgresDecimal>(idx).ok();
                         // TODO: Rescale
                         decimal.map(|d| d.0.value)
                     }));
 
                     match primitives.validity() {
-                        Some(validity) => Array::new_with_validity_and_array_data(
+                        Some(validity) => Array2::new_with_validity_and_array_data(
                             DataType::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
                             validity.clone(),
                             primitives.array_data().clone(),
                         ),
-                        None => Array::new_with_array_data(
+                        None => Array2::new_with_array_data(
                             DataType::Decimal128(DecimalTypeMeta::new(m.precision, m.scale)),
                             primitives.array_data().clone(),
                         ),
                     }
                 }
 
-                DataType::Utf8 => Array::from_iter(
+                DataType::Utf8 => Array2::from_iter(
                     rows.iter()
                         .map(|row| -> Option<&str> { row.try_get(idx).ok() }),
                 ),
@@ -439,6 +439,6 @@ impl PostgresClient {
             arrays.push(arr);
         }
 
-        Batch::try_new(arrays)
+        Batch2::try_new(arrays)
     }
 }

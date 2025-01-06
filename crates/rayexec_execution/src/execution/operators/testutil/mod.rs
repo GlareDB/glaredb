@@ -1,4 +1,7 @@
 //! Utilities for testing operator implementations.
+pub mod db_context;
+pub mod wrapper;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
@@ -10,22 +13,15 @@ use super::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
-    PollPull,
-    PollPush,
+    PollPull2,
+    PollPush2,
 };
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use crate::arrays::array::Array2;
+use crate::arrays::batch::Batch2;
 use crate::arrays::scalar::ScalarValue;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
-
-pub fn test_database_context() -> DatabaseContext {
-    DatabaseContext::new(Arc::new(
-        new_system_catalog(&DataSourceRegistry::default()).unwrap(),
-    ))
-    .unwrap()
-}
 
 /// Test context containg a waker implementation that counts the number of times
 /// it's woken.
@@ -72,9 +68,9 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        batch: impl Into<Batch>,
-    ) -> Result<PollPush> {
-        operator.as_ref().poll_push(
+        batch: impl Into<Batch2>,
+    ) -> Result<PollPush2> {
+        operator.as_ref().poll_push2(
             &mut self.context(),
             partition_state,
             operator_state,
@@ -87,10 +83,10 @@ impl TestWakerContext {
         operator: impl AsRef<Operator>,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull> {
+    ) -> Result<PollPull2> {
         operator
             .as_ref()
-            .poll_pull(&mut self.context(), partition_state, operator_state)
+            .poll_pull2(&mut self.context(), partition_state, operator_state)
     }
 }
 
@@ -101,18 +97,18 @@ impl Wake for TestWakerInner {
 }
 
 /// Unwraps a batch from the PollPull::Batch variant.
-pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
+pub fn unwrap_poll_pull_batch(poll: PollPull2) -> Batch2 {
     match poll {
-        PollPull::Computed(ComputedBatches::Single(batch)) => batch,
+        PollPull2::Computed(ComputedBatches::Single(batch)) => batch,
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }
 
-pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
+pub fn logical_value(batch: &Batch2, column: usize, row: usize) -> ScalarValue {
     batch.column(column).unwrap().logical_value(row).unwrap()
 }
 
 /// Makes a batch with a single column i32 values provided by the iterator.
-pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
+pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch2 {
+    Batch2::try_new(vec![Array2::from_iter(iter.into_iter())]).unwrap()
 }

@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 use tracing::warn;
 
 use super::profiler::PlanningProfileData;
-use crate::arrays::batch::Batch;
+use crate::arrays::batch::Batch2;
 use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sink::{PartitionSink, SinkOperation};
@@ -52,7 +52,7 @@ pub struct ResultStream {
 }
 
 impl Stream for ResultStream {
-    type Item = Result<Batch>;
+    type Item = Result<Batch2>;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut inner = self.inner.lock();
 
@@ -117,7 +117,7 @@ pub struct ResultPartitionSink {
 }
 
 impl PartitionSink for ResultPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push(&mut self, batch: Batch2) -> BoxFuture<'_, Result<()>> {
         Box::pin(PushFuture {
             batch: Some(batch),
             inner: self.inner.clone(),
@@ -157,7 +157,7 @@ impl ErrorSink for ResultErrorSink {
 /// This lets us inject an error into the stream that arises outside of stream.
 #[derive(Debug)]
 struct InnerState {
-    batch: Option<Batch>,
+    batch: Option<Batch2>,
     error: Option<RayexecError>,
     finished: bool,
     push_waker: Option<Waker>,
@@ -165,7 +165,7 @@ struct InnerState {
 }
 
 struct PushFuture {
-    batch: Option<Batch>,
+    batch: Option<Batch2>,
     inner: Arc<Mutex<InnerState>>,
 }
 

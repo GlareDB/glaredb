@@ -3,15 +3,15 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use crate::arrays::array::Array2;
+use crate::arrays::batch::Batch2;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::physical_type::PhysicalI64;
-use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::physical_type::PhysicalI64_2;
+use crate::arrays::executor::scalar::UnaryExecutor2;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::arrays::storage::PrimitiveStorage;
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{PollFinalize2, PollPush2};
 use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -164,7 +164,7 @@ struct SeriesParams {
 
 impl SeriesParams {
     /// Generate the next set of rows using the current parameters.
-    fn generate_next(&mut self, batch_size: usize) -> Array {
+    fn generate_next(&mut self, batch_size: usize) -> Array2 {
         debug_assert!(!self.exhausted);
 
         let mut series: Vec<i64> = Vec::new();
@@ -195,7 +195,7 @@ impl SeriesParams {
             self.curr = *last + self.step;
         }
 
-        Array::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
+        Array2::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
     }
 }
 
@@ -203,7 +203,7 @@ impl SeriesParams {
 pub struct GenerateSeriesInOutPartitionState {
     batch_size: usize,
     /// Batch we're working on.
-    batch: Option<Batch>,
+    batch: Option<Batch2>,
     /// Current row number
     next_row_idx: usize,
     /// If we're finished.
@@ -215,29 +215,29 @@ pub struct GenerateSeriesInOutPartitionState {
 }
 
 impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
+    fn poll_push(&mut self, cx: &mut Context, batch: Batch2) -> Result<PollPush2> {
         if self.batch.is_some() {
             // Still processing current batch, come back later.
             self.push_waker = Some(cx.waker().clone());
             if let Some(pull_waker) = self.pull_waker.take() {
                 pull_waker.wake();
             }
-            return Ok(PollPush::Pending(batch));
+            return Ok(PollPush2::Pending(batch));
         }
 
         self.batch = Some(batch);
         self.next_row_idx = 0;
 
-        Ok(PollPush::Pushed)
+        Ok(PollPush2::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize2> {
         self.finished = true;
         if let Some(waker) = self.pull_waker.take() {
             waker.wake();
         }
 
-        Ok(PollFinalize::Finalized)
+        Ok(PollFinalize2::Finalized)
     }
 
     fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
@@ -259,15 +259,15 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
             };
 
             // Generate new params from row.
-            let start = UnaryExecutor::value_at::<PhysicalI64>(
+            let start = UnaryExecutor2::value_at::<PhysicalI64_2>(
                 batch.column(0).unwrap(),
                 self.next_row_idx,
             )?;
-            let end = UnaryExecutor::value_at::<PhysicalI64>(
+            let end = UnaryExecutor2::value_at::<PhysicalI64_2>(
                 batch.column(1).unwrap(),
                 self.next_row_idx,
             )?;
-            let step = UnaryExecutor::value_at::<PhysicalI64>(
+            let step = UnaryExecutor2::value_at::<PhysicalI64_2>(
                 batch.column(2).unwrap(),
                 self.next_row_idx,
             )?;
@@ -308,7 +308,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_new([out])?;
+        let batch = Batch2::try_new([out])?;
 
         let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
 
