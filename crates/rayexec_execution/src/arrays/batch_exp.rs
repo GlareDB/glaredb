@@ -108,6 +108,32 @@ where
         })
     }
 
+    pub fn clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
+        if self.arrays.len() != other.arrays.len() {
+            return Err(RayexecError::new(
+                "Attempted to clone from other batch with different number of arrays",
+            ));
+        }
+
+        for (a, b) in self.arrays.iter_mut().zip(other.arrays.iter_mut()) {
+            a.clone_from(manager, b)?;
+        }
+
+        self.set_num_rows(other.num_rows())?;
+
+        Ok(())
+    }
+
+    pub fn select(&mut self, manager: &B, selection: &[usize]) -> Result<()> {
+        for arr in &mut self.arrays {
+            arr.select(manager, selection.iter().copied())?;
+        }
+
+        self.set_num_rows(selection.len())?;
+
+        Ok(())
+    }
+
     pub fn num_rows(&self) -> usize {
         self.num_rows
     }

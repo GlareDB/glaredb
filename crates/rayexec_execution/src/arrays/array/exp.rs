@@ -244,13 +244,15 @@ where
             .with_field("other_datatype", other.datatype.clone()));
         }
 
-        if self.capacity() != other.capacity() {
-            return Err(RayexecError::new(
-                "Attempted to clone into array from other array with different capacity",
-            )
-            .with_field("own_capacity", self.capacity())
-            .with_field("other_capacity", other.capacity()));
-        }
+        // TODO: Do we want this check? Dictionaries right now can have differing capacities based
+        // on selection inputs.
+        // if self.capacity() != other.capacity() {
+        //     return Err(RayexecError::new(
+        //         "Attempted to clone into array from other array with different capacity",
+        //     )
+        //     .with_field("own_capacity", self.capacity())
+        //     .with_field("other_capacity", other.capacity()));
+        // }
 
         let managed = other.data.make_managed(manager)?;
         self.data.set_managed(managed)?;

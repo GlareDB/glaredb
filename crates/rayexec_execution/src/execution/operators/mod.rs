@@ -30,6 +30,7 @@ pub mod unnest;
 pub mod values;
 pub mod window;
 
+pub mod physical_filter;
 pub mod physical_project;
 
 pub(crate) mod util;
@@ -60,6 +61,7 @@ use insert::PhysicalInsert;
 use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use nl_join::PhysicalNestedLoopJoin;
+use physical_filter::FilterPartitionState;
 use physical_project::ProjectPartitionState;
 use project::{PhysicalProject2, ProjectOperation};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
@@ -116,6 +118,7 @@ use crate::proto::DatabaseProtoConv;
 #[derive(Debug)]
 pub enum PartitionState {
     Project(ProjectPartitionState),
+    Filter(FilterPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),

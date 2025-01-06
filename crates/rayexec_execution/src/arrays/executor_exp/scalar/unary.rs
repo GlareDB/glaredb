@@ -7,6 +7,7 @@ use crate::arrays::buffer::physical_type::{
     Addressable,
     AddressableMut,
     MutablePhysicalStorage,
+    PhysicalBool,
     PhysicalStorage,
 };
 use crate::arrays::executor_exp::{OutBuffer, PutBuffer};
@@ -153,6 +154,7 @@ impl UnaryExecutor {
         let input = S::get_addressable(array.array_buffer)?;
         let validity = array.validity;
 
+        // TODO: `op` should be called with input_idx?
         if validity.all_valid() {
             for (output_idx, input_idx) in selection.into_iter().enumerate() {
                 let selected_idx = array.selection.get(input_idx).unwrap();
@@ -169,6 +171,41 @@ impl UnaryExecutor {
                     op(output_idx, Some(v));
                 } else {
                     op(output_idx, None);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn select(
+        array: &Array,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        true_indices: &mut Vec<usize>,
+    ) -> Result<()> {
+        let flat = array.flat_view()?;
+
+        let bools = PhysicalBool::get_addressable(&flat.array_buffer)?;
+        let validity = flat.validity;
+
+        if validity.all_valid() {
+            for input_idx in selection.into_iter() {
+                let selected_idx = flat.selection.get(input_idx).unwrap();
+                let v = *bools.get(selected_idx).unwrap();
+
+                if v {
+                    true_indices.push(input_idx);
+                }
+            }
+        } else {
+            for input_idx in selection.into_iter() {
+                let selected_idx = flat.selection.get(input_idx).unwrap();
+
+                if validity.is_valid(selected_idx) {
+                    let v = *bools.get(selected_idx).unwrap();
+                    if v {
+                        true_indices.push(input_idx);
+                    }
                 }
             }
         }
@@ -242,8 +279,7 @@ mod tests {
     fn int32_inc_by_2_in_place() {
         let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
 
-        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v += 2)
-            .unwrap();
+        UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v += 2).unwrap();
 
         let arr_slice = array.data().try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[3, 4, 5], arr_slice);

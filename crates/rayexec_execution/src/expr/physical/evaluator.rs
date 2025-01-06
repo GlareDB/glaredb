@@ -100,6 +100,22 @@ impl ExpressionEvaluator {
         Ok(())
     }
 
+    pub fn eval_single_expression(
+        &mut self,
+        input: &mut Batch,
+        sel: Selection,
+        output: &mut Array,
+    ) -> Result<()> {
+        debug_assert_eq!(1, self.expressions.len());
+        Self::eval_expression(
+            &self.expressions[0],
+            input,
+            &mut self.states[0],
+            sel,
+            output,
+        )
+    }
+
     pub(crate) fn eval_expression(
         expr: &PhysicalScalarExpression,
         input: &mut Batch,
