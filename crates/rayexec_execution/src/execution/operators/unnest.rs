@@ -235,7 +235,7 @@ impl ExecutableOperator for PhysicalUnnest {
         ]));
         for projected in &state.project_inputs {
             let mut out = projected.clone();
-            out.select_mut(selection.clone());
+            out.select_mut2(selection.clone());
             outputs.push(out);
         }
 

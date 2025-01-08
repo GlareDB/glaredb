@@ -554,27 +554,30 @@ mod tests {
 
     #[test]
     fn int32_inc_by_2_with_dict() {
-        // let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
-        // // [3, 3, 2, 1, 1, 3]
-        // array.select(&NopBufferManager, [2, 2, 1, 0, 0, 2]).unwrap();
+        let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
+        // [3, 3, 2, 1, 1, 3]
+        array
+            .select(&Arc::new(NopBufferManager), [2, 2, 1, 0, 0, 2])
+            .unwrap();
 
-        // let mut out =
-        //     ArrayBuffer::with_primary_capacity::<PhysicalI32>(&NopBufferManager, 6).unwrap();
-        // let mut validity = Validity::new_all_valid(6);
+        let mut out =
+            ArrayBuffer::with_primary_capacity::<PhysicalI32>(&Arc::new(NopBufferManager), 6)
+                .unwrap();
+        let mut validity = Validity::new_all_valid(6);
 
-        // UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
-        //     &array,
-        //     0..6,
-        //     OutBuffer {
-        //         buffer: &mut out,
-        //         validity: &mut validity,
-        //     },
-        //     |&v, buf| buf.put(&(v + 2)),
-        // )
-        // .unwrap();
-        // assert!(validity.all_valid());
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+            &array,
+            0..6,
+            OutBuffer {
+                buffer: &mut out,
+                validity: &mut validity,
+            },
+            |&v, buf| buf.put(&(v + 2)),
+        )
+        .unwrap();
+        assert!(validity.all_valid());
 
-        // let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
-        // assert_eq!(&[5, 5, 4, 3, 3, 5], out_slice);
+        let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
+        assert_eq!(&[5, 5, 4, 3, 3, 5], out_slice);
     }
 }

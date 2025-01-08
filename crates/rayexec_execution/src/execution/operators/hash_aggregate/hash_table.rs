@@ -261,7 +261,7 @@ impl HashTable {
 
                 let group_vals = groups.iter().map(|a| {
                     let mut arr = a.clone();
-                    arr.select_mut(selection.clone());
+                    arr.select_mut2(selection.clone());
                     arr
                 });
 

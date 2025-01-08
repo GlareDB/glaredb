@@ -590,7 +590,7 @@ impl PhysicalHashAggregate {
                     .iter()
                     .map(|arr| {
                         let mut arr = arr.clone();
-                        arr.select_mut(selection.clone());
+                        arr.select_mut2(selection.clone());
                         arr
                     })
                     .collect();
@@ -600,7 +600,7 @@ impl PhysicalHashAggregate {
                     .iter()
                     .map(|arr| {
                         let mut arr = arr.clone();
-                        arr.select_mut(selection.clone());
+                        arr.select_mut2(selection.clone());
                         arr
                     })
                     .collect();

@@ -171,7 +171,7 @@ impl ExecutableOperator for PhysicalTableInOut {
 
                 for additional in &state.additional_outputs {
                     let mut additional = additional.clone();
-                    additional.select_mut(selection.clone());
+                    additional.select_mut2(selection.clone());
                     arrays.push(additional);
                 }
 

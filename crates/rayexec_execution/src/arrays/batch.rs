@@ -130,7 +130,7 @@ impl Batch {
             .iter()
             .map(|c| {
                 let mut col = c.clone();
-                col.select_mut(selection.clone());
+                col.select_mut2(selection.clone());
                 col
             })
             .collect();

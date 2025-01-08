@@ -82,7 +82,7 @@ mod tests {
     fn select_with_selection() {
         let mut arr = Array::from_iter([Some(false), Some(true), None, Some(false), Some(true)]);
         // => [NULL, false, true]
-        arr.select_mut(SelectionVector::from_iter([2, 3, 4]));
+        arr.select_mut2(SelectionVector::from_iter([2, 3, 4]));
 
         let mut selection = SelectionVector::with_capacity(3);
         SelectExecutor::select(&arr, &mut selection).unwrap();

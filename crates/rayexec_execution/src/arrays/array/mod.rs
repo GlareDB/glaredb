@@ -13,7 +13,7 @@ mod shared_or_owned;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use array_buffer::{ArrayBuffer, ListBuffer, SecondaryBuffer};
+use array_buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, SecondaryBuffer};
 use array_data::ArrayData;
 use buffer_manager::{BufferManager, NopBufferManager};
 use flat::FlatArrayView;
@@ -23,6 +23,7 @@ use physical_type::{
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
+    PhysicalDictionary,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -168,6 +169,85 @@ where
     pub fn flat_view(&self) -> Result<FlatArrayView<B>> {
         FlatArrayView::from_array(self)
     }
+
+    /// Selects indice from the array.
+    ///
+    /// This will convert the underlying array buffer into a dictionary buffer.
+    pub fn select(
+        &mut self,
+        manager: &Arc<B>,
+        selection: impl stdutil::iter::IntoExactSizeIterator<Item = usize>,
+    ) -> Result<()> {
+        let is_dictionary = self.is_dictionary();
+        let next = self.next_mut();
+
+        if is_dictionary {
+            // Already dictionary, select the selection.
+            let sel = selection.into_iter();
+            let mut new_buf =
+                ArrayBuffer::with_primary_capacity::<PhysicalDictionary>(manager, sel.len())?;
+
+            let old_sel = next.data.try_as_slice::<PhysicalDictionary>()?;
+            let new_sel = new_buf.try_as_slice_mut::<PhysicalDictionary>()?;
+
+            for (sel_idx, sel_buf) in sel.zip(new_sel) {
+                let idx = old_sel[sel_idx];
+                *sel_buf = idx;
+            }
+
+            // Now swap the secondary buffers, the dictionary buffer will now be
+            // on `new_buf`.
+            std::mem::swap(
+                next.data.try_as_mut()?.get_secondary_mut(), // TODO: Should just clone the pointer if managed.
+                new_buf.get_secondary_mut(),
+            );
+
+            // And set the new buf, old buf gets dropped.
+            next.data = ArrayData::owned(new_buf);
+
+            debug_assert!(matches!(
+                next.data.get_secondary(),
+                SecondaryBuffer::Dictionary(_)
+            ));
+
+            return Ok(());
+        }
+
+        let sel = selection.into_iter();
+        let mut new_buf =
+            ArrayBuffer::with_primary_capacity::<PhysicalDictionary>(manager, sel.len())?;
+
+        let new_buf_slice = new_buf.try_as_slice_mut::<PhysicalDictionary>()?;
+
+        // Set all selection indices in the new array buffer.
+        for (sel_idx, sel_buf) in sel.zip(new_buf_slice) {
+            *sel_buf = sel_idx
+        }
+
+        // TODO: Probably verify selection all in bounds.
+
+        // Now replace the original buffer, and put the original buffer in the
+        // secondary buffer.
+        let orig_validity = std::mem::replace(
+            &mut next.validity,
+            Validity::new_all_valid(new_buf.primary_capacity()),
+        );
+        let orig_buffer = std::mem::replace(&mut next.data, ArrayData::owned(new_buf));
+        // TODO: Should just clone the pointer if managed.
+        next.data
+            .try_as_mut()?
+            .put_secondary_buffer(SecondaryBuffer::Dictionary(DictionaryBuffer {
+                validity: orig_validity,
+                buffer: orig_buffer,
+            }));
+
+        debug_assert!(matches!(
+            next.data.get_secondary(),
+            SecondaryBuffer::Dictionary(_)
+        ));
+
+        Ok(())
+    }
 }
 
 impl Array {
@@ -295,7 +375,7 @@ impl Array {
     /// Takes into account any existing selection. This allows for repeated
     /// selection (filtering) against the same array.
     // TODO: Add test for selecting on logically empty array.
-    pub fn select_mut(&mut self, selection: impl Into<LogicalSelection>) {
+    pub fn select_mut2(&mut self, selection: impl Into<LogicalSelection>) {
         let selection = selection.into();
         match self.selection_vector() {
             Some(existing) => {
@@ -1234,7 +1314,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::with_range(0..3);
 
-        arr.select_mut(selection);
+        arr.select_mut2(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
@@ -1246,7 +1326,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 2]);
 
-        arr.select_mut(selection);
+        arr.select_mut2(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
@@ -1258,7 +1338,7 @@ mod tests {
         let mut arr = Array::from_iter(["a", "b", "c"]);
         let selection = SelectionVector::from_iter([0, 1, 1, 2]);
 
-        arr.select_mut(selection);
+        arr.select_mut2(selection);
 
         assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
@@ -1273,10 +1353,10 @@ mod tests {
         let selection = SelectionVector::from_iter([0, 2]);
 
         // => ["a", "c"]
-        arr.select_mut(selection);
+        arr.select_mut2(selection);
 
         let selection = SelectionVector::from_iter([1, 1, 0]);
-        arr.select_mut(selection);
+        arr.select_mut2(selection);
 
         assert_eq!(ScalarValue::from("c"), arr.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
