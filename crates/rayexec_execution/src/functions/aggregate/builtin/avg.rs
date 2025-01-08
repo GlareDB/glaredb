@@ -6,12 +6,12 @@ use num_traits::AsPrimitive;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
-use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{

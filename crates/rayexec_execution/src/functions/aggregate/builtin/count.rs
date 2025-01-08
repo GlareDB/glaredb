@@ -1,8 +1,8 @@
 use rayexec_error::Result;
 
+use crate::arrays::array::physical_type::PhysicalAny;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::array::physical_type::PhysicalAny;
 use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{
     new_unary_aggregate_states,

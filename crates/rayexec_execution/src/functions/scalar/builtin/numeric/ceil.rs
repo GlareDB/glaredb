@@ -2,10 +2,10 @@ use num_traits::Float;
 use rayexec_error::Result;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
+use crate::arrays::array::physical_type::PhysicalStorage;
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::array::physical_type::PhysicalStorage;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::storage::PrimitiveStorage;
 

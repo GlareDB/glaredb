@@ -2,9 +2,9 @@ use std::fmt::Debug;
 
 use rayexec_error::Result;
 
+use crate::arrays::array::physical_type::PhysicalAny;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::array::physical_type::PhysicalAny;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_binary_aggregate_states,

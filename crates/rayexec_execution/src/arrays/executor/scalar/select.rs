@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{PhysicalBool, PhysicalStorage};
+use crate::arrays::array::Array;
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::AddressableStorage;
 

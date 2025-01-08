@@ -1,8 +1,8 @@
 use rayexec_error::Result;
 
 use super::{AggregateState, RowToStateMapping};
-use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::PhysicalStorage;
+use crate::arrays::array::Array;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 

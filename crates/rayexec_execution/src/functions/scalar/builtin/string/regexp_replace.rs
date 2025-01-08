@@ -1,10 +1,10 @@
 use rayexec_error::{Result, ResultExt};
 use regex::Regex;
 
+use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExecutor};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};

@@ -38,8 +38,6 @@ pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
@@ -47,6 +45,8 @@ use crate::arrays::array::physical_type::{
     PhysicalStorage,
     PhysicalType,
 };
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};

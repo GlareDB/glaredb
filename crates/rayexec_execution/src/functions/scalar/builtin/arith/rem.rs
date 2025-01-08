@@ -3,9 +3,6 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
@@ -22,6 +19,9 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
