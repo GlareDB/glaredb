@@ -7,7 +7,7 @@ use rayexec_proto::ProtoConv;
 use super::array_buffer::{ArrayBuffer, ListItemMetadata};
 use super::buffer_manager::BufferManager;
 use super::string_view::{BinaryViewAddressable, StringViewAddressable, StringViewMetadataUnion};
-use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::array::{Array, ArrayData2, BinaryData};
 use crate::arrays::executor::builder::{
     ArrayDataBuffer,
     BooleanBuffer,
@@ -53,7 +53,7 @@ pub enum PhysicalType {
 }
 
 impl PhysicalType {
-    pub fn zeroed_array_data(&self, len: usize) -> ArrayData {
+    pub fn zeroed_array_data(&self, len: usize) -> ArrayData2 {
         match self {
             Self::UntypedNull => UntypedNullStorage(len).into(),
             Self::Boolean => BooleanBuffer::with_len(len).into_data(),
@@ -301,7 +301,7 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
 
     // TODO: Remove
     /// Gets the storage for the array that we can access directly.
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>>;
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>>;
 
     const PHYSICAL_TYPE: PhysicalType;
 
@@ -347,7 +347,7 @@ impl PhysicalStorage for PhysicalAny {
     type Type<'a> = ();
     type Storage<'a> = UnitStorage;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         Ok(UnitStorage(data.len()))
     }
 
@@ -398,9 +398,9 @@ impl PhysicalStorage for PhysicalUntypedNull {
     type Type<'a> = UntypedNull2;
     type Storage<'a> = UntypedNullStorage;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::UntypedNull(s) => Ok(*s),
+            ArrayData2::UntypedNull(s) => Ok(*s),
             _ => Err(RayexecError::new("invalid storage")),
         }
     }
@@ -424,9 +424,9 @@ impl PhysicalStorage for PhysicalBool {
     type Type<'a> = bool;
     type Storage<'a> = BooleanStorageRef<'a>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
+            ArrayData2::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
             _ => Err(RayexecError::new("invalid storage, expected boolean")),
         }
     }
@@ -452,9 +452,9 @@ macro_rules! generate_primitive {
             type Type<'a> = $prim;
             type Storage<'a> = PrimitiveStorageSlice<'a, $prim>;
 
-            fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+            fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
                 match data {
-                    ArrayData::$variant(storage) => Ok(storage.as_primitive_storage_slice()),
+                    ArrayData2::$variant(storage) => Ok(storage.as_primitive_storage_slice()),
                     _ => Err(RayexecError::new("invalid storage, expected int8")),
                 }
             }
@@ -499,9 +499,9 @@ impl PhysicalStorage for PhysicalBinary {
     type Type<'a> = &'a [u8];
     type Storage<'a> = BinaryDataStorage<'a>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Binary(binary) => match binary {
+            ArrayData2::Binary(binary) => match binary {
                 BinaryData::Binary(b) => {
                     Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()))
                 }
@@ -533,9 +533,9 @@ impl PhysicalStorage for PhysicalUtf8 {
     type Type<'a> = &'a str;
     type Storage<'a> = StrDataStorage<'a>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::Binary(binary) => match binary {
+            ArrayData2::Binary(binary) => match binary {
                 BinaryData::Binary(b) => {
                     Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()).into())
                 }
@@ -638,9 +638,9 @@ impl PhysicalStorage for PhysicalList {
     type Type<'a> = ListItemMetadata2;
     type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata2>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
         match data {
-            ArrayData::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
+            ArrayData2::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected list")),
         }
     }

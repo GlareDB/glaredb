@@ -21,7 +21,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::array::{Array, ArrayData2, BinaryData};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::interval::Interval;
 
@@ -192,58 +192,58 @@ impl ComparableRowEncoder {
             let mut row_offset = *offsets.last().unwrap();
             for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
                 row_offset = match arr.array_data() {
-                    ArrayData::UntypedNull(_) => {
+                    ArrayData2::UntypedNull(_) => {
                         Self::encode_untyped_null(cmp_col, data, row_offset)?
                     }
-                    ArrayData::Boolean(_) => Self::encode_primitive::<PhysicalBool>(
+                    ArrayData2::Boolean(_) => Self::encode_primitive::<PhysicalBool>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Int8(_) => Self::encode_primitive::<PhysicalI8>(
+                    ArrayData2::Int8(_) => Self::encode_primitive::<PhysicalI8>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Int16(_) => Self::encode_primitive::<PhysicalI16>(
+                    ArrayData2::Int16(_) => Self::encode_primitive::<PhysicalI16>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Int32(_) => Self::encode_primitive::<PhysicalI32>(
+                    ArrayData2::Int32(_) => Self::encode_primitive::<PhysicalI32>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Int64(_) => Self::encode_primitive::<PhysicalI64>(
+                    ArrayData2::Int64(_) => Self::encode_primitive::<PhysicalI64>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Int128(_) => Self::encode_primitive::<PhysicalI128>(
+                    ArrayData2::Int128(_) => Self::encode_primitive::<PhysicalI128>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::UInt8(_) => Self::encode_primitive::<PhysicalU8>(
+                    ArrayData2::UInt8(_) => Self::encode_primitive::<PhysicalU8>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::UInt16(_) => Self::encode_primitive::<PhysicalU16>(
+                    ArrayData2::UInt16(_) => Self::encode_primitive::<PhysicalU16>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::UInt32(_) => Self::encode_primitive::<PhysicalU32>(
+                    ArrayData2::UInt32(_) => Self::encode_primitive::<PhysicalU32>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::UInt64(_) => Self::encode_primitive::<PhysicalU64>(
+                    ArrayData2::UInt64(_) => Self::encode_primitive::<PhysicalU64>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
+                    ArrayData2::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Float16(_) => Self::encode_primitive::<PhysicalF16>(
+                    ArrayData2::Float16(_) => Self::encode_primitive::<PhysicalF16>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Float32(_) => Self::encode_primitive::<PhysicalF32>(
+                    ArrayData2::Float32(_) => Self::encode_primitive::<PhysicalF32>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Float64(_) => Self::encode_primitive::<PhysicalF64>(
+                    ArrayData2::Float64(_) => Self::encode_primitive::<PhysicalF64>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Interval(_) => Self::encode_primitive::<PhysicalInterval>(
+                    ArrayData2::Interval(_) => Self::encode_primitive::<PhysicalInterval>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
+                    ArrayData2::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
                         cmp_col, arr, row_idx, data, row_offset,
                     )?,
-                    ArrayData::List(_) => not_implemented!("Row encode list"),
+                    ArrayData2::List(_) => not_implemented!("Row encode list"),
                 };
             }
 
@@ -259,28 +259,28 @@ impl ComparableRowEncoder {
         let mut size = 0;
         for arr in columns {
             let mut arr_size = match arr.array_data() {
-                ArrayData::UntypedNull(_) => 0, // Nulls will be encoded in the "validity" portion of the row.
-                ArrayData::Boolean(d) => d.len() * std::mem::size_of::<bool>(), // Note this will expand the 1 bit bools to bytes.
-                ArrayData::Int8(d) => d.data_size_bytes(),
-                ArrayData::Int16(d) => d.data_size_bytes(),
-                ArrayData::Int32(d) => d.data_size_bytes(),
-                ArrayData::Int64(d) => d.data_size_bytes(),
-                ArrayData::Int128(d) => d.data_size_bytes(),
-                ArrayData::UInt8(d) => d.data_size_bytes(),
-                ArrayData::UInt16(d) => d.data_size_bytes(),
-                ArrayData::UInt32(d) => d.data_size_bytes(),
-                ArrayData::UInt64(d) => d.data_size_bytes(),
-                ArrayData::UInt128(d) => d.data_size_bytes(),
-                ArrayData::Float16(d) => d.data_size_bytes(),
-                ArrayData::Float32(d) => d.data_size_bytes(),
-                ArrayData::Float64(d) => d.data_size_bytes(),
-                ArrayData::Interval(d) => d.data_size_bytes(),
-                ArrayData::Binary(d) => match d {
+                ArrayData2::UntypedNull(_) => 0, // Nulls will be encoded in the "validity" portion of the row.
+                ArrayData2::Boolean(d) => d.len() * std::mem::size_of::<bool>(), // Note this will expand the 1 bit bools to bytes.
+                ArrayData2::Int8(d) => d.data_size_bytes(),
+                ArrayData2::Int16(d) => d.data_size_bytes(),
+                ArrayData2::Int32(d) => d.data_size_bytes(),
+                ArrayData2::Int64(d) => d.data_size_bytes(),
+                ArrayData2::Int128(d) => d.data_size_bytes(),
+                ArrayData2::UInt8(d) => d.data_size_bytes(),
+                ArrayData2::UInt16(d) => d.data_size_bytes(),
+                ArrayData2::UInt32(d) => d.data_size_bytes(),
+                ArrayData2::UInt64(d) => d.data_size_bytes(),
+                ArrayData2::UInt128(d) => d.data_size_bytes(),
+                ArrayData2::Float16(d) => d.data_size_bytes(),
+                ArrayData2::Float32(d) => d.data_size_bytes(),
+                ArrayData2::Float64(d) => d.data_size_bytes(),
+                ArrayData2::Interval(d) => d.data_size_bytes(),
+                ArrayData2::Binary(d) => match d {
                     BinaryData::Binary(d) => d.data_size_bytes(),
                     BinaryData::LargeBinary(d) => d.data_size_bytes(),
                     BinaryData::German(d) => d.data_size_bytes(),
                 },
-                ArrayData::List(_) => not_implemented!("Row encode list"),
+                ArrayData2::List(_) => not_implemented!("Row encode list"),
             };
 
             // Account for validities.

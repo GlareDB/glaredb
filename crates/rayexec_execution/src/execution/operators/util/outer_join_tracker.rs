@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
@@ -108,7 +108,7 @@ impl LeftOuterJoinDrainState {
             .cloned()
             .chain([Array::new_with_array_data(
                 DataType::Boolean,
-                ArrayData::Boolean(Arc::new(bitmap.clone().into())),
+                ArrayData2::Boolean(Arc::new(bitmap.clone().into())),
             )]);
 
         let batch = Batch::try_new(cols)?;

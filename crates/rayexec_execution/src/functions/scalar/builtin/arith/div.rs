@@ -19,7 +19,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::compute::cast::array::cast_decimal_to_float;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -243,7 +243,7 @@ impl<S> ScalarFunctionImpl for DivImpl<S>
 where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: std::ops::Div<Output = S::Type<'static>> + Default + Copy,
-    ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
+    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];

@@ -1,12 +1,13 @@
 use crate::arrays::bitmap::Bitmap;
 
 /// Validity mask for an array.
-#[derive(Debug, Clone)]
+// TODO: Remove PartialEq
+#[derive(Debug, Clone, PartialEq)]
 pub struct Validity {
     inner: ValidityInner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum ValidityInner {
     /// No mask has been set, assume all entries valid.
     AllValid { len: usize },

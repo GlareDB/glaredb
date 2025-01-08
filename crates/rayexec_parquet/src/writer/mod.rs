@@ -13,7 +13,7 @@ use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::array::physical_type::{PhysicalBinary, PhysicalStorage};
-use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::array::{Array, ArrayData2};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::field::Schema;
@@ -181,8 +181,9 @@ impl RowGroupWriter {
     fn write(&mut self, batch: &Batch) -> Result<()> {
         for (writer, col) in self.column_writers.iter_mut().zip(batch.columns()) {
             if col.has_selection() {
-                let unselected_array = col.unselect()?;
-                write_array(writer, &unselected_array)?;
+                unimplemented!()
+                // let unselected_array = col.unselect()?;
+                // write_array(writer, &unselected_array)?;
             } else {
                 write_array(writer, col)?;
             }
@@ -244,7 +245,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
     match writer {
         ColumnWriter::BoolColumnWriter(writer) => {
             match array.array_data() {
-                ArrayData::Boolean(d) => {
+                ArrayData2::Boolean(d) => {
                     let bools: Vec<_> = d.as_ref().as_ref().iter().collect();
                     writer
                         .write_batch(&bools, None, None)
@@ -255,13 +256,13 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
             }
         }
         ColumnWriter::Int32ColumnWriter(writer) => match array.array_data() {
-            ArrayData::Int32(d) => {
+            ArrayData2::Int32(d) => {
                 writer
                     .write_batch(d.as_slice(), None, None)
                     .context("failed to write i32 data")?;
                 Ok(())
             }
-            ArrayData::UInt32(d) => {
+            ArrayData2::UInt32(d) => {
                 // SAFETY: u32 and i32 safe to cast to/from. This follows
                 // upstream behavior.
                 let data = unsafe { d.try_reintepret_cast::<i32>()? };
@@ -273,13 +274,13 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
             _ => Err(RayexecError::new("expected i32/u32 data")),
         },
         ColumnWriter::Int64ColumnWriter(writer) => match array.array_data() {
-            ArrayData::Int64(d) => {
+            ArrayData2::Int64(d) => {
                 writer
                     .write_batch(d.as_slice(), None, None)
                     .context("failed to write i64 data")?;
                 Ok(())
             }
-            ArrayData::UInt64(d) => {
+            ArrayData2::UInt64(d) => {
                 // SAFETY: u64 and i64 safe to cast to/from. This follows
                 // upstream behavior.
                 let data = unsafe { d.try_reintepret_cast::<i64>()? };
@@ -291,7 +292,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
             _ => Err(RayexecError::new("expected i64/u64 data")),
         },
         ColumnWriter::FloatColumnWriter(writer) => match array.array_data() {
-            ArrayData::Float32(d) => {
+            ArrayData2::Float32(d) => {
                 writer
                     .write_batch(d.as_slice(), None, None)
                     .context("failed to write f32 data")?;
@@ -300,7 +301,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
             _ => Err(RayexecError::new("expected f32 data")),
         },
         ColumnWriter::DoubleColumnWriter(writer) => match array.array_data() {
-            ArrayData::Float64(d) => {
+            ArrayData2::Float64(d) => {
                 writer
                     .write_batch(d.as_slice(), None, None)
                     .context("failed to write f64 data")?;
@@ -309,7 +310,7 @@ fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Re
             _ => Err(RayexecError::new("expected f64 data")),
         },
         ColumnWriter::ByteArrayColumnWriter(writer) => match array.array_data() {
-            ArrayData::Binary(_) => {
+            ArrayData2::Binary(_) => {
                 // TODO: Try not to copy here. There's a hard requirement on the
                 // physical type being `Bytes`, and so a conversion needs to
                 // happen somewhere.

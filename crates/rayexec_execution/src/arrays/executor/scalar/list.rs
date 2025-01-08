@@ -1,7 +1,7 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::{PhysicalList, PhysicalStorage};
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer};
 use crate::arrays::executor::scalar::{
@@ -100,6 +100,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                     selection2: None,
                     validity2: None,
                     data2: builder.buffer.into_data(),
+                    next: None,
                 })
             } else {
                 if !ALLOW_NULLS {
@@ -144,6 +145,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
                     selection2: None,
                     validity2: None,
                     data2: builder.buffer.into_data(),
+                    next: None,
                 })
             }
         } else {
@@ -173,7 +175,7 @@ where
     S: PhysicalStorage,
 {
     match array.array_data() {
-        ArrayData::List(d) => {
+        ArrayData2::List(d) => {
             let storage = S::get_storage(d.array.array_data())?;
             let validity = d.array.validity();
             Ok((storage, validity))
@@ -184,7 +186,7 @@ where
 
 fn get_inner_array_selection(array: &Array) -> Result<Option<&SelectionVector>> {
     match array.array_data() {
-        ArrayData::List(d) => Ok(d.array.selection_vector()),
+        ArrayData2::List(d) => Ok(d.array.selection_vector()),
         _ => Err(RayexecError::new("Expected list array data")),
     }
 }

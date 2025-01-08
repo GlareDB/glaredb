@@ -24,7 +24,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{
@@ -130,6 +130,7 @@ where
             selection2: None,
             validity2: validity,
             data2: self.builder.buffer.into_data(),
+            next: None,
         }
     }
 }
@@ -158,6 +159,7 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
             selection2: None,
             validity2: None,
             data2: UntypedNullStorage(total_len).into(),
+            next: None,
         }),
         PhysicalType::Boolean => {
             let state = FillState::new(ArrayBuilder {
@@ -287,7 +289,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
     let inner_arrays = arrays
         .iter()
         .map(|arr| match arr.array_data() {
-            ArrayData::List(list) => {
+            ArrayData2::List(list) => {
                 if list.array.has_selection() {
                     return Err(RayexecError::new("List child array has selection"));
                 }
@@ -335,6 +337,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
         selection2: None,
         validity2: Some(validity.into()),
         data2: data.into(),
+        next: None,
     })
 }
 
@@ -383,6 +386,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             selection2: None,
             validity2: None,
             data2: UntypedNullStorage(indices.len()).into(),
+            next: None,
         }),
         PhysicalType::Boolean => {
             let state = FillState::new(ArrayBuilder {

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use stdutil::marker::PhantomCovariant;
 
 use crate::arrays::array::physical_type::{AsBytes, VarlenType};
-use crate::arrays::array::{ArrayData, BinaryData};
+use crate::arrays::array::{ArrayData2, BinaryData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::storage::{
@@ -60,7 +60,7 @@ pub trait ArrayDataBuffer {
     fn put(&mut self, idx: usize, val: &Self::Type);
 
     /// Convert the buffer into array data.
-    fn into_data(self) -> ArrayData;
+    fn into_data(self) -> ArrayData2;
 }
 
 #[derive(Debug)]
@@ -100,8 +100,8 @@ impl ArrayDataBuffer for BooleanBuffer {
         self.values.set_unchecked(idx, *val)
     }
 
-    fn into_data(self) -> ArrayData {
-        ArrayData::Boolean(Arc::new(BooleanStorage(self.values)))
+    fn into_data(self) -> ArrayData2 {
+        ArrayData2::Boolean(Arc::new(BooleanStorage(self.values)))
     }
 }
 
@@ -126,7 +126,7 @@ impl<T> ArrayDataBuffer for PrimitiveBuffer<T>
 where
     T: Copy,
     Vec<T>: Into<PrimitiveStorage<T>>,
-    ArrayData: From<PrimitiveStorage<T>>,
+    ArrayData2: From<PrimitiveStorage<T>>,
 {
     type Type = T;
 
@@ -138,7 +138,7 @@ where
         self.values[idx] = *val
     }
 
-    fn into_data(self) -> ArrayData {
+    fn into_data(self) -> ArrayData2 {
         PrimitiveStorage::from(self.values).into()
     }
 }
@@ -242,13 +242,13 @@ where
         }
     }
 
-    fn into_data(self) -> ArrayData {
+    fn into_data(self) -> ArrayData2 {
         let storage = GermanVarlenStorage {
             metadata: self.metadata.into(),
             data: self.data.into(),
         };
 
-        ArrayData::Binary(BinaryData::German(Arc::new(storage)))
+        ArrayData2::Binary(BinaryData::German(Arc::new(storage)))
     }
 }
 

@@ -100,6 +100,7 @@ impl UniformExecutor {
             selection2: None,
             validity2: out_validity,
             data2: data,
+            next: None,
         })
     }
 }

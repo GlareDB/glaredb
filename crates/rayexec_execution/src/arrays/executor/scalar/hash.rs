@@ -24,7 +24,7 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::selection;
 use crate::arrays::storage::{AddressableStorage, UntypedNull2};
@@ -222,7 +222,7 @@ impl HashExecutor {
         H: SetHash,
     {
         let inner = match array.array_data() {
-            ArrayData::List(list) => &list.array,
+            ArrayData2::List(list) => &list.array,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected array data for list hashing: {:?}",

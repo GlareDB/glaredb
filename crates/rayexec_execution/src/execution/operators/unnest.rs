@@ -36,7 +36,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{
@@ -246,7 +246,7 @@ impl ExecutableOperator for PhysicalUnnest {
             match arr.physical_type() {
                 PhysicalType::List => {
                     let child = match arr.array_data() {
-                        ArrayData::List(list) => list.inner_array(),
+                        ArrayData2::List(list) => list.inner_array(),
                         _other => return Err(RayexecError::new("Unexpected storage type")),
                     };
 

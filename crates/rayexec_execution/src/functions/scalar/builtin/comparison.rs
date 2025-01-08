@@ -26,7 +26,7 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
@@ -823,7 +823,7 @@ impl<O, T> RescalingComparisionImpl<O, T>
 where
     O: ComparisonOperation,
     T: DecimalType,
-    ArrayData: From<PrimitiveStorage<T::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<T::Primitive>>,
 {
     fn new(left: DecimalTypeMeta, right: DecimalTypeMeta) -> Self {
         RescalingComparisionImpl {
@@ -839,7 +839,7 @@ impl<O, T> ScalarFunctionImpl for RescalingComparisionImpl<O, T>
 where
     O: ComparisonOperation,
     T: DecimalType,
-    ArrayData: From<PrimitiveStorage<T::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<T::Primitive>>,
 {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let left = inputs[0];

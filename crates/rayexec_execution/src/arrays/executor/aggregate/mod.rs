@@ -104,6 +104,7 @@ impl StateFinalizer {
             selection2: None,
             validity2: validities,
             data2: builder.buffer.into_data(),
+            next: None,
         })
     }
 }

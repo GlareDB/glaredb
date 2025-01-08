@@ -25,7 +25,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{
@@ -128,7 +128,7 @@ impl ScalarFunctionImpl for ListExtractImpl {
 
 fn extract(array: &Array, idx: usize) -> Result<Array> {
     let data = match array.array_data() {
-        ArrayData::List(list) => list.as_ref(),
+        ArrayData2::List(list) => list.as_ref(),
         _other => return Err(RayexecError::new("Unexpected storage type")),
     };
 

@@ -45,7 +45,7 @@ use crate::arrays::array::physical_type::{
     PhysicalStorage,
     PhysicalType,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
@@ -85,7 +85,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
     where
         S: PhysicalStorage,
         S::Type<'a>: Float + Default,
-        ArrayData: From<PrimitiveStorage<S::Type<'a>>>;
+        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>;
 }
 
 /// Helper struct for creating functions that accept and produce a single
