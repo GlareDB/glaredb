@@ -265,7 +265,7 @@ where
 
     let mut validity = Bitmap::new_with_all_true(builder.buffer.len());
 
-    UnaryExecutor::for_each::<PhysicalList, _>(outer, |idx, metadata| {
+    UnaryExecutor::for_each2::<PhysicalList, _>(outer, |idx, metadata| {
         if let Some(metadata) = metadata {
             if el_idx >= metadata.len {
                 // Indexing outside of the list. Mark null
@@ -275,7 +275,7 @@ where
 
             // Otherwise put the element into the builder.
             let inner_el_idx = metadata.offset + el_idx;
-            match UnaryExecutor::value_at::<S>(inner, inner_el_idx as usize) {
+            match UnaryExecutor::value_at2::<S>(inner, inner_el_idx as usize) {
                 Ok(Some(el)) => {
                     builder.buffer.put(idx, el.borrow());
                     return;

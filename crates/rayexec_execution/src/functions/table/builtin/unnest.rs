@@ -213,7 +213,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
                     _other => return Err(RayexecError::new("Unexpected storage type")),
                 };
 
-                match UnaryExecutor::value_at::<PhysicalList>(input, self.current_row)? {
+                match UnaryExecutor::value_at2::<PhysicalList>(input, self.current_row)? {
                     Some(meta) => {
                         // Row is a list, unnest.
                         unnest(child, meta.len as usize, meta)?

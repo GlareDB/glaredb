@@ -263,7 +263,7 @@ where
     .expect("to be in range");
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -333,7 +333,7 @@ where
     .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -387,7 +387,7 @@ where
 
     let mut fail_state = behavior.new_state_for_array(arr);
     let output =
-        UnaryExecutor::execute::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
+        UnaryExecutor::execute2::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
             Some(v) => {
                 let scaled = v.div(scale);
                 buf.put(&scaled);
@@ -433,7 +433,7 @@ where
         .expect("to be in range");
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -519,7 +519,7 @@ where
     ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype,
@@ -663,7 +663,7 @@ where
     let mut fail_state = behavior.new_state_for_array(arr);
     let mut string_buf = String::new();
 
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Utf8,
@@ -683,7 +683,7 @@ where
 
 fn cast_parse_bool(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+    let output = UnaryExecutor::execute2::<PhysicalUtf8, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Boolean,
@@ -710,7 +710,7 @@ where
     ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+    let output = UnaryExecutor::execute2::<PhysicalUtf8, _, _>(
         arr,
         ArrayBuilder {
             datatype: datatype.clone(),

@@ -135,7 +135,7 @@ where
         buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
     };
 
-    UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+    UnaryExecutor::execute2::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
         // TODO: Non-allocating variant.
         buf.put(&case_fn(v))
     })

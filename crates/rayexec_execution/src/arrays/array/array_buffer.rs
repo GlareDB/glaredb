@@ -4,6 +4,7 @@ use std::sync::Arc;
 use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
+use super::array_data::ArrayData;
 use super::buffer_manager::BufferManager;
 use super::physical_type::{PhysicalStorage, PhysicalType};
 use super::raw::RawBuffer;
@@ -15,6 +16,7 @@ use super::string_view::{
     StringViewHeap,
     StringViewMetadataUnion,
 };
+use super::validity::Validity;
 use super::Array;
 
 /// Buffer for arrays.
@@ -61,6 +63,10 @@ where
     #[allow(dead_code)]
     pub(crate) fn put_secondary_buffer(&mut self, secondary: SecondaryBuffer<B>) {
         self.secondary = Box::new(secondary)
+    }
+
+    pub const fn physical_type(&self) -> PhysicalType {
+        self.physical_type
     }
 
     pub const fn primary_capacity(&self) -> usize {
@@ -214,19 +220,18 @@ where
 
 #[derive(Debug)]
 pub struct DictionaryBuffer<B: BufferManager> {
-    // pub(crate) validity: Validity,
-    // pub(crate) buffer: ArrayData<B>,
-    _b: PhantomData<B>,
+    pub(crate) validity: Validity,
+    pub(crate) buffer: ArrayData<B>,
 }
 
 impl<B> DictionaryBuffer<B>
 where
     B: BufferManager,
 {
-    // pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
-    //     debug_assert_eq!(buffer.capacity(), validity.len());
-    //     DictionaryBuffer { buffer, validity }
-    // }
+    pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
+        debug_assert_eq!(buffer.primary_capacity(), validity.len());
+        DictionaryBuffer { buffer, validity }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

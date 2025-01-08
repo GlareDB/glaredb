@@ -116,7 +116,7 @@ fn to_timestamp<const S: i64>(input: &Array) -> Result<Array> {
         buffer: PrimitiveBuffer::with_len(input.logical_len()),
     };
 
-    UnaryExecutor::execute::<PhysicalI64, _, _>(input, builder, |v, buf| {
+    UnaryExecutor::execute2::<PhysicalI64, _, _>(input, builder, |v, buf| {
         buf.put(&(v * S));
     })
 }

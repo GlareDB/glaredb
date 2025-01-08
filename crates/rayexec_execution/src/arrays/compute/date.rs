@@ -148,7 +148,7 @@ where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor::execute2::<PhysicalI64, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {
@@ -168,7 +168,7 @@ fn date32_extract_with_fn<F>(arr: &Array, f: F) -> Result<Array>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI32, _, _>(
+    UnaryExecutor::execute2::<PhysicalI32, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {
@@ -189,7 +189,7 @@ fn date64_extract_with_fn<F>(arr: &Array, f: F) -> Result<Array>
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, _, _>(
+    UnaryExecutor::execute2::<PhysicalI64, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Decimal64(DecimalTypeMeta {

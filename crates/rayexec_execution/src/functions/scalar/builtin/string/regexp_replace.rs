@@ -106,7 +106,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
 
         match (self.pattern.as_ref(), self.replacement.as_ref()) {
             (Some(pattern), Some(replacement)) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
                     // TODO: Flags to more many.
                     let out = pattern.replace(s, replacement);
                     buf.put(out.as_ref());

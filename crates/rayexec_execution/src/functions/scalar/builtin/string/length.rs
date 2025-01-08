@@ -72,7 +72,7 @@ impl ScalarFunctionImpl for StrLengthImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
             let len = v.chars().count() as i64;
             buf.put(&len)
         })
@@ -154,7 +154,7 @@ impl ScalarFunctionImpl for ByteLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute2::<PhysicalBinary, _, _>(input, builder, |v, buf| {
             buf.put(&(v.len() as i64))
         })
     }
@@ -231,7 +231,7 @@ impl ScalarFunctionImpl for BitLengthImpl {
         };
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute2::<PhysicalBinary, _, _>(input, builder, |v, buf| {
             let bit_len = v.len() * 8;
             buf.put(&(bit_len as i64))
         })

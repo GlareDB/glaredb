@@ -28,6 +28,6 @@ impl UnaryInputNumericOperation for FloorOp {
             datatype: ret,
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
-        UnaryExecutor::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.floor()))
+        UnaryExecutor::execute2::<S, _, _>(input, builder, |v, buf| buf.put(&v.floor()))
     }
 }

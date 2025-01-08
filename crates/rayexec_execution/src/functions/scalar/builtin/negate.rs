@@ -112,7 +112,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        UnaryExecutor::execute::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
+        UnaryExecutor::execute2::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
     }
 }
 
@@ -166,7 +166,7 @@ pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        UnaryExecutor::execute::<PhysicalBool, _, _>(
+        UnaryExecutor::execute2::<PhysicalBool, _, _>(
             inputs[0],
             ArrayBuilder {
                 datatype: DataType::Boolean,

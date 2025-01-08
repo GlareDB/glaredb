@@ -440,7 +440,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
                     };
 
-                    let array = UnaryExecutor::execute::<PhysicalU64, _, _>(
+                    let array = UnaryExecutor::execute2::<PhysicalU64, _, _>(
                         &group_ids,
                         builder,
                         |id, buf| {

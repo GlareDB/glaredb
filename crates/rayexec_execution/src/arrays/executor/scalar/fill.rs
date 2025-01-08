@@ -311,7 +311,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
     let mut acc_rows = 0;
 
     for (array, child_array) in arrays.iter().zip(inner_arrays) {
-        UnaryExecutor::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
+        UnaryExecutor::for_each2::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
             Some(metadata) => {
                 metadatas.push(ListItemMetadata2 {
                     offset: metadata.offset + acc_rows,

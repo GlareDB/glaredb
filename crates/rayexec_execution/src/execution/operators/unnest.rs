@@ -212,7 +212,7 @@ impl ExecutableOperator for PhysicalUnnest {
                 continue;
             }
 
-            if let Some(list_meta) = UnaryExecutor::value_at::<PhysicalList>(
+            if let Some(list_meta) = UnaryExecutor::value_at2::<PhysicalList>(
                 &state.unnest_inputs[input_idx],
                 state.current_row,
             )? {
@@ -250,7 +250,7 @@ impl ExecutableOperator for PhysicalUnnest {
                         _other => return Err(RayexecError::new("Unexpected storage type")),
                     };
 
-                    match UnaryExecutor::value_at::<PhysicalList>(arr, state.current_row)? {
+                    match UnaryExecutor::value_at2::<PhysicalList>(arr, state.current_row)? {
                         Some(meta) => {
                             // Row is a list, unnest.
                             let out = unnest(child, longest as usize, meta)?;

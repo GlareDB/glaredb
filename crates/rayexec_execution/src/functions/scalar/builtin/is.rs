@@ -117,7 +117,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor::execute::<PhysicalAny, _, _>(input, builder, |_, buf| {
+        let array = UnaryExecutor::execute2::<PhysicalAny, _, _>(input, builder, |_, buf| {
             buf.put(&updated)
         })?;
 
@@ -312,7 +312,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
         };
-        let array = UnaryExecutor::execute::<PhysicalBool, _, _>(input, builder, |val, buf| {
+        let array = UnaryExecutor::execute2::<PhysicalBool, _, _>(input, builder, |val, buf| {
             let b = if NOT { val != BOOL } else { val == BOOL };
             buf.put(&b)
         })?;

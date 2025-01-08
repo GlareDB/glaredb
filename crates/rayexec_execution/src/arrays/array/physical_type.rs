@@ -743,3 +743,27 @@ impl PhysicalStorage for PhysicalList {
         buffer.try_as_slice::<Self>()
     }
 }
+
+/// Dictionary arrays have the selection vector as the primary data buffer.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalDictionary;
+
+impl PhysicalStorage for PhysicalDictionary {
+    type Type<'a> = usize;
+    type Storage<'a> = PrimitiveStorageSlice<'a, usize>;
+
+    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
+        unimplemented!()
+    }
+
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Dictionary;
+
+    type PrimaryBufferType = usize; // The index into the dictionary.
+    type StorageType = Self::PrimaryBufferType;
+
+    type Addressable<'a> = &'a [usize];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
+    }
+}

@@ -1,6 +1,7 @@
 pub mod array_buffer;
 pub mod array_data;
 pub mod buffer_manager;
+pub mod flat;
 pub mod physical_type;
 pub mod selection;
 pub mod string_view;
@@ -15,8 +16,10 @@ use std::sync::Arc;
 use array_buffer::{ArrayBuffer, ListBuffer, SecondaryBuffer};
 use array_data::ArrayData;
 use buffer_manager::{BufferManager, NopBufferManager};
+use flat::FlatArrayView;
 use half::f16;
 use physical_type::{
+    AddressableMut,
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
@@ -123,6 +126,50 @@ impl PartialEq for Array {
     }
 }
 
+impl<B> Array<B>
+where
+    B: BufferManager,
+{
+    // TODO: Remove
+    pub(crate) fn next(&self) -> &ArrayNextInner<B> {
+        self.next.as_ref().unwrap()
+    }
+
+    // TODO: Remove
+    pub(crate) fn next_mut(&mut self) -> &mut ArrayNextInner<B> {
+        self.next.as_mut().unwrap()
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.next.as_ref().unwrap().data.primary_capacity()
+    }
+
+    pub fn datatype(&self) -> &DataType {
+        &self.datatype
+    }
+
+    pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
+        let next = self.next_mut();
+
+        if validity.len() != next.data.primary_capacity() {
+            return Err(RayexecError::new("Invalid validity length")
+                .with_field("got", validity.len())
+                .with_field("want", next.data.primary_capacity()));
+        }
+        next.validity = validity;
+
+        Ok(())
+    }
+
+    pub fn is_dictionary(&self) -> bool {
+        self.next.as_ref().unwrap().data.physical_type() == PhysicalType::Dictionary
+    }
+
+    pub fn flat_view(&self) -> Result<FlatArrayView<B>> {
+        FlatArrayView::from_array(self)
+    }
+}
+
 impl Array {
     /// Create a new array with the given capacity.
     ///
@@ -201,14 +248,6 @@ impl Array {
             data2: data.into(),
             next: None,
         }
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.next.as_ref().unwrap().data.primary_capacity()
-    }
-
-    pub fn datatype(&self) -> &DataType {
-        &self.datatype
     }
 
     pub fn has_selection(&self) -> bool {
@@ -500,118 +539,117 @@ impl Array {
 
         match scalar {
             ScalarValue::Null => {
-                UnaryExecutor::value_at::<PhysicalAny>(self, row).map(|arr_val| arr_val.is_none())
+                UnaryExecutor::value_at2::<PhysicalAny>(self, row).map(|arr_val| arr_val.is_none())
             } // None == NULL
             ScalarValue::Boolean(v) => {
-                UnaryExecutor::value_at::<PhysicalBool>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalBool>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int8(v) => {
-                UnaryExecutor::value_at::<PhysicalI8>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI8>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int16(v) => {
-                UnaryExecutor::value_at::<PhysicalI16>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI16>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int32(v) => {
-                UnaryExecutor::value_at::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int64(v) => {
-                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Int128(v) => {
-                UnaryExecutor::value_at::<PhysicalI128>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI128>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt8(v) => {
-                UnaryExecutor::value_at::<PhysicalU8>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalU8>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt16(v) => {
-                UnaryExecutor::value_at::<PhysicalU16>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalU16>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt32(v) => {
-                UnaryExecutor::value_at::<PhysicalU32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalU32>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt64(v) => {
-                UnaryExecutor::value_at::<PhysicalU64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalU64>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::UInt128(v) => {
-                UnaryExecutor::value_at::<PhysicalU128>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalU128>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Float32(v) => {
-                UnaryExecutor::value_at::<PhysicalF32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalF32>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Float64(v) => {
-                UnaryExecutor::value_at::<PhysicalF64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalF64>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Date32(v) => {
-                UnaryExecutor::value_at::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
             ScalarValue::Date64(v) => {
-                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
                 })
             }
-            ScalarValue::Interval(v) => UnaryExecutor::value_at::<PhysicalInterval>(self, row).map(
-                |arr_val| match arr_val {
+            ScalarValue::Interval(v) => UnaryExecutor::value_at2::<PhysicalInterval>(self, row)
+                .map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == *v,
                     None => false,
-                },
-            ),
+                }),
             ScalarValue::Utf8(v) => {
-                UnaryExecutor::value_at::<PhysicalUtf8>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalUtf8>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == v.as_ref(),
                     None => false,
                 })
             }
             ScalarValue::Binary(v) => {
-                UnaryExecutor::value_at::<PhysicalBinary>(self, row).map(|arr_val| match arr_val {
+                UnaryExecutor::value_at2::<PhysicalBinary>(self, row).map(|arr_val| match arr_val {
                     Some(arr_val) => arr_val == v.as_ref(),
                     None => false,
                 })
             }
             ScalarValue::Timestamp(v) => {
-                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| {
+                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| {
                     // Assumes time unit is the same
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -620,7 +658,7 @@ impl Array {
                 })
             }
             ScalarValue::Decimal64(v) => {
-                UnaryExecutor::value_at::<PhysicalI64>(self, row).map(|arr_val| {
+                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| {
                     // Assumes precision/scale are the same.
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -629,7 +667,7 @@ impl Array {
                 })
             }
             ScalarValue::Decimal128(v) => {
-                UnaryExecutor::value_at::<PhysicalI128>(self, row).map(|arr_val| {
+                UnaryExecutor::value_at2::<PhysicalI128>(self, row).map(|arr_val| {
                     // Assumes precision/scale are the same.
                     match arr_val {
                         Some(arr_val) => arr_val == v.value,
@@ -1101,11 +1139,90 @@ macro_rules! impl_primitive_from_iter {
     };
 }
 
+// TODO: Bool
+
 impl_primitive_from_iter!(i8, PhysicalI8, Int8);
 impl_primitive_from_iter!(i16, PhysicalI16, Int16);
 impl_primitive_from_iter!(i32, PhysicalI32, Int32);
 impl_primitive_from_iter!(i64, PhysicalI64, Int64);
 impl_primitive_from_iter!(i128, PhysicalI128, Int128);
+
+impl_primitive_from_iter!(u8, PhysicalU8, UInt8);
+impl_primitive_from_iter!(u16, PhysicalU16, UInt16);
+impl_primitive_from_iter!(u32, PhysicalU32, UInt32);
+impl_primitive_from_iter!(u64, PhysicalU64, UInt64);
+impl_primitive_from_iter!(u128, PhysicalU128, UInt128);
+
+impl_primitive_from_iter!(f16, PhysicalF16, Float16);
+impl_primitive_from_iter!(f32, PhysicalF32, Float32);
+impl_primitive_from_iter!(f64, PhysicalF64, Float64);
+
+impl_primitive_from_iter!(Interval, PhysicalInterval, Interval);
+
+impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
+    type Error = RayexecError;
+
+    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = &'a str>>(
+        iter: T,
+    ) -> Result<Self, Self::Error> {
+        let iter = iter.into_iter();
+        let len = iter.len();
+
+        let mut buffer =
+            ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(&Arc::new(NopBufferManager), len)?;
+        buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
+
+        let mut addressable = buffer.try_as_string_view_addressable_mut()?;
+
+        for (idx, v) in iter.enumerate() {
+            addressable.put(idx, v);
+        }
+
+        Ok(Array {
+            datatype: DataType::Utf8,
+            selection2: None,
+            validity2: None,
+            data2: ArrayData2::UntypedNull(UntypedNullStorage(len)),
+            next: Some(ArrayNextInner {
+                validity: Validity::new_all_valid(len),
+                data: ArrayData::owned(buffer),
+            }),
+        })
+    }
+}
+
+/// From iterator implementation that creates an array from optionally valid
+/// values. Some is treated as valid, None as invalid.
+impl<V> TryFromExactSizeIterator<Option<V>> for Array<NopBufferManager>
+where
+    V: Default,
+    Array<NopBufferManager>: TryFromExactSizeIterator<V, Error = RayexecError>,
+{
+    type Error = RayexecError;
+
+    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = Option<V>>>(
+        iter: T,
+    ) -> Result<Self, Self::Error> {
+        let iter = iter.into_iter();
+        let len = iter.len();
+
+        let mut validity = Validity::new_all_valid(len);
+
+        // New iterator that just uses the default value for missing values, and
+        // sets the validity as appropriate.
+        let iter = iter.enumerate().map(|(idx, v)| {
+            if v.is_none() {
+                validity.set_invalid(idx);
+            }
+            v.unwrap_or_default()
+        });
+
+        let mut array = Self::try_from_iter(iter)?;
+        array.put_validity(validity)?;
+
+        Ok(array)
+    }
+}
 
 #[cfg(test)]
 mod tests {

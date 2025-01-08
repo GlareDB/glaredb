@@ -28,7 +28,7 @@ impl UnaryInputNumericOperation for LogOp {
             datatype: ret,
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
-        UnaryExecutor::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.log10()))
+        UnaryExecutor::execute2::<S, _, _>(input, builder, |v, buf| buf.put(&v.log10()))
     }
 }
 
@@ -51,6 +51,6 @@ impl UnaryInputNumericOperation for LogOp2 {
             datatype: ret,
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
-        UnaryExecutor::execute::<S, _, _>(input, builder, |v, buf| buf.put(&v.log2()))
+        UnaryExecutor::execute2::<S, _, _>(input, builder, |v, buf| buf.put(&v.log2()))
     }
 }
