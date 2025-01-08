@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{AggregateState, RowToStateMapping};
 use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::array::physical_type::PhysicalStorage;
 use crate::arrays::executor::scalar::check_validity;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
@@ -77,7 +77,7 @@ impl BinaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::executor::physical_type::PhysicalI32;
+    use crate::arrays::array::physical_type::PhysicalI32;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]

@@ -2,7 +2,7 @@ use rayexec_error::Result;
 
 use super::{AggregateState, RowToStateMapping};
 use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::PhysicalStorage;
+use crate::arrays::array::physical_type::PhysicalStorage;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
@@ -60,7 +60,7 @@ impl UnaryNonNullUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
 
     #[derive(Debug, Default)]
     struct TestSumState {

@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt}
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::executor::physical_type::PhysicalType;
+use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::field::Field;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 

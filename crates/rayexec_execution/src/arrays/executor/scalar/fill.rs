@@ -12,7 +12,7 @@ use crate::arrays::executor::builder::{
     GermanVarlenBuffer,
     PrimitiveBuffer,
 };
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -550,7 +550,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::PrimitiveBuffer;
-    use crate::arrays::executor::physical_type::PhysicalI32;
+    use crate::arrays::array::physical_type::PhysicalI32;
     use crate::arrays::scalar::ScalarValue;
 
     #[test]

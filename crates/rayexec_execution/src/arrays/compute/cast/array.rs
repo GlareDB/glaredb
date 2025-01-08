@@ -57,7 +57,7 @@ use crate::arrays::executor::builder::{
     GermanVarlenBuffer,
     PrimitiveBuffer,
 };
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,

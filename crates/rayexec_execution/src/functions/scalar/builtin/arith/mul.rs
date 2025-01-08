@@ -7,7 +7,7 @@ use rayexec_error::Result;
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,

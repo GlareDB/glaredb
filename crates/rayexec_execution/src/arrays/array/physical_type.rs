@@ -4,8 +4,13 @@ use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 
-use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::executor::builder::{
+    ArrayDataBuffer,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
+};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{
     AddressableStorage,

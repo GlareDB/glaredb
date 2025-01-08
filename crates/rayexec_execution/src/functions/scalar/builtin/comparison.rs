@@ -9,7 +9,7 @@ use crate::arrays::compute::cast::array::decimal_rescale;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,

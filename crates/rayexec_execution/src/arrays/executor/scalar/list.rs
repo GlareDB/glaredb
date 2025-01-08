@@ -3,7 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalStorage};
+use crate::arrays::array::physical_type::{PhysicalList, PhysicalStorage};
 use crate::arrays::executor::scalar::{
     can_skip_validity_check,
     check_validity,

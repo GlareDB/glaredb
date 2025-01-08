@@ -8,7 +8,7 @@ use crate::arrays::array::ArrayData;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,

@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{PhysicalI32, PhysicalI64};
+use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 

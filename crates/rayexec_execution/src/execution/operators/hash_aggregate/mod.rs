@@ -21,7 +21,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::PhysicalU64;
+use crate::arrays::array::physical_type::PhysicalU64;
 use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor};
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::selection::SelectionVector;

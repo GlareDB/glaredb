@@ -6,6 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use stdutil::marker::PhantomCovariant;
 
 use super::ChunkGroupAddressIter;
+use crate::arrays::array::physical_type::PhysicalStorage;
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::aggregate::{
@@ -16,7 +17,6 @@ use crate::arrays::executor::aggregate::{
     UnaryNonNullUpdater,
 };
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
 use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 
 pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize> {

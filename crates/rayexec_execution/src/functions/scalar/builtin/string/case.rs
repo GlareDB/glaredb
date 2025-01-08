@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};

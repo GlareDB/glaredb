@@ -7,7 +7,7 @@ use crate::arrays::array::Array;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::physical_type::PhysicalBool;
+use crate::arrays::array::physical_type::PhysicalBool;
 use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UniformExecutor};
 use crate::arrays::storage::BooleanStorage;
 use crate::expr::Expression;

@@ -1,4 +1,5 @@
 pub mod buffer_manager;
+pub mod physical_type;
 
 mod raw;
 mod shared_or_owned;
@@ -7,18 +8,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use half::f16;
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use shared_or_owned::SharedOrOwned;
-
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::datatype::DataType;
-use crate::arrays::executor::builder::{
-    ArrayBuilder,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
-use crate::arrays::executor::physical_type::{
+use physical_type::{
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
@@ -38,6 +28,17 @@ use crate::arrays::executor::physical_type::{
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use shared_or_owned::SharedOrOwned;
+
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::DataType;
+use crate::arrays::executor::builder::{
+    ArrayBuilder,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};

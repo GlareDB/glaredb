@@ -5,7 +5,7 @@ use rayexec_error::{not_implemented, Result};
 use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
 use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,

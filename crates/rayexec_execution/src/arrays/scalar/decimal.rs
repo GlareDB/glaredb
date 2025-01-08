@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::executor::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage};
+use crate::arrays::array::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage};
 
 pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send

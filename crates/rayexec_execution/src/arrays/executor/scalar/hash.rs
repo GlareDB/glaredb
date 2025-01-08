@@ -3,7 +3,7 @@ use half::f16;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,

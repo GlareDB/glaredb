@@ -8,7 +8,7 @@ use crate::arrays::compute::cast::array::cast_decimal_to_float;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,

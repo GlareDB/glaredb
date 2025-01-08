@@ -5,7 +5,7 @@ use rayexec_error::Result;
 
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::physical_type::PhysicalF64;
+use crate::arrays::array::physical_type::PhysicalF64;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     new_binary_aggregate_states,
