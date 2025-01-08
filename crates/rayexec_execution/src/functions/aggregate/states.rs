@@ -1,9 +1,9 @@
 use core::fmt;
 use std::any::Any;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use rayexec_error::{RayexecError, Result};
+use stdutil::marker::PhantomCovariant;
 
 use super::ChunkGroupAddressIter;
 use crate::arrays::array::{Array, ArrayData};
@@ -26,8 +26,10 @@ pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdat
     state_update: StateUpdate,
     state_finalize: StateFinalize,
 
-    _input: PhantomData<Input>,
-    _output: PhantomData<Output>,
+    // Note that these don't use `PhantomData` since we'll want to allow unsized
+    // types for the output type.
+    _input: PhantomCovariant<Input>,
+    _output: PhantomCovariant<Output>,
 }
 
 impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
@@ -43,8 +45,8 @@ impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
             state_init,
             state_update,
             state_finalize,
-            _input: PhantomData,
-            _output: PhantomData,
+            _input: PhantomCovariant::new(),
+            _output: PhantomCovariant::new(),
         }
     }
 }
@@ -71,8 +73,8 @@ where
         state_init,
         state_update: unary_update::<State, Storage, Output>,
         state_finalize,
-        _input: PhantomData,
-        _output: PhantomData,
+        _input: PhantomCovariant::new(),
+        _output: PhantomCovariant::new(),
     })
 }
 
@@ -97,8 +99,8 @@ where
         state_init,
         state_update: binary_update::<State, Storage1, Storage2, Output>,
         state_finalize,
-        _input: PhantomData,
-        _output: PhantomData,
+        _input: PhantomCovariant::new(),
+        _output: PhantomCovariant::new(),
     })
 }
 
