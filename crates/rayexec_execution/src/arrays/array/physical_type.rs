@@ -169,6 +169,75 @@ impl ProtoConv for PhysicalType {
     }
 }
 
+/// Represents an in-memory array that can be indexed into to retrieve values.
+pub trait Addressable: Debug {
+    /// The type that get's returned.
+    type T: Send + Debug + ?Sized;
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get a value at the given index.
+    fn get(&self, idx: usize) -> Option<&Self::T>;
+}
+
+impl<T> Addressable for &[T]
+where
+    T: Debug + Send,
+{
+    type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        (**self).get(idx)
+    }
+}
+
+/// Represents in-memory storage that we can get mutable references to.
+pub trait AddressableMut: Debug {
+    type T: Debug + ?Sized;
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get a mutable reference to a value at the given index.
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
+
+    /// Put a value at the given index.
+    ///
+    /// Should panic if index is out of bounds.
+    fn put(&mut self, idx: usize, val: &Self::T);
+}
+
+impl<T> AddressableMut for &mut [T]
+where
+    T: Debug + Send + Copy,
+{
+    type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        (**self).get_mut(idx)
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        self[idx] = *val;
+    }
+}
+
+// TODO: Remove
 /// Types able to convert themselves to byte slices.
 pub trait AsBytes {
     fn as_bytes(&self) -> &[u8];
@@ -198,6 +267,7 @@ impl AsBytes for &[u8] {
     }
 }
 
+// TODO: Remove
 /// Types that can be converted from bytes.
 ///
 /// This should not be implemented for `&str`/`&[u8]`.
@@ -218,19 +288,20 @@ impl VarlenType for [u8] {
 }
 
 /// Helper trait for getting the underlying data for an array.
-///
-/// Contains a lifetime to enable tying the returned storage to the provided
-/// array data.
 pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+    // TODO: Remove
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
+    // TODO: Remove
     /// The type of the underlying array storage.
     type Storage<'a>: AddressableStorage<T = Self::Type<'a>>;
 
+    // TODO: Remove
     /// Gets the storage for the array that we can access directly.
     fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>>;
 }
 
+// TODO: Remove
 /// Type that's able to be used for any physical type.
 ///
 /// While this allows any array type to used in the executors, there's no way to
