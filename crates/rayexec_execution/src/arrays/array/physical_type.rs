@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
@@ -45,6 +45,8 @@ pub enum PhysicalType {
     Binary,
     Utf8,
     List,
+    Struct,
+    Dictionary,
 }
 
 impl PhysicalType {
@@ -73,7 +75,40 @@ impl PhysicalType {
                 array: Array::new_untyped_null_array(0),
             }
             .into(),
+            _ => unimplemented!(),
         }
+    }
+
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::UntypedNull => "UntypedNull",
+            Self::Boolean => "Boolean",
+            Self::Int8 => "Int8",
+            Self::Int16 => "Int16",
+            Self::Int32 => "Int32",
+            Self::Int64 => "Int64",
+            Self::Int128 => "Int128",
+            Self::UInt8 => "UInt8",
+            Self::UInt16 => "UInt16",
+            Self::UInt32 => "UInt32",
+            Self::UInt64 => "UInt64",
+            Self::UInt128 => "UInt128",
+            Self::Float16 => "Float16",
+            Self::Float32 => "Float32",
+            Self::Float64 => "Float64",
+            Self::Interval => "Interval",
+            Self::Binary => "Binary",
+            Self::Utf8 => "Utf8",
+            Self::List => "List",
+            Self::Struct => "Struct",
+            Self::Dictionary => "Dictionary",
+        }
+    }
+}
+
+impl fmt::Display for PhysicalType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -101,6 +136,8 @@ impl ProtoConv for PhysicalType {
             Self::Utf8 => Self::ProtoType::Utf8,
             Self::Binary => Self::ProtoType::Binary,
             Self::List => Self::ProtoType::List,
+            Self::Struct => Self::ProtoType::Struct,
+            Self::Dictionary => Self::ProtoType::Dictionary,
         })
     }
 
@@ -126,6 +163,8 @@ impl ProtoConv for PhysicalType {
             Self::ProtoType::Utf8 => Self::Utf8,
             Self::ProtoType::Binary => Self::Binary,
             Self::ProtoType::List => Self::List,
+            Self::ProtoType::Struct => Self::Struct,
+            Self::ProtoType::Dictionary => Self::Dictionary,
         })
     }
 }

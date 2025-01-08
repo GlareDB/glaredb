@@ -2,13 +2,8 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, Result};
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::compute::cast::array::decimal_rescale;
-use crate::arrays::compute::cast::behavior::CastFailBehavior;
-use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -31,6 +26,11 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::compute::cast::array::decimal_rescale;
+use crate::arrays::compute::cast::behavior::CastFailBehavior;
+use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
+use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, BinaryListReducer, FlexibleListExecutor};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
@@ -760,11 +760,7 @@ where
                     left, right, builder,
                 )?
             }
-            PhysicalType::List => {
-                return Err(RayexecError::new(
-                    "Comparison between nested lists not yet supported",
-                ))
-            }
+            other => not_implemented!("comparison: {other}"),
         };
 
         Ok(array)

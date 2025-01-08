@@ -4,10 +4,6 @@ use std::marker::PhantomData;
 use half::f16;
 use rayexec_error::{not_implemented, Result};
 
-use crate::arrays::array::ArrayData;
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -29,6 +25,10 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
 };
+use crate::arrays::array::ArrayData;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
 use crate::expr::Expression;
@@ -132,10 +132,7 @@ impl AggregateFunction for First {
             PhysicalType::Utf8 => Box::new(FirstBinaryImpl {
                 datatype: datatype.clone(),
             }),
-            PhysicalType::List => {
-                // TODO: Easy, clone underlying array and select.
-                not_implemented!("FIRST for list arrays")
-            }
+            other => not_implemented!("FIRST: {other}"),
         };
 
         Ok(PlannedAggregateFunction {

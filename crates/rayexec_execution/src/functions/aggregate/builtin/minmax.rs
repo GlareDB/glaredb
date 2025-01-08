@@ -4,10 +4,6 @@ use std::marker::PhantomData;
 use half::f16;
 use rayexec_error::{not_implemented, Result};
 
-use crate::arrays::array::ArrayData;
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
@@ -29,6 +25,10 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
 };
+use crate::arrays::array::ArrayData;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
+use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
 use crate::expr::Expression;
@@ -128,8 +128,8 @@ impl AggregateFunction for Min {
             ),
             PhysicalType::Binary => Box::new(MinBinaryImpl::new(datatype.clone())),
             PhysicalType::Utf8 => Box::new(MinBinaryImpl::new(datatype.clone())),
-            PhysicalType::List => {
-                not_implemented!("MIN for list arrays")
+            other => {
+                not_implemented!("MIN for type: {other}")
             }
         };
 
@@ -222,8 +222,8 @@ impl AggregateFunction for Max {
             ),
             PhysicalType::Binary => Box::new(MaxBinaryImpl::new(datatype.clone())),
             PhysicalType::Utf8 => Box::new(MaxBinaryImpl::new(datatype.clone())),
-            PhysicalType::List => {
-                not_implemented!("MAX for list arrays")
+            other => {
+                not_implemented!("MAX for type: {other}")
             }
         };
 
