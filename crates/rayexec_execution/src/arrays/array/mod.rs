@@ -1,4 +1,5 @@
 pub mod array_buffer;
+pub mod array_data;
 pub mod buffer_manager;
 pub mod physical_type;
 pub mod string_view;
