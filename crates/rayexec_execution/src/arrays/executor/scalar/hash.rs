@@ -1,9 +1,8 @@
 use ahash::RandomState;
 use half::f16;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -25,6 +24,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
+use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::selection;
 use crate::arrays::storage::{AddressableStorage, UntypedNull};
@@ -95,6 +95,7 @@ impl HashExecutor {
                 Self::hash_one_inner::<PhysicalInterval, CombineSetHash>(array, hashes)?
             }
             PhysicalType::List => Self::hash_list::<CombineSetHash>(array, hashes)?,
+            other => not_implemented!("Hash for type: {other}"),
         }
 
         Ok(())
@@ -159,6 +160,7 @@ impl HashExecutor {
                 Self::hash_one_inner::<PhysicalInterval, OverwriteSetHash>(array, hashes)?
             }
             PhysicalType::List => Self::hash_list::<OverwriteSetHash>(array, hashes)?,
+            other => not_implemented!("Hash for type: {other}"),
         }
 
         Ok(())

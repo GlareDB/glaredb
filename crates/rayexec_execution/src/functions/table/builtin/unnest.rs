@@ -3,10 +3,10 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::array::physical_type::{PhysicalList, PhysicalType};
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::physical_type::{PhysicalList, PhysicalType};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;

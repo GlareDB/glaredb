@@ -1,18 +1,8 @@
 use std::borrow::Borrow;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::datatype::DataType;
-use crate::arrays::executor::builder::{
-    ArrayBuilder,
-    ArrayDataBuffer,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -33,6 +23,16 @@ use crate::arrays::executor::physical_type::{
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+};
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::DataType;
+use crate::arrays::executor::builder::{
+    ArrayBuilder,
+    ArrayDataBuffer,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::selection;
@@ -279,6 +279,7 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
             concat_with_fill_state::<PhysicalBinary, _>(arrays, state)
         }
         PhysicalType::List => concat_lists(datatype.clone(), arrays, total_len),
+        other => not_implemented!("concat: {other}"),
     }
 }
 
@@ -502,12 +503,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
             });
             interleave_with_fill_state::<PhysicalBinary, _>(arrays, indices, state)
         }
-        PhysicalType::List => {
-            // TODO: Also doable
-            Err(RayexecError::new(
-                "interleaving list arrays not yet supported",
-            ))
-        }
+        other => not_implemented!("interleave: {other}"),
     }
 }
 
@@ -548,9 +544,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrays::array::physical_type::PhysicalI32;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::PrimitiveBuffer;
-    use crate::arrays::executor::physical_type::PhysicalI32;
     use crate::arrays::scalar::ScalarValue;
 
     #[test]

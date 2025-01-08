@@ -4,15 +4,10 @@ use std::ops::AddAssign;
 use num_traits::{AsPrimitive, Float};
 use rayexec_error::Result;
 
+use crate::arrays::array::physical_type::{PhysicalF16, PhysicalF32, PhysicalF64, PhysicalStorage};
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::{
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalStorage,
-};
 use crate::arrays::executor::scalar::{BinaryListReducer, ListExecutor};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};

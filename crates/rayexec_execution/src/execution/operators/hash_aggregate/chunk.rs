@@ -2,8 +2,8 @@ use rayexec_error::Result;
 
 use super::hash_table::GroupAddress;
 use super::AggregateStates;
+use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::PhysicalType;
 use crate::arrays::executor::scalar::concat;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::functions::aggregate::ChunkGroupAddressIter;

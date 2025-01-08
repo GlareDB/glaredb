@@ -4,17 +4,7 @@ use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::{Array, ArrayData};
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{
-    ArrayBuilder,
-    ArrayDataBuffer,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -34,6 +24,16 @@ use crate::arrays::executor::physical_type::{
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+};
+use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::bitmap::Bitmap;
+use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::builder::{
+    ArrayBuilder,
+    ArrayDataBuffer,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;

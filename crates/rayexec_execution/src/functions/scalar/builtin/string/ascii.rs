@@ -1,9 +1,9 @@
 use rayexec_error::Result;
 
+use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::physical_type::PhysicalUtf8;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};

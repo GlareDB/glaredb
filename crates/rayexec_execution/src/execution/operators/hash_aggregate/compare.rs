@@ -4,8 +4,7 @@ use rayexec_error::{not_implemented, Result};
 
 use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
-use crate::arrays::array::Array;
-use crate::arrays::executor::physical_type::{
+use crate::arrays::array::physical_type::{
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -27,6 +26,7 @@ use crate::arrays::executor::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
+use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::{can_skip_validity_check, check_validity};
 use crate::arrays::selection::{self, SelectionVector};
 use crate::arrays::storage::AddressableStorage;
@@ -158,9 +158,7 @@ where
             PhysicalType::Utf8 => {
                 compare_rows_eq::<PhysicalUtf8, _, _>(array1, array2, rows1, rows2, not_eq_rows)?
             }
-            PhysicalType::List => {
-                not_implemented!("Row compare list")
-            }
+            other => not_implemented!("Row compare: {other}"),
         }
     }
 

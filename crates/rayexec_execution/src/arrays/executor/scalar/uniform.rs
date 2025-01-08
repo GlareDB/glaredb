@@ -1,10 +1,10 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::check_validity;
+use crate::arrays::array::physical_type::PhysicalStorage;
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::physical_type::PhysicalStorage;
 use crate::arrays::executor::scalar::validate_logical_len;
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
@@ -109,9 +109,9 @@ mod tests {
     use selection::SelectionVector;
 
     use super::*;
+    use crate::arrays::array::physical_type::PhysicalUtf8;
     use crate::arrays::datatype::DataType;
     use crate::arrays::executor::builder::GermanVarlenBuffer;
-    use crate::arrays::executor::physical_type::PhysicalUtf8;
     use crate::arrays::scalar::ScalarValue;
 
     #[test]

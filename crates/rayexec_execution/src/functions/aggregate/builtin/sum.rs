@@ -5,10 +5,10 @@ use std::ops::AddAssign;
 use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
+use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
 use crate::arrays::array::ArrayData;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::physical_type::{PhysicalF64, PhysicalI64};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;

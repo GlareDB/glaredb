@@ -1,11 +1,16 @@
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 
-use super::builder::{ArrayDataBuffer, BooleanBuffer, GermanVarlenBuffer, PrimitiveBuffer};
 use crate::arrays::array::{Array, ArrayData, BinaryData};
+use crate::arrays::executor::builder::{
+    ArrayDataBuffer,
+    BooleanBuffer,
+    GermanVarlenBuffer,
+    PrimitiveBuffer,
+};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::storage::{
     AddressableStorage,
@@ -40,6 +45,8 @@ pub enum PhysicalType {
     Binary,
     Utf8,
     List,
+    Struct,
+    Dictionary,
 }
 
 impl PhysicalType {
@@ -68,7 +75,40 @@ impl PhysicalType {
                 array: Array::new_untyped_null_array(0),
             }
             .into(),
+            _ => unimplemented!(),
         }
+    }
+
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::UntypedNull => "UntypedNull",
+            Self::Boolean => "Boolean",
+            Self::Int8 => "Int8",
+            Self::Int16 => "Int16",
+            Self::Int32 => "Int32",
+            Self::Int64 => "Int64",
+            Self::Int128 => "Int128",
+            Self::UInt8 => "UInt8",
+            Self::UInt16 => "UInt16",
+            Self::UInt32 => "UInt32",
+            Self::UInt64 => "UInt64",
+            Self::UInt128 => "UInt128",
+            Self::Float16 => "Float16",
+            Self::Float32 => "Float32",
+            Self::Float64 => "Float64",
+            Self::Interval => "Interval",
+            Self::Binary => "Binary",
+            Self::Utf8 => "Utf8",
+            Self::List => "List",
+            Self::Struct => "Struct",
+            Self::Dictionary => "Dictionary",
+        }
+    }
+}
+
+impl fmt::Display for PhysicalType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -96,6 +136,8 @@ impl ProtoConv for PhysicalType {
             Self::Utf8 => Self::ProtoType::Utf8,
             Self::Binary => Self::ProtoType::Binary,
             Self::List => Self::ProtoType::List,
+            Self::Struct => Self::ProtoType::Struct,
+            Self::Dictionary => Self::ProtoType::Dictionary,
         })
     }
 
@@ -121,10 +163,81 @@ impl ProtoConv for PhysicalType {
             Self::ProtoType::Utf8 => Self::Utf8,
             Self::ProtoType::Binary => Self::Binary,
             Self::ProtoType::List => Self::List,
+            Self::ProtoType::Struct => Self::Struct,
+            Self::ProtoType::Dictionary => Self::Dictionary,
         })
     }
 }
 
+/// Represents an in-memory array that can be indexed into to retrieve values.
+pub trait Addressable: Debug {
+    /// The type that get's returned.
+    type T: Send + Debug + ?Sized;
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get a value at the given index.
+    fn get(&self, idx: usize) -> Option<&Self::T>;
+}
+
+impl<T> Addressable for &[T]
+where
+    T: Debug + Send,
+{
+    type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+
+    fn get(&self, idx: usize) -> Option<&Self::T> {
+        (**self).get(idx)
+    }
+}
+
+/// Represents in-memory storage that we can get mutable references to.
+pub trait AddressableMut: Debug {
+    type T: Debug + ?Sized;
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Get a mutable reference to a value at the given index.
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
+
+    /// Put a value at the given index.
+    ///
+    /// Should panic if index is out of bounds.
+    fn put(&mut self, idx: usize, val: &Self::T);
+}
+
+impl<T> AddressableMut for &mut [T]
+where
+    T: Debug + Send + Copy,
+{
+    type T = T;
+
+    fn len(&self) -> usize {
+        (**self).len()
+    }
+
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        (**self).get_mut(idx)
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        self[idx] = *val;
+    }
+}
+
+// TODO: Remove
 /// Types able to convert themselves to byte slices.
 pub trait AsBytes {
     fn as_bytes(&self) -> &[u8];
@@ -154,6 +267,7 @@ impl AsBytes for &[u8] {
     }
 }
 
+// TODO: Remove
 /// Types that can be converted from bytes.
 ///
 /// This should not be implemented for `&str`/`&[u8]`.
@@ -174,19 +288,20 @@ impl VarlenType for [u8] {
 }
 
 /// Helper trait for getting the underlying data for an array.
-///
-/// Contains a lifetime to enable tying the returned storage to the provided
-/// array data.
 pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+    // TODO: Remove
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
+    // TODO: Remove
     /// The type of the underlying array storage.
     type Storage<'a>: AddressableStorage<T = Self::Type<'a>>;
 
+    // TODO: Remove
     /// Gets the storage for the array that we can access directly.
     fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>>;
 }
 
+// TODO: Remove
 /// Type that's able to be used for any physical type.
 ///
 /// While this allows any array type to used in the executors, there's no way to

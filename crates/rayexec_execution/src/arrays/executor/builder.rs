@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use super::physical_type::{AsBytes, VarlenType};
+use crate::arrays::array::physical_type::{AsBytes, VarlenType};
 use crate::arrays::array::{ArrayData, BinaryData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
