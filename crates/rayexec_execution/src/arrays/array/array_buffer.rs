@@ -15,6 +15,7 @@ use super::string_view::{
     StringViewHeap,
     StringViewMetadataUnion,
 };
+use super::Array;
 
 /// Buffer for arrays.
 ///
@@ -236,25 +237,24 @@ pub struct ListItemMetadata {
 
 #[derive(Debug)]
 pub struct ListBuffer<B: BufferManager> {
-    // /// Number of "filled" entries in the child array.
-    // ///
-    // /// This differs from the child's capacity as we need to be able
-    // /// incrementally push back values.
-    // ///
-    // /// This is only looked at when writing values to the child array. Reads can
-    // /// ignore this as all required info is in the entry metadata.
-    // pub(crate) entries: usize,
-    // pub(crate) child: Array<B>,
-    _b: PhantomData<B>,
+    /// Number of "filled" entries in the child array.
+    ///
+    /// This differs from the child's capacity as we need to be able
+    /// incrementally push back values.
+    ///
+    /// This is only looked at when writing values to the child array. Reads can
+    /// ignore this as all required info is in the entry metadata.
+    pub(crate) entries: usize,
+    pub(crate) child: Array<B>,
 }
 
 impl<B> ListBuffer<B>
 where
     B: BufferManager,
 {
-    // pub fn new(child: Array<B>) -> Self {
-    //     ListBuffer { entries: 0, child }
-    // }
+    pub fn new(child: Array<B>) -> Self {
+        ListBuffer { entries: 0, child }
+    }
 }
 
 #[cfg(test)]

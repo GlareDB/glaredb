@@ -12,13 +12,15 @@ mod shared_or_owned;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use array_buffer::{ArrayBuffer, ListBuffer, SecondaryBuffer};
 use array_data::ArrayData;
-use buffer_manager::NopBufferManager;
+use buffer_manager::{BufferManager, NopBufferManager};
 use half::f16;
 use physical_type::{
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -27,16 +29,20 @@ use physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
+    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
+    PhysicalUntypedNull,
     PhysicalUtf8,
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use shared_or_owned::SharedOrOwned;
+use stdutil::iter::TryFromExactSizeIterator;
+use string_view::StringViewHeap;
 use validity::Validity;
 
 use crate::arrays::bitmap::Bitmap;
@@ -64,14 +70,14 @@ pub type PhysicalValidity = SharedOrOwned<Bitmap>;
 pub type LogicalSelection = SharedOrOwned<SelectionVector>;
 
 #[derive(Debug)]
-pub(crate) struct ArrayNextInner {
+pub(crate) struct ArrayNextInner<B: BufferManager> {
     pub(crate) validity: Validity,
-    pub(crate) data: ArrayData<NopBufferManager>,
+    pub(crate) data: ArrayData<B>,
 }
 
 // TODO: Remove Clone, PartialEq
 #[derive(Debug)]
-pub struct Array {
+pub struct Array<B: BufferManager = NopBufferManager> {
     /// Data type of the array.
     pub(crate) datatype: DataType,
     /// Selection of rows for the array.
@@ -91,7 +97,7 @@ pub struct Array {
     // TODO: Remove
     pub(crate) data2: ArrayData2,
 
-    pub(crate) next: Option<ArrayNextInner>,
+    pub(crate) next: Option<ArrayNextInner<B>>,
 }
 
 // TODO: Remove
@@ -118,6 +124,26 @@ impl PartialEq for Array {
 }
 
 impl Array {
+    /// Create a new array with the given capacity.
+    ///
+    /// This will take care of initalizing the primary and secondary data
+    /// buffers depending on the type.
+    pub fn new(datatype: DataType, capacity: usize) -> Result<Self> {
+        let buffer = array_buffer_for_datatype(&datatype, capacity)?;
+        let validity = Validity::new_all_valid(capacity);
+
+        Ok(Array {
+            datatype,
+            selection2: None,
+            validity2: None,
+            data2: ArrayData2::UntypedNull(UntypedNullStorage(capacity)),
+            next: Some(ArrayNextInner {
+                validity,
+                data: ArrayData::owned(buffer),
+            }),
+        })
+    }
+
     pub fn new_untyped_null_array(len: usize) -> Self {
         // Note that we're adding a bitmap here even though the data already
         // returns NULL. This allows the executors (especially for aggregates)
@@ -961,6 +987,125 @@ impl From<ListStorage> for ArrayData2 {
         ArrayData2::List(Arc::new(value))
     }
 }
+
+/// Create a new array buffer for a datatype.
+fn array_buffer_for_datatype(
+    datatype: &DataType,
+    capacity: usize,
+) -> Result<ArrayBuffer<NopBufferManager>> {
+    let manager = &Arc::new(NopBufferManager);
+
+    let buffer = match datatype.physical_type()? {
+        PhysicalType::UntypedNull => {
+            ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(manager, capacity)?
+        }
+        PhysicalType::Boolean => {
+            ArrayBuffer::with_primary_capacity::<PhysicalBool>(manager, capacity)?
+        }
+        PhysicalType::Int8 => ArrayBuffer::with_primary_capacity::<PhysicalI8>(manager, capacity)?,
+        PhysicalType::Int16 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI16>(manager, capacity)?
+        }
+        PhysicalType::Int32 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI32>(manager, capacity)?
+        }
+        PhysicalType::Int64 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI64>(manager, capacity)?
+        }
+        PhysicalType::Int128 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalI128>(manager, capacity)?
+        }
+        PhysicalType::UInt8 => ArrayBuffer::with_primary_capacity::<PhysicalU8>(manager, capacity)?,
+        PhysicalType::UInt16 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU16>(manager, capacity)?
+        }
+        PhysicalType::UInt32 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU32>(manager, capacity)?
+        }
+        PhysicalType::UInt64 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU64>(manager, capacity)?
+        }
+        PhysicalType::UInt128 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalU128>(manager, capacity)?
+        }
+        PhysicalType::Float16 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalF16>(manager, capacity)?
+        }
+        PhysicalType::Float32 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalF32>(manager, capacity)?
+        }
+        PhysicalType::Float64 => {
+            ArrayBuffer::with_primary_capacity::<PhysicalF64>(manager, capacity)?
+        }
+        PhysicalType::Interval => {
+            ArrayBuffer::with_primary_capacity::<PhysicalInterval>(manager, capacity)?
+        }
+        PhysicalType::Utf8 => {
+            let mut buffer = ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(manager, capacity)?;
+            buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
+            buffer
+        }
+        PhysicalType::List => {
+            let inner_type = match &datatype {
+                DataType::List(m) => m.datatype.as_ref().clone(),
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected list datatype, got {other}"
+                    )))
+                }
+            };
+
+            let child = Array::new(inner_type, capacity)?;
+
+            let mut buffer = ArrayBuffer::with_primary_capacity::<PhysicalList>(manager, capacity)?;
+            buffer.put_secondary_buffer(SecondaryBuffer::List(ListBuffer::new(child)));
+
+            buffer
+        }
+        other => not_implemented!("create array buffer for physical type {other}"),
+    };
+
+    Ok(buffer)
+}
+
+/// Implements `try_from_iter` for primitive types.
+///
+/// Note these create arrays using Nop buffer manager and so really only
+/// suitable for tests right now.
+macro_rules! impl_primitive_from_iter {
+    ($prim:ty, $phys:ty, $typ_variant:ident) => {
+        impl TryFromExactSizeIterator<$prim> for Array {
+            type Error = RayexecError;
+
+            fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = $prim>>(
+                iter: T,
+            ) -> Result<Self, Self::Error> {
+                let iter = iter.into_iter();
+
+                let mut array = Array::new(DataType::$typ_variant, iter.len())?;
+                let slice = array
+                    .next
+                    .as_mut()
+                    .unwrap()
+                    .data
+                    .try_as_mut()?
+                    .try_as_slice_mut::<$phys>()?;
+
+                for (dest, v) in slice.iter_mut().zip(iter) {
+                    *dest = v;
+                }
+
+                Ok(array)
+            }
+        }
+    };
+}
+
+impl_primitive_from_iter!(i8, PhysicalI8, Int8);
+impl_primitive_from_iter!(i16, PhysicalI16, Int16);
+impl_primitive_from_iter!(i32, PhysicalI32, Int32);
+impl_primitive_from_iter!(i64, PhysicalI64, Int64);
+impl_primitive_from_iter!(i128, PhysicalI128, Int128);
 
 #[cfg(test)]
 mod tests {
