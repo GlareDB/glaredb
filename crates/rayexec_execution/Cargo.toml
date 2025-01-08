@@ -9,6 +9,7 @@ rayexec_proto = { path = "../rayexec_proto" }
 rayexec_parser = { path = "../rayexec_parser" }
 # rayexec_bullet = { path = "../rayexec_bullet" }
 rayexec_io = { path = "../rayexec_io" }
+stdutil = { path = "../stdutil" }
 fmtutil = { path = "../fmtutil" }
 # stackutil = { path = "../stackutil" } TODO: psm hash issues when compiling to wasm on macos
 
