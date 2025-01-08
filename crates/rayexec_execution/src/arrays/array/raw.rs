@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::alloc::{self, Layout};
 use std::ptr::NonNull;
 use std::sync::Arc;
@@ -65,7 +63,10 @@ where
         std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), cap)
     }
 
-    pub unsafe fn reserve<T>(&mut self, manager: &Arc<B>, additional: usize) -> Result<()> {
+    /// Reserves memory for holding `additional` number of `T` elements.
+    ///
+    /// This will reallocate using the buffer manager on the existing memory reservation.
+    pub unsafe fn reserve<T>(&mut self, additional: usize) -> Result<()> {
         debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
         debug_assert_eq!(0, self.reservation.size() % std::mem::size_of::<T>());
 
@@ -85,7 +86,7 @@ where
             None => alloc::handle_alloc_error(layout),
         };
 
-        self.reservation = manager.reserve_from_layout(layout)?;
+        self.reservation = self.reservation.manager().reserve_from_layout(layout)?;
 
         Ok(())
     }
@@ -144,7 +145,7 @@ mod tests {
             s[i] = i as i64;
         }
 
-        unsafe { b.reserve::<i64>(&Arc::new(NopBufferManager), 4).unwrap() };
+        unsafe { b.reserve::<i64>(4).unwrap() };
         assert_eq!(64, b.reservation.size());
 
         let s = unsafe { b.as_slice_mut::<i64>() };

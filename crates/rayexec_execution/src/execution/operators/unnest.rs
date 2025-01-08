@@ -48,7 +48,7 @@ use crate::arrays::executor::builder::{
 };
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::selection::{self, SelectionVector};
-use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
+use crate::arrays::storage::{AddressableStorage, ListItemMetadata2};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
@@ -304,7 +304,7 @@ impl Explainable for PhysicalUnnest {
     }
 }
 
-pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) -> Result<Array> {
+pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata2) -> Result<Array> {
     let datatype = child.datatype().clone();
 
     match child.physical_type() {
@@ -428,7 +428,7 @@ pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata) 
 fn unnest_inner<'a, S, B>(
     mut builder: ArrayBuilder<B>,
     child: &'a Array,
-    meta: ListItemMetadata,
+    meta: ListItemMetadata2,
 ) -> Result<Array>
 where
     S: PhysicalStorage,

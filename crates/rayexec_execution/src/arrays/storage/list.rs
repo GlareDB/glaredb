@@ -4,20 +4,20 @@ use super::PrimitiveStorage;
 use crate::arrays::array::Array;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ListItemMetadata {
+pub struct ListItemMetadata2 {
     pub offset: i32,
     pub len: i32,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct ListStorage {
-    pub(crate) metadata: PrimitiveStorage<ListItemMetadata>,
+    pub(crate) metadata: PrimitiveStorage<ListItemMetadata2>,
     pub(crate) array: Array,
 }
 
 impl ListStorage {
     pub fn try_new(
-        metadata: impl Into<PrimitiveStorage<ListItemMetadata>>,
+        metadata: impl Into<PrimitiveStorage<ListItemMetadata2>>,
         array: Array,
     ) -> Result<Self> {
         let metadata = metadata.into();
@@ -43,7 +43,7 @@ impl ListStorage {
 
     pub fn empty_list(array: Array) -> Self {
         ListStorage {
-            metadata: vec![ListItemMetadata { offset: 0, len: 0 }].into(),
+            metadata: vec![ListItemMetadata2 { offset: 0, len: 0 }].into(),
             array,
         }
     }
@@ -52,7 +52,7 @@ impl ListStorage {
         let len = array.logical_len();
 
         ListStorage {
-            metadata: vec![ListItemMetadata {
+            metadata: vec![ListItemMetadata2 {
                 offset: 0,
                 len: len as i32,
             }]

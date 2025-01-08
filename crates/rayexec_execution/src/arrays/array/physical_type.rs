@@ -4,6 +4,9 @@ use half::f16;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 
+use super::array_buffer::{ArrayBuffer, ListItemMetadata};
+use super::buffer_manager::BufferManager;
+use super::string_view::{BinaryViewAddressable, StringViewAddressable, StringViewMetadataUnion};
 use crate::arrays::array::{Array, ArrayData, BinaryData};
 use crate::arrays::executor::builder::{
     ArrayDataBuffer,
@@ -17,10 +20,10 @@ use crate::arrays::storage::{
     BooleanStorageRef,
     ContiguousVarlenStorageSlice,
     GermanVarlenStorageSlice,
-    ListItemMetadata,
+    ListItemMetadata2,
     ListStorage,
     PrimitiveStorageSlice,
-    UntypedNull,
+    UntypedNull2,
     UntypedNullStorage,
 };
 
@@ -71,7 +74,7 @@ impl PhysicalType {
             Self::Binary => GermanVarlenBuffer::<[u8]>::with_len(len).into_data(),
             Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
             Self::List => ListStorage {
-                metadata: vec![ListItemMetadata::default(); len].into(),
+                metadata: vec![ListItemMetadata2::default(); len].into(),
                 array: Array::new_untyped_null_array(0),
             }
             .into(),
@@ -299,6 +302,36 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     // TODO: Remove
     /// Gets the storage for the array that we can access directly.
     fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>>;
+
+    const PHYSICAL_TYPE: PhysicalType;
+
+    /// Size in bytes of the type being stored in the primary buffer.
+    const PRIMARY_BUFFER_TYPE_SIZE: usize = std::mem::size_of::<Self::PrimaryBufferType>();
+
+    /// The type that's stored in the primary buffer.
+    ///
+    /// This should be small and fixed sized.
+    type PrimaryBufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
+
+    /// The logical type being stored that can be accessed.
+    ///
+    /// For primitive buffers, this will be the same as the primary buffer type.
+    type StorageType: Sync + Send + ?Sized;
+
+    /// The type of the addressable storage.
+    type Addressable<'a>: Addressable<T = Self::StorageType>;
+
+    /// Get addressable storage for indexing into the array.
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>>;
+}
+
+pub trait MutablePhysicalStorage: PhysicalStorage {
+    type AddressableMut<'a>: AddressableMut<T = Self::StorageType>;
+
+    /// Get mutable addressable storage for the array.
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>>;
 }
 
 // TODO: Remove
@@ -316,6 +349,16 @@ impl PhysicalStorage for PhysicalAny {
 
     fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
         Ok(UnitStorage(data.len()))
+    }
+
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
+    type PrimaryBufferType = ();
+    type StorageType = Self::PrimaryBufferType;
+    type Addressable<'a> = &'a [()];
+    fn get_addressable<B: BufferManager>(
+        _buffer: &ArrayBuffer<B>,
+    ) -> Result<Self::Addressable<'_>> {
+        unimplemented!()
     }
 }
 
@@ -341,11 +384,18 @@ impl AddressableStorage for UnitStorage {
     }
 }
 
+/// Marker type representing a null value without an associated type.
+///
+/// This will be the type we use for queries like `SELECT NULL` where there's no
+/// additional type information in the query.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UntypedNull;
+
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalUntypedNull;
 
 impl PhysicalStorage for PhysicalUntypedNull {
-    type Type<'a> = UntypedNull;
+    type Type<'a> = UntypedNull2;
     type Storage<'a> = UntypedNullStorage;
 
     fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
@@ -353,6 +403,17 @@ impl PhysicalStorage for PhysicalUntypedNull {
             ArrayData::UntypedNull(s) => Ok(*s),
             _ => Err(RayexecError::new("invalid storage")),
         }
+    }
+
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
+
+    type PrimaryBufferType = UntypedNull;
+    type StorageType = UntypedNull;
+
+    type Addressable<'a> = &'a [UntypedNull];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
     }
 }
 
@@ -369,217 +430,67 @@ impl PhysicalStorage for PhysicalBool {
             _ => Err(RayexecError::new("invalid storage, expected boolean")),
         }
     }
-}
 
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalI8;
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Boolean;
 
-impl PhysicalStorage for PhysicalI8 {
-    type Type<'a> = i8;
-    type Storage<'a> = PrimitiveStorageSlice<'a, i8>;
+    type PrimaryBufferType = bool;
+    type StorageType = bool;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Int8(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected int8")),
-        }
+    type Addressable<'a> = &'a [bool];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalI16;
+macro_rules! generate_primitive {
+    ($prim:ty, $name:ident, $variant:ident) => {
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+        pub struct $name;
 
-impl PhysicalStorage for PhysicalI16 {
-    type Type<'a> = i16;
-    type Storage<'a> = PrimitiveStorageSlice<'a, i16>;
+        impl PhysicalStorage for $name {
+            type Type<'a> = $prim;
+            type Storage<'a> = PrimitiveStorageSlice<'a, $prim>;
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Int16(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected int16")),
+            fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
+                match data {
+                    ArrayData::$variant(storage) => Ok(storage.as_primitive_storage_slice()),
+                    _ => Err(RayexecError::new("invalid storage, expected int8")),
+                }
+            }
+
+            const PHYSICAL_TYPE: PhysicalType = PhysicalType::$variant;
+
+            type PrimaryBufferType = $prim;
+            type StorageType = Self::PrimaryBufferType;
+            type Addressable<'a> = &'a [Self::StorageType];
+
+            fn get_addressable<B: BufferManager>(
+                buffer: &ArrayBuffer<B>,
+            ) -> Result<Self::Addressable<'_>> {
+                buffer.try_as_slice::<Self>()
+            }
         }
-    }
+    };
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalI32;
+generate_primitive!(i8, PhysicalI8, Int8);
+generate_primitive!(i16, PhysicalI16, Int16);
+generate_primitive!(i32, PhysicalI32, Int32);
+generate_primitive!(i64, PhysicalI64, Int64);
+generate_primitive!(i128, PhysicalI128, Int128);
 
-impl PhysicalStorage for PhysicalI32 {
-    type Type<'a> = i32;
-    type Storage<'a> = PrimitiveStorageSlice<'a, i32>;
+generate_primitive!(u8, PhysicalU8, UInt8);
+generate_primitive!(u16, PhysicalU16, UInt16);
+generate_primitive!(u32, PhysicalU32, UInt32);
+generate_primitive!(u64, PhysicalU64, UInt64);
+generate_primitive!(u128, PhysicalU128, UInt128);
 
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Int32(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected int32")),
-        }
-    }
-}
+generate_primitive!(f16, PhysicalF16, Float16);
+generate_primitive!(f32, PhysicalF32, Float32);
+generate_primitive!(f64, PhysicalF64, Float64);
 
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalI64;
-
-impl PhysicalStorage for PhysicalI64 {
-    type Type<'a> = i64;
-    type Storage<'a> = PrimitiveStorageSlice<'a, i64>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Int64(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected int64")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalI128;
-
-impl PhysicalStorage for PhysicalI128 {
-    type Type<'a> = i128;
-    type Storage<'a> = PrimitiveStorageSlice<'a, i128>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Int128(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected int128")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalU8;
-
-impl PhysicalStorage for PhysicalU8 {
-    type Type<'a> = u8;
-    type Storage<'a> = PrimitiveStorageSlice<'a, u8>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::UInt8(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected u8")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalU16;
-
-impl PhysicalStorage for PhysicalU16 {
-    type Type<'a> = u16;
-    type Storage<'a> = PrimitiveStorageSlice<'a, u16>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::UInt16(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected u16")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalU32;
-
-impl PhysicalStorage for PhysicalU32 {
-    type Type<'a> = u32;
-    type Storage<'a> = PrimitiveStorageSlice<'a, u32>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::UInt32(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected u32")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalU64;
-
-impl PhysicalStorage for PhysicalU64 {
-    type Type<'a> = u64;
-    type Storage<'a> = PrimitiveStorageSlice<'a, u64>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::UInt64(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected u64")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalU128;
-
-impl PhysicalStorage for PhysicalU128 {
-    type Type<'a> = u128;
-    type Storage<'a> = PrimitiveStorageSlice<'a, u128>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::UInt128(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected u128")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalF16;
-
-impl PhysicalStorage for PhysicalF16 {
-    type Type<'a> = f16;
-    type Storage<'a> = PrimitiveStorageSlice<'a, f16>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Float16(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected f32")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalF32;
-
-impl PhysicalStorage for PhysicalF32 {
-    type Type<'a> = f32;
-    type Storage<'a> = PrimitiveStorageSlice<'a, f32>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Float32(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected f32")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalF64;
-
-impl PhysicalStorage for PhysicalF64 {
-    type Type<'a> = f64;
-    type Storage<'a> = PrimitiveStorageSlice<'a, f64>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Float64(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected f64")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalInterval;
-
-impl PhysicalStorage for PhysicalInterval {
-    type Type<'a> = Interval;
-    type Storage<'a> = PrimitiveStorageSlice<'a, Interval>;
-
-    fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData::Interval(storage) => Ok(storage.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected interval")),
-        }
-    }
-}
+generate_primitive!(Interval, PhysicalInterval, Interval);
 
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalBinary;
@@ -601,6 +512,17 @@ impl PhysicalStorage for PhysicalBinary {
             },
             _ => Err(RayexecError::new("invalid storage, expected binary")),
         }
+    }
+
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Binary;
+
+    type PrimaryBufferType = StringViewMetadataUnion;
+    type StorageType = [u8];
+
+    type Addressable<'a> = BinaryViewAddressable<'a>;
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_binary_view_addressable()
     }
 }
 
@@ -626,6 +548,17 @@ impl PhysicalStorage for PhysicalUtf8 {
             },
             _ => Err(RayexecError::new("invalid storage")),
         }
+    }
+
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Utf8;
+
+    type PrimaryBufferType = StringViewMetadataUnion;
+    type StorageType = str;
+
+    type Addressable<'a> = StringViewAddressable<'a>;
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_string_view_addressable()
     }
 }
 
@@ -702,13 +635,24 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
 pub struct PhysicalList;
 
 impl PhysicalStorage for PhysicalList {
-    type Type<'a> = ListItemMetadata;
-    type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata>;
+    type Type<'a> = ListItemMetadata2;
+    type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata2>;
 
     fn get_storage(data: &ArrayData) -> Result<Self::Storage<'_>> {
         match data {
             ArrayData::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
             _ => Err(RayexecError::new("invalid storage, expected list")),
         }
+    }
+
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
+
+    type PrimaryBufferType = ListItemMetadata;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Addressable<'a> = &'a [Self::StorageType];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
     }
 }

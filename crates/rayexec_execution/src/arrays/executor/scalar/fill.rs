@@ -38,7 +38,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::selection;
 use crate::arrays::storage::{
     AddressableStorage,
-    ListItemMetadata,
+    ListItemMetadata2,
     ListStorage,
     PrimitiveStorage,
     UntypedNullStorage,
@@ -311,13 +311,13 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
     for (array, child_array) in arrays.iter().zip(inner_arrays) {
         UnaryExecutor::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
             Some(metadata) => {
-                metadatas.push(ListItemMetadata {
+                metadatas.push(ListItemMetadata2 {
                     offset: metadata.offset + acc_rows,
                     len: metadata.len,
                 });
             }
             None => {
-                metadatas.push(ListItemMetadata::default());
+                metadatas.push(ListItemMetadata2::default());
                 validity.set_unchecked(metadatas.len() - 1, false);
             }
         })?;
