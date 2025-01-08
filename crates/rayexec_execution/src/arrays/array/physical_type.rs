@@ -6,7 +6,13 @@ use rayexec_proto::ProtoConv;
 
 use super::array_buffer::{ArrayBuffer, ListItemMetadata};
 use super::buffer_manager::BufferManager;
-use super::string_view::{BinaryViewAddressable, StringViewAddressable, StringViewMetadataUnion};
+use super::string_view::{
+    BinaryViewAddressable,
+    BinaryViewAddressableMut,
+    StringViewAddressable,
+    StringViewAddressableMut,
+    StringViewMetadataUnion,
+};
 use crate::arrays::array::{Array, ArrayData2, BinaryData};
 use crate::arrays::executor::builder::{
     ArrayDataBuffer,
@@ -53,6 +59,7 @@ pub enum PhysicalType {
 }
 
 impl PhysicalType {
+    // TODO: Remove
     pub fn zeroed_array_data(&self, len: usize) -> ArrayData2 {
         match self {
             Self::UntypedNull => UntypedNullStorage(len).into(),
@@ -78,6 +85,35 @@ impl PhysicalType {
                 array: Array::new_untyped_null_array(0),
             }
             .into(),
+            _ => unimplemented!(),
+        }
+    }
+
+    /// Get the size in bytes of the type that gets placed into the primary
+    /// buffer.
+    pub const fn primary_buffer_mem_size(&self) -> usize {
+        match self {
+            Self::UntypedNull => PhysicalUntypedNull::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Boolean => PhysicalBool::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int8 => PhysicalI8::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int16 => PhysicalI16::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int32 => PhysicalI32::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int64 => PhysicalI64::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Int128 => PhysicalI128::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt8 => PhysicalU8::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt16 => PhysicalU16::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt32 => PhysicalU32::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt64 => PhysicalU64::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::UInt128 => PhysicalU128::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Float16 => PhysicalF16::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Float32 => PhysicalF32::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Utf8 => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::List => PhysicalList::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Dictionary => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+
+            // TODO: Struct should zero.
             _ => unimplemented!(),
         }
     }
@@ -417,6 +453,17 @@ impl PhysicalStorage for PhysicalUntypedNull {
     }
 }
 
+impl MutablePhysicalStorage for PhysicalUntypedNull {
+    type AddressableMut<'a> = &'a mut [UntypedNull];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
+    }
+}
+
+// TODO: Use primitive macro
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalBool;
 
@@ -440,6 +487,16 @@ impl PhysicalStorage for PhysicalBool {
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_slice::<Self>()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalBool {
+    type AddressableMut<'a> = &'a mut [bool];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
     }
 }
 
@@ -469,6 +526,16 @@ macro_rules! generate_primitive {
                 buffer: &ArrayBuffer<B>,
             ) -> Result<Self::Addressable<'_>> {
                 buffer.try_as_slice::<Self>()
+            }
+        }
+
+        impl MutablePhysicalStorage for $name {
+            type AddressableMut<'a> = &'a mut [Self::StorageType];
+
+            fn get_addressable_mut<B: BufferManager>(
+                buffer: &mut ArrayBuffer<B>,
+            ) -> Result<Self::AddressableMut<'_>> {
+                buffer.try_as_slice_mut::<Self>()
             }
         }
     };
@@ -526,6 +593,16 @@ impl PhysicalStorage for PhysicalBinary {
     }
 }
 
+impl MutablePhysicalStorage for PhysicalBinary {
+    type AddressableMut<'a> = BinaryViewAddressableMut<'a>;
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_binary_view_addressable_mut()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicalUtf8;
 
@@ -559,6 +636,16 @@ impl PhysicalStorage for PhysicalUtf8 {
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_string_view_addressable()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalUtf8 {
+    type AddressableMut<'a> = StringViewAddressableMut<'a>;
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_string_view_addressable_mut()
     }
 }
 

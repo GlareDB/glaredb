@@ -19,7 +19,6 @@ use physical_type::{
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
-    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI128,
@@ -42,12 +41,6 @@ use validity::Validity;
 
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::builder::{
-    ArrayBuilder,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
@@ -182,6 +175,10 @@ impl Array {
             data2: data.into(),
             next: None,
         }
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.next.as_ref().unwrap().data.primary_capacity()
     }
 
     pub fn datatype(&self) -> &DataType {

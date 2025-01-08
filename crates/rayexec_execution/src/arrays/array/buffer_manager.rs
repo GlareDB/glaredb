@@ -53,15 +53,15 @@ where
         })
     }
 
-    pub fn manager(&self) -> &Arc<B> {
+    pub const fn manager(&self) -> &Arc<B> {
         &self.manager
     }
 
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.size
     }
 
-    pub fn align(&self) -> usize {
+    pub const fn align(&self) -> usize {
         self.align
     }
 

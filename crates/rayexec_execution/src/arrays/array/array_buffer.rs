@@ -62,6 +62,10 @@ where
         self.secondary = Box::new(secondary)
     }
 
+    pub const fn primary_capacity(&self) -> usize {
+        self.primary.reservation.size() / self.physical_type.primary_buffer_mem_size()
+    }
+
     pub fn get_secondary(&self) -> &SecondaryBuffer<B> {
         &self.secondary
     }
@@ -270,11 +274,13 @@ mod tests {
         let mut buffer =
             ArrayBuffer::with_primary_capacity::<PhysicalI32>(&Arc::new(NopBufferManager), 4)
                 .unwrap();
+        assert_eq!(4, buffer.primary_capacity());
 
         let s = buffer.try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(4, s.len());
 
         buffer.reserve_primary::<PhysicalI32>(8).unwrap();
+        assert_eq!(8, buffer.primary_capacity());
 
         let s = buffer.try_as_slice_mut::<PhysicalI32>().unwrap();
         assert_eq!(8, s.len());
