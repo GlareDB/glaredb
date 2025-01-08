@@ -1,5 +1,7 @@
+pub mod array_buffer;
 pub mod buffer_manager;
 pub mod physical_type;
+pub mod string_view;
 
 mod raw;
 mod shared_or_owned;

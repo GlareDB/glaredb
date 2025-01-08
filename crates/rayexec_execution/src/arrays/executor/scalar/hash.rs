@@ -27,7 +27,7 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::array::{Array, ArrayData};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::selection;
-use crate::arrays::storage::{AddressableStorage, UntypedNull};
+use crate::arrays::storage::{AddressableStorage, UntypedNull2};
 
 /// State used for all hashing operations during physical execution.
 pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
@@ -371,7 +371,7 @@ impl HashValue for f64 {
     }
 }
 
-impl HashValue for UntypedNull {
+impl HashValue for UntypedNull2 {
     fn hash_one(&self) -> u64 {
         null_hash_value()
     }

@@ -2,7 +2,7 @@ use super::AddressableStorage;
 
 /// Unit value representing untyped null values.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UntypedNull;
+pub struct UntypedNull2;
 
 /// Storage for untyped null values.
 ///
@@ -12,7 +12,7 @@ pub struct UntypedNull;
 pub struct UntypedNullStorage(pub(crate) usize);
 
 impl AddressableStorage for UntypedNullStorage {
-    type T = UntypedNull;
+    type T = UntypedNull2;
 
     fn len(&self) -> usize {
         self.0
@@ -22,7 +22,7 @@ impl AddressableStorage for UntypedNullStorage {
         if idx >= self.0 {
             return None;
         }
-        Some(UntypedNull)
+        Some(UntypedNull2)
     }
 
     unsafe fn get_unchecked(&self, idx: usize) -> Self::T {

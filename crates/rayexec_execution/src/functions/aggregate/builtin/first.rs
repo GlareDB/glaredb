@@ -30,7 +30,7 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
+use crate::arrays::storage::{PrimitiveStorage, UntypedNull2};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     boolean_finalize,
@@ -173,7 +173,7 @@ pub struct FirstUntypedNullImpl;
 impl AggregateFunctionImpl for FirstUntypedNullImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         new_unary_aggregate_states::<PhysicalUntypedNull, _, _, _, _>(
-            FirstState::<UntypedNull>::default,
+            FirstState::<UntypedNull2>::default,
             untyped_null_finalize,
         )
     }

@@ -14,7 +14,7 @@ use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
-use crate::arrays::storage::{GermanVarlenStorage, ListItemMetadata, ListStorage};
+use crate::arrays::storage::{GermanVarlenStorage, ListItemMetadata2, ListStorage};
 use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
@@ -165,7 +165,7 @@ impl SystemFunctionImpl for ListFunctionsImpl {
                     function_names.try_push(entry.name.as_bytes())?;
                     function_types.try_push(function_type.as_bytes())?;
 
-                    argument_types_metadatas.push(ListItemMetadata {
+                    argument_types_metadatas.push(ListItemMetadata2 {
                         offset: argument_types.len() as i32,
                         len: sig.positional_args.len() as i32,
                     });
@@ -173,7 +173,7 @@ impl SystemFunctionImpl for ListFunctionsImpl {
                         argument_types.try_push(arg.as_str().as_bytes())?;
                     }
 
-                    argument_names_metadatas.push(ListItemMetadata {
+                    argument_names_metadatas.push(ListItemMetadata2 {
                         offset: argument_names.len() as i32,
                         len: sig.positional_args.len() as i32,
                     });

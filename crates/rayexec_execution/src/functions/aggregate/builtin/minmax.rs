@@ -30,7 +30,7 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::{PrimitiveStorage, UntypedNull};
+use crate::arrays::storage::{PrimitiveStorage, UntypedNull2};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     boolean_finalize,
@@ -243,7 +243,7 @@ impl AggregateFunctionImpl for MinMaxUntypedNull {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         // Note min vs max doesn't matter. Everything is null.
         new_unary_aggregate_states::<PhysicalUntypedNull, _, _, _, _>(
-            MinState::<UntypedNull>::default,
+            MinState::<UntypedNull2>::default,
             untyped_null_finalize,
         )
     }

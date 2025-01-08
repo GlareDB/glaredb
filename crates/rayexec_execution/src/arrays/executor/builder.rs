@@ -1,5 +1,6 @@
-use std::marker::PhantomData;
 use std::sync::Arc;
+
+use stdutil::marker::PhantomCovariant;
 
 use crate::arrays::array::physical_type::{AsBytes, VarlenType};
 use crate::arrays::array::{ArrayData, BinaryData};
@@ -146,7 +147,7 @@ where
 pub struct GermanVarlenBuffer<T: ?Sized> {
     pub(crate) metadata: Vec<UnionedGermanMetadata>,
     pub(crate) data: Vec<u8>,
-    pub(crate) _type: PhantomData<T>,
+    pub(crate) _type: PhantomCovariant<T>,
 }
 
 impl<T> GermanVarlenBuffer<T>
@@ -161,7 +162,7 @@ where
         GermanVarlenBuffer {
             metadata: vec![UnionedGermanMetadata::zero(); len],
             data: Vec::with_capacity(data_cap),
-            _type: PhantomData,
+            _type: PhantomCovariant::new(),
         }
     }
 

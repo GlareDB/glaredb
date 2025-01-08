@@ -10,7 +10,7 @@ use crate::arrays::executor::scalar::{
     validate_logical_len,
 };
 use crate::arrays::selection::{self, SelectionVector};
-use crate::arrays::storage::{AddressableStorage, ListItemMetadata};
+use crate::arrays::storage::{AddressableStorage, ListItemMetadata2};
 
 pub trait BinaryListReducer<T, O> {
     fn new(left_len: i32, right_len: i32) -> Self;
@@ -152,7 +152,7 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
         }
     }
 
-    fn item_iter_len(m1: ListItemMetadata, m2: ListItemMetadata) -> Result<i32> {
+    fn item_iter_len(m1: ListItemMetadata2, m2: ListItemMetadata2) -> Result<i32> {
         if m1.len == m2.len {
             Ok(m1.len)
         } else if ALLOW_DIFFERENT_LENS {

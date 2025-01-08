@@ -54,7 +54,7 @@ use crate::arrays::selection::SelectionVector;
 use crate::arrays::storage::{
     BooleanStorage,
     GermanVarlenStorage,
-    ListItemMetadata,
+    ListItemMetadata2,
     ListStorage,
     PrimitiveStorage,
 };
@@ -231,7 +231,7 @@ impl ScalarValue<'_> {
             Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
             Self::List(v) => {
                 if v.is_empty() {
-                    let metadata = ListItemMetadata { offset: 0, len: 0 };
+                    let metadata = ListItemMetadata2 { offset: 0, len: 0 };
 
                     ListStorage {
                         metadata: vec![metadata].into(),
@@ -246,7 +246,7 @@ impl ScalarValue<'_> {
                     let refs: Vec<_> = arrays.iter().collect();
                     let array = concat(&refs)?;
 
-                    let metadata = ListItemMetadata {
+                    let metadata = ListItemMetadata2 {
                         offset: 0,
                         len: array.logical_len() as i32,
                     };
