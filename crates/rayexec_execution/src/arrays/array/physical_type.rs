@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use super::array_buffer::{ArrayBuffer, ListItemMetadata};
 use super::buffer_manager::BufferManager;
-use super::string_view::{StringViewAddressable, StringViewMetadataUnion};
+use super::string_view::{BinaryViewAddressable, StringViewAddressable, StringViewMetadataUnion};
 use crate::arrays::array::{Array, ArrayData, BinaryData};
 use crate::arrays::executor::builder::{
     ArrayDataBuffer,
@@ -355,7 +355,9 @@ impl PhysicalStorage for PhysicalAny {
     type PrimaryBufferType = ();
     type StorageType = Self::PrimaryBufferType;
     type Addressable<'a> = &'a [()];
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+    fn get_addressable<B: BufferManager>(
+        _buffer: &ArrayBuffer<B>,
+    ) -> Result<Self::Addressable<'_>> {
         unimplemented!()
     }
 }
@@ -512,15 +514,15 @@ impl PhysicalStorage for PhysicalBinary {
         }
     }
 
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Dictionary;
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Binary;
 
-    type PrimaryBufferType = usize; // The index into the dictionary.
-    type StorageType = Self::PrimaryBufferType;
+    type PrimaryBufferType = StringViewMetadataUnion;
+    type StorageType = [u8];
 
-    type Addressable<'a> = &'a [usize];
+    type Addressable<'a> = BinaryViewAddressable<'a>;
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        unimplemented!()
+        buffer.try_as_binary_view_addressable()
     }
 }
 
@@ -556,7 +558,7 @@ impl PhysicalStorage for PhysicalUtf8 {
     type Addressable<'a> = StringViewAddressable<'a>;
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        unimplemented!()
+        buffer.try_as_string_view_addressable()
     }
 }
 
