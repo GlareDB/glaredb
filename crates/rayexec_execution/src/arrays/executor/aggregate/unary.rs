@@ -25,7 +25,7 @@ impl UnaryNonNullUpdater {
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for mapping in mapping {
                     let sel = unsafe { selection::get_unchecked(selection, mapping.from_row) };
@@ -41,7 +41,7 @@ impl UnaryNonNullUpdater {
                 }
             }
             None => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for mapping in mapping {
                     let sel = unsafe { selection::get_unchecked(selection, mapping.from_row) };

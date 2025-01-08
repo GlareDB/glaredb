@@ -101,9 +101,9 @@ impl StateFinalizer {
 
         Ok(Array {
             datatype: builder.datatype,
-            selection: None,
-            validity: validities,
-            data: builder.buffer.into_data(),
+            selection2: None,
+            validity2: validities,
+            data2: builder.buffer.into_data(),
         })
     }
 }

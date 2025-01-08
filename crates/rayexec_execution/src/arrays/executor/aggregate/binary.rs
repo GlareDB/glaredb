@@ -39,8 +39,8 @@ impl BinaryNonNullUpdater {
         let validity2 = array2.validity();
 
         if validity1.is_some() || validity2.is_some() {
-            let values1 = S1::get_storage(&array1.data)?;
-            let values2 = S2::get_storage(&array2.data)?;
+            let values1 = S1::get_storage(&array1.data2)?;
+            let values2 = S2::get_storage(&array2.data2)?;
 
             for mapping in mapping {
                 let sel1 = unsafe { selection::get_unchecked(selection1, mapping.from_row) };
@@ -55,8 +55,8 @@ impl BinaryNonNullUpdater {
                 }
             }
         } else {
-            let values1 = S1::get_storage(&array1.data)?;
-            let values2 = S2::get_storage(&array2.data)?;
+            let values1 = S1::get_storage(&array1.data2)?;
+            let values2 = S2::get_storage(&array2.data2)?;
 
             for mapping in mapping {
                 let sel1 = unsafe { selection::get_unchecked(selection1, mapping.from_row) };

@@ -19,7 +19,7 @@ impl SelectExecutor {
 
         match bool_array.validity() {
             Some(validity) => {
-                let values = PhysicalBool::get_storage(&bool_array.data)?;
+                let values = PhysicalBool::get_storage(&bool_array.data2)?;
 
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);
@@ -35,7 +35,7 @@ impl SelectExecutor {
                 }
             }
             None => {
-                let values = PhysicalBool::get_storage(&bool_array.data)?;
+                let values = PhysicalBool::get_storage(&bool_array.data2)?;
 
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);

@@ -42,8 +42,8 @@ impl BinaryExecutor {
         };
 
         if validity1.is_some() || validity2.is_some() {
-            let values1 = S1::get_storage(&array1.data)?;
-            let values2 = S2::get_storage(&array2.data)?;
+            let values1 = S1::get_storage(&array1.data2)?;
+            let values2 = S2::get_storage(&array2.data2)?;
 
             let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
@@ -64,8 +64,8 @@ impl BinaryExecutor {
 
             out_validity = Some(out_validity_builder.into())
         } else {
-            let values1 = S1::get_storage(&array1.data)?;
-            let values2 = S2::get_storage(&array2.data)?;
+            let values1 = S1::get_storage(&array1.data2)?;
+            let values2 = S2::get_storage(&array2.data2)?;
 
             for idx in 0..len {
                 let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
@@ -83,9 +83,9 @@ impl BinaryExecutor {
 
         Ok(Array {
             datatype: builder.datatype,
-            selection: None,
-            validity: out_validity,
-            data,
+            selection2: None,
+            validity2: out_validity,
+            data2: data,
         })
     }
 }

@@ -35,7 +35,7 @@ impl UnaryExecutor {
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
                 let mut out_validity_builder = Bitmap::new_with_all_true(len);
 
                 for idx in 0..len {
@@ -54,7 +54,7 @@ impl UnaryExecutor {
                 out_validity = Some(out_validity_builder.into())
             }
             None => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);
                     let val = unsafe { values.get_unchecked(sel) };
@@ -69,9 +69,9 @@ impl UnaryExecutor {
 
         Ok(Array {
             datatype: builder.datatype,
-            selection: None,
-            validity: out_validity,
-            data,
+            selection2: None,
+            validity2: out_validity,
+            data2: data,
         })
     }
 
@@ -90,7 +90,7 @@ impl UnaryExecutor {
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);
@@ -104,7 +104,7 @@ impl UnaryExecutor {
                 }
             }
             None => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
                 for idx in 0..len {
                     let sel = selection::get(selection, idx);
                     let val = unsafe { values.get_unchecked(sel) };
@@ -127,7 +127,7 @@ impl UnaryExecutor {
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 let sel = selection::get(selection, idx);
                 if !validity.value(sel) {
@@ -138,7 +138,7 @@ impl UnaryExecutor {
                 }
             }
             None => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
                 let sel = selection::get(selection, idx);
                 let val = unsafe { values.get_unchecked(sel) };
                 Ok(Some(val))

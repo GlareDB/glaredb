@@ -47,7 +47,7 @@ impl UniformExecutor {
         if any_invalid {
             let storage_values: Vec<_> = arrays
                 .iter()
-                .map(|a| S::get_storage(&a.data))
+                .map(|a| S::get_storage(&a.data2))
                 .collect::<Result<Vec<_>>>()?;
 
             let validities: Vec<_> = arrays.iter().map(|a| a.validity()).collect();
@@ -77,7 +77,7 @@ impl UniformExecutor {
         } else {
             let storage_values: Vec<_> = arrays
                 .iter()
-                .map(|a| S::get_storage(&a.data))
+                .map(|a| S::get_storage(&a.data2))
                 .collect::<Result<Vec<_>>>()?;
 
             for idx in 0..len {
@@ -97,9 +97,9 @@ impl UniformExecutor {
 
         Ok(Array {
             datatype: builder.datatype,
-            selection: None,
-            validity: out_validity,
-            data,
+            selection2: None,
+            validity2: out_validity,
+            data2: data,
         })
     }
 }

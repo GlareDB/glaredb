@@ -97,9 +97,9 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 
                 Ok(Array {
                     datatype: builder.datatype,
-                    selection: None,
-                    validity: None,
-                    data: builder.buffer.into_data(),
+                    selection2: None,
+                    validity2: None,
+                    data2: builder.buffer.into_data(),
                 })
             } else {
                 if !ALLOW_NULLS {
@@ -141,9 +141,9 @@ impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
 
                 Ok(Array {
                     datatype: builder.datatype,
-                    selection: None,
-                    validity: None,
-                    data: builder.buffer.into_data(),
+                    selection2: None,
+                    validity2: None,
+                    data2: builder.buffer.into_data(),
                 })
             }
         } else {

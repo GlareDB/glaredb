@@ -262,7 +262,7 @@ impl ScalarValue<'_> {
         };
 
         let mut array = Array::new_with_array_data(self.datatype(), data);
-        array.selection = Some(SelectionVector::repeated(n, 0).into());
+        array.selection2 = Some(SelectionVector::repeated(n, 0).into());
 
         Ok(array)
     }

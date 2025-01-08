@@ -2,7 +2,9 @@ pub mod array_buffer;
 pub mod array_data;
 pub mod buffer_manager;
 pub mod physical_type;
+pub mod selection;
 pub mod string_view;
+pub mod validity;
 
 mod raw;
 mod shared_or_owned;
@@ -74,14 +76,14 @@ pub struct Array {
     /// If set, this provides logical row mapping on top of the underlying data.
     /// If not set, then there's a one-to-one mapping between the logical row
     /// and and row in the underlying data.
-    pub(crate) selection: Option<LogicalSelection>,
+    pub(crate) selection2: Option<LogicalSelection>,
     /// Option validity mask.
     ///
     /// This indicates the validity of the underlying data. This does not take
     /// into account the selection vector, and always maps directly to the data.
-    pub(crate) validity: Option<PhysicalValidity>,
+    pub(crate) validity2: Option<PhysicalValidity>,
     /// The physical data.
-    pub(crate) data: ArrayData,
+    pub(crate) data2: ArrayData,
 }
 
 impl Array {
@@ -96,9 +98,9 @@ impl Array {
 
         Array {
             datatype: DataType::Null,
-            selection: Some(selection.into()),
-            validity: Some(validity.into()),
-            data: data.into(),
+            selection2: Some(selection.into()),
+            validity2: Some(validity.into()),
+            data2: data.into(),
         }
     }
 
@@ -112,18 +114,18 @@ impl Array {
 
         Ok(Array {
             datatype,
-            selection: Some(selection.into()),
-            validity: Some(validity.into()),
-            data,
+            selection2: Some(selection.into()),
+            validity2: Some(validity.into()),
+            data2: data,
         })
     }
 
     pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData>) -> Self {
         Array {
             datatype,
-            selection: None,
-            validity: None,
-            data: data.into(),
+            selection2: None,
+            validity2: None,
+            data2: data.into(),
         }
     }
 
@@ -134,9 +136,9 @@ impl Array {
     ) -> Self {
         Array {
             datatype,
-            selection: None,
-            validity: Some(validity.into()),
-            data: data.into(),
+            selection2: None,
+            validity2: Some(validity.into()),
+            data2: data.into(),
         }
     }
 
@@ -148,9 +150,9 @@ impl Array {
     ) -> Self {
         Array {
             datatype,
-            selection: Some(selection.into()),
-            validity: Some(validity.into()),
-            data: data.into(),
+            selection2: Some(selection.into()),
+            validity2: Some(validity.into()),
+            data2: data.into(),
         }
     }
 
@@ -159,41 +161,41 @@ impl Array {
     }
 
     pub fn has_selection(&self) -> bool {
-        self.selection.is_some()
+        self.selection2.is_some()
     }
 
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
-        self.selection.as_ref().map(|v| v.as_ref())
+        self.selection2.as_ref().map(|v| v.as_ref())
     }
 
     /// Sets the validity for a value at a given physical index.
     pub fn set_physical_validity(&mut self, idx: usize, valid: bool) {
-        match &mut self.validity {
+        match &mut self.validity2 {
             Some(validity) => {
                 let validity = validity.get_mut();
                 validity.set_unchecked(idx, valid);
             }
             None => {
                 // Initialize validity.
-                let len = self.data.len();
+                let len = self.data2.len();
                 let mut validity = Bitmap::new_with_all_true(len);
                 validity.set_unchecked(idx, valid);
 
-                self.validity = Some(validity.into())
+                self.validity2 = Some(validity.into())
             }
         }
     }
 
     // TODO: Validating variant too.
     pub fn put_selection(&mut self, selection: impl Into<LogicalSelection>) {
-        self.selection = Some(selection.into())
+        self.selection2 = Some(selection.into())
     }
 
     pub fn make_shared(&mut self) {
-        if let Some(validity) = &mut self.validity {
+        if let Some(validity) = &mut self.validity2 {
             validity.make_shared();
         }
-        if let Some(selection) = &mut self.selection {
+        if let Some(selection) = &mut self.selection2 {
             selection.make_shared()
         }
     }
@@ -208,12 +210,12 @@ impl Array {
         match self.selection_vector() {
             Some(existing) => {
                 let selection = existing.select(selection.as_ref());
-                self.selection = Some(selection.into())
+                self.selection2 = Some(selection.into())
             }
             None => {
                 // No existing selection, we can just use the provided vector
                 // directly.
-                self.selection = Some(selection)
+                self.selection2 = Some(selection)
             }
         }
     }
@@ -221,12 +223,12 @@ impl Array {
     pub fn logical_len(&self) -> usize {
         match self.selection_vector() {
             Some(v) => v.num_rows(),
-            None => self.data.len(),
+            None => self.data2.len(),
         }
     }
 
     pub fn validity(&self) -> Option<&Bitmap> {
-        self.validity.as_ref().map(|v| v.as_ref())
+        self.validity2.as_ref().map(|v| v.as_ref())
     }
 
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
@@ -239,7 +241,7 @@ impl Array {
             None => idx,
         };
 
-        if let Some(validity) = &self.validity {
+        if let Some(validity) = &self.validity2 {
             return Some(validity.as_ref().value(idx));
         }
 
@@ -250,16 +252,16 @@ impl Array {
     ///
     /// ArrayData can be cheaply cloned.
     pub fn array_data(&self) -> &ArrayData {
-        &self.data
+        &self.data2
     }
 
     pub fn into_array_data(self) -> ArrayData {
-        self.data
+        self.data2
     }
 
     /// Gets the physical type of the array.
     pub fn physical_type(&self) -> PhysicalType {
-        match self.data.physical_type() {
+        match self.data2.physical_type() {
             PhysicalType::Binary => match self.datatype {
                 DataType::Utf8 => PhysicalType::Utf8,
                 _ => PhysicalType::Binary,
@@ -279,7 +281,7 @@ impl Array {
             None => idx,
         };
 
-        if let Some(validity) = &self.validity {
+        if let Some(validity) = &self.validity2 {
             if !validity.as_ref().value(idx) {
                 return Ok(ScalarValue::Null);
             }
@@ -296,7 +298,7 @@ impl Array {
     /// selection vectors. We'll probably a non-conforming ipc mode where we write
     /// the selection vector as just another buffer to reduce the need for this.
     pub fn unselect(&self) -> Result<Self> {
-        if self.selection.is_none() {
+        if self.selection2.is_none() {
             // Return array as-is. This currently copies the validity
             // bitmap, unsure if we care. The array data should behind an
             // arc, or just really cheap to clone.
@@ -306,9 +308,9 @@ impl Array {
         match self.array_data() {
             ArrayData::UntypedNull(_) => Ok(Array {
                 datatype: self.datatype.clone(),
-                selection: None,
-                validity: None,
-                data: UntypedNullStorage(self.logical_len()).into(),
+                selection2: None,
+                validity2: None,
+                data2: UntypedNullStorage(self.logical_len()).into(),
             }),
             ArrayData::Boolean(_) => UnaryExecutor::execute::<PhysicalBool, _, _>(
                 self,
@@ -466,67 +468,67 @@ impl Array {
     /// Ignores validity and selectivitity.
     pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
-            DataType::Null => match &self.data {
+            DataType::Null => match &self.data2 {
                 ArrayData::UntypedNull(_) => ScalarValue::Null,
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Boolean => match &self.data {
+            DataType::Boolean => match &self.data2 {
                 ArrayData::Boolean(arr) => arr.as_ref().as_ref().value(idx).into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Float16 => match &self.data {
+            DataType::Float16 => match &self.data2 {
                 ArrayData::Float16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Float32 => match &self.data {
+            DataType::Float32 => match &self.data2 {
                 ArrayData::Float32(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Float64 => match &self.data {
+            DataType::Float64 => match &self.data2 {
                 ArrayData::Float64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int8 => match &self.data {
+            DataType::Int8 => match &self.data2 {
                 ArrayData::Int8(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int16 => match &self.data {
+            DataType::Int16 => match &self.data2 {
                 ArrayData::Int16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int32 => match &self.data {
+            DataType::Int32 => match &self.data2 {
                 ArrayData::Int32(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int64 => match &self.data {
+            DataType::Int64 => match &self.data2 {
                 ArrayData::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Int128 => match &self.data {
+            DataType::Int128 => match &self.data2 {
                 ArrayData::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt8 => match &self.data {
+            DataType::UInt8 => match &self.data2 {
                 ArrayData::UInt8(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt16 => match &self.data {
+            DataType::UInt16 => match &self.data2 {
                 ArrayData::UInt16(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt32 => match &self.data {
+            DataType::UInt32 => match &self.data2 {
                 ArrayData::UInt32(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt64 => match &self.data {
+            DataType::UInt64 => match &self.data2 {
                 ArrayData::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::UInt128 => match &self.data {
+            DataType::UInt128 => match &self.data2 {
                 ArrayData::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Decimal64(m) => match &self.data {
+            DataType::Decimal64(m) => match &self.data2 {
                 ArrayData::Int64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
                     precision: m.precision,
                     scale: m.scale,
@@ -534,7 +536,7 @@ impl Array {
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Decimal128(m) => match &self.data {
+            DataType::Decimal128(m) => match &self.data2 {
                 ArrayData::Int128(arr) => ScalarValue::Decimal128(Decimal128Scalar {
                     precision: m.precision,
                     scale: m.scale,
@@ -542,27 +544,27 @@ impl Array {
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Date32 => match &self.data {
+            DataType::Date32 => match &self.data2 {
                 ArrayData::Int32(arr) => ScalarValue::Date32(arr.as_ref().as_ref()[idx]),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Date64 => match &self.data {
+            DataType::Date64 => match &self.data2 {
                 ArrayData::Int64(arr) => ScalarValue::Date64(arr.as_ref().as_ref()[idx]),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Timestamp(m) => match &self.data {
+            DataType::Timestamp(m) => match &self.data2 {
                 ArrayData::Int64(arr) => ScalarValue::Timestamp(TimestampScalar {
                     unit: m.unit,
                     value: arr.as_ref().as_ref()[idx],
                 }),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
-            DataType::Interval => match &self.data {
+            DataType::Interval => match &self.data2 {
                 ArrayData::Interval(arr) => arr.as_ref().as_ref()[idx].into(),
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
             DataType::Utf8 => {
-                let v = match &self.data {
+                let v = match &self.data2 {
                     ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
@@ -578,7 +580,7 @@ impl Array {
                 s.into()
             }
             DataType::Binary => {
-                let v = match &self.data {
+                let v = match &self.data2 {
                     ArrayData::Binary(BinaryData::Binary(arr)) => arr
                         .get(idx)
                         .ok_or_else(|| RayexecError::new("missing data"))?,
@@ -593,7 +595,7 @@ impl Array {
                 v.into()
             }
             DataType::Struct(_) => not_implemented!("get value: struct"),
-            DataType::List(_) => match &self.data {
+            DataType::List(_) => match &self.data2 {
                 ArrayData::List(list) => {
                     let meta = list
                         .metadata
@@ -777,9 +779,9 @@ impl Array {
 
         Array {
             datatype: self.datatype.clone(),
-            selection: Some(selection.into()),
-            validity: self.validity.clone(),
-            data: self.data.clone(),
+            selection2: Some(selection.into()),
+            validity2: self.validity2.clone(),
+            data2: self.data2.clone(),
         }
     }
 }
@@ -811,7 +813,7 @@ where
         }
 
         let mut array = Array::from_iter(new_vals);
-        array.validity = Some(validity.into());
+        array.validity2 = Some(validity.into());
 
         array
     }
@@ -829,9 +831,9 @@ impl FromIterator<String> for Array {
 
         Array {
             datatype: DataType::Utf8,
-            selection: None,
-            validity: None,
-            data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
+            selection2: None,
+            validity2: None,
+            data2: ArrayData::Binary(BinaryData::German(Arc::new(german))),
         }
     }
 }
@@ -848,9 +850,9 @@ impl<'a> FromIterator<&'a str> for Array {
 
         Array {
             datatype: DataType::Utf8,
-            selection: None,
-            validity: None,
-            data: ArrayData::Binary(BinaryData::German(Arc::new(german))),
+            selection2: None,
+            validity2: None,
+            data2: ArrayData::Binary(BinaryData::German(Arc::new(german))),
         }
     }
 }
@@ -890,9 +892,9 @@ impl FromIterator<bool> for Array {
         let vals: Bitmap = iter.into_iter().collect();
         Array {
             datatype: DataType::Boolean,
-            selection: None,
-            validity: None,
-            data: ArrayData::Boolean(Arc::new(vals.into())),
+            selection2: None,
+            validity2: None,
+            data2: ArrayData::Boolean(Arc::new(vals.into())),
         }
     }
 }
