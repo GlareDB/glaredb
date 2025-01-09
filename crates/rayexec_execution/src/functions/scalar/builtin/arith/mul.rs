@@ -5,6 +5,7 @@ use num_traits::{NumCast, PrimInt};
 use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
+    MutablePhysicalStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -21,13 +22,13 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -116,58 +117,45 @@ impl ScalarFunction for Mul {
             inputs[0].datatype(table_list)?,
             inputs[1].datatype(table_list)?,
         ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(MulImpl::<PhysicalF16>::new(DataType::Float16)),
-                DataType::Float16,
-            ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(MulImpl::<PhysicalF32>::new(DataType::Float32)),
-                DataType::Float32,
-            ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(MulImpl::<PhysicalF64>::new(DataType::Float64)),
-                DataType::Float64,
-            ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(MulImpl::<PhysicalI8>::new(DataType::Int8)),
-                DataType::Int8,
-            ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(MulImpl::<PhysicalI16>::new(DataType::Int16)),
-                DataType::Int16,
-            ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(MulImpl::<PhysicalI32>::new(DataType::Int32)),
-                DataType::Int32,
-            ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(MulImpl::<PhysicalI64>::new(DataType::Int64)),
-                DataType::Int64,
-            ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(MulImpl::<PhysicalI128>::new(DataType::Int128)),
-                DataType::Int128,
-            ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(MulImpl::<PhysicalU8>::new(DataType::UInt8)),
-                DataType::UInt8,
-            ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(MulImpl::<PhysicalU16>::new(DataType::UInt16)),
-                DataType::UInt16,
-            ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(MulImpl::<PhysicalU32>::new(DataType::UInt32)),
-                DataType::UInt32,
-            ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(MulImpl::<PhysicalU64>::new(DataType::UInt64)),
-                DataType::UInt64,
-            ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(MulImpl::<PhysicalU128>::new(DataType::UInt128)),
-                DataType::UInt128,
-            ),
+            (DataType::Float16, DataType::Float16) => {
+                (Box::new(MulImpl::<PhysicalF16>::new()), DataType::Float16)
+            }
+            (DataType::Float32, DataType::Float32) => {
+                (Box::new(MulImpl::<PhysicalF32>::new()), DataType::Float32)
+            }
+            (DataType::Float64, DataType::Float64) => {
+                (Box::new(MulImpl::<PhysicalF64>::new()), DataType::Float64)
+            }
+            (DataType::Int8, DataType::Int8) => {
+                (Box::new(MulImpl::<PhysicalI8>::new()), DataType::Int8)
+            }
+            (DataType::Int16, DataType::Int16) => {
+                (Box::new(MulImpl::<PhysicalI16>::new()), DataType::Int16)
+            }
+            (DataType::Int32, DataType::Int32) => {
+                (Box::new(MulImpl::<PhysicalI32>::new()), DataType::Int32)
+            }
+            (DataType::Int64, DataType::Int64) => {
+                (Box::new(MulImpl::<PhysicalI64>::new()), DataType::Int64)
+            }
+            (DataType::Int128, DataType::Int128) => {
+                (Box::new(MulImpl::<PhysicalI128>::new()), DataType::Int128)
+            }
+            (DataType::UInt8, DataType::UInt8) => {
+                (Box::new(MulImpl::<PhysicalU8>::new()), DataType::UInt8)
+            }
+            (DataType::UInt16, DataType::UInt16) => {
+                (Box::new(MulImpl::<PhysicalU16>::new()), DataType::UInt16)
+            }
+            (DataType::UInt32, DataType::UInt32) => {
+                (Box::new(MulImpl::<PhysicalU32>::new()), DataType::UInt32)
+            }
+            (DataType::UInt64, DataType::UInt64) => {
+                (Box::new(MulImpl::<PhysicalU64>::new()), DataType::UInt64)
+            }
+            (DataType::UInt128, DataType::UInt128) => {
+                (Box::new(MulImpl::<PhysicalU128>::new()), DataType::UInt128)
+            }
 
             // Decimal
             (DataType::Decimal64(a), DataType::Decimal64(b)) => {
@@ -178,7 +166,7 @@ impl ScalarFunction for Mul {
                 let scale = a.scale + b.scale;
                 let return_type = DataType::Decimal64(DecimalTypeMeta { precision, scale });
                 (
-                    Box::new(DecimalMulImpl::<Decimal64Type>::new(return_type.clone())),
+                    Box::new(DecimalMulImpl::<Decimal64Type>::new()),
                     return_type,
                 )
             }
@@ -187,7 +175,7 @@ impl ScalarFunction for Mul {
                 let scale = a.scale + b.scale;
                 let return_type = DataType::Decimal128(DecimalTypeMeta { precision, scale });
                 (
-                    Box::new(DecimalMulImpl::<Decimal128Type>::new(return_type.clone())),
+                    Box::new(DecimalMulImpl::<Decimal128Type>::new()),
                     return_type,
                 )
             }
@@ -237,111 +225,114 @@ impl<Rhs, const LHS_RHS_FLIPPED: bool> IntervalMulImpl<Rhs, LHS_RHS_FLIPPED> {
 impl<Rhs, const LHS_RHS_FLIPPED: bool> ScalarFunctionImpl for IntervalMulImpl<Rhs, LHS_RHS_FLIPPED>
 where
     Rhs: PhysicalStorage,
-    for<'a> Rhs::Type<'a>: PrimInt,
+    Rhs::StorageType: PrimInt,
 {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let (lhs, rhs) = if LHS_RHS_FLIPPED {
-            (inputs[1], inputs[0])
-        } else {
-            (inputs[0], inputs[1])
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Interval,
-            buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
-        };
+        let (lhs, rhs) = if LHS_RHS_FLIPPED { (b, a) } else { (a, b) };
 
-        BinaryExecutor::execute2::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
-            // TODO: Overflow check
-            buf.put(&Interval {
-                months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
-                days: a.days * (<i32 as NumCast>::from(b).unwrap_or_default()),
-                nanos: a.nanos * (<i64 as NumCast>::from(b).unwrap_or_default()),
-            })
-        })
+        BinaryExecutor::execute::<PhysicalInterval, Rhs, PhysicalInterval, _>(
+            lhs,
+            sel,
+            rhs,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| {
+                // TODO: Overflow check
+                buf.put(&Interval {
+                    months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
+                    days: a.days * (<i32 as NumCast>::from(b).unwrap_or_default()),
+                    nanos: a.nanos * (<i64 as NumCast>::from(b).unwrap_or_default()),
+                })
+            },
+        )
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct DecimalMulImpl<D> {
-    datatype: DataType,
     _d: PhantomData<D>,
 }
 
 impl<D> DecimalMulImpl<D> {
-    fn new(datatype: DataType) -> Self {
-        DecimalMulImpl {
-            datatype,
-            _d: PhantomData,
-        }
+    const fn new() -> Self {
+        DecimalMulImpl { _d: PhantomData }
     }
 }
 
 impl<D> ScalarFunctionImpl for DecimalMulImpl<D>
 where
     D: DecimalType,
-    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::<D::Primitive>::with_len(a.logical_len()),
-        };
-
-        BinaryExecutor::execute2::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
-            buf.put(&(a * b))
-        })
+        BinaryExecutor::execute::<D::Storage, D::Storage, D::Storage, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a * b)),
+        )
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct MulImpl<S> {
-    datatype: DataType,
     _s: PhantomData<S>,
 }
 
 impl<S> MulImpl<S> {
-    fn new(datatype: DataType) -> Self {
-        MulImpl {
-            datatype,
-            _s: PhantomData,
-        }
+    const fn new() -> Self {
+        MulImpl { _s: PhantomData }
     }
 }
 
 impl<S> ScalarFunctionImpl for MulImpl<S>
 where
-    S: PhysicalStorage,
-    for<'a> S::Type<'a>: std::ops::Mul<Output = S::Type<'static>> + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
+    S: MutablePhysicalStorage,
+    S::StorageType: std::ops::Mul<Output = S::StorageType> + Sized + Copy,
 {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
-
-        BinaryExecutor::execute2::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
+        BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a * b)),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr;
     use crate::functions::scalar::ScalarFunction;
 
     #[test]
     fn mul_i32() {
-        let a = Array::from_iter([4, 5, 6]);
-        let b = Array::from_iter([1, 2, 3]);
+        let a = Array::try_from_iter([4, 5, 6]).unwrap();
+        let b = Array::try_from_iter([1, 2, 3]).unwrap();
+        let batch = Batch::try_from_arrays([a, b]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -359,9 +350,11 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([4, 10, 18]);
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
 
-        assert_eq!(expected, out);
+        let expected = Array::try_from_iter([4, 10, 18]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 }
