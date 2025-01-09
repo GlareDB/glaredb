@@ -32,6 +32,7 @@ impl IntermediatePipelineBuildState<'_> {
         // Extract agg expressions, place in their own pre-projection.
         let mut preproject_exprs = Vec::new();
         for agg_expr in agg.node.aggregates {
+            let start_col_index = preproject_exprs.len(); // Relative offset for preproject inputs.
             let agg = match agg_expr {
                 Expression::Aggregate(agg) => agg,
                 other => {
@@ -41,26 +42,26 @@ impl IntermediatePipelineBuildState<'_> {
                 }
             };
 
-            for arg in &agg.agg.inputs {
+            let mut agg_columns = Vec::with_capacity(agg.agg.inputs.len());
+
+            for (rel_idx, arg) in agg.agg.inputs.iter().enumerate() {
                 let scalar = self
                     .expr_planner
                     .plan_scalar(&input_refs, arg)
                     .context("Failed to plan expressions for aggregate pre-projection")?;
-                preproject_exprs.push(scalar);
-            }
 
-            let columns = preproject_exprs
-                .iter()
-                .enumerate()
-                .map(|(idx, expr)| PhysicalColumnExpr {
-                    idx,
-                    datatype: expr.datatype(),
-                })
-                .collect();
+                let datatype = scalar.datatype();
+                preproject_exprs.push(scalar);
+
+                agg_columns.push(PhysicalColumnExpr {
+                    idx: rel_idx + start_col_index,
+                    datatype,
+                });
+            }
 
             let phys_agg = PhysicalAggregateExpression {
                 function: agg.agg,
-                columns,
+                columns: agg_columns,
                 is_distinct: agg.distinct,
             };
 

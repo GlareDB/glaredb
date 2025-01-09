@@ -58,18 +58,25 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     ) -> Result<PhysicalScalarExpression> {
         match expr {
             Expression::Column(col) => {
-                // TODO: How is projection pushdown going to work? Will tables
-                // be updated by the optimizer?
-
+                // The optimizer should preserve columns in tables so we should
+                // be able to look at the table list directly.
+                //
+                // If we get here and their's either a missing table for table
+                // ref, or missing column for a table, then that should be
+                // considered a bug.
                 let mut offset = 0;
                 for &table_ref in table_refs {
                     let table = self.table_list.get(table_ref)?;
-                    let datatype =
-                        table.column_types.get(col.column).cloned().ok_or_else(|| {
-                            RayexecError::new(format!("Missing column: {}", col.column))
-                        })?;
 
                     if col.table_scope == table_ref {
+                        let datatype =
+                            table.column_types.get(col.column).cloned().ok_or_else(|| {
+                                RayexecError::new(format!(
+                                    "Missing column: {}, table: {:?}",
+                                    col.column, table
+                                ))
+                            })?;
+
                         return Ok(PhysicalScalarExpression::Column(PhysicalColumnExpr {
                             idx: offset + col.column,
                             datatype,
