@@ -98,7 +98,7 @@ impl ScalarFunctionImpl for AndImpl {
                 let a = inputs[0];
                 let b = inputs[1];
                 let c = inputs[2];
-                TernaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
+                TernaryExecutor::execute2::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
                     a,
                     b,
                     c,

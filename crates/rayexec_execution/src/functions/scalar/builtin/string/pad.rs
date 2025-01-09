@@ -113,7 +113,7 @@ impl ScalarFunctionImpl for LeftPadImpl {
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
+            3 => TernaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
                 inputs[0],
                 inputs[1],
                 inputs[2],
@@ -226,7 +226,7 @@ impl ScalarFunctionImpl for RightPadImpl {
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
+            3 => TernaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
                 inputs[0],
                 inputs[1],
                 inputs[2],

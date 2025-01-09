@@ -125,7 +125,7 @@ pub struct SubstringFromToImpl;
 impl ScalarFunctionImpl for SubstringFromToImpl {
     fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let len = inputs[0].logical_len();
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
+        TernaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
             inputs[0],
             inputs[1],
             inputs[2],

@@ -141,7 +141,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 )
             }
             (None, None) => {
-                TernaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
+                TernaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
                     inputs[0],
                     inputs[1],
                     inputs[2],
