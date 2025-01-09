@@ -5,9 +5,10 @@ use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -222,16 +223,18 @@ impl<F: StringTrimOp> TrimWhitespaceImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-            let trimmed = F::trim_func(s, " ");
-            buf.put(trimmed)
-        })
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &input.arrays()[0],
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, buf| {
+                let trimmed = F::trim_func(s, " ");
+                buf.put(trimmed);
+            },
+        )
     }
 }
 
@@ -247,19 +250,18 @@ impl<F: StringTrimOp> TrimPatternImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimPatternImpl<F> {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-        BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
-            inputs[0],
-            inputs[1],
-            builder,
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+            &input.arrays()[0],
+            sel,
+            &input.arrays()[1],
+            sel,
+            OutBuffer::from_array(output)?,
             |s, pattern, buf| {
                 let trimmed = F::trim_func(s, pattern);
-                buf.put(trimmed)
+                buf.put(trimmed);
             },
         )
     }

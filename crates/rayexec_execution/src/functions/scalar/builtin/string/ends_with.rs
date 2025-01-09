@@ -1,10 +1,11 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -86,15 +87,19 @@ pub struct EndsWithConstantImpl {
 }
 
 impl ScalarFunctionImpl for EndsWithConstantImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
-        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-            buf.put(&s.ends_with(&self.constant))
-        })
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, buf| {
+                let v = s.ends_with(&self.constant);
+                buf.put(&v);
+            },
+        )
     }
 }
 
@@ -102,17 +107,21 @@ impl ScalarFunctionImpl for EndsWithConstantImpl {
 pub struct EndsWithImpl;
 
 impl ScalarFunctionImpl for EndsWithImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let strings = &input.arrays()[0];
+        let suffix = &input.arrays()[1];
 
-        BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
-            inputs[0],
-            inputs[1],
-            builder,
-            |s, c, buf| buf.put(&s.ends_with(c)),
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+            strings,
+            sel,
+            suffix,
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, suffix, buf| {
+                let v = s.ends_with(&suffix);
+                buf.put(&v);
+            },
         )
     }
 }

@@ -2,9 +2,10 @@ use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -105,16 +106,16 @@ impl ScalarFunction for Substring {
 pub struct SubstringFromImpl;
 
 impl ScalarFunctionImpl for SubstringFromImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let len = inputs[0].logical_len();
-        BinaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, _, _>(
-            inputs[0],
-            inputs[1],
-            ArrayBuilder {
-                datatype: DataType::Utf8,
-                buffer: GermanVarlenBuffer::with_len(len),
-            },
-            |s, from, buf| buf.put(substring_from(s, from)),
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _>(
+            &input.arrays()[0],
+            sel,
+            &input.arrays()[1],
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, &from, buf| buf.put(substring_from(s, from)),
         )
     }
 }
@@ -123,17 +124,18 @@ impl ScalarFunctionImpl for SubstringFromImpl {
 pub struct SubstringFromToImpl;
 
 impl ScalarFunctionImpl for SubstringFromToImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let len = inputs[0].logical_len();
-        TernaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, PhysicalI64, _, _>(
-            inputs[0],
-            inputs[1],
-            inputs[2],
-            ArrayBuilder {
-                datatype: DataType::Utf8,
-                buffer: GermanVarlenBuffer::with_len(len),
-            },
-            |s, from, count, buf| buf.put(substring_from_count(s, from, count)),
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, PhysicalUtf8, _>(
+            &input.arrays()[0],
+            sel,
+            &input.arrays()[1],
+            sel,
+            &input.arrays()[2],
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, &from, &count, buf| buf.put(substring_from_count(s, from, count)),
         )
     }
 }

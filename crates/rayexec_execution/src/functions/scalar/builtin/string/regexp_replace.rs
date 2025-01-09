@@ -3,9 +3,10 @@ use regex::Regex;
 
 use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -98,34 +99,42 @@ pub struct RegexpReplaceImpl {
 }
 
 impl ScalarFunctionImpl for RegexpReplaceImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
         match (self.pattern.as_ref(), self.replacement.as_ref()) {
             (Some(pattern), Some(replacement)) => {
-                UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-                    // TODO: Flags to more many.
-                    let out = pattern.replace(s, replacement);
-                    buf.put(out.as_ref());
-                })
+                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                    &input.arrays()[0],
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, buf| {
+                        // TODO: Flags to more many.
+                        let out = pattern.replace(s, replacement);
+                        buf.put(out.as_ref());
+                    },
+                )
             }
-            (Some(pattern), None) => BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[2],
-                builder,
-                |s, replacement, buf| {
-                    let out = pattern.replace(s, replacement);
-                    buf.put(out.as_ref());
-                },
-            ),
+            (Some(pattern), None) => {
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+                    &input.arrays()[0],
+                    sel,
+                    &input.arrays()[2],
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, replacement, buf| {
+                        let out = pattern.replace(s, replacement);
+                        buf.put(out.as_ref());
+                    },
+                )
+            }
             (None, Some(replacement)) => {
-                BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                    inputs[0],
-                    inputs[1],
-                    builder,
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+                    &input.arrays()[0],
+                    sel,
+                    &input.arrays()[1],
+                    sel,
+                    OutBuffer::from_array(output)?,
                     |s, pattern, buf| {
                         let pattern = match Regex::new(pattern) {
                             Ok(pattern) => pattern,
@@ -141,11 +150,14 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 )
             }
             (None, None) => {
-                TernaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
-                    inputs[0],
-                    inputs[1],
-                    inputs[2],
-                    builder,
+                TernaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+                    &input.arrays()[0],
+                    sel,
+                    &input.arrays()[1],
+                    sel,
+                    &input.arrays()[2],
+                    sel,
+                    OutBuffer::from_array(output)?,
                     |s, pattern, replacement, buf| {
                         let pattern = match Regex::new(pattern) {
                             Ok(pattern) => pattern,

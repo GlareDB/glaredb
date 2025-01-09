@@ -1,11 +1,12 @@
 use rayexec_error::{Result, ResultExt};
 use regex::{escape, Regex};
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -84,16 +85,19 @@ pub struct LikeConstImpl {
 }
 
 impl ScalarFunctionImpl for LikeConstImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
-        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-            let b = self.constant.is_match(s);
-            buf.put(&b);
-        })
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, buf| {
+                let b = self.constant.is_match(s);
+                buf.put(&b);
+            },
+        )
     }
 }
 
@@ -101,22 +105,23 @@ impl ScalarFunctionImpl for LikeConstImpl {
 pub struct LikeImpl;
 
 impl ScalarFunctionImpl for LikeImpl {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let strings = &input.arrays()[0];
+        let patterns = &input.arrays()[2];
 
         let mut s_buf = String::new();
 
-        BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
-            inputs[0],
-            inputs[1],
-            builder,
-            |a, b, buf| {
-                match like_pattern_to_regex(&mut s_buf, b, Some('\\')) {
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+            strings,
+            sel,
+            patterns,
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, pattern, buf| {
+                match like_pattern_to_regex(&mut s_buf, pattern, Some('\\')) {
                     Ok(pat) => {
-                        let b = pat.is_match(a);
+                        let b = pat.is_match(s);
                         buf.put(&b);
                     }
                     Err(_) => {
