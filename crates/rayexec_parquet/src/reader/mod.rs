@@ -276,7 +276,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             .map(|state| state.builder.build())
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(arrays)?;
+        let batch = Batch::try_from_arrays(arrays)?;
 
         if batch.num_rows() == 0 {
             Ok(None)

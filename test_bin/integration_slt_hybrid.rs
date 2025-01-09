@@ -36,7 +36,7 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
+                    data: Batch::try_from_arrays([
                         Array::from_iter([1_i64, 2_i64]),
                         Array::from_iter(["a", "b"]),
                     ])?,
@@ -50,7 +50,7 @@ pub fn main() -> Result<()> {
                         Field::new("c1", DataType::Int64, false),
                         Field::new("c2", DataType::Utf8, false),
                     ],
-                    data: Batch::try_new([
+                    data: Batch::try_from_arrays([
                         Array::from_iter([1_i64, 2_i64]),
                         Array::from_iter(["a", "b"]),
                     ])?,

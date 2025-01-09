@@ -106,7 +106,7 @@ impl IntermediatePipelineBuildState<'_> {
         let batches = row_arrs
             .into_iter()
             .map(|cols| {
-                let batch = Batch::try_new(cols)?;
+                let batch = Batch::try_from_arrays(cols)?;
 
                 // TODO: Got lazy, we can just avoid evaluating the expressions above.
                 match &projections.column_indices {

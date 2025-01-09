@@ -131,18 +131,46 @@ impl<B> Array<B>
 where
     B: BufferManager,
 {
+    /// Create a new array with the given capacity.
+    ///
+    /// This will take care of initalizing the primary and secondary data
+    /// buffers depending on the type.
+    pub fn try_new(manager: &Arc<B>, datatype: DataType, capacity: usize) -> Result<Self> {
+        let buffer = array_buffer_for_datatype(manager, &datatype, capacity)?;
+        let validity = Validity::new_all_valid(capacity);
+
+        Ok(Array {
+            datatype,
+            selection2: None,
+            validity2: None,
+            data2: ArrayData2::UntypedNull(UntypedNullStorage(capacity)),
+            next: Some(ArrayNextInner {
+                validity,
+                data: ArrayData::owned(buffer),
+            }),
+        })
+    }
+
     // TODO: Remove
     pub(crate) fn next(&self) -> &ArrayNextInner<B> {
-        self.next.as_ref().unwrap()
+        self.next.as_ref().expect("next to be set")
     }
 
     // TODO: Remove
     pub(crate) fn next_mut(&mut self) -> &mut ArrayNextInner<B> {
-        self.next.as_mut().unwrap()
+        self.next.as_mut().expect("next to be set")
     }
 
     pub fn capacity(&self) -> usize {
-        self.next.as_ref().unwrap().data.primary_capacity()
+        if let Some(next) = &self.next {
+            return next.data.primary_capacity();
+        }
+
+        // TODO: Remove, just using to not break things completely yet.
+        match self.selection2.as_ref().map(|v| v.as_ref()) {
+            Some(v) => v.num_rows(),
+            None => self.data2.len(),
+        }
     }
 
     pub fn datatype(&self) -> &DataType {
@@ -251,26 +279,6 @@ where
 }
 
 impl Array {
-    /// Create a new array with the given capacity.
-    ///
-    /// This will take care of initalizing the primary and secondary data
-    /// buffers depending on the type.
-    pub fn new(datatype: DataType, capacity: usize) -> Result<Self> {
-        let buffer = array_buffer_for_datatype(&datatype, capacity)?;
-        let validity = Validity::new_all_valid(capacity);
-
-        Ok(Array {
-            datatype,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::UntypedNull(UntypedNullStorage(capacity)),
-            next: Some(ArrayNextInner {
-                validity,
-                data: ArrayData::owned(buffer),
-            }),
-        })
-    }
-
     pub fn new_untyped_null_array(len: usize) -> Self {
         // Note that we're adding a bitmap here even though the data already
         // returns NULL. This allows the executors (especially for aggregates)
@@ -1107,12 +1115,14 @@ impl From<ListStorage> for ArrayData2 {
 }
 
 /// Create a new array buffer for a datatype.
-fn array_buffer_for_datatype(
+fn array_buffer_for_datatype<B>(
+    manager: &Arc<B>,
     datatype: &DataType,
     capacity: usize,
-) -> Result<ArrayBuffer<NopBufferManager>> {
-    let manager = &Arc::new(NopBufferManager);
-
+) -> Result<ArrayBuffer<B>>
+where
+    B: BufferManager,
+{
     let buffer = match datatype.physical_type()? {
         PhysicalType::UntypedNull => {
             ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(manager, capacity)?
@@ -1173,7 +1183,7 @@ fn array_buffer_for_datatype(
                 }
             };
 
-            let child = Array::new(inner_type, capacity)?;
+            let child = Array::try_new(manager, inner_type, capacity)?;
 
             let mut buffer = ArrayBuffer::with_primary_capacity::<PhysicalList>(manager, capacity)?;
             buffer.put_secondary_buffer(SecondaryBuffer::List(ListBuffer::new(child)));
@@ -1200,7 +1210,9 @@ macro_rules! impl_primitive_from_iter {
             ) -> Result<Self, Self::Error> {
                 let iter = iter.into_iter();
 
-                let mut array = Array::new(DataType::$typ_variant, iter.len())?;
+                let manager = Arc::new(NopBufferManager);
+
+                let mut array = Array::try_new(&manager, DataType::$typ_variant, iter.len())?;
                 let slice = array
                     .next
                     .as_mut()

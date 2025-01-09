@@ -439,7 +439,7 @@ fn cross_join(
         // Columns from the right, all rows.
         let right_columns = right.clone().into_arrays();
 
-        let mut output = Batch::try_new(left_columns.into_iter().chain(right_columns))?;
+        let mut output = Batch::try_from_arrays(left_columns.into_iter().chain(right_columns))?;
 
         // If we have a filter, apply it to the output batch.
         if let Some(filter_expr) = &filter_expr {

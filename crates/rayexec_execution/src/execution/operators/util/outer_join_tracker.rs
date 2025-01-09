@@ -111,7 +111,7 @@ impl LeftOuterJoinDrainState {
                 ArrayData2::Boolean(Arc::new(bitmap.clone().into())),
             )]);
 
-        let batch = Batch::try_new(cols)?;
+        let batch = Batch::try_from_arrays(cols)?;
 
         Ok(Some(batch))
     }
@@ -155,7 +155,7 @@ impl LeftOuterJoinDrainState {
                 .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
@@ -190,7 +190,7 @@ impl LeftOuterJoinDrainState {
                 .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
@@ -244,7 +244,7 @@ impl RightOuterJoinTracker {
             .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(left_null_cols.into_iter().chain(right_cols))?;
+        let batch = Batch::try_from_arrays(left_null_cols.into_iter().chain(right_cols))?;
 
         Ok(Some(batch))
     }

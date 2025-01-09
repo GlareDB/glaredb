@@ -290,7 +290,7 @@ impl ExecutableOperator for PhysicalUnnest {
             }
         }
 
-        let batch = Batch::try_new(outputs)?;
+        let batch = Batch::try_from_arrays(outputs)?;
 
         Ok(PollPull::Computed(batch.into()))
     }

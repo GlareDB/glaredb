@@ -247,7 +247,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
             }
         }
 
-        let batch = Batch::try_new([output])?;
+        let batch = Batch::try_from_arrays([output])?;
 
         Ok(InOutPollPull::Batch { batch, row_nums })
     }

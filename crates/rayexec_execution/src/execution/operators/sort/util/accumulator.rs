@@ -78,7 +78,7 @@ impl IndicesAccumulator {
             .collect::<Result<Vec<_>>>()?;
         self.indices.clear();
 
-        let batch = Batch::try_new(merged)?;
+        let batch = Batch::try_from_arrays(merged)?;
 
         // Drops batches that are no longer reachable (won't be contributing to
         // the output).

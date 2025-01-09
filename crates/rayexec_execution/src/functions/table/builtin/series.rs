@@ -308,7 +308,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_new([out])?;
+        let batch = Batch::try_from_arrays([out])?;
 
         let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
 

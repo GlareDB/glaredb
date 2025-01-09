@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn simple() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_from_arrays([
             Array::from_iter([1, 2, 3]),
             Array::from_iter(["cat", "dog", "mouse"]),
         ])

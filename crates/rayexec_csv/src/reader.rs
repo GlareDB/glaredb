@@ -483,7 +483,7 @@ impl AsyncCsvStream {
             arrs.push(arr);
         }
 
-        Batch::try_new(arrs)
+        Batch::try_from_arrays(arrs)
     }
 
     fn build_boolean(

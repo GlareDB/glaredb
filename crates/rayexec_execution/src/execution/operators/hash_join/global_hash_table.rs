@@ -228,7 +228,7 @@ impl GlobalHashTable {
             let right_cols = right.select(Arc::new(right_row_sel)).into_arrays();
 
             // Create final batch.
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
             batches.push(batch);
         }
 

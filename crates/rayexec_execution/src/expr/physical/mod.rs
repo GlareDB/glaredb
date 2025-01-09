@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn select_some() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_from_arrays([
             Array::from_iter([1, 4, 6, 9, 12]),
             Array::from_iter([2, 3, 8, 9, 10]),
         ])
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn select_none() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_from_arrays([
             Array::from_iter([1, 2, 6, 9, 9]),
             Array::from_iter([2, 3, 8, 9, 10]),
         ])

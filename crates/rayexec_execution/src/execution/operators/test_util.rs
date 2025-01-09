@@ -114,5 +114,5 @@ pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
 
 /// Makes a batch with a single column i32 values provided by the iterator.
 pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_new(vec![Array::from_iter(iter.into_iter())]).unwrap()
+    Batch::try_from_arrays(vec![Array::from_iter(iter.into_iter())]).unwrap()
 }

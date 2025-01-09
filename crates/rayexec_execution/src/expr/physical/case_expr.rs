@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn case_simple() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_from_arrays([
             Array::from_iter([1, 2, 3, 4]),
             Array::from_iter([12, 13, 14, 15]),
         ])

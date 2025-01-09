@@ -466,7 +466,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     arrays.push(array);
                 }
 
-                let batch = Batch::try_new(arrays)?;
+                let batch = Batch::try_from_arrays(arrays)?;
 
                 Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }
