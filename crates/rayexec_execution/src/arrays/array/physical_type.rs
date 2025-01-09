@@ -109,9 +109,9 @@ impl PhysicalType {
             Self::Float32 => PhysicalF32::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Utf8 => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Utf8 => PhysicalUtf8::PRIMARY_BUFFER_TYPE_SIZE,
             Self::List => PhysicalList::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Dictionary => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Dictionary => PhysicalDictionary::PRIMARY_BUFFER_TYPE_SIZE,
 
             // TODO: Struct should zero.
             _ => unimplemented!(),

@@ -109,7 +109,7 @@ pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
 }
 
 pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
-    batch.column(column).unwrap().logical_value(row).unwrap()
+    batch.array(column).unwrap().logical_value(row).unwrap()
 }
 
 /// Makes a batch with a single column i32 values provided by the iterator.

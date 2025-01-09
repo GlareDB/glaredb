@@ -103,7 +103,7 @@ impl LeftOuterJoinDrainState {
         self.batch_idx += self.skip;
 
         let cols = batch
-            .columns()
+            .arrays()
             .iter()
             .cloned()
             .chain([Array::new_with_array_data(

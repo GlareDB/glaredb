@@ -15,11 +15,11 @@ pub struct PhysicalColumnExpr {
 
 impl PhysicalColumnExpr {
     pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        let col = batch.column(self.idx).ok_or_else(|| {
+        let col = batch.array(self.idx).ok_or_else(|| {
             RayexecError::new(format!(
                 "Tried to get column at index {} in a batch with {} columns",
                 self.idx,
-                batch.columns().len()
+                batch.arrays().len()
             ))
         })?;
 

@@ -86,7 +86,7 @@ impl PrettyTable {
         // to help determine the size of the columns.
         let samples = match batches.first() {
             Some(batch) => batch
-                .columns()
+                .arrays()
                 .iter()
                 .map(|col| ColumnValues::try_from_array(col, Some(0..NUM_VALS_FOR_AVG), None))
                 .collect::<Result<Vec<_>>>()?,
@@ -253,7 +253,7 @@ impl PrettyTable {
         range: Range<usize>,
     ) -> Result<(Vec<ColumnValues>, usize)> {
         let mut vals = batch
-            .columns()
+            .arrays()
             .iter()
             .enumerate()
             .filter_map(|(idx, c)| {

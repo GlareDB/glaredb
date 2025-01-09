@@ -83,15 +83,15 @@ impl MaterializedResultTable {
     pub fn try_new(schema: Schema, batches: impl IntoIterator<Item = Batch>) -> Result<Self> {
         let batches: Vec<_> = batches.into_iter().collect();
         for batch in &batches {
-            if batch.columns().len() != schema.fields.len() {
+            if batch.arrays().len() != schema.fields.len() {
                 return Err(RayexecError::new(format!(
                     "Batch contains different number of columns than schema, batch: {}, schema: {}",
-                    batch.columns().len(),
+                    batch.arrays().len(),
                     schema.fields.len()
                 )));
             }
 
-            for (col, field) in batch.columns().iter().zip(schema.fields.iter()) {
+            for (col, field) in batch.arrays().iter().zip(schema.fields.iter()) {
                 let col_datatype = col.datatype();
                 if col_datatype != &field.datatype {
                     return Err(RayexecError::new(format!(
@@ -155,7 +155,7 @@ impl MaterializedResultTable {
 
         let batch = &self.batches[batch_idx];
         let arr = batch
-            .column(col)
+            .array(col)
             .ok_or_else(|| RayexecError::new(format!("Column out of range: {}", col)))?;
 
         cell_fn(arr, row)
@@ -176,7 +176,7 @@ impl MaterializedResultTable {
         let arrays = self
             .batches
             .iter()
-            .map(|b| b.column(col_idx).expect("column to exist").clone())
+            .map(|b| b.array(col_idx).expect("column to exist").clone())
             .collect();
 
         Ok(MaterializedColumn { arrays })

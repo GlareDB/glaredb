@@ -496,7 +496,7 @@ impl PhysicalHashAggregate {
             .iter()
             .map(|idx| {
                 batch
-                    .column(*idx)
+                    .array(*idx)
                     .expect("aggregate input column to exist")
                     .clone()
             }) // TODO
@@ -507,7 +507,7 @@ impl PhysicalHashAggregate {
         let grouping_columns: Vec<_> = self
             .group_columns
             .iter()
-            .map(|idx| batch.column(*idx).expect("grouping column to exist"))
+            .map(|idx| batch.array(*idx).expect("grouping column to exist"))
             .collect();
 
         let num_rows = batch.num_rows();

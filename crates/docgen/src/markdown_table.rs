@@ -37,7 +37,7 @@ pub fn write_markdown_table<'a>(
 
     for batch in batches {
         for row in 0..batch.num_rows() {
-            for (idx, column) in batch.columns().iter().enumerate() {
+            for (idx, column) in batch.arrays().iter().enumerate() {
                 if idx == 0 {
                     write!(output, "|")?;
                 }

@@ -10,8 +10,8 @@ use crate::arrays::selection::SelectionVector;
 /// A batch of same-length arrays.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
-    /// Columns that make up this batch.
-    cols: Vec<Array>,
+    /// Arrays that make up this batch.
+    arrays: Vec<Array>,
 
     /// Number of rows in this batch. Needed to allow for a batch that has no
     /// columns but a non-zero number of rows.
@@ -21,14 +21,14 @@ pub struct Batch {
 impl Batch {
     pub const fn empty() -> Self {
         Batch {
-            cols: Vec::new(),
+            arrays: Vec::new(),
             num_rows: 0,
         }
     }
 
     pub fn empty_with_num_rows(num_rows: usize) -> Self {
         Batch {
-            cols: Vec::new(),
+            arrays: Vec::new(),
             num_rows,
         }
     }
@@ -38,16 +38,16 @@ impl Batch {
     /// Batches are requried to have the same logical schemas.
     pub fn concat(batches: &[Batch]) -> Result<Self> {
         let num_cols = match batches.first() {
-            Some(batch) => batch.num_columns(),
+            Some(batch) => batch.num_arrays(),
             None => return Err(RayexecError::new("Cannot concat zero batches")),
         };
 
         for batch in batches {
-            if batch.num_columns() != num_cols {
+            if batch.num_arrays() != num_cols {
                 return Err(RayexecError::new(format!(
                     "Cannot concat batches with different number of columns, got {} and {}",
                     num_cols,
-                    batch.num_columns()
+                    batch.num_arrays()
                 )));
             }
         }
@@ -66,7 +66,7 @@ impl Batch {
         for col_idx in 0..num_cols {
             batches
                 .iter()
-                .for_each(|b| working_arrays.push(b.column(col_idx).unwrap()));
+                .for_each(|b| working_arrays.push(b.array(col_idx).unwrap()));
 
             let out = concat_with_exact_total_len(&working_arrays, num_rows)?;
             output_cols.push(out);
@@ -97,25 +97,28 @@ impl Batch {
         }
 
         Ok(Batch {
-            cols,
+            arrays: cols,
             num_rows: len,
         })
     }
 
     // TODO: Owned variant
     pub fn project(&self, indices: &[usize]) -> Self {
-        let cols = indices.iter().map(|idx| self.cols[*idx].clone()).collect();
+        let cols = indices
+            .iter()
+            .map(|idx| self.arrays[*idx].clone())
+            .collect();
 
         Batch {
-            cols,
+            arrays: cols,
             num_rows: self.num_rows,
         }
     }
 
     pub fn slice(&self, offset: usize, count: usize) -> Self {
-        let cols = self.cols.iter().map(|c| c.slice(offset, count)).collect();
+        let cols = self.arrays.iter().map(|c| c.slice(offset, count)).collect();
         Batch {
-            cols,
+            arrays: cols,
             num_rows: count,
         }
     }
@@ -126,7 +129,7 @@ impl Batch {
     /// batch.
     pub fn select(&self, selection: Arc<SelectionVector>) -> Batch {
         let cols = self
-            .cols
+            .arrays
             .iter()
             .map(|c| {
                 let mut col = c.clone();
@@ -136,7 +139,7 @@ impl Batch {
             .collect();
 
         Batch {
-            cols,
+            arrays: cols,
             num_rows: selection.as_ref().num_rows(),
         }
     }
@@ -149,29 +152,32 @@ impl Batch {
 
         // Non-zero number of rows, but no actual columns. Just return an empty
         // row.
-        if self.cols.is_empty() {
+        if self.arrays.is_empty() {
             return Some(ScalarRow::empty());
         }
 
-        let row = self.cols.iter().map(|col| col.logical_value(idx).unwrap());
+        let row = self
+            .arrays
+            .iter()
+            .map(|col| col.logical_value(idx).unwrap());
 
         Some(ScalarRow::from_iter(row))
     }
 
-    pub fn column(&self, idx: usize) -> Option<&Array> {
-        self.cols.get(idx)
+    pub fn array(&self, idx: usize) -> Option<&Array> {
+        self.arrays.get(idx)
     }
 
-    pub fn columns(&self) -> &[Array] {
-        &self.cols
+    pub fn arrays(&self) -> &[Array] {
+        &self.arrays
     }
 
-    pub fn columns_mut(&mut self) -> &mut [Array] {
-        &mut self.cols
+    pub fn array_mut(&mut self) -> &mut [Array] {
+        &mut self.arrays
     }
 
-    pub fn num_columns(&self) -> usize {
-        self.cols.len()
+    pub fn num_arrays(&self) -> usize {
+        self.arrays.len()
     }
 
     pub fn num_rows(&self) -> usize {
@@ -179,6 +185,6 @@ impl Batch {
     }
 
     pub fn into_arrays(self) -> Vec<Array> {
-        self.cols
+        self.arrays
     }
 }

@@ -161,7 +161,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     let cols: Vec<_> = agg
                         .columns
                         .iter()
-                        .map(|expr| batch.column(expr.idx).expect("column to exist"))
+                        .map(|expr| batch.array(expr.idx).expect("column to exist"))
                         .collect();
 
                     agg_states[agg_idx]

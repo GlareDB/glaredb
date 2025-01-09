@@ -69,7 +69,7 @@ where
         self.physical_type
     }
 
-    pub const fn primary_capacity(&self) -> usize {
+    pub fn primary_capacity(&self) -> usize {
         self.primary.reservation.size() / self.physical_type.primary_buffer_mem_size()
     }
 

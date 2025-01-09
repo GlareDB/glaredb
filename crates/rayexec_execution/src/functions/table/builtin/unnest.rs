@@ -166,7 +166,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
         self.input_num_rows = inputs.num_rows();
         self.current_row = 0;
 
-        match inputs.columns().len() {
+        match inputs.arrays().len() {
             1 => self.input = inputs.into_arrays().pop(),
             other => {
                 return Err(RayexecError::new("Invalid number of arrays").with_field("len", other))

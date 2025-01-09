@@ -260,15 +260,15 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
 
             // Generate new params from row.
             let start = UnaryExecutor::value_at2::<PhysicalI64>(
-                batch.column(0).unwrap(),
+                batch.array(0).unwrap(),
                 self.next_row_idx,
             )?;
             let end = UnaryExecutor::value_at2::<PhysicalI64>(
-                batch.column(1).unwrap(),
+                batch.array(1).unwrap(),
                 self.next_row_idx,
             )?;
             let step = UnaryExecutor::value_at2::<PhysicalI64>(
-                batch.column(2).unwrap(),
+                batch.array(2).unwrap(),
                 self.next_row_idx,
             )?;
 
