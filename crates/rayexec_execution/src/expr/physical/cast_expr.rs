@@ -56,25 +56,25 @@ impl PhysicalCastExpr {
             child_output,
         )?;
 
-        unimplemented!()
-        // // Cast child output.
-        // //
-        // // Note we discard the previous selection since the child would have
-        // // written the rows starting at 0 up to selection len.
-        // cast_array(
-        //     child_output,
-        //     Selection::linear(sel.len()),
-        //     output,
-        //     CastFailBehavior::Error,
-        // )?;
+        // Cast child output.
+        //
+        // Note we discard the previous selection since the child would have
+        // written the rows starting at 0 up to selection len.
+        cast_array(
+            child_output,
+            Selection::linear(sel.len()),
+            output,
+            CastFailBehavior::Error,
+        )?;
 
-        // Ok(())
+        Ok(())
     }
 
     pub fn eval2<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         let input = self.expr.eval(batch)?;
-        let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
-        Ok(Cow::Owned(out))
+        unimplemented!()
+        // let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
+        // Ok(Cow::Owned(out))
     }
 }
 

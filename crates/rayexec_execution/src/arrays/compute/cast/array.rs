@@ -1,8 +1,9 @@
 use std::ops::Mul;
+use std::sync::Arc;
 
-use half::f16;
 use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::behavior::CastFailBehavior;
 use super::format::{
@@ -48,7 +49,9 @@ use super::parse::{
     UInt64Parser,
     UInt8Parser,
 };
+use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{
+    MutablePhysicalStorage,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
@@ -58,6 +61,7 @@ use crate::arrays::array::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
+    PhysicalInterval,
     PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
@@ -66,215 +70,236 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::bitmap::Bitmap;
+use crate::arrays::array::validity::Validity;
+use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, TimeUnit};
-use crate::arrays::executor::builder::{
-    ArrayBuilder,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 
-pub fn cast_array(arr: &Array, to: DataType, behavior: CastFailBehavior) -> Result<Array> {
-    if arr.datatype() == &to {
-        // TODO: Cow?
-        return Ok(arr.clone());
+/// Casts an array to another array.
+///
+/// The datatype of `out` determines the what we're casting values to.
+///
+/// `behavior` determines what happens if casting results in an overflow or some
+/// other precision/accuracy error. Note that if we don't have an implementation
+/// of casting from one type to another, this will always error.
+pub fn cast_array(
+    arr: &mut Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
+    behavior: CastFailBehavior,
+) -> Result<()> {
+    if arr.datatype() == out.datatype() {
+        out.clone_from(&NopBufferManager, arr)?;
+        out.select(&Arc::new(NopBufferManager), sel)?;
+
+        return Ok(());
     }
 
-    let arr = match arr.datatype() {
+    let to = out.datatype();
+
+    match arr.datatype() {
         DataType::Null => {
-            // Can cast NULL to anything else.
-            let data = to.physical_type()?.zeroed_array_data(arr.logical_len());
-            let validity = Bitmap::new_with_all_false(arr.logical_len());
-            Array::new_with_validity_and_array_data(to, validity, data)
+            // Can cast NULL to anything else. Just set the valid mask to all
+            // invalid.
+            out.put_validity(Validity::new_all_invalid(out.capacity()))?;
+            Ok(())
         }
 
         // String to anything else.
-        DataType::Utf8 => cast_from_utf8(arr, to, behavior)?,
+        DataType::Utf8 => cast_from_utf8(arr, sel, out, behavior),
 
         // Primitive numerics to other primitive numerics.
         DataType::Int8 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalI8>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalI8>(arr, sel, out, behavior)
         }
         DataType::Int16 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalI16>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalI16>(arr, sel, out, behavior)
         }
         DataType::Int32 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalI32>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalI32>(arr, sel, out, behavior)
         }
         DataType::Int64 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalI64>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalI64>(arr, sel, out, behavior)
         }
         DataType::Int128 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalI128>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalI128>(arr, sel, out, behavior)
         }
         DataType::UInt8 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalU8>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalU8>(arr, sel, out, behavior)
         }
         DataType::UInt16 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalU16>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalU16>(arr, sel, out, behavior)
         }
         DataType::UInt32 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalU32>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalU32>(arr, sel, out, behavior)
         }
         DataType::UInt64 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalU64>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalU64>(arr, sel, out, behavior)
         }
         DataType::UInt128 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalU128>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalU128>(arr, sel, out, behavior)
         }
         DataType::Float16 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalF16>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalF16>(arr, sel, out, behavior)
         }
         DataType::Float32 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalF32>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalF32>(arr, sel, out, behavior)
         }
         DataType::Float64 if to.is_primitive_numeric() => {
-            cast_primitive_numeric_helper::<PhysicalF64>(arr, to, behavior)?
+            cast_primitive_numeric_helper::<PhysicalF64>(arr, sel, out, behavior)
         }
 
         // Int to date32
-        DataType::Int8 if to == DataType::Date32 => {
-            cast_primitive_numeric::<PhysicalI8, i32>(arr, to, behavior)?
+        DataType::Int8 if to == &DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalI8, PhysicalI32>(arr, sel, out, behavior)
         }
-        DataType::Int16 if to == DataType::Date32 => {
-            cast_primitive_numeric::<PhysicalI16, i32>(arr, to, behavior)?
+        DataType::Int16 if to == &DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalI16, PhysicalU32>(arr, sel, out, behavior)
         }
-        DataType::Int32 if to == DataType::Date32 => {
-            cast_primitive_numeric::<PhysicalI32, i32>(arr, to, behavior)?
+        DataType::Int32 if to == &DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalI32, PhysicalU32>(arr, sel, out, behavior)
         }
-        DataType::UInt8 if to == DataType::Date32 => {
-            cast_primitive_numeric::<PhysicalU8, i32>(arr, to, behavior)?
+        DataType::UInt8 if to == &DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalU8, PhysicalU32>(arr, sel, out, behavior)
         }
-        DataType::UInt16 if to == DataType::Date32 => {
-            cast_primitive_numeric::<PhysicalU16, i32>(arr, to, behavior)?
+        DataType::UInt16 if to == &DataType::Date32 => {
+            cast_primitive_numeric::<PhysicalU16, PhysicalU32>(arr, sel, out, behavior)
         }
 
         // Int to decimal.
         DataType::Int8 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalI8>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalI8>(arr, sel, out, behavior)
         }
         DataType::Int16 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalI16>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalI16>(arr, sel, out, behavior)
         }
         DataType::Int32 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalI32>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalI32>(arr, sel, out, behavior)
         }
         DataType::Int64 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalI64>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalI64>(arr, sel, out, behavior)
         }
         DataType::Int128 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalI128>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalI128>(arr, sel, out, behavior)
         }
         DataType::UInt8 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalU8>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalU8>(arr, sel, out, behavior)
         }
         DataType::UInt16 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalU16>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalU16>(arr, sel, out, behavior)
         }
         DataType::UInt32 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalU32>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalU32>(arr, sel, out, behavior)
         }
         DataType::UInt64 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalU64>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalU64>(arr, sel, out, behavior)
         }
         DataType::UInt128 if to.is_decimal() => {
-            cast_int_to_decimal_helper::<PhysicalU128>(arr, to, behavior)?
+            cast_int_to_decimal_helper::<PhysicalU128>(arr, sel, out, behavior)
         }
 
         // Float to decimal.
+        DataType::Float16 if to.is_decimal() => {
+            cast_float_to_decimal_helper::<PhysicalF16>(arr, sel, out, behavior)
+        }
         DataType::Float32 if to.is_decimal() => {
-            cast_float_to_decimal_helper::<PhysicalF32>(arr, to, behavior)?
+            cast_float_to_decimal_helper::<PhysicalF32>(arr, sel, out, behavior)
         }
         DataType::Float64 if to.is_decimal() => {
-            cast_float_to_decimal_helper::<PhysicalF64>(arr, to, behavior)?
+            cast_float_to_decimal_helper::<PhysicalF64>(arr, sel, out, behavior)
         }
 
         // Decimal to decimal
         DataType::Decimal64(_) if to.is_decimal() => {
-            decimal_rescale_helper::<PhysicalI64>(arr, to, behavior)?
+            decimal_rescale_helper::<Decimal64Type>(arr, sel, out, behavior)
         }
         DataType::Decimal128(_) if to.is_decimal() => {
-            decimal_rescale_helper::<PhysicalI128>(arr, to, behavior)?
+            decimal_rescale_helper::<Decimal128Type>(arr, sel, out, behavior)
         }
 
         // Decimal to float.
         DataType::Decimal64(_) => match to {
-            DataType::Float32 => cast_decimal_to_float::<PhysicalI64, f32>(arr, to, behavior)?,
-            DataType::Float64 => cast_decimal_to_float::<PhysicalI64, f64>(arr, to, behavior)?,
-            other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+            DataType::Float16 => {
+                cast_decimal_to_float::<Decimal64Type, PhysicalF16>(arr, sel, out, behavior)
+            }
+            DataType::Float32 => {
+                cast_decimal_to_float::<Decimal64Type, PhysicalF32>(arr, sel, out, behavior)
+            }
+            DataType::Float64 => {
+                cast_decimal_to_float::<Decimal64Type, PhysicalF64>(arr, sel, out, behavior)
+            }
+            other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
         },
         DataType::Decimal128(_) => match to {
-            DataType::Float32 => cast_decimal_to_float::<PhysicalI128, f32>(arr, to, behavior)?,
-            DataType::Float64 => cast_decimal_to_float::<PhysicalI128, f64>(arr, to, behavior)?,
-            other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+            DataType::Float16 => {
+                cast_decimal_to_float::<Decimal128Type, PhysicalF16>(arr, sel, out, behavior)
+            }
+            DataType::Float32 => {
+                cast_decimal_to_float::<Decimal128Type, PhysicalF32>(arr, sel, out, behavior)
+            }
+            DataType::Float64 => {
+                cast_decimal_to_float::<Decimal128Type, PhysicalF64>(arr, sel, out, behavior)
+            }
+            other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
         },
 
         // Anything to string.
-        _ if to.is_utf8() => cast_to_utf8(arr, behavior)?,
+        _ if to.is_utf8() => cast_to_utf8(arr, sel, out, behavior),
 
-        other => {
-            return Err(RayexecError::new(format!(
-                "Casting from {other} to {to} not implemented"
-            )))
-        }
-    };
-
-    Ok(arr)
+        other => Err(RayexecError::new(format!(
+            "Casting from {other} to {to} not implemented",
+        ))),
+    }
 }
 
-fn decimal_rescale_helper<'a, S>(
-    arr: &'a Array,
-    to: DataType,
+fn decimal_rescale_helper<D1>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
-    S: PhysicalStorage,
-    S::Type<'a>: PrimInt,
+    D1: DecimalType,
 {
-    match to {
-        DataType::Decimal64(_) => decimal_rescale::<S, Decimal64Type>(arr, to, behavior),
-        DataType::Decimal128(_) => decimal_rescale::<S, Decimal128Type>(arr, to, behavior),
+    match out.datatype() {
+        DataType::Decimal64(_) => decimal_rescale::<D1, Decimal64Type>(arr, sel, out, behavior),
+        DataType::Decimal128(_) => decimal_rescale::<D1, Decimal128Type>(arr, sel, out, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
-pub fn decimal_rescale<'a, S, D>(
-    arr: &'a Array,
-    to: DataType,
+pub fn decimal_rescale<D1, D2>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
-    S: PhysicalStorage,
-    D: DecimalType,
-    S::Type<'a>: PrimInt,
-    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
+    D1: DecimalType,
+    D2: DecimalType,
 {
-    let new_meta = to.try_get_decimal_type_meta()?;
+    let new_meta = arr.datatype().try_get_decimal_type_meta()?;
     let arr_meta = arr.datatype().try_get_decimal_type_meta()?;
 
-    let scale_amount = <D::Primitive as NumCast>::from(
+    let scale_amount = <D2::Primitive as NumCast>::from(
         10.pow((arr_meta.scale - new_meta.scale).unsigned_abs() as u32),
     )
     .expect("to be in range");
 
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute2::<S, _, _>(
+    let mut fail_state = behavior.new_state();
+    UnaryExecutor::execute::<D1::Storage, D2::Storage, _>(
         arr,
-        ArrayBuilder {
-            datatype: to,
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |v, buf| {
+        sel,
+        OutBuffer::from_array(out)?,
+        |&v, buf| {
             // Convert to decimal primitive.
-            let v = match <D::Primitive as NumCast>::from(v) {
+            let v = match <D2::Primitive as NumCast>::from(v) {
                 Some(v) => v,
                 None => {
-                    fail_state.set_did_fail(buf.idx);
+                    fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                    buf.put_null();
                     return;
                 }
             };
@@ -282,169 +307,184 @@ where
             if arr_meta.scale < new_meta.scale {
                 match v.checked_mul(&scale_amount) {
                     Some(v) => buf.put(&v),
-                    None => fail_state.set_did_fail(buf.idx),
+                    None => {
+                        fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                        buf.put_null();
+                    }
                 }
             } else {
                 match v.checked_div(&scale_amount) {
                     Some(v) => buf.put(&v),
-                    None => fail_state.set_did_fail(buf.idx),
+                    None => {
+                        fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                        buf.put_null();
+                    }
                 }
             }
         },
     )?;
 
-    fail_state.check_and_apply(arr, output)
+    fail_state.into_result()
 }
 
-fn cast_float_to_decimal_helper<'a, S>(
-    arr: &'a Array,
-    to: DataType,
+fn cast_float_to_decimal_helper<S>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
     S: PhysicalStorage,
-    S::Type<'a>: Float,
+    S::StorageType: Float,
 {
-    match to {
-        DataType::Decimal64(_) => cast_float_to_decimal::<S, Decimal64Type>(arr, to, behavior),
-        DataType::Decimal128(_) => cast_float_to_decimal::<S, Decimal128Type>(arr, to, behavior),
+    match out.datatype() {
+        DataType::Decimal64(_) => {
+            cast_float_to_decimal::<S, Decimal64Type>(arr, sel, out, behavior)
+        }
+        DataType::Decimal128(_) => {
+            cast_float_to_decimal::<S, Decimal128Type>(arr, sel, out, behavior)
+        }
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
-fn cast_float_to_decimal<'a, S, D>(
-    arr: &'a Array,
-    to: DataType,
+fn cast_float_to_decimal<S, D>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
     S: PhysicalStorage,
+    S::StorageType: Float,
     D: DecimalType,
-    S::Type<'a>: Float,
-    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
-    let decimal_meta = to.try_get_decimal_type_meta()?;
+    let decimal_meta = out.datatype().try_get_decimal_type_meta()?;
     let scale = decimal_meta.scale;
     let precision = decimal_meta.precision;
 
-    let scale = <<S::Storage<'a> as AddressableStorage>::T as NumCast>::from(
-        10.pow(scale.unsigned_abs() as u32),
-    )
-    .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
+    let scale = <S::StorageType as NumCast>::from(10.pow(scale.unsigned_abs() as u32))
+        .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
 
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute2::<S, _, _>(
+    let mut fail_state = behavior.new_state();
+    UnaryExecutor::execute::<S, D::Storage, _>(
         arr,
-        ArrayBuilder {
-            datatype: to,
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |v, buf| {
+        sel,
+        OutBuffer::from_array(out)?,
+        |&v, buf| {
             // TODO: Properly handle negative scale.
             let scaled_value = v.mul(scale).round();
 
             match <D::Primitive as NumCast>::from(scaled_value) {
                 Some(v) => {
                     if let Err(err) = D::validate_precision(v, precision) {
-                        fail_state.set_did_fail_with_error(buf.idx, err);
+                        fail_state.set_error(|| err);
+                        buf.put_null();
                         return;
                     }
                     buf.put(&v)
                 }
-                None => fail_state.set_did_fail(buf.idx),
+                None => {
+                    fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                    buf.put_null();
+                }
             }
         },
     )?;
 
-    fail_state.check_and_apply(arr, output)
+    fail_state.into_result()
 }
 
-// TODO: Weird to specify both the float generic and datatype.
-pub fn cast_decimal_to_float<'a, S, F>(
-    arr: &'a Array,
-    to: DataType,
+pub fn cast_decimal_to_float<D, S>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
-    S: PhysicalStorage,
-    F: Float + Default + Copy,
-    <<S as PhysicalStorage>::Storage<'a> as AddressableStorage>::T: ToPrimitive,
-    ArrayData2: From<PrimitiveStorage<F>>,
+    D: DecimalType,
+    S: MutablePhysicalStorage,
+    S::StorageType: Float + Copy,
 {
     let decimal_meta = arr.datatype().try_get_decimal_type_meta()?;
 
-    let scale = <F as NumCast>::from((10.0).powi(decimal_meta.scale as i32)).ok_or_else(|| {
-        RayexecError::new(format!(
-            "Failed to cast scale {} to float",
-            decimal_meta.scale
-        ))
-    })?;
-
-    let builder = ArrayBuilder {
-        datatype: to,
-        buffer: PrimitiveBuffer::<F>::with_len(arr.logical_len()),
-    };
-
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output =
-        UnaryExecutor::execute2::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
-            Some(v) => {
-                let scaled = v.div(scale);
-                buf.put(&scaled);
-            }
-            None => fail_state.set_did_fail(buf.idx),
+    let scale = <S::StorageType as NumCast>::from((10.0).powi(decimal_meta.scale as i32))
+        .ok_or_else(|| {
+            RayexecError::new(format!(
+                "Failed to cast scale {} to float",
+                decimal_meta.scale
+            ))
         })?;
 
-    fail_state.check_and_apply(arr, output)
+    let mut fail_state = behavior.new_state();
+    UnaryExecutor::execute::<D::Storage, S, _>(
+        arr,
+        sel,
+        OutBuffer::from_array(out)?,
+        |&v, buf| match <S::StorageType as NumCast>::from(v) {
+            Some(v) => {
+                let scaled = v / scale;
+                buf.put(&scaled);
+            }
+            None => {
+                fail_state.set_error(|| RayexecError::new("Failed to cast float to decimal"));
+                buf.put_null();
+            }
+        },
+    )?;
+
+    fail_state.into_result()
 }
 
-fn cast_int_to_decimal_helper<'a, S>(
-    arr: &'a Array,
-    to: DataType,
+fn cast_int_to_decimal_helper<S>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
     S: PhysicalStorage,
-    S::Type<'a>: PrimInt,
+    S::StorageType: PrimInt,
 {
-    match to {
-        DataType::Decimal64(_) => cast_int_to_decimal::<S, Decimal64Type>(arr, to, behavior),
-        DataType::Decimal128(_) => cast_int_to_decimal::<S, Decimal128Type>(arr, to, behavior),
+    match out.datatype() {
+        DataType::Decimal64(_) => cast_int_to_decimal::<S, Decimal64Type>(arr, sel, out, behavior),
+        DataType::Decimal128(_) => {
+            cast_int_to_decimal::<S, Decimal128Type>(arr, sel, out, behavior)
+        }
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
-fn cast_int_to_decimal<'a, S, D>(
-    arr: &'a Array,
-    to: DataType,
+fn cast_int_to_decimal<S, D>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
     S: PhysicalStorage,
     D: DecimalType,
-    S::Type<'a>: PrimInt,
-    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
+    S::StorageType: PrimInt,
 {
-    let decimal_meta = to.try_get_decimal_type_meta()?;
+    let decimal_meta = out.datatype().try_get_decimal_type_meta()?;
     let scale = decimal_meta.scale;
     let precision = decimal_meta.precision;
 
     let scale_amount = <D::Primitive as NumCast>::from(10.pow(scale.unsigned_abs() as u32))
         .expect("to be in range");
 
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute2::<S, _, _>(
+    let mut fail_state = behavior.new_state();
+    UnaryExecutor::execute::<S, D::Storage, _>(
         arr,
-        ArrayBuilder {
-            datatype: to,
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |v, buf| {
+        sel,
+        OutBuffer::from_array(out)?,
+        |&v, buf| {
             // Convert to decimal primitive.
             let v = match <D::Primitive as NumCast>::from(v) {
                 Some(v) => v,
                 None => {
-                    fail_state.set_did_fail(buf.idx);
+                    fail_state.set_error(|| RayexecError::new("Failed to cast int to decimal"));
+                    buf.put_null();
                     return;
                 }
             };
@@ -454,7 +494,8 @@ where
                 match v.checked_mul(&scale_amount) {
                     Some(v) => v,
                     None => {
-                        fail_state.set_did_fail(buf.idx);
+                        fail_state.set_error(|| RayexecError::new("Failed to cast int to decimal"));
+                        buf.put_null();
                         return;
                     }
                 }
@@ -462,14 +503,16 @@ where
                 match v.checked_div(&scale_amount) {
                     Some(v) => v,
                     None => {
-                        fail_state.set_did_fail(buf.idx);
+                        fail_state.set_error(|| RayexecError::new("Failed to cast int to decimal"));
+                        buf.put_null();
                         return;
                     }
                 }
             };
 
             if let Err(err) = D::validate_precision(val, precision) {
-                fail_state.set_did_fail_with_error(buf.idx, err);
+                fail_state.set_error(|| err);
+                buf.put_null();
                 return;
             }
 
@@ -477,170 +520,249 @@ where
         },
     )?;
 
-    fail_state.check_and_apply(arr, output)
+    fail_state.into_result()
 }
 
-fn cast_primitive_numeric_helper<'a, S>(
-    arr: &'a Array,
-    to: DataType,
+fn cast_primitive_numeric_helper<S>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
     S: PhysicalStorage,
-    S::Type<'a>: ToPrimitive,
+    S::StorageType: ToPrimitive + Sized + Copy,
 {
-    match to {
-        DataType::Int8 => cast_primitive_numeric::<S, i8>(arr, to, behavior),
-        DataType::Int16 => cast_primitive_numeric::<S, i16>(arr, to, behavior),
-        DataType::Int32 => cast_primitive_numeric::<S, i32>(arr, to, behavior),
-        DataType::Int64 => cast_primitive_numeric::<S, i64>(arr, to, behavior),
-        DataType::Int128 => cast_primitive_numeric::<S, i128>(arr, to, behavior),
-        DataType::UInt8 => cast_primitive_numeric::<S, u8>(arr, to, behavior),
-        DataType::UInt16 => cast_primitive_numeric::<S, u16>(arr, to, behavior),
-        DataType::UInt32 => cast_primitive_numeric::<S, u32>(arr, to, behavior),
-        DataType::UInt64 => cast_primitive_numeric::<S, u64>(arr, to, behavior),
-        DataType::UInt128 => cast_primitive_numeric::<S, u128>(arr, to, behavior),
-        DataType::Float16 => cast_primitive_numeric::<S, f16>(arr, to, behavior),
-        DataType::Float32 => cast_primitive_numeric::<S, f32>(arr, to, behavior),
-        DataType::Float64 => cast_primitive_numeric::<S, f64>(arr, to, behavior),
+    match out.datatype() {
+        DataType::Int8 => cast_primitive_numeric::<S, PhysicalI8>(arr, sel, out, behavior),
+        DataType::Int16 => cast_primitive_numeric::<S, PhysicalI16>(arr, sel, out, behavior),
+        DataType::Int32 => cast_primitive_numeric::<S, PhysicalI32>(arr, sel, out, behavior),
+        DataType::Int64 => cast_primitive_numeric::<S, PhysicalI64>(arr, sel, out, behavior),
+        DataType::Int128 => cast_primitive_numeric::<S, PhysicalI128>(arr, sel, out, behavior),
+        DataType::UInt8 => cast_primitive_numeric::<S, PhysicalU8>(arr, sel, out, behavior),
+        DataType::UInt16 => cast_primitive_numeric::<S, PhysicalU16>(arr, sel, out, behavior),
+        DataType::UInt32 => cast_primitive_numeric::<S, PhysicalU32>(arr, sel, out, behavior),
+        DataType::UInt64 => cast_primitive_numeric::<S, PhysicalU64>(arr, sel, out, behavior),
+        DataType::UInt128 => cast_primitive_numeric::<S, PhysicalU128>(arr, sel, out, behavior),
+        DataType::Float16 => cast_primitive_numeric::<S, PhysicalF16>(arr, sel, out, behavior),
+        DataType::Float32 => cast_primitive_numeric::<S, PhysicalF32>(arr, sel, out, behavior),
+        DataType::Float64 => cast_primitive_numeric::<S, PhysicalF64>(arr, sel, out, behavior),
         other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
-pub fn cast_primitive_numeric<'a, S, T>(
-    arr: &'a Array,
-    datatype: DataType,
+/// Cast a primitive number to some other primitive numeric.
+fn cast_primitive_numeric<S1, S2>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
-    S: PhysicalStorage,
-    S::Type<'a>: ToPrimitive,
-    T: NumCast + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<T>>,
+    S1: PhysicalStorage,
+    S1::StorageType: ToPrimitive + Sized + Copy,
+    S2: MutablePhysicalStorage,
+    S2::StorageType: NumCast + Copy,
 {
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute2::<S, _, _>(
-        arr,
-        ArrayBuilder {
-            datatype,
-            buffer: PrimitiveBuffer::with_len(arr.logical_len()),
-        },
-        |v, buf| match T::from(v) {
+    let mut fail_state = behavior.new_state();
+    UnaryExecutor::execute::<S1, S2, _>(arr, sel, OutBuffer::from_array(out)?, |&v, buf| {
+        match NumCast::from(v) {
             Some(v) => buf.put(&v),
-            None => fail_state.set_did_fail(buf.idx),
-        },
-    )?;
+            None => {
+                fail_state.set_error(|| RayexecError::new("Failed to cast primitive numeric"));
+                buf.put_null();
+            }
+        }
+    })?;
 
-    fail_state.check_and_apply(arr, output)
+    fail_state.into_result()
 }
 
 pub fn cast_from_utf8(
     arr: &Array,
-    datatype: DataType,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
-) -> Result<Array> {
-    match datatype {
-        DataType::Boolean => cast_parse_bool(arr, behavior),
-        DataType::Int8 => cast_parse_primitive(arr, datatype, behavior, Int8Parser::default()),
-        DataType::Int16 => cast_parse_primitive(arr, datatype, behavior, Int16Parser::default()),
-        DataType::Int32 => cast_parse_primitive(arr, datatype, behavior, Int32Parser::default()),
-        DataType::Int64 => cast_parse_primitive(arr, datatype, behavior, Int64Parser::default()),
-        DataType::Int128 => cast_parse_primitive(arr, datatype, behavior, Int128Parser::default()),
-        DataType::UInt8 => cast_parse_primitive(arr, datatype, behavior, UInt8Parser::default()),
-        DataType::UInt16 => cast_parse_primitive(arr, datatype, behavior, UInt16Parser::default()),
-        DataType::UInt32 => cast_parse_primitive(arr, datatype, behavior, UInt32Parser::default()),
-        DataType::UInt64 => cast_parse_primitive(arr, datatype, behavior, UInt64Parser::default()),
-        DataType::UInt128 => {
-            cast_parse_primitive(arr, datatype, behavior, UInt128Parser::default())
+) -> Result<()> {
+    match out.datatype() {
+        DataType::Boolean => {
+            cast_parse_primitive::<_, PhysicalBool>(arr, sel, out, behavior, BoolParser)
         }
-        DataType::Float16 => {
-            cast_parse_primitive(arr, datatype, behavior, Float16Parser::default())
+        DataType::Int8 => {
+            cast_parse_primitive::<_, PhysicalI8>(arr, sel, out, behavior, Int8Parser::default())
         }
-        DataType::Float32 => {
-            cast_parse_primitive(arr, datatype, behavior, Float32Parser::default())
+        DataType::Int16 => {
+            cast_parse_primitive::<_, PhysicalI16>(arr, sel, out, behavior, Int16Parser::default())
         }
-        DataType::Float64 => {
-            cast_parse_primitive(arr, datatype, behavior, Float64Parser::default())
+        DataType::Int32 => {
+            cast_parse_primitive::<_, PhysicalI32>(arr, sel, out, behavior, Int32Parser::default())
         }
-        DataType::Decimal64(m) => cast_parse_primitive(
+        DataType::Int64 => {
+            cast_parse_primitive::<_, PhysicalI64>(arr, sel, out, behavior, Int64Parser::default())
+        }
+        DataType::Int128 => cast_parse_primitive::<_, PhysicalI128>(
             arr,
-            datatype,
+            sel,
+            out,
+            behavior,
+            Int128Parser::default(),
+        ),
+        DataType::UInt8 => {
+            cast_parse_primitive::<_, PhysicalU8>(arr, sel, out, behavior, UInt8Parser::default())
+        }
+        DataType::UInt16 => {
+            cast_parse_primitive::<_, PhysicalU16>(arr, sel, out, behavior, UInt16Parser::default())
+        }
+        DataType::UInt32 => {
+            cast_parse_primitive::<_, PhysicalU32>(arr, sel, out, behavior, UInt32Parser::default())
+        }
+        DataType::UInt64 => {
+            cast_parse_primitive::<_, PhysicalU64>(arr, sel, out, behavior, UInt64Parser::default())
+        }
+        DataType::UInt128 => cast_parse_primitive::<_, PhysicalU128>(
+            arr,
+            sel,
+            out,
+            behavior,
+            UInt128Parser::default(),
+        ),
+        DataType::Float16 => cast_parse_primitive::<_, PhysicalF16>(
+            arr,
+            sel,
+            out,
+            behavior,
+            Float16Parser::default(),
+        ),
+        DataType::Float32 => cast_parse_primitive::<_, PhysicalF32>(
+            arr,
+            sel,
+            out,
+            behavior,
+            Float32Parser::default(),
+        ),
+        DataType::Float64 => cast_parse_primitive::<_, PhysicalF64>(
+            arr,
+            sel,
+            out,
+            behavior,
+            Float64Parser::default(),
+        ),
+        DataType::Decimal64(m) => cast_parse_primitive::<_, PhysicalI64>(
+            arr,
+            sel,
+            out,
             behavior,
             Decimal64Parser::new(m.precision, m.scale),
         ),
-        DataType::Decimal128(m) => cast_parse_primitive(
+        DataType::Decimal128(m) => cast_parse_primitive::<_, PhysicalI128>(
             arr,
-            datatype,
+            sel,
+            out,
             behavior,
             Decimal128Parser::new(m.precision, m.scale),
         ),
-        DataType::Date32 => cast_parse_primitive(arr, datatype, behavior, Date32Parser),
-        DataType::Interval => {
-            cast_parse_primitive(arr, datatype, behavior, IntervalParser::default())
+        DataType::Date32 => {
+            cast_parse_primitive::<_, PhysicalI32>(arr, sel, out, behavior, Date32Parser)
         }
+        DataType::Interval => cast_parse_primitive::<_, PhysicalInterval>(
+            arr,
+            sel,
+            out,
+            behavior,
+            IntervalParser::default(),
+        ),
         other => Err(RayexecError::new(format!(
             "Unable to cast utf8 array to {other}"
         ))),
     }
 }
 
-pub fn cast_to_utf8(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
+pub fn cast_to_utf8(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
+    behavior: CastFailBehavior,
+) -> Result<()> {
     match arr.datatype() {
         DataType::Boolean => {
-            cast_format::<PhysicalBool, _>(arr, BoolFormatter::default(), behavior)
+            cast_format::<PhysicalBool, _>(arr, sel, out, BoolFormatter::default(), behavior)
         }
-        DataType::Int8 => cast_format::<PhysicalI8, _>(arr, Int8Formatter::default(), behavior),
-        DataType::Int16 => cast_format::<PhysicalI16, _>(arr, Int16Formatter::default(), behavior),
-        DataType::Int32 => cast_format::<PhysicalI32, _>(arr, Int32Formatter::default(), behavior),
-        DataType::Int64 => cast_format::<PhysicalI64, _>(arr, Int64Formatter::default(), behavior),
+        DataType::Int8 => {
+            cast_format::<PhysicalI8, _>(arr, sel, out, Int8Formatter::default(), behavior)
+        }
+        DataType::Int16 => {
+            cast_format::<PhysicalI16, _>(arr, sel, out, Int16Formatter::default(), behavior)
+        }
+        DataType::Int32 => {
+            cast_format::<PhysicalI32, _>(arr, sel, out, Int32Formatter::default(), behavior)
+        }
+        DataType::Int64 => {
+            cast_format::<PhysicalI64, _>(arr, sel, out, Int64Formatter::default(), behavior)
+        }
         DataType::Int128 => {
-            cast_format::<PhysicalI128, _>(arr, Int128Formatter::default(), behavior)
+            cast_format::<PhysicalI128, _>(arr, sel, out, Int128Formatter::default(), behavior)
         }
-        DataType::UInt8 => cast_format::<PhysicalU8, _>(arr, UInt8Formatter::default(), behavior),
+        DataType::UInt8 => {
+            cast_format::<PhysicalU8, _>(arr, sel, out, UInt8Formatter::default(), behavior)
+        }
         DataType::UInt16 => {
-            cast_format::<PhysicalU16, _>(arr, UInt16Formatter::default(), behavior)
+            cast_format::<PhysicalU16, _>(arr, sel, out, UInt16Formatter::default(), behavior)
         }
         DataType::UInt32 => {
-            cast_format::<PhysicalU32, _>(arr, UInt32Formatter::default(), behavior)
+            cast_format::<PhysicalU32, _>(arr, sel, out, UInt32Formatter::default(), behavior)
         }
         DataType::UInt64 => {
-            cast_format::<PhysicalU64, _>(arr, UInt64Formatter::default(), behavior)
+            cast_format::<PhysicalU64, _>(arr, sel, out, UInt64Formatter::default(), behavior)
         }
         DataType::UInt128 => {
-            cast_format::<PhysicalU128, _>(arr, UInt128Formatter::default(), behavior)
+            cast_format::<PhysicalU128, _>(arr, sel, out, UInt128Formatter::default(), behavior)
         }
         DataType::Float32 => {
-            cast_format::<PhysicalF32, _>(arr, Float32Formatter::default(), behavior)
+            cast_format::<PhysicalF32, _>(arr, sel, out, Float32Formatter::default(), behavior)
         }
         DataType::Float64 => {
-            cast_format::<PhysicalF64, _>(arr, Float64Formatter::default(), behavior)
+            cast_format::<PhysicalF64, _>(arr, sel, out, Float64Formatter::default(), behavior)
         }
         DataType::Decimal64(m) => cast_format::<PhysicalI64, _>(
             arr,
+            sel,
+            out,
             Decimal64Formatter::new(m.precision, m.scale),
             behavior,
         ),
         DataType::Decimal128(m) => cast_format::<PhysicalI128, _>(
             arr,
+            sel,
+            out,
             Decimal128Formatter::new(m.precision, m.scale),
             behavior,
         ),
         DataType::Timestamp(m) => match m.unit {
-            TimeUnit::Second => {
-                cast_format::<PhysicalI64, _>(arr, TimestampSecondsFormatter::default(), behavior)
-            }
+            TimeUnit::Second => cast_format::<PhysicalI64, _>(
+                arr,
+                sel,
+                out,
+                TimestampSecondsFormatter::default(),
+                behavior,
+            ),
             TimeUnit::Millisecond => cast_format::<PhysicalI64, _>(
                 arr,
+                sel,
+                out,
                 TimestampMillisecondsFormatter::default(),
                 behavior,
             ),
             TimeUnit::Microsecond => cast_format::<PhysicalI64, _>(
                 arr,
+                sel,
+                out,
                 TimestampMicrosecondsFormatter::default(),
                 behavior,
             ),
             TimeUnit::Nanosecond => cast_format::<PhysicalI64, _>(
                 arr,
+                sel,
+                out,
                 TimestampNanosecondsFormatter::default(),
                 behavior,
             ),
@@ -651,141 +773,129 @@ pub fn cast_to_utf8(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
     }
 }
 
-fn cast_format<'a, S, F>(
-    arr: &'a Array,
+/// Cast an array to strings by formatting values.
+fn cast_format<S, F>(
+    arr: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     mut formatter: F,
     behavior: CastFailBehavior,
-) -> Result<Array>
+) -> Result<()>
 where
     S: PhysicalStorage,
-    F: Formatter<Type = S::Type<'a>>,
+    F: Formatter<Type = S::StorageType>,
 {
-    let mut fail_state = behavior.new_state_for_array(arr);
+    let mut fail_state = behavior.new_state();
     let mut string_buf = String::new();
 
-    let output = UnaryExecutor::execute2::<S, _, _>(
+    UnaryExecutor::execute::<S, PhysicalUtf8, _>(
         arr,
-        ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::with_len(arr.logical_len()),
-        },
+        sel,
+        OutBuffer::from_array(out)?,
         |v, buf| {
             string_buf.clear();
-            match formatter.write(&v, &mut string_buf) {
+            match formatter.write(v, &mut string_buf) {
                 Ok(_) => buf.put(string_buf.as_str()),
-                Err(_) => fail_state.set_did_fail(buf.idx),
+                Err(_) => {
+                    fail_state.set_error(|| RayexecError::new("Failed to cast to utf8"));
+                    buf.put_null();
+                }
             }
         },
     )?;
 
-    fail_state.check_and_apply(arr, output)
+    fail_state.into_result()
 }
 
-fn cast_parse_bool(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute2::<PhysicalUtf8, _, _>(
-        arr,
-        ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(arr.logical_len()),
-        },
-        |v, buf| match BoolParser.parse(v) {
-            Some(v) => buf.put(&v),
-            None => fail_state.set_did_fail(buf.idx),
-        },
-    )?;
-
-    fail_state.check_and_apply(arr, output)
-}
-
-fn cast_parse_primitive<P, T>(
+/// Cast a utf8 array to some other primitive type by parsing string values.
+fn cast_parse_primitive<P, S>(
     arr: &Array,
-    datatype: DataType,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
     behavior: CastFailBehavior,
     mut parser: P,
-) -> Result<Array>
+) -> Result<()>
 where
-    T: Default + Copy,
-    P: Parser<Type = T>,
-    ArrayData2: From<PrimitiveStorage<T>>,
+    S::StorageType: Sized,
+    P: Parser<Type = S::StorageType>,
+    S: MutablePhysicalStorage,
 {
-    let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute2::<PhysicalUtf8, _, _>(
+    let mut fail_state = behavior.new_state();
+    UnaryExecutor::execute::<PhysicalUtf8, S, _>(
         arr,
-        ArrayBuilder {
-            datatype: datatype.clone(),
-            buffer: PrimitiveBuffer::<T>::with_len(arr.logical_len()),
-        },
+        sel,
+        OutBuffer::from_array(out)?,
         |v, buf| match parser.parse(v) {
             Some(v) => buf.put(&v),
-            None => fail_state.set_did_fail(buf.idx),
+            None => {
+                fail_state.set_error(|| RayexecError::new("Failed to parse value from utf8"));
+                buf.put_null();
+            }
         },
     )?;
 
-    fail_state.check_and_apply(arr, output)
+    fail_state.into_result()
 }
 
 #[cfg(test)]
 mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;
-    use crate::arrays::scalar::ScalarValue;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
     fn array_cast_utf8_to_i32() {
-        let arr = Array::from_iter(["13", "18", "123456789"]);
+        let mut arr = Array::try_from_iter(["13", "18", "123456789"]).unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
 
-        let got = cast_array(&arr, DataType::Int32, CastFailBehavior::Error).unwrap();
+        cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
-        assert_eq!(ScalarValue::from(13), got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from(18), got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from(123456789), got.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([13, 18, 123456789]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_error() {
-        let arr = Array::from_iter(["13", "18", "123456789000000"]);
-        cast_array(&arr, DataType::Int32, CastFailBehavior::Error).unwrap_err();
+        let mut arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap_err();
     }
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_null() {
-        let arr = Array::from_iter(["13", "18", "123456789000000"]);
+        let mut arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
 
-        let got = cast_array(&arr, DataType::Int32, CastFailBehavior::Null).unwrap();
+        cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Null).unwrap();
 
-        assert_eq!(ScalarValue::from(13), got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from(18), got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::Null, got.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([Some(13), Some(18), None]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn array_cast_null_to_f32() {
-        let arr = Array::new_untyped_null_array(3);
+        let mut arr = Array::try_new(&Arc::new(NopBufferManager), DataType::Null, 3).unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Float32, 3).unwrap();
 
-        let got = cast_array(&arr, DataType::Float32, CastFailBehavior::Error).unwrap();
+        cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
-        assert_eq!(&DataType::Float32, got.datatype());
+        let expected = Array::try_from_iter([None as Option<f32>, None, None]).unwrap();
 
-        assert_eq!(ScalarValue::Null, got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Null, got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::Null, got.logical_value(2).unwrap());
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn array_cast_decimal64_to_f64() {
-        let arr = Array::new_with_array_data(
-            DataType::Decimal64(DecimalTypeMeta {
-                precision: 10,
-                scale: 3,
-            }),
-            PrimitiveStorage::from(vec![1500_i64, 2000_i64, 2500_i64]),
-        );
+        let mut arr = Array::try_from_iter([1500_i64, 2000, 2500]).unwrap();
+        // '[1.500, 2.000, 2.500]'
+        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(10, 3));
 
-        let got = cast_array(&arr, DataType::Float64, CastFailBehavior::Error).unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Float64, 3).unwrap();
+        cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
-        assert_eq!(ScalarValue::Float64(1.5), got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Float64(2.0), got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::Float64(2.5), got.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([1.5_f64, 2.0, 2.5]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }
