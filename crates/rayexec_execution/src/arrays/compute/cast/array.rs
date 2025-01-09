@@ -66,7 +66,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, TimeUnit};
 use crate::arrays::executor::builder::{
@@ -252,7 +252,7 @@ where
     S: PhysicalStorage,
     D: DecimalType,
     S::Type<'a>: PrimInt,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     let new_meta = to.try_get_decimal_type_meta()?;
     let arr_meta = arr.datatype().try_get_decimal_type_meta()?;
@@ -263,7 +263,7 @@ where
     .expect("to be in range");
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -321,7 +321,7 @@ where
     S: PhysicalStorage,
     D: DecimalType,
     S::Type<'a>: Float,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     let decimal_meta = to.try_get_decimal_type_meta()?;
     let scale = decimal_meta.scale;
@@ -333,7 +333,7 @@ where
     .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -369,7 +369,7 @@ where
     S: PhysicalStorage,
     F: Float + Default + Copy,
     <<S as PhysicalStorage>::Storage<'a> as AddressableStorage>::T: ToPrimitive,
-    ArrayData: From<PrimitiveStorage<F>>,
+    ArrayData2: From<PrimitiveStorage<F>>,
 {
     let decimal_meta = arr.datatype().try_get_decimal_type_meta()?;
 
@@ -387,7 +387,7 @@ where
 
     let mut fail_state = behavior.new_state_for_array(arr);
     let output =
-        UnaryExecutor::execute::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
+        UnaryExecutor::execute2::<S, _, _>(arr, builder, |v, buf| match <F as NumCast>::from(v) {
             Some(v) => {
                 let scaled = v.div(scale);
                 buf.put(&scaled);
@@ -423,7 +423,7 @@ where
     S: PhysicalStorage,
     D: DecimalType,
     S::Type<'a>: PrimInt,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     let decimal_meta = to.try_get_decimal_type_meta()?;
     let scale = decimal_meta.scale;
@@ -433,7 +433,7 @@ where
         .expect("to be in range");
 
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: to,
@@ -516,10 +516,10 @@ where
     S: PhysicalStorage,
     S::Type<'a>: ToPrimitive,
     T: NumCast + Default + Copy,
-    ArrayData: From<PrimitiveStorage<T>>,
+    ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype,
@@ -663,7 +663,7 @@ where
     let mut fail_state = behavior.new_state_for_array(arr);
     let mut string_buf = String::new();
 
-    let output = UnaryExecutor::execute::<S, _, _>(
+    let output = UnaryExecutor::execute2::<S, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Utf8,
@@ -683,7 +683,7 @@ where
 
 fn cast_parse_bool(arr: &Array, behavior: CastFailBehavior) -> Result<Array> {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+    let output = UnaryExecutor::execute2::<PhysicalUtf8, _, _>(
         arr,
         ArrayBuilder {
             datatype: DataType::Boolean,
@@ -707,10 +707,10 @@ fn cast_parse_primitive<P, T>(
 where
     T: Default + Copy,
     P: Parser<Type = T>,
-    ArrayData: From<PrimitiveStorage<T>>,
+    ArrayData2: From<PrimitiveStorage<T>>,
 {
     let mut fail_state = behavior.new_state_for_array(arr);
-    let output = UnaryExecutor::execute::<PhysicalUtf8, _, _>(
+    let output = UnaryExecutor::execute2::<PhysicalUtf8, _, _>(
         arr,
         ArrayBuilder {
             datatype: datatype.clone(),

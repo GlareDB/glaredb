@@ -92,7 +92,7 @@ impl ScalarFunctionImpl for EndsWithConstantImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
             buf.put(&s.ends_with(&self.constant))
         })
     }

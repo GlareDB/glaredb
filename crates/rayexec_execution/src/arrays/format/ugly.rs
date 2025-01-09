@@ -17,7 +17,7 @@ where
 
     for batch in batches.into_iter() {
         for idx in 0..batch.num_rows() {
-            for (col_idx, col) in batch.columns().iter().enumerate() {
+            for (col_idx, col) in batch.arrays().iter().enumerate() {
                 write!(
                     buf,
                     "{}\t ",
@@ -25,7 +25,7 @@ where
                         .format_array_value(col, idx)
                         .expect("value to exist")
                 )?;
-                if col_idx < batch.columns().len() - 1 {
+                if col_idx < batch.arrays().len() - 1 {
                     write!(buf, "| ")?;
                 }
             }
@@ -53,7 +53,7 @@ where
 
     for batch in batches.into_iter() {
         for idx in 0..batch.num_rows() {
-            for (col_idx, col) in batch.columns().iter().enumerate() {
+            for (col_idx, col) in batch.arrays().iter().enumerate() {
                 write!(
                     buf,
                     "{}\t ",
@@ -61,7 +61,7 @@ where
                         .format_array_value(col, idx)
                         .expect("value to exist")
                 )?;
-                if col_idx < batch.columns().len() - 1 {
+                if col_idx < batch.arrays().len() - 1 {
                     write!(buf, "| ")?;
                 }
             }

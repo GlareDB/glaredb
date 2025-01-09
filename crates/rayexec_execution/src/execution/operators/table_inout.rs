@@ -98,7 +98,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let inputs = Batch::try_new(inputs)?;
+        let inputs = Batch::try_from_arrays(inputs)?;
 
         // Try to push first to avoid overwriting any buffered additional
         // outputs.
@@ -171,11 +171,11 @@ impl ExecutableOperator for PhysicalTableInOut {
 
                 for additional in &state.additional_outputs {
                     let mut additional = additional.clone();
-                    additional.select_mut(selection.clone());
+                    additional.select_mut2(selection.clone());
                     arrays.push(additional);
                 }
 
-                let new_batch = Batch::try_new(arrays)?;
+                let new_batch = Batch::try_from_arrays(arrays)?;
 
                 Ok(PollPull::Computed(new_batch.into()))
             }

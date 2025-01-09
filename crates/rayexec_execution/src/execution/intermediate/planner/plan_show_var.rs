@@ -26,7 +26,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                Batch::try_new([Array::from_iter([show.value.to_string().as_str()])])?,
+                Batch::try_from_arrays([Array::from_iter([show.value.to_string().as_str()])])?,
             ]))),
             partitioning_requirement: Some(1),
         };

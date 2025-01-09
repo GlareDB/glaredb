@@ -68,7 +68,7 @@ impl ScalarFunctionImpl for AsciiImpl {
             buffer: PrimitiveBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
             let v = v.chars().next().map(|c| c as i32).unwrap_or(0);
             buf.put(&v)
         })

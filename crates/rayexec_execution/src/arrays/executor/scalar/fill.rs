@@ -24,7 +24,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::builder::{
@@ -91,7 +91,7 @@ where
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for mapping in fill_map.into_iter() {
                     let sel = unsafe { selection::get_unchecked(selection, mapping.from) };
@@ -105,7 +105,7 @@ where
                 }
             }
             None => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for mapping in fill_map.into_iter() {
                     let sel = selection::get(selection, mapping.from);
@@ -127,9 +127,10 @@ where
 
         Array {
             datatype: self.builder.datatype,
-            selection: None,
-            validity,
-            data: self.builder.buffer.into_data(),
+            selection2: None,
+            validity2: validity,
+            data2: self.builder.buffer.into_data(),
+            next: None,
         }
     }
 }
@@ -155,9 +156,10 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
     match datatype.physical_type()? {
         PhysicalType::UntypedNull => Ok(Array {
             datatype: datatype.clone(),
-            selection: None,
-            validity: None,
-            data: UntypedNullStorage(total_len).into(),
+            selection2: None,
+            validity2: None,
+            data2: UntypedNullStorage(total_len).into(),
+            next: None,
         }),
         PhysicalType::Boolean => {
             let state = FillState::new(ArrayBuilder {
@@ -287,7 +289,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
     let inner_arrays = arrays
         .iter()
         .map(|arr| match arr.array_data() {
-            ArrayData::List(list) => {
+            ArrayData2::List(list) => {
                 if list.array.has_selection() {
                     return Err(RayexecError::new("List child array has selection"));
                 }
@@ -309,7 +311,7 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
     let mut acc_rows = 0;
 
     for (array, child_array) in arrays.iter().zip(inner_arrays) {
-        UnaryExecutor::for_each::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
+        UnaryExecutor::for_each2::<PhysicalList, _>(array, |_row_num, metadata| match metadata {
             Some(metadata) => {
                 metadatas.push(ListItemMetadata2 {
                     offset: metadata.offset + acc_rows,
@@ -332,9 +334,10 @@ fn concat_lists(datatype: DataType, arrays: &[&Array], total_len: usize) -> Resu
 
     Ok(Array {
         datatype,
-        selection: None,
-        validity: Some(validity.into()),
-        data: data.into(),
+        selection2: None,
+        validity2: Some(validity.into()),
+        data2: data.into(),
+        next: None,
     })
 }
 
@@ -380,9 +383,10 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
     match datatype.physical_type()? {
         PhysicalType::UntypedNull => Ok(Array {
             datatype: datatype.clone(),
-            selection: None,
-            validity: None,
-            data: UntypedNullStorage(indices.len()).into(),
+            selection2: None,
+            validity2: None,
+            data2: UntypedNullStorage(indices.len()).into(),
+            next: None,
         }),
         PhysicalType::Boolean => {
             let state = FillState::new(ArrayBuilder {

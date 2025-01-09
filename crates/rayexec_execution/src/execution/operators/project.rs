@@ -31,7 +31,7 @@ impl StatelessOperation for ProjectOperation {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Batch::try_new(arrs)
+        Batch::try_from_arrays(arrs)
     }
 }
 

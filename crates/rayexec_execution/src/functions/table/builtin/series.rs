@@ -259,16 +259,16 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
             };
 
             // Generate new params from row.
-            let start = UnaryExecutor::value_at::<PhysicalI64>(
-                batch.column(0).unwrap(),
+            let start = UnaryExecutor::value_at2::<PhysicalI64>(
+                batch.array(0).unwrap(),
                 self.next_row_idx,
             )?;
-            let end = UnaryExecutor::value_at::<PhysicalI64>(
-                batch.column(1).unwrap(),
+            let end = UnaryExecutor::value_at2::<PhysicalI64>(
+                batch.array(1).unwrap(),
                 self.next_row_idx,
             )?;
-            let step = UnaryExecutor::value_at::<PhysicalI64>(
-                batch.column(2).unwrap(),
+            let step = UnaryExecutor::value_at2::<PhysicalI64>(
+                batch.array(2).unwrap(),
                 self.next_row_idx,
             )?;
 
@@ -308,7 +308,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
         }
 
         let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_new([out])?;
+        let batch = Batch::try_from_arrays([out])?;
 
         let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
 

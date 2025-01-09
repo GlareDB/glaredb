@@ -19,7 +19,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
@@ -206,7 +206,7 @@ impl<S> ScalarFunctionImpl for AddImpl<S>
 where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
-    ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
+    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];

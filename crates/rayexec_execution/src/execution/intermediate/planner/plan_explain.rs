@@ -81,7 +81,7 @@ impl IntermediatePipelineBuildState<'_> {
         }
 
         let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-            Batch::try_new([
+            Batch::try_from_arrays([
                 Array::from_iter(type_strings),
                 Array::from_iter(plan_strings),
             ])?,

@@ -37,7 +37,7 @@ pub fn write_markdown_table<'a>(
 
     for batch in batches {
         for row in 0..batch.num_rows() {
-            for (idx, column) in batch.columns().iter().enumerate() {
+            for (idx, column) in batch.arrays().iter().enumerate() {
                 if idx == 0 {
                     write!(output, "|")?;
                 }
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn simple() {
-        let batch = Batch::try_new([
+        let batch = Batch::try_from_arrays([
             Array::from_iter([1, 2, 3]),
             Array::from_iter(["cat", "dog", "mouse"]),
         ])

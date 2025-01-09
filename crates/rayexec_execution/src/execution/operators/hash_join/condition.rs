@@ -118,7 +118,7 @@ impl LeftPrecomputedJoinConditions {
                 .clone();
 
             // Select relevant rows from the left.
-            left_precomputed.select_mut(left_row_sel.clone());
+            left_precomputed.select_mut2(left_row_sel.clone());
 
             // Eval the right side.
             let right_arr = condition.right.eval(&selected_right)?;

@@ -78,7 +78,7 @@ impl SystemFunctionImpl for ListDatabasesImpl {
             );
         }
 
-        Batch::try_new([
+        Batch::try_from_arrays([
             Array::new_with_array_data(DataType::Utf8, database_names.into_data()),
             Array::new_with_array_data(DataType::Utf8, datasources.into_data()),
         ])
@@ -231,7 +231,7 @@ impl SystemFunctionImpl for ListFunctionsImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch::try_from_arrays([
             Array::new_with_array_data(DataType::Utf8, database_names),
             Array::new_with_array_data(DataType::Utf8, schema_names),
             Array::new_with_array_data(DataType::Utf8, function_names),
@@ -308,7 +308,7 @@ impl SystemFunctionImpl for ListTablesImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch::try_from_arrays([
             Array::new_with_array_data(DataType::Utf8, database_names),
             Array::new_with_array_data(DataType::Utf8, schema_names),
             Array::new_with_array_data(DataType::Utf8, table_names),
@@ -348,7 +348,7 @@ impl SystemFunctionImpl for ListSchemasImpl {
             Ok(())
         })?;
 
-        Batch::try_new([
+        Batch::try_from_arrays([
             Array::new_with_array_data(DataType::Utf8, database_names),
             Array::new_with_array_data(DataType::Utf8, schema_names),
         ])

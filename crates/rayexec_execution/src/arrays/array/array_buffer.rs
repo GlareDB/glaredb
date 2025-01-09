@@ -1,9 +1,9 @@
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
 
+use super::array_data::ArrayData;
 use super::buffer_manager::BufferManager;
 use super::physical_type::{PhysicalStorage, PhysicalType};
 use super::raw::RawBuffer;
@@ -15,6 +15,8 @@ use super::string_view::{
     StringViewHeap,
     StringViewMetadataUnion,
 };
+use super::validity::Validity;
+use super::Array;
 
 /// Buffer for arrays.
 ///
@@ -43,7 +45,6 @@ where
     /// buffer.
     ///
     /// The secondary buffer will be initialized to None.
-    #[allow(dead_code)]
     pub(crate) fn with_primary_capacity<S: PhysicalStorage>(
         manager: &Arc<B>,
         capacity: usize,
@@ -60,6 +61,14 @@ where
     #[allow(dead_code)]
     pub(crate) fn put_secondary_buffer(&mut self, secondary: SecondaryBuffer<B>) {
         self.secondary = Box::new(secondary)
+    }
+
+    pub const fn physical_type(&self) -> PhysicalType {
+        self.physical_type
+    }
+
+    pub fn primary_capacity(&self) -> usize {
+        self.primary.reservation.size() / self.physical_type.primary_buffer_mem_size()
     }
 
     pub fn get_secondary(&self) -> &SecondaryBuffer<B> {
@@ -209,19 +218,18 @@ where
 
 #[derive(Debug)]
 pub struct DictionaryBuffer<B: BufferManager> {
-    // pub(crate) validity: Validity,
-    // pub(crate) buffer: ArrayData<B>,
-    _b: PhantomData<B>,
+    pub(crate) validity: Validity,
+    pub(crate) buffer: ArrayData<B>,
 }
 
 impl<B> DictionaryBuffer<B>
 where
     B: BufferManager,
 {
-    // pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
-    //     debug_assert_eq!(buffer.capacity(), validity.len());
-    //     DictionaryBuffer { buffer, validity }
-    // }
+    pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
+        debug_assert_eq!(buffer.primary_capacity(), validity.len());
+        DictionaryBuffer { buffer, validity }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -232,25 +240,25 @@ pub struct ListItemMetadata {
 
 #[derive(Debug)]
 pub struct ListBuffer<B: BufferManager> {
-    // /// Number of "filled" entries in the child array.
-    // ///
-    // /// This differs from the child's capacity as we need to be able
-    // /// incrementally push back values.
-    // ///
-    // /// This is only looked at when writing values to the child array. Reads can
-    // /// ignore this as all required info is in the entry metadata.
-    // pub(crate) entries: usize,
-    // pub(crate) child: Array<B>,
-    _b: PhantomData<B>,
+    /// Number of "filled" entries in the child array.
+    ///
+    /// This differs from the child's capacity as we need to be able
+    /// incrementally push back values.
+    ///
+    /// This is only looked at when writing values to the child array. Reads can
+    /// ignore this as all required info is in the entry metadata.
+    #[allow(dead_code)]
+    pub(crate) entries: usize,
+    pub(crate) child: Array<B>,
 }
 
 impl<B> ListBuffer<B>
 where
     B: BufferManager,
 {
-    // pub fn new(child: Array<B>) -> Self {
-    //     ListBuffer { entries: 0, child }
-    // }
+    pub fn new(child: Array<B>) -> Self {
+        ListBuffer { entries: 0, child }
+    }
 }
 
 #[cfg(test)]
@@ -270,11 +278,13 @@ mod tests {
         let mut buffer =
             ArrayBuffer::with_primary_capacity::<PhysicalI32>(&Arc::new(NopBufferManager), 4)
                 .unwrap();
+        assert_eq!(4, buffer.primary_capacity());
 
         let s = buffer.try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(4, s.len());
 
         buffer.reserve_primary::<PhysicalI32>(8).unwrap();
+        assert_eq!(8, buffer.primary_capacity());
 
         let s = buffer.try_as_slice_mut::<PhysicalI32>().unwrap();
         assert_eq!(8, s.len());

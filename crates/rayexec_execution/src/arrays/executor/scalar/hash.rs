@@ -24,7 +24,7 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::selection;
 use crate::arrays::storage::{AddressableStorage, UntypedNull2};
@@ -190,7 +190,7 @@ impl HashExecutor {
 
         match array.validity() {
             Some(validity) => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for (idx, hash) in hashes.iter_mut().enumerate() {
                     let sel = unsafe { selection::get_unchecked(selection, idx) };
@@ -204,7 +204,7 @@ impl HashExecutor {
                 }
             }
             None => {
-                let values = S::get_storage(&array.data)?;
+                let values = S::get_storage(&array.data2)?;
 
                 for (idx, hash) in hashes.iter_mut().enumerate() {
                     let sel = unsafe { selection::get_unchecked(selection, idx) };
@@ -222,7 +222,7 @@ impl HashExecutor {
         H: SetHash,
     {
         let inner = match array.array_data() {
-            ArrayData::List(list) => &list.array,
+            ArrayData2::List(list) => &list.array,
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected array data for list hashing: {:?}",
@@ -235,7 +235,7 @@ impl HashExecutor {
         let mut list_hashes_buf = vec![0; inner.logical_len()];
         Self::hash_no_combine(inner, &mut list_hashes_buf)?;
 
-        let metadata = PhysicalList::get_storage(&array.data)?;
+        let metadata = PhysicalList::get_storage(&array.data2)?;
         let selection = array.selection_vector();
 
         match array.validity() {

@@ -92,7 +92,7 @@ impl ScalarFunctionImpl for StartsWithImpl {
 
         match self.constant.as_ref() {
             Some(constant) => {
-                UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+                UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
                     buf.put(&s.starts_with(constant))
                 })
             }

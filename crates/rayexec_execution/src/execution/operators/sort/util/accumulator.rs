@@ -70,7 +70,7 @@ impl IndicesAccumulator {
                 let cols: Vec<_> = self
                     .batches
                     .iter()
-                    .map(|(_, batch)| batch.column(col_idx).expect("column to exist"))
+                    .map(|(_, batch)| batch.array(col_idx).expect("column to exist"))
                     .collect();
 
                 interleave(&cols, &self.indices)
@@ -78,7 +78,7 @@ impl IndicesAccumulator {
             .collect::<Result<Vec<_>>>()?;
         self.indices.clear();
 
-        let batch = Batch::try_new(merged)?;
+        let batch = Batch::try_from_arrays(merged)?;
 
         // Drops batches that are no longer reachable (won't be contributing to
         // the output).
@@ -108,7 +108,7 @@ impl IndicesAccumulator {
     /// Errors if there's no buffered batches.
     fn num_columns(&self) -> Result<usize> {
         match self.batches.first() {
-            Some((_, b)) => Ok(b.num_columns()),
+            Some((_, b)) => Ok(b.num_arrays()),
             None => Err(RayexecError::new("Cannot get number of columns")),
         }
     }

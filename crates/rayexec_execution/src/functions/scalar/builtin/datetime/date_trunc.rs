@@ -188,7 +188,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
             buffer: PrimitiveBuffer::with_len(input.logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalI64, _, _>(input, builder, |v, buf| {
+        UnaryExecutor::execute2::<PhysicalI64, _, _>(input, builder, |v, buf| {
             let v = (v / trunc) * trunc;
             buf.put(&v)
         })

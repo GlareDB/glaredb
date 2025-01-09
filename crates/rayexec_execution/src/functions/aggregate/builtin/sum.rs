@@ -6,7 +6,7 @@ use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
-use crate::arrays::array::ArrayData;
+use crate::arrays::array::ArrayData2;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
@@ -151,7 +151,7 @@ impl<D> SumDecimalImpl<D> {
 impl<D> AggregateFunctionImpl for SumDecimalImpl<D>
 where
     D: DecimalType,
-    ArrayData: From<PrimitiveStorage<D::Primitive>>,
+    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let datatype = self.datatype.clone();

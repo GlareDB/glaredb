@@ -14,7 +14,7 @@ use crate::arrays::array::physical_type::{
     PhysicalI8,
     PhysicalStorage,
 };
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
@@ -100,7 +100,7 @@ impl<S> ScalarFunctionImpl for NegateImpl<S>
 where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: std::ops::Neg<Output = S::Type<'static>> + Default + Copy,
-    ArrayData: From<PrimitiveStorage<S::Type<'static>>>,
+    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         use std::ops::Neg;
@@ -112,7 +112,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        UnaryExecutor::execute::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
+        UnaryExecutor::execute2::<S, _, _>(a, builder, |a, buf| buf.put(&(a.neg())))
     }
 }
 
@@ -166,7 +166,7 @@ pub struct NotImpl;
 
 impl ScalarFunctionImpl for NotImpl {
     fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        UnaryExecutor::execute::<PhysicalBool, _, _>(
+        UnaryExecutor::execute2::<PhysicalBool, _, _>(
             inputs[0],
             ArrayBuilder {
                 datatype: DataType::Boolean,

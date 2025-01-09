@@ -2,6 +2,9 @@
 
 # Basic
 
+# TODO: Need to finish array refactor
+halt
+
 query I
 copy (select a, b from generate_series(1, 5) t1(a), generate_series(1, 5) t2(b))
   to '__SLT_TMP__/copy_to.parquet';

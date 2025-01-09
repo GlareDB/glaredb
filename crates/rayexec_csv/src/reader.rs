@@ -23,7 +23,7 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::array::{Array, ArrayData2};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::compute::cast::parse::{
@@ -483,7 +483,7 @@ impl AsyncCsvStream {
             arrs.push(arr);
         }
 
-        Batch::try_new(arrs)
+        Batch::try_from_arrays(arrs)
     }
 
     fn build_boolean(
@@ -524,7 +524,7 @@ impl AsyncCsvStream {
     where
         T: Default,
         P: Parser<Type = T>,
-        PrimitiveStorage<T>: Into<ArrayData>,
+        PrimitiveStorage<T>: Into<ArrayData2>,
     {
         let mut values = Vec::with_capacity(completed.num_completed());
         let mut validity = Bitmap::with_capacity(completed.num_completed());

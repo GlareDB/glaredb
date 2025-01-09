@@ -1,7 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::physical_type::PhysicalUtf8;
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
@@ -126,7 +126,7 @@ where
     F: Fn(&str) -> String,
 {
     let cap = match input.array_data() {
-        ArrayData::Binary(bin) => bin.binary_data_size_bytes(),
+        ArrayData2::Binary(bin) => bin.binary_data_size_bytes(),
         _ => return Err(RayexecError::new("Unexpected array data type")),
     };
 
@@ -135,7 +135,7 @@ where
         buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
     };
 
-    UnaryExecutor::execute::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
+    UnaryExecutor::execute2::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
         // TODO: Non-allocating variant.
         buf.put(&case_fn(v))
     })

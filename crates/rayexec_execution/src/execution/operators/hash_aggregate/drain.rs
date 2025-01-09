@@ -31,7 +31,7 @@ impl HashTableDrain {
             .collect::<Result<Vec<_>>>()?;
 
         // Chunk arrays includes the GROUP ID column (last).
-        let batch = Batch::try_new(results.into_iter().chain(chunk.arrays.drain(..)))?;
+        let batch = Batch::try_from_arrays(results.into_iter().chain(chunk.arrays.drain(..)))?;
 
         Ok(Some(batch))
     }

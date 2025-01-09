@@ -440,7 +440,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
                     };
 
-                    let array = UnaryExecutor::execute::<PhysicalU64, _, _>(
+                    let array = UnaryExecutor::execute2::<PhysicalU64, _, _>(
                         &group_ids,
                         builder,
                         |id, buf| {
@@ -466,7 +466,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     arrays.push(array);
                 }
 
-                let batch = Batch::try_new(arrays)?;
+                let batch = Batch::try_from_arrays(arrays)?;
 
                 Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }
@@ -496,7 +496,7 @@ impl PhysicalHashAggregate {
             .iter()
             .map(|idx| {
                 batch
-                    .column(*idx)
+                    .array(*idx)
                     .expect("aggregate input column to exist")
                     .clone()
             }) // TODO
@@ -507,7 +507,7 @@ impl PhysicalHashAggregate {
         let grouping_columns: Vec<_> = self
             .group_columns
             .iter()
-            .map(|idx| batch.column(*idx).expect("grouping column to exist"))
+            .map(|idx| batch.array(*idx).expect("grouping column to exist"))
             .collect();
 
         let num_rows = batch.num_rows();
@@ -590,7 +590,7 @@ impl PhysicalHashAggregate {
                     .iter()
                     .map(|arr| {
                         let mut arr = arr.clone();
-                        arr.select_mut(selection.clone());
+                        arr.select_mut2(selection.clone());
                         arr
                     })
                     .collect();
@@ -600,7 +600,7 @@ impl PhysicalHashAggregate {
                     .iter()
                     .map(|arr| {
                         let mut arr = arr.clone();
-                        arr.select_mut(selection.clone());
+                        arr.select_mut2(selection.clone());
                         arr
                     })
                     .collect();

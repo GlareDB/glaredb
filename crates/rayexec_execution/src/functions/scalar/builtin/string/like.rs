@@ -90,7 +90,7 @@ impl ScalarFunctionImpl for LikeConstImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
             let b = self.constant.is_match(s);
             buf.put(&b);
         })

@@ -19,7 +19,7 @@ use parquet::file::reader::{ChunkReader, Length, SerializedPageReader};
 use parquet::schema::types::ColumnDescPtr;
 use primitive::PrimitiveArrayReader;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::{Array, ArrayData};
+use rayexec_execution::arrays::array::{Array, ArrayData2};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::datatype::DataType;
@@ -115,7 +115,7 @@ where
 
 /// Trait for converting a buffer of values into array data.
 pub trait IntoArrayData {
-    fn into_array_data(self) -> ArrayData;
+    fn into_array_data(self) -> ArrayData2;
 }
 
 pub fn def_levels_into_bitmap(def_levels: Vec<i16>) -> Bitmap {
@@ -276,7 +276,7 @@ impl<R: FileSource + 'static> AsyncBatchReader<R> {
             .map(|state| state.builder.build())
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(arrays)?;
+        let batch = Batch::try_from_arrays(arrays)?;
 
         if batch.num_rows() == 0 {
             Ok(None)

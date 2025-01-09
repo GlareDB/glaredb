@@ -71,7 +71,7 @@ impl AggregateGroupStates for DistinctGroupedStates {
                 .iter()
                 .map(|&arr| {
                     let mut arr = arr.clone();
-                    arr.select_mut(row_sel.clone());
+                    arr.select_mut2(row_sel.clone());
                     arr
                 })
                 .collect();

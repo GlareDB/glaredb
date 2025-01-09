@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array, ArrayData};
+use crate::arrays::array::{Array, ArrayData2};
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
@@ -103,15 +103,15 @@ impl LeftOuterJoinDrainState {
         self.batch_idx += self.skip;
 
         let cols = batch
-            .columns()
+            .arrays()
             .iter()
             .cloned()
             .chain([Array::new_with_array_data(
                 DataType::Boolean,
-                ArrayData::Boolean(Arc::new(bitmap.clone().into())),
+                ArrayData2::Boolean(Arc::new(bitmap.clone().into())),
             )]);
 
-        let batch = Batch::try_new(cols)?;
+        let batch = Batch::try_from_arrays(cols)?;
 
         Ok(Some(batch))
     }
@@ -155,7 +155,7 @@ impl LeftOuterJoinDrainState {
                 .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
@@ -190,7 +190,7 @@ impl LeftOuterJoinDrainState {
                 .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_new(left_cols.into_iter().chain(right_cols))?;
+            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
 
             return Ok(Some(batch));
         }
@@ -244,7 +244,7 @@ impl RightOuterJoinTracker {
             .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
             .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_new(left_null_cols.into_iter().chain(right_cols))?;
+        let batch = Batch::try_from_arrays(left_null_cols.into_iter().chain(right_cols))?;
 
         Ok(Some(batch))
     }

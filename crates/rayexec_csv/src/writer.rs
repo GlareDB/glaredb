@@ -60,7 +60,7 @@ impl CsvEncoder {
         for row in 0..batch.num_rows() {
             self.record.clear();
 
-            for col in batch.columns() {
+            for col in batch.arrays() {
                 let scalar = FORMATTER
                     .format_array_value(col, row)
                     .expect("row to exist");

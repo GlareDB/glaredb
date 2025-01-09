@@ -228,7 +228,7 @@ impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
         };
 
-        UnaryExecutor::execute::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
+        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
             let trimmed = F::trim_func(s, " ");
             buf.put(trimmed)
         })

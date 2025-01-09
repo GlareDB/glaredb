@@ -161,7 +161,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     let cols: Vec<_> = agg
                         .columns
                         .iter()
-                        .map(|expr| batch.column(expr.idx).expect("column to exist"))
+                        .map(|expr| batch.array(expr.idx).expect("column to exist"))
                         .collect();
 
                     agg_states[agg_idx]
@@ -237,7 +237,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|s| s.finalize())
                         .collect::<Result<Vec<_>>>()?;
 
-                    let batch = Batch::try_new(arrays)?;
+                    let batch = Batch::try_from_arrays(arrays)?;
 
                     *state = UngroupedAggregatePartitionState::Producing {
                         partition_idx: *partition_idx,

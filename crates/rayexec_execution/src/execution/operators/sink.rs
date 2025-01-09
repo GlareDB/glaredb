@@ -370,7 +370,8 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
 
                         let row_count = shared.global_row_count as u64;
 
-                        let row_count_batch = Batch::try_new([Array::from_iter([row_count])])?;
+                        let row_count_batch =
+                            Batch::try_from_arrays([Array::from_iter([row_count])])?;
 
                         return Ok(PollPull::Computed(row_count_batch.into()));
                     }

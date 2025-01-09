@@ -439,6 +439,6 @@ impl PostgresClient {
             arrays.push(arr);
         }
 
-        Batch::try_new(arrays)
+        Batch::try_from_arrays(arrays)
     }
 }
