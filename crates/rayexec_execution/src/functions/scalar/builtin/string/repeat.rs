@@ -65,7 +65,7 @@ impl ScalarFunction for Repeat {
 pub struct RepeatUtf8Impl;
 
 impl ScalarFunctionImpl for RepeatUtf8Impl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let strings = inputs[0];
         let nums = inputs[1];
 

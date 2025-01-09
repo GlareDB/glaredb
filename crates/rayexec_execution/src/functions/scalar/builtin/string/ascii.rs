@@ -61,7 +61,7 @@ impl ScalarFunction for Ascii {
 pub struct AsciiImpl;
 
 impl ScalarFunctionImpl for AsciiImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         let builder = ArrayBuilder {
             datatype: DataType::Int32,

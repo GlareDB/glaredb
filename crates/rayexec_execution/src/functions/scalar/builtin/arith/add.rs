@@ -208,7 +208,7 @@ where
     for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
     ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -249,7 +249,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([5, 7, 9]);
 
         assert_eq!(expected, out);

@@ -222,7 +222,7 @@ impl<F: StringTrimOp> TrimWhitespaceImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
@@ -247,7 +247,7 @@ impl<F: StringTrimOp> TrimPatternImpl<F> {
 }
 
 impl<F: StringTrimOp> ScalarFunctionImpl for TrimPatternImpl<F> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
             buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),

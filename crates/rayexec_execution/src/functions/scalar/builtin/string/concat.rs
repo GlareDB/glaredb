@@ -68,7 +68,7 @@ impl ScalarFunction for Concat {
 pub struct StringConcatImpl;
 
 impl ScalarFunctionImpl for StringConcatImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         match inputs.len() {
             0 => {
                 let mut array = Array::from_iter([""]);

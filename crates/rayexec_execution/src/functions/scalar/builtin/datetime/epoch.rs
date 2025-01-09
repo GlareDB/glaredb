@@ -102,7 +102,7 @@ impl ScalarFunction for EpochMs {
 pub struct EpochImpl<const S: i64>;
 
 impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         to_timestamp::<S>(input)
     }

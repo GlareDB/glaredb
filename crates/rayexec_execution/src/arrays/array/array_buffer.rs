@@ -68,7 +68,7 @@ where
     }
 
     pub fn primary_capacity(&self) -> usize {
-        self.primary.reservation.size() / self.physical_type.primary_buffer_mem_size()
+        self.primary.capacity
     }
 
     pub fn get_secondary(&self) -> &SecondaryBuffer<B> {
@@ -270,8 +270,26 @@ mod tests {
         Addressable,
         AddressableMut,
         PhysicalI32,
+        PhysicalUntypedNull,
         PhysicalUtf8,
+        UntypedNull,
     };
+
+    #[test]
+    fn create_untyped_null() {
+        // Untyped null is zero sized, ensure we can properly handle that.
+        let buffer = ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(
+            &Arc::new(NopBufferManager),
+            4,
+        )
+        .unwrap();
+
+        assert_eq!(4, buffer.primary_capacity());
+        assert_eq!(0, buffer.primary.reservation.size());
+
+        let s = buffer.try_as_slice::<PhysicalUntypedNull>().unwrap();
+        assert_eq!(&[UntypedNull, UntypedNull, UntypedNull, UntypedNull], s);
+    }
 
     #[test]
     fn reserve_primitive() {

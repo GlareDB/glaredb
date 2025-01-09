@@ -82,7 +82,7 @@ pub struct StringContainsConstantImpl {
 }
 
 impl ScalarFunctionImpl for StringContainsConstantImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
@@ -98,7 +98,7 @@ impl ScalarFunctionImpl for StringContainsConstantImpl {
 pub struct StringContainsImpl;
 
 impl ScalarFunctionImpl for StringContainsImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),

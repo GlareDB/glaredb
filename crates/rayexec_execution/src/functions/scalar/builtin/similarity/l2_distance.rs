@@ -105,7 +105,7 @@ where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
 

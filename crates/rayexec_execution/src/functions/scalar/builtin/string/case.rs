@@ -60,7 +60,7 @@ impl ScalarFunction for Lower {
 pub struct LowerImpl;
 
 impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         case_convert_execute(input, str::to_lowercase)
     }
@@ -115,7 +115,7 @@ impl ScalarFunction for Upper {
 pub struct UpperImpl;
 
 impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         case_convert_execute(input, str::to_uppercase)
     }

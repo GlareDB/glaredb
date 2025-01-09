@@ -140,7 +140,7 @@ pub struct DateTruncImpl {
 }
 
 impl ScalarFunctionImpl for DateTruncImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = &inputs[1];
 
         let trunc = match self.input_unit {

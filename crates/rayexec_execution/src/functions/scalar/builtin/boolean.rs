@@ -70,7 +70,7 @@ impl ScalarFunction for And {
 pub struct AndImpl;
 
 impl ScalarFunctionImpl for AndImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         match inputs.len() {
             0 => {
                 let mut array = Array::new_with_array_data(
@@ -178,7 +178,7 @@ impl ScalarFunction for Or {
 pub struct OrImpl;
 
 impl ScalarFunctionImpl for OrImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         match inputs.len() {
             0 => {
                 let mut array = Array::new_with_array_data(
@@ -244,7 +244,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
 
         assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(false), out.logical_value(1).unwrap());
@@ -277,7 +277,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b, &c]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b, &c]).unwrap();
 
         assert_eq!(ScalarValue::from(false), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());
@@ -305,7 +305,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
 
         assert_eq!(ScalarValue::from(true), out.logical_value(0).unwrap());
         assert_eq!(ScalarValue::from(true), out.logical_value(1).unwrap());

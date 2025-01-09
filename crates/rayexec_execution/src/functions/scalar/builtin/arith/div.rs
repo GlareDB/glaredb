@@ -20,7 +20,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
 };
 use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::compute::cast::array::cast_decimal_to_float;
+use crate::arrays::compute::cast::array::cast_decimal_to_float_old;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
@@ -198,16 +198,16 @@ impl<D> ScalarFunctionImpl for DecimalDivImpl<D>
 where
     D: DecimalType,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
 
-        let a = cast_decimal_to_float::<D::Storage, f64>(
+        let a = cast_decimal_to_float_old::<D::Storage, f64>(
             a,
             DataType::Float64,
             CastFailBehavior::Error,
         )?;
-        let b = cast_decimal_to_float::<D::Storage, f64>(
+        let b = cast_decimal_to_float_old::<D::Storage, f64>(
             b,
             DataType::Float64,
             CastFailBehavior::Error,
@@ -245,7 +245,7 @@ where
     for<'a> S::Type<'a>: std::ops::Div<Output = S::Type<'static>> + Default + Copy,
     ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let a = inputs[0];
         let b = inputs[1];
 
@@ -286,7 +286,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([4, 2, 2]);
 
         assert_eq!(expected, out);

@@ -84,7 +84,7 @@ pub struct LikeConstImpl {
 }
 
 impl ScalarFunctionImpl for LikeConstImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
@@ -101,7 +101,7 @@ impl ScalarFunctionImpl for LikeConstImpl {
 pub struct LikeImpl;
 
 impl ScalarFunctionImpl for LikeImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),

@@ -120,7 +120,7 @@ pub struct ListExtractImpl {
 }
 
 impl ScalarFunctionImpl for ListExtractImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
         extract(input, self.index)
     }

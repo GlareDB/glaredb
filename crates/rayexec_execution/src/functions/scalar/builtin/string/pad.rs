@@ -96,7 +96,7 @@ impl ScalarFunction for LeftPad {
 pub struct LeftPadImpl;
 
 impl ScalarFunctionImpl for LeftPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,
@@ -209,7 +209,7 @@ impl ScalarFunction for RightPad {
 pub struct RightPadImpl;
 
 impl ScalarFunctionImpl for RightPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let mut string_buf = String::new();
         let builder = ArrayBuilder {
             datatype: DataType::Utf8,

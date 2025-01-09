@@ -90,7 +90,7 @@ pub struct ListValuesImpl {
 }
 
 impl ScalarFunctionImpl for ListValuesImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         if inputs.is_empty() {
             let inner_type = match &self.list_datatype {
                 DataType::List(l) => l.datatype.as_ref(),

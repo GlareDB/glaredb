@@ -27,7 +27,7 @@ use crate::arrays::array::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::compute::cast::array::decimal_rescale;
+use crate::arrays::compute::cast::array::decimal_rescale_old;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
@@ -660,7 +660,7 @@ impl<O> ScalarFunctionImpl for ListComparisonImpl<O>
 where
     O: ComparisonOperation,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -793,7 +793,7 @@ where
     S: PhysicalStorage,
     for<'a> S::Type<'a>: PartialEq + PartialOrd,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -841,7 +841,7 @@ where
     T: DecimalType,
     ArrayData2: From<PrimitiveStorage<T::Primitive>>,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let left = inputs[0];
         let right = inputs[1];
 
@@ -852,7 +852,7 @@ where
 
         match self.left.scale.cmp(&self.right.scale) {
             Ordering::Greater => {
-                let scaled_right = decimal_rescale::<T::Storage, T>(
+                let scaled_right = decimal_rescale_old::<T::Storage, T>(
                     right,
                     left.datatype().clone(),
                     CastFailBehavior::Error,
@@ -866,7 +866,7 @@ where
                 )
             }
             Ordering::Less => {
-                let scaled_left = decimal_rescale::<T::Storage, T>(
+                let scaled_left = decimal_rescale_old::<T::Storage, T>(
                     left,
                     right.datatype().clone(),
                     CastFailBehavior::Error,
@@ -916,7 +916,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([false, true, false]);
 
         assert_eq!(expected, out);
@@ -943,7 +943,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
@@ -970,7 +970,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([true, false, true]);
 
         assert_eq!(expected, out);
@@ -997,7 +997,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([true, true, true]);
 
         assert_eq!(expected, out);
@@ -1024,7 +1024,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([false, false, false]);
 
         assert_eq!(expected, out);
@@ -1051,7 +1051,7 @@ mod tests {
             )
             .unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
+        let out = planned.function_impl.execute2(&[&a, &b]).unwrap();
         let expected = Array::from_iter([false, true, false]);
 
         assert_eq!(expected, out);

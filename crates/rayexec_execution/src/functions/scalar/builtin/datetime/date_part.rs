@@ -101,7 +101,7 @@ pub struct DatePartImpl {
 }
 
 impl ScalarFunctionImpl for DatePartImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         // First input ignored (the constant "part" to extract)
         extract_date_part(self.part, inputs[1])
     }

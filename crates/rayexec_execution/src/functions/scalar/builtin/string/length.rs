@@ -64,7 +64,7 @@ impl ScalarFunction for Length {
 pub struct StrLengthImpl;
 
 impl ScalarFunctionImpl for StrLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -145,7 +145,7 @@ impl ScalarFunction for ByteLength {
 pub struct ByteLengthImpl;
 
 impl ScalarFunctionImpl for ByteLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {
@@ -222,7 +222,7 @@ impl ScalarFunction for BitLength {
 pub struct BitLengthImpl;
 
 impl ScalarFunctionImpl for BitLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
 
         let builder = ArrayBuilder {

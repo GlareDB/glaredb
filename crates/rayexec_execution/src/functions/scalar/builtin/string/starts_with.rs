@@ -84,7 +84,7 @@ pub struct StartsWithImpl {
 }
 
 impl ScalarFunctionImpl for StartsWithImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let builder = ArrayBuilder {
             datatype: DataType::Boolean,
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
