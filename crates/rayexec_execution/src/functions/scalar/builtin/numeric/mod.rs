@@ -36,18 +36,18 @@ pub use radians::*;
 use rayexec_error::{RayexecError, Result};
 pub use sin::*;
 pub use sqrt::*;
+use stdutil::iter::IntoExactSizeIterator;
 pub use tan::*;
 
 use crate::arrays::array::physical_type::{
+    MutablePhysicalStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalStorage,
-    PhysicalType,
 };
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -81,11 +81,14 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<S>(
+        input: &Array,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        output: &mut Array,
+    ) -> Result<()>
     where
-        S: PhysicalStorage,
-        S::Type<'a>: Float + Default,
-        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>;
+        S: MutablePhysicalStorage,
+        S::StorageType: Float;
 }
 
 /// Helper struct for creating functions that accept and produce a single
@@ -145,12 +148,14 @@ pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
 }
 
 impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        match input.physical_type2() {
-            PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),
-            PhysicalType::Float32 => O::execute_float::<PhysicalF32>(input, self.ret.clone()),
-            PhysicalType::Float64 => O::execute_float::<PhysicalF64>(input, self.ret.clone()),
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
+
+        match input.datatype() {
+            DataType::Float16 => O::execute_float::<PhysicalF16>(input, sel, output),
+            DataType::Float32 => O::execute_float::<PhysicalF32>(input, sel, output),
+            DataType::Float64 => O::execute_float::<PhysicalF64>(input, sel, output),
             other => Err(RayexecError::new(format!(
                 "Invalid physical type: {other:?}"
             ))),

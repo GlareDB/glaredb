@@ -4,11 +4,18 @@ use num_traits::Float;
 use rayexec_error::Result;
 
 use super::ScalarFunction;
-use crate::arrays::array::physical_type::{PhysicalF16, PhysicalF32, PhysicalF64, PhysicalStorage};
+use crate::arrays::array::physical_type::{
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalStorage,
+};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
@@ -87,7 +94,7 @@ pub struct IsNanImpl<S: PhysicalStorage> {
 }
 
 impl<S: PhysicalStorage> IsNanImpl<S> {
-    fn new() -> Self {
+    const fn new() -> Self {
         IsNanImpl { _s: PhantomData }
     }
 }
@@ -95,15 +102,17 @@ impl<S: PhysicalStorage> IsNanImpl<S> {
 impl<S> ScalarFunctionImpl for IsNanImpl<S>
 where
     S: PhysicalStorage,
-    for<'a> S::Type<'a>: Float,
+    S::StorageType: Float,
 {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(input.logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
-        UnaryExecutor::execute2::<S, _, _>(input, builder, |v, buf| buf.put(&v.is_nan()))
+        UnaryExecutor::execute::<S, PhysicalBool, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&v, buf| buf.put(&v.is_nan()),
+        )
     }
 }
