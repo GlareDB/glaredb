@@ -102,7 +102,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
             _ => {
                 let mut string_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8, _, _>(
+                UniformExecutor::execute2::<PhysicalUtf8, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Utf8,

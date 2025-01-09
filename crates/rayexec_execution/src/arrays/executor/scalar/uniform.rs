@@ -1,11 +1,14 @@
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::check_validity;
-use crate::arrays::array::physical_type::PhysicalStorage;
+use crate::arrays::array::flat::FlatArrayView;
+use crate::arrays::array::physical_type::{Addressable, MutablePhysicalStorage, PhysicalStorage};
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
 use crate::arrays::executor::scalar::validate_logical_len;
+use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::arrays::selection;
 use crate::arrays::storage::AddressableStorage;
 
@@ -13,7 +16,143 @@ use crate::arrays::storage::AddressableStorage;
 pub struct UniformExecutor;
 
 impl UniformExecutor {
-    pub fn execute<'a, S, B, Op>(
+    /// Executes an operation across uniform array types.
+    ///
+    /// The selection applies to all arrays.
+    pub fn execute<S, O, Op>(
+        arrays: &[Array],
+        sel: impl IntoExactSizeIterator<Item = usize>,
+        out: OutBuffer,
+        mut op: Op,
+    ) -> Result<()>
+    where
+        S: PhysicalStorage,
+        O: MutablePhysicalStorage,
+        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
+    {
+        if arrays.iter().any(|arr| arr.is_dictionary()) {
+            let flats = arrays
+                .iter()
+                .map(|arr| arr.flat_view())
+                .collect::<Result<Vec<_>>>()?;
+
+            return Self::execute_flat::<S, O, Op>(&flats, sel, out, op);
+        }
+
+        let inputs = arrays
+            .iter()
+            .map(|arr| S::get_addressable(&arr.next().data))
+            .collect::<Result<Vec<_>>>()?;
+
+        let all_valid = arrays.iter().all(|arr| arr.next().validity.all_valid());
+
+        let mut output = O::get_addressable_mut(out.buffer)?;
+
+        let mut op_inputs = Vec::with_capacity(arrays.len());
+
+        if all_valid {
+            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+                op_inputs.clear();
+                for input in &inputs {
+                    op_inputs.push(input.get(input_idx).unwrap());
+                }
+
+                op(
+                    &op_inputs,
+                    PutBuffer::new(output_idx, &mut output, out.validity),
+                );
+            }
+        } else {
+            let validities: Vec<_> = arrays.iter().map(|arr| &arr.next().validity).collect();
+
+            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+                let all_valid = validities.iter().all(|v| v.is_valid(input_idx));
+
+                if all_valid {
+                    op_inputs.clear();
+                    for input in &inputs {
+                        op_inputs.push(input.get(input_idx).unwrap());
+                    }
+
+                    op(
+                        &op_inputs,
+                        PutBuffer::new(output_idx, &mut output, out.validity),
+                    );
+                } else {
+                    out.validity.set_invalid(output_idx);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn execute_flat<S, O, Op>(
+        arrays: &[FlatArrayView],
+        sel: impl IntoExactSizeIterator<Item = usize>,
+        out: OutBuffer,
+        mut op: Op,
+    ) -> Result<()>
+    where
+        S: PhysicalStorage,
+        O: MutablePhysicalStorage,
+        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
+    {
+        // TODO: length check
+
+        let inputs = arrays
+            .iter()
+            .map(|arr| S::get_addressable(arr.array_buffer))
+            .collect::<Result<Vec<_>>>()?;
+
+        let all_valid = arrays.iter().all(|arr| arr.validity.all_valid());
+
+        let mut output = O::get_addressable_mut(out.buffer)?;
+
+        let mut op_inputs = Vec::with_capacity(arrays.len());
+
+        if all_valid {
+            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+                op_inputs.clear();
+                for (input, array) in inputs.iter().zip(arrays) {
+                    let sel_idx = array.selection.get(input_idx).unwrap();
+                    op_inputs.push(input.get(sel_idx).unwrap());
+                }
+
+                op(
+                    &op_inputs,
+                    PutBuffer::new(output_idx, &mut output, out.validity),
+                );
+            }
+        } else {
+            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+                let mut all_valid = true;
+
+                for array in arrays {
+                    let sel_idx = array.selection.get(input_idx).unwrap();
+                    all_valid = all_valid && array.validity.is_valid(sel_idx);
+                }
+
+                if all_valid {
+                    for (input, array) in inputs.iter().zip(arrays) {
+                        let sel_idx = array.selection.get(input_idx).unwrap();
+                        op_inputs.push(input.get(sel_idx).unwrap());
+                    }
+
+                    op(
+                        &op_inputs,
+                        PutBuffer::new(output_idx, &mut output, out.validity),
+                    );
+                } else {
+                    out.validity.set_invalid(output_idx);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn execute2<'a, S, B, Op>(
         arrays: &[&'a Array],
         builder: ArrayBuilder<B>,
         mut op: Op,
@@ -107,110 +246,126 @@ impl UniformExecutor {
 
 #[cfg(test)]
 mod tests {
-    use selection::SelectionVector;
+    use std::sync::Arc;
+
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::physical_type::PhysicalUtf8;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
-    use crate::arrays::executor::builder::GermanVarlenBuffer;
-    use crate::arrays::scalar::ScalarValue;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
-    fn uniform_string_concat_row_wise() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let second = Array::from_iter(["1", "2", "3"]);
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+    fn uniform_and_simple() {
+        let a = Array::try_from_iter([true, true, true]).unwrap();
+        let b = Array::try_from_iter([true, true, false]).unwrap();
+        let c = Array::try_from_iter([true, false, false]).unwrap();
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(3),
-        };
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
 
-        let mut string_buffer = String::new();
-
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
-            &[&first, &second, &third],
-            builder,
-            |inputs, buf| {
-                string_buffer.clear();
-                for input in inputs {
-                    string_buffer.push_str(input);
-                }
-                buf.put(string_buffer.as_str())
+        UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+            &[a, b, c],
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |bools, buf| {
+                let v = bools.iter().all(|b| **b);
+                buf.put(&v);
             },
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from("a1dog"), got.physical_scalar(0).unwrap());
-        assert_eq!(ScalarValue::from("b2cat"), got.physical_scalar(1).unwrap());
-        assert_eq!(
-            ScalarValue::from("c3horse"),
-            got.physical_scalar(2).unwrap()
-        );
+        let expected = Array::try_from_iter([true, false, false]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn uniform_string_concat_row_wise() {
+        let a = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
+        let c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+
+        let mut str_buf = String::new();
+
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &[a, b, c],
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |strings, buf| {
+                str_buf.clear();
+                for s in strings {
+                    str_buf.push_str(s);
+                }
+                buf.put(&str_buf);
+            },
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter(["a1dog", "b2cat", "c3horse"]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn uniform_string_concat_row_wise_with_invalid() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let mut second = Array::from_iter(["1", "2", "3"]);
-        second.set_physical_validity(1, false); // "2" => NULL
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+        let a = Array::try_from_iter([Some("a"), Some("b"), None]).unwrap();
+        let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
+        let c = Array::try_from_iter([Some("dog"), None, Some("horse")]).unwrap();
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(3),
-        };
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
 
-        let mut string_buffer = String::new();
+        let mut str_buf = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
-            &[&first, &second, &third],
-            builder,
-            |inputs, buf| {
-                string_buffer.clear();
-                for input in inputs {
-                    string_buffer.push_str(input);
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &[a, b, c],
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |strings, buf| {
+                str_buf.clear();
+                for s in strings {
+                    str_buf.push_str(s);
                 }
-                buf.put(string_buffer.as_str())
+                buf.put(&str_buf);
             },
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from("a1dog"), got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Null, got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("c3horse"), got.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([Some("a1dog"), None, None]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
-    fn uniform_string_concat_row_wise_with_invalid_and_reordered() {
-        let first = Array::from_iter(["a", "b", "c"]);
-        let mut second = Array::from_iter(["1", "2", "3"]);
-        second.select_mut2(SelectionVector::from_iter([1, 0, 2])); // ["1", "2", "3"] => ["2", "1", "3"]
-        second.set_physical_validity(1, false); // "2" => NULL, referencing physical index
-        let third = Array::from_iter(["dog", "cat", "horse"]);
+    fn uniform_string_concat_row_wise_with_dictionary() {
+        let a = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
+        let mut c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
+        // '["horse", "horse", "dog"]
+        c.select(&Arc::new(NopBufferManager), [2, 2, 0]).unwrap();
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(3),
-        };
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
 
-        let mut string_buffer = String::new();
+        let mut str_buf = String::new();
 
-        let got = UniformExecutor::execute::<PhysicalUtf8, _, _>(
-            &[&first, &second, &third],
-            builder,
-            |inputs, buf| {
-                string_buffer.clear();
-                for input in inputs {
-                    string_buffer.push_str(input);
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &[a, b, c],
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |strings, buf| {
+                str_buf.clear();
+                for s in strings {
+                    str_buf.push_str(s);
                 }
-                buf.put(string_buffer.as_str())
+                buf.put(&str_buf);
             },
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::Null, got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("b1cat"), got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("c3horse"), got.logical_value(2).unwrap());
+        let expected = Array::try_from_iter(["a1horse", "b2horse", "c3dog"]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 }

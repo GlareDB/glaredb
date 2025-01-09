@@ -111,7 +111,7 @@ impl ScalarFunctionImpl for AndImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool, _, _>(
+                UniformExecutor::execute2::<PhysicalBool, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Boolean,
@@ -204,7 +204,7 @@ impl ScalarFunctionImpl for OrImpl {
             }
             _ => {
                 let len = inputs[0].logical_len();
-                UniformExecutor::execute::<PhysicalBool, _, _>(
+                UniformExecutor::execute2::<PhysicalBool, _, _>(
                     inputs,
                     ArrayBuilder {
                         datatype: DataType::Boolean,
