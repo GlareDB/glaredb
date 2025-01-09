@@ -84,7 +84,7 @@ impl ScalarFunctionImpl for AndImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute2::<PhysicalBool, PhysicalBool, _, _>(
                     a,
                     b,
                     ArrayBuilder {
@@ -192,7 +192,7 @@ impl ScalarFunctionImpl for OrImpl {
             2 => {
                 let a = inputs[0];
                 let b = inputs[1];
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute2::<PhysicalBool, PhysicalBool, _, _>(
                     a,
                     b,
                     ArrayBuilder {

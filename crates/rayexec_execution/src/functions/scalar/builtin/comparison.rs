@@ -802,7 +802,7 @@ where
             buffer: BooleanBuffer::with_len(left.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(left, right, builder, |a, b, buf| {
+        BinaryExecutor::execute2::<S, S, _, _>(left, right, builder, |a, b, buf| {
             buf.put(&O::compare(a, b))
         })
     }
@@ -858,7 +858,7 @@ where
                     CastFailBehavior::Error,
                 )?;
 
-                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor::execute2::<T::Storage, T::Storage, _, _>(
                     left,
                     &scaled_right,
                     builder,
@@ -872,14 +872,14 @@ where
                     CastFailBehavior::Error,
                 )?;
 
-                BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+                BinaryExecutor::execute2::<T::Storage, T::Storage, _, _>(
                     &scaled_left,
                     right,
                     builder,
                     |a, b, buf| buf.put(&O::compare(a, b)),
                 )
             }
-            Ordering::Equal => BinaryExecutor::execute::<T::Storage, T::Storage, _, _>(
+            Ordering::Equal => BinaryExecutor::execute2::<T::Storage, T::Storage, _, _>(
                 left,
                 right,
                 builder,

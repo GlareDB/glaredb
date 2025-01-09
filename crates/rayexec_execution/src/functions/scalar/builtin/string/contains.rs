@@ -104,7 +104,7 @@ impl ScalarFunctionImpl for StringContainsImpl {
             buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
             inputs[0],
             inputs[1],
             builder,

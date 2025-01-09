@@ -104,7 +104,7 @@ impl ScalarFunctionImpl for LeftPadImpl {
         };
 
         match inputs.len() {
-            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+            2 => BinaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,
@@ -217,7 +217,7 @@ impl ScalarFunctionImpl for RightPadImpl {
         };
 
         match inputs.len() {
-            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+            2 => BinaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,

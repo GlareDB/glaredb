@@ -96,7 +96,7 @@ impl ScalarFunctionImpl for StartsWithImpl {
                     buf.put(&s.starts_with(constant))
                 })
             }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+            None => BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
                 inputs[0],
                 inputs[1],
                 builder,

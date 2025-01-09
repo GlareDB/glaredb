@@ -84,7 +84,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
 
                 // TODO: Compute data capacity.
 
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
                     a,
                     b,
                     ArrayBuilder {

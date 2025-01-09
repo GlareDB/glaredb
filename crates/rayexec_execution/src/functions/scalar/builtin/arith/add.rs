@@ -217,7 +217,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a + b)))
+        BinaryExecutor::execute2::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a + b)))
     }
 }
 

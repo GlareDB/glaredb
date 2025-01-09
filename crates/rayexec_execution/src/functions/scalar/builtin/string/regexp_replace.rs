@@ -112,7 +112,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                     buf.put(out.as_ref());
                 })
             }
-            (Some(pattern), None) => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+            (Some(pattern), None) => BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
                 inputs[0],
                 inputs[2],
                 builder,
@@ -122,7 +122,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 },
             ),
             (None, Some(replacement)) => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute2::<PhysicalUtf8, PhysicalUtf8, _, _>(
                     inputs[0],
                     inputs[1],
                     builder,

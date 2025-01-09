@@ -251,7 +251,7 @@ where
             buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
+        BinaryExecutor::execute2::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
             // TODO: Overflow check
             buf.put(&Interval {
                 months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
@@ -291,7 +291,7 @@ where
             buffer: PrimitiveBuffer::<D::Primitive>::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
+        BinaryExecutor::execute2::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
             buf.put(&(a * b))
         })
     }
@@ -327,7 +327,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
+        BinaryExecutor::execute2::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
     }
 }
 

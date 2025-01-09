@@ -218,7 +218,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<PhysicalF64, PhysicalF64, _, _>(&a, &b, builder, |a, b, buf| {
+        BinaryExecutor::execute2::<PhysicalF64, PhysicalF64, _, _>(&a, &b, builder, |a, b, buf| {
             buf.put(&(a / b))
         })
     }
@@ -254,7 +254,7 @@ where
             buffer: PrimitiveBuffer::with_len(a.logical_len()),
         };
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a / b)))
+        BinaryExecutor::execute2::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a / b)))
     }
 }
 

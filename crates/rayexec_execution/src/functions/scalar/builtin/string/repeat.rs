@@ -73,7 +73,7 @@ impl ScalarFunctionImpl for RepeatUtf8Impl {
 
         let mut string_buf = String::new();
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+        BinaryExecutor::execute2::<PhysicalUtf8, PhysicalI64, _, _>(
             strings,
             nums,
             ArrayBuilder {
