@@ -8,8 +8,10 @@ pub enum Selection<'a> {
     ///
     /// '0..len'
     Linear { len: usize },
-    /// Represents the true location to use for some index.
-    Selection(&'a [usize]),
+    /// Slice of indices that indicate rows that are selected.
+    ///
+    /// Row indices may be included more than once and be in any order.
+    Slice(&'a [usize]),
 }
 
 impl<'a> Selection<'a> {
@@ -21,8 +23,8 @@ impl<'a> Selection<'a> {
         Self::Linear { len }
     }
 
-    pub fn selection(sel: &'a [usize]) -> Self {
-        Self::Selection(sel)
+    pub fn slice(sel: &'a [usize]) -> Self {
+        Self::Slice(sel)
     }
 
     pub fn is_linear(&self) -> bool {
@@ -37,7 +39,7 @@ impl<'a> Selection<'a> {
         match self {
             Self::Constant { len, .. } => *len,
             Self::Linear { len } => *len,
-            Self::Selection(sel) => sel.len(),
+            Self::Slice(sel) => sel.len(),
         }
     }
 
@@ -62,7 +64,7 @@ impl<'a> Selection<'a> {
                     Some(idx)
                 }
             }
-            Self::Selection(sel) => sel.get(idx).copied(),
+            Self::Slice(sel) => sel.get(idx).copied(),
         }
     }
 }
@@ -93,7 +95,7 @@ impl Iterator for FlatSelectionIter<'_> {
         let v = match self.sel {
             Selection::Constant { loc, .. } => loc,
             Selection::Linear { .. } => self.idx,
-            Selection::Selection(sel) => sel[self.idx],
+            Selection::Slice(sel) => sel[self.idx],
         };
 
         self.idx += 1;

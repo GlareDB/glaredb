@@ -752,7 +752,7 @@ impl PhysicalStorage for PhysicalDictionary {
     type Type<'a> = usize;
     type Storage<'a> = PrimitiveStorageSlice<'a, usize>;
 
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
+    fn get_storage(_data: &ArrayData2) -> Result<Self::Storage<'_>> {
         unimplemented!()
     }
 

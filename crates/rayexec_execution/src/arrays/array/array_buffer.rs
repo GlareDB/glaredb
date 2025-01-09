@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
@@ -46,7 +45,6 @@ where
     /// buffer.
     ///
     /// The secondary buffer will be initialized to None.
-    #[allow(dead_code)]
     pub(crate) fn with_primary_capacity<S: PhysicalStorage>(
         manager: &Arc<B>,
         capacity: usize,
@@ -249,6 +247,7 @@ pub struct ListBuffer<B: BufferManager> {
     ///
     /// This is only looked at when writing values to the child array. Reads can
     /// ignore this as all required info is in the entry metadata.
+    #[allow(dead_code)]
     pub(crate) entries: usize,
     pub(crate) child: Array<B>,
 }

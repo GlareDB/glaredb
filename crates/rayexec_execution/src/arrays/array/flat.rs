@@ -37,7 +37,7 @@ where
             Ok(FlatArrayView {
                 validity: &dict_buffer.validity,
                 array_buffer: &dict_buffer.buffer,
-                selection: Selection::selection(selection),
+                selection: Selection::slice(selection),
             })
         } else {
             let validity = &array.next.as_ref().unwrap().validity;

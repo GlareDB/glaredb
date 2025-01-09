@@ -101,6 +101,10 @@ pub struct Array<B: BufferManager = NopBufferManager> {
     // TODO: Remove
     pub(crate) data2: ArrayData2,
 
+    /// Contents of the refactored array internals.
+    ///
+    /// Will be flattened and `selection2`, `validity2`, `data2` will be removed
+    /// once everything's switched over.
     pub(crate) next: Option<ArrayNextInner<B>>,
 }
 
@@ -152,11 +156,13 @@ where
     }
 
     // TODO: Remove
+    #[allow(dead_code)]
     pub(crate) fn next(&self) -> &ArrayNextInner<B> {
         self.next.as_ref().expect("next to be set")
     }
 
     // TODO: Remove
+    #[allow(dead_code)]
     pub(crate) fn next_mut(&mut self) -> &mut ArrayNextInner<B> {
         self.next.as_mut().expect("next to be set")
     }

@@ -191,7 +191,7 @@ impl UnaryExecutor {
     ) -> Result<()> {
         let flat = array.flat_view()?;
 
-        let bools = PhysicalBool::get_addressable(&flat.array_buffer)?;
+        let bools = PhysicalBool::get_addressable(flat.array_buffer)?;
         let validity = flat.validity;
 
         if validity.all_valid() {
