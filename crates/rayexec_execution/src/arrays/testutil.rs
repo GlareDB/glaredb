@@ -238,51 +238,39 @@ mod tests {
         assert_arrays_eq(&array1, &array2);
     }
 
-    // #[test]
-    // fn assert_batches_eq_simple() {
-    //     let batch1 = Batch::try_from_arrays(
-    //         [
-    //             Array::try_from_iter([4, 5, 6]).unwrap(),
-    //             Array::try_from_iter(["a", "b", "c"]).unwrap(),
-    //         ],
-    //         true,
-    //     )
-    //     .unwrap();
-    //     let batch2 = Batch::try_from_arrays(
-    //         [
-    //             Array::try_from_iter([4, 5, 6]).unwrap(),
-    //             Array::try_from_iter(["a", "b", "c"]).unwrap(),
-    //         ],
-    //         true,
-    //     )
-    //     .unwrap();
+    #[test]
+    fn assert_batches_eq_simple() {
+        let batch1 = Batch::try_from_arrays([
+            Array::try_from_iter([4, 5, 6]).unwrap(),
+            Array::try_from_iter(["a", "b", "c"]).unwrap(),
+        ])
+        .unwrap();
+        let batch2 = Batch::try_from_arrays([
+            Array::try_from_iter([4, 5, 6]).unwrap(),
+            Array::try_from_iter(["a", "b", "c"]).unwrap(),
+        ])
+        .unwrap();
 
-    //     assert_batches_eq(&batch1, &batch2);
-    // }
+        assert_batches_eq(&batch1, &batch2);
+    }
 
-    // #[test]
-    // fn assert_batches_eq_logical_row_count() {
-    //     let mut batch1 = Batch::try_from_arrays(
-    //         [
-    //             Array::try_from_iter([4, 5, 6, 7, 8]).unwrap(),
-    //             Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
-    //         ],
-    //         false,
-    //     )
-    //     .unwrap();
-    //     batch1.set_num_rows(3).unwrap();
+    #[test]
+    fn assert_batches_eq_logical_row_count() {
+        let mut batch1 = Batch::try_from_arrays([
+            Array::try_from_iter([4, 5, 6, 7, 8]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
+        ])
+        .unwrap();
+        batch1.set_num_rows(3).unwrap();
 
-    //     let batch2 = Batch::try_from_arrays(
-    //         [
-    //             Array::try_from_iter([4, 5, 6]).unwrap(),
-    //             Array::try_from_iter(["a", "b", "c"]).unwrap(),
-    //         ],
-    //         true,
-    //     )
-    //     .unwrap();
+        let batch2 = Batch::try_from_arrays([
+            Array::try_from_iter([4, 5, 6]).unwrap(),
+            Array::try_from_iter(["a", "b", "c"]).unwrap(),
+        ])
+        .unwrap();
 
-    //     assert_batches_eq(&batch1, &batch2);
-    // }
+        assert_batches_eq(&batch1, &batch2);
+    }
 
     #[test]
     #[should_panic]
