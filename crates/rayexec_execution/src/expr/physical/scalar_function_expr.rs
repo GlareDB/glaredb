@@ -61,11 +61,9 @@ impl PhysicalScalarFunctionExpr {
 
         // Eval function with child outputs.
         state.buffer.set_num_rows(sel.len())?;
-        // TODO
-        let _ = output;
-        // self.function.function_impl.execute(&state.buffer, output)?;
+        self.function.function_impl.execute(&state.buffer, output)?;
 
-        unimplemented!()
+        Ok(())
     }
 
     pub fn eval2<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
