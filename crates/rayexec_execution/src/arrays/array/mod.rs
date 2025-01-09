@@ -186,6 +186,10 @@ where
         &self.datatype
     }
 
+    pub fn physical_type(&self) -> PhysicalType {
+        self.datatype.physical_type().unwrap()
+    }
+
     pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
         let next = self.next_mut();
 
@@ -842,7 +846,7 @@ impl Array {
     }
 
     /// Gets the physical type of the array.
-    pub fn physical_type(&self) -> PhysicalType {
+    pub fn physical_type2(&self) -> PhysicalType {
         match self.data2.physical_type() {
             PhysicalType::Binary => match self.datatype {
                 DataType::Utf8 => PhysicalType::Utf8,

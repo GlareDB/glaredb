@@ -1,10 +1,9 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalAny, PhysicalBool};
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalType};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -101,29 +100,38 @@ impl ScalarFunction for IsNotNull {
 pub struct CheckNullImpl<const IS_NULL: bool>;
 
 impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
-        let (initial, updated) = if IS_NULL {
-            // Executor will only execute on non-null inputs, so we can assume
-            // everything is null first then selectively set false for things
-            // that the executor executes.
-            (true, false)
-        } else {
-            (false, true)
-        };
+        let out = output
+            .next_mut()
+            .data
+            .try_as_mut()?
+            .try_as_slice_mut::<PhysicalBool>()?;
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
-        };
-        let array = UnaryExecutor::execute2::<PhysicalAny, _, _>(input, builder, |_, buf| {
-            buf.put(&updated)
-        })?;
+        println!("PHYS: {}", input.physical_type());
 
-        // Drop validity.
-        let data = array.into_array_data();
-        Ok(Array::new_with_array_data(DataType::Boolean, data))
+        if input.physical_type() == PhysicalType::UntypedNull {
+            // Everything null, just set to default value.
+            out.iter_mut().for_each(|v| *v = IS_NULL);
+
+            return Ok(());
+        }
+
+        let flat = input.flat_view()?;
+
+        for (output_idx, idx) in sel.into_iter().enumerate() {
+            let is_valid = flat.validity.is_valid(idx);
+            println!("VALID: {is_valid}");
+            if is_valid {
+                out[output_idx] = !IS_NULL;
+            } else {
+                out[output_idx] = IS_NULL;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -303,22 +311,134 @@ impl ScalarFunction for IsNotFalse {
 pub struct CheckBoolImpl<const NOT: bool, const BOOL: bool>;
 
 impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT, BOOL> {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
-        let initial = NOT;
+        let out = output
+            .next_mut()
+            .data
+            .try_as_mut()?
+            .try_as_slice_mut::<PhysicalBool>()?;
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len_and_default_value(input.logical_len(), initial),
-        };
-        let array = UnaryExecutor::execute2::<PhysicalBool, _, _>(input, builder, |val, buf| {
-            let b = if NOT { val != BOOL } else { val == BOOL };
-            buf.put(&b)
-        })?;
+        let flat = input.flat_view()?;
+        let input = flat.array_buffer.try_as_slice::<PhysicalBool>()?;
 
-        // Drop validity.
-        let data = array.into_array_data();
-        Ok(Array::new_with_array_data(DataType::Boolean, data))
+        for (output_idx, idx) in sel.into_iter().enumerate() {
+            let is_valid = flat.validity.is_valid(idx);
+            if is_valid {
+                let val = input[idx];
+                out[output_idx] = if NOT { val != BOOL } else { val == BOOL }
+            } else {
+                // 'IS TRUE', 'IS FALSE' => false
+                // 'IS NOT TRUE', 'IS NOT FALSE' => true
+                out[output_idx] = NOT;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::expr;
+
+    #[test]
+    fn is_null_all_valid() {
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let batch = Batch::try_from_arrays([a]).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
+            .unwrap();
+
+        let planned = IsNull
+            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
+            .unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        let s = out.next().data.try_as_slice::<PhysicalBool>().unwrap();
+        println!("S: {s:?}");
+
+        let expected = Array::try_from_iter([false, false, false]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn is_null_some_invalid() {
+        let a = Array::try_from_iter([Some(1), None, None]).unwrap();
+        let batch = Batch::try_from_arrays([a]).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
+            .unwrap();
+
+        let planned = IsNull
+            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
+            .unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        let expected = Array::try_from_iter([false, true, true]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn is_true() {
+        let a = Array::try_from_iter([Some(true), Some(false), None]).unwrap();
+        let batch = Batch::try_from_arrays([a]).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
+            .unwrap();
+
+        let planned = IsTrue
+            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
+            .unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        let expected = Array::try_from_iter([Some(true), Some(false), Some(false)]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn is_not_true() {
+        let a = Array::try_from_iter([Some(true), Some(false), None]).unwrap();
+        let batch = Batch::try_from_arrays([a]).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
+            .unwrap();
+
+        let planned = IsNotTrue
+            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
+            .unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        let expected = Array::try_from_iter([Some(false), Some(true), Some(true)]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
     }
 }

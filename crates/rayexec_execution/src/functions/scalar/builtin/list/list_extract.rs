@@ -132,7 +132,7 @@ fn extract(array: &Array, idx: usize) -> Result<Array> {
         _other => return Err(RayexecError::new("Unexpected storage type")),
     };
 
-    match data.inner_array().physical_type() {
+    match data.inner_array().physical_type2() {
         PhysicalType::UntypedNull => not_implemented!("NULL list extract"),
         PhysicalType::Boolean => {
             let builder = ArrayBuilder {

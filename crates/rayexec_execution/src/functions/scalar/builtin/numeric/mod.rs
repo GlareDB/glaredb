@@ -147,7 +147,7 @@ pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
 impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
     fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
         let input = inputs[0];
-        match input.physical_type() {
+        match input.physical_type2() {
             PhysicalType::Float16 => O::execute_float::<PhysicalF16>(input, self.ret.clone()),
             PhysicalType::Float32 => O::execute_float::<PhysicalF32>(input, self.ret.clone()),
             PhysicalType::Float64 => O::execute_float::<PhysicalF64>(input, self.ret.clone()),

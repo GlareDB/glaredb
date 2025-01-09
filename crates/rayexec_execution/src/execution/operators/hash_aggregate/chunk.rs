@@ -38,7 +38,7 @@ impl GroupChunk {
         // Make sure we can actually concat. This is important when we have null
         // masks in the case of grouping sets.
         for (arr_idx, input_phys_type) in group_vals.enumerate() {
-            if self.arrays[arr_idx].physical_type() != input_phys_type {
+            if self.arrays[arr_idx].physical_type2() != input_phys_type {
                 return false;
             }
         }

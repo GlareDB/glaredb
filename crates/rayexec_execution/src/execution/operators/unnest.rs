@@ -206,7 +206,7 @@ impl ExecutableOperator for PhysicalUnnest {
         // We have input ready, get the longest list for the current row.
         let mut longest = 0;
         for input_idx in 0..state.unnest_inputs.len() {
-            if state.unnest_inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
+            if state.unnest_inputs[input_idx].physical_type2() == PhysicalType::UntypedNull {
                 // Just let other unnest expressions determine the number of
                 // rows.
                 continue;
@@ -243,7 +243,7 @@ impl ExecutableOperator for PhysicalUnnest {
         for input_idx in 0..state.unnest_inputs.len() {
             let arr = &state.unnest_inputs[input_idx];
 
-            match arr.physical_type() {
+            match arr.physical_type2() {
                 PhysicalType::List => {
                     let child = match arr.array_data() {
                         ArrayData2::List(list) => list.inner_array(),
@@ -307,7 +307,7 @@ impl Explainable for PhysicalUnnest {
 pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata2) -> Result<Array> {
     let datatype = child.datatype().clone();
 
-    match child.physical_type() {
+    match child.physical_type2() {
         PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
         PhysicalType::Boolean => {
             let builder = ArrayBuilder {

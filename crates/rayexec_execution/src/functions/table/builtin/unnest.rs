@@ -206,7 +206,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
         }
 
         let input = self.input.as_ref().unwrap();
-        let output = match input.physical_type() {
+        let output = match input.physical_type2() {
             PhysicalType::List => {
                 let child = match input.array_data() {
                     ArrayData2::List(list) => list.inner_array(),
