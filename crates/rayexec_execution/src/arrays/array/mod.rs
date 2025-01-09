@@ -13,7 +13,7 @@ mod shared_or_owned;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use array_buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, SecondaryBuffer};
+use array_buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, ListItemMetadata, SecondaryBuffer};
 use array_data::ArrayData;
 use buffer_manager::{BufferManager, NopBufferManager};
 use flat::FlatArrayView;
@@ -36,6 +36,7 @@ use physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
+    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -405,6 +406,276 @@ where
             PhysicalType::Interval => copy_rows::<PhysicalInterval, _>(self, mapping, dest)?,
             PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(self, mapping, dest)?,
             _ => unimplemented!(),
+        }
+
+        Ok(())
+    }
+
+    pub fn get_value(&self, idx: usize) -> Result<ScalarValue> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        let flat = self.flat_view()?;
+
+        if !flat.validity.is_valid(idx) {
+            return Ok(ScalarValue::Null);
+        }
+
+        match &self.datatype {
+            DataType::Boolean => {
+                let v = PhysicalBool::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Boolean(*v))
+            }
+            DataType::Int8 => {
+                let v = PhysicalI8::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int8(*v))
+            }
+            DataType::Int16 => {
+                let v = PhysicalI16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int16(*v))
+            }
+            DataType::Int32 => {
+                let v = PhysicalI32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int32(*v))
+            }
+            DataType::Int64 => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int64(*v))
+            }
+            DataType::Int128 => {
+                let v = PhysicalI128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int128(*v))
+            }
+            DataType::UInt8 => {
+                let v = PhysicalU8::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt8(*v))
+            }
+            DataType::UInt16 => {
+                let v = PhysicalU16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt16(*v))
+            }
+            DataType::UInt32 => {
+                let v = PhysicalU32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt32(*v))
+            }
+            DataType::UInt64 => {
+                let v = PhysicalU64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt64(*v))
+            }
+            DataType::UInt128 => {
+                let v = PhysicalU128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt128(*v))
+            }
+            DataType::Float16 => {
+                let v = PhysicalF16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float16(*v))
+            }
+            DataType::Float32 => {
+                let v = PhysicalF32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float32(*v))
+            }
+            DataType::Float64 => {
+                let v = PhysicalF64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float64(*v))
+            }
+            DataType::Decimal64(m) => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Decimal64(Decimal64Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: *v,
+                }))
+            }
+            DataType::Decimal128(m) => {
+                let v = PhysicalI128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Decimal128(Decimal128Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: *v,
+                }))
+            }
+            DataType::Interval => {
+                let v = PhysicalInterval::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Interval(*v))
+            }
+            DataType::Timestamp(m) => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Timestamp(TimestampScalar {
+                    unit: m.unit,
+                    value: *v,
+                }))
+            }
+            DataType::Utf8 => {
+                let addressable = PhysicalUtf8::get_addressable(flat.array_buffer)?;
+                // TODO: Don't allocate. Doesn't matter too much since this is
+                // just for constant eval right now.
+                let v = addressable.get(idx).unwrap().to_string();
+                Ok(ScalarValue::Utf8(v.into()))
+            }
+            DataType::Binary => {
+                let addressable = PhysicalBinary::get_addressable(flat.array_buffer)?;
+                let v = addressable.get(idx).unwrap().to_vec();
+                Ok(ScalarValue::Binary(v.into()))
+            }
+
+            _ => not_implemented!("get value for scalar type"),
+        }
+    }
+
+    /// Set a scalar value at a given index.
+    pub fn set_value(&mut self, idx: usize, val: &ScalarValue) -> Result<()> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        let next = self.next_mut();
+        next.validity.set_valid(idx);
+        let data = next.data.try_as_mut()?;
+
+        match val {
+            ScalarValue::Null => {
+                next.validity.set_invalid(idx);
+            }
+            ScalarValue::Boolean(val) => {
+                PhysicalBool::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int8(val) => {
+                PhysicalI8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int16(val) => {
+                PhysicalI16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int32(val) => {
+                PhysicalI32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int128(val) => {
+                PhysicalI128::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt8(val) => {
+                PhysicalU8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt16(val) => {
+                PhysicalU16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt32(val) => {
+                PhysicalU32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt64(val) => {
+                PhysicalU64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt128(val) => {
+                PhysicalU128::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float16(val) => {
+                PhysicalF16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float32(val) => {
+                PhysicalF32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float64(val) => {
+                PhysicalF64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Decimal64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Decimal128(val) => {
+                PhysicalI128::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Date32(val) => {
+                PhysicalI32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Date64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Timestamp(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Interval(val) => {
+                PhysicalInterval::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Utf8(val) => {
+                PhysicalUtf8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Binary(val) => {
+                PhysicalBinary::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::List(list) => {
+                let secondary = next.data.try_as_mut()?.get_secondary_mut().get_list_mut()?;
+
+                // Ensure we have space to push.
+                let rem_cap = secondary.child.capacity() - secondary.entries;
+                if rem_cap < list.len() {
+                    // TODO: Just resize secondary.
+                    return Err(RayexecError::new(
+                        "Secondary list buffer does not have required capacity",
+                    )
+                    .with_field("remaining", rem_cap)
+                    .with_field("need", list.len()));
+                }
+
+                for (child_idx, val) in (secondary.entries..).zip(list) {
+                    secondary.child.set_value(child_idx, val)?;
+                }
+
+                // Now update entry count in child. Original value is our offset
+                // index.
+                let start_offset = secondary.entries;
+                secondary.entries += list.len();
+
+                // Set metadata pointing to new list.
+                PhysicalList::get_addressable_mut(next.data.try_as_mut()?)?.put(
+                    idx,
+                    &ListItemMetadata {
+                        offset: start_offset as i32,
+                        len: list.len() as i32,
+                    },
+                );
+            }
+            ScalarValue::Struct(_) => not_implemented!("set value for struct"),
         }
 
         Ok(())

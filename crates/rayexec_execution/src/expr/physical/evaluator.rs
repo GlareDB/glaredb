@@ -35,22 +35,22 @@ impl ExpressionState {
 
 impl ExpressionEvaluator {
     pub fn try_new(expressions: Vec<PhysicalScalarExpression>, batch_size: usize) -> Result<Self> {
-        unimplemented!()
-        // let states = expressions
-        //     .iter()
-        //     .map(|expr| expr.create_state(batch_size))
-        //     .collect::<Result<Vec<_>>>()?;
+        let states = expressions
+            .iter()
+            .map(|expr| expr.create_state(batch_size))
+            .collect::<Result<Vec<_>>>()?;
 
-        // Ok(ExpressionEvaluator {
-        //     expressions,
-        //     states,
-        // })
+        Ok(ExpressionEvaluator {
+            expressions,
+            states,
+        })
     }
 
     pub fn num_expressions(&self) -> usize {
         self.expressions.len()
     }
 
+    /// Try to evaluate a single expression into a constant value.
     pub fn try_eval_constant(&mut self) -> Result<OwnedScalarValue> {
         if self.expressions.len() != 1 {
             return Err(RayexecError::new(
@@ -58,18 +58,17 @@ impl ExpressionEvaluator {
             ));
         }
 
-        unimplemented!()
-        // let expr = &self.expressions[0];
-        // let state = &mut self.states[0];
+        let expr = &self.expressions[0];
+        let state = &mut self.states[0];
 
-        // let mut input = Batch::empty_with_num_rows(1);
-        // let mut out = Array::new(&Arc::new(NopBufferManager), expr.datatype(), 1)?;
+        let mut input = Batch::empty_with_num_rows(1);
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), expr.datatype(), 1)?;
 
-        // Self::eval_expression(expr, &mut input, state, Selection::linear(1), &mut out)?;
+        Self::eval_expression(expr, &mut input, state, Selection::linear(1), &mut out)?;
 
-        // let v = out.get_value(0)?;
+        let v = out.get_value(0)?;
 
-        // Ok(v.into_owned())
+        Ok(v.into_owned())
     }
 
     /// Evaluate the expression on an input batch, writing the results to the
@@ -133,13 +132,12 @@ impl ExpressionEvaluator {
         // needing to call into it often.
         output.reset_for_write(&Arc::new(NopBufferManager))?;
 
-        unimplemented!()
-        // match expr {
-        //     PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
-        //     PhysicalScalarExpression::Case(expr) => expr.eval(input, state, sel, output),
-        //     PhysicalScalarExpression::Cast(expr) => expr.eval(input, state, sel, output),
-        //     PhysicalScalarExpression::Literal(expr) => expr.eval(input, state, sel, output),
-        //     PhysicalScalarExpression::ScalarFunction(expr) => expr.eval(input, state, sel, output),
-        // }
+        match expr {
+            PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Case(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Cast(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Literal(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::ScalarFunction(expr) => expr.eval(input, state, sel, output),
+        }
     }
 }

@@ -38,34 +38,32 @@ pub enum PhysicalScalarExpression {
 
 impl PhysicalScalarExpression {
     pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
-        unimplemented!()
-        // match self {
-        //     Self::Case(expr) => expr.create_state(batch_size),
-        //     Self::Cast(expr) => expr.create_state(batch_size),
-        //     Self::Column(expr) => expr.create_state(batch_size),
-        //     Self::Literal(expr) => expr.create_state(batch_size),
-        //     Self::ScalarFunction(expr) => expr.create_state(batch_size),
-        // }
+        match self {
+            Self::Case(expr) => expr.create_state(batch_size),
+            Self::Cast(expr) => expr.create_state(batch_size),
+            Self::Column(expr) => expr.create_state(batch_size),
+            Self::Literal(expr) => expr.create_state(batch_size),
+            Self::ScalarFunction(expr) => expr.create_state(batch_size),
+        }
     }
 
     pub fn datatype(&self) -> DataType {
-        unimplemented!()
-        // match self {
-        //     Self::Case(expr) => expr.datatype(),
-        //     Self::Cast(expr) => expr.datatype(),
-        //     Self::Column(expr) => expr.datatype(),
-        //     Self::Literal(expr) => expr.datatype(),
-        //     Self::ScalarFunction(expr) => expr.datatype(),
-        // }
+        match self {
+            Self::Case(expr) => expr.datatype(),
+            Self::Cast(expr) => expr.datatype(),
+            Self::Column(expr) => expr.datatype(),
+            Self::Literal(expr) => expr.datatype(),
+            Self::ScalarFunction(expr) => expr.datatype(),
+        }
     }
 
     pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         match self {
             Self::Case(e) => e.eval2(batch),
-            Self::Cast(e) => e.eval(batch),
-            Self::Column(e) => e.eval(batch),
-            Self::Literal(e) => e.eval(batch),
-            Self::ScalarFunction(e) => e.eval(batch),
+            Self::Cast(e) => e.eval2(batch),
+            Self::Column(e) => e.eval2(batch),
+            Self::Literal(e) => e.eval2(batch),
+            Self::ScalarFunction(e) => e.eval2(batch),
         }
     }
 

@@ -744,6 +744,16 @@ impl PhysicalStorage for PhysicalList {
     }
 }
 
+impl MutablePhysicalStorage for PhysicalList {
+    type AddressableMut<'a> = &'a mut [Self::StorageType];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
+    }
+}
+
 /// Dictionary arrays have the selection vector as the primary data buffer.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalDictionary;
