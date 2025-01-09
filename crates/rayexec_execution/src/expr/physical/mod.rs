@@ -1,3 +1,4 @@
+pub mod evaluator;
 pub mod planner;
 
 pub mod case_expr;
@@ -12,12 +13,14 @@ use std::fmt;
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
+use evaluator::ExpressionState;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::SelectExecutor;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -34,9 +37,31 @@ pub enum PhysicalScalarExpression {
 }
 
 impl PhysicalScalarExpression {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
+        unimplemented!()
+        // match self {
+        //     Self::Case(expr) => expr.create_state(batch_size),
+        //     Self::Cast(expr) => expr.create_state(batch_size),
+        //     Self::Column(expr) => expr.create_state(batch_size),
+        //     Self::Literal(expr) => expr.create_state(batch_size),
+        //     Self::ScalarFunction(expr) => expr.create_state(batch_size),
+        // }
+    }
+
+    pub fn datatype(&self) -> DataType {
+        unimplemented!()
+        // match self {
+        //     Self::Case(expr) => expr.datatype(),
+        //     Self::Cast(expr) => expr.datatype(),
+        //     Self::Column(expr) => expr.datatype(),
+        //     Self::Literal(expr) => expr.datatype(),
+        //     Self::ScalarFunction(expr) => expr.datatype(),
+        // }
+    }
+
     pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         match self {
-            Self::Case(e) => e.eval(batch),
+            Self::Case(e) => e.eval2(batch),
             Self::Cast(e) => e.eval(batch),
             Self::Column(e) => e.eval(batch),
             Self::Literal(e) => e.eval(batch),

@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
+use super::array::buffer_manager::NopBufferManager;
+use super::datatype::DataType;
 use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::concat_with_exact_total_len;
 use crate::arrays::row::ScalarRow;
@@ -44,6 +47,28 @@ impl Batch {
             num_rows,
             capacity: 0,
         }
+    }
+
+    /// Create a batch by initializing arrays for the given datatypes.
+    ///
+    /// Each array will be initialized to hold `capacity` rows.
+    pub fn try_new(
+        datatypes: impl IntoExactSizeIterator<Item = DataType>,
+        capacity: usize,
+    ) -> Result<Self> {
+        let datatypes = datatypes.into_iter();
+        let mut arrays = Vec::with_capacity(datatypes.len());
+
+        for datatype in datatypes {
+            let array = Array::try_new(&Arc::new(NopBufferManager), datatype, capacity)?;
+            arrays.push(array)
+        }
+
+        Ok(Batch {
+            arrays,
+            num_rows: 0,
+            capacity,
+        })
     }
 
     /// Create a new batch from some number of arrays.
@@ -220,7 +245,7 @@ impl Batch {
         &self.arrays
     }
 
-    pub fn array_mut(&mut self) -> &mut [Array] {
+    pub fn arrays_mut(&mut self) -> &mut [Array] {
         &mut self.arrays
     }
 

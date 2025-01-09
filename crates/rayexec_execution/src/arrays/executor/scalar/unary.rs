@@ -114,7 +114,7 @@ impl UnaryExecutor {
     /// Valid values are represented with Some, invalid values are represented
     /// with None.
     ///
-    /// Note this should really only be used for tests.
+    /// `op` will be called with the output index for that row.
     pub fn for_each_flat<S, Op>(
         array: FlatArrayView<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,

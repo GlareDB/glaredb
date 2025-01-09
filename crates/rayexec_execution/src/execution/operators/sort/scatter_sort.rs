@@ -263,6 +263,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use crate::arrays::datatype::DataType;
     use crate::execution::operators::test_util::{
         make_i32_batch,
         test_database_context,
@@ -290,7 +291,10 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
+            column: PhysicalColumnExpr {
+                idx: 0,
+                datatype: DataType::Int32,
+            },
             desc: true,
             nulls_first: true,
         }]));
@@ -332,7 +336,10 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
+            column: PhysicalColumnExpr {
+                idx: 0,
+                datatype: DataType::Int32,
+            },
             desc: false,
             nulls_first: true,
         }]));
@@ -378,7 +385,10 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
+            column: PhysicalColumnExpr {
+                idx: 0,
+                datatype: DataType::Int32,
+            },
             desc: true,
             nulls_first: true,
         }]));
@@ -443,7 +453,10 @@ mod tests {
         ];
 
         let operator = Arc::new(PhysicalScatterSort::new(vec![PhysicalSortExpression {
-            column: PhysicalColumnExpr { idx: 0 },
+            column: PhysicalColumnExpr {
+                idx: 0,
+                datatype: DataType::Int32,
+            },
             desc: true,
             nulls_first: true,
         }]));

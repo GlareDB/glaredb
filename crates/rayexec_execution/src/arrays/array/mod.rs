@@ -19,7 +19,9 @@ use buffer_manager::{BufferManager, NopBufferManager};
 use flat::FlatArrayView;
 use half::f16;
 use physical_type::{
+    Addressable,
     AddressableMut,
+    MutablePhysicalStorage,
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
@@ -279,6 +281,131 @@ where
             next.data.get_secondary(),
             SecondaryBuffer::Dictionary(_)
         ));
+
+        Ok(())
+    }
+
+    /// Resets self to prepare for writing to the array.
+    ///
+    /// This will:
+    /// - Reset validity to all 'valid'.
+    /// - Create or reuse a writeable buffer for array data. No guarantees are
+    ///   made about the contents of the buffer.
+    ///
+    /// Bfuffer values _must_ be written for a row before attempting to read a
+    /// value for that row after calling this function. Underlying storage may
+    /// be cleared resulting in stale metadata (and thus invalid reads).
+    pub fn reset_for_write(&mut self, manager: &Arc<B>) -> Result<()> {
+        let cap = self.capacity();
+        let next = self.next.as_mut().unwrap();
+
+        next.validity = Validity::new_all_valid(cap);
+
+        // Check if dictionary first since we want to try to get the underlying
+        // buffer from that. We should only have layer of "dictionary", so we
+        // shouldn't need to recurse.
+        if next.data.as_ref().physical_type() == PhysicalType::Dictionary {
+            let secondary = next.data.try_as_mut()?.get_secondary_mut();
+            let dict = match std::mem::replace(secondary, SecondaryBuffer::None) {
+                SecondaryBuffer::Dictionary(dict) => dict,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected dictionary secondary buffer, got {other:?}",
+                    )))
+                }
+            };
+
+            // TODO: Not sure what to do if capacities don't match. Currently
+            // dictionaries are only created through 'select' and the index
+            // buffer gets initialized to the length of the selection.
+            next.data = dict.buffer;
+        }
+
+        if let Err(()) = next.data.try_reset_for_write() {
+            // Need to create a new buffer and set that.
+            let buffer = array_buffer_for_datatype(manager, &self.datatype, cap)?;
+            next.data = ArrayData::owned(buffer)
+        }
+
+        // Reset secondary buffers.
+        match next.data.try_as_mut()?.get_secondary_mut() {
+            SecondaryBuffer::StringViewHeap(heap) => {
+                heap.clear();
+                // All metadata is stale. Panics may occur if attempting to read
+                // prior to writing new values for a row.
+            }
+            SecondaryBuffer::List(list) => {
+                list.entries = 0;
+                // Child array keeps its capacity, it'll be overwritten. List
+                // item metadata will become stale, but technically won't error.
+            }
+            SecondaryBuffer::Dictionary(_) => (),
+            SecondaryBuffer::None => (),
+        }
+
+        Ok(())
+    }
+
+    /// "Clones" some other array into this array.
+    ///
+    /// This will try to make the buffer from the other array managed to make it
+    /// cheaply cloneable and shared with this array.
+    ///
+    /// Array capacities and datatypes must be the same for both arrays.
+    pub fn clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(RayexecError::new(
+                "Attempted clone array from other array with different data types",
+            )
+            .with_field("own_datatype", self.datatype.clone())
+            .with_field("other_datatype", other.datatype.clone()));
+        }
+
+        // TODO: Do we want this check? Dictionaries right now can have differing capacities based
+        // on selection inputs.
+        // if self.capacity() != other.capacity() {
+        //     return Err(RayexecError::new(
+        //         "Attempted to clone into array from other array with different capacity",
+        //     )
+        //     .with_field("own_capacity", self.capacity())
+        //     .with_field("other_capacity", other.capacity()));
+        // }
+
+        let managed = other.next_mut().data.make_managed(manager)?;
+        self.next_mut().data.set_managed(managed)?;
+        self.next_mut().validity = other.next().validity.clone();
+
+        Ok(())
+    }
+
+    /// Copy rows from self to another array.
+    ///
+    /// `mapping` provides a mapping of source indices to destination indices in
+    /// (source, dest) pairs.
+    pub fn copy_rows(
+        &self,
+        mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
+        dest: &mut Self,
+    ) -> Result<()> {
+        match self.datatype.physical_type()? {
+            PhysicalType::Boolean => copy_rows::<PhysicalBool, _>(self, mapping, dest)?,
+            PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(self, mapping, dest)?,
+            PhysicalType::Int16 => copy_rows::<PhysicalI16, _>(self, mapping, dest)?,
+            PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(self, mapping, dest)?,
+            PhysicalType::Int64 => copy_rows::<PhysicalI64, _>(self, mapping, dest)?,
+            PhysicalType::Int128 => copy_rows::<PhysicalI128, _>(self, mapping, dest)?,
+            PhysicalType::UInt8 => copy_rows::<PhysicalU8, _>(self, mapping, dest)?,
+            PhysicalType::UInt16 => copy_rows::<PhysicalU16, _>(self, mapping, dest)?,
+            PhysicalType::UInt32 => copy_rows::<PhysicalU32, _>(self, mapping, dest)?,
+            PhysicalType::UInt64 => copy_rows::<PhysicalU64, _>(self, mapping, dest)?,
+            PhysicalType::UInt128 => copy_rows::<PhysicalU128, _>(self, mapping, dest)?,
+            PhysicalType::Float16 => copy_rows::<PhysicalF16, _>(self, mapping, dest)?,
+            PhysicalType::Float32 => copy_rows::<PhysicalF32, _>(self, mapping, dest)?,
+            PhysicalType::Float64 => copy_rows::<PhysicalF64, _>(self, mapping, dest)?,
+            PhysicalType::Interval => copy_rows::<PhysicalInterval, _>(self, mapping, dest)?,
+            PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(self, mapping, dest)?,
+            _ => unimplemented!(),
+        }
 
         Ok(())
     }
@@ -1120,6 +1247,44 @@ impl From<ListStorage> for ArrayData2 {
     }
 }
 
+/// Helper for copying rows.
+fn copy_rows<S, B>(
+    from: &Array<B>,
+    mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
+    to: &mut Array<B>,
+) -> Result<()>
+where
+    S: MutablePhysicalStorage,
+    B: BufferManager,
+{
+    let from_flat = from.flat_view()?;
+    let from_storage = S::get_addressable(from_flat.array_buffer)?;
+
+    let next = to.next_mut();
+    let to_data = next.data.try_as_mut()?;
+    let mut to_storage = S::get_addressable_mut(to_data)?;
+
+    if from_flat.validity.all_valid() && next.validity.all_valid() {
+        for (from_idx, to_idx) in mapping.into_iter() {
+            let from_idx = from_flat.selection.get(from_idx).unwrap();
+            let v = from_storage.get(from_idx).unwrap();
+            to_storage.put(to_idx, v);
+        }
+    } else {
+        for (from_idx, to_idx) in mapping.into_iter() {
+            let from_idx = from_flat.selection.get(from_idx).unwrap();
+            if from_flat.validity.is_valid(from_idx) {
+                let v = from_storage.get(from_idx).unwrap();
+                to_storage.put(to_idx, v);
+            } else {
+                next.validity.set_invalid(to_idx);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Create a new array buffer for a datatype.
 fn array_buffer_for_datatype<B>(
     manager: &Arc<B>,
@@ -1237,7 +1402,7 @@ macro_rules! impl_primitive_from_iter {
     };
 }
 
-// TODO: Bool
+impl_primitive_from_iter!(bool, PhysicalBool, Boolean);
 
 impl_primitive_from_iter!(i8, PhysicalI8, Int8);
 impl_primitive_from_iter!(i16, PhysicalI16, Int16);
@@ -1326,77 +1491,85 @@ where
 mod tests {
 
     use super::*;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
-    fn select_mut_no_change() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::with_range(0..3);
+    fn select_no_change() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 1, 2]).unwrap();
 
-        arr.select_mut2(selection);
-
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(2).unwrap());
+        let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn select_mut_prune_rows() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::from_iter([0, 2]);
+    fn select_prune_rows() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 2]).unwrap();
 
-        arr.select_mut2(selection);
-
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
-        assert!(arr.logical_value(2).is_err());
+        let expected = Array::try_from_iter(["a", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn select_mut_expand_rows() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::from_iter([0, 1, 1, 2]);
+    fn select_expand_rows() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 1, 1, 2])
+            .unwrap();
 
-        arr.select_mut2(selection);
-
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("b"), arr.logical_value(2).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(3).unwrap());
-        assert!(arr.logical_value(4).is_err());
+        let expected = Array::try_from_iter(["a", "b", "b", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn select_mut_existing_selection() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::from_iter([0, 2]);
-
+    fn select_existing_selection() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => ["a", "c"]
-        arr.select_mut2(selection);
+        arr.select(&Arc::new(NopBufferManager), [0, 2]).unwrap();
 
-        let selection = SelectionVector::from_iter([1, 1, 0]);
-        arr.select_mut2(selection);
+        // => ["c", "c", "a"]
+        arr.select(&Arc::new(NopBufferManager), [1, 1, 0]).unwrap();
 
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(2).unwrap());
-        assert!(arr.logical_value(3).is_err());
+        let expected = Array::try_from_iter(["c", "c", "a"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn scalar_value_logical_eq_i32() {
-        let arr = Array::from_iter([1, 2, 3]);
-        let scalar = ScalarValue::Int32(2);
+    fn reset_after_clone_from() {
+        let mut a1 = Array::try_from_iter(["a", "bb", "ccc"]).unwrap();
+        let mut a2 = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
 
-        assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
-        assert!(arr.scalar_value_logically_eq(&scalar, 1).unwrap());
+        a1.clone_from(&NopBufferManager, &mut a2).unwrap();
+
+        let expected = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
+        assert_arrays_eq(&expected, &a1);
+        assert_arrays_eq(&expected, &a2);
+
+        a1.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+
+        // Ensure we can write to it.
+        let mut strings = a1
+            .next_mut()
+            .data
+            .try_as_mut()
+            .unwrap()
+            .try_as_string_view_addressable_mut()
+            .unwrap();
+
+        strings.put(0, "hello");
+        strings.put(1, "world");
+        strings.put(2, "goodbye");
+
+        let expected = Array::try_from_iter(["hello", "world", "goodbye"]).unwrap();
+        assert_arrays_eq(&expected, &a1);
     }
 
     #[test]
-    fn scalar_value_logical_eq_null() {
-        let arr = Array::from_iter([Some(1), None, Some(3)]);
-        let scalar = ScalarValue::Null;
+    fn reset_resets_validity() {
+        let mut a = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
+        assert!(!a.next().validity.all_valid());
 
-        assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
-        assert!(arr.scalar_value_logically_eq(&scalar, 1).unwrap());
+        a.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+        assert!(a.next().validity.all_valid());
     }
 }
