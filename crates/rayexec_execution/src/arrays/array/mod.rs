@@ -357,7 +357,7 @@ where
     /// cheaply cloneable and shared with this array.
     ///
     /// Array capacities and datatypes must be the same for both arrays.
-    pub fn clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
+    pub fn try_clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
         if self.datatype != other.datatype {
             return Err(RayexecError::new(
                 "Attempted clone array from other array with different data types",
@@ -1815,7 +1815,7 @@ mod tests {
         let mut a1 = Array::try_from_iter(["a", "bb", "ccc"]).unwrap();
         let mut a2 = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
 
-        a1.clone_from(&NopBufferManager, &mut a2).unwrap();
+        a1.try_clone_from(&NopBufferManager, &mut a2).unwrap();
 
         let expected = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
         assert_arrays_eq(&expected, &a1);

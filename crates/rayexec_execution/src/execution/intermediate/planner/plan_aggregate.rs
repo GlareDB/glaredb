@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
-use crate::execution::operators::project::{PhysicalProject, ProjectOperation};
+use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -84,7 +84,7 @@ impl IntermediatePipelineBuildState<'_> {
         self.push_intermediate_operator(
             IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
-                    operation: ProjectOperation::new(preproject_exprs),
+                    projections: preproject_exprs,
                 })),
                 partitioning_requirement: None,
             },

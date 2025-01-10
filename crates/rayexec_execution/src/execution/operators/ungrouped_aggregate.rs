@@ -102,7 +102,7 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl ExecutableOperator for PhysicalUngroupedAggregate {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -172,7 +172,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,

@@ -29,7 +29,7 @@ pub struct EmptyPartitionState {
 pub struct PhysicalEmpty;
 
 impl ExecutableOperator for PhysicalEmpty {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -54,7 +54,7 @@ impl ExecutableOperator for PhysicalEmpty {
         Err(RayexecError::new("Cannot push to physical empty"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

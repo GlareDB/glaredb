@@ -91,7 +91,7 @@ pub fn cast_array(
     behavior: CastFailBehavior,
 ) -> Result<()> {
     if arr.datatype() == out.datatype() {
-        out.clone_from(&NopBufferManager, arr)?;
+        out.try_clone_from(&NopBufferManager, arr)?;
         out.select(&Arc::new(NopBufferManager), sel)?;
 
         return Ok(());

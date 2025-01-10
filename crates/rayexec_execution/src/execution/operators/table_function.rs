@@ -53,7 +53,7 @@ impl PhysicalTableFunction {
 }
 
 impl ExecutableOperator for PhysicalTableFunction {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -100,7 +100,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         Err(RayexecError::new("Cannot push to physical table function"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

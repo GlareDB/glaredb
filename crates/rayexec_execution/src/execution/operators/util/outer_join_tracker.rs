@@ -148,7 +148,7 @@ impl LeftOuterJoinDrainState {
                 continue;
             }
 
-            let left_cols = batch.select(Arc::new(selection)).into_arrays();
+            let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
             let right_cols = self
                 .right_types
                 .iter()
@@ -183,7 +183,7 @@ impl LeftOuterJoinDrainState {
                 continue;
             }
 
-            let left_cols = batch.select(Arc::new(selection)).into_arrays();
+            let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
             let right_cols = self
                 .right_types
                 .iter()
@@ -237,7 +237,7 @@ impl RightOuterJoinTracker {
             return Ok(None);
         }
 
-        let right_cols = right.select(Arc::new(selection)).into_arrays();
+        let right_cols = right.select_old(Arc::new(selection)).into_arrays();
 
         let left_null_cols = left_types
             .iter()

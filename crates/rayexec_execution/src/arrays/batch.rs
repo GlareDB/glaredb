@@ -110,6 +110,23 @@ impl Batch {
         })
     }
 
+    /// Clones `other` into self.
+    pub fn try_clone_from(&mut self, other: &mut Self) -> Result<()> {
+        if self.arrays.len() != other.arrays.len() {
+            return Err(RayexecError::new(
+                "Attempted to clone from other batch with different number of arrays",
+            ));
+        }
+
+        for (a, b) in self.arrays.iter_mut().zip(other.arrays.iter_mut()) {
+            a.try_clone_from(&NopBufferManager, b)?;
+        }
+
+        self.set_num_rows(other.num_rows())?;
+
+        Ok(())
+    }
+
     /// Returns a selection that selects rows [0, num_rows).
     pub fn selection<'a>(&self) -> Selection<'a> {
         Selection::Linear { len: self.num_rows }
@@ -129,6 +146,16 @@ impl Batch {
                 .with_field("requested_num_rows", rows));
         }
         self.num_rows = rows;
+
+        Ok(())
+    }
+
+    /// Selects rows from the batch based on `selection`.
+    pub fn select(&mut self, selection: &[usize]) -> Result<()> {
+        for arr in &mut self.arrays {
+            arr.select(&Arc::new(NopBufferManager), selection.iter().copied())?;
+        }
+        self.set_num_rows(selection.len())?;
 
         Ok(())
     }
@@ -210,7 +237,7 @@ impl Batch {
     /// This accepts an Arc selection as it'll be cloned for each array in the
     /// batch.
     #[deprecated]
-    pub fn select(&self, selection: Arc<SelectionVector>) -> Batch {
+    pub fn select_old(&self, selection: Arc<SelectionVector>) -> Batch {
         let cols = self
             .arrays
             .iter()

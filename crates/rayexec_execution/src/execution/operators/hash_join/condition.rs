@@ -106,7 +106,7 @@ impl LeftPrecomputedJoinConditions {
         let mut results = Vec::with_capacity(self.conditions.len());
 
         // Select rows from the right batch.
-        let selected_right = right.select(right_row_sel.clone());
+        let selected_right = right.select_old(right_row_sel.clone());
 
         for condition in &self.conditions {
             let mut left_precomputed = condition

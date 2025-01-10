@@ -141,7 +141,7 @@ impl<S: SinkOperation> SinkOperator<S> {
 }
 
 impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
-    fn create_states(
+    fn create_states2(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -245,7 +245,7 @@ impl<S: SinkOperation> ExecutableOperator for SinkOperator<S> {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,

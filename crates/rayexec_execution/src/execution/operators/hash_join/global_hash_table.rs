@@ -222,10 +222,10 @@ impl GlobalHashTable {
 
             // Get the left columns for this batch.
             let left_batch = self.batches.get(batch_idx).expect("batch to exist");
-            let left_cols = left_batch.select(Arc::new(left_row_sel)).into_arrays();
+            let left_cols = left_batch.select_old(Arc::new(left_row_sel)).into_arrays();
 
             // Get the right.
-            let right_cols = right.select(Arc::new(right_row_sel)).into_arrays();
+            let right_cols = right.select_old(Arc::new(right_row_sel)).into_arrays();
 
             // Create final batch.
             let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
