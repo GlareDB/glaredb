@@ -221,6 +221,7 @@ impl UnaryExecutor {
 
     // TODO: Remove
     /// Executes `op` on every non-null input.
+    #[deprecated]
     pub fn execute2<'a, S, B, Op>(
         array: &'a Array,
         builder: ArrayBuilder<B>,

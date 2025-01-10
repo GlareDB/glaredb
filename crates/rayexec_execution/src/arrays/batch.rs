@@ -12,6 +12,7 @@ use crate::arrays::row::ScalarRow;
 use crate::arrays::selection::SelectionVector;
 
 /// A batch of same-length arrays.
+// TODO: Remove Clone, PartialEq
 #[derive(Debug, Clone, PartialEq)]
 pub struct Batch {
     /// Arrays making up the batch.
@@ -135,6 +136,7 @@ impl Batch {
     /// Concat multiple batches into one.
     ///
     /// Batches are requried to have the same logical schemas.
+    #[deprecated]
     pub fn concat(batches: &[Batch]) -> Result<Self> {
         let num_cols = match batches.first() {
             Some(batch) => batch.num_arrays(),
@@ -177,6 +179,7 @@ impl Batch {
     }
 
     // TODO: Owned variant
+    #[deprecated]
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices
             .iter()
@@ -191,6 +194,7 @@ impl Batch {
     }
 
     // TODO: Remove
+    #[deprecated]
     pub fn slice(&self, offset: usize, count: usize) -> Self {
         let cols = self.arrays.iter().map(|c| c.slice(offset, count)).collect();
         Batch {
@@ -205,6 +209,7 @@ impl Batch {
     ///
     /// This accepts an Arc selection as it'll be cloned for each array in the
     /// batch.
+    #[deprecated]
     pub fn select(&self, selection: Arc<SelectionVector>) -> Batch {
         let cols = self
             .arrays
@@ -224,6 +229,7 @@ impl Batch {
     }
 
     /// Get the row at some index.
+    #[deprecated]
     pub fn row(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {
             return None;

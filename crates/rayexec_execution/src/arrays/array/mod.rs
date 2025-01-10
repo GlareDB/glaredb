@@ -791,6 +791,7 @@ impl Array {
     /// Takes into account any existing selection. This allows for repeated
     /// selection (filtering) against the same array.
     // TODO: Add test for selecting on logically empty array.
+    #[deprecated]
     pub fn select_mut2(&mut self, selection: impl Into<LogicalSelection>) {
         let selection = selection.into();
         match self.selection_vector() {
