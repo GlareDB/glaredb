@@ -304,10 +304,7 @@ impl<'a> Parser<'a> {
     /// Parse any of the provided keywords, returning which keyword was parsed.
     pub(crate) fn parse_one_of_keywords(&mut self, keywords: &[Keyword]) -> Option<Keyword> {
         let idx = self.idx;
-        let tok = match self.next() {
-            Some(tok) => tok,
-            None => return None,
-        };
+        let tok = self.next()?;
 
         for &kw in keywords {
             match &tok.token {

@@ -767,8 +767,8 @@ impl<'a> ExpressionResolver<'a> {
         over: ast::WindowSpec<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::WindowSpec<ResolvedMeta>> {
-        async fn resolve_window_frame_bound<'a>(
-            resolver: &ExpressionResolver<'a>,
+        async fn resolve_window_frame_bound(
+            resolver: &ExpressionResolver<'_>,
             bound: ast::WindowFrameBound<Raw>,
             resolve_context: &mut ResolveContext,
         ) -> Result<ast::WindowFrameBound<ResolvedMeta>> {
