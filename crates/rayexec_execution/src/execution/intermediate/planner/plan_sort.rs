@@ -32,12 +32,6 @@ impl IntermediatePipelineBuildState<'_> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
-        // Resize input batches.
-        //
-        // The local sort is going to be converting things into a row
-        // represenations so better to do that on large batches.
-        self.push_batch_resizer(id_gen)?;
-
         // Partition-local sorting.
         let operator = IntermediateOperator {
             operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(

@@ -1,7 +1,6 @@
 //! Implementations of physical operators in an execution pipeline.
 
 pub mod analyze;
-pub mod batch_resizer;
 pub mod copy_to;
 pub mod create_schema;
 pub mod create_table;
@@ -39,7 +38,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;
 
-use batch_resizer::{BatchResizerPartitionState, PhysicalBatchResizer};
 use copy_to::PhysicalCopyTo;
 use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
 use create_table::PhysicalCreateTable;
@@ -137,7 +135,6 @@ pub enum PartitionState {
     CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
     Empty(EmptyPartitionState),
-    BatchResizer(BatchResizerPartitionState),
     None,
 }
 
@@ -344,7 +341,6 @@ pub enum PhysicalOperator {
     CreateView(PhysicalCreateView),
     Drop(PhysicalDrop),
     Empty(PhysicalEmpty),
-    BatchResizer(PhysicalBatchResizer),
 }
 
 impl ExecutableOperator for PhysicalOperator {
@@ -383,7 +379,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.create_states(context, partitions),
             Self::Drop(op) => op.create_states(context, partitions),
             Self::Empty(op) => op.create_states(context, partitions),
-            Self::BatchResizer(op) => op.create_states(context, partitions),
         }
     }
 
@@ -428,7 +423,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Drop(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Empty(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::BatchResizer(op) => op.poll_push(cx, partition_state, operator_state, batch),
         }
     }
 
@@ -474,7 +468,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Drop(op) => op.poll_finalize_push(cx, partition_state, operator_state),
             Self::Empty(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::BatchResizer(op) => op.poll_finalize_push(cx, partition_state, operator_state),
         }
     }
 
@@ -514,7 +507,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Drop(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Empty(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::BatchResizer(op) => op.poll_pull(cx, partition_state, operator_state),
         }
     }
 }
@@ -551,7 +543,6 @@ impl Explainable for PhysicalOperator {
             Self::CreateView(op) => op.explain_entry(conf),
             Self::Drop(op) => op.explain_entry(conf),
             Self::Empty(op) => op.explain_entry(conf),
-            Self::BatchResizer(op) => op.explain_entry(conf),
         }
     }
 }
