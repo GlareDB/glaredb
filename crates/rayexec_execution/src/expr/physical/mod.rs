@@ -13,7 +13,7 @@ use std::fmt;
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
-use evaluator::ExpressionState;
+use evaluator::{ExpressionEvaluator, ExpressionState};
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
@@ -57,14 +57,16 @@ impl PhysicalScalarExpression {
         }
     }
 
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        match self {
-            Self::Case(e) => e.eval2(batch),
-            Self::Cast(e) => e.eval2(batch),
-            Self::Column(e) => e.eval2(batch),
-            Self::Literal(e) => e.eval2(batch),
-            Self::ScalarFunction(e) => e.eval2(batch),
-        }
+    // TODO: Remove, needs to happen after operator revamp.
+    pub fn eval(&self, batch: &Batch) -> Result<Array> {
+        unimplemented!()
+        // match self {
+        //     Self::Case(e) => e.eval2(batch),
+        //     Self::Cast(e) => e.eval2(batch),
+        //     Self::Column(e) => e.eval2(batch),
+        //     Self::Literal(e) => e.eval2(batch),
+        //     Self::ScalarFunction(e) => e.eval2(batch),
+        // }
     }
 
     /// Produce a selection vector for the batch using this expression.

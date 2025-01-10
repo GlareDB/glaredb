@@ -44,18 +44,6 @@ impl PhysicalColumnExpr {
 
         Ok(())
     }
-
-    pub fn eval2<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        let col = batch.array(self.idx).ok_or_else(|| {
-            RayexecError::new(format!(
-                "Tried to get column at index {} in a batch with {} columns",
-                self.idx,
-                batch.arrays().len()
-            ))
-        })?;
-
-        Ok(Cow::Borrowed(col))
-    }
 }
 
 impl fmt::Display for PhysicalColumnExpr {

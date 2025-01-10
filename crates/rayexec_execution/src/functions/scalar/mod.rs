@@ -104,7 +104,7 @@ impl Hash for PlannedScalarFunction {
 }
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute2(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute2(&self, _inputs: &[&Array]) -> Result<Array> {
         unimplemented!()
     }
 
@@ -118,9 +118,7 @@ pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
     ///
     /// The batch's `selection` method should be called to determine which rows
     /// should be looked at during function eval.
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        unimplemented!()
-    }
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()>;
 }
 
 impl Clone for Box<dyn ScalarFunctionImpl> {

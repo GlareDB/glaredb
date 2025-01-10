@@ -69,13 +69,6 @@ impl PhysicalCastExpr {
 
         Ok(())
     }
-
-    pub fn eval2<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        let input = self.expr.eval(batch)?;
-        unimplemented!()
-        // let out = cast_array(input.as_ref(), self.to.clone(), CastFailBehavior::Error)?;
-        // Ok(Cow::Owned(out))
-    }
 }
 
 impl fmt::Display for PhysicalCastExpr {

@@ -141,11 +141,11 @@ impl ExecutableOperator for PhysicalUnnest {
 
         // Compute inputs. These will be stored until we've processed all rows.
         for (col_idx, expr) in self.project_expressions.iter().enumerate() {
-            state.project_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.project_inputs[col_idx] = expr.eval(&batch)?;
         }
 
         for (col_idx, expr) in self.unnest_expressions.iter().enumerate() {
-            state.unnest_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.unnest_inputs[col_idx] = expr.eval(&batch)?;
         }
 
         state.input_num_rows = batch.num_rows();

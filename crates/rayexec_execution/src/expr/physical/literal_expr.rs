@@ -46,11 +46,6 @@ impl PhysicalLiteralExpr {
 
         Ok(())
     }
-
-    pub fn eval2<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        let arr = self.literal.as_array(batch.num_rows())?;
-        Ok(Cow::Owned(arr))
-    }
 }
 
 impl fmt::Display for PhysicalLiteralExpr {

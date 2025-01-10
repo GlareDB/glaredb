@@ -65,29 +65,6 @@ impl PhysicalScalarFunctionExpr {
 
         Ok(())
     }
-
-    pub fn eval2<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|input| input.eval(batch))
-            .collect::<Result<Vec<_>>>()?;
-
-        let refs: Vec<_> = inputs.iter().map(|a| a.as_ref()).collect(); // Can I not?
-        let mut out = self.function.function_impl.execute2(&refs)?;
-
-        // If function is provided no input, it's expected to return an
-        // array of length 1. We extend the array here so that it's the
-        // same size as the rest.
-        //
-        // TODO: Could just extend the selection vector too.
-        if refs.is_empty() {
-            let scalar = out.logical_value(0)?;
-            out = scalar.as_array(batch.num_rows())?;
-        }
-
-        Ok(Cow::Owned(out))
-    }
 }
 
 impl fmt::Display for PhysicalScalarFunctionExpr {

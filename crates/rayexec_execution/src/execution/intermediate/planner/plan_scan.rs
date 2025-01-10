@@ -95,10 +95,7 @@ impl IntermediatePipelineBuildState<'_> {
                 .context("Failed to plan expressions for values")?;
             let arrs = exprs
                 .into_iter()
-                .map(|expr| {
-                    let arr = expr.eval(&dummy_batch)?;
-                    Ok(arr.into_owned())
-                })
+                .map(|expr| expr.eval(&dummy_batch))
                 .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);
         }

@@ -80,7 +80,7 @@ impl LeftPrecomputedJoinConditions {
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
             let precomputed = condition.left.eval(left)?;
-            condition.left_precomputed.push(precomputed.into_owned())
+            condition.left_precomputed.push(precomputed)
         }
 
         Ok(())
@@ -127,7 +127,7 @@ impl LeftPrecomputedJoinConditions {
             let result = condition
                 .function
                 .function_impl
-                .execute2(&[&left_precomputed, right_arr.as_ref()])?;
+                .execute2(&[&left_precomputed, &right_arr])?;
 
             results.push(result);
         }

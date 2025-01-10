@@ -92,10 +92,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         let inputs = self
             .function_inputs
             .iter()
-            .map(|expr| {
-                let arr = expr.eval(&batch)?;
-                Ok(arr.into_owned())
-            })
+            .map(|expr| expr.eval(&batch))
             .collect::<Result<Vec<_>>>()?;
 
         let inputs = Batch::try_from_arrays(inputs)?;
@@ -115,10 +112,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                 let additional_outputs = self
                     .projected_outputs
                     .iter()
-                    .map(|expr| {
-                        let arr = expr.eval(&batch)?;
-                        Ok(arr.into_owned())
-                    })
+                    .map(|expr| expr.eval(&batch))
                     .collect::<Result<Vec<_>>>()?;
 
                 state.additional_outputs = additional_outputs;
