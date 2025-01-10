@@ -1,8 +1,7 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::ExpressionState;
 use crate::arrays::array::buffer_manager::NopBufferManager;

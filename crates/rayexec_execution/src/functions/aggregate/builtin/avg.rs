@@ -6,18 +6,17 @@ use num_traits::AsPrimitive;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
-use crate::arrays::array::Array;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
+use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
+use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
-    primitive_finalize,
+    drain,
+    unary_update,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -134,42 +133,23 @@ where
     D::Primitive: Into<i128>,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        let datatype = self.datatype.clone();
+        let m = self
+            .datatype
+            .try_get_decimal_type_meta()
+            .unwrap_or(DecimalTypeMeta::new(D::MAX_PRECISION, D::DEFAULT_SCALE)); // TODO: Should rework to return the error instead.
 
-        let state_finalize = move |states: &mut [AvgStateDecimal<D::Primitive>]| {
-            let mut builder = ArrayBuilder {
-                datatype: DataType::Float64,
-                buffer: PrimitiveBuffer::with_len(states.len()),
-            };
+        let scale = f64::powi(10.0, m.scale.abs() as i32);
 
-            let mut validities = Bitmap::new_with_all_true(states.len());
-
-            let m = datatype.clone().try_get_decimal_type_meta()?;
-            let scale = f64::powi(10.0, m.scale.abs() as i32);
-
-            for (idx, state) in states.iter_mut().enumerate() {
-                let ((sum, count), valid) = state.finalize()?;
-
-                if !valid {
-                    validities.set_unchecked(idx, false);
-                    continue;
-                }
-
-                let val = (sum as f64) / (count as f64 * scale);
-                builder.buffer.put(idx, &val);
-            }
-
-            Ok(Array::new_with_validity_and_array_data(
-                builder.datatype,
-                validities,
-                builder.buffer.into_data(),
-            ))
-        };
-
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
-            AvgStateDecimal::<D::Primitive>::default,
-            state_finalize,
-        )
+        Box::new(TypedAggregateGroupStates::new(
+            move || AvgStateDecimal::<D::Primitive> {
+                scale,
+                sum: 0,
+                count: 0,
+                _input: PhantomData,
+            },
+            unary_update::<D::Storage, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -178,10 +158,11 @@ pub struct AvgFloat64Impl;
 
 impl AggregateFunctionImpl for AvgFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             AvgStateF64::<f64, f64>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -190,38 +171,52 @@ pub struct AvgInt64Impl;
 
 impl AggregateFunctionImpl for AvgInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             AvgStateF64::<i64, i128>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalI64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct AvgStateDecimal<I> {
+    /// Scale to use when finalizing the physical decimal value.
+    scale: f64,
     sum: i128,
     count: i64,
     _input: PhantomData<I>,
 }
 
-impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStateDecimal<I> {
+impl<I> AggregateState<&I, f64> for AvgStateDecimal<I>
+where
+    I: Into<i128> + Copy + Debug,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, input: I) -> Result<()> {
+    fn update(&mut self, &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<((i128, i64), bool)> {
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
         if self.count == 0 {
-            return Ok(((0, 0), false));
+            output.put_null();
+            return Ok(());
         }
-        Ok(((self.sum, self.count), true))
+
+        let val = (self.sum as f64) / (self.count as f64 * self.scale);
+        output.put(&val);
+
+        Ok(())
     }
 }
 
@@ -232,9 +227,9 @@ struct AvgStateF64<I, T> {
     _input: PhantomData<I>,
 }
 
-impl<I, T> AggregateState<I, f64> for AvgStateF64<I, T>
+impl<I, T> AggregateState<&I, f64> for AvgStateF64<I, T>
 where
-    I: Into<T> + Default + Debug,
+    I: Into<T> + Copy + Default + Debug,
     T: AsPrimitive<f64> + AddAssign + Debug + Default,
 {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
@@ -243,17 +238,23 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: I) -> Result<()> {
+    fn update(&mut self, &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
         if self.count == 0 {
-            return Ok((0.0, false));
+            output.put_null();
+            return Ok(());
         }
         let sum: f64 = self.sum.as_();
-        Ok((sum / self.count as f64, true))
+        output.put(&sum);
+
+        Ok(())
     }
 }

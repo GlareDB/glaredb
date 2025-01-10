@@ -1,16 +1,10 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::check_validity;
 use crate::arrays::array::flat::FlatArrayView;
 use crate::arrays::array::physical_type::{Addressable, MutablePhysicalStorage, PhysicalStorage};
 use crate::arrays::array::Array;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::scalar::validate_logical_len;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
-use crate::arrays::selection;
-use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryExecutor;

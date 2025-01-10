@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
@@ -11,10 +10,8 @@ use crate::arrays::array::physical_type::PhysicalBool;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::{interleave, SelectExecutor, UnaryExecutor};
-use crate::arrays::selection::SelectionVector;
+use crate::arrays::executor::scalar::UnaryExecutor;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalWhenThen {

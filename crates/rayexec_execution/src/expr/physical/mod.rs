@@ -7,13 +7,12 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-use std::borrow::Cow;
 use std::fmt;
 
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
-use evaluator::{ExpressionEvaluator, ExpressionState};
+use evaluator::ExpressionState;
 use literal_expr::PhysicalLiteralExpr;
 use rayexec_error::{not_implemented, OptionExt, Result};
 use scalar_function_expr::PhysicalScalarFunctionExpr;
@@ -58,6 +57,7 @@ impl PhysicalScalarExpression {
     }
 
     // TODO: Remove, needs to happen after operator revamp.
+    #[deprecated]
     pub fn eval(&self, batch: &Batch) -> Result<Array> {
         unimplemented!()
         // match self {
@@ -73,6 +73,7 @@ impl PhysicalScalarExpression {
     ///
     /// The selection vector will include row indices where the expression
     /// evaluates to true.
+    #[deprecated]
     pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
         let selected = self.eval(batch)?;
 

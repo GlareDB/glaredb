@@ -3,14 +3,16 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
-    primitive_finalize,
+    drain,
+    unary_update,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -69,10 +71,11 @@ pub struct StddevPopImpl;
 
 impl AggregateFunctionImpl for StddevPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             VarianceState::<StddevPopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -128,10 +131,11 @@ pub struct StddevSampImpl;
 
 impl AggregateFunctionImpl for StddevSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             VarianceState::<StddevSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -183,10 +187,11 @@ pub struct VarPopImpl;
 
 impl AggregateFunctionImpl for VarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             VarianceState::<VariancePopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -238,28 +243,29 @@ pub struct VarSampImpl;
 
 impl AggregateFunctionImpl for VarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             VarianceState::<VarianceSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
 pub trait VarianceFinalize: Sync + Send + Debug + Default + 'static {
-    fn finalize(count: i64, mean: f64, m2: f64) -> (f64, bool);
+    fn finalize(count: i64, mean: f64, m2: f64) -> Option<f64>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct StddevPopFinalize;
 
 impl VarianceFinalize for StddevPopFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 => (0.0, false),
-            1 => (0.0, true),
+            0 => None,
+            1 => Some(0.0),
             _ => {
                 let v = f64::sqrt(m2 / count as f64);
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -269,12 +275,12 @@ impl VarianceFinalize for StddevPopFinalize {
 pub struct StddevSampFinalize;
 
 impl VarianceFinalize for StddevSampFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 | 1 => (0.0, false),
+            0 | 1 => None,
             _ => {
                 let v = f64::sqrt(m2 / (count - 1) as f64);
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -284,12 +290,12 @@ impl VarianceFinalize for StddevSampFinalize {
 pub struct VarianceSampFinalize;
 
 impl VarianceFinalize for VarianceSampFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 | 1 => (0.0, false),
+            0 | 1 => None,
             _ => {
                 let v = m2 / (count - 1) as f64;
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -299,13 +305,13 @@ impl VarianceFinalize for VarianceSampFinalize {
 pub struct VariancePopFinalize;
 
 impl VarianceFinalize for VariancePopFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 => (0.0, false),
-            1 => (0.0, true),
+            0 => None,
+            1 => Some(0.0),
             _ => {
                 let v = m2 / count as f64;
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -319,7 +325,16 @@ pub struct VarianceState<F: VarianceFinalize> {
     _finalize: PhantomData<F>,
 }
 
-impl<F> AggregateState<f64, f64> for VarianceState<F>
+impl<F> VarianceState<F>
+where
+    F: VarianceFinalize,
+{
+    pub fn finalize_value(&self) -> Option<f64> {
+        F::finalize(self.count, self.mean, self.m2)
+    }
+}
+
+impl<F> AggregateState<&f64, f64> for VarianceState<F>
 where
     F: VarianceFinalize,
 {
@@ -343,7 +358,7 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: f64) -> Result<()> {
+    fn update(&mut self, &input: &f64) -> Result<()> {
         self.count += 1;
         let delta = input - self.mean;
         self.mean += delta / self.count as f64;
@@ -353,7 +368,14 @@ where
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        Ok(F::finalize(self.count, self.mean, self.m2))
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
+        match F::finalize(self.count, self.mean, self.m2) {
+            Some(val) => output.put(&val),
+            None => output.put_null(),
+        }
+        Ok(())
     }
 }
