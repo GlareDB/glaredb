@@ -88,7 +88,14 @@ impl PrettyTable {
             Some(batch) => batch
                 .arrays()
                 .iter()
-                .map(|col| ColumnValues::try_from_array(col, Some(0..NUM_VALS_FOR_AVG), None))
+                .map(|col| {
+                    ColumnValues::try_from_array(
+                        col,
+                        Some(0..NUM_VALS_FOR_AVG),
+                        batch.num_rows(),
+                        None,
+                    )
+                })
                 .collect::<Result<Vec<_>>>()?,
             None => vec![ColumnValues::default(); headers.len()],
         };
@@ -263,6 +270,7 @@ impl PrettyTable {
                     Some(ColumnValues::try_from_array(
                         c,
                         Some(range.clone()),
+                        batch.num_rows(),
                         format.widths[idx],
                     ))
                 }
@@ -549,11 +557,12 @@ impl ColumnValues {
     /// Accepts an optional range for converting only part of the array to
     /// strings.
     ///
-    /// If the upper bound in the range exceeds the length of the array, it'll
-    /// be clamped to the length of the array.
+    /// If the upper bound in the range exceeds `num_rows`, it'll be clamped to
+    /// `num_rows`.
     pub fn try_from_array(
         array: &Array,
         range: Option<Range<usize>>,
+        num_rows: usize,
         max_width: Option<usize>,
     ) -> Result<Self> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
@@ -564,15 +573,15 @@ impl ColumnValues {
 
         let range = match range {
             Some(range) => {
-                if range.start > array.logical_len() {
+                if range.start > num_rows {
                     0..0
-                } else if range.end > array.logical_len() {
-                    range.start..array.logical_len()
+                } else if range.end > num_rows {
+                    range.start..num_rows
                 } else {
                     range
                 }
             }
-            None => 0..array.logical_len(),
+            None => 0..num_rows,
         };
 
         let mut row_heights = HashMap::new();
@@ -908,13 +917,15 @@ mod tests {
             Field::new("b", DataType::Int32, true),
         ]);
 
-        let batch = Batch::try_from_arrays(vec![
-            Array::try_from_iter([Some("a")]).unwrap(),
-            Array::try_from_iter([Some(1)]).unwrap(),
-        ])
-        .unwrap();
-
-        let batches = vec![batch; 4];
+        let batches: Vec<_> = (0..4)
+            .map(|_| {
+                Batch::try_from_arrays(vec![
+                    Array::try_from_iter([Some("a")]).unwrap(),
+                    Array::try_from_iter([Some(1)]).unwrap(),
+                ])
+                .unwrap()
+            })
+            .collect();
 
         let table = pretty_format_batches(&schema, &batches, 80, None).unwrap();
 
@@ -1309,6 +1320,76 @@ mod tests {
             "└─────────────────┘",
         ];
 
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn batch_with_selected_rows() {
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]);
+
+        let mut batch = Batch::try_from_arrays(vec![
+            Array::try_from_iter([Some("1"), Some("2")]).unwrap(),
+            Array::try_from_iter([Some(1), Some(2)]).unwrap(),
+        ])
+        .unwrap();
+
+        batch.select(&[0, 0, 1, 1, 0, 0]).unwrap();
+        println!("LEN: {}", batch.num_rows());
+
+        let table = pretty_format_batches(&schema, &[batch], 40, None).unwrap();
+
+        let expected = [
+            "┌──────┬───────┐",
+            "│ a    │ b     │",
+            "│ Utf8 │ Int32 │",
+            "├──────┼───────┤",
+            "│ 1    │     1 │",
+            "│ 1    │     1 │",
+            "│ 2    │     2 │",
+            "│ 2    │     2 │",
+            "│ 1    │     1 │",
+            "│ 1    │     1 │",
+            "└──────┴───────┘",
+        ];
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn batch_with_selected_rows_exceeds_max_rows() {
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]);
+
+        let mut batch = Batch::try_from_arrays(vec![
+            Array::try_from_iter([Some("1"), Some("2")]).unwrap(),
+            Array::try_from_iter([Some(1), Some(2)]).unwrap(),
+        ])
+        .unwrap();
+
+        batch.select(&[0, 0, 1, 1, 0, 0]).unwrap();
+        println!("LEN: {}", batch.num_rows());
+
+        let table = pretty_format_batches(&schema, &[batch], 40, Some(5)).unwrap();
+
+        let expected = [
+            "┌────────┬────────┐",
+            "│ a      │ b      │",
+            "│ Utf8   │ Int32  │",
+            "├────────┼────────┤",
+            "│ 1      │      1 │",
+            "│ 1      │      1 │",
+            "│ 2      │      2 │",
+            "│ …      │      … │",
+            "│ 1      │      1 │",
+            "│ 1      │      1 │",
+            "├────────┴────────┤",
+            "│ 6 rows, 5 shown │",
+            "└─────────────────┘",
+        ];
         assert_eq_print(expected.join("\n"), table.to_string())
     }
 }

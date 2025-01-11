@@ -423,6 +423,7 @@ where
         }
 
         let flat = self.flat_view()?;
+        let idx = flat.selection.get(idx).expect("Index to be in bounds");
 
         if !flat.validity.is_valid(idx) {
             return Ok(ScalarValue::Null);
@@ -1821,6 +1822,34 @@ mod tests {
 
         let expected = Array::try_from_iter(["c", "c", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn get_value_simple() {
+        let arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let val = arr.get_value(1).unwrap();
+        assert_eq!(ScalarValue::Utf8("b".into()), val);
+    }
+
+    #[test]
+    fn get_value_null() {
+        let arr = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
+
+        let val = arr.get_value(0).unwrap();
+        assert_eq!(ScalarValue::Utf8("a".into()), val);
+
+        let val = arr.get_value(1).unwrap();
+        assert_eq!(ScalarValue::Null, val);
+    }
+
+    #[test]
+    fn get_value_with_selection() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        // => ["a", "c"]
+        arr.select(&Arc::new(NopBufferManager), [0, 2]).unwrap();
+        let val = arr.get_value(1).unwrap();
+
+        assert_eq!(ScalarValue::Utf8("c".into()), val);
     }
 
     #[test]

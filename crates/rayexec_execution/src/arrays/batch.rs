@@ -140,11 +140,12 @@ impl Batch {
     ///
     /// Errors if `rows` is greater than the capacity of the batch.
     pub fn set_num_rows(&mut self, rows: usize) -> Result<()> {
-        if rows > self.capacity {
-            return Err(RayexecError::new("Number of rows exceeds capacity")
-                .with_field("capacity", self.capacity)
-                .with_field("requested_num_rows", rows));
-        }
+        // TODO: Need to solidify what capacity should be with dictionaries.
+        // if rows > self.capacity {
+        //     return Err(RayexecError::new("Number of rows exceeds capacity")
+        //         .with_field("capacity", self.capacity)
+        //         .with_field("requested_num_rows", rows));
+        // }
         self.num_rows = rows;
 
         Ok(())
