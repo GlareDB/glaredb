@@ -55,6 +55,7 @@ impl<'a> Formatter<'a> {
     /// the array.
     ///
     /// Returns `None` if the idx is out of bounds.
+    #[deprecated]
     pub fn format_array_value<'b>(
         &self,
         array: &'b Array,
@@ -62,6 +63,11 @@ impl<'a> Formatter<'a> {
     ) -> Result<FormattedScalarValue<'_, 'b>> {
         let scalar = array.logical_value(idx)?;
         Ok(self.format_scalar_value(scalar))
+    }
+
+    /// Writes and array value at row index `row` into `buf`.
+    pub fn write_array_value(buf: impl fmt::Write, array: &Array, row: usize) -> Result<()> {
+        unimplemented!()
     }
 }
 

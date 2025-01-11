@@ -1,53 +1,70 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecuteInOutState,
     OperatorState,
+    PartitionAndOperatorStates,
     PartitionState,
+    PollExecute,
     PollFinalize,
-    PollPull,
-    PollPush,
 };
-use crate::arrays::array::Array;
+use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::batch::Batch;
-use crate::arrays::selection::SelectionVector;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
 
 #[derive(Debug)]
 pub struct TableInOutPartitionState {
+    /// State for the table function.
     function_state: Box<dyn inout::TableInOutPartitionState>,
-    /// Additional outputs that will be included on the output batch.
-    additional_outputs: Vec<Array>,
+    /// Batch for holding a single row from the input when we're projecting out
+    /// the input.
+    ///
+    /// Only used if projecting input.
+    row_batch: Batch,
+    /// Current row we're working on.
+    ///
+    /// Only used if projecting input.
+    curr_row_idx: usize,
+    /// If we should set up the next row.
+    ///
+    /// Only used if projecting input.
+    needs_next_row: bool,
 }
 
 #[derive(Debug)]
 pub struct PhysicalTableInOut {
     /// The table function.
     pub function: PlannedTableFunction,
-    /// Input expressions to the table function.
-    pub function_inputs: Vec<PhysicalScalarExpression>,
-    /// Output projections.
-    pub projected_outputs: Vec<PhysicalScalarExpression>,
+    /// Data types for the input into this operator.
+    pub input_types: Vec<DataType>,
+    /// Column expressions for columns that should be projected out of this
+    /// operator alongside the results of the table function.
+    ///
+    /// If empty, then the only output for this operator will be the result of
+    /// the table function.
+    ///
+    /// Projected inputs are ordered after the outputs of the table in/out
+    /// output.
+    pub projected_inputs: Vec<PhysicalColumnExpr>,
 }
 
 impl ExecutableOperator for PhysicalTableInOut {
-    fn create_states2(
+    fn create_states(
         &self,
         _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        let partitions = partitions[0];
-
+        _batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
         let states = match &self.function.function_impl {
-            TableFunctionImpl::InOut(function) => function.create_states(partitions)?,
+            TableFunctionImpl::InOut(inout) => inout.create_states(partitions)?,
             _ => {
                 return Err(RayexecError::new(format!(
                     "'{}' is not a table in/out function",
@@ -56,69 +73,113 @@ impl ExecutableOperator for PhysicalTableInOut {
             }
         };
 
-        let states: Vec<_> = states
+        let states = states
             .into_iter()
             .map(|state| {
-                PartitionState::TableInOut(TableInOutPartitionState {
+                Ok(PartitionState::TableInOut(TableInOutPartitionState {
                     function_state: state,
-                    additional_outputs: Vec::new(),
-                })
+                    row_batch: Batch::try_new(self.input_types.clone(), 1)?,
+                    curr_row_idx: 0,
+                    needs_next_row: true,
+                }))
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: states,
-            },
+        Ok(PartitionAndOperatorStates::Branchless {
+            operator_state: OperatorState::None,
+            partition_states: states,
         })
     }
 
-    fn poll_push(
+    fn poll_execute(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
+            other => panic!("invalid state: {other:?}"),
         };
 
-        // TODO: Don't do this.
-        let orig = batch.clone();
+        if self.projected_inputs.is_empty() {
+            // Simple case, just delegate to table function.
+            return state.function_state.poll_execute(cx, inout);
+        }
 
-        let inputs = self
-            .function_inputs
-            .iter()
-            .map(|expr| expr.eval(&batch))
-            .collect::<Result<Vec<_>>>()?;
+        // Otherwise we need to handle each row separately to properly expand
+        // out the projected input.
+        let output = inout.output.required("output batch required")?;
+        let input = inout.input.required("input batch required")?;
 
-        let inputs = Batch::try_from_arrays(inputs)?;
+        loop {
+            println!("LOOP");
+            if state.needs_next_row {
+                println!("GETTING NEXT ROW: {}", state.curr_row_idx);
 
-        // Try to push first to avoid overwriting any buffered additional
-        // outputs.
-        //
-        // If we get a Pending, we need to return early with the original batch.
-        //
-        // TODO: Remove needing to do this, the clones should be cheap, but the
-        // expression execution is wasteful.
-        match state.function_state.poll_push(cx, inputs)? {
-            PollPush::Pending(_) => Ok(PollPush::Pending(orig)),
-            other => {
-                // Batch was pushed to the function state, compute additional
-                // outputs.
-                let additional_outputs = self
-                    .projected_outputs
-                    .iter()
-                    .map(|expr| expr.eval(&batch))
-                    .collect::<Result<Vec<_>>>()?;
+                if state.curr_row_idx >= input.num_rows() {
+                    // Needs new input batch.
+                    state.curr_row_idx = 0;
+                    return Ok(PollExecute::NeedsMore);
+                }
 
-                state.additional_outputs = additional_outputs;
+                // "Copy" row we're working into intermediate batch.
+                for (input_arr, buf_arr) in input
+                    .arrays
+                    .iter_mut()
+                    .zip(state.row_batch.arrays.iter_mut())
+                {
+                    buf_arr.try_clone_from(&NopBufferManager, input_arr)?;
+                }
 
-                Ok(other)
+                state.row_batch.select(&[state.curr_row_idx])?;
+                state.needs_next_row = false;
+                state.curr_row_idx += 1;
             }
+
+            // Call table func with an input batch containing only a single row.
+            let poll = state.function_state.poll_execute(
+                cx,
+                ExecuteInOutState {
+                    input: Some(&mut state.row_batch),
+                    output: Some(output),
+                },
+            )?;
+
+            if poll == PollExecute::NeedsMore {
+                // Need to go to next row for meaningful output.
+                state.needs_next_row = true;
+                continue;
+            }
+
+            println!("POLLED");
+
+            // Otherwise we got output corresponding to a single row. Now add in
+            // the projected inputs and extend out to the proper length.
+            //
+            // Inputs are located at the end of the output batch.
+            let num_rows = output.num_rows();
+            let start_idx = output.arrays.len() - self.projected_inputs.len();
+
+            for (rel_idx, col_expr) in self.projected_inputs.iter().enumerate() {
+                let out_idx = start_idx + rel_idx;
+
+                let input_arr = &mut state.row_batch.arrays[col_expr.idx];
+                let output_arr = &mut output.arrays[out_idx];
+                output_arr.reset_for_write(&Arc::new(NopBufferManager))?;
+
+                // TODO: `try_clone_from` should be used here instead, but
+                // currently 'selecting' a managed dictionary doesn't work
+                // (errors due to mutability support).
+                input_arr.copy_rows([(0, 0)], output_arr)?;
+                output_arr.select(
+                    &Arc::new(NopBufferManager),
+                    std::iter::repeat(0).take(num_rows),
+                )?;
+            }
+
+            return Ok(poll);
         }
     }
 
@@ -133,54 +194,196 @@ impl ExecutableOperator for PhysicalTableInOut {
             other => panic!("invalid state: {other:?}"),
         };
 
-        state.function_state.poll_finalize_push(cx)
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        let state = match partition_state {
-            PartitionState::TableInOut(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
-        match state.function_state.poll_pull(cx)? {
-            inout::InOutPollPull::Batch { batch, row_nums } => {
-                // We got a batch, append additional outputs according to
-                // returned row numbers.
-                if batch.num_rows() != row_nums.len() {
-                    return Err(RayexecError::new("Row number mismatch").with_fields([
-                        ("batch_num_rows", batch.num_rows()),
-                        ("row_nums_len", row_nums.len()),
-                    ]));
-                }
-
-                let selection = Arc::new(SelectionVector::from(row_nums));
-
-                let mut arrays = batch.into_arrays();
-                arrays.reserve(state.additional_outputs.len());
-
-                for additional in &state.additional_outputs {
-                    let mut additional = additional.clone();
-                    additional.select_mut2(selection.clone());
-                    arrays.push(additional);
-                }
-
-                let new_batch = Batch::try_from_arrays(arrays)?;
-
-                Ok(PollPull::Computed(new_batch.into()))
-            }
-            inout::InOutPollPull::Pending => Ok(PollPull::Pending),
-            inout::InOutPollPull::Exhausted => Ok(PollPull::Exhausted),
-        }
+        state.function_state.poll_finalize(cx)
     }
 }
 
 impl Explainable for PhysicalTableInOut {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("TableInOut")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::array::physical_type::PhysicalI64;
+    use crate::arrays::array::Array;
+    use crate::arrays::testutil::assert_batches_eq;
+    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
+    use crate::expr::column_expr::ColumnExpr;
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::expr::physical::PhysicalScalarExpression;
+    use crate::expr::Expression;
+    use crate::functions::table::builtin::series::{GenerateSeries, GenerateSeriesInOutPlanner};
+    use crate::functions::table::{InOutPlanner, TableFunction};
+    use crate::logical::binder::table_list::TableList;
+
+    fn plan_generate_series() -> PlannedTableFunction {
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int64, DataType::Int64, DataType::Int64],
+                vec!["start".to_string(), "stop".to_string(), "step".to_string()],
+            )
+            .unwrap();
+
+        GenerateSeriesInOutPlanner
+            .plan(
+                &table_list,
+                vec![
+                    Expression::Column(ColumnExpr {
+                        table_scope: table_ref,
+                        column: 0,
+                    }),
+                    Expression::Column(ColumnExpr {
+                        table_scope: table_ref,
+                        column: 1,
+                    }),
+                    Expression::Column(ColumnExpr {
+                        table_scope: table_ref,
+                        column: 2,
+                    }),
+                ],
+                HashMap::new(),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn inout_no_input_project() {
+        let wrapper = OperatorWrapper::new(PhysicalTableInOut {
+            function: plan_generate_series(),
+            input_types: vec![DataType::Int64; 3],
+            projected_inputs: Vec::new(),
+        });
+
+        let (op_state, mut part_states) = wrapper
+            .operator
+            .create_states(&test_database_context(), 1024, 1)
+            .unwrap()
+            .branchless_into_states()
+            .unwrap();
+
+        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+        // generate_series(4, 8, 2)
+        // generate_series(5, 6, 1)
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter([4_i64, 5]).unwrap(),
+            Array::try_from_iter([8_i64, 6]).unwrap(),
+            Array::try_from_iter([2_i64, 1]).unwrap(),
+        ])
+        .unwrap();
+
+        let poll = wrapper
+            .poll_execute(
+                &mut part_states[0],
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected =
+            Batch::try_from_arrays([Array::try_from_iter([4_i64, 6, 8]).unwrap()]).unwrap();
+        assert_batches_eq(&expected, &output);
+
+        // Keep polling for the rest...
+    }
+
+    #[test]
+    fn inout_with_input_project() {
+        let wrapper = OperatorWrapper::new(PhysicalTableInOut {
+            function: plan_generate_series(),
+            input_types: vec![DataType::Int64; 3],
+            projected_inputs: vec![
+                PhysicalColumnExpr {
+                    idx: 1,
+                    datatype: DataType::Int64,
+                },
+                PhysicalColumnExpr {
+                    idx: 0,
+                    datatype: DataType::Int64,
+                },
+            ],
+        });
+
+        let (op_state, mut part_states) = wrapper
+            .operator
+            .create_states(&test_database_context(), 1024, 1)
+            .unwrap()
+            .branchless_into_states()
+            .unwrap();
+
+        let mut output =
+            Batch::try_new([DataType::Int64, DataType::Int64, DataType::Int64], 1024).unwrap();
+        // generate_series(4, 8, 2)
+        // generate_series(5, 6, 1)
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter([4_i64, 5]).unwrap(),
+            Array::try_from_iter([8_i64, 6]).unwrap(),
+            Array::try_from_iter([2_i64, 1]).unwrap(),
+        ])
+        .unwrap();
+
+        let poll = wrapper
+            .poll_execute(
+                &mut part_states[0],
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([4_i64, 6, 8]).unwrap(),
+            Array::try_from_iter([8_i64, 8, 8]).unwrap(), // 'stop'
+            Array::try_from_iter([4_i64, 4, 4]).unwrap(), // 'start'
+        ])
+        .unwrap();
+        assert_batches_eq(&expected, &output);
+
+        let poll = wrapper
+            .poll_execute(
+                &mut part_states[0],
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([5_i64, 6]).unwrap(),
+            Array::try_from_iter([6_i64, 6]).unwrap(), // 'stop'
+            Array::try_from_iter([5_i64, 5]).unwrap(), // 'start'
+        ])
+        .unwrap();
+
+        {
+            let s = output.arrays[0]
+                .next()
+                .data
+                .try_as_slice::<PhysicalI64>()
+                .unwrap();
+            println!("S: {s:?}");
+        }
+
+        assert_batches_eq(&expected, &output);
+
+        // Keep polling for the rest...
     }
 }

@@ -11,7 +11,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::execution::operators::unnest::unnest;
-use crate::execution::operators::{PollFinalize, PollPush};
+use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize, PollPush};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
@@ -152,6 +152,11 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
+    fn poll_execute(&mut self, cx: &mut Context, inout: ExecuteInOutState) -> Result<PollExecute> {
+        // TODO
+        unimplemented!()
+    }
+
     fn poll_push(&mut self, cx: &mut Context, inputs: Batch) -> Result<PollPush> {
         if self.current_row < self.input_num_rows {
             // Still processing inputs, come back later.
@@ -180,7 +185,7 @@ impl TableInOutPartitionState for UnnestInOutPartitionState {
         Ok(PollPush::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
+    fn poll_finalize(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
         self.finished = true;
 
         if let Some(waker) = self.pull_waker.take() {

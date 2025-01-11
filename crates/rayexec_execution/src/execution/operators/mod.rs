@@ -32,7 +32,7 @@ pub mod window;
 pub(crate) mod util;
 
 #[cfg(test)]
-mod testutil;
+pub(crate) mod testutil;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -110,6 +110,7 @@ use crate::proto::DatabaseProtoConv;
 pub enum PartitionState {
     Project(ProjectPartitionState),
     Filter(FilterPartitionState),
+    TableInOut(TableInOutPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
@@ -132,7 +133,6 @@ pub enum PartitionState {
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
-    TableInOut(TableInOutPartitionState),
     CreateSchema(CreateSchemaPartitionState),
     CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
@@ -212,6 +212,9 @@ pub enum PollExecute {
     /// Operator needs more input before it'll produce any meaningful output.
     NeedsMore,
     /// Operator has more output. Call again with the same input batch.
+    ///
+    /// Meaningful output was written to the output batch and should be pushed
+    /// to parent operators.
     HasMore,
     /// No more output.
     Exhausted,
@@ -238,11 +241,11 @@ pub struct ExecuteInOutState<'a> {
     /// Input batch being pushed to the operator.
     ///
     /// May be None for operators that are only producing output.
-    input: Option<&'a mut Batch>,
+    pub input: Option<&'a mut Batch>,
     /// Output batch the operator should write to.
     ///
     /// May be None for operators that only consume batches.
-    output: Option<&'a mut Batch>,
+    pub output: Option<&'a mut Batch>,
 }
 
 #[derive(Debug)]

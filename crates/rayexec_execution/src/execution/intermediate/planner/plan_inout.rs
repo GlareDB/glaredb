@@ -30,17 +30,18 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &inout.node.projected_outputs)
             .context("Failed to plan additional output expressions for table inout")?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::TableInOut(PhysicalTableInOut {
-                function: inout.node.function,
-                function_inputs,
-                projected_outputs,
-            })),
-            partitioning_requirement: None,
-        };
+        unimplemented!()
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::TableInOut(PhysicalTableInOut {
+        //         function: inout.node.function,
+        //         function_inputs,
+        //         projected_outputs,
+        //     })),
+        //     partitioning_requirement: None,
+        // };
 
-        self.push_intermediate_operator(operator, inout.location, id_gen)?;
+        // self.push_intermediate_operator(operator, inout.location, id_gen)?;
 
-        Ok(())
+        // Ok(())
     }
 }

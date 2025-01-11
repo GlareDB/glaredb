@@ -550,14 +550,12 @@ where
             }
             DataType::Utf8 => {
                 let addressable = PhysicalUtf8::get_addressable(flat.array_buffer)?;
-                // TODO: Don't allocate. Doesn't matter too much since this is
-                // just for constant eval right now.
-                let v = addressable.get(idx).unwrap().to_string();
+                let v = addressable.get(idx).unwrap();
                 Ok(ScalarValue::Utf8(v.into()))
             }
             DataType::Binary => {
                 let addressable = PhysicalBinary::get_addressable(flat.array_buffer)?;
-                let v = addressable.get(idx).unwrap().to_vec();
+                let v = addressable.get(idx).unwrap();
                 Ok(ScalarValue::Binary(v.into()))
             }
 
@@ -1698,10 +1696,25 @@ impl_primitive_from_iter!(f64, PhysicalF64, Float64);
 
 impl_primitive_from_iter!(Interval, PhysicalInterval, Interval);
 
-impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
+/// Trait that provides `AsRef<str>` for use with creating arrays from an
+/// iterator.
+///
+/// We don't use `AsRef<str>` directly as the implementation of
+/// `TryFromExactSizedIterator` could conflict with other types (the above impls
+/// for primitives). A separate trait just lets us limit it to just `&str` and
+/// `String`.
+pub trait AsRefStr: AsRef<str> {}
+
+impl<'a> AsRefStr for &'a str {}
+impl AsRefStr for String {}
+
+impl<S> TryFromExactSizeIterator<S> for Array<NopBufferManager>
+where
+    S: AsRefStr,
+{
     type Error = RayexecError;
 
-    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = &'a str>>(
+    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = S>>(
         iter: T,
     ) -> Result<Self, Self::Error> {
         let iter = iter.into_iter();
@@ -1714,7 +1727,7 @@ impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
         let mut addressable = buffer.try_as_string_view_addressable_mut()?;
 
         for (idx, v) in iter.enumerate() {
-            addressable.put(idx, v);
+            addressable.put(idx, v.as_ref());
         }
 
         Ok(Array {

@@ -741,6 +741,8 @@ const fn elide_index<T>(v: &[T]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
     use crate::arrays::field::Field;
 
@@ -841,9 +843,9 @@ mod tests {
             Field::new("b", DataType::Int32, true),
         ]);
 
-        let batch = Batch::try_from_arrays(vec![
-            Array::from_iter([Some("a"), Some("b"), None, Some("d")]),
-            Array::from_iter([Some(1), None, Some(10), Some(100)]),
+        let batch = Batch::try_from_arrays([
+            Array::try_from_iter([Some("a"), Some("b"), None, Some("d")]).unwrap(),
+            Array::try_from_iter([Some(1), None, Some(10), Some(100)]).unwrap(),
         ])
         .unwrap();
 
@@ -874,9 +876,9 @@ mod tests {
         ]);
 
         let batch = Batch::try_from_arrays(vec![
-            Array::from_iter([Some("a\nb"), Some("c"), Some("d")]),
-            Array::from_iter([Some(1), Some(10), Some(100)]),
-            Array::from_iter([Some("Mario"), Some("Yoshi"), Some("Luigi\nPeach")]),
+            Array::try_from_iter([Some("a\nb"), Some("c"), Some("d")]).unwrap(),
+            Array::try_from_iter([Some(1), Some(10), Some(100)]).unwrap(),
+            Array::try_from_iter([Some("Mario"), Some("Yoshi"), Some("Luigi\nPeach")]).unwrap(),
         ])
         .unwrap();
 
@@ -907,8 +909,8 @@ mod tests {
         ]);
 
         let batch = Batch::try_from_arrays(vec![
-            Array::from_iter([Some("a")]),
-            Array::from_iter([Some(1)]),
+            Array::try_from_iter([Some("a")]).unwrap(),
+            Array::try_from_iter([Some(1)]).unwrap(),
         ])
         .unwrap();
 
@@ -940,8 +942,11 @@ mod tests {
         ]);
 
         let create_batch = |s, n| {
-            Batch::try_from_arrays([Array::from_iter([Some(s)]), Array::from_iter([Some(n)])])
-                .unwrap()
+            Batch::try_from_arrays([
+                Array::try_from_iter([Some(s)]).unwrap(),
+                Array::try_from_iter([Some(n)]).unwrap(),
+            ])
+            .unwrap()
         };
 
         let batches = vec![
@@ -981,12 +986,12 @@ mod tests {
             Field::new("b", DataType::Int32, true),
         ]);
 
-        let a_vals: Vec<_> = (0..10).map(|v| v.to_string()).collect();
-        let b_vals: Vec<_> = (0..10).map(Some).collect();
+        let a_vals = (0..10).map(|v| v.to_string());
+        let b_vals = (0..10).map(Some);
 
         let batches = vec![Batch::try_from_arrays(vec![
-            Array::from_iter(a_vals),
-            Array::from_iter(b_vals),
+            Array::try_from_iter(a_vals).unwrap(),
+            Array::try_from_iter(b_vals).unwrap(),
         ])
         .unwrap()];
 
@@ -1022,8 +1027,8 @@ mod tests {
         let b_vals: Vec<_> = (0..10).map(Some).collect();
 
         let batches = vec![Batch::try_from_arrays(vec![
-            Array::from_iter(a_vals),
-            Array::from_iter(b_vals),
+            Array::try_from_iter(a_vals).unwrap(),
+            Array::try_from_iter(b_vals).unwrap(),
         ])
         .unwrap()];
 
@@ -1058,10 +1063,10 @@ mod tests {
 
         let create_batch = |a, b, c, d| {
             Batch::try_from_arrays(vec![
-                Array::from_iter([Some(a)]),
-                Array::from_iter([Some(b)]),
-                Array::from_iter([Some(c)]),
-                Array::from_iter([Some(d)]),
+                Array::try_from_iter([Some(a)]).unwrap(),
+                Array::try_from_iter([Some(b)]).unwrap(),
+                Array::try_from_iter([Some(c)]).unwrap(),
+                Array::try_from_iter([Some(d)]).unwrap(),
             ])
             .unwrap()
         };
@@ -1108,10 +1113,10 @@ mod tests {
 
         let create_batch = |a, b, c, d| {
             Batch::try_from_arrays(vec![
-                Array::from_iter([Some(a)]),
-                Array::from_iter([Some(b)]),
-                Array::from_iter([Some(c)]),
-                Array::from_iter([Some(d)]),
+                Array::try_from_iter([Some(a)]).unwrap(),
+                Array::try_from_iter([Some(b)]).unwrap(),
+                Array::try_from_iter([Some(c)]).unwrap(),
+                Array::try_from_iter([Some(d)]).unwrap(),
             ])
             .unwrap()
         };
@@ -1152,9 +1157,9 @@ mod tests {
 
         let create_batch = |a, b, c| {
             Batch::try_from_arrays(vec![
-                Array::from_iter([Some(a)]),
-                Array::from_iter([Some(b)]),
-                Array::from_iter([Some(c)]),
+                Array::try_from_iter([Some(a)]).unwrap(),
+                Array::try_from_iter([Some(b)]).unwrap(),
+                Array::try_from_iter([Some(c)]).unwrap(),
             ])
             .unwrap()
         };
@@ -1195,10 +1200,10 @@ mod tests {
 
         let create_batch = |a, b, c, d| {
             Batch::try_from_arrays(vec![
-                Array::from_iter([Some(a)]),
-                Array::from_iter([Some(b)]),
-                Array::from_iter([Some(c)]),
-                Array::from_iter([Some(d)]),
+                Array::try_from_iter([Some(a)]).unwrap(),
+                Array::try_from_iter([Some(b)]).unwrap(),
+                Array::try_from_iter([Some(c)]).unwrap(),
+                Array::try_from_iter([Some(d)]).unwrap(),
             ])
             .unwrap()
         };
@@ -1270,22 +1275,22 @@ mod tests {
 
         // First record should be printed.
         let first = Batch::try_from_arrays(vec![
-            Array::from_iter([Some("1"), Some("2")]),
-            Array::from_iter([Some(1), Some(2)]),
+            Array::try_from_iter([Some("1"), Some("2")]).unwrap(),
+            Array::try_from_iter([Some(1), Some(2)]).unwrap(),
         ])
         .unwrap();
 
         // Nothing in this batch should be printed.
         let middle = Batch::try_from_arrays(vec![
-            Array::from_iter([Some("3"), Some("4")]),
-            Array::from_iter([Some(3), Some(4)]),
+            Array::try_from_iter([Some("3"), Some("4")]).unwrap(),
+            Array::try_from_iter([Some(3), Some(4)]).unwrap(),
         ])
         .unwrap();
 
         // Last record should be printed.
         let last = Batch::try_from_arrays(vec![
-            Array::from_iter([Some("5"), Some("6")]),
-            Array::from_iter([Some(5), Some(6)]),
+            Array::try_from_iter([Some("5"), Some("6")]).unwrap(),
+            Array::try_from_iter([Some(5), Some(6)]).unwrap(),
         ])
         .unwrap();
 
