@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::{self, Write as _};
 use std::ops::Range;
@@ -38,9 +39,9 @@ pub struct PrettyTable {
 
 impl PrettyTable {
     /// Try to create a new pretty-formatted table.
-    pub fn try_new(
+    pub fn try_new<B: Borrow<Batch>>(
         schema: &Schema,
-        batches: &[Batch],
+        batches: &[B],
         max_width: usize,
         max_rows: Option<usize>,
     ) -> Result<Self> {
@@ -86,13 +87,14 @@ impl PrettyTable {
         // to help determine the size of the columns.
         let samples = match batches.first() {
             Some(batch) => batch
+                .borrow()
                 .arrays()
                 .iter()
                 .map(|col| {
                     ColumnValues::try_from_array(
                         col,
                         Some(0..NUM_VALS_FOR_AVG),
-                        batch.num_rows(),
+                        batch.borrow().num_rows(),
                         None,
                     )
                 })
@@ -155,7 +157,7 @@ impl PrettyTable {
             column_widths.insert(elide_index(&column_widths), 1);
         }
 
-        let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+        let total_rows: usize = batches.iter().map(|b| b.borrow().num_rows()).sum();
         let max_rows = max_rows.unwrap_or(DEFAULT_MAX_ROWS);
 
         let (mut head_rows, mut tail_rows) = if total_rows > max_rows {
@@ -197,7 +199,8 @@ impl PrettyTable {
                 break;
             }
 
-            let (vals, num_rows) = Self::column_values_for_batch(batch, &format, 0..head_rows)?;
+            let (vals, num_rows) =
+                Self::column_values_for_batch(batch.borrow(), &format, 0..head_rows)?;
             head.push(PrettyValues::new(
                 col_alignments.clone(),
                 column_widths.clone(),
@@ -213,13 +216,13 @@ impl PrettyTable {
                 break;
             }
 
-            let num_rows = batch.num_rows();
+            let num_rows = batch.borrow().num_rows();
             let range = if tail_rows >= num_rows {
                 0..num_rows
             } else {
                 (num_rows - tail_rows)..num_rows
             };
-            let (vals, num_rows) = Self::column_values_for_batch(batch, &format, range)?;
+            let (vals, num_rows) = Self::column_values_for_batch(batch.borrow(), &format, range)?;
             tail.push(PrettyValues::new(
                 col_alignments.clone(),
                 column_widths.clone(),

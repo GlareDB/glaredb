@@ -235,15 +235,6 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
 
             output.set_num_rows(count)?;
 
-            {
-                let s = output.arrays[0]
-                    .next()
-                    .data
-                    .try_as_slice::<PhysicalI64>()
-                    .unwrap();
-                println!("G: {s:?}");
-            }
-
             // Next poll should execute with the same input batch.
             return Ok(PollExecute::HasMore);
         }

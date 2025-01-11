@@ -114,10 +114,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         let input = inout.input.required("input batch required")?;
 
         loop {
-            println!("LOOP");
             if state.needs_next_row {
-                println!("GETTING NEXT ROW: {}", state.curr_row_idx);
-
                 if state.curr_row_idx >= input.num_rows() {
                     // Needs new input batch.
                     state.curr_row_idx = 0;
@@ -152,8 +149,6 @@ impl ExecutableOperator for PhysicalTableInOut {
                 state.needs_next_row = true;
                 continue;
             }
-
-            println!("POLLED");
 
             // Otherwise we got output corresponding to a single row. Now add in
             // the projected inputs and extend out to the proper length.
@@ -211,16 +206,14 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::physical_type::PhysicalI64;
     use crate::arrays::array::Array;
     use crate::arrays::testutil::assert_batches_eq;
     use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
     use crate::expr::column_expr::ColumnExpr;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
-    use crate::expr::physical::PhysicalScalarExpression;
     use crate::expr::Expression;
-    use crate::functions::table::builtin::series::{GenerateSeries, GenerateSeriesInOutPlanner};
-    use crate::functions::table::{InOutPlanner, TableFunction};
+    use crate::functions::table::builtin::series::GenerateSeriesInOutPlanner;
+    use crate::functions::table::InOutPlanner;
     use crate::logical::binder::table_list::TableList;
 
     fn plan_generate_series() -> PlannedTableFunction {
@@ -372,15 +365,6 @@ mod tests {
             Array::try_from_iter([5_i64, 5]).unwrap(), // 'start'
         ])
         .unwrap();
-
-        {
-            let s = output.arrays[0]
-                .next()
-                .data
-                .try_as_slice::<PhysicalI64>()
-                .unwrap();
-            println!("S: {s:?}");
-        }
 
         assert_batches_eq(&expected, &output);
 

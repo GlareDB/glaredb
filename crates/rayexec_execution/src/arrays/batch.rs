@@ -296,4 +296,22 @@ impl Batch {
     pub fn into_arrays(self) -> Vec<Array> {
         self.arrays
     }
+
+    /// Helper for returning a pretty formatted table for the batch.
+    ///
+    /// This should only be used during debugging.
+    #[cfg(debug_assertions)]
+    #[allow(unused)]
+    pub fn debug_table(&self) -> super::format::pretty::table::PrettyTable {
+        use crate::arrays::field::{Field, Schema};
+        use crate::arrays::format::pretty::table::PrettyTable;
+
+        let schema =
+            Schema::new(self.arrays.iter().enumerate().map(|(idx, array)| {
+                Field::new(format!("array{idx}"), array.datatype().clone(), true)
+            }));
+
+        PrettyTable::try_new(&schema, &[self], 100, None)
+            .expect("to be able to create pretty table")
+    }
 }
