@@ -121,7 +121,7 @@ pub fn list_values(
     output: &mut Array,
 ) -> Result<()> {
     let inner_type = match output.datatype() {
-        DataType::List(m) => m.datatype.physical_type()?,
+        DataType::List(m) => m.datatype.physical_type(),
         other => {
             return Err(RayexecError::new(format!(
                 "Expected output to be list datatype, got {other}",

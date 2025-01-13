@@ -169,6 +169,49 @@ impl Batch {
         Ok(())
     }
 
+    /// Copy rows from this batch to another batch.
+    ///
+    /// `mapping` provides (from, to) pairs for how to copy the rows.
+    pub fn copy_rows(&self, mapping: &[(usize, usize)], dest: &mut Self) -> Result<()> {
+        if self.arrays.len() != dest.arrays.len() {
+            return Err(RayexecError::new(
+                "Attempted to copy rows to another batch with invalid number of columns",
+            ));
+        }
+
+        for (from, to) in self.arrays.iter().zip(dest.arrays.iter_mut()) {
+            from.copy_rows(mapping.iter().copied(), to)?;
+        }
+
+        Ok(())
+    }
+
+    /// Appends a batch to the end of self.
+    ///
+    /// Errors if this batch doesn't have enough capacity to append the other
+    /// batch.
+    pub fn append(&mut self, other: &Batch) -> Result<()> {
+        if self.num_rows() + other.num_rows() > self.capacity {
+            return Err(
+                RayexecError::new("Batch doesn't have sufficient capacity for append")
+                    .with_field("self_rows", self.num_rows())
+                    .with_field("other_rows", other.num_rows())
+                    .with_field("self_capacity", self.capacity),
+            );
+        }
+
+        for (from, to) in other.arrays.iter().zip(self.arrays.iter_mut()) {
+            // [0..batch_num_rows) => [self_row_count..)
+            let mapping =
+                (0..other.num_rows()).zip(self.num_rows..(self.num_rows + other.num_rows()));
+            from.copy_rows(mapping, to)?;
+        }
+
+        self.num_rows += other.num_rows;
+
+        Ok(())
+    }
+
     /// Concat multiple batches into one.
     ///
     /// Batches are requried to have the same logical schemas.
@@ -321,5 +364,40 @@ impl Batch {
 
         PrettyTable::try_new(&schema, &[self], 100, None)
             .expect("to be able to create pretty table")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::testutil::assert_batches_eq;
+
+    #[test]
+    fn append_batch_simple() {
+        let mut batch = Batch::try_new([DataType::Int32, DataType::Utf8], 1024).unwrap();
+
+        let append1 = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3]).unwrap(),
+            Array::try_from_iter(["a", "b", "c"]).unwrap(),
+        ])
+        .unwrap();
+        batch.append(&append1).unwrap();
+
+        let append2 = Batch::try_from_arrays([
+            Array::try_from_iter([4, 5, 6]).unwrap(),
+            Array::try_from_iter(["d", "e", "f"]).unwrap(),
+        ])
+        .unwrap();
+        batch.append(&append2).unwrap();
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected, &batch);
     }
 }

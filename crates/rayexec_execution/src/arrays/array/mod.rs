@@ -187,7 +187,7 @@ where
     }
 
     pub fn physical_type(&self) -> PhysicalType {
-        self.datatype.physical_type().unwrap()
+        self.datatype.physical_type()
     }
 
     pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
@@ -392,7 +392,7 @@ where
         mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
         dest: &mut Self,
     ) -> Result<()> {
-        match self.datatype.physical_type()? {
+        match self.datatype.physical_type() {
             PhysicalType::Boolean => copy_rows::<PhysicalBool, _>(self, mapping, dest)?,
             PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(self, mapping, dest)?,
             PhysicalType::Int16 => copy_rows::<PhysicalI16, _>(self, mapping, dest)?,
@@ -710,7 +710,7 @@ impl Array {
     pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
         // Create physical array data of length 1, and use a selection vector to
         // extend it out to the desired size.
-        let data = datatype.physical_type()?.zeroed_array_data(1);
+        let data = datatype.physical_type().zeroed_array_data(1);
         let validity = Bitmap::new_with_all_false(1);
         let selection = SelectionVector::repeated(len, 0);
 
@@ -1589,7 +1589,7 @@ fn array_buffer_for_datatype<B>(
 where
     B: BufferManager,
 {
-    let buffer = match datatype.physical_type()? {
+    let buffer = match datatype.physical_type() {
         PhysicalType::UntypedNull => {
             ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(manager, capacity)?
         }
@@ -1870,6 +1870,33 @@ mod tests {
         let val = arr.get_value(1).unwrap();
 
         assert_eq!(ScalarValue::Utf8("c".into()), val);
+    }
+
+    #[test]
+    fn copy_rows_simple() {
+        let from = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
+
+        from.copy_rows([(0, 1), (1, 2)], &mut to).unwrap();
+
+        let expected = Array::try_from_iter(["d", "a", "b"]).unwrap();
+
+        assert_arrays_eq(&expected, &to);
+    }
+
+    #[test]
+    fn copy_rows_from_dict() {
+        let mut from = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        // => '["b", "a", "c"]
+        from.select(&Arc::new(NopBufferManager), [1, 0, 2]).unwrap();
+
+        let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
+
+        from.copy_rows([(0, 1), (1, 2)], &mut to).unwrap();
+
+        let expected = Array::try_from_iter(["d", "b", "a"]).unwrap();
+
+        assert_arrays_eq(&expected, &to);
     }
 
     #[test]

@@ -60,8 +60,7 @@ use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
-use sort::gather_sort::PhysicalGatherSort;
-use sort::scatter_sort::PhysicalScatterSort;
+use sort::{PhysicalSort, SortOperatorState, SortPartitionState};
 use source::{SourceOperation, SourceOperator, SourcePartitionState};
 use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
 use table_inout::{PhysicalTableInOut, TableInOutPartitionState};
@@ -88,12 +87,6 @@ use self::round_robin::{
     RoundRobinPullPartitionState,
     RoundRobinPushPartitionState,
 };
-use self::sort::gather_sort::{
-    GatherSortOperatorState,
-    GatherSortPullPartitionState,
-    GatherSortPushPartitionState,
-};
-use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
 use crate::arrays::batch::Batch;
@@ -110,6 +103,7 @@ pub enum PartitionState {
     Filter(FilterPartitionState),
     TableInOut(TableInOutPartitionState),
     Values(ValuesPartitionState),
+    Sort(SortPartitionState),
     Empty(EmptyPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
@@ -122,9 +116,6 @@ pub enum PartitionState {
     Source(SourcePartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
-    GatherSortPush(GatherSortPushPartitionState),
-    GatherSortPull(GatherSortPullPartitionState),
-    ScatterSort(ScatterSortPartitionState),
     Limit(LimitPartitionState),
     Unnest(UnnestPartitionState),
     UnionTop(UnionTopPartitionState),
@@ -146,7 +137,7 @@ pub enum OperatorState {
     NestedLoopJoin(NestedLoopJoinOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
-    GatherSort(GatherSortOperatorState),
+    Sort(SortOperatorState),
     Union(UnionOperatorState),
     Sink(SinkOperatorState),
     None,
@@ -441,6 +432,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
 pub enum PhysicalOperator {
     Project(PhysicalProject),
     Filter(PhysicalFilter),
+    Sort(PhysicalSort),
 
     HashAggregate(PhysicalHashAggregate),
     UngroupedAggregate(PhysicalUngroupedAggregate),
@@ -454,8 +446,6 @@ pub enum PhysicalOperator {
     MaterializedSink(SinkOperator<MaterializedSinkOperation>),
     MaterializedSource(SourceOperator<MaterializeSourceOperation>),
     RoundRobin(PhysicalRoundRobinRepartition),
-    MergeSorted(PhysicalGatherSort),
-    LocalSort(PhysicalScatterSort),
     Limit(PhysicalLimit),
     Union(PhysicalUnion),
     Unnest(PhysicalUnnest),
@@ -490,8 +480,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::MaterializedSink(op) => op.create_states2(context, partitions),
             Self::MaterializedSource(op) => op.create_states2(context, partitions),
             Self::RoundRobin(op) => op.create_states2(context, partitions),
-            Self::MergeSorted(op) => op.create_states2(context, partitions),
-            Self::LocalSort(op) => op.create_states2(context, partitions),
+            Self::Sort(op) => op.create_states2(context, partitions),
             Self::Limit(op) => op.create_states2(context, partitions),
             Self::Union(op) => op.create_states2(context, partitions),
             Self::Filter(op) => op.create_states2(context, partitions),
@@ -534,8 +523,7 @@ impl ExecutableOperator for PhysicalOperator {
                 op.poll_push(cx, partition_state, operator_state, batch)
             }
             Self::RoundRobin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            Self::Sort(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Limit(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Union(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Filter(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -573,8 +561,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::MaterializedSink(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::MaterializedSource(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::RoundRobin(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::MergeSorted(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::LocalSort(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Sort(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Limit(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Union(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Filter(op) => op.poll_finalize(cx, partition_state, operator_state),
@@ -612,8 +599,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::MaterializedSink(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::MaterializedSource(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::RoundRobin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
+            Self::Sort(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Limit(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Union(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Filter(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -648,8 +634,7 @@ impl Explainable for PhysicalOperator {
             Self::MaterializedSink(op) => op.explain_entry(conf),
             Self::MaterializedSource(op) => op.explain_entry(conf),
             Self::RoundRobin(op) => op.explain_entry(conf),
-            Self::MergeSorted(op) => op.explain_entry(conf),
-            Self::LocalSort(op) => op.explain_entry(conf),
+            Self::Sort(op) => op.explain_entry(conf),
             Self::Limit(op) => op.explain_entry(conf),
             Self::Union(op) => op.explain_entry(conf),
             Self::Filter(op) => op.explain_entry(conf),
@@ -691,8 +676,6 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
             Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
             Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
-            Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
-            Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
             other => not_implemented!("to proto: {other:?}"),
         };
 
@@ -743,12 +726,6 @@ impl DatabaseProtoConv for PhysicalOperator {
             ),
             Value::CopyTo(op) => {
                 PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
-            }
-            Value::LocalSort(op) => {
-                PhysicalOperator::LocalSort(PhysicalScatterSort::from_proto_ctx(op, context)?)
-            }
-            Value::MergeSorted(op) => {
-                PhysicalOperator::MergeSorted(PhysicalGatherSort::from_proto_ctx(op, context)?)
             }
             _ => unimplemented!(),
         })

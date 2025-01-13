@@ -128,7 +128,7 @@ pub fn list_extract(
     output: &mut Array,
     element_idx: usize,
 ) -> Result<()> {
-    match output.datatype().physical_type()? {
+    match output.datatype().physical_type() {
         PhysicalType::UntypedNull => {
             extract_inner::<PhysicalUntypedNull>(array, sel, output, element_idx)
         }

@@ -9,8 +9,6 @@ use crate::execution::intermediate::pipeline::{
     PipelineSink,
     PipelineSource,
 };
-use crate::execution::operators::sort::gather_sort::PhysicalGatherSort;
-use crate::execution::operators::sort::scatter_sort::PhysicalScatterSort;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::operator::{LocationRequirement, LogicalNode, Node};
@@ -32,59 +30,60 @@ impl IntermediatePipelineBuildState<'_> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
-        // Partition-local sorting.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
-                exprs.clone(),
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        unimplemented!()
+        // // Partition-local sorting.
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
+        //         exprs.clone(),
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        // Global sorting.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
-                exprs,
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // // Global sorting.
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
+        //         exprs,
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        // Global sorting accepts n-partitions, but produces only a single
-        // partition. We finish the current pipeline
+        // // Global sorting accepts n-partitions, but produces only a single
+        // // partition. We finish the current pipeline
 
-        let in_progress = self.take_in_progress_pipeline()?;
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location,
-            source: PipelineSource::OtherPipeline {
-                pipeline: in_progress.id,
-                partitioning_requirement: Some(1),
-            },
-        });
+        // let in_progress = self.take_in_progress_pipeline()?;
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: Vec::new(),
+        //     location,
+        //     source: PipelineSource::OtherPipeline {
+        //         pipeline: in_progress.id,
+        //         partitioning_requirement: Some(1),
+        //     },
+        // });
 
-        let pipeline = IntermediatePipeline {
-            id: in_progress.id,
-            sink: PipelineSink::InPipeline,
-            source: in_progress.source,
-            operators: in_progress.operators,
-        };
-        // TODO: This should not be happening here.
-        // https://github.com/GlareDB/glaredb/issues/3352
-        match location {
-            LocationRequirement::ClientLocal => {
-                self.local_group.pipelines.insert(pipeline.id, pipeline);
-            }
-            LocationRequirement::Remote => {
-                self.remote_group.pipelines.insert(pipeline.id, pipeline);
-            }
-            LocationRequirement::Any => {
-                // TODO
-                self.local_group.pipelines.insert(pipeline.id, pipeline);
-            }
-        }
+        // let pipeline = IntermediatePipeline {
+        //     id: in_progress.id,
+        //     sink: PipelineSink::InPipeline,
+        //     source: in_progress.source,
+        //     operators: in_progress.operators,
+        // };
+        // // TODO: This should not be happening here.
+        // // https://github.com/GlareDB/glaredb/issues/3352
+        // match location {
+        //     LocationRequirement::ClientLocal => {
+        //         self.local_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        //     LocationRequirement::Remote => {
+        //         self.remote_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        //     LocationRequirement::Any => {
+        //         // TODO
+        //         self.local_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }

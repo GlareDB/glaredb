@@ -91,7 +91,7 @@ impl AggregateFunction for Count {
 
         let function_impl: Box<dyn AggregateFunctionImpl> = match inputs[0]
             .datatype(table_list)?
-            .physical_type()?
+            .physical_type()
         {
             PhysicalType::UntypedNull => Box::new(CountNonNullImpl::<PhysicalUntypedNull>::new()),
             PhysicalType::Boolean => Box::new(CountNonNullImpl::<PhysicalBool>::new()),

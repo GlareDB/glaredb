@@ -78,7 +78,7 @@ impl AggregateFunction for Min {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type()? {
+        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type() {
             PhysicalType::UntypedNull => Box::new(MinPrimitiveImpl::<PhysicalUntypedNull>::new()),
             PhysicalType::Boolean => Box::new(MinPrimitiveImpl::<PhysicalBool>::new()),
             PhysicalType::Int8 => Box::new(MinPrimitiveImpl::<PhysicalI8>::new()),
@@ -142,7 +142,7 @@ impl AggregateFunction for Max {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type()? {
+        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type() {
             PhysicalType::UntypedNull => Box::new(MaxPrimitiveImpl::<PhysicalUntypedNull>::new()),
             PhysicalType::Boolean => Box::new(MaxPrimitiveImpl::<PhysicalBool>::new()),
             PhysicalType::Int8 => Box::new(MaxPrimitiveImpl::<PhysicalI8>::new()),

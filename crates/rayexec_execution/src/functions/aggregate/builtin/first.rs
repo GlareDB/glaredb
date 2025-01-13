@@ -78,7 +78,7 @@ impl AggregateFunction for First {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type()? {
+        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type() {
             PhysicalType::UntypedNull => Box::new(FirstPrimitiveImpl::<PhysicalUntypedNull>::new()),
             PhysicalType::Boolean => Box::new(FirstPrimitiveImpl::<PhysicalBool>::new()),
             PhysicalType::Int8 => Box::new(FirstPrimitiveImpl::<PhysicalI8>::new()),
