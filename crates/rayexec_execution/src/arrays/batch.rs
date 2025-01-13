@@ -161,6 +161,14 @@ impl Batch {
         Ok(())
     }
 
+    /// Reset all arrays in the batch for writes.
+    pub fn reset_for_write(&mut self) -> Result<()> {
+        for arr in &mut self.arrays {
+            arr.reset_for_write(&Arc::new(NopBufferManager))?;
+        }
+        Ok(())
+    }
+
     /// Concat multiple batches into one.
     ///
     /// Batches are requried to have the same logical schemas.

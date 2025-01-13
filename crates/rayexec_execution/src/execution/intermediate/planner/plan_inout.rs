@@ -4,8 +4,10 @@ use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
+use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::table_inout::PhysicalTableInOut;
 use crate::execution::operators::PhysicalOperator;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_inout::LogicalInOut;
 use crate::logical::operator::{LogicalNode, Node};
 
@@ -30,18 +32,50 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &inout.node.projected_outputs)
             .context("Failed to plan additional output expressions for table inout")?;
 
-        unimplemented!()
-        // let operator = IntermediateOperator {
-        //     operator: Arc::new(PhysicalOperator::TableInOut(PhysicalTableInOut {
-        //         function: inout.node.function,
-        //         function_inputs,
-        //         projected_outputs,
-        //     })),
-        //     partitioning_requirement: None,
-        // };
+        let input_types: Vec<_> = function_inputs
+            .iter()
+            .chain(projected_outputs.iter())
+            .map(|expr| expr.datatype())
+            .collect();
 
-        // self.push_intermediate_operator(operator, inout.location, id_gen)?;
+        let projected_inputs: Vec<_> = projected_outputs
+            .iter()
+            .enumerate()
+            .map(|(idx, expr)| PhysicalColumnExpr {
+                idx: idx + function_inputs.len(),
+                datatype: expr.datatype(),
+            })
+            .collect();
 
-        // Ok(())
+        // Project function inputs first.
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
+                    projections: function_inputs
+                        .into_iter()
+                        .chain(projected_outputs.into_iter())
+                        .collect(),
+                })),
+                partitioning_requirement: None,
+            },
+            inout.location,
+            id_gen,
+        )?;
+
+        // Push inout
+        self.push_intermediate_operator(
+            IntermediateOperator {
+                operator: Arc::new(PhysicalOperator::TableInOut(PhysicalTableInOut {
+                    function: inout.node.function,
+                    input_types,
+                    projected_inputs,
+                })),
+                partitioning_requirement: None,
+            },
+            inout.location,
+            id_gen,
+        )?;
+
+        Ok(())
     }
 }

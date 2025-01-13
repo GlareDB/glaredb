@@ -1,14 +1,16 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
+use tracing::instrument::WithSubscriber;
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecuteInOutState,
     OperatorState,
+    PartitionAndOperatorStates,
     PartitionState,
+    PollExecute,
     PollFinalize,
     PollPull,
     PollPush,
@@ -16,58 +18,74 @@ use super::{
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::physical::evaluator::ExpressionEvaluator;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
-    batches: Vec<Batch>,
+    /// Index for the "row" of expressions we're currently working on.
+    expr_idx: usize,
 }
 
 #[derive(Debug)]
 pub struct PhysicalValues {
-    batches: Vec<Batch>,
-}
-
-impl PhysicalValues {
-    pub fn new(batches: Vec<Batch>) -> Self {
-        PhysicalValues { batches }
-    }
+    pub(crate) expressions: Vec<Vec<PhysicalScalarExpression>>,
 }
 
 impl ExecutableOperator for PhysicalValues {
-    fn create_states2(
+    fn create_states(
         &self,
         _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        let num_partitions = partitions[0];
-
-        let mut states: Vec<_> = (0..num_partitions)
-            .map(|_| ValuesPartitionState {
-                batches: Vec::new(),
-            })
+        _batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        let states = (0..partitions)
+            .map(|_| PartitionState::Values(ValuesPartitionState { expr_idx: 0 }))
             .collect();
 
-        for (idx, batch) in self.batches.iter().enumerate() {
-            states[idx % num_partitions].batches.push(batch.clone());
-        }
-
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: states.into_iter().map(PartitionState::Values).collect(),
-            },
+        Ok(PartitionAndOperatorStates::Branchless {
+            operator_state: OperatorState::None,
+            partition_states: states,
         })
     }
 
-    fn poll_push(
+    fn poll_execute(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
+        partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to Values operator"))
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
+        let state = match partition_state {
+            PartitionState::Values(state) => state,
+            other => panic!("invalid state: {other:?}"),
+        };
+
+        let input = inout.input.required("input batch required")?;
+        let output = inout.output.required("input batch required")?;
+
+        // TODO: Do multiple expressions in one poll if output batch has room.
+
+        let mut evaluator = ExpressionEvaluator::try_new(
+            self.expressions[state.expr_idx].clone(),
+            output.num_rows(),
+        )?;
+
+        evaluator.eval_batch(input, input.selection(), output)?;
+
+        state.expr_idx += 1;
+
+        if state.expr_idx >= self.expressions.len() {
+            // We've executed all expression "rows" for this input batch, move
+            // to the next.
+            state.expr_idx = 0;
+            Ok(PollExecute::Ready)
+        } else {
+            // Otherwise we need to move to the next set of expressions with the
+            // same input batch.
+            Ok(PollExecute::HasMore)
+        }
     }
 
     fn poll_finalize(
@@ -76,22 +94,7 @@ impl ExecutableOperator for PhysicalValues {
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        Err(RayexecError::new("Cannot push to Values operator"))
-    }
-
-    fn poll_pull(
-        &self,
-        _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::Values(state) => match state.batches.pop() {
-                Some(batch) => Ok(PollPull::Computed(batch.into())),
-                None => Ok(PollPull::Exhausted),
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
+        Ok(PollFinalize::Finalized)
     }
 }
 
@@ -149,5 +152,93 @@ impl DatabaseProtoConv for PhysicalValues {
         // }
 
         // Ok(Self { batches })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::Array;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_batches_eq;
+    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
+    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+
+    #[test]
+    fn values_literal() {
+        // `VALUES ('a', 2), ('b', 3)`
+        let exprs = vec![
+            vec![
+                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                    literal: "a".into(),
+                }),
+                PhysicalScalarExpression::Literal(PhysicalLiteralExpr { literal: 2.into() }),
+            ],
+            vec![
+                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                    literal: "b".into(),
+                }),
+                PhysicalScalarExpression::Literal(PhysicalLiteralExpr { literal: 3.into() }),
+            ],
+        ];
+
+        let operator = PhysicalValues { expressions: exprs };
+        let states = operator
+            .create_states(&test_database_context(), 1024, 1)
+            .unwrap();
+        let (operator_state, mut partition_states) = states.branchless_into_states().unwrap();
+
+        let wrapper = OperatorWrapper::new(operator);
+
+        let mut output = Batch::try_from_arrays([
+            Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 1024).unwrap(),
+            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 1024).unwrap(),
+        ])
+        .unwrap();
+
+        let mut input = Batch::empty_with_num_rows(1);
+
+        let poll = wrapper
+            .poll_execute(
+                &mut partition_states[0],
+                &operator_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(poll, PollExecute::HasMore);
+
+        let expected1 = Batch::try_from_arrays([
+            Array::try_from_iter(["a"]).unwrap(),
+            Array::try_from_iter([2]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected1, &output);
+
+        let poll = wrapper
+            .poll_execute(
+                &mut partition_states[0],
+                &operator_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(poll, PollExecute::Ready);
+
+        let expected2 = Batch::try_from_arrays([
+            Array::try_from_iter(["b"]).unwrap(),
+            Array::try_from_iter([3]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected2, &output);
     }
 }

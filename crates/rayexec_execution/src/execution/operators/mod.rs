@@ -17,7 +17,6 @@ pub mod nl_join;
 pub mod project;
 pub mod round_robin;
 pub mod scan;
-pub mod simple;
 pub mod sink;
 pub mod sort;
 pub mod source;
@@ -89,7 +88,6 @@ use self::round_robin::{
     RoundRobinPullPartitionState,
     RoundRobinPushPartitionState,
 };
-use self::simple::SimplePartitionState;
 use self::sort::gather_sort::{
     GatherSortOperatorState,
     GatherSortPullPartitionState,
@@ -111,6 +109,7 @@ pub enum PartitionState {
     Project(ProjectPartitionState),
     Filter(FilterPartitionState),
     TableInOut(TableInOutPartitionState),
+    Values(ValuesPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
@@ -118,7 +117,6 @@ pub enum PartitionState {
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
-    Values(ValuesPartitionState),
     Sink(SinkPartitionState),
     Source(SourcePartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
@@ -130,7 +128,6 @@ pub enum PartitionState {
     Unnest(UnnestPartitionState),
     UnionTop(UnionTopPartitionState),
     UnionBottom(UnionBottomPartitionState),
-    Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
     CreateSchema(CreateSchemaPartitionState),

@@ -686,6 +686,7 @@ where
 }
 
 impl Array {
+    #[deprecated]
     pub fn new_untyped_null_array(len: usize) -> Self {
         // Note that we're adding a bitmap here even though the data already
         // returns NULL. This allows the executors (especially for aggregates)
@@ -705,6 +706,7 @@ impl Array {
     }
 
     /// Creates a new typed array with all values being set to null.
+    #[deprecated]
     pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
         // Create physical array data of length 1, and use a selection vector to
         // extend it out to the desired size.
@@ -721,6 +723,7 @@ impl Array {
         })
     }
 
+    #[deprecated]
     pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData2>) -> Self {
         Array {
             datatype,
@@ -731,6 +734,7 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn new_with_validity_and_array_data(
         datatype: DataType,
         validity: impl Into<PhysicalValidity>,
@@ -745,15 +749,18 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn has_selection(&self) -> bool {
         self.selection2.is_some()
     }
 
+    #[deprecated]
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
         self.selection2.as_ref().map(|v| v.as_ref())
     }
 
     /// Sets the validity for a value at a given physical index.
+    #[deprecated]
     pub fn set_physical_validity(&mut self, idx: usize, valid: bool) {
         match &mut self.validity2 {
             Some(validity) => {
@@ -772,10 +779,12 @@ impl Array {
     }
 
     // TODO: Validating variant too.
+    #[deprecated]
     pub fn put_selection(&mut self, selection: impl Into<LogicalSelection>) {
         self.selection2 = Some(selection.into())
     }
 
+    #[deprecated]
     pub fn make_shared(&mut self) {
         if let Some(validity) = &mut self.validity2 {
             validity.make_shared();
@@ -806,6 +815,7 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn logical_len(&self) -> usize {
         match self.selection_vector() {
             Some(v) => v.num_rows(),
@@ -813,10 +823,12 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn validity(&self) -> Option<&Bitmap> {
         self.validity2.as_ref().map(|v| v.as_ref())
     }
 
+    #[deprecated]
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
         if idx >= self.logical_len() {
             return None;
@@ -837,15 +849,18 @@ impl Array {
     /// Returns the array data.
     ///
     /// ArrayData can be cheaply cloned.
+    #[deprecated]
     pub fn array_data(&self) -> &ArrayData2 {
         &self.data2
     }
 
+    #[deprecated]
     pub fn into_array_data(self) -> ArrayData2 {
         self.data2
     }
 
     /// Gets the physical type of the array.
+    #[deprecated]
     pub fn physical_type2(&self) -> PhysicalType {
         match self.data2.physical_type() {
             PhysicalType::Binary => match self.datatype {
@@ -859,6 +874,7 @@ impl Array {
     /// Get the value at a logical index.
     ///
     /// Takes into account the validity and selection vector.
+    #[deprecated]
     pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
         let idx = match self.selection_vector() {
             Some(v) => v
@@ -879,6 +895,7 @@ impl Array {
     /// Gets the scalar value at the physical index.
     ///
     /// Ignores validity and selectivitity.
+    #[deprecated]
     pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
             DataType::Null => match &self.data2 {
@@ -1028,6 +1045,7 @@ impl Array {
     }
 
     /// Checks if a scalar value is logically equal to a value in the array.
+    #[deprecated]
     pub fn scalar_value_logically_eq(&self, scalar: &ScalarValue, row: usize) -> Result<bool> {
         if row >= self.logical_len() {
             return Err(RayexecError::new("Row out of bounds"));
@@ -1176,6 +1194,7 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn try_slice(&self, offset: usize, count: usize) -> Result<Self> {
         if offset + count > self.logical_len() {
             return Err(RayexecError::new("Slice out of bounds"));
@@ -1183,6 +1202,7 @@ impl Array {
         Ok(self.slice(offset, count))
     }
 
+    #[deprecated]
     pub fn slice(&self, offset: usize, count: usize) -> Self {
         let selection = match self.selection_vector() {
             Some(sel) => sel.slice_unchecked(offset, count),

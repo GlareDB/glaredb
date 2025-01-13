@@ -28,18 +28,19 @@ impl IntermediatePipelineBuildState<'_> {
             Array::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
         let batch = Batch::try_from_arrays(vec![names, datatypes])?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
-            partitioning_requirement: Some(1),
-        };
+        unimplemented!()
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
+        //     partitioning_requirement: Some(1),
+        // };
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: vec![operator],
+        //     location,
+        //     source: PipelineSource::InPipeline,
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }
