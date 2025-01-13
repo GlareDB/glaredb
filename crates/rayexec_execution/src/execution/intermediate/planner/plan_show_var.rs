@@ -24,20 +24,21 @@ impl IntermediatePipelineBuildState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-                Batch::try_from_arrays([Array::from_iter([show.value.to_string().as_str()])])?,
-            ]))),
-            partitioning_requirement: Some(1),
-        };
+        unimplemented!()
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+        //         Batch::try_from_arrays([Array::from_iter([show.value.to_string().as_str()])])?,
+        //     ]))),
+        //     partitioning_requirement: Some(1),
+        // };
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: vec![operator],
+        //     location,
+        //     source: PipelineSource::InPipeline,
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }

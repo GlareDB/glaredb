@@ -265,7 +265,7 @@ impl HashTable {
                     arr
                 });
 
-                let phys_types = groups.iter().map(|a| a.physical_type());
+                let phys_types = groups.iter().map(|a| a.physical_type2());
 
                 let num_new_groups = self.insert_buffers.new_group_rows.len();
 
@@ -308,7 +308,7 @@ impl HashTable {
 
                         // Initialize the states.
                         for state in &mut states {
-                            state.states.new_states(num_new_groups);
+                            state.states.new_groups(num_new_groups);
                         }
 
                         let chunk = GroupChunk {

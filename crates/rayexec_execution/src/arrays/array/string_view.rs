@@ -8,14 +8,14 @@ pub struct StringViewAddressable<'a> {
     pub(crate) heap: &'a StringViewHeap,
 }
 
-impl Addressable for StringViewAddressable<'_> {
+impl<'a> Addressable<'a> for StringViewAddressable<'a> {
     type T = str;
 
     fn len(&self) -> usize {
         self.metadata.len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
         let m = self.metadata.get(idx)?;
         let bs = self.heap.get(m)?;
         Some(unsafe { std::str::from_utf8_unchecked(bs) })
@@ -54,14 +54,14 @@ pub struct BinaryViewAddressable<'a> {
     pub(crate) heap: &'a StringViewHeap,
 }
 
-impl Addressable for BinaryViewAddressable<'_> {
+impl<'a> Addressable<'a> for BinaryViewAddressable<'a> {
     type T = [u8];
 
     fn len(&self) -> usize {
         self.metadata.len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
         let m = self.metadata.get(idx)?;
         self.heap.get(m)
     }

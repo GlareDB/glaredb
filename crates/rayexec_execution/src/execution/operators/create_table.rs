@@ -119,13 +119,13 @@ struct CreateTablePartitionSink {
 }
 
 impl PartitionSink for CreateTablePartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.create_table_if_has_fut().await?;
             self.wait_for_sink_if_none().await;
 
             if let Some(sink) = &mut self.sink {
-                sink.push(batch).await?;
+                sink.push2(batch).await?;
             }
 
             Ok(())

@@ -50,7 +50,7 @@ impl PhysicalCreateSchema {
 }
 
 impl ExecutableOperator for PhysicalCreateSchema {
-    fn create_states(
+    fn create_states2(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -93,7 +93,7 @@ impl ExecutableOperator for PhysicalCreateSchema {
         Err(RayexecError::new("Cannot push to physical create table"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

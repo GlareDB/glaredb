@@ -445,8 +445,8 @@ impl DataType {
         }
     }
 
-    pub fn physical_type(&self) -> Result<PhysicalType> {
-        Ok(match self {
+    pub fn physical_type(&self) -> PhysicalType {
+        match self {
             DataType::Null => PhysicalType::UntypedNull,
             DataType::Boolean => PhysicalType::Boolean,
             DataType::Int8 => PhysicalType::Int8,
@@ -470,9 +470,9 @@ impl DataType {
             DataType::Interval => PhysicalType::Interval,
             DataType::Utf8 => PhysicalType::Utf8,
             DataType::Binary => PhysicalType::Binary,
-            DataType::Struct(_) => not_implemented!("struct data type to physical type"),
+            DataType::Struct(_) => PhysicalType::Struct,
             DataType::List(_) => PhysicalType::List,
-        })
+        }
     }
 
     /// Return if this datatype is null.

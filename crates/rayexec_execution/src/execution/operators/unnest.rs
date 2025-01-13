@@ -82,7 +82,7 @@ pub struct PhysicalUnnest {
 }
 
 impl ExecutableOperator for PhysicalUnnest {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -141,11 +141,11 @@ impl ExecutableOperator for PhysicalUnnest {
 
         // Compute inputs. These will be stored until we've processed all rows.
         for (col_idx, expr) in self.project_expressions.iter().enumerate() {
-            state.project_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.project_inputs[col_idx] = expr.eval(&batch)?;
         }
 
         for (col_idx, expr) in self.unnest_expressions.iter().enumerate() {
-            state.unnest_inputs[col_idx] = expr.eval(&batch)?.into_owned();
+            state.unnest_inputs[col_idx] = expr.eval(&batch)?;
         }
 
         state.input_num_rows = batch.num_rows();
@@ -158,7 +158,7 @@ impl ExecutableOperator for PhysicalUnnest {
         Ok(PollPush::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -206,7 +206,7 @@ impl ExecutableOperator for PhysicalUnnest {
         // We have input ready, get the longest list for the current row.
         let mut longest = 0;
         for input_idx in 0..state.unnest_inputs.len() {
-            if state.unnest_inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
+            if state.unnest_inputs[input_idx].physical_type2() == PhysicalType::UntypedNull {
                 // Just let other unnest expressions determine the number of
                 // rows.
                 continue;
@@ -243,7 +243,7 @@ impl ExecutableOperator for PhysicalUnnest {
         for input_idx in 0..state.unnest_inputs.len() {
             let arr = &state.unnest_inputs[input_idx];
 
-            match arr.physical_type() {
+            match arr.physical_type2() {
                 PhysicalType::List => {
                     let child = match arr.array_data() {
                         ArrayData2::List(list) => list.inner_array(),
@@ -307,7 +307,7 @@ impl Explainable for PhysicalUnnest {
 pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata2) -> Result<Array> {
     let datatype = child.datatype().clone();
 
-    match child.physical_type() {
+    match child.physical_type2() {
         PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
         PhysicalType::Boolean => {
             let builder = ArrayBuilder {

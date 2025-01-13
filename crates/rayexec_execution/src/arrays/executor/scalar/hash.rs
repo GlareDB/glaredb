@@ -39,7 +39,7 @@ impl HashExecutor {
     /// Hashes the given array values, combining them with the existing hashes
     /// in `hashes`.
     pub fn hash_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
-        match array.physical_type() {
+        match array.physical_type2() {
             PhysicalType::UntypedNull => {
                 Self::hash_one_inner::<PhysicalUntypedNull, CombineSetHash>(array, hashes)?
             }
@@ -104,7 +104,7 @@ impl HashExecutor {
     /// Hash the given array and write the values into `hashes`, overwriting any
     /// existing values.
     pub fn hash_no_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
-        match array.physical_type() {
+        match array.physical_type2() {
             PhysicalType::UntypedNull => {
                 Self::hash_one_inner::<PhysicalUntypedNull, OverwriteSetHash>(array, hashes)?
             }

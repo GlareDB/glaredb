@@ -153,7 +153,7 @@ pub(crate) fn concat_with_exact_total_len(arrays: &[&Array], total_len: usize) -
         None => return Err(RayexecError::new("Cannot concat zero arrays")),
     };
 
-    match datatype.physical_type()? {
+    match datatype.physical_type() {
         PhysicalType::UntypedNull => Ok(Array {
             datatype: datatype.clone(),
             selection2: None,
@@ -380,7 +380,7 @@ pub fn interleave(arrays: &[&Array], indices: &[(usize, usize)]) -> Result<Array
         None => return Err(RayexecError::new("Cannot interleave zero arrays")),
     };
 
-    match datatype.physical_type()? {
+    match datatype.physical_type() {
         PhysicalType::UntypedNull => Ok(Array {
             datatype: datatype.clone(),
             selection2: None,

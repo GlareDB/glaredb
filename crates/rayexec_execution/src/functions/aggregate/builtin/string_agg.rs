@@ -2,13 +2,18 @@ use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalUtf8};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{new_unary_aggregate_states, AggregateGroupStates};
+use crate::functions::aggregate::states::{
+    drain,
+    unary_update,
+    AggregateGroupStates,
+    TypedAggregateGroupStates,
+};
 use crate::functions::aggregate::{
     AggregateFunction,
     AggregateFunctionImpl,
@@ -99,13 +104,11 @@ impl AggregateFunctionImpl for StringAggImpl {
             string: None,
         };
 
-        new_unary_aggregate_states::<PhysicalUtf8, _, _, _, _>(state_init, move |states| {
-            let builder = ArrayBuilder {
-                datatype: DataType::Utf8,
-                buffer: GermanVarlenBuffer::<str>::with_len(states.len()),
-            };
-            StateFinalizer::finalize(states, builder)
-        })
+        Box::new(TypedAggregateGroupStates::new(
+            state_init,
+            unary_update::<PhysicalUtf8, PhysicalUtf8, _>,
+            drain::<PhysicalUtf8, _, _>,
+        ))
     }
 }
 
@@ -119,7 +122,7 @@ pub struct StringAggState {
     string: Option<String>,
 }
 
-impl AggregateState<&str, String> for StringAggState {
+impl AggregateState<&str, str> for StringAggState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.string.is_none() {
             std::mem::swap(self, other);
@@ -148,10 +151,14 @@ impl AggregateState<&str, String> for StringAggState {
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(String, bool)> {
-        match self.string.take() {
-            Some(s) => Ok((s, true)),
-            None => Ok((String::new(), false)),
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = str>,
+    {
+        match &self.string {
+            Some(s) => output.put(s),
+            None => output.put_null(),
         }
+        Ok(())
     }
 }

@@ -41,7 +41,7 @@ pub struct PhysicalCreateView {
 }
 
 impl ExecutableOperator for PhysicalCreateView {
-    fn create_states(
+    fn create_states2(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -91,7 +91,7 @@ impl ExecutableOperator for PhysicalCreateView {
         Err(RayexecError::new("Cannot push to physical create view"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

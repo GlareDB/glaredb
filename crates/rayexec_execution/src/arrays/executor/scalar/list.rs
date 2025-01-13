@@ -1,192 +1,151 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::physical_type::{PhysicalList, PhysicalStorage};
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer};
-use crate::arrays::executor::scalar::{
-    can_skip_validity_check,
-    check_validity,
-    validate_logical_len,
+use crate::arrays::array::array_buffer::SecondaryBuffer;
+use crate::arrays::array::physical_type::{
+    Addressable,
+    AddressableMut,
+    MutablePhysicalStorage,
+    PhysicalList,
+    PhysicalStorage,
 };
-use crate::arrays::selection::{self, SelectionVector};
-use crate::arrays::storage::{AddressableStorage, ListItemMetadata2};
+use crate::arrays::array::Array;
+use crate::arrays::executor::OutBuffer;
 
-pub trait BinaryListReducer<T, O> {
-    fn new(left_len: i32, right_len: i32) -> Self;
-    fn put_values(&mut self, v1: T, v2: T);
+pub trait BinaryReducer<T1, T2, O>: Default {
+    /// Put two values from each list into the reducer.
+    fn put_values(&mut self, v1: T1, v2: T2);
+    /// Produce the final value from the reducer.
     fn finish(self) -> O;
 }
 
-/// List executor that allows for different list lengths, and nulls inside of
-/// lists.
-pub type FlexibleListExecutor = ListExecutor<true, true>;
+#[derive(Debug, Clone)]
+pub struct BinaryListReducer;
 
-/// Execute reductions on lists.
-///
-/// `ALLOW_DIFFERENT_LENS` controls whether or not this allows for reducing
-/// lists of different lengths.
-///
-/// `ALLOW_NULLS` controls if this allows nulls in lists.
-#[derive(Debug, Clone, Copy)]
-pub struct ListExecutor<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>;
-
-impl<const ALLOW_DIFFERENT_LENS: bool, const ALLOW_NULLS: bool>
-    ListExecutor<ALLOW_DIFFERENT_LENS, ALLOW_NULLS>
-{
-    /// Execute a reducer on two list arrays.
-    pub fn binary_reduce<'a, S, B, R>(
-        array1: &'a Array,
-        array2: &'a Array,
-        mut builder: ArrayBuilder<B>,
-    ) -> Result<Array>
+impl BinaryListReducer {
+    /// Iterate two list arrays, reducing lists from each array.
+    ///
+    /// List reduction requires that if both lists for a given row are non-null,
+    /// then both lists must be the same length and not contain nulls.
+    ///
+    /// If either list is null, the output row will be set to null (same as
+    /// other executor logic).
+    ///
+    /// `R` is used to create a new reducer for each pair of lists.
+    ///
+    /// `S1` and `S2` should be for the inner type within the list.
+    pub fn reduce<S1, S2, R, O>(
+        array1: &Array,
+        sel1: impl IntoExactSizeIterator<Item = usize>,
+        array2: &Array,
+        sel2: impl IntoExactSizeIterator<Item = usize>,
+        out: OutBuffer,
+    ) -> Result<()>
     where
-        R: BinaryListReducer<S::Type<'a>, B::Type>,
-        S: PhysicalStorage,
-        B: ArrayDataBuffer,
-        <B as ArrayDataBuffer>::Type: Sized,
+        S1: PhysicalStorage,
+        S2: PhysicalStorage,
+        O: MutablePhysicalStorage,
+        O::StorageType: Sized,
+        for<'a> R: BinaryReducer<&'a S1::StorageType, &'a S2::StorageType, O::StorageType>,
     {
-        let len = validate_logical_len(&builder.buffer, array1)?;
-        let _ = validate_logical_len(&builder.buffer, array2)?;
+        if array1.is_dictionary() || array2.is_dictionary() {
+            // TODO
+        }
 
-        let selection1 = array1.selection_vector();
-        let selection2 = array2.selection_vector();
+        let inner1 = match array1.next().data.get_secondary() {
+            SecondaryBuffer::List(list) => &list.child,
+            _ => return Err(RayexecError::new("Array 1 not a list array")),
+        };
 
-        let validity1 = array1.validity();
-        let validity2 = array2.validity();
+        let inner2 = match array2.next().data.get_secondary() {
+            SecondaryBuffer::List(list) => &list.child,
+            _ => return Err(RayexecError::new("Array 2 not a list array")),
+        };
 
-        if can_skip_validity_check([validity1, validity2]) {
-            let metadata1 = PhysicalList::get_storage(array1.array_data())?;
-            let metadata2 = PhysicalList::get_storage(array2.array_data())?;
+        if !inner1.next().validity.all_valid() || !inner2.next().validity.all_valid() {
+            // TODO: This can be more selective. Rows that don't conform
+            // could be skipped with the selections.
+            return Err(RayexecError::new(
+                "List reduction requires all values be non-null",
+            ));
+        }
 
-            let (values1, inner_validity1) = get_inner_array_storage::<S>(array1)?;
-            let (values2, inner_validity2) = get_inner_array_storage::<S>(array2)?;
+        let metadata1 = PhysicalList::get_addressable(&array1.next().data)?;
+        let metadata2 = PhysicalList::get_addressable(&array2.next().data)?;
 
-            let inner_sel1 = get_inner_array_selection(array1)?;
-            let inner_sel2 = get_inner_array_selection(array2)?;
+        let validity1 = &array1.next().validity;
+        let validity2 = &array2.next().validity;
 
-            if can_skip_validity_check([inner_validity1, inner_validity2]) {
-                for idx in 0..len {
-                    let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
-                    let sel2 = unsafe { selection::get_unchecked(selection2, idx) };
+        let mut output = O::get_addressable_mut(out.buffer)?;
 
-                    let m1 = unsafe { metadata1.get_unchecked(sel1) };
-                    let m2 = unsafe { metadata2.get_unchecked(sel2) };
+        let input1 = S1::get_addressable(&inner1.next().data)?;
+        let input2 = S2::get_addressable(&inner2.next().data)?;
 
-                    let len = Self::item_iter_len(m1, m2)?;
+        if validity1.all_valid() && validity2.all_valid() {
+            for (output_idx, (input1_idx, input2_idx)) in
+                sel1.into_iter().zip(sel2.into_iter()).enumerate()
+            {
+                let meta1 = metadata1.get(input1_idx).unwrap();
+                let meta2 = metadata2.get(input2_idx).unwrap();
 
-                    let mut reducer = R::new(m1.len, m2.len);
-
-                    for inner_idx in 0..len {
-                        let idx1 = m1.offset + inner_idx;
-                        let idx2 = m2.offset + inner_idx;
-
-                        let sel1 = unsafe { selection::get_unchecked(inner_sel1, idx1 as usize) };
-                        let sel2 = unsafe { selection::get_unchecked(inner_sel2, idx2 as usize) };
-
-                        let v1 = unsafe { values1.get_unchecked(sel1) };
-                        let v2 = unsafe { values2.get_unchecked(sel2) };
-
-                        reducer.put_values(v1, v2);
-                    }
-
-                    let out = reducer.finish();
-
-                    builder.buffer.put(idx, &out);
+                if meta1.len != meta2.len {
+                    return Err(RayexecError::new(
+                        "List reduction requires lists be the same length",
+                    )
+                    .with_field("len1", meta1.len)
+                    .with_field("len2", meta2.len));
                 }
 
-                Ok(Array {
-                    datatype: builder.datatype,
-                    selection2: None,
-                    validity2: None,
-                    data2: builder.buffer.into_data(),
-                    next: None,
-                })
-            } else {
-                if !ALLOW_NULLS {
-                    return Err(RayexecError::new("Cannot reduce list containing NULLs"));
+                let mut reducer = R::default();
+
+                for offset in 0..meta1.len {
+                    let idx1 = meta1.offset + offset;
+                    let idx2 = meta2.offset + offset;
+
+                    let v1 = input1.get(idx1 as usize).unwrap();
+                    let v2 = input2.get(idx2 as usize).unwrap();
+
+                    reducer.put_values(v1, v2);
                 }
 
-                for idx in 0..len {
-                    let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
-                    let sel2 = unsafe { selection::get_unchecked(selection2, idx) };
-
-                    let m1 = unsafe { metadata1.get_unchecked(sel1) };
-                    let m2 = unsafe { metadata2.get_unchecked(sel2) };
-
-                    let len = Self::item_iter_len(m1, m2)?;
-
-                    let mut reducer = R::new(m1.len, m2.len);
-
-                    for inner_idx in 0..len {
-                        let idx1 = m1.offset + inner_idx;
-                        let idx2 = m2.offset + inner_idx;
-
-                        let sel1 = unsafe { selection::get_unchecked(inner_sel1, idx1 as usize) };
-                        let sel2 = unsafe { selection::get_unchecked(inner_sel2, idx2 as usize) };
-
-                        if check_validity(sel1, inner_validity1)
-                            && check_validity(sel2, inner_validity2)
-                        {
-                            let v1 = unsafe { values1.get_unchecked(sel1) };
-                            let v2 = unsafe { values2.get_unchecked(sel2) };
-
-                            reducer.put_values(v1, v2);
-                        }
-                    }
-
-                    let out = reducer.finish();
-
-                    builder.buffer.put(idx, &out);
-                }
-
-                Ok(Array {
-                    datatype: builder.datatype,
-                    selection2: None,
-                    validity2: None,
-                    data2: builder.buffer.into_data(),
-                    next: None,
-                })
+                output.put(output_idx, &reducer.finish());
             }
         } else {
-            // let mut out_validity = None;
-            not_implemented!("list validity execute")
-        }
-    }
+            for (output_idx, (input1_idx, input2_idx)) in
+                sel1.into_iter().zip(sel2.into_iter()).enumerate()
+            {
+                if !validity1.is_valid(input1_idx) || !validity2.is_valid(input2_idx) {
+                    out.validity.set_invalid(output_idx);
+                    continue;
+                }
 
-    fn item_iter_len(m1: ListItemMetadata2, m2: ListItemMetadata2) -> Result<i32> {
-        if m1.len == m2.len {
-            Ok(m1.len)
-        } else if ALLOW_DIFFERENT_LENS {
-            Ok(std::cmp::min(m1.len, m2.len))
-        } else {
-            Err(RayexecError::new(format!(
-                "Cannot reduce arrays with differing lengths, got {} and {}",
-                m1.len, m2.len
-            )))
-        }
-    }
-}
+                let meta1 = metadata1.get(input1_idx).unwrap();
+                let meta2 = metadata2.get(input2_idx).unwrap();
 
-/// Gets the inner array storage. Checks to ensure the inner array does not
-/// contain NULLs.
-fn get_inner_array_storage<S>(array: &Array) -> Result<(S::Storage<'_>, Option<&Bitmap>)>
-where
-    S: PhysicalStorage,
-{
-    match array.array_data() {
-        ArrayData2::List(d) => {
-            let storage = S::get_storage(d.array.array_data())?;
-            let validity = d.array.validity();
-            Ok((storage, validity))
-        }
-        _ => Err(RayexecError::new("Expected list array data")),
-    }
-}
+                if meta1.len != meta2.len {
+                    return Err(RayexecError::new(
+                        "List reduction requires lists be the same length",
+                    )
+                    .with_field("len1", meta1.len)
+                    .with_field("len2", meta2.len));
+                }
 
-fn get_inner_array_selection(array: &Array) -> Result<Option<&SelectionVector>> {
-    match array.array_data() {
-        ArrayData2::List(d) => Ok(d.array.selection_vector()),
-        _ => Err(RayexecError::new("Expected list array data")),
+                let mut reducer = R::default();
+
+                for offset in 0..meta1.len {
+                    let idx1 = meta1.offset + offset;
+                    let idx2 = meta2.offset + offset;
+
+                    let v1 = input1.get(idx1 as usize).unwrap();
+                    let v2 = input2.get(idx2 as usize).unwrap();
+
+                    reducer.put_values(v1, v2);
+                }
+
+                output.put(output_idx, &reducer.finish());
+            }
+        }
+
+        Ok(())
     }
 }

@@ -1,72 +1,58 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
-use super::{AggregateState, RowToStateMapping};
-use crate::arrays::array::physical_type::PhysicalStorage;
+use super::AggregateState;
+use crate::arrays::array::physical_type::{Addressable, PhysicalStorage};
 use crate::arrays::array::Array;
-use crate::arrays::executor::scalar::check_validity;
-use crate::arrays::selection;
-use crate::arrays::storage::AddressableStorage;
 
-/// Updates aggregate states for an aggregate that accepts two inputs.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BinaryNonNullUpdater;
 
 impl BinaryNonNullUpdater {
-    pub fn update<'a, S1, S2, I, State, Output>(
-        array1: &'a Array,
-        array2: &'a Array,
-        mapping: I,
+    pub fn update<S1, S2, State, Output>(
+        array1: &Array,
+        array2: &Array,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        mapping: impl IntoExactSizeIterator<Item = usize>,
         states: &mut [State],
     ) -> Result<()>
     where
         S1: PhysicalStorage,
         S2: PhysicalStorage,
-        I: IntoIterator<Item = RowToStateMapping>,
-        State: AggregateState<(S1::Type<'a>, S2::Type<'a>), Output>,
+        Output: ?Sized,
+        for<'a> State: AggregateState<(&'a S1::StorageType, &'a S2::StorageType), Output>,
     {
-        if array1.logical_len() != array2.logical_len() {
-            return Err(RayexecError::new(format!(
-                "Cannot compute binary aggregate on arrays with different lengths, got {} and {}",
-                array1.logical_len(),
-                array2.logical_len(),
-            )));
-        }
+        // TODO: Dictionary
 
-        let selection1 = array1.selection_vector();
-        let selection2 = array2.selection_vector();
+        // TODO: Length check.
 
-        let validity1 = array1.validity();
-        let validity2 = array2.validity();
+        let input1 = S1::get_addressable(&array1.next().data)?;
+        let input2 = S2::get_addressable(&array2.next().data)?;
 
-        if validity1.is_some() || validity2.is_some() {
-            let values1 = S1::get_storage(&array1.data2)?;
-            let values2 = S2::get_storage(&array2.data2)?;
+        let validity1 = &array1.next().validity;
+        let validity2 = &array2.next().validity;
 
-            for mapping in mapping {
-                let sel1 = unsafe { selection::get_unchecked(selection1, mapping.from_row) };
-                let sel2 = unsafe { selection::get_unchecked(selection2, mapping.from_row) };
+        if validity1.all_valid() && validity2.all_valid() {
+            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+                let val1 = input1.get(input_idx).unwrap();
+                let val2 = input2.get(input_idx).unwrap();
 
-                if check_validity(sel1, validity1) && check_validity(sel2, validity2) {
-                    let val1 = unsafe { values1.get_unchecked(sel1) };
-                    let val2 = unsafe { values2.get_unchecked(sel2) };
+                let state = &mut states[state_idx];
 
-                    let state = &mut states[mapping.to_state];
-                    state.update((val1, val2))?
-                }
+                state.update((val1, val2))?;
             }
         } else {
-            let values1 = S1::get_storage(&array1.data2)?;
-            let values2 = S2::get_storage(&array2.data2)?;
+            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+                if !validity1.is_valid(input_idx) || !validity2.is_valid(input_idx) {
+                    continue;
+                }
 
-            for mapping in mapping {
-                let sel1 = unsafe { selection::get_unchecked(selection1, mapping.from_row) };
-                let sel2 = unsafe { selection::get_unchecked(selection2, mapping.from_row) };
+                let val1 = input1.get(input_idx).unwrap();
+                let val2 = input2.get(input_idx).unwrap();
 
-                let val1 = unsafe { values1.get_unchecked(sel1) };
-                let val2 = unsafe { values2.get_unchecked(sel2) };
+                let state = &mut states[state_idx];
 
-                let state = &mut states[mapping.to_state];
-                state.update((val1, val2))?
+                state.update((val1, val2))?;
             }
         }
 
@@ -76,8 +62,11 @@ impl BinaryNonNullUpdater {
 
 #[cfg(test)]
 mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
-    use crate::arrays::array::physical_type::PhysicalI32;
+    use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};
+    use crate::arrays::executor::PutBuffer;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]
@@ -92,49 +81,39 @@ mod tests {
         }
     }
 
-    impl AggregateState<(i32, i32), i32> for TestAddSumAndProductState {
+    impl AggregateState<(&i32, &i32), i32> for TestAddSumAndProductState {
         fn merge(&mut self, other: &mut Self) -> Result<()> {
             self.sum += other.sum;
             self.product *= other.product;
             Ok(())
         }
 
-        fn update(&mut self, input: (i32, i32)) -> Result<()> {
-            self.sum += input.0;
-            self.product *= input.1;
+        fn update(&mut self, (&i1, &i2): (&i32, &i32)) -> Result<()> {
+            self.sum += i1;
+            self.product *= i2;
             Ok(())
         }
 
-        fn finalize(&mut self) -> Result<(i32, bool)> {
-            Ok((self.sum + self.product, true))
+        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+        where
+            M: AddressableMut<T = i32>,
+        {
+            output.put(&(self.sum + self.product));
+            Ok(())
         }
     }
 
     #[test]
     fn binary_primitive_single_state() {
         let mut states = [TestAddSumAndProductState::default()];
-        let array1 = Array::from_iter([1, 2, 3, 4, 5]);
-        let array2 = Array::from_iter([6, 7, 8, 9, 10]);
+        let array1 = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
+        let array2 = Array::try_from_iter([6, 7, 8, 9, 10]).unwrap();
 
-        let mapping = [
-            RowToStateMapping {
-                from_row: 1,
-                to_state: 0,
-            },
-            RowToStateMapping {
-                from_row: 3,
-                to_state: 0,
-            },
-            RowToStateMapping {
-                from_row: 4,
-                to_state: 0,
-            },
-        ];
-
-        BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _, _>(
+        BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _>(
             &array1,
             &array2,
-            mapping,
+            [1, 3, 4],
+            [0, 0, 0],
             &mut states,
         )
         .unwrap();

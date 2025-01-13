@@ -4,8 +4,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
-use crate::execution::operators::project::ProjectOperation;
-use crate::execution::operators::simple::SimpleOperator;
+use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
 use crate::logical::operator::{LocationRequirement, Node};
@@ -50,14 +49,14 @@ impl IntermediatePipelineBuildState<'_> {
             .bind_context
             .get_materialization(scan.node.mat)?
             .table_refs;
+
         let projections = self
             .expr_planner
             .plan_scalars(materialized_refs, &scan.node.projections)
             .context("Failed to plan projections out of materialization")?;
+
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
-                ProjectOperation::new(projections),
-            ))),
+            operator: Arc::new(PhysicalOperator::Project(PhysicalProject { projections })),
             partitioning_requirement: None,
         };
 

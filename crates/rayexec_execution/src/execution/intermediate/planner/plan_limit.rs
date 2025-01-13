@@ -24,10 +24,10 @@ impl IntermediatePipelineBuildState<'_> {
         // This is a global limit, ensure this operator is only receiving a
         // single input partition.
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit::new(
-                limit.node.limit,
-                limit.node.offset,
-            ))),
+            operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit {
+                limit: limit.node.limit,
+                offset: limit.node.offset,
+            })),
             partitioning_requirement: Some(1),
         };
 

@@ -85,7 +85,7 @@ impl<S: SourceOperation> SourceOperator<S> {
 }
 
 impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -120,7 +120,7 @@ impl<S: SourceOperation> ExecutableOperator for SourceOperator<S> {
         Err(RayexecError::new("Cannot push to physical scan"))
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

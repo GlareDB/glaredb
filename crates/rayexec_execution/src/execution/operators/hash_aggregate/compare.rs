@@ -90,12 +90,12 @@ where
         // there's a hash collision with groups from different grouping sets
         // (e.g. group may have no masked columns but we're comparing against a
         // group with masked columns).
-        if array1.physical_type() != array2.physical_type() {
+        if array1.physical_type2() != array2.physical_type2() {
             not_eq_rows.extend(rows1);
             return Ok(());
         }
 
-        match array1.physical_type() {
+        match array1.physical_type2() {
             PhysicalType::UntypedNull => compare_rows_eq::<PhysicalUntypedNull, _, _>(
                 array1,
                 array2,

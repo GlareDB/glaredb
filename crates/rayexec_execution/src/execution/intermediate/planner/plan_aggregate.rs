@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
-use crate::execution::operators::project::{PhysicalProject, ProjectOperation};
+use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -32,6 +32,7 @@ impl IntermediatePipelineBuildState<'_> {
         // Extract agg expressions, place in their own pre-projection.
         let mut preproject_exprs = Vec::new();
         for agg_expr in agg.node.aggregates {
+            let start_col_index = preproject_exprs.len(); // Relative offset for preproject inputs.
             let agg = match agg_expr {
                 Expression::Aggregate(agg) => agg,
                 other => {
@@ -41,21 +42,26 @@ impl IntermediatePipelineBuildState<'_> {
                 }
             };
 
-            let start_col_index = preproject_exprs.len();
-            for arg in &agg.agg.inputs {
+            let mut agg_columns = Vec::with_capacity(agg.agg.inputs.len());
+
+            for (rel_idx, arg) in agg.agg.inputs.iter().enumerate() {
                 let scalar = self
                     .expr_planner
                     .plan_scalar(&input_refs, arg)
                     .context("Failed to plan expressions for aggregate pre-projection")?;
+
+                let datatype = scalar.datatype();
                 preproject_exprs.push(scalar);
+
+                agg_columns.push(PhysicalColumnExpr {
+                    idx: rel_idx + start_col_index,
+                    datatype,
+                });
             }
-            let end_col_index = preproject_exprs.len();
 
             let phys_agg = PhysicalAggregateExpression {
                 function: agg.agg,
-                columns: (start_col_index..end_col_index)
-                    .map(|idx| PhysicalColumnExpr { idx })
-                    .collect(),
+                columns: agg_columns,
                 is_distinct: agg.distinct,
             };
 
@@ -78,7 +84,7 @@ impl IntermediatePipelineBuildState<'_> {
         self.push_intermediate_operator(
             IntermediateOperator {
                 operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
-                    operation: ProjectOperation::new(preproject_exprs),
+                    projections: preproject_exprs,
                 })),
                 partitioning_requirement: None,
             },

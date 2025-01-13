@@ -117,7 +117,7 @@ pub struct ResultPartitionSink {
 }
 
 impl PartitionSink for ResultPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(PushFuture {
             batch: Some(batch),
             inner: self.inner.clone(),

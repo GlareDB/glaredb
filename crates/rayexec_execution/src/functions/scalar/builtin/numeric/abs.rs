@@ -1,13 +1,12 @@
 use num_traits::Float;
 use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
-use crate::arrays::array::physical_type::PhysicalStorage;
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::datatype::DataType;
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use crate::arrays::array::physical_type::MutablePhysicalStorage;
+use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::UnaryExecutor;
-use crate::arrays::storage::PrimitiveStorage;
+use crate::arrays::executor::OutBuffer;
 
 pub type Abs = UnaryInputNumericScalar<AbsOp>;
 
@@ -18,16 +17,20 @@ impl UnaryInputNumericOperation for AbsOp {
     const NAME: &'static str = "abs";
     const DESCRIPTION: &'static str = "Compute the absolute value of a number";
 
-    fn execute_float<'a, S>(input: &'a Array, ret: DataType) -> Result<Array>
+    fn execute_float<S>(
+        input: &Array,
+        selection: impl IntoExactSizeIterator<Item = usize>,
+        output: &mut Array,
+    ) -> Result<()>
     where
-        S: PhysicalStorage,
-        S::Type<'a>: Float + Default,
-        ArrayData2: From<PrimitiveStorage<S::Type<'a>>>,
+        S: MutablePhysicalStorage,
+        S::StorageType: Float,
     {
-        let builder = ArrayBuilder {
-            datatype: ret,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-        UnaryExecutor::execute2::<S, _, _>(input, builder, |v, buf| buf.put(&v.abs()))
+        UnaryExecutor::execute::<S, S, _>(
+            input,
+            selection,
+            OutBuffer::from_array(output)?,
+            |&v, buf| buf.put(&v.abs()),
+        )
     }
 }

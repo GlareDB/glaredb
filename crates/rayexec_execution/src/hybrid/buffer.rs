@@ -192,7 +192,7 @@ pub struct OutgoingPartitionStream {
 }
 
 impl PartitionSink for OutgoingPartitionStream {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(OutgoingPushFuture {
             batch: Some(batch),
             state: self.state.clone(),

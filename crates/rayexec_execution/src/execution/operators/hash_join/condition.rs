@@ -80,7 +80,7 @@ impl LeftPrecomputedJoinConditions {
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
             let precomputed = condition.left.eval(left)?;
-            condition.left_precomputed.push(precomputed.into_owned())
+            condition.left_precomputed.push(precomputed)
         }
 
         Ok(())
@@ -106,7 +106,7 @@ impl LeftPrecomputedJoinConditions {
         let mut results = Vec::with_capacity(self.conditions.len());
 
         // Select rows from the right batch.
-        let selected_right = right.select(right_row_sel.clone());
+        let selected_right = right.select_old(right_row_sel.clone());
 
         for condition in &self.conditions {
             let mut left_precomputed = condition
@@ -127,14 +127,14 @@ impl LeftPrecomputedJoinConditions {
             let result = condition
                 .function
                 .function_impl
-                .execute(&[&left_precomputed, right_arr.as_ref()])?;
+                .execute2(&[&left_precomputed, &right_arr])?;
 
             results.push(result);
         }
 
         // AND the results.
         let refs: Vec<_> = results.iter().collect();
-        let out = AndImpl.execute(&refs)?;
+        let out = AndImpl.execute2(&refs)?;
 
         // Generate a selection for the left and right selections.
         let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());

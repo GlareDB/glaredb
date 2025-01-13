@@ -6,8 +6,6 @@ use parquet::schema::types::ColumnDescPtr;
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::arrays::array::{Array, ArrayData2};
 use rayexec_execution::arrays::bitmap::Bitmap;
-use rayexec_execution::arrays::compute::cast::array::cast_array;
-use rayexec_execution::arrays::compute::cast::behavior::CastFailBehavior;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::storage::{BooleanStorage, PrimitiveStorage};
 
@@ -91,9 +89,10 @@ where
             None => Array::new_with_array_data(build_type, array_data),
         };
 
-        if needs_cast {
-            array = cast_array(&array, self.datatype.clone(), CastFailBehavior::Null)?;
-        }
+        // TODO:
+        // if needs_cast {
+        //     array = cast_array(&array, self.datatype.clone(), CastFailBehavior::Null)?;
+        // }
 
         Ok(array)
     }

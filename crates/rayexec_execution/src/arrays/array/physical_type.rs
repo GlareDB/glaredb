@@ -110,11 +110,10 @@ impl PhysicalType {
             Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Utf8 => PhysicalUtf8::PRIMARY_BUFFER_TYPE_SIZE,
+            Self::Binary => PhysicalBinary::PRIMARY_BUFFER_TYPE_SIZE,
             Self::List => PhysicalList::PRIMARY_BUFFER_TYPE_SIZE,
             Self::Dictionary => PhysicalDictionary::PRIMARY_BUFFER_TYPE_SIZE,
-
-            // TODO: Struct should zero.
-            _ => unimplemented!(),
+            Self::Struct => unimplemented!(),
         }
     }
 
@@ -209,7 +208,7 @@ impl ProtoConv for PhysicalType {
 }
 
 /// Represents an in-memory array that can be indexed into to retrieve values.
-pub trait Addressable: Debug {
+pub trait Addressable<'a>: Debug {
     /// The type that get's returned.
     type T: Send + Debug + ?Sized;
 
@@ -220,10 +219,10 @@ pub trait Addressable: Debug {
     }
 
     /// Get a value at the given index.
-    fn get(&self, idx: usize) -> Option<&Self::T>;
+    fn get(&self, idx: usize) -> Option<&'a Self::T>;
 }
 
-impl<T> Addressable for &[T]
+impl<'a, T> Addressable<'a> for &'a [T]
 where
     T: Debug + Send,
 {
@@ -233,7 +232,7 @@ where
         (**self).len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
         (**self).get(idx)
     }
 }
@@ -327,7 +326,7 @@ impl VarlenType for [u8] {
 }
 
 /// Helper trait for getting the underlying data for an array.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+pub trait PhysicalStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     // TODO: Remove
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
@@ -355,7 +354,7 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     type StorageType: Sync + Send + ?Sized;
 
     /// The type of the addressable storage.
-    type Addressable<'a>: Addressable<T = Self::StorageType>;
+    type Addressable<'a>: Addressable<'a, T = Self::StorageType>;
 
     /// Get addressable storage for indexing into the array.
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>>;
@@ -376,7 +375,7 @@ pub trait MutablePhysicalStorage: PhysicalStorage {
 /// While this allows any array type to used in the executors, there's no way to
 /// actually get the underlying values. This is useful if the values aren't
 /// actually needed (e.g. COUNT(*)).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PhysicalAny;
 
 impl PhysicalStorage for PhysicalAny {
@@ -427,7 +426,7 @@ impl AddressableStorage for UnitStorage {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UntypedNull;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PhysicalUntypedNull;
 
 impl PhysicalStorage for PhysicalUntypedNull {
@@ -464,7 +463,7 @@ impl MutablePhysicalStorage for PhysicalUntypedNull {
 }
 
 // TODO: Use primitive macro
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PhysicalBool;
 
 impl PhysicalStorage for PhysicalBool {
@@ -559,7 +558,7 @@ generate_primitive!(f64, PhysicalF64, Float64);
 
 generate_primitive!(Interval, PhysicalInterval, Interval);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PhysicalBinary;
 
 impl PhysicalStorage for PhysicalBinary {
@@ -603,7 +602,7 @@ impl MutablePhysicalStorage for PhysicalBinary {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PhysicalUtf8;
 
 impl PhysicalStorage for PhysicalUtf8 {
@@ -718,7 +717,7 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct PhysicalList;
 
 impl PhysicalStorage for PhysicalList {
@@ -741,6 +740,16 @@ impl PhysicalStorage for PhysicalList {
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_slice::<Self>()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalList {
+    type AddressableMut<'a> = &'a mut [Self::StorageType];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
     }
 }
 

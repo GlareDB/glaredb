@@ -416,7 +416,7 @@ impl ExecutablePartitionPipeline {
                         .expect("next operator to exist");
 
                     let timer = Timer::<I>::start();
-                    let poll_finalize = next_operator.physical.poll_finalize_push(
+                    let poll_finalize = next_operator.physical.poll_finalize(
                         cx,
                         &mut next_operator.partition_state,
                         &next_operator.operator_state,
@@ -436,6 +436,10 @@ impl ExecutablePartitionPipeline {
                             // Otherwise we should now begin pulling from the
                             // next non-exhausted operator.
                             *state = self.pull_start.next_start_state()?;
+                        }
+                        Ok(PollFinalize::NeedsDrain) => {
+                            // TODO:
+                            unimplemented!()
                         }
                         Ok(PollFinalize::Pending) => return Poll::Pending,
                         Err(e) => {

@@ -68,7 +68,7 @@ impl CsvCopyToSink {
 }
 
 impl PartitionSink for CsvCopyToSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         self.push_inner(batch).boxed()
     }
 

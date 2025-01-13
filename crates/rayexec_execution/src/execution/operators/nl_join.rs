@@ -209,7 +209,7 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl ExecutableOperator for PhysicalNestedLoopJoin {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -332,7 +332,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -435,7 +435,7 @@ fn cross_join(
         let selection = SelectionVector::repeated(right.num_rows(), left_idx);
 
         // Columns from the left, one row repeated.
-        let left_columns = left.select(Arc::new(selection)).into_arrays();
+        let left_columns = left.select_old(Arc::new(selection)).into_arrays();
         // Columns from the right, all rows.
         let right_columns = right.clone().into_arrays();
 
@@ -444,7 +444,7 @@ fn cross_join(
         // If we have a filter, apply it to the output batch.
         if let Some(filter_expr) = &filter_expr {
             let selection = Arc::new(filter_expr.select(&output)?);
-            output = output.select(selection.clone());
+            output = output.select_old(selection.clone());
 
             // If we're left joining, compute indices in the left batch that we
             // visited.
