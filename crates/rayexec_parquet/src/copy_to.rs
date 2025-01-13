@@ -59,7 +59,7 @@ impl ParquetCopyToSink {
 }
 
 impl PartitionSink for ParquetCopyToSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         self.push_inner(batch).boxed()
     }
 

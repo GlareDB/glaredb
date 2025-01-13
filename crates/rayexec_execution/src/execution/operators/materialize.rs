@@ -143,7 +143,7 @@ pub struct MaterializedDataPartitionSink {
 }
 
 impl PartitionSink for MaterializedDataPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.sender.send(batch);
             Ok(())

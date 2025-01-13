@@ -64,7 +64,7 @@ pub struct ClientToServerPartitionSink<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         // TODO: Figure out backpressure
         Box::pin(async { self.client.push(self.stream_id, 0, batch).await })
     }

@@ -33,7 +33,7 @@ impl CopyToFunction for DiscardCopyToFunction {
 struct DiscardCopyToSink;
 
 impl PartitionSink for DiscardCopyToSink {
-    fn push(&mut self, _batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, _batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async { Ok(()) })
     }
 

@@ -146,7 +146,7 @@ pub struct MemoryDataTableInsert {
 }
 
 impl PartitionSink for MemoryDataTableInsert {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             let batches = self.resizer.try_push(batch)?;
             if batches.is_empty() {

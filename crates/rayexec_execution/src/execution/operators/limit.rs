@@ -1,22 +1,16 @@
-use std::sync::Arc;
-use std::task::{Context, Waker};
+use std::task::Context;
 
 use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
     ExecuteInOutState,
-    ExecutionStates,
-    InputOutputStates,
     OperatorState,
     PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
-    PollPull,
-    PollPush,
 };
-use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -186,6 +180,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::Array;
+    use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::assert_batches_eq;
     use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};

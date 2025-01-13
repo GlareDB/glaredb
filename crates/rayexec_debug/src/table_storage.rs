@@ -184,7 +184,7 @@ pub struct DebugDataTableInsert {
 }
 
 impl PartitionSink for DebugDataTableInsert {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    fn push2(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
             self.collected.push(batch);
             Ok(())
