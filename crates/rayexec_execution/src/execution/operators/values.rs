@@ -1,8 +1,6 @@
-use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{OptionExt, RayexecError, Result};
-use tracing::instrument::WithSubscriber;
+use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
@@ -12,10 +10,7 @@ use super::{
     PartitionState,
     PollExecute,
     PollFinalize,
-    PollPull,
-    PollPush,
 };
-use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
@@ -157,11 +152,14 @@ impl DatabaseProtoConv for PhysicalValues {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::Array;
+    use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::assert_batches_eq;
     use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};

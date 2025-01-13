@@ -110,6 +110,7 @@ pub enum PartitionState {
     Filter(FilterPartitionState),
     TableInOut(TableInOutPartitionState),
     Values(ValuesPartitionState),
+    Empty(EmptyPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
@@ -133,7 +134,6 @@ pub enum PartitionState {
     CreateSchema(CreateSchemaPartitionState),
     CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
-    Empty(EmptyPartitionState),
     None,
 }
 
@@ -214,6 +214,8 @@ pub enum PollExecute {
     /// to parent operators.
     HasMore,
     /// No more output.
+    ///
+    /// The output batch should have no meaningful data.
     Exhausted,
 }
 
