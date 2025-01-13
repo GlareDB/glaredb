@@ -1,14 +1,17 @@
 use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
+    ExecuteInOutState,
     ExecutionStates,
     InputOutputStates,
     OperatorState,
+    PartitionAndOperatorStates,
     PartitionState,
+    PollExecute,
     PollFinalize,
     PollPull,
     PollPush,
@@ -22,22 +25,10 @@ use crate::proto::DatabaseProtoConv;
 pub struct LimitPartitionState {
     /// Remaining offset before we can actually start sending rows.
     remaining_offset: usize,
-
     /// Remaining number of rows before we stop sending batches.
     ///
     /// Initialized to the operator `limit`.
     remaining_count: usize,
-
-    /// A buffered batch.
-    buffer: Option<Batch>,
-
-    /// Waker on pull side if no batch is ready.
-    pull_waker: Option<Waker>,
-
-    /// Waker on push side if this partition is already buffering an output
-    /// batch.
-    push_waker: Option<Waker>,
-
     /// If inputs are finished.
     finished: bool,
 }
@@ -49,108 +40,98 @@ pub struct LimitPartitionState {
 #[derive(Debug)]
 pub struct PhysicalLimit {
     /// Number of rows to limit to.
-    limit: usize,
-
+    pub(crate) limit: usize,
     /// Offset to start limiting from.
-    offset: Option<usize>,
-}
-
-impl PhysicalLimit {
-    pub fn new(limit: usize, offset: Option<usize>) -> Self {
-        PhysicalLimit { limit, offset }
-    }
+    pub(crate) offset: Option<usize>,
 }
 
 impl ExecutableOperator for PhysicalLimit {
-    fn create_states2(
+    fn create_states(
         &self,
         _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        let partitions = partitions[0];
+        _batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        let states = (0..partitions)
+            .map(|_| {
+                PartitionState::Limit(LimitPartitionState {
+                    remaining_count: self.limit,
+                    remaining_offset: self.offset.unwrap_or(0),
+                    finished: false,
+                })
+            })
+            .collect();
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: (0..partitions)
-                    .map(|_| {
-                        PartitionState::Limit(LimitPartitionState {
-                            remaining_count: self.limit,
-                            remaining_offset: self.offset.unwrap_or(0),
-                            buffer: None,
-                            pull_waker: None,
-                            push_waker: None,
-                            finished: false,
-                        })
-                    })
-                    .collect(),
-            },
+        Ok(PartitionAndOperatorStates::Branchless {
+            operator_state: OperatorState::None,
+            partition_states: states,
         })
     }
 
-    fn poll_push(
+    fn poll_execute(
         &self,
-        cx: &mut Context,
+        _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
             other => panic!("invalid partition state: {other:?}"),
         };
 
-        if state.buffer.is_some() {
-            state.push_waker = Some(cx.waker().clone());
-            return Ok(PollPush::Pending(batch));
+        if state.finished {
+            return Ok(PollExecute::Exhausted);
         }
 
-        let batch = if state.remaining_offset > 0 {
+        let input = inout.input.required("input batch required")?;
+        let output = inout.output.required("output batch required")?;
+
+        if state.remaining_offset > 0 {
             // Offset greater than the number of rows in this batch. Discard the
             // batch, and keep asking for more input.
-            if state.remaining_offset >= batch.num_rows() {
-                state.remaining_offset -= batch.num_rows();
-                return Ok(PollPush::NeedsMore);
+            if state.remaining_offset >= input.num_rows() {
+                state.remaining_offset -= input.num_rows();
+                return Ok(PollExecute::NeedsMore);
             }
 
             // Otherwise we have to slice the batch at the offset point.
             let count = std::cmp::min(
-                batch.num_rows() - state.remaining_offset,
+                input.num_rows() - state.remaining_offset,
                 state.remaining_count,
             );
 
-            let batch = batch.slice(state.remaining_offset, count);
+            let selection: Vec<_> =
+                (state.remaining_offset..(state.remaining_offset + count)).collect();
+
+            output.try_clone_from(input)?;
+            output.select(&selection)?;
 
             state.remaining_offset = 0;
-            state.remaining_count -= batch.num_rows();
-            batch
-        } else if state.remaining_count < batch.num_rows() {
+            state.remaining_count -= output.num_rows();
+
+            if state.remaining_count == 0 {
+                state.finished = true;
+                Ok(PollExecute::Break)
+            } else {
+                Ok(PollExecute::Ready)
+            }
+        } else if state.remaining_count < input.num_rows() {
             // Remaining offset is 0, and input batch is has more rows than we
             // need, just slice to the right size.
-            let batch = batch.slice(0, state.remaining_count);
+            output.try_clone_from(input)?;
+            output.set_num_rows(state.remaining_count)?;
             state.remaining_count = 0;
-            batch
+            state.finished = true;
+
+            Ok(PollExecute::Break)
         } else {
             // Remaing offset is 0, and input batch has more rows than our
             // limit, so just use the batch as-is.
-            state.remaining_count -= batch.num_rows();
-            batch
-        };
+            output.try_clone_from(input)?;
+            state.remaining_count -= output.num_rows();
 
-        state.buffer = Some(batch);
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
-
-        // We're done, no more inputs should arrive.
-        if state.remaining_count == 0 {
-            // When returning `Break`, we do not call `finalize_push`, and
-            // instead the partition pipeline will immediately start to pull
-            // from this operator.
-            state.finished = true;
-            Ok(PollPush::Break)
-        } else {
-            Ok(PollPush::Pushed)
+            Ok(PollExecute::Ready)
         }
     }
 
@@ -166,37 +147,8 @@ impl ExecutableOperator for PhysicalLimit {
         };
 
         state.finished = true;
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
 
         Ok(PollFinalize::Finalized)
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        let state = match partition_state {
-            PartitionState::Limit(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
-        match state.buffer.take() {
-            Some(batch) => Ok(PollPull::Computed(batch.into())),
-            None => {
-                if state.finished {
-                    return Ok(PollPull::Exhausted);
-                }
-                state.pull_waker = Some(cx.waker().clone());
-                if let Some(waker) = state.push_waker.take() {
-                    waker.wake();
-                }
-                Ok(PollPull::Pending)
-            }
-        }
     }
 }
 
@@ -228,224 +180,204 @@ impl DatabaseProtoConv for PhysicalLimit {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::sync::Arc;
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
 
-//     use super::*;
-//     use crate::arrays::scalar::ScalarValue;
-//     use crate::execution::operators::test_util::{
-//         logical_value,
-//         make_i32_batch,
-//         test_database_context,
-//         unwrap_poll_pull_batch,
-//         TestWakerContext,
-//     };
+    use super::*;
+    use crate::arrays::array::Array;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_batches_eq;
+    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
 
-//     fn create_states(operator: &PhysicalLimit, partitions: usize) -> Vec<PartitionState> {
-//         let context = test_database_context();
-//         let states = operator.create_states2(&context, vec![partitions]).unwrap();
+    fn single_partition_limit(
+        limit: usize,
+        offset: Option<usize>,
+    ) -> (
+        OperatorWrapper<PhysicalLimit>,
+        OperatorState,
+        PartitionState,
+    ) {
+        let wrapper = OperatorWrapper::new(PhysicalLimit { limit, offset });
+        let states = wrapper
+            .operator
+            .create_states(&test_database_context(), 1024, 1)
+            .unwrap();
+        let (op_state, mut part_states) = states.branchless_into_states().unwrap();
+        let part_state = part_states.pop().unwrap();
 
-//         match states.partition_states {
-//             InputOutputStates::OneToOne { partition_states } => partition_states,
-//             other => panic!("invalid states: {other:?}"),
-//         }
-//     }
+        (wrapper, op_state, part_state)
+    }
 
-//     #[test]
-//     fn limit_single_partition() {
-//         let mut inputs = vec![
-//             make_i32_batch([1, 2, 3, 4]),
-//             make_i32_batch([5, 6, 7, 8, 9, 10]),
-//         ];
+    #[test]
+    fn limit_no_offset_simple() {
+        let (wrapper, op_state, mut part_state) = single_partition_limit(5, None);
 
-//         let operator = Arc::new(PhysicalLimit::new(5, None));
-//         let operator_state = Arc::new(OperatorState::None);
-//         let mut partition_states = create_states(&operator, 1);
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
+            Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
+        ])
+        .unwrap();
+        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-//         // Try to pull before we have a batch ready.
-//         let pull_cx = TestWakerContext::new();
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         assert_eq!(PollPull::Pending, poll_pull);
+        let poll = wrapper
+            .poll_execute(
+                &mut part_state,
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Break, poll);
 
-//         // Push our first batch.
-//         let push_cx = TestWakerContext::new();
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::Pushed, poll_push);
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
+            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
+        ])
+        .unwrap();
 
-//         // Pull side should have been woken.
-//         assert_eq!(1, pull_cx.wake_count());
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         let output = unwrap_poll_pull_batch(poll_pull);
-//         let expected = make_i32_batch([1, 2, 3, 4]); // Matches the first batch pushed.
-//         assert_eq!(expected, output);
+        assert_batches_eq(&expected, &output);
+    }
 
-//         // Push next batch
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::Break, poll_push);
+    #[test]
+    fn limit_no_offset_multiple_batches() {
+        let (wrapper, op_state, mut part_state) = single_partition_limit(8, None);
 
-//         // We did _not_ store a new pull waker, the current count for the pull
-//         // waker should still be one.
-//         //
-//         // This not being 1 would indicate a bug with not actually clearing the
-//         // waker once it's woken.
-//         assert_eq!(1, pull_cx.wake_count());
+        let mut input1 = Batch::try_from_arrays([
+            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
+            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
+        ])
+        .unwrap();
+        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-//         // Get next batch, result should only contain the first element from the
-//         // second batch.
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         let output = unwrap_poll_pull_batch(poll_pull);
+        let poll = wrapper
+            .poll_execute(
+                &mut part_state,
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input1),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Ready, poll);
 
-//         assert_eq!(ScalarValue::Int32(5), logical_value(&output, 0, 0));
-//     }
+        let expected1 = Batch::try_from_arrays([
+            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
+            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
+        ])
+        .unwrap();
 
-//     #[test]
-//     fn limit_offset_single_partition_first_batch_partial() {
-//         let mut inputs = vec![
-//             make_i32_batch([1, 2, 3, 4]),
-//             make_i32_batch([5, 6, 7, 8, 9, 10]),
-//         ];
+        assert_batches_eq(&expected1, &output);
 
-//         let operator = Arc::new(PhysicalLimit::new(5, Some(2)));
-//         let operator_state = Arc::new(OperatorState::None);
-//         let mut partition_states = create_states(&operator, 1);
+        let mut input2 = Batch::try_from_arrays([
+            Array::try_from_iter(["f", "g", "h", "i", "j"]).unwrap(),
+            Array::try_from_iter([6, 7, 8, 9, 10]).unwrap(),
+        ])
+        .unwrap();
 
-//         // Push our first batch, will be part of the output.
-//         let push_cx = TestWakerContext::new();
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::Pushed, poll_push);
+        let poll = wrapper
+            .poll_execute(
+                &mut part_state,
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input2),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Break, poll);
 
-//         let pull_cx = TestWakerContext::new();
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         let output = unwrap_poll_pull_batch(poll_pull);
-//         // First two elements skipped.
-//         assert_eq!(ScalarValue::Int32(3), logical_value(&output, 0, 0),);
-//         assert_eq!(ScalarValue::Int32(4), logical_value(&output, 0, 1),);
+        let expected2 = Batch::try_from_arrays([
+            Array::try_from_iter(["f", "g", "h"]).unwrap(),
+            Array::try_from_iter([6, 7, 8]).unwrap(),
+        ])
+        .unwrap();
 
-//         // Push next batch
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::Break, poll_push);
+        assert_batches_eq(&expected2, &output);
+    }
 
-//         // Pull part of next batch.
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         let output = unwrap_poll_pull_batch(poll_pull);
+    #[test]
+    fn limit_with_offset_single_batch() {
+        let (wrapper, op_state, mut part_state) = single_partition_limit(2, Some(1));
 
-//         assert_eq!(ScalarValue::Int32(5), logical_value(&output, 0, 0),);
-//         assert_eq!(ScalarValue::Int32(6), logical_value(&output, 0, 1),);
-//         assert_eq!(ScalarValue::Int32(7), logical_value(&output, 0, 2),);
-//     }
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
+            Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
+        ])
+        .unwrap();
+        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-//     #[test]
-//     fn limit_offset_single_partition_first_batch_skipped() {
-//         let mut inputs = vec![
-//             make_i32_batch([1, 2, 3, 4]),
-//             make_i32_batch([5, 6, 7, 8, 9, 10]),
-//         ];
+        let poll = wrapper
+            .poll_execute(
+                &mut part_state,
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Break, poll);
 
-//         let operator = Arc::new(PhysicalLimit::new(2, Some(5)));
-//         let operator_state = Arc::new(OperatorState::None);
-//         let mut partition_states = create_states(&operator, 1);
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter(["b", "c"]).unwrap(),
+            Array::try_from_iter([2, 3]).unwrap(),
+        ])
+        .unwrap();
 
-//         // Push our first batch, will be skipped. Operator will return
-//         // indicating it needs more input.
-//         let push_cx = TestWakerContext::new();
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::NeedsMore, poll_push);
+        assert_batches_eq(&expected, &output);
+    }
 
-//         // Keep pushing...
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::Break, poll_push);
+    #[test]
+    fn limit_with_offset_discard_first_batch() {
+        let (wrapper, op_state, mut part_state) = single_partition_limit(2, Some(6));
 
-//         let pull_cx = TestWakerContext::new();
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         let output = unwrap_poll_pull_batch(poll_pull);
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
+            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
+        ])
+        .unwrap();
+        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-//         assert_eq!(ScalarValue::Int32(6), logical_value(&output, 0, 0),);
-//         assert_eq!(ScalarValue::Int32(7), logical_value(&output, 0, 1),);
-//     }
+        let poll = wrapper
+            .poll_execute(
+                &mut part_state,
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::NeedsMore, poll);
 
-//     #[test]
-//     fn limit_break_exhaust() {
-//         let mut inputs = vec![make_i32_batch([1, 2, 3, 4]), make_i32_batch([5, 6, 7, 8])];
+        let mut input2 = Batch::try_from_arrays([
+            Array::try_from_iter(["f", "g", "h", "i", "j"]).unwrap(),
+            Array::try_from_iter([6, 7, 8, 9, 10]).unwrap(),
+        ])
+        .unwrap();
 
-//         let operator = Arc::new(PhysicalLimit::new(2, None));
-//         let operator_state = Arc::new(OperatorState::None);
-//         let mut partition_states = create_states(&operator, 1);
+        let poll = wrapper
+            .poll_execute(
+                &mut part_state,
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut input2),
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Break, poll);
 
-//         let push_cx = TestWakerContext::new();
-//         let poll_push = push_cx
-//             .poll_push(
-//                 &operator,
-//                 &mut partition_states[0],
-//                 &operator_state,
-//                 inputs.remove(0),
-//             )
-//             .unwrap();
-//         assert_eq!(PollPush::Break, poll_push);
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter(["g", "h"]).unwrap(),
+            Array::try_from_iter([7, 8]).unwrap(),
+        ])
+        .unwrap();
 
-//         let pull_cx = TestWakerContext::new();
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         let _ = unwrap_poll_pull_batch(poll_pull);
-
-//         let poll_pull = pull_cx
-//             .poll_pull(&operator, &mut partition_states[0], &operator_state)
-//             .unwrap();
-//         assert_eq!(PollPull::Exhausted, poll_pull);
-//     }
-// }
+        assert_batches_eq(&expected, &output);
+    }
+}

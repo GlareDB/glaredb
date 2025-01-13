@@ -205,6 +205,8 @@ pub enum PollExecute {
     Pending,
     /// Operator accepted as much input at can handle. Don't provide any
     /// additional input.
+    ///
+    /// The output batch will have meaningful data.
     Break,
     /// Operator needs more input before it'll produce any meaningful output.
     NeedsMore,
